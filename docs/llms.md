@@ -136,9 +136,9 @@ provider = get_provider("claude")  # Explicit provider name
 
 After a provider returns successfully, `invoke_agent()` runs the provider-neutral commit finalizer before success
 postprocessing when the process is a SASE agent session (`SASE_AGENT_TIMESTAMP` is set). The finalizer checks the active
-project workspace through the active VCS provider and checks configured sibling repositories as Git worktrees. If it
-finds dirty work, it sends the same provider a bounded follow-up prompt that lists the dirty files and instructs the
-agent to use the appropriate commit skill, such as `/sase_git_commit`.
+project workspace through the active VCS provider and checks configured non-static sibling repositories as Git worktrees
+at their resolved `workspace_dir`. If it finds dirty work, it sends the same provider a bounded follow-up prompt that
+lists the dirty files and instructs the agent to use the appropriate commit skill, such as `/sase_git_commit`.
 
 The finalizer skips when the call is outside a SASE agent session, when `commit.finalizer.enabled` is false, or when
 `SASE_DISABLE_COMMIT_STOP_HOOK=1` is set. When an artifacts directory is available, each follow-up pass writes
@@ -1155,7 +1155,7 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 │
 ├── 11. Run commit finalizer for SASE agent sessions
 │   ├── Skip when disabled or outside an agent session
-│   ├── Check main workspace and configured Git sibling repos
+│   ├── Check main workspace and configured non-static Git sibling repos
 │   └── Run bounded follow-up provider invocations until clean or failed
 │
 ├── 12. Postprocess

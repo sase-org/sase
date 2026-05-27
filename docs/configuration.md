@@ -279,9 +279,10 @@ commit:
 | `commit.finalizer.max_passes` | int  | `2`     | Maximum follow-up invocations before a still-dirty workspace fails the run. |
 
 When enabled, the finalizer checks the main workspace through the active VCS provider and checks configured
-`sibling_repos` as Git worktrees. Dirty workspaces trigger a follow-up invocation that instructs the same provider to
-use the appropriate commit skill. When `$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there,
-and the final outcome is recorded in `commit_finalizer_result.json`.
+`sibling_repos` Git worktrees only at their resolved sibling `workspace_dir` for the agent's assigned workspace number.
+Dirty workspaces trigger a follow-up invocation that instructs the same provider to use the appropriate commit skill.
+When `$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and the final outcome is recorded
+in `commit_finalizer_result.json`.
 
 Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable name is historical; it now disables
 the provider-neutral finalizer.
@@ -290,9 +291,9 @@ Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructio
 
 ### sibling_repos
 
-Declares related repositories that should be visible to launched agents. Git sibling worktrees are also checked by the
-commit finalizer. Entries can live in user config or a project-local `sase.yml`; local entries are resolved relative to
-the project's primary workspace directory.
+Declares related repositories that should be visible to launched agents. Git sibling worktrees using numbered workspace
+resolution are also checked by the commit finalizer at their resolved `workspace_dir`. Entries can live in user config
+or a project-local `sase.yml`; local entries are resolved relative to the project's primary workspace directory.
 
 ```yaml
 sibling_repos:
@@ -319,8 +320,9 @@ sibling_repos:
 For `suffix` siblings, workspace numbers `0` and `1` use the primary checkout. Higher workspace numbers use
 workspace-matched sibling checkouts, materializing the checkout through the same `workspace.root` policy when the
 workspace provider can do so. With explicit `workspace.root: adjacent` that path is a legacy sibling such as
-`sase-core_10`; with the default `xdg-state` it lives under the managed state root. SASE passes the resolved paths into
-environment variables and agent metadata:
+`sase-core_10`; with the default `xdg-state` it lives under the managed state root. Siblings with
+`workspace.strategy: none` are exposed to agents but are not commit-finalizer enforcement targets. SASE passes the
+resolved paths into environment variables and agent metadata:
 
 | Variable                                   | Description                                       |
 | ------------------------------------------ | ------------------------------------------------- |

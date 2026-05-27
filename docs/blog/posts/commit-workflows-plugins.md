@@ -48,11 +48,11 @@ VCS-specific `create_commit` / `create_proposal` / `create_pull_request` hook. P
 ## The Commit-Finalizer Contract
 
 Agents do not run `git commit` directly. They make changes; after a successful provider invocation inside a
-SASE-launched agent session, the shared commit finalizer checks the main workspace and configured Git sibling repos for
-uncommitted state. If anything is dirty, it sends a bounded follow-up prompt to the same provider with a structured
-instruction to invoke the matching commit skill (for example `/sase_git_commit` for git-based projects,
-`/sase_hg_commit` for Mercurial). The generated skill normally runs a wrapper such as `sase_git_commit`, which records
-skill invocation evidence and then delegates to `sase commit`.
+SASE-launched agent session, the shared commit finalizer checks the main workspace and configured non-static Git sibling
+repos for uncommitted state at their resolved workspace directories. If anything is dirty, it sends a bounded follow-up
+prompt to the same provider with a structured instruction to invoke the matching commit skill (for example
+`/sase_git_commit` for git-based projects, `/sase_hg_commit` for Mercurial). The generated skill normally runs a wrapper
+such as `sase_git_commit`, which records skill invocation evidence and then delegates to `sase commit`.
 
 That finalizer is runtime-uniform because it lives in the LLM provider orchestration layer, not in a provider-native
 hook. Claude, Codex, Gemini, Qwen, OpenCode, and plugin providers all follow the same control flow: changes exist →

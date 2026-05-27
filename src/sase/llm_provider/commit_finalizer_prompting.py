@@ -18,21 +18,14 @@ def build_dirty_details(
     main_instruction: str,
     main_repo: DirtyRepo | None,
     sibling_repos: tuple[DirtyRepo, ...],
-    observed_repos: tuple[DirtyRepo, ...],
 ) -> str:
-    if (
-        main_repo is not None
-        and not sibling_repos
-        and not observed_repos
-        and main_details
-    ):
+    if main_repo is not None and not sibling_repos and main_details:
         return main_details
 
     repos: list[DirtyRepo] = []
     if main_repo is not None:
         repos.append(main_repo)
     repos.extend(sibling_repos)
-    repos.extend(observed_repos)
     if not repos:
         return ""
 
@@ -42,8 +35,6 @@ def build_dirty_details(
             label = "main workspace"
         elif repo.kind == "sibling":
             label = f"sibling repo {repo.name}"
-        else:
-            label = f"observed workspace {repo.name}"
         lines.append(f"- {label}: {repo.path}")
         lines.extend(f"  - {path}" for path in repo.changed_files[:20])
         if len(repo.changed_files) > 20:
@@ -63,20 +54,6 @@ def build_dirty_details(
         lines.append(
             "After each sibling commit, run `git status --short --branch` in "
             "that sibling repo and make sure it is clean before continuing."
-        )
-
-    if observed_repos:
-        lines.extend(["", "Observed workspace commit instructions:"])
-        for repo in observed_repos:
-            lines.append(
-                f"- For observed workspace `{repo.name}`, run `cd {repo.path}` "
-                "before using your /sase_git_commit skill."
-            )
-        lines.append(_sibling_commit_instruction())
-        lines.append(
-            "After each observed workspace commit, run "
-            "`git status --short --branch` in that workspace and make sure the "
-            "listed files are clean before continuing."
         )
 
     return "\n".join(lines)

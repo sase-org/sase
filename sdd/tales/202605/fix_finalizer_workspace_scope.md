@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 13:03:21
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_finalizer_workspace_scope.md
 ---
 # Plan: Scope Commit Finalizer Sibling Checks to Assigned Workspaces

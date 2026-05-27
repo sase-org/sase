@@ -17,14 +17,7 @@ from .commit_finalizer_config import (
     load_finalizer_config,
     resolve_finalizer_project_dir,
 )
-from .commit_finalizer_git import (
-    agent_run_started_at,
-    git_changed_files,
-    git_remote_identities,
-    git_root_for_path,
-    observed_absolute_paths,
-    plausible_observed_changed_files,
-)
+from .commit_finalizer_git import git_changed_files
 from .commit_finalizer_prompting import (
     append_response,
     build_dirty_details,
@@ -55,20 +48,9 @@ _DirtyRepo = DirtyRepo
 _DirtyState = DirtyState
 _SiblingTarget = SiblingTarget
 
-_absolute_paths_from_text = finalizer_git._absolute_paths_from_text
-_absolute_paths_from_value = finalizer_git._absolute_paths_from_value
-_agent_run_started_at = agent_run_started_at
-_changed_file_abs_path = finalizer_git._changed_file_abs_path
 _changed_files_from_git_status = finalizer_git._changed_files_from_git_status
 _git_changed_files = git_changed_files
-_git_remote_identities = git_remote_identities
-_git_root_for_path = git_root_for_path
-_mtime_after = finalizer_git._mtime_after
 _normalize_path = finalizer_git._normalize_path
-_normalize_remote_identity = finalizer_git._normalize_remote_identity
-_observed_absolute_paths = observed_absolute_paths
-_plausible_observed_changed_files = plausible_observed_changed_files
-_read_tool_call_records = finalizer_git._read_tool_call_records
 
 _append_response = append_response
 _build_dirty_details = build_dirty_details
@@ -90,7 +72,6 @@ _resolve_finalizer_project_dir = resolve_finalizer_project_dir
 _collect_dirty_state = collect_dirty_state
 _configured_sibling_targets = finalizer_state._configured_sibling_targets
 _dirty_configured_sibling_repos = finalizer_state._dirty_configured_sibling_repos
-_dirty_observed_workspaces = finalizer_state._dirty_observed_workspaces
 _sibling_targets_from_config = finalizer_state._sibling_targets_from_config
 _sibling_targets_from_env = finalizer_state._sibling_targets_from_env
 _sibling_workspace_strategy = finalizer_state._sibling_workspace_strategy
@@ -107,32 +88,20 @@ __all__ = [
     "_FinalizerStatus",
     "SiblingTarget",
     "_WorkspaceStrategy",
-    "_absolute_paths_from_text",
-    "_absolute_paths_from_value",
-    "agent_run_started_at",
     "append_response",
     "artifact_root",
     "build_dirty_details",
     "build_follow_up_prompt",
-    "_changed_file_abs_path",
     "_changed_files_from_git_status",
     "collect_dirty_state",
     "_configured_sibling_targets",
     "_dirty_configured_sibling_repos",
-    "_dirty_observed_workspaces",
     "failure_message",
     "git_changed_files",
-    "git_remote_identities",
-    "git_root_for_path",
     "load_finalizer_config",
     "merge_usage",
-    "_mtime_after",
     "_normalize_max_passes",
     "_normalize_path",
-    "_normalize_remote_identity",
-    "observed_absolute_paths",
-    "plausible_observed_changed_files",
-    "_read_tool_call_records",
     "resolve_finalizer_project_dir",
     "_result_changed_files",
     "_sibling_commit_instruction",

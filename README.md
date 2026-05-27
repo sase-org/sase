@@ -118,10 +118,10 @@ SASE keeps durable state outside any one chat session:
   uses the same numbered workspace as the main checkout, while singleton repos such as chezmoi can opt out with
   `workspace.strategy: none`.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
-  provider-neutral finalizer checks the main workspace and configured Git sibling repos for uncommitted changes. If
-  anything is dirty, it runs a bounded follow-up invocation that tells the same agent to use the configured commit
-  skill; if the workspace is still dirty after the configured pass limit, the agent run fails with a clear artifact
-  trail.
+  provider-neutral finalizer checks the main workspace and configured non-static Git sibling workspace directories for
+  uncommitted changes. If anything is dirty, it runs a bounded follow-up invocation that tells the same agent to use the
+  configured commit skill; if the workspace is still dirty after the configured pass limit, the agent run fails with a
+  clear artifact trail.
 - **Durable artifacts** - Agent metadata, chats, notifications, prompt history, source-linked episode evidence,
   ChangeSpecs, SDD files, and beads are stored in predictable project/user directories so ACE, AXE, CLI commands, and
   external integrations can share state. Long-term memory reads and write proposals are also project-scoped and audited

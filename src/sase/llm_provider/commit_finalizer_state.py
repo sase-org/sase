@@ -8,14 +8,7 @@ from pathlib import Path
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, sibling_repo_metadata_from_env
 
 from . import commit_finalizer_git as finalizer_git
-from .commit_finalizer_git import (
-    agent_run_started_at,
-    git_changed_files,
-    git_remote_identities,
-    git_root_for_path,
-    observed_absolute_paths,
-    plausible_observed_changed_files,
-)
+from .commit_finalizer_git import git_changed_files
 from .commit_finalizer_prompting import build_dirty_details
 from .commit_finalizer_types import (
     DirtyRepo,
@@ -52,24 +45,15 @@ def collect_dirty_state(
     )
     sibling_targets = _configured_sibling_targets(project_dir)
     sibling_repos = tuple(_dirty_configured_sibling_repos(sibling_targets))
-    observed_repos = tuple(
-        _dirty_observed_workspaces(
-            project_dir=project_dir,
-            artifact_root=artifact_root,
-            sibling_targets=sibling_targets,
-        )
-    )
     repos: list[DirtyRepo] = []
     if main_repo is not None:
         repos.append(main_repo)
     repos.extend(sibling_repos)
-    repos.extend(observed_repos)
     details = build_dirty_details(
         main_details=main_details,
         main_instruction=main_instruction,
         main_repo=main_repo,
         sibling_repos=sibling_repos,
-        observed_repos=observed_repos,
     )
     return DirtyState(
         project_dir=finalizer_git._normalize_path(project_dir),
@@ -100,66 +84,6 @@ def _dirty_configured_sibling_repos(
                 path=target.workspace_dir,
                 changed_files=tuple(changed_files),
                 kind="sibling",
-            )
-        )
-    return dirty
-
-
-def _dirty_observed_workspaces(
-    *,
-    project_dir: str,
-    artifact_root: Path | None,
-    sibling_targets: list[SiblingTarget],
-) -> list[DirtyRepo]:
-    if artifact_root is None:
-        return []
-
-    observed_paths = observed_absolute_paths(artifact_root)
-    if not observed_paths:
-        return []
-
-    active_root = git_root_for_path(Path(project_dir))
-    if active_root is None:
-        return []
-
-    active_remote_ids = git_remote_identities(active_root)
-    if not active_remote_ids:
-        return []
-
-    excluded_roots = {active_root}
-    for target in sibling_targets:
-        sibling_root = git_root_for_path(Path(target.workspace_dir))
-        excluded_roots.add(
-            sibling_root or finalizer_git._normalize_path(target.workspace_dir)
-        )
-
-    run_started_at = agent_run_started_at(artifact_root)
-    dirty: list[DirtyRepo] = []
-    seen_roots: set[str] = set()
-    for path in sorted(observed_paths):
-        root = git_root_for_path(Path(path))
-        if root is None or root in seen_roots or root in excluded_roots:
-            continue
-        seen_roots.add(root)
-        if not (git_remote_identities(root) & active_remote_ids):
-            continue
-        changed_files = git_changed_files(root)
-        if not changed_files:
-            continue
-        plausible_files = plausible_observed_changed_files(
-            repo_root=root,
-            changed_files=changed_files,
-            observed_paths=observed_paths,
-            run_started_at=run_started_at,
-        )
-        if not plausible_files:
-            continue
-        dirty.append(
-            DirtyRepo(
-                name=Path(root).name,
-                path=root,
-                changed_files=tuple(plausible_files),
-                kind="observed_workspace",
             )
         )
     return dirty
