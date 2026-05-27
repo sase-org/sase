@@ -54,6 +54,14 @@ def test_model_directive_no_arg() -> None:
     assert directives.model is None
 
 
+def test_model_colon_arg_with_comma_is_single_value() -> None:
+    """Single-value %model:a,b keeps the whole string and leaves no stray text."""
+    prompt = "%model:a,b\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.model == "a,b"
+
+
 # --- Xprompt expansion in directive args ---
 
 
