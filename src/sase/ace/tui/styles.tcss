@@ -949,7 +949,7 @@ HintInputBar #hint-escape-hint {
 }
 
 #agent-list-container AgentList.-focused-panel {
-    border: solid $accent;
+    border: solid #FFD700;
 }
 
 #agent-detail-container {

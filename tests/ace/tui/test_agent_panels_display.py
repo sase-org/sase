@@ -34,11 +34,15 @@ class _ListWidget:
         self._classes: set[str] = set()
         self.update_list_calls = 0
         self.last_agents: list[Agent] = []
+        self.last_local_idx: int | None = None
         self.last_tag_labels: list[str | None] | None = None
 
-    def update_list(self, agents: list[Agent], *_args: Any, **kwargs: Any) -> None:
+    def update_list(
+        self, agents: list[Agent], local_idx: int | None = None, **kwargs: Any
+    ) -> None:
         self.update_list_calls += 1
         self.last_agents = agents
+        self.last_local_idx = local_idx
         self.last_tag_labels = kwargs.get("tag_labels")
 
     def update_highlight(self, *_args: Any, **_kwargs: Any) -> None:
@@ -75,6 +79,7 @@ class _FakeApp(AgentDisplayMixin):
         option_counts: list[int],
         container_height: int,
         *,
+        focused_key: str | None = None,
         agent_panels_grouped: bool = False,
     ) -> None:
         self._agents = agents
@@ -94,6 +99,7 @@ class _FakeApp(AgentDisplayMixin):
         self._agent_panels_grouped = agent_panels_grouped
         self._panel_group = AgentPanelGroup.from_agents(
             agents,
+            focused_key,
             merge_tag_panels=agent_panels_grouped,
         )
 
@@ -188,6 +194,35 @@ def test_panel_separator_class_tracks_panel_position() -> None:
     assert "agent-panel-separated" not in main._classes
     assert "agent-panel-separated" in apple._classes
     assert "agent-panel-separated" in banana._classes
+
+
+def test_full_rebuild_focus_class_tracks_focused_panel_key() -> None:
+    agents = _three_panel_agents()
+    app = _FakeApp(
+        agents,
+        option_counts=[2, 4, 6],
+        container_height=30,
+        focused_key="banana",
+    )
+    app.current_idx = 2
+
+    # Simulate stale focus state from a prior panel before a full rebuild.
+    app._panel_widgets["agent-list-panel"]._classes.add("-focused-panel")
+    app._panel_widgets["agent-list-panel-1"]._classes.add("-focused-panel")
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    main = app._panel_widgets["agent-list-panel"]
+    apple = app._panel_widgets["agent-list-panel-1"]
+    banana = app._panel_widgets["agent-list-panel-2"]
+
+    assert app._panel_group.focused_key == "banana"
+    assert "-focused-panel" not in main._classes
+    assert "-focused-panel" not in apple._classes
+    assert "-focused-panel" in banana._classes
+    assert main.last_local_idx == -1
+    assert apple.last_local_idx == -1
+    assert banana.last_local_idx == 0
 
 
 def test_separator_rows_are_included_in_fit_boundary() -> None:
