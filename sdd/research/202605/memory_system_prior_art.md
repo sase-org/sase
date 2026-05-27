@@ -56,6 +56,12 @@ promote memory without bloating every prompt.
 | LangGraph | Short-term thread state plus long-term namespaces; semantic/episodic/procedural taxonomy | Store API and background memory writes | Memory type taxonomy, namespaces, background consolidation | Hot-path LLM writes that slow every agent launch |
 | Generative Agents | Natural-language memory stream scored by recency, relevance, and importance | Retrieval plus reflection synthesis | Multi-factor retrieval scoring and reflection as a consolidation step | Treating generated reflections as instructions |
 | Reflexion | Verbal reflections stored across trials | Episodic feedback buffer | Outcome-linked lessons from failures and retries | Free-floating self-advice without evidence |
+| A-MEM | Zettelkasten-style notes with auto-generated tags, keywords, and cross-links; memory evolution updates neighbors on insert | Vector retrieval over notes + linked neighbors | Linked-note structure for procedural/semantic memory, evolution on insert | Treating LLM-generated link edits as authoritative without review |
+| HippoRAG / HippoRAG 2 | OpenIE knowledge graph plus synonymy index, Personalized PageRank over entities | Single-shot multi-hop retrieval, 10-30x cheaper than iterative RAG | PPR-style ranking, hybrid lexical+graph retrieval, continual integration | Requiring full PPR infrastructure before lexical baselines exist |
+| Cognee | ECL pipeline (Extract → Cognify → Load) producing a knowledge graph plus embeddings | Combined graph + vector retrieval, ontology grounding | Pipeline framing for the consolidation loop, ontology-aware extraction | Tight coupling to a single graph DB |
+| MemoryBank / SiliconFriend | Hierarchical event store, daily summaries, global profile; Ebbinghaus decay with strengthen-on-use | FAISS retrieval | Half-life decay, importance weighting, summary tiers | Treating decayed memory as "forgotten" rather than archived |
+| Voyager | Ever-growing skill library of executable programs indexed by description embeddings | Skill retrieval and composition | Procedural memory as a code/skill library, compositional accretion | Letting agents add skills without provenance or tests |
+| ChatGPT / OpenAI Memory | User-visible "saved memories" written via tool call, plus implicit chat-history reference | Always-on context plus user-controlled review/delete | "Memory updated" surfacing, global on/off, temporary chat bypass, explicit user controls | Hidden memory writes the user cannot inspect or veto |
 | Claude Code / Cursor / Cline / Basic Memory | Markdown rules, project memory files, scoped rules, local notes, MCP/search surfaces | File-based loading plus optional commands | Human-readable memory, progressive disclosure, inspectability commands | Hidden context that users cannot preview or debug |
 
 ## Mem0
@@ -193,6 +199,63 @@ Sources:
 - LangGraph memory concepts: <https://docs.langchain.com/oss/python/concepts/memory>
 - LangGraph memory how-to guides: <https://langchain-ai.github.io/langgraph/how-tos/memory/>
 
+## A-MEM: Zettelkasten-Style Agent Memory
+
+A-MEM is the strongest recent prior art for note-structured agent memory. Each new memory is stored as a structured
+note with context, keywords, and tags. Inserting a note triggers a "memory evolution" step that updates the attributes
+and links of related notes, so the network refines itself over time. SASE has parallel research in
+`sdd/research/202605/zettel_sase_shared_memory.md`, which makes A-MEM directly relevant.
+
+Design implications for SASE:
+
+- Treat each memory file as a Zettelkasten note with explicit `links: [memory-id, ...]` metadata.
+- Allow link suggestions from extraction, but route link edits through the same review gate as content edits.
+- Use evolution sparingly. Auto-rewriting a neighbor's tags is reasonable; auto-rewriting its rule text is not.
+- Pair note-style memory with reverse-link indexes for cheap "what cites this?" queries.
+
+Sources:
+
+- A-MEM paper: <https://arxiv.org/abs/2502.12110>
+- A-MEM repository: <https://github.com/agiresearch/A-mem>
+
+## HippoRAG: Graph Retrieval as Memory
+
+HippoRAG (NeurIPS 2024) is inspired by hippocampal indexing theory. It builds an open-information-extraction
+knowledge graph plus a synonymy index, then runs Personalized PageRank from the query entities to score nodes for
+single-shot multi-hop retrieval. HippoRAG 2 extends this for continual integration. The result is roughly 10-30x cheaper
+than iterative retrieve-then-read loops with comparable or better quality.
+
+Design implications for SASE:
+
+- Treat graph retrieval as an optional ranking layer, not the canonical store.
+- Start with entity extraction (file paths, symbols, commands, beads, ChangeSpecs) since SASE already has structured
+  signal sources.
+- Use PPR-style traversal when "find related memories" matters more than exact lexical hits.
+- Hybrid retrieval (BM25 + entity-graph PPR) often beats either alone.
+
+Sources:
+
+- HippoRAG paper: <https://arxiv.org/abs/2405.14831>
+- HippoRAG repository: <https://github.com/OSU-NLP-Group/HippoRAG>
+
+## Cognee: ECL Pipeline for Agent Memory
+
+Cognee is an open-source memory framework that frames ingestion as an Extract → Cognify → Load pipeline. The cognify
+stage produces a knowledge graph plus embeddings with ontology grounding. Compared to Mem0's flatter fact store and
+Letta's MemGPT-style scratchpads, Cognee centers structured graph construction.
+
+Design implications for SASE:
+
+- Use ECL as the mental model for the consolidation loop, with `extract` and `cognify` stages clearly separated from
+  `load`.
+- Keep ontology files (entity types, relation types, scope tags) reviewable in-repo, not auto-mutated.
+- Use the same pipeline for diverse evidence kinds (chats, done markers, commits, beads, artifacts).
+
+Sources:
+
+- Cognee repository: <https://github.com/topoteretes/cognee>
+- Cognee deep dive: <https://www.cognee.ai/blog/deep-dives/grounding-ai-memory>
+
 ## Research Systems: Generative Agents and Reflexion
 
 Generative Agents used a memory stream of observations retrieved by recency, relevance, and importance, plus reflection
@@ -212,6 +275,46 @@ Sources:
 - Generative Agents paper: <https://arxiv.org/abs/2304.03442>
 - Reflexion paper: <https://arxiv.org/abs/2303.11366>
 - CoALA cognitive architecture survey: <https://arxiv.org/abs/2309.02427>
+
+## MemoryBank and Forgetting Curves
+
+MemoryBank (AAAI 2024, the system behind SiliconFriend) is the canonical reference for applying the Ebbinghaus
+forgetting curve to agent memory. Memories decay over time, but each access reinforces them, weighted by an importance
+score. MemoryBank also keeps daily summaries and a global user profile alongside the raw event store, retrieved with
+FAISS.
+
+Design implications for SASE:
+
+- Each memory record should carry an importance score and a `last_accessed_at` timestamp.
+- Use decay as a ranking signal, not as a delete trigger. SASE memory should be archived, not erased, when scores fall.
+- Maintain summary tiers explicitly (daily/weekly digests of episodic events) rather than recomputing from raw chats on
+  every query.
+- Strengthen-on-use must be auditable: log which memory was accessed by which agent and why.
+
+Sources:
+
+- MemoryBank paper: <https://arxiv.org/abs/2305.10250>
+- MemoryBank / SiliconFriend repository: <https://github.com/zhongwanjun/MemoryBank-SiliconFriend>
+
+## Voyager: Procedural Memory as a Skill Library
+
+Voyager (NVIDIA/Caltech, 2023) is the canonical model for procedural memory as an ever-growing library of executable
+code. Skills are stored as named programs indexed by description embeddings, composed to bootstrap harder skills, and
+gated by self-verification. For SASE, this maps directly to xprompts, skills, workflows, and saved commands.
+
+Design implications for SASE:
+
+- Treat user-authored xprompts, skills, and workflow YAMLs as the canonical procedural memory store.
+- Allow auto-suggested skills as proposals only, with provenance back to the chats/artifacts that motivated them.
+- Add description embeddings or keyword indexes so an agent can find "is there already a skill for X?" before
+  reinventing one.
+- Self-verification before promotion: a proposed skill should pass a small fixture or dry-run before becoming canonical.
+
+Sources:
+
+- Voyager paper: <https://arxiv.org/abs/2305.16291>
+- Voyager project page: <https://voyager.minedojo.org/>
+- Voyager repository: <https://github.com/MineDojo/Voyager>
 
 ## Coding-Agent Memory Conventions
 
@@ -240,6 +343,28 @@ Sources:
 - Cline Memory Bank: <https://docs.cline.bot/features/memory-bank>
 - Cursor rules: <https://docs.cursor.com/context/rules>
 - Basic Memory: <https://docs.basicmemory.com/>
+
+## ChatGPT Memory: Production UX Lessons
+
+ChatGPT's memory feature is the largest deployed example of agent memory and is useful prior art for UX, not
+architecture. Public documentation describes two layers: explicit "saved memories" written via a tool call and
+surfaced through a "Memory updated" notice, plus an implicit "reference chat history" mode added in April 2025. Users
+can review, edit, and delete saved memories individually, ask "what do you remember about me?", toggle memory globally,
+and start a Temporary Chat that bypasses memory entirely.
+
+Design implications for SASE:
+
+- Every memory write should be user-visible, even if SASE never auto-writes to canonical memory. A "memory proposal
+  created" notification is the SASE analog.
+- A no-memory mode (analogous to Temporary Chat) is valuable for sensitive work or when debugging memory regressions.
+- Per-record review/delete UX matters as much as the underlying store.
+- "What do you remember?" should be answerable as a deterministic query, not a generated answer.
+
+Sources:
+
+- OpenAI memory announcement: <https://openai.com/index/memory-and-new-controls-for-chatgpt/>
+- ChatGPT memory FAQ: <https://help.openai.com/en/articles/8590148-memory-faq>
+- ChatGPT memory help: <https://help.openai.com/en/articles/8983136-what-is-memory>
 
 ## Safety and Memory Poisoning
 
@@ -271,6 +396,47 @@ Sources:
 - AgentPoison paper: <https://arxiv.org/abs/2407.12784>
 - MINJA paper: <https://arxiv.org/abs/2503.03704>
 
+### PII, Secrets, and Untrusted-Text Scrubbing
+
+Episodic memory derived from chats, artifacts, tool output, and web fetches will routinely contain secrets, tokens,
+keys, and PII. Once a secret enters a memory file or index, it leaks every time that memory is retrieved or shared.
+There is no academic paper specific to "scrubbing for memory," but standard detection tools apply:
+
+- Run a secret scanner (`detect-secrets`, `gitleaks`) over any candidate episodic record before it lands in the index.
+- Run PII detection (`Microsoft Presidio`) on chat-derived evidence; quarantine or redact matches with a stable
+  placeholder so retrieval can still link back to the source without leaking content.
+- Hash the raw source and store the hash, not the raw secret. The original transcript stays as evidence but does not
+  enter the searchable layer.
+- Make redaction visible: a memory whose evidence was redacted should say so.
+
+Sources:
+
+- Microsoft Presidio: <https://github.com/microsoft/presidio>
+- Yelp `detect-secrets`: <https://github.com/Yelp/detect-secrets>
+- `gitleaks`: <https://github.com/gitleaks/gitleaks>
+
+### Newer Memory-Poisoning Defenses
+
+Beyond AgentPoison and MINJA, recent work targets persistent-memory poisoning specifically. A-MemGuard proposes a
+defense framework with trust scoring, sanitization, temporal decay, and pattern filtering. Agent Security Bench (ASB,
+ICLR 2025) provides a benchmark including memory-poisoning attacks. Industry write-ups emphasize belief-drift
+detection, context provenance, and "memory contracts" that constrain what generated memory can ever assert.
+
+Design implications for SASE:
+
+- Per-record trust scoring should compose with type/scope (reviewed > curated > generated > raw).
+- Belief-drift detection (the same agent's stated facts shifting over time without evidence) is a tractable check
+  given SASE's chat history.
+- The dual-LLM pattern is relevant for extraction: a privileged model reads untrusted text only through a constrained
+  schema produced by a quarantined model.
+
+Sources:
+
+- A-MemGuard: <https://arxiv.org/abs/2510.02373>
+- Agent Security Bench: <https://proceedings.iclr.cc/paper_files/paper/2025/file/5750f91d8fb9d5c02bd8ad2c3b44456b-Paper-Conference.pdf>
+- Persistent memory poisoning write-up: <https://christian-schneider.net/blog/persistent-memory-poisoning-in-ai-agents/>
+- Dual-LLM pattern (Simon Willison): <https://simonwillison.net/2023/Apr/25/dual-llm-pattern/>
+
 ## Recommended SASE Architecture
 
 ### 1. Keep Canonical Memory File-Based
@@ -293,6 +459,66 @@ Use derived indexes for search:
 
 The index can include FTS5/BM25 first, then embeddings and graph edges later. The markdown files remain the source of
 truth for reviewed memory.
+
+### 1b. Storage and Index Implementation Choices
+
+SASE is local-first, embedded, and crosses a Rust/Python boundary. That narrows the realistic index choices. Concrete
+options worth evaluating:
+
+| Layer | Option | Why it fits | Caveat |
+| --- | --- | --- | --- |
+| Lexical FTS | SQLite FTS5 | Already standard in SASE, single-file, deterministic | Tokenizer choices matter for code identifiers |
+| Lexical FTS (Rust) | Tantivy | Lucene-equivalent BM25, idiomatic in `sase-core` | Separate index file; another moving piece |
+| Vector (embedded) | `sqlite-vec` | Single C extension, runs anywhere SQLite does, brute-force KNN | No ANN; fine for <1M vectors |
+| Vector (embedded, Rust) | LanceDB | Rust core, Arrow/Lance columnar, vector + FTS + SQL, scales | Bigger dependency surface |
+| Vector (Python dev) | Chroma | Trivial DX in Python | Weaker at scale than LanceDB |
+| Graph | NetworkX or in-SQLite edges | Avoid a separate graph DB until PPR shows wins | Don't reach for Neo4j or Kuzu speculatively |
+
+Embedding model options for a local-first machine without a GPU:
+
+- `bge-small-en-v1.5` (BAAI, 33M params, 384-dim) for a strong CPU baseline.
+- `nomic-embed-text v1.5` (137M, 768-dim, Matryoshka truncation) via Ollama for higher quality with a local server.
+- `all-MiniLM-L6-v2` only as a legacy/fallback baseline; retrieval quality is dated.
+- Voyage-3 family as a cloud option when local quality is insufficient, gated behind explicit configuration.
+
+Recommendation: start with SQLite FTS5 inside `sase-core` (so the index API is portable across CLI, TUI, web, mobile,
+editor plugins), defer vectors until lexical baselines have measurable misses, and prefer `sqlite-vec` over LanceDB for
+SASE v1 because it stays in the same file as the lexical index.
+
+Sources:
+
+- `sqlite-vec`: <https://github.com/asg017/sqlite-vec>
+- LanceDB: <https://github.com/lancedb/lancedb>
+- Tantivy: <https://github.com/quickwit-oss/tantivy>
+- Chroma: <https://github.com/chroma-core/chroma>
+- `bge-small-en-v1.5`: <https://huggingface.co/BAAI/bge-small-en-v1.5>
+- `nomic-embed-text` via Ollama: <https://ollama.com/library/nomic-embed-text>
+- Voyage embeddings: <https://docs.voyageai.com/docs/embeddings>
+
+### 1c. Forgetting and Decay
+
+Borrow MemoryBank's decay model but with SASE-appropriate constraints:
+
+- Apply decay only to non-canonical layers: generated episodes and proposals decay, reviewed memory does not.
+- Decay is a ranking-time multiplier, not a delete trigger. Old episodes drop in retrieval rank but stay on disk.
+- `last_accessed_at` and `access_count` are part of the index, not the canonical file. Otherwise every search would
+  dirty the working tree.
+- Importance weighting comes from explicit signals: was the episode promoted, cited by a ChangeSpec, tied to a fixed
+  bug, or referenced by a later memory.
+- Provide a `sase memory archive` action that moves low-scoring episodes to a cold tier rather than deleting them.
+
+### 1d. Local-First and Multi-Machine
+
+SASE runs across multiple machines (the existing `multi_machine_sync.md` research covers the broader sync problem).
+Memory adds two extra constraints:
+
+- Reviewed memory (`memory/short`, `memory/long`, curated `sdd/events`) lives in the repo and syncs through git. Treat
+  git as the conflict-resolution mechanism rather than building a CRDT.
+- Generated episodes, proposals, and indexes live under `~/.sase/projects/<project>/` and should be machine-local by
+  default. Sharing them requires explicit promotion (a proposal becoming a curated event card).
+- Indexes are rebuildable derived state. Never rely on index contents being identical across machines.
+- Embeddings are model-versioned: rebuild on model change rather than syncing vector files between machines with
+  different model versions.
 
 ### 2. Separate Memory by Trust and Recall Path
 
@@ -449,11 +675,14 @@ Operational quality:
 - multi-workspace consistency.
 
 LongMemEval-style categories are useful as a benchmark checklist: information extraction, multi-session reasoning,
-temporal reasoning, knowledge updates, and abstention.
+temporal reasoning, knowledge updates, and abstention. LoCoMo complements this with very long synthetic multi-session
+conversations that test event summarization and temporal QA, which maps well to SASE's chat-derived episodic memory.
 
-Source:
+Sources:
 
 - LongMemEval paper: <https://arxiv.org/abs/2410.10813>
+- LoCoMo paper: <https://arxiv.org/abs/2402.17753>
+- LoCoMo repository: <https://github.com/snap-research/locomo>
 
 ## Recommended Roadmap
 
@@ -464,11 +693,19 @@ Source:
 3. **P1: Record metadata.** Add optional frontmatter schema support for type, scope, status, trust, dates, keywords,
    entities, and evidence.
 4. **P2: Episode sidecars.** Generate structured episode records from chat transcripts and done markers under
-   `~/.sase/projects/<project>/episodes/`; keep them out of git by default.
+   `~/.sase/projects/<project>/episodes/`; keep them out of git by default. Gate ingestion behind a PII/secret scrubbing
+   pass (`detect-secrets`, `gitleaks`, Presidio) so secrets never enter the searchable layer.
 5. **P2: Proposal-based consolidation.** Add candidate memory actions using an ADD/UPDATE/RETRACT/NOOP model, routed
-   through existing review workflows.
+   through existing review workflows. Use a dual-LLM extraction pattern: untrusted text is read only into a constrained
+   schema, never into a direct instruction position.
 6. **P3: Curated events.** Add reviewed `sdd/events/YYYYMM/*.md` cards and include them in `memory search`.
-7. **P3: Hybrid retrieval.** Add embeddings and optional graph edges if FTS/BM25 misses important cross-episode recall.
+7. **P3: Decay and access stats.** Add `last_accessed_at` / `access_count` columns in the index, apply MemoryBank-style
+   decay only to non-canonical layers, and provide `sase memory archive` for cold tiering.
+8. **P3: Hybrid retrieval.** Add embeddings (`sqlite-vec` first, `bge-small`/`nomic-embed-text` locally) and optional
+   graph edges if FTS/BM25 misses important cross-episode recall. Consider HippoRAG-style PPR only after the entity
+   graph is dense enough to be worth traversing.
+9. **P3: Procedural memory loop.** Treat xprompts, skills, and workflows as Voyager-style skill libraries: index by
+   description, surface "is there already a skill for X?" before proposing new ones.
 
 ## Design Decisions to Bias Toward
 
