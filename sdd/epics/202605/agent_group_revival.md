@@ -2,6 +2,8 @@
 create_time: 2026-05-27 11:52:09
 status: wip
 prompt: sdd/prompts/202605/agent_group_revival.md
+bead_id: sase-47
+tier: epic
 ---
 # Agent Group Save And Revival Plan
 
