@@ -164,6 +164,31 @@ def test_name_backtick_arg_is_explicit() -> None:
     assert directives.name_explicit is True
 
 
+def test_name_indexed_template_colon_arg() -> None:
+    """%n:foo-@ is parsed as one indexed-template argument."""
+    prompt = "%n:foo-@\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.name == "foo-@"
+    assert directives.name_explicit is True
+    assert directives.name_indexed_template is True
+    assert directives.name_indexed_base == "foo"
+
+
+def test_name_indexed_template_paren_arg() -> None:
+    """%name(foo-@) is parsed as an indexed-template argument."""
+    _, directives = extract_prompt_directives("%name(foo-@)\nDo work")
+    assert directives.name == "foo-@"
+    assert directives.name_indexed_template is True
+    assert directives.name_indexed_base == "foo"
+
+
+def test_name_indexed_template_rejects_force_reuse() -> None:
+    prompt = "%name:!foo-@\nDo work"
+    with pytest.raises(DirectiveError, match="forced name reuse"):
+        extract_prompt_directives(prompt)
+
+
 # --- %wait directive tests ---
 
 
@@ -228,6 +253,52 @@ def test_wait_mixed_bare_and_explicit() -> None:
         cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do work"
     assert directives.wait == ["bar", "prev"]
+
+
+def test_wait_indexed_template_resolves_latest() -> None:
+    """%w:foo-@ resolves to the highest existing concrete indexed name."""
+    prompt = "%w:foo-@\nDo work"
+    with patch(
+        "sase.agent.names._registry.get_reserved_agent_names",
+        return_value={"foo-1", "foo-4", "bar-99"},
+    ):
+        cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == ["foo-4"]
+
+
+def test_wait_indexed_template_comma_args() -> None:
+    """Comma-separated %wait templates resolve each argument independently."""
+    prompt = "%wait:foo-@,bar-@\nDo work"
+    with patch(
+        "sase.agent.names._registry.get_reserved_agent_names",
+        return_value={"foo-2", "bar-1"},
+    ):
+        _, directives = extract_prompt_directives(prompt)
+    assert directives.wait == ["foo-2", "bar-1"]
+
+
+def test_wait_indexed_template_inside_fenced_block_ignored() -> None:
+    prompt = "```\n%w:foo-@\n```\nDo work"
+    with patch(
+        "sase.agent.names._registry.get_reserved_agent_names",
+        side_effect=AssertionError("fenced wait should not resolve"),
+    ):
+        cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == prompt
+    assert directives.wait == []
+
+
+def test_wait_indexed_template_no_existing_latest_raises() -> None:
+    prompt = "%w:foo-@\nDo work"
+    with (
+        patch(
+            "sase.agent.names._registry.get_reserved_agent_names",
+            return_value={"foo", "foo-0"},
+        ),
+        pytest.raises(DirectiveError, match="No existing indexed agent name"),
+    ):
+        extract_prompt_directives(prompt)
 
 
 # --- %time duration directive tests ---

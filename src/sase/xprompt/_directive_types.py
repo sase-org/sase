@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 _DIRECTIVE_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"%([a-zA-Z_][a-zA-Z0-9_]*)"  # Group 1: directive name
-    r"(?:(\()|:(`[^`]*`|[!a-zA-Z0-9_#/.,()-]*[a-zA-Z0-9_#/,()-])|(\+))?"  # Group 2: paren OR Group 3: colon arg OR Group 4: plus
+    r"(?:(\()|:(`[^`]*`|[!a-zA-Z0-9_#/.,()@-]*[a-zA-Z0-9_#/,()@-])|(\+))?"  # Group 2: paren OR Group 3: colon arg OR Group 4: plus
 )
 
 # Known directive names
@@ -69,6 +69,8 @@ class PromptDirectives:
     name: str | None = None
     name_explicit: bool = False
     name_force_reuse: bool = False
+    name_indexed_template: bool = False
+    name_indexed_base: str | None = None
     plan: bool = False
     repeat_count: int | None = None
     # Populated by the user-facing %group directive (alias %g). The internal

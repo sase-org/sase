@@ -68,6 +68,36 @@ def test_name_directive_rejects_hyphenated_name_before_launch() -> None:
         validate_launch_name_requests(["%name:foo-bar\nDo work"])
 
 
+def test_name_directive_allows_indexed_template_before_launch(tmp_path: Path) -> None:
+    _make_agent(tmp_path, "foo-1")
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        validate_launch_name_requests(["%name:foo-@\nDo work"])
+
+
+def test_duplicate_indexed_templates_are_not_exact_name_collisions(
+    tmp_path: Path,
+) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        validate_launch_name_requests(["%name:foo-@\nFirst", "%name:foo-@\nSecond"])
+
+
+def test_direct_hyphenated_generated_name_remains_invalid() -> None:
+    with pytest.raises(AgentNameSyntaxError, match="foo-1"):
+        validate_launch_name_requests(["%name:foo-1\nDo work"])
+
+
+def test_forced_reuse_indexed_template_is_rejected() -> None:
+    with pytest.raises(RuntimeError, match="forced reuse"):
+        validate_launch_name_requests(["%name:!foo-@\nDo work"])
+
+
+def test_force_reuse_owner_names_ignores_indexed_templates() -> None:
+    names = force_reuse_owner_names(["%name:!foo-@\nDo work", "%name:!bar\nMore"])
+
+    assert names == ["bar"]
+
+
 def test_forced_reuse_name_directive_rejects_hyphen_after_bang_strip() -> None:
     with pytest.raises(AgentNameSyntaxError, match="foo-bar"):
         validate_launch_name_requests(["%name:!foo-bar\nDo work"])
