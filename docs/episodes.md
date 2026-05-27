@@ -1,15 +1,15 @@
 # Episodes
 
-SASE episodes are deterministic, source-linked records of prior agent work. They sit between raw chats and reviewed
-memory: an episode ties together prompts, chats, artifacts, plans, feedback, questions, retries, beads, ChangeSpecs,
-audited memory reads, dynamic-memory inputs, and outcomes into one inspectable lesson.
+SASE episodes are deterministic, source-linked evidence records for prior agent work. They sit between raw chats and
+reviewed memory: an episode ties together prompts, chats, artifacts, plans, feedback, questions, retries, beads,
+ChangeSpecs, audited memory reads, dynamic-memory inputs, and outcomes into inspectable lesson records.
 
-Episodes do not write `memory/short` or `memory/long`. If an episode contains a reusable project rule, propose that rule
-with `sase memory write` and approve it with `sase memory review`.
+Episodes are evidence, not active instructions. They do not write `memory/short` or `memory/long`. If an episode
+contains a reusable project rule, propose that rule with `sase memory write` and approve it with `sase memory review`.
 
 ## First Workflow
 
-Start from a completed agent name:
+Start from a completed agent name. `build` stores the episode by default, so the later commands have something to read:
 
 ```bash
 sase memory episodes build -n <agent-name>
@@ -18,7 +18,7 @@ sase memory episodes show <episode-id>
 sase memory episodes verify <episode-id>
 ```
 
-Then use recall when the topic is known but the agent name is not:
+Then use recall when the topic is known but the agent name is not. Recall searches stored episodes only:
 
 ```bash
 sase memory episodes recall -q "retry feedback"
@@ -34,39 +34,43 @@ sase memory episodes show <episode-id> --format json
 
 ## Command Summary
 
-| Command                            | Purpose                                                                  |
-| ---------------------------------- | ------------------------------------------------------------------------ |
-| `sase memory episodes build`       | Build and optionally store an episode from agent, artifact, CL, or scan. |
-| `sase memory episodes list`        | List stored episode index rows for a project.                            |
-| `sase memory episodes show <id>`   | Show the lesson, timeline, source refs, or canonical JSON.               |
-| `sase memory episodes verify [id]` | Recompute source existence, size, and hash checks for one or all rows.   |
-| `sase memory episodes recall -q Q` | Search stored episode lessons with deterministic keyword scoring.        |
+| Command                            | Purpose                                                                                 |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
+| `sase memory episodes build`       | Build an episode from an agent, artifact directory, ChangeSpec, chat, or project scan.  |
+| `sase memory episodes list`        | List stored episode index rows for a project.                                           |
+| `sase memory episodes show <id>`   | Show the lesson, timeline, source refs, or canonical JSON.                              |
+| `sase memory episodes verify [id]` | Recompute source existence, size, and hash checks for one episode, or all when omitted. |
+| `sase memory episodes recall -q Q` | Search stored episode lessons with deterministic keyword scoring.                       |
 
 All subcommands accept `-p|--project <project>` when the project name should not be inferred from the current workspace.
 
 ## Build Selectors
 
-Choose the narrowest selector you know:
+Choose the narrowest selector you know. Only one explicit selector can be used per build:
 
-| Selector                                                      | Use when                                         |
-| ------------------------------------------------------------- | ------------------------------------------------ |
-| `build -n\|--agent <agent>`                                   | You know the visible agent name or agent family. |
-| `build -a\|--artifact-dir <dir>`                              | You have an exact artifact directory.            |
-| `build -c\|--changespec <name>`                               | Work was organized around a ChangeSpec.          |
-| `build -C\|--chat <chat>`                                     | You have a chat path or basename.                |
-| `build -s\|--since <date> -u\|--until <date> -l\|--limit <n>` | You are backfilling recent project work.         |
+| Selector                                                      | Use when                                                                 |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `build -n\|--agent <agent>`                                   | You know an exact agent name or recorded agent family/workflow name.     |
+| `build -a\|--artifact-dir <dir>`                              | You have one exact agent artifact directory.                             |
+| `build -c\|--changespec <name>`                               | Work was organized around a ChangeSpec.                                  |
+| `build -C\|--chat <chat>`                                     | You have a chat path or chat basename.                                   |
+| `build -s\|--since <date> -u\|--until <date> -l\|--limit <n>` | You are backfilling recent project work without another explicit handle. |
 
 The explicit selectors (`--agent`, `--artifact-dir`, `--changespec`, and `--chat`) keep rich transitive expansion:
 related workflow children, retries, family members, ChangeSpecs, beads, and chats can be pulled into the same episode
 when the source graph points to them.
 
-The default project-scan selector is bounded. When no explicit selector is supplied, `--project`, `--since`, and
-`--until` apply both to the seed records and to transitive agent-record expansion so a narrow date window does not pull
-in unrelated historical runs through a shared ChangeSpec, bead, family, retry, or workflow edge. `--limit` limits the
-seed records for agent and project-scan builds; it is not a hard cap on all transitive records.
+When no explicit selector is supplied, `build` uses a bounded project scan. `--project`, `--since`, and `--until` apply
+both to the seed records and to transitive agent-record expansion, so a narrow date window does not pull in unrelated
+historical runs through a shared ChangeSpec, bead, family, retry, or workflow edge.
+
+For explicit selectors, `--since` and `--until` do not prune related records. Use the project-scan form when the date
+window is the boundary you care about. `--limit` limits initial seed records for agent and project-scan builds; it is
+not a hard cap on all transitive records.
 
 `build` writes by default. Add `-D|--dry-run` to preview the deterministic episode without storing files, or
-`-f|--force` to rewrite an existing episode projection when the deterministic episode id already exists.
+`-f|--force` to record force intent in the JSON build request. Current writes are content-idempotent: rerunning the same
+episode leaves unchanged files untouched, and changed projections for the same episode id are updated.
 
 ## Build Output
 
@@ -112,7 +116,8 @@ sase memory episodes verify --all
 ```
 
 If a source is missing or changed, the episode remains stored and recallable, but the cited evidence should be reread
-before relying on the lesson. Non-JSON verification exits non-zero when any checked episode has drift.
+before relying on the lesson. Verification exits non-zero when any checked episode has drift, including JSON mode after
+printing the report.
 
 ## Storage
 
@@ -129,4 +134,4 @@ Episode files live under the project state directory:
 ```
 
 `episode.json` is the canonical machine-readable record. `lesson.md`, `sources.jsonl`, and `index.jsonl` are
-deterministic projections that can be rebuilt from the canonical episode and current sources.
+deterministic projections that can be rebuilt from the canonical episode.

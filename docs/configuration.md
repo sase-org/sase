@@ -1219,7 +1219,9 @@ All subcommands accept `-p, --project <project>`.
 | `sase memory episodes recall -q <q>` | `-l, --limit`, `-j, --json`                                                                                                                                                     | Search stored episode lessons with deterministic keyword matching.            |
 
 Human-mode `build` emits phase progress to stderr; `--quiet` suppresses that progress while keeping the final stdout
-summary. JSON build output is stderr-silent and includes `episode`, `build_request`, and `build_report` objects.
+summary. JSON build output is stderr-silent and includes `episode`, `build_request`, and `build_report` objects. Current
+episode writes are content-idempotent. `--force` is accepted and appears in the JSON build request, but unchanged
+episode files are still left untouched.
 
 ### `sase memory init`
 

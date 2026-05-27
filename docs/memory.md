@@ -178,12 +178,12 @@ review action appends a new event rather than mutating previous events.
 
 ## Episodes
 
-`sase memory episodes` builds deterministic, source-linked records of prior agent work. Episodes are useful when raw
-chats are too fragmented but the lesson is not ready to become approved long-term memory. They connect prompts, chats,
-plans, diffs, feedback, questions, retries, beads, ChangeSpecs, dynamic memory, audited memory reads, and outcomes into
-one `lesson.md` plus a canonical `episode.json`.
+`sase memory episodes` builds deterministic, source-linked evidence records for prior agent work. Episodes are useful
+when raw chats are too fragmented but the lesson is not ready to become approved long-term memory. They connect prompts,
+chats, plans, diffs, feedback, questions, retries, beads, ChangeSpecs, dynamic memory, audited memory reads, and
+outcomes into `lesson.md` plus a canonical `episode.json`.
 
-Start from a completed agent:
+Start from a completed agent. `build` stores the episode by default; recall searches only stored episodes:
 
 ```bash
 sase memory episodes build -n <agent-name>
@@ -210,7 +210,8 @@ the episode or automatically block recall.
 Human-mode `build` prints phase progress to stderr and the final summary to stdout. Pass `--quiet` to suppress progress
 while keeping the final summary, or `--json` for a deterministic machine-readable payload with `episode`,
 `build_request`, and `build_report` objects. Date-bounded project scans keep transitive agent expansion inside the same
-project/date bounds; explicit selectors such as `--agent` and `--changespec` still follow the richer related-work graph.
+project/date bounds. Explicit selectors such as `--agent` and `--changespec` still follow the richer related-work graph;
+`--since` and `--until` do not prune that related work.
 
 Episodes do not modify `memory/short` or `memory/long`. Promote a durable rule from an episode only through the reviewed
 proposal path:

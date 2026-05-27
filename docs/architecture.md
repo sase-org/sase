@@ -16,7 +16,7 @@ tracked, resumed, reviewed, retried, and handed off through stable project artif
 | XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                      | [XPrompts](xprompt.md)                       |
 | Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                               | [Workflow spec](workflow_spec.md)            |
 | ChangeSpecs  | CL/PR-sized review records with lifecycle state, commits, hooks, comments, mentors, and timestamps.                           | [ChangeSpecs](change_spec.md)                |
-| Memory       | Instruction memory, dynamic long-term context, audited reads, reviewed write proposals, and source-linked episode records.    | [Memory](memory.md), [episodes](episodes.md) |
+| Memory       | Instruction memory, dynamic long-term context, audited reads, reviewed write proposals, and source-linked episode evidence.   | [Memory](memory.md), [episodes](episodes.md) |
 | SDD          | Durable prompt, tale, epic, legend, myth, and research artifacts.                                                             | [SDD](sdd.md)                                |
 | Beads        | Git-portable issue/dependency tracking and executable epic/legend launch plans.                                               | [Beads](beads.md)                            |
 | Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                | [Plugins](plugins.md)                        |

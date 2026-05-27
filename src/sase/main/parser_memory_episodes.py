@@ -105,7 +105,7 @@ def _register_build_parser(
         "-f",
         "--force",
         action="store_true",
-        help="Rebuild and rewrite the episode projection even if it already exists",
+        help=("Record force intent in JSON output; writes remain content-idempotent"),
     )
     build_parser.add_argument(
         "-q",
