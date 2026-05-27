@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 15:51:43
-status: wip
+status: done
 prompt: sdd/prompts/202605/saved_group_revival_tmux.md
 ---
 # Saved Group Revival Tmux E2E Fix Plan

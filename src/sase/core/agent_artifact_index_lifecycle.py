@@ -93,17 +93,23 @@ def sync_dismissed_agent_artifact_index(
     if not index.is_file():
         return False
 
+    authoritative = added is not None and dismissed is not None
     dismissed_agents_signature, dismissed_bundle_index_signature = (
         _current_projection_source_metadata()
     )
-    if not force and _projection_metadata_matches(
-        index,
-        dismissed_agents_signature,
-        dismissed_bundle_index_signature,
+    if (
+        not authoritative
+        and not force
+        and _projection_metadata_matches(
+            index,
+            dismissed_agents_signature,
+            dismissed_bundle_index_signature,
+        )
     ):
         return True
 
-    if added is not None and dismissed is not None:
+    if authoritative:
+        assert dismissed is not None
         projection = _projection_inputs_from_dismissed_only(
             dismissed,
             dismissed_agents_signature,

@@ -109,6 +109,25 @@ def _is_main_workflow_agent_step(agent: Agent) -> bool:
     )
 
 
+def _parent_timestamp_from_meta(
+    agent: Agent,
+    raw_value: object,
+    *,
+    workflow_child: bool,
+) -> str | None:
+    if not raw_value:
+        return None
+    parent_timestamp = str(raw_value)
+    if (
+        not workflow_child
+        and agent.parent_workflow is None
+        and agent.raw_suffix is not None
+        and parent_timestamp == agent.raw_suffix
+    ):
+        return None
+    return parent_timestamp
+
+
 def _root_plan_family_name_from_meta(data: dict[str, object]) -> str | None:
     role_suffix = canonical_plan_chain_suffix(data.get("role_suffix"))
     is_root_plan = (
@@ -207,8 +226,14 @@ def enrich_agent_from_meta(
         agent.plan_chain_root = True
     if workflow_child:
         _apply_workflow_child_identity_from_meta(agent, data)
-    if data.get("parent_timestamp") and agent.parent_timestamp is None:
-        agent.parent_timestamp = data["parent_timestamp"]
+    if agent.parent_timestamp is None:
+        parent_timestamp = _parent_timestamp_from_meta(
+            agent,
+            data.get("parent_timestamp"),
+            workflow_child=workflow_child,
+        )
+        if parent_timestamp is not None:
+            agent.parent_timestamp = parent_timestamp
     if data.get("workspace_num") is not None and agent.workspace_num is None:
         try:
             agent.workspace_num = int(data["workspace_num"])
@@ -465,8 +490,14 @@ def enrich_agent_from_meta_wire(
         agent.agent_family_role = meta.agent_family_role
     if meta.plan_chain_root:
         agent.plan_chain_root = True
-    if meta.parent_timestamp and agent.parent_timestamp is None:
-        agent.parent_timestamp = meta.parent_timestamp
+    if agent.parent_timestamp is None:
+        parent_timestamp = _parent_timestamp_from_meta(
+            agent,
+            meta.parent_timestamp,
+            workflow_child=False,
+        )
+        if parent_timestamp is not None:
+            agent.parent_timestamp = parent_timestamp
     if meta.workspace_num is not None and agent.workspace_num is None:
         agent.workspace_num = meta.workspace_num
 
