@@ -141,7 +141,6 @@ _lint-pyvision: _setup
             --epic-symbol 'sase-45(EpisodeBuildReportWire)' \
             --epic-symbol 'sase-45(EpisodeBuildRequestWire)' \
             --epic-symbol 'sase-45(episode_wire_schema_version)' \
-            --epic-symbol 'sase-45(verify_episode_sources)' \
             src/sase
 
 # Auto-fix all code (format + keep-sorted)
