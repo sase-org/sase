@@ -45,7 +45,7 @@ class HeaderHintState:
 
 
 @dataclass(frozen=True)
-class DetailHeaderSummary:
+class _DetailHeaderSummary:
     """Precomputed data that is too expensive for hot header rendering."""
 
     embedded_workflows: list[dict[str, Any]] | None = None
@@ -65,7 +65,7 @@ _PHASE_LABELS = {
 }
 
 
-def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
+def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
     """Build expensive header enrichments outside hot selection rendering."""
     embedded_workflows = None
     if agent.step_type not in ("bash", "python", "parallel"):
@@ -80,7 +80,7 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
     from ._agent_artifacts import agent_artifact_paths
     from ._agent_deltas import agent_delta_entries
 
-    return DetailHeaderSummary(
+    return _DetailHeaderSummary(
         embedded_workflows=embedded_workflows,
         bead_display=bead_display,
         delta_entries=agent_delta_entries(agent),
@@ -227,7 +227,7 @@ def build_header_text(
     *,
     cheap: bool = False,
     hint_state: HeaderHintState | None = None,
-    summary: DetailHeaderSummary | None = None,
+    summary: _DetailHeaderSummary | None = None,
 ) -> tuple[Text, Syntax | None]:
     """Build the AGENT DETAILS header section with trailing separator.
 

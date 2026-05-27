@@ -465,10 +465,10 @@ def test_embedded_workflows_displayed_from_header_summary(tmp_path: Path) -> Non
     assert "propose(note=blah), cl" in header.plain
 
 
-def test_update_display_omits_embedded_workflows_from_hot_header(
+def test_update_display_renders_embedded_workflows_after_detail_settles(
     tmp_path: Path,
 ) -> None:
-    """Normal prompt updates do not read embedded workflow metadata."""
+    """Full prompt updates render precomputed embedded workflow metadata."""
     metadata_file = tmp_path / "embedded_workflows_main.json"
     metadata_file.write_text(json.dumps([{"name": "propose", "args": {}}]))
 
@@ -484,4 +484,4 @@ def test_update_display_omits_embedded_workflows_from_hot_header(
 
     assert mock_update.called
     rendered = mock_update.call_args[0][0]
-    assert "Embedded Workflows:" not in str(rendered)
+    assert "Embedded Workflows: propose" in str(rendered)

@@ -11,7 +11,7 @@ from ...models.agent import Agent, AgentType, AttemptRecord
 from ...util.lazy_syntax import LazySyntaxRenderCache, lazy_renderable
 from ...util.trace import tui_trace
 from ._agent_display_parts import (
-    DetailHeaderSummary,
+    build_detail_header_summary,
     build_header_text,
     get_phase_label,
     get_prompt_content,
@@ -138,7 +138,7 @@ class AgentDisplayMixin:
 
         header_text, error_tb_syntax = build_header_text(
             agent,
-            summary=DetailHeaderSummary(),
+            summary=build_detail_header_summary(agent),
         )
 
         # Check if this is a bash/python workflow step - display differently

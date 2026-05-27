@@ -198,10 +198,10 @@ def test_update_header_only_skips_embedded_workflows_disk_read(
     assert "Embedded Workflows" not in plain
 
 
-def test_update_display_header_does_not_do_expensive_enrichment(
+def test_update_display_header_renders_debounced_full_enrichment(
     tmp_path: Path,
 ) -> None:
-    """The full prompt render may read prompt/reply files, but not header extras."""
+    """The full prompt render includes metadata omitted from the cheap path."""
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     prompt = artifacts_dir / "01_prompt.md"
@@ -209,38 +209,27 @@ def test_update_display_header_does_not_do_expensive_enrichment(
     response = artifacts_dir / "response.md"
     response.write_text("Response body\n", encoding="utf-8")
     diff_path = tmp_path / "agent.diff"
-    diff_path.write_text("diff --git a/x b/x\n", encoding="utf-8")
+    diff_path.write_text(
+        """diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1 +1 @@
+-old
++new
+""",
+        encoding="utf-8",
+    )
     agent = _make_agent(
         status="DONE",
-        agent_name="sase-x.3",
         artifacts_dir=str(artifacts_dir),
         response_path=str(response),
         diff_path=str(diff_path),
     )
 
     panel = _FakePanel()
-    with (
-        patch(
-            "sase.ace.tui.widgets.prompt_panel._agent_display_parts.load_embedded_workflows",
-            side_effect=AssertionError("must not load embedded workflow metadata"),
-        ),
-        patch(
-            "sase.ace.tui.widgets.prompt_panel._agent_deltas.get_agent_diff",
-            side_effect=AssertionError("must not discover deltas in header"),
-        ),
-        patch(
-            "sase.core.agent_artifact_facade.list_agent_artifacts",
-            side_effect=AssertionError("must not list artifacts in header"),
-        ),
-        patch(
-            "sase.agent.bead_display._lookup_bead_issue",
-            side_effect=AssertionError("must not lookup bead descriptions"),
-        ),
-    ):
-        panel.update_display(agent)
+    panel.update_display(agent)
 
     plain = _plain_of(panel.captured[-1])
     assert "AGENT DETAILS" in plain
-    assert "Bead: sase-x.3\n" in plain
-    assert "DELTAS:" not in plain
-    assert "ARTIFACTS:" not in plain
+    assert "DELTAS:\n  ~ src/foo.py  ~1\n" in plain
+    assert "AGENT CHAT" in plain

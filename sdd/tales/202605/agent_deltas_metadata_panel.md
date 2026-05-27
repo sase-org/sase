@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 09:54:15
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_deltas_metadata_panel.md
 ---
 # Agent Deltas Metadata Panel Plan
