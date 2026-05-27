@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 10:14:20
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_metadata_section_dividers.md
 ---
 # Plan: Agent Metadata Section Dividers

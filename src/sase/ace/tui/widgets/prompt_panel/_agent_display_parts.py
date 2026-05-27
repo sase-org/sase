@@ -65,6 +65,13 @@ _PHASE_LABELS = {
 }
 
 
+def _append_major_section_divider(text: Text) -> None:
+    """Append the standard prompt-panel major-section divider."""
+    text.append("\n")
+    text.append("\u2500" * 50 + "\n", style="dim")
+    text.append("\n")
+
+
 def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
     """Build expensive header enrichments outside hot selection rendering."""
     embedded_workflows = None
@@ -471,16 +478,18 @@ def build_header_text(
             artifact_paths=summary.artifact_paths,
             hint_state=hint_state,
         )
-        append_agent_memory_reads_section(
-            header_text,
-            events=summary.memory_reads,
-        )
+        if summary.memory_reads:
+            _append_major_section_divider(header_text)
+            append_agent_memory_reads_section(
+                header_text,
+                events=summary.memory_reads,
+            )
 
     # Meta fields from step output
     if agent.step_output and isinstance(agent.step_output, dict):
         meta_fields = extract_meta_fields(agent.step_output)
         if meta_fields:
-            header_text.append("\n")
+            _append_major_section_divider(header_text)
             header_text.append("STEP METADATA\n", style="bold #D7AF5F underline")
             header_text.append("\n")
             for name, value in meta_fields:

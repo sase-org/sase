@@ -9,6 +9,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
+from rich.text import Text
 
 from sase.ace.tui import memory_reads as memory_reads_module
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -22,6 +23,8 @@ from sase.memory.read_log import (
     MemoryReadEvent,
     memory_read_log_path,
 )
+
+_MAJOR_SECTION_RULE = "\u2500" * 50
 
 
 @pytest.fixture(autouse=True)
@@ -44,6 +47,19 @@ def _setup(
         lambda: ZoneInfo("UTC"),
     )
     return sase_home
+
+
+def _assert_dim_divider_before(header: Text, section: str) -> None:
+    plain = header.plain
+    section_start = plain.index(section)
+    rule_start = plain.rfind(_MAJOR_SECTION_RULE, 0, section_start)
+    assert rule_start != -1
+    assert plain[rule_start - 1 : section_start] == (f"\n{_MAJOR_SECTION_RULE}\n\n")
+    rule_end = rule_start + len(_MAJOR_SECTION_RULE)
+    assert any(
+        span.start <= rule_start and span.end >= rule_end and str(span.style) == "dim"
+        for span in header.spans
+    )
 
 
 def _make_agent(*, artifacts_dir: Path, workspace_dir: Path) -> Agent:
@@ -120,6 +136,8 @@ def test_header_renders_memory_reads_between_artifacts_and_step_metadata(
     assert "MEMORY READS\n" in plain
     assert "long/generated_skills.md" in plain
     assert "↳ needed commit hook contract for runtime parity refactor" in plain
+    _assert_dim_divider_before(header, "MEMORY READS\n")
+    _assert_dim_divider_before(header, "STEP METADATA\n")
     assert plain.index("MEMORY READS\n") < plain.index("STEP METADATA\n")
 
 

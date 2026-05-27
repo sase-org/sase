@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from rich.text import Text
 
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_bead import derive_agent_bead_id
@@ -20,6 +21,21 @@ from tests.ace.tui.widgets._agent_display_helpers import (
     make_agent,
     plain_of,
 )
+
+_MAJOR_SECTION_RULE = "\u2500" * 50
+
+
+def _assert_dim_divider_before(text: Text, section: str) -> None:
+    plain = text.plain
+    section_start = plain.index(section)
+    rule_start = plain.rfind(_MAJOR_SECTION_RULE, 0, section_start)
+    assert rule_start != -1
+    assert plain[rule_start - 1 : section_start] == (f"\n{_MAJOR_SECTION_RULE}\n\n")
+    rule_end = rule_start + len(_MAJOR_SECTION_RULE)
+    assert any(
+        span.start <= rule_start and span.end >= rule_end and str(span.style) == "dim"
+        for span in text.spans
+    )
 
 
 class TestGetPhaseLabel:
@@ -592,6 +608,8 @@ class TestStepMetadataHeader:
         assert "STEP METADATA\n" in header.plain
         assert "Commit Message: fix: align\n" in header.plain
         assert "New Commit: 96a895335\n" in header.plain
+        _assert_dim_divider_before(header, "STEP METADATA\n")
+        assert header.plain.count(_MAJOR_SECTION_RULE) == 2
 
     def test_header_absent_when_no_meta_fields(self) -> None:
         agent = make_agent(step_output={"status": "ok"})
@@ -599,6 +617,7 @@ class TestStepMetadataHeader:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "STEP METADATA" not in header.plain
+        assert header.plain.count(_MAJOR_SECTION_RULE) == 1
 
     def test_header_absent_when_no_step_output(self) -> None:
         agent = make_agent()
@@ -606,6 +625,7 @@ class TestStepMetadataHeader:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "STEP METADATA" not in header.plain
+        assert header.plain.count(_MAJOR_SECTION_RULE) == 1
 
 
 # -- agent list bead badge ----------------------------------------------------
