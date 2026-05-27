@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 16:44:03
-status: wip
+status: done
 prompt: sdd/prompts/202605/reads_xprompt_12.md
 ---
 # Plan: `reads` Multi-Agent XPrompt
