@@ -2,6 +2,8 @@
 create_time: 2026-05-27 10:53:50
 status: wip
 prompt: sdd/prompts/202605/indexed_agent_names.md
+bead_id: sase-46
+tier: epic
 ---
 # Indexed Agent Name Aliases
 
