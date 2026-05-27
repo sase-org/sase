@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-26 20:18:07
-status: wip
+status: done
 prompt: sdd/prompts/202605/apostrophe_jump_marks_agent_read.md
 ---
 # Fix Apostrophe Agent Jump Read Acknowledgement

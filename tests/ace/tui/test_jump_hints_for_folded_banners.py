@@ -10,15 +10,18 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
+import pytest
+
+from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
 from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
 
-class _StubApp(AdvancedNavigationMixin):
+class _StubApp(AgentUnreadMixin, AdvancedNavigationMixin):
     """Minimal harness for the agents-tab jump-mode helpers."""
 
     def __init__(
@@ -26,6 +29,7 @@ class _StubApp(AdvancedNavigationMixin):
         agents: list[Agent],
         *,
         collapsed: list[tuple[str, ...]] | None = None,
+        patch_result: bool = True,
     ) -> None:
         self.current_tab = "agents"
         self.current_idx = 0
@@ -44,6 +48,13 @@ class _StubApp(AdvancedNavigationMixin):
         self._entry_jump_forward_index_stack: dict[str, list[Any]] = {}
         self._entry_jump_agents_anchor_stack: list[Any] = []
         self._entry_jump_agents_forward_anchor_stack: list[Any] = []
+        self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._agent_info_metrics_cache: tuple[Any, ...] | None = None
+        self._patch_result = patch_result
+        self.patch_calls: list[Agent] = []
+        self.refresh_calls: list[dict[str, Any]] = []
+        self.notification_count_refresh_calls = 0
         self.artifact_viewer_guard_active = False
         self.jump_footer_updates = 0
         self.notify = MagicMock()
@@ -62,10 +73,10 @@ class _StubApp(AdvancedNavigationMixin):
 
         return panel_key_per_agent(self._agents)
 
-    # The mixin would normally drive a full refresh; tests don't render so
-    # we can swallow these calls.
-    def _refresh_agents_display(self, *, list_changed: bool = False) -> None:
-        return
+    # The mixin would normally drive a full refresh; tests don't render, but
+    # unread assertions need to know whether refresh fallback was requested.
+    def _refresh_agents_display(self, **kwargs: Any) -> None:
+        self.refresh_calls.append(kwargs)
 
     def _refresh_current_tab(self) -> None:
         return
@@ -73,16 +84,42 @@ class _StubApp(AdvancedNavigationMixin):
     def _update_jump_footer(self) -> None:
         self.jump_footer_updates += 1
 
+    def _try_patch_agent_row(self, agent: Agent) -> bool:
+        self.patch_calls.append(agent)
+        return self._patch_result
 
-def _agent(*, project: str, cl: str, name: str, tag: str | None = None) -> Agent:
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refresh_calls += 1
+
+
+@pytest.fixture(autouse=True)
+def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(return_value=0)
+    monkeypatch.setattr(
+        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        dismiss,
+    )
+    return dismiss
+
+
+def _agent(
+    *,
+    project: str,
+    cl: str,
+    name: str,
+    tag: str | None = None,
+    status: str = "RUNNING",
+    raw_suffix: str | None = None,
+) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl,
         project_file=f"/r/{project}/proj.sase",
-        status="RUNNING",
+        status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
         tag=tag,
+        raw_suffix=raw_suffix,
     )
 
 
@@ -188,6 +225,150 @@ def test_jump_dispatch_agent_switches_focused_panel() -> None:
     assert app._panel_group.focused_idx == 1
     assert app._current_group_key is None
     assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
+
+
+def test_jump_dispatch_agent_acknowledges_unread_done_and_patches_row(
+    notification_dismiss: Mock,
+) -> None:
+    """Jumping to an unread terminal agent clears the marker through row patching."""
+    notification_dismiss.return_value = 1
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1", raw_suffix="a1"),
+        _agent(
+            project="beta",
+            cl="b1",
+            name="done",
+            status="DONE",
+            raw_suffix="done",
+        ),
+    ]
+    app = _StubApp(agents)
+    target = agents[1]
+    app._unread_completed_agent_ids.add(target.identity)
+
+    app._begin_agents_jump_mode()
+    handled = app._handle_entry_jump_key(app._entry_jump_index_to_hint[1])
+
+    assert handled is True
+    assert app.current_idx == 1
+    assert target.identity not in app._unread_completed_agent_ids
+    assert app.patch_calls == [target]
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": target.cl_name, "raw_suffix": target.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
+
+
+def test_jump_dispatch_manual_unread_target_stays_guarded(
+    notification_dismiss: Mock,
+) -> None:
+    """A manually unread target is selected but not auto-acknowledged."""
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1", raw_suffix="a1"),
+        _agent(
+            project="beta",
+            cl="b1",
+            name="manual",
+            status="DONE",
+            raw_suffix="manual",
+        ),
+    ]
+    app = _StubApp(agents)
+    target = agents[1]
+    app._unread_completed_agent_ids.add(target.identity)
+    app._manual_unread_agent_ids.add(target.identity)
+
+    app._begin_agents_jump_mode()
+    handled = app._handle_entry_jump_key(app._entry_jump_index_to_hint[1])
+
+    assert handled is True
+    assert app.current_idx == 1
+    assert target.identity in app._unread_completed_agent_ids
+    assert target.identity in app._manual_unread_agent_ids
+    assert app.patch_calls == []
+    notification_dismiss.assert_not_called()
+
+
+def test_jump_dispatch_arms_manual_unread_departure_before_return(
+    notification_dismiss: Mock,
+) -> None:
+    """Leaving a manually unread row arms it so a later jump back can read it."""
+    notification_dismiss.return_value = 1
+    agents = [
+        _agent(
+            project="alpha",
+            cl="a1",
+            name="manual",
+            status="DONE",
+            raw_suffix="manual",
+        ),
+        _agent(project="beta", cl="b1", name="b1", raw_suffix="b1"),
+    ]
+    app = _StubApp(agents)
+    manual_agent = agents[0]
+    app._unread_completed_agent_ids.add(manual_agent.identity)
+    app._manual_unread_agent_ids.add(manual_agent.identity)
+
+    app._begin_agents_jump_mode()
+    app._handle_entry_jump_key(app._entry_jump_index_to_hint[1])
+
+    assert manual_agent.identity in app._unread_completed_agent_ids
+    assert manual_agent.identity not in app._manual_unread_agent_ids
+    assert app.patch_calls == []
+
+    app._begin_agents_jump_mode()
+    app._handle_entry_jump_key(app._entry_jump_index_to_hint[0])
+
+    assert app.current_idx == 0
+    assert manual_agent.identity not in app._unread_completed_agent_ids
+    assert app.patch_calls == [manual_agent]
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": manual_agent.cl_name, "raw_suffix": manual_agent.raw_suffix}]
+    )
+
+
+def test_jump_dispatch_banner_arms_manual_departure_without_acknowledging_agent(
+    notification_dismiss: Mock,
+) -> None:
+    """Banner targets focus the banner and leave all agent unread markers intact."""
+    agents = [
+        _agent(
+            project="alpha",
+            cl="a1",
+            name="hidden",
+            status="DONE",
+            raw_suffix="hidden",
+        ),
+        _agent(
+            project="beta",
+            cl="b1",
+            name="manual",
+            status="DONE",
+            raw_suffix="manual",
+        ),
+    ]
+    app = _StubApp(agents, collapsed=[("alpha",)])
+    hidden_agent = agents[0]
+    manual_agent = agents[1]
+    app.current_idx = 1
+    app._unread_completed_agent_ids.update(
+        {hidden_agent.identity, manual_agent.identity}
+    )
+    app._manual_unread_agent_ids.add(manual_agent.identity)
+
+    app._begin_agents_jump_mode()
+    handled = app._handle_entry_jump_key(
+        app._entry_jump_banner_to_hint[("banner", 0, ("alpha",))]
+    )
+
+    assert handled is True
+    assert app._current_group_key == ("alpha",)
+    assert app.current_idx == 1
+    assert hidden_agent.identity in app._unread_completed_agent_ids
+    assert manual_agent.identity in app._unread_completed_agent_ids
+    assert manual_agent.identity not in app._manual_unread_agent_ids
+    assert app.patch_calls == []
+    notification_dismiss.assert_not_called()
 
 
 def test_jump_mode_entry_guard_warns_without_entering() -> None:

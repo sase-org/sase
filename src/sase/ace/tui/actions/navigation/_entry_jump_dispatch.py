@@ -109,6 +109,13 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             if callable(guard) and guard():
                 self._exit_entry_jump_mode()
                 return True
+            old_idx = self.current_idx
+            old_group_key = getattr(self, "_current_group_key", None)
+            old_agent = (
+                self._agents[old_idx]
+                if old_group_key is None and 0 <= old_idx < len(self._agents)
+                else None
+            )
             if banner_target is not None:
                 _, panel_idx, group_key = banner_target
                 self._remember_agents_jump_origin_if_changed(
@@ -116,6 +123,12 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                     target_panel_idx=panel_idx,
                     target_group_key=group_key,
                 )
+                if old_agent is not None:
+                    arm_manual = getattr(
+                        self, "_arm_manual_unread_after_departure", None
+                    )
+                    if callable(arm_manual):
+                        arm_manual(old_agent)
                 if 0 <= panel_idx < len(self._panel_group.panel_keys):
                     if panel_idx != self._panel_group.focused_idx:
                         self._panel_group.focused_idx = panel_idx
@@ -133,8 +146,19 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                     and agent_panel_idx != self._panel_group.focused_idx
                 ):
                     self._panel_group.focused_idx = agent_panel_idx
+                if old_agent is not None and agent_target != old_idx:
+                    arm_manual = getattr(
+                        self, "_arm_manual_unread_after_departure", None
+                    )
+                    if callable(arm_manual):
+                        arm_manual(old_agent)
                 self._current_group_key = None
                 self.current_idx = agent_target
+                if 0 <= agent_target < len(self._agents):
+                    target_agent = self._agents[agent_target]
+                    ack_unread = getattr(self, "_acknowledge_agent_unread", None)
+                    if callable(ack_unread):
+                        ack_unread(target_agent)
             self._exit_entry_jump_mode()
             return True
 
