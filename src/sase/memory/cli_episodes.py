@@ -8,8 +8,10 @@ from pathlib import Path
 import sys
 from typing import Any
 
+from sase.core.episode_facade import episode_wire_schema_version
 from sase.core.episode_wire import (
-    EPISODE_WIRE_SCHEMA_VERSION,
+    EpisodeBuildReportWire,
+    EpisodeBuildRequestWire,
     EpisodeStorageIndexRowWire,
     EpisodeVerifyReportWire,
     EpisodeWire,
@@ -108,7 +110,32 @@ def _handle_build(
         else project_episodes_dir(episode.project, projects_root=projects_root)
         / episode.episode_id
     )
+    schema_version = episode_wire_schema_version()
+    build_request = EpisodeBuildRequestWire(
+        schema_version=schema_version,
+        project=episode.project,
+        selector_kind=draft.selector_kind,
+        selector_value=draft.selector_value,
+        since=args.since,
+        until=args.until,
+        limit=args.limit,
+        dry_run=bool(args.dry_run),
+        force=bool(args.force),
+        source_refs=list(episode.sources),
+    )
+    build_report = EpisodeBuildReportWire(
+        schema_version=schema_version,
+        project=episode.project,
+        source_count=len(episode.sources),
+        lesson_count=len(episode.lessons),
+        episode_id=episode.episode_id,
+        would_write=bool(args.dry_run),
+        changed=write_result.changed if write_result is not None else False,
+        warnings=list(draft.warnings),
+    )
     payload = {
+        "build_report": episode_wire_to_json_dict(build_report),
+        "build_request": episode_wire_to_json_dict(build_request),
         "changed": write_result.changed if write_result is not None else False,
         "dry_run": bool(args.dry_run),
         "episode": episode_wire_to_json_dict(episode),
@@ -117,7 +144,7 @@ def _handle_build(
         "force": bool(args.force),
         "lesson_count": len(episode.lessons),
         "project": episode.project,
-        "schema_version": EPISODE_WIRE_SCHEMA_VERSION,
+        "schema_version": schema_version,
         "source_count": len(episode.sources),
         "title": episode.title,
         "warnings": draft.warnings,
@@ -155,7 +182,7 @@ def _handle_list(
             {
                 "episodes": [episode_wire_to_json_dict(row) for row in rows],
                 "project": project,
-                "schema_version": EPISODE_WIRE_SCHEMA_VERSION,
+                "schema_version": episode_wire_schema_version(),
             }
         )
         return
@@ -241,7 +268,7 @@ def _handle_verify(
             {
                 "project": project,
                 "reports": [episode_wire_to_json_dict(report) for report in reports],
-                "schema_version": EPISODE_WIRE_SCHEMA_VERSION,
+                "schema_version": episode_wire_schema_version(),
             }
         )
     elif not reports:
@@ -285,7 +312,7 @@ def _handle_recall(
                 "matches": [match.to_json_dict() for match in matches],
                 "project": project,
                 "query": args.query,
-                "schema_version": EPISODE_WIRE_SCHEMA_VERSION,
+                "schema_version": episode_wire_schema_version(),
             }
         )
         return
