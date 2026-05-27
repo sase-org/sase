@@ -9,6 +9,7 @@ markdown section.
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from sase.memory.episodes.recall import EpisodeRecallMatch
     from sase.xprompt.workflow_models import Workflow
 
 
@@ -34,6 +36,21 @@ class DynamicMemoryResult:
 
     matched: list[MatchedMemory]
     paths: list[str] = field(default_factory=list)
+
+
+@dataclass
+class _EpisodeRecallMemoryResult:
+    """Result of opt-in episodic-memory prompt recall."""
+
+    project: str
+    query: str
+    limit: int
+    matches: list[EpisodeRecallMatch] = field(default_factory=list)
+
+
+EPISODE_RECALL_ENABLED_ENV = "SASE_MEMORY_EPISODES_RECALL"
+EPISODE_RECALL_LIMIT_ENV = "SASE_MEMORY_EPISODES_RECALL_LIMIT"
+EPISODE_RECALL_DEFAULT_LIMIT = 3
 
 
 def _split_keywords(keywords: list[str]) -> tuple[list[str], list[str]]:
@@ -144,6 +161,80 @@ def format_dynamic_memory_section(result: DynamicMemoryResult) -> str:
     for path, mem in zip(result.paths, result.matched, strict=True):
         kw_list = ", ".join(f"`{kw}`" for kw in mem.keywords_matched)
         lines.append(f"- @{path} ({mem.name}, matched: {kw_list})")
+    return "\n".join(lines)
+
+
+def episode_recall_enabled(env: Mapping[str, str] | None = None) -> bool:
+    """Return whether opt-in episodic-memory recall should augment prompts."""
+
+    source = os.environ if env is None else env
+    value = source.get(EPISODE_RECALL_ENABLED_ENV, "")
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def episode_recall_limit(env: Mapping[str, str] | None = None) -> int:
+    """Return the configured prompt recall limit with a deterministic default."""
+
+    source = os.environ if env is None else env
+    raw = source.get(EPISODE_RECALL_LIMIT_ENV, "")
+    try:
+        limit = int(raw)
+    except ValueError:
+        return EPISODE_RECALL_DEFAULT_LIMIT
+    if limit < 1:
+        return EPISODE_RECALL_DEFAULT_LIMIT
+    return limit
+
+
+def generate_episode_recall_memory(
+    prompt: str,
+    project: str,
+    *,
+    limit: int = EPISODE_RECALL_DEFAULT_LIMIT,
+    projects_root: Path | str | None = None,
+) -> _EpisodeRecallMemoryResult:
+    """Recall stored episode lessons for prompt augmentation.
+
+    This is intentionally separate from keyword-tagged dynamic memories:
+    it reads only the project episode index, performs deterministic lexical
+    recall, and never writes canonical memory files.
+    """
+
+    from sase.memory.episodes.index import read_episode_index
+    from sase.memory.episodes.recall import recall_episode_rows
+
+    try:
+        matches = recall_episode_rows(
+            read_episode_index(project, projects_root=projects_root),
+            prompt,
+            projects_root=projects_root,
+            limit=limit,
+        )
+    except ValueError:
+        matches = []
+    return _EpisodeRecallMemoryResult(
+        project=project,
+        query=prompt,
+        limit=limit,
+        matches=matches,
+    )
+
+
+def format_episode_recall_section(result: _EpisodeRecallMemoryResult) -> str:
+    """Format recalled episode cards for prompt injection."""
+
+    lines = ["### EPISODIC MEMORY"]
+    for match in result.matches:
+        lines.append(f"- Episode `{match.episode_id}` ({match.title})")
+        if not match.lessons and match.excerpt:
+            lines.append(f"  - {match.excerpt}")
+            continue
+        for lesson in match.lessons:
+            evidence = ", ".join(
+                f"`{item.source_id}` {item.path}".rstrip() for item in lesson.evidence
+            )
+            suffix = f" [evidence: {evidence}]" if evidence else ""
+            lines.append(f"  - {lesson.text}{suffix}")
     return "\n".join(lines)
 
 

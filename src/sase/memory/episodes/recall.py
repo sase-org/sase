@@ -28,7 +28,49 @@ _SUCCESS_OUTCOMES = {"completed", "noop", "success", "succeeded"}
 
 
 @dataclass(frozen=True)
-class _EpisodeRecallMatch:
+class _EpisodeRecallEvidence:
+    """A compact source link attached to a recalled lesson."""
+
+    source_id: str
+    kind: str
+    label: str
+    path: str
+    exists: bool
+
+    def to_json_dict(self) -> dict[str, Any]:
+        """Return a deterministic JSON-safe projection."""
+
+        return {
+            "exists": self.exists,
+            "kind": self.kind,
+            "label": self.label,
+            "path": self.path,
+            "source_id": self.source_id,
+        }
+
+
+@dataclass(frozen=True)
+class _EpisodeRecallLessonCard:
+    """A compact recalled lesson with traceable evidence links."""
+
+    lesson_id: str
+    kind: str
+    text: str
+    evidence: list[_EpisodeRecallEvidence]
+
+    def to_json_dict(self) -> dict[str, Any]:
+        """Return a deterministic JSON-safe projection."""
+
+        return {
+            "evidence": [item.to_json_dict() for item in self.evidence],
+            "kind": self.kind,
+            "lesson_id": self.lesson_id,
+            "text": self.text,
+        }
+
+
+@dataclass(frozen=True)
+class EpisodeRecallMatch:
     """One deterministic recall match against a stored episode."""
 
     episode_id: str
@@ -40,6 +82,7 @@ class _EpisodeRecallMatch:
     lesson_path: str
     last_event_at: str | None
     outcome: str | None
+    lessons: list[_EpisodeRecallLessonCard]
 
     def to_json_dict(self) -> dict[str, Any]:
         """Return a deterministic JSON-safe projection."""
@@ -50,6 +93,7 @@ class _EpisodeRecallMatch:
             "last_event_at": self.last_event_at,
             "lesson_ids": self.lesson_ids,
             "lesson_path": self.lesson_path,
+            "lessons": [lesson.to_json_dict() for lesson in self.lessons],
             "matched_terms": self.matched_terms,
             "outcome": self.outcome,
             "score": self.score,
@@ -63,7 +107,7 @@ def recall_episode_rows(
     *,
     projects_root: Path | str | None = None,
     limit: int = 10,
-) -> list[_EpisodeRecallMatch]:
+) -> list[EpisodeRecallMatch]:
     """Return stable lexical recall matches for ``query`` over stored rows."""
 
     query_terms = _token_set(query)
@@ -85,7 +129,7 @@ def _recall_match(
     query_terms: set[str],
     *,
     projects_root: Path | str | None,
-) -> _EpisodeRecallMatch | None:
+) -> EpisodeRecallMatch | None:
     episode_dir = project_episodes_dir(row.project, projects_root=projects_root) / (
         row.episode_id
     )
@@ -104,7 +148,8 @@ def _recall_match(
     if not matched_terms:
         return None
 
-    return _EpisodeRecallMatch(
+    lesson_cards = _recall_lesson_cards(episode, query_terms)
+    return EpisodeRecallMatch(
         episode_id=row.episode_id,
         title=row.title,
         score=sum(token_counts[term] for term in matched_terms),
@@ -114,6 +159,7 @@ def _recall_match(
         lesson_path=row.lesson_path,
         last_event_at=row.last_event_at,
         outcome=row.outcome,
+        lessons=lesson_cards,
     )
 
 
@@ -131,24 +177,19 @@ def _recall_corpus(
     lesson_text: str,
 ) -> str:
     parts: list[str] = [
-        row.episode_id,
         row.title,
         row.changespec_name or "",
-        row.outcome or "",
         " ".join(row.root_agent_names),
         " ".join(row.bead_ids),
         episode.title,
         episode.summary,
         lesson_text,
+        _metadata_recall_terms(episode.metadata),
     ]
     for lesson in episode.lessons:
-        parts.extend(
-            [lesson.id, lesson.kind, lesson.text, " ".join(lesson.evidence_ids)]
-        )
+        parts.extend([lesson.kind, lesson.text])
     for source in episode.sources:
-        parts.extend([source.id, source.kind, source.label or "", source.path])
-    for key, value in sorted(episode.metadata.items()):
-        parts.extend([key, value])
+        parts.extend([source.kind, source.label or "", source.path])
     return "\n".join(parts)
 
 
@@ -181,11 +222,93 @@ def _recall_excerpt(
     return ""
 
 
-def _recall_sort_key(match: _EpisodeRecallMatch) -> tuple[int, int, int, str]:
+def _recall_lesson_cards(
+    episode: EpisodeWire,
+    query_terms: set[str],
+) -> list[_EpisodeRecallLessonCard]:
+    source_by_id = {source.id: source for source in episode.sources}
+    cards: list[_EpisodeRecallLessonCard] = []
+    for lesson in sorted(episode.lessons, key=lambda item: item.id):
+        if not (query_terms & _token_set(lesson.text)):
+            continue
+        cards.append(
+            _EpisodeRecallLessonCard(
+                lesson_id=lesson.id,
+                kind=lesson.kind,
+                text=_truncate_excerpt(lesson.text),
+                evidence=_recall_evidence_links(lesson.evidence_ids, source_by_id),
+            )
+        )
+    return cards[:3]
+
+
+def _recall_evidence_links(
+    evidence_ids: list[str],
+    source_by_id: dict[str, Any],
+) -> list[_EpisodeRecallEvidence]:
+    links: list[_EpisodeRecallEvidence] = []
+    for source_id in sorted({item for item in evidence_ids if item}):
+        source = source_by_id.get(source_id)
+        if source is None:
+            links.append(
+                _EpisodeRecallEvidence(
+                    source_id=source_id,
+                    kind="unknown",
+                    label=source_id,
+                    path="",
+                    exists=False,
+                )
+            )
+            continue
+        links.append(
+            _EpisodeRecallEvidence(
+                source_id=source.id,
+                kind=source.kind,
+                label=source.label or Path(source.path).name or source.path,
+                path=source.path,
+                exists=source.exists,
+            )
+        )
+    return links[:5]
+
+
+_TAG_METADATA_KEYS = {
+    "keyword",
+    "keywords",
+    "label",
+    "labels",
+    "tag",
+    "tags",
+    "topic",
+    "topics",
+}
+_LOOKUP_METADATA_KEYS = {
+    "bead_id",
+    "bead_ids",
+    "changespec_name",
+    "changespec_names",
+}
+
+
+def _metadata_recall_terms(metadata: dict[str, str]) -> str:
+    parts: list[str] = []
+    for key, value in sorted(metadata.items()):
+        normalized = key.lower()
+        if (
+            normalized in _TAG_METADATA_KEYS
+            or normalized in _LOOKUP_METADATA_KEYS
+            or normalized.endswith("_tags")
+            or normalized.endswith("_keywords")
+        ):
+            parts.append(value)
+    return "\n".join(parts)
+
+
+def _recall_sort_key(match: EpisodeRecallMatch) -> tuple[int, int, int, str]:
     return (
         -match.score,
-        -_outcome_rank(match.outcome),
         -_timestamp_sort_value(match.last_event_at),
+        -_outcome_rank(match.outcome),
         match.episode_id,
     )
 
@@ -214,6 +337,9 @@ def _token_list(text: str) -> list[str]:
         token = match.group(0).strip("`'\".,;()[]{}<>")
         if token:
             tokens.append(token)
+            for part in re.split(r"[._:/-]+", token):
+                if part and part != token:
+                    tokens.append(part)
     return tokens
 
 
@@ -225,5 +351,6 @@ def _truncate_excerpt(text: str) -> str:
 
 
 __all__ = [
+    "EpisodeRecallMatch",
     "recall_episode_rows",
 ]

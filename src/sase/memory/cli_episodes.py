@@ -299,7 +299,15 @@ def _handle_recall(
 
     for match in matches:
         print(f"{match.episode_id}  score={match.score}  {match.title}")
-        if match.excerpt:
+        if match.lessons:
+            for lesson in match.lessons:
+                evidence = ", ".join(
+                    f"{item.source_id}:{item.path}" if item.path else item.source_id
+                    for item in lesson.evidence
+                )
+                suffix = f"  evidence={evidence}" if evidence else ""
+                print(f"  - {lesson.lesson_id}: {lesson.text}{suffix}")
+        elif match.excerpt:
             print(f"  {match.excerpt}")
 
 
