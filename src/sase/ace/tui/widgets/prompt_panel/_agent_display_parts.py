@@ -64,6 +64,8 @@ _PHASE_LABELS = {
     PLAN_CHAIN_COMMIT_SUFFIX: "COMMIT",
 }
 
+_UNASSIGNED_AGENT_NAME_DISPLAY = "unassigned"
+
 
 def _append_major_section_divider(text: Text) -> None:
     """Append the standard prompt-panel major-section divider."""
@@ -262,6 +264,25 @@ def build_header_text(
     header_text.append("AGENT DETAILS\n", style="bold #D7AF5F underline")
     header_text.append("\n")
 
+    # Agent name is always the first metadata row in the details header.
+    header_text.append("Name: ", style="bold #87D7FF")
+    if agent.agent_name:
+        header_text.append(f"@{agent.agent_name}\n", style="#FF87D7")
+        if cheap:
+            bead_display = format_agent_bead_display(agent, include_description=False)
+        elif summary is not None:
+            bead_display = summary.bead_display or format_agent_bead_display(
+                agent,
+                include_description=False,
+            )
+        else:
+            bead_display = format_agent_bead_display(agent, include_description=False)
+        if bead_display:
+            header_text.append("Bead: ", style="bold #87D7FF")
+            header_text.append(f"{bead_display}\n", style="bold #FFAF00")
+    else:
+        header_text.append(f"{_UNASSIGNED_AGENT_NAME_DISPLAY}\n", style="dim")
+
     # Spawn-on-retry: render a retry-chain breadcrumb when the agent is
     # part of one (either a retry attempt or a parent that handed off).
     if agent.is_retry_attempt or agent.is_retried_parent:
@@ -363,23 +384,6 @@ def build_header_text(
     if agent.bug:
         header_text.append("BUG: ", style="bold #87D7FF")
         header_text.append(f"{agent.bug}\n", style="bold underline #569CD6")
-
-    # Agent name (when assigned via %name directive or manual TUI naming)
-    if agent.agent_name:
-        header_text.append("Name: ", style="bold #87D7FF")
-        header_text.append(f"@{agent.agent_name}\n", style="#FF87D7")
-        if cheap:
-            bead_display = format_agent_bead_display(agent, include_description=False)
-        elif summary is not None:
-            bead_display = summary.bead_display or format_agent_bead_display(
-                agent,
-                include_description=False,
-            )
-        else:
-            bead_display = format_agent_bead_display(agent, include_description=False)
-        if bead_display:
-            header_text.append("Bead: ", style="bold #87D7FF")
-            header_text.append(f"{bead_display}\n", style="bold #FFAF00")
 
     # Waiting info (when agent is waiting for dependencies, a duration, or absolute time)
     if agent.waiting_for or agent.wait_duration or agent.wait_until:

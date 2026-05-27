@@ -25,6 +25,24 @@ from tests.ace.tui.widgets._agent_display_helpers import (
 _MAJOR_SECTION_RULE = "\u2500" * 50
 
 
+def _assert_metadata_prefix(text: Text, *expected_lines: str) -> None:
+    assert text.plain.splitlines()[: 2 + len(expected_lines)] == [
+        "AGENT DETAILS",
+        "",
+        *expected_lines,
+    ]
+
+
+def _assert_span_covers(text: Text, needle: str, style: str) -> None:
+    plain = text.plain
+    start = plain.index(needle)
+    end = start + len(needle)
+    assert any(
+        span.start <= start and span.end >= end and str(span.style) == style
+        for span in text.spans
+    )
+
+
 def _assert_dim_divider_before(text: Text, section: str) -> None:
     plain = text.plain
     section_start = plain.index(section)
@@ -115,6 +133,47 @@ class TestGetPhaseLabel:
 # -- derive_agent_bead_id / header metadata ----------------------------------
 
 
+class TestAgentNameMetadata:
+    def test_unnamed_agent_renders_unassigned_name_first(self) -> None:
+        agent = make_agent()
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert header.plain.count("Name: ") == 1
+        _assert_metadata_prefix(header, "Name: unassigned")
+        _assert_span_covers(header, "unassigned", "dim")
+        assert header.plain.index("Name: unassigned\n") < header.plain.index(
+            "ChangeSpec:"
+        )
+        assert "Bead:" not in header.plain
+
+    def test_named_agent_renders_name_first(self) -> None:
+        agent = make_agent(agent_name="reviewer")
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert header.plain.count("Name: ") == 1
+        _assert_metadata_prefix(header, "Name: @reviewer")
+        assert header.plain.index("Name: @reviewer\n") < header.plain.index(
+            "ChangeSpec:"
+        )
+
+    def test_retry_chain_renders_name_before_retry_chain(self) -> None:
+        agent = make_agent(
+            agent_name="reviewer",
+            retry_attempt=2,
+            retry_error_category="rate_limit",
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        _assert_metadata_prefix(header, "Name: @reviewer")
+        assert "Retry chain: ↻ attempt #2 (rate_limit)\n" in header.plain
+        assert header.plain.index("Name: @reviewer\n") < header.plain.index(
+            "Retry chain:"
+        )
+
+
 class TestAgentModelMetadata:
     def test_non_agent_workflow_child_omits_model(self) -> None:
         agent = make_agent(
@@ -158,6 +217,38 @@ class TestAgentModelMetadata:
 
 
 class TestAgentBeadMetadata:
+    def test_bead_rows_are_first_metadata_rows_in_cheap_and_full_headers(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = make_agent(agent_name="sase-x.3")
+
+        cheap_header, _ = build_header_text(agent, cheap=True)
+        _assert_metadata_prefix(
+            cheap_header,
+            "Name: @sase-x.3",
+            "Bead: sase-x.3",
+        )
+
+        monkeypatch.setattr(
+            "sase.agent.bead_display._lookup_bead_issue",
+            lambda bead_id, **_: Issue(
+                id=bead_id,
+                title="Phase title",
+                description="First line",
+            ),
+        )
+
+        full_header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
+        _assert_metadata_prefix(
+            full_header,
+            "Name: @sase-x.3",
+            "Bead: sase-x.3 - First line",
+        )
+
     def test_phase_agent_name_renders_bead(self) -> None:
         agent = make_agent(agent_name="sase-x.3")
 
