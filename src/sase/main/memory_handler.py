@@ -34,6 +34,12 @@ def handle_memory_command(args: argparse.Namespace) -> None:
         _handle_memory_list_command(args)
         sys.exit(0)
 
+    if sub == "episodes":
+        from sase.memory.cli_episodes import handle_memory_episodes_command
+
+        handle_memory_episodes_command(args)
+        sys.exit(0)
+
     if sub == "read":
         from sase.memory.cli_read import handle_memory_read_command
 
@@ -56,5 +62,8 @@ def handle_memory_command(args: argparse.Namespace) -> None:
         _handle_memory_log_command(args)
         sys.exit(0)
 
-    print("Usage: sase memory {init,list,log,read,review,write}", file=sys.stderr)
+    print(
+        "Usage: sase memory {episodes,init,list,log,read,review,write}",
+        file=sys.stderr,
+    )
     sys.exit(1)

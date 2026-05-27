@@ -30,6 +30,58 @@ def test_parser_registers_memory_namespace() -> None:
     assert list_args.command == "memory"
     assert list_args.memory_subcommand == "list"
 
+    build_args = parser.parse_args(
+        [
+            "memory",
+            "episodes",
+            "build",
+            "-p",
+            "proj",
+            "-n",
+            "agent-a",
+            "-s",
+            "2026-05-01",
+            "-u",
+            "2026-05-26",
+            "-l",
+            "3",
+            "-D",
+            "-f",
+            "-j",
+        ]
+    )
+    assert build_args.command == "memory"
+    assert build_args.memory_subcommand == "episodes"
+    assert build_args.episodes_subcommand == "build"
+    assert build_args.project == "proj"
+    assert build_args.agent == "agent-a"
+    assert build_args.since == "2026-05-01"
+    assert build_args.until == "2026-05-26"
+    assert build_args.limit == 3
+    assert build_args.dry_run is True
+    assert build_args.force is True
+    assert build_args.json is True
+
+    show_args = parser.parse_args(
+        ["memory", "episodes", "show", "ep-abc", "-p", "proj", "-f", "timeline"]
+    )
+    assert show_args.command == "memory"
+    assert show_args.memory_subcommand == "episodes"
+    assert show_args.episodes_subcommand == "show"
+    assert show_args.episode_id == "ep-abc"
+    assert show_args.project == "proj"
+    assert show_args.format == "timeline"
+
+    recall_args = parser.parse_args(
+        ["memory", "episodes", "recall", "-q", "retry feedback", "-l", "2", "-j"]
+    )
+    assert recall_args.command == "memory"
+    assert recall_args.memory_subcommand == "episodes"
+    assert recall_args.episodes_subcommand == "recall"
+    assert recall_args.query == "retry feedback"
+    assert recall_args.limit == 2
+    assert recall_args.json is True
+
     read_args = parser.parse_args(
         ["memory", "read", "long/foo.md", "--reason", "Need context"]
     )
@@ -202,6 +254,27 @@ def test_memory_read_dispatches_to_read_handler(
     args = create_parser().parse_args(
         ["memory", "read", "long/foo.md", "--reason", "Need context"]
     )
+
+    with pytest.raises(SystemExit) as exc:
+        memory_handler.handle_memory_command(args)
+
+    assert exc.value.code == 0
+    assert calls == [args]
+
+
+def test_memory_episodes_dispatches_to_episodes_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[argparse.Namespace] = []
+
+    def fake_episodes(args: argparse.Namespace) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(
+        "sase.memory.cli_episodes.handle_memory_episodes_command",
+        fake_episodes,
+    )
+    args = create_parser().parse_args(["memory", "episodes", "list"])
 
     with pytest.raises(SystemExit) as exc:
         memory_handler.handle_memory_command(args)

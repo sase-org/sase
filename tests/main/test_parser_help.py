@@ -104,10 +104,14 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
         _parser_for(("sase", "memory", "review")).format_help()
     )
     memory_log_help = _flat_help(_parser_for(("sase", "memory", "log")).format_help())
+    memory_episodes_help = _flat_help(
+        _parser_for(("sase", "memory", "episodes")).format_help()
+    )
     init_alias_help = _flat_help(_parser_for(("sase", "init", "memory")).format_help())
 
     assert "`sase memory list`" in memory_help
-    assert "{init,list,log,read,review,write}" in memory_help
+    assert "{episodes,init,list,log,read,review,write}" in memory_help
+    assert "sase memory episodes build -n <agent>" in memory_help
     assert "sase memory read long/generated_skills.md --reason" in memory_help
     assert "sase memory write --title" in memory_help
     assert "sase memory review --list" in memory_help
@@ -134,6 +138,8 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "--id READ_ID" in memory_log_help
     assert "--include KIND" in memory_log_help
     assert "sase memory log --id <read-id>" in memory_log_help
+    assert "{build,list,recall,show,verify}" in memory_episodes_help
+    assert 'sase memory episodes recall -q "retry feedback"' in memory_episodes_help
     assert "Compatibility alias for `sase memory init`" in init_alias_help
 
 
