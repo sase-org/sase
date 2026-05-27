@@ -222,6 +222,16 @@ class TestResumeAgentNames:
     def test_first_resume_wins(self) -> None:
         assert first_resume_agent_name("#fork:first then #fork:second") == "first"
 
+    def test_indexed_resume_reference_resolves_latest_concrete_name(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(tmp_path, "proj", "run1", "build-1")
+        _make_agent(tmp_path, "proj", "run2", "build-4")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert first_resume_agent_name("#fork:build-@ do work") == "build-4"
+            assert first_resume_agent_name("#resume(build-@) do work") == "build-4"
+
     def test_allocates_first_resume_slot(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             assert allocate_resume_name("foo") == "foo.f1"
@@ -310,6 +320,33 @@ class TestResumeAgentNames:
 
         assert result is not None
         assert result.artifacts_dir == str(child_dir)
+
+    def test_resolve_resume_indexed_template_uses_latest_concrete_name(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010101",
+            "build-1",
+            done=True,
+            outcome="completed",
+        )
+        latest_dir = _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010202",
+            "build-3",
+            done=True,
+            outcome="completed",
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = resolve_resume_agent_name("build-@")
+
+        assert result is not None
+        assert result.name == "build-3"
+        assert result.artifacts_dir == str(latest_dir)
 
 
 class TestWaitDerivedAgentNames:

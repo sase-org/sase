@@ -40,9 +40,11 @@ from sase.agent.names._indexed import (
     InvalidIndexedAgentNameTemplateError,
     allocate_indexed_agent_name,
     indexed_agent_name_base,
+    is_concrete_indexed_agent_name_for_template,
     is_indexed_agent_name_template,
     latest_indexed_agent_name,
     require_latest_indexed_agent_name,
+    resolve_indexed_agent_name_reference,
     validate_indexed_agent_name_template,
 )
 from sase.agent.names._lookup import (
@@ -211,6 +213,7 @@ __all__ = [
     "get_reserved_agent_names",
     "ensure_historical_auto_name_migration",
     "indexed_agent_name_base",
+    "is_concrete_indexed_agent_name_for_template",
     "is_name_reserved",
     "is_dismissed_prefixed",
     "is_indexed_agent_name_template",
@@ -223,6 +226,7 @@ __all__ = [
     "lowest_name_suggestion",
     "require_latest_indexed_agent_name",
     "reserve_repeat_name_base",
+    "resolve_indexed_agent_name_reference",
     "rebuild_name_registry",
     "most_recent_completed_family_member",
     "resolve_agent_changespec",

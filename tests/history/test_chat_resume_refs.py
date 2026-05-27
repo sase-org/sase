@@ -223,6 +223,39 @@ def test_resume_agent_family_resolves_to_latest_completed_member_chat(
     assert _resolve_resume_to_chat_path("fork", "family") == str(coder_chat)
 
 
+def test_indexed_resume_ref_resolves_latest_concrete_agent_chat(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    chat_dir = tmp_path / ".sase" / "chats"
+    chat_dir.mkdir(parents=True)
+    older_chat = chat_dir / "older.md"
+    older_chat.write_text("older", encoding="utf-8")
+    newer_chat = chat_dir / "newer.md"
+    newer_chat.write_text("newer", encoding="utf-8")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "build-1",
+        done=True,
+        outcome="completed",
+        response_path=str(older_chat),
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "build-3",
+        done=True,
+        outcome="completed",
+        response_path=str(newer_chat),
+    )
+
+    assert _resolve_resume_to_chat_path("resume", "build-@") == str(newer_chat)
+
+
 def test_fork_by_chat_expansion() -> None:
     """Test #fork_by_chat:path expansion works end-to-end."""
     with tempfile.TemporaryDirectory() as tmpdir:

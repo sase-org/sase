@@ -55,6 +55,50 @@ def test_explicit_completed_agent_uses_done_response_path(
     assert _resolve_agent_chat_path("alpha") == str(chat)
 
 
+def test_indexed_agent_name_resolves_latest_completed_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    older_chat = tmp_path / "older-chat.md"
+    newer_chat = tmp_path / "newer-chat.md"
+    _write_agent(
+        tmp_path,
+        "20260504010101",
+        "build-1",
+        done={"response_path": str(older_chat), "outcome": "completed"},
+    )
+    _write_agent(
+        tmp_path,
+        "20260504020202",
+        "build-3",
+        done={"response_path": str(newer_chat), "outcome": "completed"},
+    )
+
+    assert _resolve_agent_chat_path("build-@") == str(newer_chat)
+
+
+def test_indexed_agent_name_excludes_current_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    previous_chat = tmp_path / "previous-chat.md"
+    _write_agent(
+        tmp_path,
+        "20260504010101",
+        "build-1",
+        done={"response_path": str(previous_chat), "outcome": "completed"},
+    )
+    current_dir = _write_agent(
+        tmp_path,
+        "20260504020202",
+        "build-2",
+        meta={"chat_path": str(tmp_path / "current-chat.md"), "pid": os.getpid()},
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
+
+    assert _resolve_agent_chat_path("build-@") == str(previous_chat)
+
+
 def test_explicit_running_agent_falls_back_to_meta_chat_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

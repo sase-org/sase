@@ -8,6 +8,7 @@ import time
 from unittest.mock import MagicMock, patch
 
 from sase.agent.names import NameCollisionError
+from tests._agent_names_fixtures import make_agent
 
 
 def _mock_provider() -> MagicMock:
@@ -242,6 +243,71 @@ class TestExtractDirectivesAutoDismiss:
         assert meta["name"] == "alpha"
         assert meta["changespec_name"] == "feature-branch"
         assert meta["cl_name"] == "feature-branch"
+
+    def test_indexed_name_template_allocates_concrete_name(
+        self, tmp_path: Path
+    ) -> None:
+        make_agent(tmp_path, "proj", "run1", "build-1")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(tmp_path, prompt="%name:build-@\nDo work")
+
+        assert result["info"].name == "build-2"
+        assert result["meta"]["name"] == "build-2"
+
+    def test_indexed_name_template_uses_matching_planned_name(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                planned_name="build-7",
+                prompt="%name:build-@\nDo work",
+            )
+
+        assert result["info"].name == "build-7"
+        assert result["meta"]["name"] == "build-7"
+
+    def test_indexed_name_template_ignores_unrelated_planned_name(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                planned_name="other-1",
+                prompt="%name:build-@\nDo work",
+            )
+
+        assert result["info"].name == "build-1"
+        assert result["meta"]["name"] == "build-1"
+
+    def test_indexed_wait_template_persists_concrete_latest_name(
+        self, tmp_path: Path
+    ) -> None:
+        make_agent(tmp_path, "proj", "run1", "build-1")
+        make_agent(tmp_path, "proj", "run2", "build-3")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(tmp_path, prompt="%wait:build-@\nDo work")
+
+        assert result["info"].wait_names == ["build-3"]
+        assert result["meta"]["wait_for"] == ["build-3"]
+        assert result["meta"]["name"] == "build-3.w1"
+
+    def test_indexed_wait_resolves_before_same_segment_indexed_name(
+        self, tmp_path: Path
+    ) -> None:
+        make_agent(tmp_path, "proj", "run1", "build-1")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                prompt="%wait:build-@\n%name:build-@\nDo work",
+            )
+
+        assert result["info"].wait_names == ["build-1"]
+        assert result["meta"]["wait_for"] == ["build-1"]
+        assert result["meta"]["name"] == "build-2"
 
     def test_unnamed_auto_dismiss_agent_writes_basic_metadata(
         self, tmp_path: Path

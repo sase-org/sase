@@ -9,7 +9,14 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from sase.agent.names import find_named_agent, get_most_recent_agent_name
+from sase.agent.names import (
+    find_named_agent,
+    get_most_recent_agent_name,
+    get_reserved_agent_name_map,
+    is_indexed_agent_name_template,
+    require_latest_indexed_agent_name,
+    resolve_indexed_agent_name_reference,
+)
 
 
 def _resolve_agent_chat_path(name: str | None = None) -> str:
@@ -49,7 +56,25 @@ def _normalize_name(name: str | None) -> str | None:
     if name is None:
         return None
     stripped = name.strip()
-    return stripped or None
+    if not stripped:
+        return None
+    if is_indexed_agent_name_template(stripped):
+        return _resolve_indexed_name_excluding_current_agent(stripped)
+    return resolve_indexed_agent_name_reference(stripped)
+
+
+def _resolve_indexed_name_excluding_current_agent(name: str) -> str:
+    current_artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not current_artifacts_dir:
+        return resolve_indexed_agent_name_reference(name)
+
+    current = Path(current_artifacts_dir).expanduser().resolve(strict=False)
+    reserved = {
+        agent_name
+        for agent_name, owner_path in get_reserved_agent_name_map().items()
+        if Path(owner_path).expanduser().resolve(strict=False) != current
+    }
+    return require_latest_indexed_agent_name(name, names=reserved)
 
 
 def _resolve_default_agent_name() -> str:

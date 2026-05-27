@@ -102,6 +102,12 @@ def latest_indexed_agent_name(
     return None if latest is None else latest[1]
 
 
+def is_concrete_indexed_agent_name_for_template(name: str, template: str) -> bool:
+    """Return whether *name* is a concrete ``<base>-<N>`` for *template*."""
+    base = indexed_agent_name_base(template)
+    return re.match(rf"^{re.escape(base)}-[1-9][0-9]*$", name) is not None
+
+
 def require_latest_indexed_agent_name(
     template: str,
     *,
@@ -112,6 +118,13 @@ def require_latest_indexed_agent_name(
     if latest is None:
         raise IndexedAgentNameNotFoundError(template)
     return latest
+
+
+def resolve_indexed_agent_name_reference(name: str) -> str:
+    """Resolve ``<base>-@`` to the latest concrete name, otherwise return *name*."""
+    if not is_indexed_agent_name_template(name):
+        return name
+    return require_latest_indexed_agent_name(name)
 
 
 def _reserved_names() -> set[str]:

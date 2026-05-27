@@ -133,6 +133,21 @@ def extract_directives_and_write_meta(
         agent_vcs_provider = None
 
     with name_lock_context:
+        agent_name_from_indexed_template = False
+        if directives.name_explicit and directives.name_indexed_template and agent_name:
+            from sase.agent.names import (
+                allocate_indexed_agent_name,
+                is_concrete_indexed_agent_name_for_template,
+            )
+
+            if planned_name and is_concrete_indexed_agent_name_for_template(
+                planned_name, agent_name
+            ):
+                agent_name = planned_name
+            else:
+                agent_name = allocate_indexed_agent_name(agent_name)
+            agent_name_from_indexed_template = True
+
         planned_name_matches_resume = (
             planned_name is not None
             and resume_name is not None
@@ -143,7 +158,9 @@ def extract_directives_and_write_meta(
             and not auto_dismiss
             and (resume_name is None or planned_name_matches_resume)
         )
-        if not directives.name_explicit and planned_name_is_usable:
+        if agent_name_from_indexed_template:
+            pass
+        elif not directives.name_explicit and planned_name_is_usable:
             agent_name = planned_name
         elif not directives.name_explicit and resume_name is not None:
             from sase.agent.names import allocate_resume_name
@@ -208,8 +225,10 @@ def extract_directives_and_write_meta(
                 validate_user_agent_name,
             )
 
-            if directives.name_explicit and not internal_agent_name_bypass_enabled(
-                os.environ
+            if (
+                directives.name_explicit
+                and not internal_agent_name_bypass_enabled(os.environ)
+                and not agent_name_from_indexed_template
             ):
                 validate_user_agent_name(agent_name)
 

@@ -123,3 +123,30 @@ def test_resolve_wait_chat_paths_uses_latest_completed_family_member(
     )
 
     assert resolve_wait_chat_paths(["family"]) == ["~/.sase/chats/family-code.md"]
+
+
+def test_resolve_wait_chat_paths_resolves_indexed_template(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "build-1",
+        done=True,
+        outcome="completed",
+        response_path="~/.sase/chats/build-1.md",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "build-4",
+        done=True,
+        outcome="completed",
+        response_path="~/.sase/chats/build-4.md",
+    )
+
+    assert resolve_wait_chat_paths(["build-@"]) == ["~/.sase/chats/build-4.md"]

@@ -12,9 +12,11 @@ from sase.agent.names import (
     InvalidIndexedAgentNameTemplateError,
     allocate_indexed_agent_name,
     indexed_agent_name_base,
+    is_concrete_indexed_agent_name_for_template,
     is_indexed_agent_name_template,
     latest_indexed_agent_name,
     require_latest_indexed_agent_name,
+    resolve_indexed_agent_name_reference,
 )
 
 from tests._agent_names_fixtures import make_agent as _make_agent
@@ -64,6 +66,15 @@ def test_latest_resolution_can_raise_typed_error() -> None:
         require_latest_indexed_agent_name("review-@", names={"review", "review-0"})
 
 
+def test_identifies_concrete_name_for_template() -> None:
+    assert is_concrete_indexed_agent_name_for_template("build-1", "build-@") is True
+    assert is_concrete_indexed_agent_name_for_template("build-01", "build-@") is False
+    assert is_concrete_indexed_agent_name_for_template("other-1", "build-@") is False
+    assert (
+        is_concrete_indexed_agent_name_for_template("build-1.child", "build-@") is False
+    )
+
+
 def test_registry_backed_reservations(tmp_path: Path) -> None:
     _make_agent(tmp_path, "proj", "run1", "build-1")
     _make_agent(tmp_path, "proj", "run2", "build-3")
@@ -71,3 +82,5 @@ def test_registry_backed_reservations(tmp_path: Path) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         assert allocate_indexed_agent_name("build-@") == "build-2"
         assert latest_indexed_agent_name("build-@") == "build-3"
+        assert resolve_indexed_agent_name_reference("plain") == "plain"
+        assert resolve_indexed_agent_name_reference("build-@") == "build-3"
