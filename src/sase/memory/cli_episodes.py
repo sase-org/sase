@@ -8,8 +8,10 @@ from pathlib import Path
 import sys
 from typing import Any
 
+from sase.core.episode_facade import episode_wire_schema_version
 from sase.core.episode_wire import (
-    EPISODE_WIRE_SCHEMA_VERSION,
+    EpisodeBuildReportWire,
+    EpisodeBuildRequestWire,
     EpisodeStorageIndexRowWire,
     EpisodeVerifyReportWire,
     EpisodeWire,
@@ -84,6 +86,7 @@ def _handle_build(
         until=args.until,
         limit=args.limit,
     )
+    schema_version = episode_wire_schema_version()
     try:
         draft = collect_episode_draft(
             selector,
@@ -108,7 +111,31 @@ def _handle_build(
         else project_episodes_dir(episode.project, projects_root=projects_root)
         / episode.episode_id
     )
+    build_request = EpisodeBuildRequestWire(
+        schema_version=schema_version,
+        project=project,
+        selector_kind=_selector_kind(args),
+        selector_value=_selector_value(args),
+        since=args.since,
+        until=args.until,
+        limit=args.limit,
+        dry_run=bool(args.dry_run),
+        force=bool(args.force),
+        source_refs=list(draft.sources),
+    )
+    build_report = EpisodeBuildReportWire(
+        schema_version=schema_version,
+        project=episode.project,
+        source_count=len(episode.sources),
+        lesson_count=len(episode.lessons),
+        episode_id=episode.episode_id,
+        would_write=bool(args.dry_run),
+        changed=write_result.changed if write_result is not None else False,
+        warnings=list(draft.warnings),
+    )
     payload = {
+        "build_report": episode_wire_to_json_dict(build_report),
+        "build_request": episode_wire_to_json_dict(build_request),
         "changed": write_result.changed if write_result is not None else False,
         "dry_run": bool(args.dry_run),
         "episode": episode_wire_to_json_dict(episode),
@@ -117,7 +144,7 @@ def _handle_build(
         "force": bool(args.force),
         "lesson_count": len(episode.lessons),
         "project": episode.project,
-        "schema_version": EPISODE_WIRE_SCHEMA_VERSION,
+        "schema_version": schema_version,
         "source_count": len(episode.sources),
         "title": episode.title,
         "warnings": draft.warnings,
@@ -155,7 +182,7 @@ def _handle_list(
             {
                 "episodes": [episode_wire_to_json_dict(row) for row in rows],
                 "project": project,
-                "schema_version": EPISODE_WIRE_SCHEMA_VERSION,
+                "schema_version": episode_wire_schema_version(),
             }
         )
         return
@@ -241,7 +268,7 @@ def _handle_verify(
             {
                 "project": project,
                 "reports": [episode_wire_to_json_dict(report) for report in reports],
-                "schema_version": EPISODE_WIRE_SCHEMA_VERSION,
+                "schema_version": episode_wire_schema_version(),
             }
         )
     elif not reports:
@@ -285,7 +312,7 @@ def _handle_recall(
                 "matches": [match.to_json_dict() for match in matches],
                 "project": project,
                 "query": args.query,
-                "schema_version": EPISODE_WIRE_SCHEMA_VERSION,
+                "schema_version": episode_wire_schema_version(),
             }
         )
         return
@@ -316,6 +343,21 @@ def _project_from_args(args: argparse.Namespace) -> str:
     if project is not None and project.strip():
         return project.strip()
     return project_memory_name(Path.cwd())
+
+
+def _selector_kind(args: argparse.Namespace) -> str | None:
+    for name in ("agent", "artifact_dir", "changespec", "chat"):
+        if getattr(args, name, None):
+            return name
+    return None
+
+
+def _selector_value(args: argparse.Namespace) -> str | None:
+    kind = _selector_kind(args)
+    if kind is None:
+        return None
+    value = getattr(args, kind, None)
+    return str(value) if value is not None else None
 
 
 def _resolve_episode_dir(

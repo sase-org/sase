@@ -135,6 +135,21 @@ def test_memory_episodes_build_writes_episode_from_agent_selector(
     assert payload["episode_id"].startswith("ep-")
     assert payload["project"] == "proj"
     assert payload["source_count"] >= 4
+    assert payload["build_request"]["schema_version"] == EPISODE_WIRE_SCHEMA_VERSION
+    assert payload["build_request"]["project"] == "proj"
+    assert payload["build_request"]["selector_kind"] == "agent"
+    assert payload["build_request"]["selector_value"] == "episode-agent"
+    assert payload["build_request"]["source_refs"]
+    assert payload["build_report"] == {
+        "changed": True,
+        "episode_id": payload["episode_id"],
+        "lesson_count": payload["lesson_count"],
+        "project": "proj",
+        "schema_version": EPISODE_WIRE_SCHEMA_VERSION,
+        "source_count": payload["source_count"],
+        "warnings": payload["warnings"],
+        "would_write": False,
+    }
     assert Path(payload["episode_dir"], "episode.json").is_file()
 
 
