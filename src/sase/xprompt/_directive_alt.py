@@ -495,6 +495,15 @@ def apply_fanout_naming(
         if value:
             base = value
             break
+    if base:
+        from sase.agent.names import is_indexed_agent_name_template
+
+        if is_indexed_agent_name_template(base):
+            raise DirectiveError(
+                "Cannot combine indexed agent name template "
+                f"'%name:{base}' with launch fan-out; choose a concrete "
+                "fan-out base name or remove the fan-out directive."
+            )
     if not base:
         from sase.agent.names import (
             agent_name_allocation_lock,

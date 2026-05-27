@@ -202,3 +202,20 @@ def test_launch_mobile_text_dry_run_does_not_spawn(monkeypatch) -> None:
         "artifact_dir": None,
         "message": "launch request validated",
     }
+
+
+def test_launch_mobile_text_dry_run_returns_concrete_indexed_name(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(
+        "sase.agent.names._registry.get_reserved_agent_names",
+        lambda: {"build-1"},
+    )
+
+    payload = _launch_mobile_text_agents(
+        {"schema_version": 1, "prompt": "%name:build-@\nDo work", "dry_run": True}
+    )
+
+    assert payload["primary"]["name"] == "build-2"

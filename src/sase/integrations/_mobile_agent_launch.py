@@ -296,4 +296,18 @@ def artifact_dir_for_launch(result: AgentLaunchResult) -> str | None:
 def planned_name_for_prompt(prompt: str) -> str | None:
     from sase.agent.multi_prompt_references import extract_static_name_directive
 
-    return extract_static_name_directive(prompt)
+    name = extract_static_name_directive(prompt)
+    if name is None:
+        return None
+
+    from sase.agent.names import (
+        agent_name_allocation_lock,
+        allocate_indexed_agent_name,
+        is_indexed_agent_name_template,
+    )
+
+    if not is_indexed_agent_name_template(name):
+        return name
+
+    with agent_name_allocation_lock():
+        return allocate_indexed_agent_name(name)

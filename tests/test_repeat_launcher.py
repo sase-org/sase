@@ -14,6 +14,7 @@ from sase.agent.repeat_launcher import (
     extract_repeat_and_name,
     spawn_repeat_batch,
 )
+from sase.xprompt._exceptions import DirectiveError
 
 
 class TestExtractRepeatAndName:
@@ -115,6 +116,19 @@ class TestSpawnRepeatBatch:
         assert specs[1].prompt.startswith("%n:aa.2")
         assert "do Y" in specs[0].prompt
         assert "do Y" in specs[1].prompt
+
+    def test_indexed_name_template_with_repeat_is_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        with (
+            patch.object(Path, "home", return_value=tmp_path),
+            pytest.raises(DirectiveError, match="indexed agent name template"),
+        ):
+            spawn_repeat_batch(
+                "%r:2 %n:aa-@ do Y",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
 
     def test_auto_name_delegates_to_get_next_auto_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):

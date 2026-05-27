@@ -306,6 +306,29 @@ def test_completed_named_agent_success_path_writes_ready(
     assert "wait_checks: projects=1 artifacts=2 waiting=1 ready_written=1" in out
 
 
+def test_concrete_indexed_wait_marker_resolves_without_template_marker(
+    tmp_path: Path, monkeypatch
+) -> None:
+    waiter_dir = _make_waiting_agent(tmp_path, "build-3")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "build-3",
+        done=True,
+        outcome="completed",
+    )
+
+    waiting = json.loads((waiter_dir / "waiting.json").read_text(encoding="utf-8"))
+    assert waiting["waiting_for"] == ["build-3"]
+    assert all("-@" not in dep for dep in waiting["waiting_for"])
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["build-3"]}
+
+
 def test_multiple_waiting_dependencies_scan_artifacts_once(
     tmp_path: Path, monkeypatch
 ) -> None:

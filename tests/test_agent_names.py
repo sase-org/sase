@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.names import (
+    IndexedAgentNameNotFoundError,
     NameCollisionError,
     allocate_retry_name,
     allocate_resume_name,
@@ -347,6 +348,15 @@ class TestResumeAgentNames:
         assert result is not None
         assert result.name == "build-3"
         assert result.artifacts_dir == str(latest_dir)
+
+    def test_first_resume_indexed_template_without_existing_name_raises(
+        self, tmp_path: Path
+    ) -> None:
+        with (
+            patch.object(Path, "home", return_value=tmp_path),
+            pytest.raises(IndexedAgentNameNotFoundError, match="build-@"),
+        ):
+            first_resume_agent_name("#fork:build-@")
 
 
 class TestWaitDerivedAgentNames:

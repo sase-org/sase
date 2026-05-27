@@ -3,6 +3,9 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import split_prompt_for_models
 from sase.xprompt.models import XPrompt
 from tests._agent_names_fixtures import make_agent as _make_agent
@@ -500,6 +503,12 @@ def test_split_prompt_for_models_pure_alt_gets_planned_names() -> None:
     assert len(result) == 2
     assert result[0] == "%name:foo.1\nx\nDo work"
     assert result[1] == "%name:foo.2\ny\nDo work"
+
+
+def test_split_prompt_for_models_rejects_indexed_name_template_base() -> None:
+    """Indexed templates are rejected before fan-out child names are generated."""
+    with pytest.raises(DirectiveError, match="indexed agent name template"):
+        split_prompt_for_models("%n:foo-@\n%alt(x,y)\nDo work")
 
 
 def test_split_prompt_for_models_named_shorthand_alt_ids() -> None:
