@@ -199,7 +199,7 @@ class CollectorRecordMixin:
                 target = self.records_by_artifact.get(
                     normalize_source_path(step.artifacts_dir)
                 )
-                if target is not None:
+                if target is not None and self._queue_record(target):
                     target_node = self._ensure_agent_node(target)
                     self._add_edge(
                         "workflow_step_agent",
@@ -209,7 +209,6 @@ class CollectorRecordMixin:
                         if step_source is not None
                         else [],
                     )
-                    self._queue_record(target)
 
     def _add_record_changespec_links(
         self: Any,
@@ -244,18 +243,21 @@ class CollectorRecordMixin:
     ) -> None:
         for kind, timestamp in record_related_timestamps(record):
             for related in self.records_by_timestamp.get(timestamp, []):
+                if not self._queue_record(related):
+                    continue
                 related_node = self._ensure_agent_node(related)
                 if kind in {"parent_agent", "retry_of"}:
                     from_node_id, to_node_id = related_node.id, agent_node.id
                 else:
                     from_node_id, to_node_id = agent_node.id, related_node.id
                 self._add_edge(kind, from_node_id, to_node_id, evidence_ids=[])
-                self._queue_record(related)
 
         family = record_family(record)
         if family:
             for related in self.records_by_family.get(family, []):
                 if related.artifact_dir == record.artifact_dir:
+                    continue
+                if not self._queue_record(related):
                     continue
                 related_node = self._ensure_agent_node(related)
                 self._add_edge(
@@ -265,4 +267,3 @@ class CollectorRecordMixin:
                     evidence_ids=[],
                     metadata={"family": family},
                 )
-                self._queue_record(related)

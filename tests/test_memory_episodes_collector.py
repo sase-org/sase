@@ -212,6 +212,69 @@ def test_collect_episode_draft_follows_deterministic_source_graph(
     assert episode.root_source_id == draft_a.root_source_id
 
 
+def test_project_scan_bounds_transitive_records_but_explicit_agent_does_not(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    old_record = _make_record(
+        projects_root,
+        "20260509010130",
+        "old-agent",
+        meta={
+            "agent_family": "episode-family",
+            "changespec_name": "episode-cl",
+        },
+        done={"outcome": "completed", "finished_at": 1.0},
+    )
+    window_record = _make_record(
+        projects_root,
+        "20260519120000",
+        "window-agent",
+        meta={
+            "agent_family": "episode-family",
+            "changespec_name": "episode-cl",
+        },
+        done={"outcome": "completed", "finished_at": 2.0},
+    )
+    scan = _scan(projects_root, [old_record, window_record])
+
+    project_draft = collect_episode_draft(
+        EpisodeSelector(
+            project="proj",
+            since="2026-05-19",
+            until="2026-05-20",
+        ),
+        projects_root=projects_root,
+        scan=scan,
+        repo_root=tmp_path,
+    )
+
+    assert project_draft.selector_kind == "project_scan"
+    assert project_draft.metadata["agent_record_count"] == "1"
+    assert {node.label for node in project_draft.nodes if node.kind == "agent_run"} == {
+        "window-agent"
+    }
+    assert any("20260519120000" in source.path for source in project_draft.sources)
+    assert not any("20260509010130" in source.path for source in project_draft.sources)
+
+    explicit_draft = collect_episode_draft(
+        EpisodeSelector(
+            agent="window-agent",
+            since="2026-05-19",
+            until="2026-05-20",
+        ),
+        projects_root=projects_root,
+        scan=scan,
+        repo_root=tmp_path,
+    )
+
+    assert explicit_draft.selector_kind == "agent"
+    assert explicit_draft.metadata["agent_record_count"] == "2"
+    assert {
+        node.label for node in explicit_draft.nodes if node.kind == "agent_run"
+    } == {"old-agent", "window-agent"}
+
+
 def test_collect_episode_draft_can_start_from_changespec(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

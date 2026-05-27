@@ -15,7 +15,11 @@ from sase.core.episode_wire import (
     EpisodeNodeWire,
     EpisodeSourceRefWire,
 )
-from sase.memory.episodes._collector_utils import compact_metadata, stable_id
+from sase.memory.episodes._collector_utils import (
+    compact_metadata,
+    stable_id,
+    timestamp_in_range,
+)
 from sase.memory.episodes._record_helpers import (
     record_display_name,
     record_family,
@@ -232,9 +236,29 @@ class CollectorGraphMixin:
     def _source_for_node(self: Any, node: EpisodeNodeWire) -> str | None:
         return node.source_id
 
-    def _queue_record(self: Any, record: AgentArtifactRecordWire) -> None:
+    def _record_matches_transitive_bounds(
+        self: Any,
+        record: AgentArtifactRecordWire,
+    ) -> bool:
+        if self.selector.explicit_selector_count() > 0:
+            return True
+        if (
+            self.selector.project is not None
+            and record.project_name != self.selector.project
+        ):
+            return False
+        return timestamp_in_range(
+            record.timestamp,
+            since=self.selector.since,
+            until=self.selector.until,
+        )
+
+    def _queue_record(self: Any, record: AgentArtifactRecordWire) -> bool:
+        if not self._record_matches_transitive_bounds(record):
+            return False
         if normalize_source_path(record.artifact_dir) not in self.included_record_keys:
             self.record_queue.append(record)
+        return True
 
     def _queue_chat(self: Any, chat_path: str) -> None:
         normalized = normalize_source_path(chat_path)

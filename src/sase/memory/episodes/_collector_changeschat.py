@@ -90,6 +90,8 @@ class CollectorChatChangespecMixin:
                 *self.records_by_family.get(fork_ref_argument, []),
             ]
         ):
+            if not self._queue_record(record):
+                continue
             target = self._ensure_agent_node(record)
             self._add_edge(
                 xprompt_name,
@@ -98,7 +100,6 @@ class CollectorChatChangespecMixin:
                 evidence_ids=[chat_source.id],
                 metadata={"argument": fork_ref_argument},
             )
-            self._queue_record(record)
 
     def _add_changespec_commit_links(
         self: Any,
