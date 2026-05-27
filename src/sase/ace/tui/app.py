@@ -14,6 +14,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from ..changespec import ChangeSpec
 from ..query import to_canonical_string
+from ._changespec_list_layout import (
+    CL_LIST_MAX_PANEL_WIDTH,
+    CL_LIST_MIN_PANEL_WIDTH,
+)
 from .models.fold_state import FoldLevel
 from .actions import (
     AgentsMixin,
@@ -67,8 +71,8 @@ TabName = Literal["changespecs", "agents", "axe"]
 # Width bounds for dynamic list panel sizing (in terminal cells)
 # MIN must fit the CL status line plus padding/border; the refresh countdown
 # lives on the info panel's second row.
-_MIN_LIST_WIDTH = 43
-_MAX_LIST_WIDTH = 80
+_MIN_LIST_WIDTH = CL_LIST_MIN_PANEL_WIDTH
+_MAX_LIST_WIDTH = CL_LIST_MAX_PANEL_WIDTH
 
 # Width bounds for agent list panel
 _MIN_AGENT_LIST_WIDTH = 60

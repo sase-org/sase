@@ -17,6 +17,10 @@ from rich.text import Text
 from textual.widgets.option_list import Option
 
 from ...changespec import ChangeSpec
+from .._changespec_list_layout import (
+    CL_LIST_CONTENT_WIDTH_PADDING,
+    CL_LIST_MAX_CONTENT_WIDTH,
+)
 from ..models.changespec_groups import (
     ChangeSpecGroupingMode,
     build_changespec_tree,
@@ -39,10 +43,6 @@ if TYPE_CHECKING:
 
 #: Sentinel ``_row_entries`` value for banner rows.
 _BANNER_ROW = -1
-
-#: Padding added to the widest content width to size the panel — accounts
-#: for border, scrollbar, and visual breathing room.
-_PADDING = 8
 
 
 def render_grouped(
@@ -117,8 +117,8 @@ def render_grouped(
             "mentor_stats": stats,
         }
 
-    # Banner width: at least CS_MIN_BANNER_WIDTH and at least the
-    # widest CL row so the rule fully spans the panel.
+    # Natural banner width still drives the parent panel request, but
+    # emitted banner prompts are capped to the side panel's usable cells.
     banner_min = max(CS_MIN_BANNER_WIDTH, max_cs_width)
     max_banner_natural = 0
     for entry in tree:
@@ -128,7 +128,8 @@ def render_grouped(
                 max_banner_natural,
                 banner_natural_width(entry.group, banner_hint),
             )
-    banner_width = max(banner_min, max_banner_natural)
+    natural_banner_width = max(banner_min, max_banner_natural)
+    banner_width = min(natural_banner_width, CL_LIST_MAX_CONTENT_WIDTH)
 
     # Walk the tree and emit Options.
     highlighted_row: int | None = None
@@ -188,7 +189,9 @@ def render_grouped(
         if current_group_key is None and i == current_idx:
             highlighted_row = row_index
 
-    optimal_width = max(max_cs_width, banner_width) + _PADDING
+    optimal_width = (
+        max(max_cs_width, natural_banner_width) + CL_LIST_CONTENT_WIDTH_PADDING
+    )
     widget._target_width = optimal_width
     widget.post_message(widget.WidthChanged(optimal_width))
 

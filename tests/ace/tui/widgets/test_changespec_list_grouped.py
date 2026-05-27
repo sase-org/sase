@@ -12,6 +12,7 @@ from typing import Any
 from textual.message import Message
 
 from sase.ace.changespec import ChangeSpec, TimestampEntry
+from sase.ace.tui._changespec_list_layout import CL_LIST_MAX_CONTENT_WIDTH
 from sase.ace.tui.models.changespec_groups import (
     ChangeSpecGroupingMode,
     ChangeSpecGroupRow,
@@ -154,7 +155,7 @@ def test_banner_natural_width_uses_two_cell_prefix_for_l1() -> None:
     )
 
     assert banner_natural_width(group, hint_char="x") == (
-        4 + 2 + len("21:00") + 1 + 2 + len("2 CLs")
+        4 + 2 + len("21:00") + 1 + 2 + 2 + len("2 CLs")
     )
 
 
@@ -402,16 +403,12 @@ def _option_cell_len(widget: ChangeSpecList, row: int) -> int:
     return prompt.cell_len if hasattr(prompt, "cell_len") else len(str(prompt))
 
 
-def test_long_cl_name_grows_banner_width_to_fit(monkeypatch: Any) -> None:
-    """When a CL name is very long the banner rule must stretch with it.
-
-    A short banner over a long CL row would visually misalign — the CL
-    row would extend past the banner's right edge, making the banner
-    look truncated.  The widget compensates by widening the banner to
-    the max CL row width.
-    """
+def test_long_cl_name_does_not_force_banner_past_panel(
+    monkeypatch: Any,
+) -> None:
+    """Long CL rows still request width, but banner prompts stay bounded."""
     widget, posted = _wire_widget(monkeypatch)
-    long_name = "a" * 80
+    long_name = "a" * 100
     css = [_cs(long_name, status="WIP"), _cs("short", status="WIP")]
 
     widget.update_list(
@@ -420,23 +417,24 @@ def test_long_cl_name_grows_banner_width_to_fit(monkeypatch: Any) -> None:
         grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
     )
 
-    # The width broadcast to the parent container must account for the
-    # long row; the trivial 40-char banner floor would clip it.
+    assert _option_cell_len(widget, 0) <= CL_LIST_MAX_CONTENT_WIDTH
+    opt = widget.get_option_at_index(0)
+    plain = opt.prompt.plain if hasattr(opt.prompt, "plain") else str(opt.prompt)
+    assert "2 CLs" in plain
+
+    # The width broadcast to the parent container still accounts for the
+    # long row; the parent will clamp it to the side-panel max.
     width_msgs = [m for m in posted if isinstance(m, ChangeSpecList.WidthChanged)]
     assert width_msgs
     assert width_msgs[-1].width >= len(long_name)
 
 
-def test_long_status_label_does_not_clip_chip(monkeypatch: Any) -> None:
-    """A status with a very long suffix must still leave room for the chip.
-
-    The ``Status (...)`` heading text + ``N CLs`` chip + at least 2
-    rule cells must all fit within the banner width.  Cell length must
-    therefore be ``>= label + chip + 4`` cells (prefix glyph + space +
-    rule padding + space).
-    """
+def test_long_status_label_truncates_without_clipping_chip(
+    monkeypatch: Any,
+) -> None:
+    """A status with a very long suffix leaves room for the chip."""
     widget, _ = _wire_widget(monkeypatch)
-    long_status = "Ready - (!: REVIEWERS PENDING + LOTS OF EXTRA CONTEXT)"
+    long_status = "Ready - " + ("reviewers pending and extra context " * 4)
     css = [_cs("a", status=long_status), _cs("b", status=long_status)]
 
     widget.update_list(
@@ -445,21 +443,20 @@ def test_long_status_label_does_not_clip_chip(monkeypatch: Any) -> None:
         grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
     )
 
-    # Banner is row 0.  Its rendered text must contain both the full
-    # label and the chip; if either was truncated the row would render
-    # shorter than label_len + chip_len.
-    cell_len = _option_cell_len(widget, 0)
-    chip_text = "2 CLs"
-    assert cell_len >= len(long_status) + len(chip_text)
+    opt = widget.get_option_at_index(0)
+    plain = opt.prompt.plain if hasattr(opt.prompt, "plain") else str(opt.prompt)
+    assert _option_cell_len(widget, 0) <= CL_LIST_MAX_CONTENT_WIDTH
+    assert "2 CLs" in plain
+    assert "…" in plain
 
 
 def test_banner_rule_stays_at_least_two_cells(monkeypatch: Any) -> None:
     """Even when label + chip nearly fill the row the rule keeps two cells.
 
-    The rendering helper uses ``pad_len = max(2, width - used)`` so we
-    never end up with the label and chip butted together with no rule
-    glyph between them.  This test asserts the lower-bound holds for a
-    label sized exactly to the banner width.
+    The rendering helper reserves two rule cells so we never end up with
+    the label and chip butted together with no rule glyph between them.
+    This test asserts the lower-bound holds for a label sized exactly to
+    the banner width.
     """
     widget, _ = _wire_widget(monkeypatch)
     # Single CL with a moderately long name to push the banner width
@@ -507,5 +504,6 @@ def test_jump_hint_prefix_does_not_overflow_banner(monkeypatch: Any) -> None:
     # include both the hint marker and the chip text.
     opt = widget.get_option_at_index(0)
     plain = opt.prompt.plain if hasattr(opt.prompt, "plain") else str(opt.prompt)
+    assert _option_cell_len(widget, 0) <= CL_LIST_MAX_CONTENT_WIDTH
     assert "[x]" in plain
     assert "2 CLs" in plain

@@ -124,6 +124,8 @@
 /* List panel styling */
 ChangeSpecList {
     scrollbar-gutter: stable;
+    text-wrap: nowrap;
+    text-overflow: clip;
 }
 
 ChangeSpecList > .option-list--option {

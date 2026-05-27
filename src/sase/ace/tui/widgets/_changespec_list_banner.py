@@ -10,6 +10,7 @@ BY_DATE banners use the dim-gray ``▸`` branch glyph with a teal label.
 
 from __future__ import annotations
 
+from rich.cells import cell_len
 from rich.text import Text
 from textual.widgets.option_list import Option
 
@@ -33,6 +34,10 @@ from ._agent_list_styling import (
 #: tabs render banners at the same visual weight.
 CS_MIN_BANNER_WIDTH = 40
 
+_MIN_RULE_CELLS = 2
+_LABEL_RULE_GAP = " "
+_RULE_CHIP_GAP = "  "
+
 
 def _banner_label(group: ChangeSpecGroupRow) -> str:
     """Visible heading text for *group*."""
@@ -45,6 +50,42 @@ def _banner_chip(group: ChangeSpecGroupRow) -> str:
     """Right-aligned ``N CLs`` summary chip for *group*."""
     n = len(group.changespec_indices)
     return f"{n} CL{'s' if n != 1 else ''}"
+
+
+def _banner_parts(group: ChangeSpecGroupRow) -> tuple[str, str, str, str, str]:
+    """Return the styled prefix/label/rule pieces for *group*."""
+    if group.level == 0:
+        return (
+            f"{_PROJECT_BAR_GLYPH} ",
+            _PROJECT_BANNER_BAR_STYLE,
+            _PROJECT_BANNER_BAR_STYLE,
+            _PROJECT_RULE,
+            _PROJECT_BANNER_RULE_STYLE,
+        )
+    if group.level == 1:
+        return (
+            f"{_CHANGESPEC_BAR_GLYPH} ",
+            _CHANGESPEC_BANNER_BAR_STYLE,
+            _CHANGESPEC_BANNER_BAR_STYLE,
+            _CHANGESPEC_RULE,
+            _CHANGESPEC_BANNER_RULE_STYLE,
+        )
+    return (
+        f"{_NAME_ROOT_BRANCH_GLYPH} ",
+        _NAME_ROOT_BANNER_BRANCH_STYLE,
+        _NAME_ROOT_BANNER_LABEL_STYLE,
+        _NAME_ROOT_RULE,
+        _NAME_ROOT_BANNER_BRANCH_STYLE,
+    )
+
+
+def _truncate_label(label: str, *, max_width: int, style: str) -> Text:
+    """Return styled label text no wider than *max_width* cells."""
+    if max_width <= 0:
+        return Text()
+    label_text = Text(label, style=style)
+    label_text.truncate(max_width, overflow="ellipsis")
+    return label_text
 
 
 def format_changespec_banner_option(
@@ -67,40 +108,58 @@ def format_changespec_banner_option(
     ids; the Option id encodes ``sequence:level:key`` so OptionList can
     address each row uniquely.
     """
+    key_str = "/".join(group.group_key)
+    if width <= 0:
+        return Option(
+            Text(),
+            id=f"cs_group:{sequence}:{group.level}:{key_str}",
+            disabled=not selectable,
+        )
+
     label = _banner_label(group)
     chip = _banner_chip(group)
+    prefix, prefix_style, label_style, rule_char, rule_style = _banner_parts(group)
 
-    if group.level == 0:
-        prefix = f"{_PROJECT_BAR_GLYPH} "
-        prefix_style = _PROJECT_BANNER_BAR_STYLE
-        label_style = _PROJECT_BANNER_BAR_STYLE
-        rule_char = _PROJECT_RULE
-        rule_style = _PROJECT_BANNER_RULE_STYLE
-    elif group.level == 1:
-        prefix = f"{_CHANGESPEC_BAR_GLYPH} "
-        prefix_style = _CHANGESPEC_BANNER_BAR_STYLE
-        label_style = _CHANGESPEC_BANNER_BAR_STYLE
-        rule_char = _CHANGESPEC_RULE
-        rule_style = _CHANGESPEC_BANNER_RULE_STYLE
-    else:
-        prefix = f"{_NAME_ROOT_BRANCH_GLYPH} "
-        prefix_style = _NAME_ROOT_BANNER_BRANCH_STYLE
-        label_style = _NAME_ROOT_BANNER_LABEL_STYLE
-        rule_char = _NAME_ROOT_RULE
-        rule_style = _NAME_ROOT_BANNER_BRANCH_STYLE
+    hint_text = f"[{hint_char}] " if hint_char is not None else ""
+    reserved_cells = (
+        cell_len(hint_text)
+        + cell_len(prefix)
+        + cell_len(_LABEL_RULE_GAP)
+        + _MIN_RULE_CELLS
+        + cell_len(_RULE_CHIP_GAP)
+        + cell_len(chip)
+    )
+    label_text = _truncate_label(
+        label,
+        max_width=max(0, width - reserved_cells),
+        style=label_style,
+    )
+    rule_cells = max(
+        _MIN_RULE_CELLS,
+        width
+        - (
+            cell_len(hint_text)
+            + cell_len(prefix)
+            + label_text.cell_len
+            + cell_len(_LABEL_RULE_GAP)
+            + cell_len(_RULE_CHIP_GAP)
+            + cell_len(chip)
+        ),
+    )
 
     text = Text()
-    if hint_char is not None:
-        text.append(f"[{hint_char}] ", style="bold #FFFF00")
-    hint_cells = 4 if hint_char is not None else 0
+    if hint_text:
+        text.append(hint_text, style="bold #FFFF00")
     text.append(prefix, style=prefix_style)
-    text.append(label, style=label_style)
+    text.append(label_text)
+    text.append(
+        _LABEL_RULE_GAP + rule_char * rule_cells + _RULE_CHIP_GAP + chip,
+        style=rule_style,
+    )
 
-    used = hint_cells + len(prefix) + len(label) + 1 + 2 + len(chip)
-    pad_len = max(2, width - used)
-    text.append(" " + rule_char * pad_len + "  " + chip, style=rule_style)
+    if text.cell_len > width:
+        text.truncate(width, overflow="ellipsis")
 
-    key_str = "/".join(group.group_key)
     return Option(
         text,
         id=f"cs_group:{sequence}:{group.level}:{key_str}",
@@ -117,6 +176,14 @@ def banner_natural_width(group: ChangeSpecGroupRow, hint_char: str | None) -> in
     """
     label = _banner_label(group)
     chip = _banner_chip(group)
-    prefix_len = 2  # bar glyph + space
-    hint_cells = 4 if hint_char is not None else 0
-    return hint_cells + prefix_len + len(label) + 1 + 2 + len(chip)
+    prefix, *_ = _banner_parts(group)
+    hint_text = f"[{hint_char}] " if hint_char is not None else ""
+    return (
+        cell_len(hint_text)
+        + cell_len(prefix)
+        + cell_len(label)
+        + cell_len(_LABEL_RULE_GAP)
+        + _MIN_RULE_CELLS
+        + cell_len(_RULE_CHIP_GAP)
+        + cell_len(chip)
+    )
