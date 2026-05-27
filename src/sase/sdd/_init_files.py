@@ -1,0 +1,228 @@
+"""Generated SDD guide files and init planning."""
+
+from importlib import resources
+from pathlib import Path
+
+from sase.sdd._paths import resolve_sdd_asset_path, resolve_sdd_readme_path
+from sase.sdd._types import (
+    SddExpectedBytesFile,
+    SddExpectedTextFile,
+    SddInitAction,
+    SddInitOperation,
+)
+
+SDD_DIRECTORY_MAP_FILENAME = "sdd-directory-map.png"
+SDD_DIRECTORY_MAP_RELATIVE_PATH = f"assets/{SDD_DIRECTORY_MAP_FILENAME}"
+
+SDD_README_CONTENT = """# Structured Development Docs
+
+The `sdd/` directory keeps durable planning context close to the code it describes. It stores prompts, approved plans,
+roadmap material, and bead state in predictable paths so humans and agents can reference the same artifacts over time.
+
+![SDD directory map](assets/sdd-directory-map.png)
+
+## Directory Layout
+
+- `prompts/` stores the original user prompts or expanded prompt snapshots that led to plan-like artifacts.
+- `tales/` stores task-level implementation plans and follow-up plans.
+- `epics/` stores larger work plans that may be split into phase beads.
+- `legends/` stores broad roadmap or strategy artifacts that can spawn epics.
+- `myths/` stores long-horizon narrative, strategy, and context artifacts that are broader than active roadmap plans.
+- `research/` stores exploratory findings, prior art, options, critiques, and recommendations that inform later work.
+- `beads/` stores bead issue data for SDD-backed work tracking.
+
+Prompt, tale, epic, legend, and research files are normally organized under a `YYYYMM/` month directory, for example
+`sdd/prompts/202605/example.md`, `sdd/tales/202605/example.md`, and `sdd/research/202605/example.md`. Prompt files
+should link to their generated plan-like artifact with frontmatter such as `plan: sdd/tales/202605/example.md`; the
+plan-like artifact should link back with `prompt: sdd/prompts/202605/example.md`.
+
+## Commands
+
+- `sase sdd list` lists SDD markdown artifacts.
+- `sase sdd validate` checks frontmatter links between prompts and plan-like artifacts.
+- `sase sdd repair-links` infers and repairs missing bidirectional links.
+- `sase bead` manages SDD bead issues and epic work.
+
+## Compatibility
+
+The canonical directories are `prompts/`, `tales/`, `epics/`, `legends/`, `myths/`, `research/`, and `beads/`. Older
+trees may still contain `specs/` for prompt snapshots or `plans/` for tale-like plans; SDD tooling keeps limited
+compatibility for those legacy names, but new artifacts should use `prompts/` and `tales/`.
+"""
+
+SDD_DIRECTORY_README_CONTENT = {
+    "tales": """# Tales
+
+The `tales/` directory stores task-level implementation plans and follow-up plans. Tales are the usual handoff artifact
+for focused work that is ready to implement.
+""",
+    "epics": """# Epics
+
+The `epics/` directory stores larger work plans that may span multiple phases or beads. Epics connect concrete delivery
+work to a broader feature or project outcome.
+""",
+    "legends": """# Legends
+
+The `legends/` directory stores broad roadmap or strategy artifacts that can spawn epics. Legends describe direction and
+sequencing before the work is broken into implementation-sized plans.
+""",
+    "myths": """# Myths
+
+The `myths/` directory stores long-horizon narrative, strategy, and context artifacts. Myths are broader than active
+roadmap plans and preserve the background story that helps future plans make sense.
+""",
+    "research": """# Research
+
+The `research/` directory stores exploratory findings, prior art, options, critiques, and recommendations that inform
+later tales, epics, legends, or implementation work.
+""",
+}
+
+
+def expected_sdd_readme(
+    path: str | None = None, *, cwd: Path | None = None
+) -> SddExpectedTextFile:
+    """Return the canonical top-level SDD README target and content."""
+    return SddExpectedTextFile(
+        path=resolve_sdd_readme_path(path, cwd=cwd),
+        content=SDD_README_CONTENT,
+    )
+
+
+def expected_sdd_directory_readmes(
+    path: str | None = None, *, cwd: Path | None = None
+) -> tuple[SddExpectedTextFile, ...]:
+    """Return canonical SDD directory README targets and contents."""
+    sdd_root = resolve_sdd_readme_path(path, cwd=cwd).parent
+    return tuple(
+        SddExpectedTextFile(path=sdd_root / dirname / "README.md", content=content)
+        for dirname, content in SDD_DIRECTORY_README_CONTENT.items()
+    )
+
+
+def expected_sdd_text_files(
+    path: str | None = None, *, cwd: Path | None = None
+) -> tuple[SddExpectedTextFile, ...]:
+    """Return all canonical generated SDD text files."""
+    return (
+        expected_sdd_readme(path, cwd=cwd),
+        *expected_sdd_directory_readmes(path, cwd=cwd),
+    )
+
+
+def expected_sdd_directory_map(
+    path: str | None = None, *, cwd: Path | None = None
+) -> SddExpectedBytesFile:
+    """Return the canonical SDD directory map target and PNG bytes."""
+    return SddExpectedBytesFile(
+        path=resolve_sdd_asset_path(path, cwd=cwd),
+        content=read_sdd_directory_map_bytes(),
+    )
+
+
+def expected_sdd_generated_paths(
+    path: str | None = None, *, cwd: Path | None = None
+) -> tuple[Path, ...]:
+    """Return all generated SDD init paths for *path*."""
+    text_paths = tuple(
+        expected_file.path for expected_file in expected_sdd_text_files(path, cwd=cwd)
+    )
+    return (
+        *text_paths,
+        expected_sdd_directory_map(path, cwd=cwd).path,
+    )
+
+
+def plan_sdd_init_actions(
+    path: str | None = None, *, cwd: Path | None = None
+) -> tuple[SddInitAction, ...]:
+    """Return missing/stale generated SDD files without writing anything."""
+    actions: list[SddInitAction] = []
+    for expected_file in expected_sdd_text_files(path, cwd=cwd):
+        operation = planned_text_operation(expected_file.path, expected_file.content)
+        if operation is not None:
+            actions.append(
+                SddInitAction(
+                    path=expected_file.path,
+                    operation=operation,
+                    detail=sdd_init_detail_for_path(expected_file.path),
+                )
+            )
+
+    expected_map = expected_sdd_directory_map(path, cwd=cwd)
+    operation = planned_bytes_operation(expected_map.path, expected_map.content)
+    if operation is not None:
+        actions.append(
+            SddInitAction(
+                path=expected_map.path,
+                operation=operation,
+                detail="directory map asset",
+            )
+        )
+
+    return tuple(actions)
+
+
+def ensure_sdd_initialized(
+    path: str | Path | None = None, *, cwd: Path | None = None
+) -> tuple[Path, ...]:
+    """Create or refresh generated SDD guide files only when they drift."""
+    path_arg = str(path) if path is not None else None
+    actions = plan_sdd_init_actions(path_arg, cwd=cwd)
+    if not actions:
+        return ()
+    write_sdd_readme(path_arg, cwd=cwd)
+    return tuple(action.path for action in actions)
+
+
+def write_sdd_readme(path: str | None = None, *, cwd: Path | None = None) -> Path:
+    """Create or refresh the canonical SDD README and return its path."""
+    readme = expected_sdd_readme(path, cwd=cwd)
+    for expected_file in expected_sdd_text_files(path, cwd=cwd):
+        expected_file.path.parent.mkdir(parents=True, exist_ok=True)
+        expected_file.path.write_text(expected_file.content, encoding="utf-8")
+    write_sdd_directory_map(expected_sdd_directory_map(path, cwd=cwd))
+    return readme.path
+
+
+def write_sdd_directory_map(expected_file: SddExpectedBytesFile) -> None:
+    expected_file.path.parent.mkdir(parents=True, exist_ok=True)
+    expected_file.path.write_bytes(expected_file.content)
+
+
+def read_sdd_directory_map_bytes() -> bytes:
+    source = resources.files("sase.sdd").joinpath("assets", SDD_DIRECTORY_MAP_FILENAME)
+    with resources.as_file(source) as source_path:
+        return source_path.read_bytes()
+
+
+def planned_text_operation(
+    path: Path, expected_content: str
+) -> SddInitOperation | None:
+    if not path.exists():
+        return "create"
+    try:
+        return (
+            None if path.read_text(encoding="utf-8") == expected_content else "update"
+        )
+    except OSError:
+        return "update"
+    except UnicodeDecodeError:
+        return "update"
+
+
+def planned_bytes_operation(
+    path: Path, expected_content: bytes
+) -> SddInitOperation | None:
+    if not path.exists():
+        return "create"
+    try:
+        return None if path.read_bytes() == expected_content else "update"
+    except OSError:
+        return "update"
+
+
+def sdd_init_detail_for_path(path: Path) -> str:
+    if path.name == "README.md" and path.parent.name == "sdd":
+        return "top-level README"
+    return "directory README"

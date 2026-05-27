@@ -1,280 +1,100 @@
-"""SDD file writing, committing, and directory resolution."""
+"""Compatibility facade for SDD file operations.
 
-import logging
-import subprocess
-from collections.abc import Iterable
-from datetime import datetime
-from importlib import resources
-from pathlib import Path
-from typing import Any, Literal, NamedTuple
-
-_logger = logging.getLogger(__name__)
-
-_SDD_PLAN_KINDS = {"tales", "epics", "legends"}
-_SDD_PLAN_KIND_ALIASES = {"plans": "tales"}
-_SDD_PROMPT_KINDS = {"prompts", "specs"}
-_SDD_CANONICAL_DIRS = {
-    "prompts",
-    "tales",
-    "epics",
-    "legends",
-    "myths",
-    "research",
-    "beads",
-}
-SDD_DIRECTORY_MAP_FILENAME = "sdd-directory-map.png"
-SDD_DIRECTORY_MAP_RELATIVE_PATH = f"assets/{SDD_DIRECTORY_MAP_FILENAME}"
-
-SDD_README_CONTENT = """# Structured Development Docs
-
-The `sdd/` directory keeps durable planning context close to the code it describes. It stores prompts, approved plans,
-roadmap material, and bead state in predictable paths so humans and agents can reference the same artifacts over time.
-
-![SDD directory map](assets/sdd-directory-map.png)
-
-## Directory Layout
-
-- `prompts/` stores the original user prompts or expanded prompt snapshots that led to plan-like artifacts.
-- `tales/` stores task-level implementation plans and follow-up plans.
-- `epics/` stores larger work plans that may be split into phase beads.
-- `legends/` stores broad roadmap or strategy artifacts that can spawn epics.
-- `myths/` stores long-horizon narrative, strategy, and context artifacts that are broader than active roadmap plans.
-- `research/` stores exploratory findings, prior art, options, critiques, and recommendations that inform later work.
-- `beads/` stores bead issue data for SDD-backed work tracking.
-
-Prompt, tale, epic, legend, and research files are normally organized under a `YYYYMM/` month directory, for example
-`sdd/prompts/202605/example.md`, `sdd/tales/202605/example.md`, and `sdd/research/202605/example.md`. Prompt files
-should link to their generated plan-like artifact with frontmatter such as `plan: sdd/tales/202605/example.md`; the
-plan-like artifact should link back with `prompt: sdd/prompts/202605/example.md`.
-
-## Commands
-
-- `sase sdd list` lists SDD markdown artifacts.
-- `sase sdd validate` checks frontmatter links between prompts and plan-like artifacts.
-- `sase sdd repair-links` infers and repairs missing bidirectional links.
-- `sase bead` manages SDD bead issues and epic work.
-
-## Compatibility
-
-The canonical directories are `prompts/`, `tales/`, `epics/`, `legends/`, `myths/`, `research/`, and `beads/`. Older
-trees may still contain `specs/` for prompt snapshots or `plans/` for tale-like plans; SDD tooling keeps limited
-compatibility for those legacy names, but new artifacts should use `prompts/` and `tales/`.
+The implementation is split by responsibility across sibling modules. This
+module keeps the historical ``sase.sdd.files`` import and monkeypatch surface
+stable for callers and tests.
 """
 
-SDD_DIRECTORY_README_CONTENT = {
-    "tales": """# Tales
+from datetime import datetime
+from pathlib import Path
 
-The `tales/` directory stores task-level implementation plans and follow-up plans. Tales are the usual handoff artifact
-for focused work that is ready to implement.
-""",
-    "epics": """# Epics
+from sase.sdd._commit import (
+    changed_sdd_files as _changed_sdd_files,
+    commit_bare_git_sdd_init_paths as _commit_bare_git_sdd_init_paths,
+    commit_sdd_files,
+    ensure_bare_git_sdd_initialized as _ensure_bare_git_sdd_initialized,
+    git_toplevel as _git_toplevel,
+    is_local_bare_git_workspace as _is_local_bare_git_workspace,
+    normalize_sdd_commit_pathspecs as _normalize_sdd_commit_pathspecs,
+    relative_git_pathspecs as _relative_git_pathspecs,
+)
+from sase.sdd._expand import dry_expand_embedded_workflows, expand_prompt_for_spec
+from sase.sdd._init_files import (
+    SDD_DIRECTORY_MAP_FILENAME,
+    SDD_DIRECTORY_MAP_RELATIVE_PATH,
+    SDD_DIRECTORY_README_CONTENT,
+    SDD_README_CONTENT,
+    expected_sdd_directory_map,
+    expected_sdd_directory_readmes,
+    expected_sdd_generated_paths,
+    expected_sdd_readme,
+    expected_sdd_text_files as _expected_sdd_text_files,
+    plan_sdd_init_actions,
+    planned_bytes_operation as _planned_bytes_operation,
+    planned_text_operation as _planned_text_operation,
+    read_sdd_directory_map_bytes as _read_sdd_directory_map_bytes,
+    sdd_init_detail_for_path as _sdd_init_detail_for_path,
+    write_sdd_directory_map as _write_sdd_directory_map,
+    write_sdd_readme,
+)
+from sase.sdd._paths import (
+    find_sdd_file,
+    get_primary_workspace_dir as _get_primary_workspace_dir,
+    get_yyyymm as _get_yyyymm,
+    looks_like_sdd_root as _looks_like_sdd_root,
+    resolve_primary_from_project as _resolve_primary_from_project_impl,
+    resolve_sdd_asset_path as _resolve_sdd_asset_path,
+    resolve_sdd_readme_path as _resolve_sdd_readme_path,
+    sdd_kind_roots as _sdd_kind_roots,
+)
+from sase.sdd._types import (
+    SddExpectedBytesFile,
+    SddExpectedTextFile,
+    SddInitAction,
+    SddInitOperation,
+)
+from sase.sdd._write import (
+    set_prompt_qa,
+    sdd_link_path as _sdd_link_path,
+    strip_qa_block as _strip_qa_block,
+    update_prompt_with_qa,
+    update_spec_with_qa,
+    write_sdd_files as _write_sdd_files,
+)
 
-The `epics/` directory stores larger work plans that may span multiple phases or beads. Epics connect concrete delivery
-work to a broader feature or project outcome.
-""",
-    "legends": """# Legends
-
-The `legends/` directory stores broad roadmap or strategy artifacts that can spawn epics. Legends describe direction and
-sequencing before the work is broken into implementation-sized plans.
-""",
-    "myths": """# Myths
-
-The `myths/` directory stores long-horizon narrative, strategy, and context artifacts. Myths are broader than active
-roadmap plans and preserve the background story that helps future plans make sense.
-""",
-    "research": """# Research
-
-The `research/` directory stores exploratory findings, prior art, options, critiques, and recommendations that inform
-later tales, epics, legends, or implementation work.
-""",
-}
-
-
-class _SddExpectedTextFile(NamedTuple):
-    path: Path
-    content: str
-
-
-class _SddExpectedBytesFile(NamedTuple):
-    path: Path
-    content: bytes
-
-
-SddInitOperation = Literal["create", "update"]
-
-
-class _SddInitAction(NamedTuple):
-    """One generated SDD file that is missing or stale."""
-
-    path: Path
-    operation: SddInitOperation
-    detail: str
+_SddExpectedTextFile = SddExpectedTextFile
+_SddExpectedBytesFile = SddExpectedBytesFile
+_SddInitAction = SddInitAction
 
 
 def get_yyyymm(dt: datetime | None = None) -> str:
-    """Return a YYYYMM string for SDD subdirectory organization.
-
-    Uses the configured timezone (same as ``add_create_time_frontmatter``).
-    """
-    if dt is None:
-        from sase.core.time import get_timezone
-
-        dt = datetime.now(get_timezone())
-    return dt.strftime("%Y%m")
+    """Return a YYYYMM string for SDD subdirectory organization."""
+    return _get_yyyymm(dt)
 
 
-def _sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
-    """Return lookup roots for an SDD kind, including legacy prompt aliases."""
-    aliases: tuple[str, ...]
-    if kind in _SDD_PROMPT_KINDS:
-        aliases = ("prompts", "specs")
-    elif kind in ("tales", "plans"):
-        aliases = ("tales", "plans")
-    else:
-        aliases = (kind,)
-    roots: list[Path] = []
-    seen: set[Path] = set()
-    for alias in aliases:
-        for root in (base_dir / "sdd" / alias, base_dir / alias):
-            if root not in seen:
-                roots.append(root)
-                seen.add(root)
-    return roots
-
-
-def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
-    """Search for an SDD file, supporting canonical and legacy layouts.
-
-    Canonical version-controlled paths live under ``sdd/{kind}``. Legacy
-    version-controlled paths live at the project root under ``{kind}``. Local
-    SDD mode passes ``.sase/sdd`` as ``base_dir``, where ``{kind}`` remains the
-    canonical local location.
-
-    Returns the first match, or ``None`` if not found.
-    """
-    for root in _sdd_kind_roots(base_dir, kind):
-        flat = root / name
-        if flat.exists():
-            return flat
-        matches = sorted(root.glob(f"*/{name}"))
-        if matches:
-            return matches[0]
-    return None
-
-
-def _resolve_sdd_readme_path(
-    path: str | None = None, *, cwd: Path | None = None
+def get_sdd_dir(
+    workspace_dir: str, workspace_num: int, version_controlled: bool
 ) -> Path:
-    """Resolve the generated SDD README target.
-
-    ``path`` may point at either a project root or an SDD root. Existing SDD
-    roots and paths named ``sdd`` are treated as SDD roots; other paths are
-    treated as project roots so init can create a missing ``sdd/`` directory.
-    """
-    base = Path.cwd() if cwd is None else cwd
-    if path is None:
-        return (base / "sdd" / "README.md").resolve()
-
-    target = Path(path).expanduser()
-    if not target.is_absolute():
-        target = base / target
-
-    if _looks_like_sdd_root(target):
-        return (target / "README.md").resolve()
-    return (target / "sdd" / "README.md").resolve()
-
-
-def _resolve_sdd_asset_path(
-    path: str | None = None, *, cwd: Path | None = None
-) -> Path:
-    """Resolve the generated SDD directory map target."""
+    """Return the target directory for SDD files."""
+    if version_controlled:
+        return Path(workspace_dir) / "sdd"
     return (
-        _resolve_sdd_readme_path(path, cwd=cwd).parent / SDD_DIRECTORY_MAP_RELATIVE_PATH
+        Path(get_primary_workspace_dir(workspace_dir, workspace_num)) / ".sase" / "sdd"
     )
 
 
-def expected_sdd_readme(
-    path: str | None = None, *, cwd: Path | None = None
-) -> _SddExpectedTextFile:
-    """Return the canonical top-level SDD README target and content."""
-    return _SddExpectedTextFile(
-        path=_resolve_sdd_readme_path(path, cwd=cwd),
-        content=SDD_README_CONTENT,
+def get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
+    """Derive primary workspace dir from current workspace."""
+    return _get_primary_workspace_dir(
+        workspace_dir,
+        workspace_num,
+        project_home=Path.home(),
     )
 
 
-def expected_sdd_directory_readmes(
-    path: str | None = None, *, cwd: Path | None = None
-) -> tuple[_SddExpectedTextFile, ...]:
-    """Return canonical SDD directory README targets and contents."""
-    sdd_root = _resolve_sdd_readme_path(path, cwd=cwd).parent
-    return tuple(
-        _SddExpectedTextFile(path=sdd_root / dirname / "README.md", content=content)
-        for dirname, content in SDD_DIRECTORY_README_CONTENT.items()
-    )
-
-
-def _expected_sdd_text_files(
-    path: str | None = None, *, cwd: Path | None = None
-) -> tuple[_SddExpectedTextFile, ...]:
-    """Return all canonical generated SDD text files."""
-    return (
-        expected_sdd_readme(path, cwd=cwd),
-        *expected_sdd_directory_readmes(path, cwd=cwd),
-    )
-
-
-def expected_sdd_directory_map(
-    path: str | None = None, *, cwd: Path | None = None
-) -> _SddExpectedBytesFile:
-    """Return the canonical SDD directory map target and PNG bytes."""
-    return _SddExpectedBytesFile(
-        path=_resolve_sdd_asset_path(path, cwd=cwd),
-        content=_read_sdd_directory_map_bytes(),
-    )
-
-
-def expected_sdd_generated_paths(
-    path: str | None = None, *, cwd: Path | None = None
-) -> tuple[Path, ...]:
-    """Return all generated SDD init paths for *path*."""
-    text_paths = tuple(
-        expected_file.path for expected_file in _expected_sdd_text_files(path, cwd=cwd)
-    )
-    return (
-        *text_paths,
-        expected_sdd_directory_map(path, cwd=cwd).path,
-    )
-
-
-def plan_sdd_init_actions(
-    path: str | None = None, *, cwd: Path | None = None
-) -> tuple[_SddInitAction, ...]:
-    """Return missing/stale generated SDD files without writing anything."""
-    actions: list[_SddInitAction] = []
-    for expected_file in _expected_sdd_text_files(path, cwd=cwd):
-        operation = _planned_text_operation(expected_file.path, expected_file.content)
-        if operation is not None:
-            actions.append(
-                _SddInitAction(
-                    path=expected_file.path,
-                    operation=operation,
-                    detail=_sdd_init_detail_for_path(expected_file.path),
-                )
-            )
-
-    expected_map = expected_sdd_directory_map(path, cwd=cwd)
-    operation = _planned_bytes_operation(expected_map.path, expected_map.content)
-    if operation is not None:
-        actions.append(
-            _SddInitAction(
-                path=expected_map.path,
-                operation=operation,
-                detail="directory map asset",
-            )
-        )
-
-    return tuple(actions)
+def _resolve_primary_from_project(workspace_dir: str) -> str | None:
+    """Resolve primary workspace from the project's WORKSPACE_DIR field."""
+    return _resolve_primary_from_project_impl(workspace_dir, project_home=Path.home())
 
 
 def ensure_sdd_initialized(
@@ -293,176 +113,6 @@ def ensure_sdd_initialized(
     return tuple(action.path for action in actions)
 
 
-def write_sdd_readme(path: str | None = None, *, cwd: Path | None = None) -> Path:
-    """Create or refresh the canonical SDD README and return its path."""
-    readme = expected_sdd_readme(path, cwd=cwd)
-    for expected_file in _expected_sdd_text_files(path, cwd=cwd):
-        expected_file.path.parent.mkdir(parents=True, exist_ok=True)
-        expected_file.path.write_text(expected_file.content, encoding="utf-8")
-    _write_sdd_directory_map(expected_sdd_directory_map(path, cwd=cwd))
-    return readme.path
-
-
-def _write_sdd_directory_map(expected_file: _SddExpectedBytesFile) -> None:
-    expected_file.path.parent.mkdir(parents=True, exist_ok=True)
-    expected_file.path.write_bytes(expected_file.content)
-
-
-def _read_sdd_directory_map_bytes() -> bytes:
-    source = resources.files("sase.sdd").joinpath("assets", SDD_DIRECTORY_MAP_FILENAME)
-    with resources.as_file(source) as source_path:
-        return source_path.read_bytes()
-
-
-def _planned_text_operation(
-    path: Path, expected_content: str
-) -> SddInitOperation | None:
-    if not path.exists():
-        return "create"
-    try:
-        return (
-            None if path.read_text(encoding="utf-8") == expected_content else "update"
-        )
-    except OSError:
-        return "update"
-    except UnicodeDecodeError:
-        return "update"
-
-
-def _planned_bytes_operation(
-    path: Path, expected_content: bytes
-) -> SddInitOperation | None:
-    if not path.exists():
-        return "create"
-    try:
-        return None if path.read_bytes() == expected_content else "update"
-    except OSError:
-        return "update"
-
-
-def _sdd_init_detail_for_path(path: Path) -> str:
-    if path.name == "README.md" and path.parent.name == "sdd":
-        return "top-level README"
-    return "directory README"
-
-
-def _looks_like_sdd_root(path: Path) -> bool:
-    if path.name == "sdd":
-        return True
-    if not path.is_dir():
-        return False
-    return any((path / dirname).is_dir() for dirname in _SDD_CANONICAL_DIRS)
-
-
-def get_sdd_dir(
-    workspace_dir: str, workspace_num: int, version_controlled: bool
-) -> Path:
-    """Return the target directory for SDD files.
-
-    If version_controlled: return Path(workspace_dir) / "sdd"
-    If not: return primary_workspace / ".sase" / "sdd"
-    """
-    if version_controlled:
-        return Path(workspace_dir) / "sdd"
-    return (
-        Path(get_primary_workspace_dir(workspace_dir, workspace_num)) / ".sase" / "sdd"
-    )
-
-
-def get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
-    """Derive primary workspace dir from current workspace.
-
-    Prefer the project's configured WORKSPACE_DIR (source of truth).
-    Fall back to suffix-stripping based on workspace_num.
-
-    For workspace_num == 1, returns workspace_dir as-is.
-    For workspace_num > 1, strips the ``_{workspace_num}`` suffix.
-    """
-    configured_primary = _resolve_primary_from_project(workspace_dir)
-    if configured_primary:
-        return configured_primary
-
-    if workspace_num <= 1:
-        return workspace_dir
-    suffix = f"_{workspace_num}"
-    stripped = workspace_dir.rstrip("/")
-    parts = stripped.split("/")
-    for i in range(len(parts) - 1, -1, -1):
-        if parts[i].endswith(suffix):
-            parts[i] = parts[i][: -len(suffix)]
-            return "/".join(parts)
-    return workspace_dir
-
-
-def _resolve_primary_from_project(workspace_dir: str) -> str | None:
-    """Resolve primary workspace from the project's WORKSPACE_DIR field.
-
-    Returns ``None`` if project/workspace metadata cannot be resolved.
-    """
-    try:
-        from sase.workspace_provider import get_workspace_name
-        from sase.workspace_provider.utils import parse_workspace_dir
-
-        project_name = get_workspace_name(workspace_dir)
-        if not project_name:
-            return None
-
-        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
-
-        project_dir = Path.home() / ".sase" / "projects" / project_name
-        project_file = preferred_project_spec_path(str(project_dir), project_name)
-        primary = parse_workspace_dir(project_file)
-        if not primary:
-            return None
-        return primary.rstrip("/")
-    except Exception:
-        return None
-
-
-def commit_sdd_files(
-    sdd_dir: Path,
-    message: str,
-    *,
-    auto_commit_type: str = "sdd",
-    paths: Iterable[str | Path] | None = None,
-) -> None:
-    """Auto-commit SDD files in a local `.sase/sdd/` git repo.
-
-    No-op if `sdd_dir` is not a git repo or there are no staged changes.
-    """
-    if not (sdd_dir / ".git").is_dir():
-        return
-
-    pathspecs = _normalize_sdd_commit_pathspecs(sdd_dir, paths)
-    changed_files = _changed_sdd_files(sdd_dir, pathspecs)
-    if not changed_files:
-        return
-
-    subprocess.run(
-        ["git", "add", "--"] + changed_files,
-        cwd=sdd_dir,
-        check=True,
-        capture_output=True,
-    )
-
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--quiet", "--"] + changed_files,
-        cwd=sdd_dir,
-        capture_output=True,
-    )
-    if result.returncode != 0:
-        # There are staged changes — commit them
-        from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
-
-        message = apply_auto_commit_type_tag(message, auto_commit_type)
-        subprocess.run(
-            ["git", "commit", "-m", message, "--"] + changed_files,
-            cwd=sdd_dir,
-            check=True,
-            capture_output=True,
-        )
-
-
 def ensure_bare_git_sdd_initialized(
     workspace_dir: str | Path,
     *,
@@ -470,206 +120,14 @@ def ensure_bare_git_sdd_initialized(
     push: bool = False,
     raise_on_error: bool = False,
 ) -> tuple[Path, ...]:
-    """Ensure generated SDD init files exist for a local bare-git checkout.
-
-    Non-bare-git workspaces are a no-op. When *commit* is true, only generated
-    SDD init paths are staged and committed. *push* is reserved for repository
-    setup/materialization flows that already own synchronization with the bare
-    remote.
-    """
-    workspace = Path(workspace_dir).expanduser()
-    if not _is_local_bare_git_workspace(workspace):
-        return ()
-
-    git_root = _git_toplevel(workspace)
-    if git_root is None:
-        return ()
-
-    refreshed = ensure_sdd_initialized(git_root)
-    if not refreshed or not commit:
-        return refreshed
-
-    try:
-        _commit_bare_git_sdd_init_paths(git_root, refreshed, push=push)
-    except Exception as exc:
-        message = f"Failed to commit generated SDD init files in {git_root}: {exc}"
-        if raise_on_error:
-            raise RuntimeError(message) from exc
-        _logger.warning(message)
-
-    return refreshed
-
-
-def _is_local_bare_git_workspace(workspace: Path) -> bool:
-    """Return true for SASE's built-in bare-git local-remote workspaces."""
-    try:
-        from sase.vcs_provider import detect_vcs
-
-        if detect_vcs(str(workspace)) != "bare_git":
-            return False
-    except Exception:
-        return False
-
-    result = subprocess.run(
-        ["git", "config", "--get", "remote.origin.url"],
-        cwd=workspace,
-        capture_output=True,
-        text=True,
-        check=False,
+    """Ensure generated SDD init files exist for a local bare-git checkout."""
+    return _ensure_bare_git_sdd_initialized(
+        workspace_dir,
+        commit=commit,
+        push=push,
+        raise_on_error=raise_on_error,
+        initializer=ensure_sdd_initialized,
     )
-    if result.returncode != 0:
-        return False
-    url = result.stdout.strip()
-    if not url:
-        return False
-    return not url.startswith(("http://", "https://", "git@", "ssh://"))
-
-
-def _git_toplevel(workspace: Path) -> Path | None:
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        cwd=workspace,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        return None
-    root = result.stdout.strip()
-    if not root:
-        return None
-    return Path(root).resolve()
-
-
-def _commit_bare_git_sdd_init_paths(
-    git_root: Path,
-    paths: Iterable[Path],
-    *,
-    push: bool,
-) -> None:
-    rel_paths = _relative_git_pathspecs(git_root, paths)
-    if not rel_paths:
-        return
-
-    subprocess.run(
-        ["git", "add", "--", *rel_paths],
-        cwd=git_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    diff = subprocess.run(
-        ["git", "diff", "--cached", "--quiet", "--", *rel_paths],
-        cwd=git_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if diff.returncode == 0:
-        return
-    if diff.returncode != 1:
-        raise RuntimeError((diff.stderr or "git diff --cached failed").strip())
-
-    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
-
-    message = apply_auto_commit_type_tag("Initialize SDD", "init")
-    subprocess.run(
-        [
-            "git",
-            "-c",
-            "user.email=sase@localhost",
-            "-c",
-            "user.name=sase",
-            "commit",
-            "-m",
-            message,
-            "--",
-            *rel_paths,
-        ],
-        cwd=git_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    if push:
-        subprocess.run(
-            ["git", "push", "origin", "HEAD"],
-            cwd=git_root,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-
-
-def _relative_git_pathspecs(git_root: Path, paths: Iterable[Path]) -> list[str]:
-    root = git_root.resolve()
-    rel_paths: set[str] = set()
-    for raw_path in paths:
-        path = Path(raw_path)
-        try:
-            rel_paths.add(path.resolve().relative_to(root).as_posix())
-        except ValueError:
-            continue
-    return sorted(path for path in rel_paths if path)
-
-
-def _normalize_sdd_commit_pathspecs(
-    sdd_dir: Path,
-    paths: Iterable[str | Path] | None,
-) -> list[str]:
-    """Return git pathspecs rooted at ``sdd_dir`` for targeted SDD commits."""
-    if paths is None:
-        return ["."]
-
-    sdd_root = sdd_dir.resolve()
-    pathspecs: list[str] = []
-    for raw_path in paths:
-        path = Path(raw_path)
-        if path.is_absolute():
-            try:
-                path = path.resolve().relative_to(sdd_root)
-            except ValueError:
-                path = Path(raw_path)
-        pathspec = path.as_posix()
-        if pathspec and pathspec != ".":
-            pathspecs.append(pathspec)
-    return pathspecs or ["."]
-
-
-def _changed_sdd_files(sdd_dir: Path, pathspecs: list[str]) -> list[str]:
-    """Return concrete changed files under ``pathspecs`` in the SDD git repo."""
-    result = subprocess.run(
-        [
-            "git",
-            "ls-files",
-            "--modified",
-            "--others",
-            "--deleted",
-            "--exclude-standard",
-            "-z",
-            "--",
-            *pathspecs,
-        ],
-        cwd=sdd_dir,
-        check=True,
-        capture_output=True,
-    )
-    stdout = result.stdout or b""
-    if isinstance(stdout, str):
-        return [path for path in stdout.split("\0") if path]
-    return [path.decode("utf-8") for path in stdout.split(b"\0") if path]
-
-
-def _sdd_link_path(sdd_dir: Path, path: Path) -> str:
-    """Return the stable relative path to write into SDD frontmatter."""
-    relative = path.relative_to(sdd_dir).as_posix()
-    if sdd_dir.name == "sdd" and sdd_dir.parent.name == ".sase":
-        return f".sase/sdd/{relative}"
-    if sdd_dir.name == "sdd":
-        return f"sdd/{relative}"
-    return relative
 
 
 def write_sdd_files(
@@ -684,262 +142,64 @@ def write_sdd_files(
 
     Returns (prompt_path, plan_path).
     """
-    plan_kind = _SDD_PLAN_KIND_ALIASES.get(plan_kind, plan_kind)
-    if plan_kind not in _SDD_PLAN_KINDS:
-        raise ValueError(
-            f"invalid SDD plan kind {plan_kind!r}; expected one of "
-            f"{sorted(_SDD_PLAN_KINDS)}"
-        )
-
-    yyyymm = get_yyyymm()
-    prompts_dir = sdd_dir / "prompts" / yyyymm
-    plans_dir = sdd_dir / plan_kind / yyyymm
-    prompts_dir.mkdir(parents=True, exist_ok=True)
-    plans_dir.mkdir(parents=True, exist_ok=True)
-
-    prompt_path = prompts_dir / f"{plan_name}.md"
-    plan_path = plans_dir / f"{plan_name}.md"
-    prompt_link = _sdd_link_path(sdd_dir, prompt_path)
-    plan_link = _sdd_link_path(sdd_dir, plan_path)
-
-    from sase.sdd.frontmatter import set_frontmatter_fields
-
-    prompt_path.write_text(
-        set_frontmatter_fields(prompt_content, {"plan": plan_link}),
-        encoding="utf-8",
+    return _write_sdd_files(
+        sdd_dir,
+        plan_name,
+        prompt_content,
+        plan_file,
+        plan_kind=plan_kind,
+        yyyymm=get_yyyymm(),
     )
 
-    plan_source = Path(plan_file)
-    if plan_source.exists():
-        from sase.gemini_wrapper.file_references import format_with_prettier
-        from sase.llm_provider._plan_utils import add_create_time_frontmatter
 
-        content = plan_source.read_text(encoding="utf-8")
-        content = format_with_prettier(content)
-        content = add_create_time_frontmatter(content)
-        content = set_frontmatter_fields(content, {"prompt": prompt_link})
-        plan_path.write_text(content, encoding="utf-8")
-
-    return prompt_path, plan_path
-
-
-_QA_HEADER = "### Questions and Answers"
-
-
-def _strip_qa_block(text: str) -> str:
-    """Remove existing ``### Questions and Answers`` block(s) (and their
-    enclosing ``%xprompts_enabled`` wrappers if present) from ``text``.
-
-    Multiple legacy blocks (e.g. a snapshot written by an old version
-    that appended a per-round block on each call) are all stripped, so a
-    subsequent ``set_prompt_qa`` call yields exactly one block.
-    """
-    end_marker = "%xprompts_enabled:true"
-    start_marker = "%xprompts_enabled:false"
-    while _QA_HEADER in text:
-        idx = text.find(_QA_HEADER)
-        wrapper_start = text.rfind(start_marker, 0, idx)
-        wrapper_end = -1
-        if wrapper_start != -1:
-            # The wrapper only applies if it directly precedes the header
-            # (no intervening non-whitespace) — otherwise the start marker
-            # belongs to some other region.
-            between = text[wrapper_start + len(start_marker) : idx]
-            if between.strip() != "":
-                wrapper_start = -1
-            else:
-                wrapper_end = text.find(end_marker, idx)
-                if wrapper_end == -1:
-                    wrapper_start = -1  # malformed → strip bare block
-
-        if wrapper_start != -1:
-            block_start = wrapper_start
-            block_end = wrapper_end + len(end_marker)
-        else:
-            # No clean terminator for a bare block: strip from the header
-            # to the end of the file (legacy: appended as final section).
-            block_start = idx
-            block_end = len(text)
-
-        # Strip any blank-line padding immediately before the block so
-        # we don't leave a trailing blank tail.
-        while block_start > 0 and text[block_start - 1] in ("\n", " ", "\t"):
-            block_start -= 1
-        text = text[:block_start] + text[block_end:]
-    return text
-
-
-def set_prompt_qa(prompt_path: Path, qa_markdown: str) -> None:
-    """Replace (or insert) the Q&A section in an SDD prompt snapshot.
-
-    Any pre-existing ``### Questions and Answers`` block is stripped
-    first (along with its ``%xprompts_enabled`` wrapper if present), so
-    the snapshot ends up with exactly one merged block matching the
-    follow-up agent's prompt.
-
-    No-op if the prompt file doesn't exist.
-    """
-    if not prompt_path.exists():
-        return
-    existing = prompt_path.read_text(encoding="utf-8")
-    stripped = _strip_qa_block(existing).rstrip("\n")
-    prompt_path.write_text(stripped + "\n\n" + qa_markdown + "\n", encoding="utf-8")
-
-
-def update_prompt_with_qa(prompt_path: Path, qa_markdown: str) -> None:
-    """Replace the Q&A section in an existing prompt snapshot.
-
-    Delegates to :func:`set_prompt_qa` (replace-not-append semantics) so
-    repeated calls produce a single merged Q&A block rather than
-    accumulating duplicate ``### Questions and Answers`` sections.
-    """
-    set_prompt_qa(prompt_path, qa_markdown)
-
-
-def update_spec_with_qa(spec_path: Path, qa_markdown: str) -> None:
-    """Replace Q&A in an SDD prompt snapshot.
-
-    Compatibility wrapper for callers still using the old ``spec`` terminology.
-    """
-    set_prompt_qa(spec_path, qa_markdown)
-
-
-def expand_prompt_for_spec(prompt: str) -> str:
-    """Expand xprompt references and strip directives for prompt storage.
-
-    Performs a "dry" expansion: xprompts are resolved, directives are stripped,
-    and embedded workflow ``prompt_part`` content is inlined — but no pre/post
-    steps are executed.
-
-    Args:
-        prompt: The raw prompt text (may contain ``#refs``, ``%directives``, etc.).
-
-    Returns:
-        The fully expanded prompt suitable for writing to a prompt snapshot.
-    """
-    from sase.llm_provider.preprocessing import preprocess_prompt_early
-
-    # Step 1: Expand xprompt references + strip directives
-    result = preprocess_prompt_early(prompt)
-    expanded = result.prompt
-
-    # Step 2: Dry-expand embedded workflow prompt_parts (no pre/post execution)
-    expanded = dry_expand_embedded_workflows(expanded)
-
-    return expanded
-
-
-def dry_expand_embedded_workflows(prompt: str) -> str:
-    """Replace embedded workflow references with their rendered prompt_part content.
-
-    This is a "dry" expansion — only the ``prompt_part`` template is rendered
-    with the parsed arguments; no pre-steps or post-steps are executed.
-
-    Explicit standalone workflow references (``#!name`` for workflows without a
-    ``prompt_part`` step) are preserved as compact markers for spec storage.
-    Legacy inline standalone references (``#name``) are rejected so prompt
-    snapshots do not capture ambiguous syntax.
-
-    Args:
-        prompt: Prompt text (already xprompt-expanded and directive-stripped).
-
-    Returns:
-        Prompt with workflow references replaced by rendered prompt_part content.
-    """
-    from sase.xprompt._fenced_blocks import (
-        protect_fenced_blocks,
-        unprotect_fenced_blocks,
-    )
-    from sase.xprompt._parsing import (
-        iter_xprompt_references,
-        normalize_vcs_underscore_refs,
-    )
-    from sase.xprompt.loader import get_all_workflows
-    from sase.xprompt.models import UNSET
-    from sase.xprompt.workflow_executor_steps_embedded_types import (
-        format_inline_workflow_reference_error,
-        parse_workflow_reference_args,
-    )
-    from sase.xprompt.workflow_executor_utils import render_template
-
-    workflows = get_all_workflows()
-
-    # Protect fenced code blocks from expansion
-    fenced_blocks: list[str] = []
-    prompt = protect_fenced_blocks(prompt, fenced_blocks)
-
-    # Normalize #gh_sase → #gh:sase
-    prompt = normalize_vcs_underscore_refs(prompt)
-
-    # Collect matches and their replacements
-    refs = iter_xprompt_references(prompt)
-    replacements: list[tuple[int, int, str]] = []  # (start, end, replacement)
-
-    for ref in refs:
-        name = ref.name
-        if name not in workflows:
-            continue
-
-        workflow = workflows[name]
-
-        if not workflow.has_prompt_part():
-            if ref.is_standalone_marker:
-                continue
-            raise ValueError(
-                format_inline_workflow_reference_error(
-                    name=name,
-                    raw=ref.raw,
-                    has_prompt_part=False,
-                )
-            )
-
-        if ref.is_standalone_marker:
-            raise ValueError(
-                format_inline_workflow_reference_error(
-                    name=name,
-                    raw=ref.raw,
-                    has_prompt_part=True,
-                )
-            )
-
-        # Parse arguments (mirrors the real executor logic)
-        positional_args, named_args = parse_workflow_reference_args(ref)
-        match_end = ref.end
-
-        # Build args dict with positional -> named mapping
-        args: dict[str, Any] = dict(named_args)
-        for i, value in enumerate(positional_args):
-            if i < len(workflow.inputs):
-                input_arg = workflow.inputs[i]
-                if input_arg.name not in args:
-                    args[input_arg.name] = value
-
-        # Apply defaults
-        for input_arg in workflow.inputs:
-            if input_arg.name not in args and input_arg.default is not UNSET:
-                args[input_arg.name] = input_arg.default
-
-        # Render prompt_part
-        prompt_part_content = workflow.get_prompt_part_content()
-        if prompt_part_content:
-            try:
-                prompt_part_content = render_template(prompt_part_content, args)
-            except Exception:
-                _logger.debug(
-                    "Failed to render prompt_part for workflow %r, leaving as-is",
-                    name,
-                )
-                continue
-
-        replacements.append((ref.start, match_end, prompt_part_content))
-
-    # Replace right-to-left for position safety
-    for start, end, replacement in sorted(
-        replacements, key=lambda r: r[0], reverse=True
-    ):
-        prompt = prompt[:start] + replacement + prompt[end:]
-
-    # Restore fenced code blocks
-    prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
-
-    return prompt
+__all__ = [
+    "SDD_DIRECTORY_MAP_FILENAME",
+    "SDD_DIRECTORY_MAP_RELATIVE_PATH",
+    "SDD_DIRECTORY_README_CONTENT",
+    "SDD_README_CONTENT",
+    "SddExpectedBytesFile",
+    "SddExpectedTextFile",
+    "SddInitAction",
+    "SddInitOperation",
+    "commit_sdd_files",
+    "dry_expand_embedded_workflows",
+    "ensure_bare_git_sdd_initialized",
+    "ensure_sdd_initialized",
+    "expected_sdd_directory_map",
+    "expected_sdd_directory_readmes",
+    "expected_sdd_generated_paths",
+    "expected_sdd_readme",
+    "expand_prompt_for_spec",
+    "find_sdd_file",
+    "get_primary_workspace_dir",
+    "get_sdd_dir",
+    "get_yyyymm",
+    "plan_sdd_init_actions",
+    "set_prompt_qa",
+    "update_prompt_with_qa",
+    "update_spec_with_qa",
+    "write_sdd_files",
+    "write_sdd_readme",
+    "_SddExpectedBytesFile",
+    "_SddExpectedTextFile",
+    "_SddInitAction",
+    "_changed_sdd_files",
+    "_commit_bare_git_sdd_init_paths",
+    "_expected_sdd_text_files",
+    "_git_toplevel",
+    "_is_local_bare_git_workspace",
+    "_looks_like_sdd_root",
+    "_normalize_sdd_commit_pathspecs",
+    "_planned_bytes_operation",
+    "_planned_text_operation",
+    "_read_sdd_directory_map_bytes",
+    "_relative_git_pathspecs",
+    "_resolve_primary_from_project",
+    "_resolve_sdd_asset_path",
+    "_resolve_sdd_readme_path",
+    "_sdd_init_detail_for_path",
+    "_sdd_kind_roots",
+    "_sdd_link_path",
+    "_strip_qa_block",
+    "_write_sdd_directory_map",
+]
