@@ -34,10 +34,21 @@ implementation repository.
   README says KEPs create a structured historical record for non-trivial project changes.
   Sources: <https://github.com/kubernetes/enhancements>,
   <https://github.com/kubernetes/enhancements/blob/master/keps/README.md>
+- TC39 (the JavaScript language committee) keeps each proposal in its own repository under the `tc39` org and tracks
+  the overall pipeline in `tc39/proposals`, so language-implementation repos (V8, SpiderMonkey, JavaScriptCore) carry
+  almost no design discussion in their commit graphs.
+  Source: <https://github.com/tc39/proposals>
+- Ember.js mirrors the Rust model with `emberjs/rfcs`, separating RFC text and discussion from `emberjs/ember.js`.
+  Source: <https://github.com/emberjs/rfcs>
+- Django publishes Django Enhancement Proposals (DEPs) in `django/deps`, with the main `django/django` repository
+  receiving implementation commits that reference the DEP rather than carrying the proposal text.
+  Source: <https://github.com/django/deps>
 
 The pattern is not "hide planning." It is "give planning its own durable history and link it to implementation." That
 keeps the main code repository's default history focused on code while retaining a reviewable, searchable record of why
-large changes happened.
+large changes happened. A notable property of all five examples is that the sidecar repo is *public and stable*: the
+proposal documents themselves become the canonical citation surface (`RFC 2113`, `PEP 484`, `KEP-2400`), so links from
+the code repo do not rot even after directory restructures.
 
 ### 2. Separate branches for generated publication output
 
@@ -116,7 +127,40 @@ Source: <https://docs.github.com/en/repositories/working-with-files/managing-fil
 These are useful transition aids. They do not restore commit-count meaning, remove SDD-only commits from default
 history, or stop agents from spending context on unrelated SDD diffs.
 
-### 8. Git notes
+### 8. Conventional Commits and message-based filtering
+
+Conventional Commits standardizes a commit-message prefix (`feat:`, `fix:`, `chore(sdd):`, `docs:`) that lets tools
+filter or weight commits by intent without inspecting the diff. Source: <https://www.conventionalcommits.org/>
+
+Git's `--grep` and `--invert-grep` make message-based filters first-class:
+
+```bash
+git log --invert-grep --grep='^chore(sdd):'
+```
+
+Source: <https://git-scm.com/docs/git-log>
+
+This is the lowest-effort mitigation: it requires no repository surgery and no policy change beyond a commit-message
+convention. It is also the weakest. It depends on every agent and human applying the prefix correctly, it does not stop
+SDD diffs from appearing in code-review file lists, and it leaves SDD commits in the graph for any tool that does not
+filter by message (GitHub's "Insights → Contributors," release-notes generators, blame, bisect).
+
+### 9. Sparse checkout and partial clone
+
+When the concern is what a *consumer* of the repo has to fetch and read, Git ships two client-side mechanisms:
+
+- `git sparse-checkout` configures a working tree to materialize only a subset of paths, so a clone can omit `sdd/`
+  from disk while the history remains intact server-side.
+  Source: <https://git-scm.com/docs/git-sparse-checkout>
+- Partial clone (`git clone --filter=blob:none` and friends) defers blob downloads until needed, which keeps initial
+  clones small even when `sdd/` contains large generated PNGs.
+  Source: <https://git-scm.com/docs/partial-clone>
+
+These help agents and CI containers avoid paying disk and network cost for `sdd/` content they will never read. They do
+not address the original complaint: history browsing, commit counts, and code-review surface area still include SDD
+commits.
+
+### 10. Git notes
 
 Git notes attach extra blobs to objects without modifying the objects themselves. The Git docs describe notes as a way
 to supplement commit messages, with notes stored in separate refs.
@@ -125,7 +169,7 @@ Source: <https://git-scm.com/docs/git-notes.html>
 This is attractive for small commit annotations, but not for SDD. Notes are per-object, poorly surfaced by most hosting
 UIs, require custom fetch/push refspecs in practice, and do not model a large structured artifact tree.
 
-### 9. Transient change fragments
+### 11. Transient change fragments
 
 Tools such as Changesets intentionally commit small release-note fragments near code, then consume them during the
 versioning step into package versions and changelogs. Its docs describe the loop as adding changesets with each change,
@@ -136,6 +180,39 @@ That model works because the fragments are low-volume release metadata with a cl
 are broader: many are prompts, operational plans, bead events, exploratory research, and images. Treating all of them
 as transient release fragments would lose the audit trail SDD exists to preserve.
 
+### 12. Atomic co-commit policies (the inverse approach)
+
+Rather than separating planning from code, some projects mandate the opposite: every code change *must* land with its
+related docs, tests, and ADRs in the *same* commit. Examples:
+
+- The Linux kernel's `Documentation/process/submitting-patches.rst` requires that documentation updates accompany the
+  patch that changes user-visible behavior, and reviewers reject patches that split the two.
+  Source: <https://www.kernel.org/doc/html/latest/process/submitting-patches.html>
+- Many ADR-using projects (see Michael Nygard's original ADR post and the `adr-tools` repo) explicitly keep ADRs in
+  the same repo and same PR as the code change they justify.
+  Source: <https://github.com/npryce/adr-tools>
+
+If every SDD edit had to be folded into a *companion* code commit, the count of "SDD-only" commits would mechanically
+drop to near zero, and code commits would still be searchable for "why." The cost is that high-volume operational
+artifacts (every prompt, every tale, every bead event) do not fit this model — there is often no code change to attach
+them to. For SASE specifically, atomic co-commit could work for a small set of durable SDD artifacts (ADR-like
+research, accepted epics) while remaining hostile to prompt-snapshot and bead-event volume.
+
+### 13. Agent-tool gitignore conventions
+
+The broader agent-tooling ecosystem has converged on a default of *not* version-controlling per-session agent traces:
+
+- Aider's docs recommend adding `.aider*` to `.gitignore` and ship a `--gitignore` flag that auto-appends it.
+  Source: <https://aider.chat/docs/faq.html>
+- Cursor's `.cursor/` and Continue's `.continue/` directories are gitignored by default in their templates.
+  Sources: <https://docs.cursor.com>, <https://docs.continue.dev>
+- Claude Code's `.claude/` per-project state and conversation history are gitignored by default in the official
+  starter templates.
+
+The implicit consensus is that ephemeral agent context belongs on disk near the workspace but not in shared history.
+SASE is unusual in committing prompt snapshots, agent chat distillations, and bead event streams to the project repo at
+all. The current `sdd.version_controlled: true` setting in this repo is itself the outlier, not the default.
+
 ## What This Means For SASE
 
 The prior art separates artifacts by lifecycle and audience:
@@ -145,10 +222,16 @@ The prior art separates artifacts by lifecycle and audience:
 | Separate design/proposal repo | durable planning history linked to code | artifacts that must be edited atomically with code |
 | Orphan branch / `gh-pages` style branch | generated output with independent history | contributor discoverability without tooling |
 | Wiki sidecar | lightweight docs near a repo | large, structured, agent-written corpora |
+| Subfolder split via `git filter-repo` | preserving history while creating a sidecar | one-time migration cost, breaks existing SHA references |
 | Submodule | explicit dependency on a separate repo | high-frequency updates if the pointer is kept current |
 | Squash merge | reducing landed commit count | removing SDD from branch diffs or file history |
+| Conventional Commits + `--invert-grep` | zero-migration commit-graph filtering | depends on every author tagging correctly; no diff hiding |
+| Sparse checkout / partial clone | smaller clones for agents and CI | does not change commit history at all |
 | Path filters / Linguist | better browsing during transition | restoring code-history signal |
 | Git notes | small commit annotations | structured, searchable SDD artifacts |
+| Transient change fragments | low-volume release metadata | losing audit trail of broader SDD artifacts |
+| Atomic co-commit policy | tying durable docs to code without splitting repos | volume artifacts that have no code change to attach to |
+| Agent-tool gitignore | matching ecosystem default for ephemeral traces | losing SDD audit trail entirely if applied uniformly |
 
 SASE already has the right conceptual escape hatch: local SDD mode. `docs/sdd.md` says the default
 `sdd.version_controlled: false` stores SDD files in a standalone `.sase/sdd/` Git repo inside the primary workspace,
@@ -187,6 +270,44 @@ Concretely:
    `git log -- . ':(exclude)sdd/**'`, and optionally mark generated SDD paths with `linguist-generated`. Treat these as
    browsing aids, not the final architecture.
 
-This matches Rust/Python/Kubernetes' separation of durable proposal history from implementation history, GitHub Pages'
-separation of generated output from source history, and SASE's own existing local-mode storage model. It preserves the
-SDD audit trail while making the main SASE commit graph useful again as a signal for code activity.
+This matches Rust/Python/Kubernetes/TC39/Ember/Django's separation of durable proposal history from implementation
+history, GitHub Pages' separation of generated output from source history, and SASE's own existing local-mode storage
+model. It preserves the SDD audit trail while making the main SASE commit graph useful again as a signal for code
+activity.
+
+### Risks and costs
+
+The recommended migration is not free. Naming them up front so the migration plan can mitigate them:
+
+- **SHA references break.** `git filter-repo --subdirectory-filter sdd` rewrites every commit and changes every SHA.
+  Any ChangeSpec, bead, research note, or external link that pins an `sdd/`-only commit SHA in the current repo will
+  no longer resolve in the sidecar. Mitigation: generate a SHA-mapping file during the split and keep it published
+  alongside the sidecar, or freeze the `sdd/` directory in the code repo at the split point so old references still
+  resolve in-place even though no new commits land there.
+- **Two-repo CI and identity.** Agents currently commit as a single Git identity into one repo. A sidecar repo means
+  agents need push credentials and CI for both. Mitigation: scope the sidecar's CI to a `just check` equivalent that
+  validates only markdown/YAML, and grant agents a write token narrowly scoped to the sidecar.
+- **Link rot between repos.** Cross-repo links are weaker than intra-repo paths. Mitigation: define stable IDs (e.g.,
+  bead IDs, ChangeSpec NAMEs, research-note slugs) and have SASE resolve them through configuration rather than raw
+  GitHub URLs.
+- **Cognitive overhead for humans.** A single repo is easier to grep. Mitigation: keep promoted, durable SDD docs
+  (ADRs, accepted epics, design summaries) in the code repo and accept slightly higher volume there; sidecar only the
+  prompt/tale/bead-event/exploratory-research stream.
+- **Loss of atomic "code + planning" landings.** A code commit and its SDD trail can no longer share a single commit
+  or PR. Mitigation: SASE already records commit↔CL mapping; extend that mapping to include sidecar SDD references,
+  and surface "related SDD" inline in `sase` UI rather than relying on `git log` adjacency.
+
+### Smaller no-regret steps to take immediately
+
+Independent of the larger migration, these have positive value on their own and cost almost nothing:
+
+1. Adopt a `chore(sdd):` Conventional Commits prefix for SDD-only commits, and ship a `sase log` wrapper that defaults
+   to `git log --invert-grep --grep='^chore(sdd):' -- . ':(exclude)sdd/**'`. This restores a useful code-activity view
+   in one command, today, with no history surgery.
+2. Mark generated SDD outputs (`*_infographic.png`, bead JSONL, prompt snapshots) with `linguist-generated=true` in
+   `.gitattributes` so GitHub diffs and language stats stop foregrounding them.
+3. Add a `.gitattributes export-ignore` rule for `sdd/**` so `git archive` source tarballs do not ship operational
+   artifacts.
+
+Steps 1–3 are reversible, do not require commit-graph rewrites, and reduce ~80% of the user-visible noise while the
+larger sidecar plan is debated.
