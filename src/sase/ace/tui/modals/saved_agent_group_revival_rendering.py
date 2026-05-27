@@ -43,7 +43,39 @@ def _saved_group_time_label(created_at: str, *, now: datetime | None = None) -> 
     return f"{relative} | {parsed.strftime('%Y-%m-%d %H:%M')}"
 
 
-def format_saved_group_row(summary: SavedAgentGroupSummaryWire, index: int) -> Text:
+def _saved_group_row_time_label(
+    created_at: str,
+    *,
+    now: datetime | None = None,
+) -> str:
+    """Return a short saved-time label for list rows."""
+
+    parsed = _parse_timestamp(created_at)
+    if parsed is None:
+        return created_at
+
+    reference = now or datetime.now(UTC)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=UTC)
+
+    delta_seconds = max(0, int((reference - parsed).total_seconds()))
+    if delta_seconds < 60:
+        relative = "now"
+    elif delta_seconds < 3600:
+        relative = f"{delta_seconds // 60}m"
+    elif delta_seconds < 86400:
+        relative = f"{delta_seconds // 3600}h"
+    else:
+        relative = f"{delta_seconds // 86400}d"
+    return f"{relative} | {parsed.strftime('%m-%d %H:%M')}"
+
+
+def format_saved_group_row(
+    summary: SavedAgentGroupSummaryWire,
+    index: int,
+    *,
+    now: datetime | None = None,
+) -> Text:
     """Build one saved-group list row."""
 
     text = Text()
@@ -51,6 +83,8 @@ def format_saved_group_row(summary: SavedAgentGroupSummaryWire, index: int) -> T
     if summary.revived_at:
         text.append("revived ", style="dim italic")
     text.append(summary.title, style="bold")
+    text.append("  ")
+    text.append(_saved_group_row_time_label(summary.created_at, now=now), style="dim")
     text.append("  ")
     text.append(f"{summary.agent_count} agents", style="#87D7FF")
     text.append("  ")
@@ -174,9 +208,10 @@ def _append_ref_line(
     if ref.status:
         preview.append("  ")
         preview.append(ref.status, style=_status_style(ref.status))
-    if ref.model:
+    runtime = _runtime_label(ref)
+    if runtime:
         preview.append("  ")
-        preview.append(ref.model, style="dim italic")
+        preview.append(runtime, style="dim italic")
     preview.append("\n")
 
 
@@ -213,6 +248,12 @@ def _join_limited(values: tuple[str, ...], *, limit: int = 3) -> str:
         return ""
     suffix = "" if len(values) <= limit else f" +{len(values) - limit}"
     return ", ".join(shown) + suffix
+
+
+def _runtime_label(ref: SavedAgentGroupRefWire) -> str:
+    if ref.llm_provider and ref.model:
+        return f"{ref.llm_provider}/{ref.model}"
+    return ref.model or ref.llm_provider or ""
 
 
 def _status_style(status: str) -> str:

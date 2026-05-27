@@ -14,6 +14,7 @@ from sase.ace.tui.modals.saved_agent_group_revival_modal import (
 from sase.ace.tui.modals.saved_agent_group_revival_rendering import (
     _saved_group_time_label,
     build_saved_group_preview,
+    format_saved_group_row,
 )
 from sase.core.agent_group_archive_wire import (
     SavedAgentGroupPageWire,
@@ -127,6 +128,18 @@ def test_preview_rendering_includes_stable_time_and_status_text() -> None:
     assert "done:2" in text
     assert "failed:1" in text
     assert "worker-one" in text
+    assert "codex/gpt-5" in text
+
+
+def test_row_rendering_includes_compact_saved_time() -> None:
+    text = format_saved_group_row(
+        _summary(0),
+        0,
+        now=datetime(2026, 5, 27, 13, 30, tzinfo=UTC),
+    ).plain
+
+    assert "1h | 05-27 12:00" in text
+    assert "3 agents" in text
 
 
 def test_saved_group_time_label_is_deterministic_with_supplied_now() -> None:
