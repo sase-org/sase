@@ -69,6 +69,40 @@ class TestAgentListBeadBadge:
         assert "@pinned" not in left.plain
 
 
+class TestAgentListFileChangePencil:
+    def test_row_with_diff_path_renders_pencil(self) -> None:
+        agent = make_agent(diff_path="/tmp/sase/demo.diff")
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "✏️" in left.plain
+
+    def test_row_without_diff_path_omits_pencil(self) -> None:
+        agent = make_agent()
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "✏️" not in left.plain
+
+    def test_pencil_flows_from_fold_annotation_to_bead_and_agent_name(self) -> None:
+        agent = make_agent(
+            agent_name="sase-x.3",
+            diff_path="/tmp/sase/demo.diff",
+            tag="pinned",
+        )
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            fold_annotation="×3",
+            tag_label="fix",
+        )
+
+        assert " #fix (RUNNING)×3 ✏️ ◆ @sase-x.3" in left.plain
+        assert "@pinned" not in left.plain
+
+
 class TestAwareWaitUntilRendering:
     def test_agent_row_renders_aware_wait_until_countdown(self) -> None:
         wait_until = (datetime.now(UTC) + timedelta(hours=1)).isoformat()

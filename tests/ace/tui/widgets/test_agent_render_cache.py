@@ -203,6 +203,47 @@ def test_render_key_changes_when_bead_agent_name_changes() -> None:
     assert k1 != k2
 
 
+def test_render_key_changes_when_diff_path_appears_or_disappears() -> None:
+    a = _agent()
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    a.diff_path = "/tmp/sase/demo.diff"
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    a.diff_path = None
+    k3 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    assert k1 != k2
+    assert k1 == k3
+
+
 def test_render_key_changes_across_seconds_for_ticking_parent_status() -> None:
     a = _agent(status="PLAN APPROVED")
     child = _agent(

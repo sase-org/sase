@@ -26,6 +26,8 @@ from ._agent_list_styling import (
     _BEAD_GLYPH,
     _BEAD_GLYPH_STYLE,
     _CHILD_INDENT,
+    _FILE_CHANGE_GLYPH,
+    _FILE_CHANGE_GLYPH_STYLE,
     _HIDDEN_ICON,
     _STEP_TYPE_COLORS,
     _STEP_TYPE_GLYPHS,
@@ -35,6 +37,10 @@ from ._agent_list_styling import (
 
 def _should_render_provider_badge(agent: Agent) -> bool:
     return not (agent.is_workflow_child and not agent.is_agent_entry)
+
+
+def _has_file_change_hint(agent: Agent) -> bool:
+    return bool(agent.diff_path)
 
 
 def format_agent_option(
@@ -242,6 +248,10 @@ def format_agent_option(
             text.append(fold_annotation, style="dim")
         else:
             text.append(fold_annotation, style="dim #00D7D7")
+
+    if _has_file_change_hint(agent):
+        text.append(" ")
+        text.append(_FILE_CHANGE_GLYPH, style=_FILE_CHANGE_GLYPH_STYLE)
 
     bead_id = derive_agent_bead_id(agent)
     if bead_id:

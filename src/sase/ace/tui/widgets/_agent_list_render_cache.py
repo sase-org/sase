@@ -129,6 +129,7 @@ def agent_render_key(
         agent.auto_approve_plan_action,
         agent.tag,
         agent.agent_name,
+        bool(agent.diff_path),
         derive_agent_bead_id(agent),
         agent.llm_provider,
         agent.hidden,

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 10:11:45
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_row_file_change_pencil.md
 ---
 # Agent Row File-Change Pencil Plan
