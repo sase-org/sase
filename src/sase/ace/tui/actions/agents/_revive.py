@@ -185,16 +185,64 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             super().action_start_rewind()  # type: ignore[misc]
 
     def _revive_agent(self) -> None:
-        """Show project selection modal, then dismissed agent selection."""
-        from ...modals import ProjectSelectModal, ProjectSelectResult, SelectionItem
+        """Show saved groups first, then let users open custom revival search."""
+        from ....dismissed_agents import (
+            list_dismissed_agent_groups,
+            load_dismissed_agent_group,
+        )
+        from sase.core.agent_group_archive_wire import SavedAgentGroupPageWire
+        from ...modals import (
+            SavedAgentGroupRevivalModal,
+            SavedAgentGroupRevivalResult,
+        )
         from ._revive_log import log_revive_failure
 
-        if not self._dismissed_agent_objects and not self._dismissed_agents:
+        try:
+            initial_page = list_dismissed_agent_groups(limit=20)
+        except Exception as exc:
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to load saved agent groups: {exc}",
+                severity="warning",
+            )
+            initial_page = SavedAgentGroupPageWire(groups=(), next_cursor=None)
+
+        has_saved_groups = bool(initial_page.groups)
+        has_dismissed_agents = bool(
+            self._dismissed_agent_objects or self._dismissed_agents
+        )
+        if not has_saved_groups and not has_dismissed_agents:
             log_revive_failure(
                 stage="no_dismissed_agents", reason="no_dismissed_agents"
             )
             self.notify("No dismissed agents to revive")  # type: ignore[attr-defined]
             return
+
+        def _load_page(cursor: int | None) -> SavedAgentGroupPageWire:
+            return list_dismissed_agent_groups(limit=20, cursor=cursor)
+
+        def _on_group_revival_selected(
+            result: SavedAgentGroupRevivalResult | None,
+        ) -> None:
+            if result is None:
+                return
+            if result.action == "custom_search":
+                self._open_custom_revival_search()
+                return
+            if result.action == "revive_group" and result.group_id:
+                self._revive_saved_agent_group(result.group_id)
+
+        self.app.push_screen(  # type: ignore[attr-defined]
+            SavedAgentGroupRevivalModal(
+                initial_page,
+                page_loader=_load_page,
+                group_loader=load_dismissed_agent_group,
+            ),
+            _on_group_revival_selected,
+        )
+
+    def _open_custom_revival_search(self) -> None:
+        """Show the legacy project selection modal for custom revival search."""
+        from ...modals import ProjectSelectModal, ProjectSelectResult, SelectionItem
 
         def _on_project_selected(result: ProjectSelectResult | None) -> None:
             if result is None:
@@ -206,6 +254,13 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
 
         self.app.push_screen(  # type: ignore[attr-defined]
             ProjectSelectModal(include_all=True), _on_project_selected
+        )
+
+    def _revive_saved_agent_group(self, group_id: str) -> None:
+        """Phase 4 hook for reviving a saved dismissed-agent group."""
+        self.notify(  # type: ignore[attr-defined]
+            f"Saved group revival is not available yet: {group_id}",
+            severity="warning",
         )
 
     def _show_dismissed_agents_for_scope(self, selection: object) -> None:

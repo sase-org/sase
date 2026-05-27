@@ -40,6 +40,10 @@ from .query_edit_modal import QueryEditModal
 from .rename_cl_modal import RenameCLModal
 from .wait_modal import WaitModal
 from .revive_agent_modal import DismissedAgentSelectModal
+from .saved_agent_group_revival_modal import (
+    SavedAgentGroupRevivalModal,
+    SavedAgentGroupRevivalResult,
+)
 from .snooze_duration_modal import SnoozeDurationModal
 from .runners_modal import (
     BackgroundTaskEntry,
@@ -152,6 +156,8 @@ __all__ = [
     "PromptHistoryResult",
     "QueryEditModal",
     "RenameCLModal",
+    "SavedAgentGroupRevivalModal",
+    "SavedAgentGroupRevivalResult",
     "BackgroundTaskEntry",
     "RunnerJumpTarget",
     "RunnersModal",

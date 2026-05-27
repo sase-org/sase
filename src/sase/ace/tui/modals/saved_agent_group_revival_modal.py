@@ -1,0 +1,279 @@
+"""Saved dismissed-agent group revival modal."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Literal
+
+from rich.text import Text
+from textual.app import ComposeResult
+from textual.binding import Binding
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
+from textual.widgets import Label, OptionList, Static
+from textual.widgets.option_list import Option
+
+from sase.core.agent_group_archive_wire import (
+    SavedAgentGroupPageWire,
+    SavedAgentGroupSummaryWire,
+    SavedAgentGroupWire,
+)
+
+from .base import OptionListNavigationMixin
+from .saved_agent_group_revival_rendering import (
+    build_empty_groups_preview,
+    build_load_more_preview,
+    build_saved_group_preview,
+    format_saved_group_row,
+)
+
+_CUSTOM_SEARCH_ID = "custom-search"
+_EMPTY_ID = "empty"
+_LOAD_MORE_ID = "load-more"
+_GROUP_PREFIX = "group:"
+
+
+@dataclass(frozen=True)
+class SavedAgentGroupRevivalResult:
+    """Result returned by the saved-group revival modal."""
+
+    action: Literal["revive_group", "custom_search"]
+    group_id: str | None = None
+
+
+class SavedAgentGroupRevivalModal(
+    OptionListNavigationMixin,
+    ModalScreen[SavedAgentGroupRevivalResult | None],
+):
+    """Two-pane modal for saved dismissed-agent group revival."""
+
+    _option_list_id = "saved-agent-group-list"
+    BINDINGS = [
+        *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        Binding("pagedown", "load_more", "Load More", priority=True),
+    ]
+
+    def __init__(
+        self,
+        initial_page: SavedAgentGroupPageWire,
+        *,
+        page_loader: Callable[[int | None], SavedAgentGroupPageWire] | None = None,
+        group_loader: Callable[[str], SavedAgentGroupWire | None] | None = None,
+    ) -> None:
+        super().__init__()
+        self._groups: list[SavedAgentGroupSummaryWire] = list(initial_page.groups)
+        self._next_cursor = initial_page.next_cursor
+        self._page_loader = page_loader
+        self._group_loader = group_loader
+        self._loaded_groups: dict[str, SavedAgentGroupWire | None] = {}
+
+    @property
+    def groups(self) -> tuple[SavedAgentGroupSummaryWire, ...]:
+        """Currently loaded group summaries."""
+
+        return tuple(self._groups)
+
+    @property
+    def next_cursor(self) -> int | None:
+        """Cursor for the next unloaded page."""
+
+        return self._next_cursor
+
+    def compose(self) -> ComposeResult:
+        """Compose the saved-group revival modal."""
+
+        with Container(id="saved-agent-group-modal-container"):
+            yield Label("Revive Saved Agent Groups", id="saved-agent-group-title")
+            with Horizontal(id="saved-agent-group-panels"):
+                with Vertical(id="saved-agent-group-list-panel"):
+                    yield Static("Saved groups", id="saved-agent-group-list-heading")
+                    yield OptionList(
+                        *self._create_options(),
+                        id="saved-agent-group-list",
+                    )
+                with Vertical(id="saved-agent-group-preview-panel"):
+                    yield Static("Preview", id="saved-agent-group-preview-heading")
+                    with VerticalScroll(id="saved-agent-group-preview-scroll"):
+                        yield Static("", id="saved-agent-group-preview")
+            yield Static(
+                self._hints_text(),
+                id="saved-agent-group-hints",
+            )
+
+    def on_mount(self) -> None:
+        """Focus the group list and render the first preview."""
+
+        option_list = self.query_one("#saved-agent-group-list", OptionList)
+        option_list.focus()
+        self._update_preview_for_option_id(self._first_option_id())
+
+    def action_load_more(self) -> None:
+        """Load another page of saved groups, if available."""
+
+        self._load_more()
+
+    def on_option_list_option_highlighted(
+        self, event: OptionList.OptionHighlighted
+    ) -> None:
+        """Update the preview when the highlighted row changes."""
+
+        option_id = event.option.id if event.option else None
+        self._update_preview_for_option_id(option_id)
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Handle Enter on a group or sentinel row."""
+
+        option_id = event.option.id if event.option else None
+        if option_id == _LOAD_MORE_ID:
+            self._load_more()
+            return
+        if option_id == _CUSTOM_SEARCH_ID:
+            self.dismiss(SavedAgentGroupRevivalResult(action="custom_search"))
+            return
+        group_id = _group_id_from_option(option_id)
+        if group_id is not None:
+            self.dismiss(
+                SavedAgentGroupRevivalResult(
+                    action="revive_group",
+                    group_id=group_id,
+                )
+            )
+
+    def _load_more(self) -> None:
+        if self._next_cursor is None:
+            self._update_preview_for_option_id(_LOAD_MORE_ID)
+            return
+        if self._page_loader is None:
+            self.notify("No saved-group page loader is available", severity="warning")
+            return
+
+        old_highlighted = self.query_one(
+            "#saved-agent-group-list", OptionList
+        ).highlighted
+        try:
+            page = self._page_loader(self._next_cursor)
+        except Exception as exc:
+            self.notify(f"Failed to load saved groups: {exc}", severity="error")
+            return
+
+        seen = {group.group_id for group in self._groups}
+        self._groups.extend(
+            group for group in page.groups if group.group_id not in seen
+        )
+        self._next_cursor = page.next_cursor
+        self._rebuild_options(highlighted=old_highlighted)
+        self._update_hints()
+
+    def _create_options(self) -> list[Option]:
+        options: list[Option] = []
+        if self._groups:
+            for idx, group in enumerate(self._groups):
+                options.append(
+                    Option(
+                        format_saved_group_row(group, idx),
+                        id=f"{_GROUP_PREFIX}{group.group_id}",
+                    )
+                )
+        else:
+            options.append(
+                Option(Text("No saved groups yet", style="dim"), id=_EMPTY_ID)
+            )
+
+        if self._next_cursor is not None:
+            options.append(
+                Option(
+                    Text("Load more saved groups...", style="bold #00D7AF"),
+                    id=_LOAD_MORE_ID,
+                )
+            )
+
+        options.append(
+            Option(
+                Text("Custom revival search...", style="bold #D7AFFF"),
+                id=_CUSTOM_SEARCH_ID,
+            )
+        )
+        return options
+
+    def _rebuild_options(self, *, highlighted: int | None = None) -> None:
+        option_list = self.query_one("#saved-agent-group-list", OptionList)
+        option_list.clear_options()
+        for option in self._create_options():
+            option_list.add_option(option)
+
+        if highlighted is not None:
+            option_count = len(option_list.options)
+            if option_count:
+                option_list.highlighted = min(highlighted, option_count - 1)
+
+    def _update_hints(self) -> None:
+        self.query_one("#saved-agent-group-hints", Static).update(self._hints_text())
+
+    def _hints_text(self) -> str:
+        group_count = len(self._groups)
+        load_more = " | PgDn/load row: more" if self._next_cursor is not None else ""
+        return (
+            f"j/k: navigate | Enter: revive/open | {group_count} saved loaded"
+            f"{load_more} | Esc/q: cancel"
+        )
+
+    def _first_option_id(self) -> str:
+        if self._groups:
+            return f"{_GROUP_PREFIX}{self._groups[0].group_id}"
+        return _EMPTY_ID
+
+    def _update_preview_for_option_id(self, option_id: str | None) -> None:
+        try:
+            preview = self.query_one("#saved-agent-group-preview", Static)
+        except Exception:
+            return
+
+        if option_id == _EMPTY_ID:
+            preview.update(build_empty_groups_preview())
+            return
+        if option_id == _LOAD_MORE_ID:
+            preview.update(build_load_more_preview(self._next_cursor))
+            return
+        if option_id == _CUSTOM_SEARCH_ID or option_id is None:
+            preview.update(build_saved_group_preview(None))
+            return
+
+        group_id = _group_id_from_option(option_id)
+        summary = self._summary_for_group_id(group_id)
+        if summary is None:
+            preview.update(build_saved_group_preview(None))
+            return
+
+        group = self._load_group(group_id)
+        preview.update(build_saved_group_preview(summary, group))
+
+    def _summary_for_group_id(
+        self, group_id: str | None
+    ) -> SavedAgentGroupSummaryWire | None:
+        if group_id is None:
+            return None
+        for group in self._groups:
+            if group.group_id == group_id:
+                return group
+        return None
+
+    def _load_group(self, group_id: str | None) -> SavedAgentGroupWire | None:
+        if group_id is None or self._group_loader is None:
+            return None
+        if group_id not in self._loaded_groups:
+            try:
+                self._loaded_groups[group_id] = self._group_loader(group_id)
+            except Exception as exc:
+                self.notify(
+                    f"Failed to load saved group {group_id}: {exc}",
+                    severity="error",
+                )
+                self._loaded_groups[group_id] = None
+        return self._loaded_groups[group_id]
+
+
+def _group_id_from_option(option_id: str | None) -> str | None:
+    if not option_id or not option_id.startswith(_GROUP_PREFIX):
+        return None
+    return option_id.removeprefix(_GROUP_PREFIX)

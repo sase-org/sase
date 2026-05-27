@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.tui.models.agent import Agent
+from sase.core.agent_group_archive_wire import SavedAgentGroupPageWire
 
 from tests._agent_revive_helpers import FakeReviveApp, make_agent
 
@@ -83,7 +84,13 @@ def test_no_dismissed_agents_emits_failure_event(tmp_path: Path) -> None:
     events_file = tmp_path / "events.jsonl"
     app = FakeReviveApp()  # no dismissed agents
 
-    with patch("sase.logs.run_log.EVENTS_FILE", str(events_file)):
+    with (
+        patch("sase.logs.run_log.EVENTS_FILE", str(events_file)),
+        patch(
+            "sase.ace.dismissed_agents.list_dismissed_agent_groups",
+            return_value=SavedAgentGroupPageWire(groups=(), next_cursor=None),
+        ),
+    ):
         app._revive_agent()
 
     events = _read_revive_events(events_file)
