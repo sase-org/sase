@@ -303,6 +303,11 @@ def rewrite_dynamic_memory_for_prompt(prompt: str) -> None:
     files exist on disk after any embedded-workflow pre-step that may have
     cleaned the workspace.
 
+    Raises ``RuntimeError`` if any listed memory cannot be resolved back to
+    an xprompt, or if any expected file is missing on disk after the write.
+    The aggregated message names every failing entry so a single run surfaces
+    all problems instead of stopping at the first.
+
     No-op when the prompt has no DYNAMIC MEMORY section.
     """
     pairs = _parse_dynamic_memory_section(prompt)
@@ -314,9 +319,11 @@ def rewrite_dynamic_memory_for_prompt(prompt: str) -> None:
 
     all_prompts = get_all_prompts(project=None)
     matched: list[MatchedMemory] = []
+    unresolved: list[str] = []
     for name, _ in pairs:
         wf = all_prompts.get(name)
         if wf is None or XPromptTag.memory not in wf.tags:
+            unresolved.append(name)
             continue
         matched.append(
             MatchedMemory(
@@ -326,5 +333,22 @@ def rewrite_dynamic_memory_for_prompt(prompt: str) -> None:
             )
         )
 
-    if matched:
-        _write_memory_files(matched)
+    if unresolved:
+        names = ", ".join(unresolved)
+        raise RuntimeError(
+            "DYNAMIC MEMORY rewrite failed for "
+            f"{names}: xprompt not found (or no memory tag)"
+        )
+
+    if not matched:
+        return
+
+    _write_memory_files(matched)
+
+    missing = [path for _, path in pairs if not Path(path).is_file()]
+    if missing:
+        names = ", ".join(missing)
+        raise RuntimeError(
+            "DYNAMIC MEMORY rewrite failed: expected file(s) missing on "
+            f"disk after write: {names}"
+        )

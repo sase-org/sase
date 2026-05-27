@@ -171,10 +171,10 @@ def test_preprocess_prompt_late_regenerates_before_validation(
     assert (tmp_path / ".sase" / "memory" / "long-external-repos.md").exists()
 
 
-def test_rewrite_skips_unknown_xprompt_names(
+def test_rewrite_raises_on_unknown_xprompt_names(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """If a listed xprompt no longer exists in the loader, it's silently skipped."""
+    """An unresolvable listed xprompt must raise ``RuntimeError`` naming it."""
     monkeypatch.chdir(tmp_path)
     prompt = (
         "### DYNAMIC MEMORY\n"
@@ -187,7 +187,56 @@ def test_rewrite_skips_unknown_xprompt_names(
             "sase.gemini_wrapper.file_references.process_command_substitution",
             side_effect=lambda s: s,
         ),
+        pytest.raises(RuntimeError, match="memory/long/gone"),
     ):
         rewrite_dynamic_memory_for_prompt(prompt)
 
     assert not (tmp_path / ".sase" / "memory" / "long-gone.md").exists()
+
+
+def test_rewrite_aggregates_all_unresolved_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Multiple unresolved memories appear together in one error message."""
+    monkeypatch.chdir(tmp_path)
+    prompt = (
+        "### DYNAMIC MEMORY\n"
+        "- @.sase/memory/long-a.md (memory/long/a, matched: `x`)\n"
+        "- @.sase/memory/long-b.md (memory/long/b, matched: `y`)"
+    )
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value={}),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+        pytest.raises(RuntimeError) as exc,
+    ):
+        rewrite_dynamic_memory_for_prompt(prompt)
+
+    msg = str(exc.value)
+    assert "memory/long/a" in msg
+    assert "memory/long/b" in msg
+
+
+def test_rewrite_raises_when_write_did_not_produce_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If ``_write_memory_files`` returns but no file landed on disk, raise."""
+    monkeypatch.chdir(tmp_path)
+    prompt = (
+        "### DYNAMIC MEMORY\n"
+        "- @.sase/memory/long-external-repos.md"
+        " (memory/long/external_repos, matched: `chezmoi`)"
+    )
+    workflows = _make_memory_workflows()
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+        patch("sase.memory.dynamic._write_memory_files", return_value=[]),
+        pytest.raises(RuntimeError, match="long-external-repos.md"),
+    ):
+        rewrite_dynamic_memory_for_prompt(prompt)

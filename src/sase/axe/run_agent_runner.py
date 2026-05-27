@@ -219,6 +219,17 @@ def main() -> None:
             os.chdir(workspace_dir)
             os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
 
+            # Keep ``.sase/`` untracked in this clone so embedded ``#git``
+            # pre-steps that run ``git clean -fd`` do not wipe dynamic-memory
+            # files written below. ``.git/info/exclude`` is git's per-clone,
+            # untracked ignore file and is honored by ``git clean`` identically
+            # to ``.gitignore`` entries.
+            from sase.workspace_provider.git_exclude import (
+                ensure_git_info_exclude_entry,
+            )
+
+            ensure_git_info_exclude_entry(workspace_dir, ".sase/")
+
             # Generate dynamic memory before agent starts. The on-disk files
             # written here may be wiped by embedded-workflow pre-steps (e.g.
             # `hg clean`); preprocess_prompt_late() re-writes them via
