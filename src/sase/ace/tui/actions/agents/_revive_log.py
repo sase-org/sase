@@ -58,6 +58,8 @@ def log_revive_started(
     *,
     agents: list[Agent],
     selection_scope: SelectionItem | None = None,
+    group_id: str | None = None,
+    group_title: str | None = None,
 ) -> None:
     """Emit ``agent_revive_started`` for a single or batch revival.
 
@@ -76,6 +78,7 @@ def log_revive_started(
             "agents": identities,
         }
         kwargs.update(_scope_fields(selection_scope))
+        kwargs.update(_group_fields(group_id, group_title))
         log_event(event=EVENT_STARTED, **kwargs)
     except Exception:
         pass
@@ -87,6 +90,8 @@ def log_revive_success(
     child_suffixes: set[str] | None = None,
     batch_size: int = 1,
     selection_scope: SelectionItem | None = None,
+    group_id: str | None = None,
+    group_title: str | None = None,
 ) -> None:
     """Emit ``agent_revived`` for one successfully revived agent."""
     try:
@@ -97,6 +102,7 @@ def log_revive_success(
         kwargs["batch_size"] = batch_size
         kwargs["outcome"] = "success"
         kwargs.update(_scope_fields(selection_scope))
+        kwargs.update(_group_fields(group_id, group_title))
         log_event(event=EVENT_SUCCESS, **kwargs)
     except Exception:
         pass
@@ -110,6 +116,8 @@ def log_revive_failure(
     reason: str | None = None,
     batch_size: int = 1,
     selection_scope: SelectionItem | None = None,
+    group_id: str | None = None,
+    group_title: str | None = None,
 ) -> None:
     """Emit ``agent_revive_failed`` for a failed (or skipped) revival.
 
@@ -135,6 +143,17 @@ def log_revive_failure(
         if reason is not None:
             kwargs["reason"] = reason
         kwargs.update(_scope_fields(selection_scope))
+        kwargs.update(_group_fields(group_id, group_title))
         log_event(event=EVENT_FAILURE, **kwargs)
     except Exception:
         pass
+
+
+def _group_fields(group_id: str | None, group_title: str | None) -> dict[str, Any]:
+    """Saved-group fields attached to group revival events."""
+    out: dict[str, Any] = {}
+    if group_id:
+        out["saved_group_id"] = group_id
+    if group_title:
+        out["saved_group_title"] = group_title
+    return out

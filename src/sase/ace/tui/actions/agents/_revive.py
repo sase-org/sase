@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections.abc import Iterable
 from collections.abc import Callable
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -16,6 +17,11 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 
 if TYPE_CHECKING:
+    from sase.core.agent_group_archive_wire import (
+        SavedAgentGroupRefWire,
+        SavedAgentGroupWire,
+    )
+
     from ...models import Agent
     from ...models.agent import AgentType
 
@@ -82,6 +88,111 @@ def _schedule_revive_full_history_refresh(
     if "full_history_reason" in inspect.signature(schedule).parameters:
         kwargs["full_history_reason"] = reason
     schedule(**kwargs)
+
+
+def _utc_wire_timestamp(value: datetime) -> str:
+    """Return a UTC ISO timestamp using the archive wire's ``Z`` convention."""
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _ref_label(ref: SavedAgentGroupRefWire) -> str:
+    name = ref.display_name or ref.agent_name or ref.cl_name or "agent"
+    return f"{name} ({ref.raw_suffix or 'no suffix'})"
+
+
+def _pop_first_matching_agent(
+    agents: list[Agent],
+    predicate: Callable[[Agent], bool],
+) -> Agent | None:
+    for idx, agent in enumerate(agents):
+        if predicate(agent):
+            return agents.pop(idx)
+    return None
+
+
+def _pop_agent_for_group_ref(
+    agents: list[Agent],
+    ref: SavedAgentGroupRefWire,
+) -> Agent | None:
+    """Pop the best loaded dismissed-bundle agent for one saved group ref."""
+    if ref.bundle_path:
+        exact_path = _pop_first_matching_agent(
+            agents,
+            lambda agent: (
+                getattr(agent, "_dismissed_bundle_path", None) == ref.bundle_path
+            ),
+        )
+        if exact_path is not None:
+            return exact_path
+
+    if not ref.raw_suffix:
+        return None
+
+    def _same_suffix(agent: Agent) -> bool:
+        return agent.raw_suffix == ref.raw_suffix
+
+    strict = _pop_first_matching_agent(
+        agents,
+        lambda agent: (
+            _same_suffix(agent)
+            and agent.agent_type.value == ref.agent_type
+            and agent.is_workflow_child == ref.is_workflow_child
+            and agent.cl_name == ref.cl_name
+            and (
+                not ref.parent_timestamp
+                or agent.parent_timestamp == ref.parent_timestamp
+            )
+        ),
+    )
+    if strict is not None:
+        return strict
+
+    child_aware = _pop_first_matching_agent(
+        agents,
+        lambda agent: (
+            _same_suffix(agent)
+            and agent.is_workflow_child == ref.is_workflow_child
+            and (
+                not ref.parent_timestamp
+                or agent.parent_timestamp == ref.parent_timestamp
+            )
+        ),
+    )
+    if child_aware is not None:
+        return child_aware
+
+    same_suffix = [agent for agent in agents if _same_suffix(agent)]
+    if len(same_suffix) == 1:
+        return _pop_first_matching_agent(agents, _same_suffix)
+    return None
+
+
+def _resolve_saved_group_agents(
+    group: SavedAgentGroupWire,
+    *,
+    bundle_loader: Callable[[set[str]], list[Agent]],
+) -> tuple[list[Agent], list[Agent], list[SavedAgentGroupRefWire]]:
+    """Load dismissed bundles for a saved group and match them to refs."""
+    suffixes = {
+        ref.raw_suffix for ref in group.agent_refs if ref.raw_suffix is not None
+    }
+    if not suffixes:
+        return [], [], list(group.agent_refs)
+
+    loaded_agents = bundle_loader(suffixes)
+    for agent in loaded_agents:
+        agent._loaded_from_dismissed_bundle = True
+
+    remaining = list(loaded_agents)
+    resolved: list[Agent] = []
+    missing: list[SavedAgentGroupRefWire] = []
+    for ref in group.agent_refs:
+        matched_agent = _pop_agent_for_group_ref(remaining, ref)
+        if matched_agent is None:
+            missing.append(ref)
+            continue
+        resolved.append(matched_agent)
+    return resolved, loaded_agents, missing
 
 
 class AgentRevivalMixin(ArtifactRestorationMixin):
@@ -257,11 +368,113 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         )
 
     def _revive_saved_agent_group(self, group_id: str) -> None:
-        """Phase 4 hook for reviving a saved dismissed-agent group."""
-        self.notify(  # type: ignore[attr-defined]
-            f"Saved group revival is not available yet: {group_id}",
-            severity="warning",
+        """Revive the dismissed agents referenced by a saved group."""
+        from ....dismissed_agents import (
+            load_dismissed_agent_group,
+            load_dismissed_bundles,
+            mark_dismissed_agent_group_revived,
         )
+        from ._revive_log import log_revive_failure
+
+        try:
+            group = load_dismissed_agent_group(group_id)
+        except Exception as exc:
+            log_revive_failure(
+                stage="saved_group_load",
+                error=exc,
+                group_id=group_id,
+            )
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to load saved agent group {group_id}: {exc}",
+                severity="error",
+            )
+            return
+
+        if group is None:
+            log_revive_failure(
+                stage="saved_group_load",
+                reason="group_not_found",
+                group_id=group_id,
+            )
+            self.notify(  # type: ignore[attr-defined]
+                f"Saved agent group not found: {group_id}",
+                severity="warning",
+            )
+            return
+
+        try:
+            resolved, loaded, missing = _resolve_saved_group_agents(
+                group,
+                bundle_loader=load_dismissed_bundles,
+            )
+        except Exception as exc:
+            log_revive_failure(
+                stage="saved_group_bundle_load",
+                error=exc,
+                group_id=group.group_id,
+                group_title=group.title,
+            )
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to load saved group bundles: {exc}",
+                severity="error",
+            )
+            return
+
+        if loaded:
+            self._dismissed_agent_objects = _merge_dismissed_agents(
+                self._dismissed_agent_objects, loaded
+            )
+
+        if missing:
+            preview = ", ".join(_ref_label(ref) for ref in missing[:3])
+            suffix = "" if len(missing) <= 3 else f", +{len(missing) - 3} more"
+            self.notify(  # type: ignore[attr-defined]
+                f"Skipped {len(missing)} missing saved-group agent"
+                f"{'s' if len(missing) != 1 else ''}: {preview}{suffix}",
+                severity="warning",
+            )
+
+        if not resolved:
+            log_revive_failure(
+                stage="saved_group_bundle_load",
+                reason="no_group_refs_loaded",
+                group_id=group.group_id,
+                group_title=group.title,
+            )
+            self.notify(  # type: ignore[attr-defined]
+                f"No agents could be loaded for saved group {group.title}",
+                severity="warning",
+            )
+            return
+
+        revive_agents = [agent for agent in resolved if not agent.is_workflow_child]
+        if not revive_agents:
+            revive_agents = resolved
+
+        revived = self._do_revive_agents(
+            revive_agents,
+            group_id=group.group_id,
+            group_title=group.title,
+        )
+        if revived is False:
+            return
+
+        try:
+            mark_dismissed_agent_group_revived(
+                group.group_id,
+                revived_at=_utc_wire_timestamp(datetime.now(UTC)),
+            )
+        except Exception as exc:
+            log_revive_failure(
+                stage="saved_group_mark_revived",
+                error=exc,
+                group_id=group.group_id,
+                group_title=group.title,
+            )
+            self.notify(  # type: ignore[attr-defined]
+                f"Revived agents, but failed to mark group revived: {exc}",
+                severity="warning",
+            )
 
     def _show_dismissed_agents_for_scope(self, selection: object) -> None:
         """Filter dismissed agents by scope and show the selection modal."""
@@ -524,7 +737,9 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         agents: list[Agent],
         *,
         selection_scope: object | None = None,
-    ) -> None:
+        group_id: str | None = None,
+        group_title: str | None = None,
+    ) -> bool:
         """Revive multiple dismissed agents in a single batch.
 
         Batches disk operations for efficiency: one save_dismissed_agents()
@@ -544,11 +759,16 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
 
         valid_agents = [a for a in agents if isinstance(a, AgentModel)]
         if not valid_agents:
-            return
+            return False
 
         scope = selection_scope if isinstance(selection_scope, SelectionItem) else None
         batch_size = len(valid_agents)
-        log_revive_started(agents=valid_agents, selection_scope=scope)
+        log_revive_started(
+            agents=valid_agents,
+            selection_scope=scope,
+            group_id=group_id,
+            group_title=group_title,
+        )
 
         # Phase 1: Remove all from dismissed set (including children/follow-ups)
         # and collect suffixes for archive revival marks.
@@ -591,11 +811,13 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                     error=exc,
                     batch_size=batch_size,
                     selection_scope=scope,
+                    group_id=group_id,
+                    group_title=group_title,
                 )
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to revive {batch_size} agents: {exc}", severity="error"
             )
-            return
+            return False
 
         # Phase 3: Restore artifacts. Per-agent failures
         # produce a per-agent ``agent_revive_failed`` event, so partial
@@ -628,6 +850,8 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                     error=exc,
                     batch_size=batch_size,
                     selection_scope=scope,
+                    group_id=group_id,
+                    group_title=group_title,
                 )
                 continue
             succeeded.append(agent)
@@ -645,11 +869,13 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                     error=exc,
                     batch_size=batch_size,
                     selection_scope=scope,
+                    group_id=group_id,
+                    group_title=group_title,
                 )
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to mark revived archive bundles: {exc}", severity="error"
             )
-            return
+            return False
 
         for agent in succeeded:
             log_revive_success(
@@ -657,6 +883,8 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                 child_suffixes=child_suffixes_map.get(agent.identity),
                 batch_size=batch_size,
                 selection_scope=scope,
+                group_id=group_id,
+                group_title=group_title,
             )
 
         self._record_revived_agent_suffixes(succeeded_suffixes)
@@ -691,3 +919,4 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             reason="revive_agents_archive_refresh",
             on_complete=_on_revive_loaded,
         )
+        return True
