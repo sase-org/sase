@@ -71,7 +71,7 @@ def test_do_revive_agent_removes_suffix_aliases() -> None:
 
     assert app._dismissed_agents == {(AgentType.WORKFLOW, "keep_me", "20260202101010")}
     mock_mark.assert_called_once_with({"20260201101010", "child_suffix_1"})
-    mock_sync_index.assert_called_once_with(app._dismissed_agents)
+    mock_sync_index.assert_called_once_with(app._dismissed_agents, added=())
     mock_upsert_index.assert_called_once_with(
         [parent.artifacts_dir, parent.artifacts_dir]
     )

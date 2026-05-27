@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import shutil
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from textual.widgets import Static
@@ -13,6 +16,7 @@ from textual.widgets import Static
 from sase.ace import dismissed_agents
 from sase.ace.testing import AcePage, make_changespec
 from sase.ace.tui import AceApp
+from sase.core.paths import sase_home
 from sase.ace.tui.modals.command_palette_modal import CommandPaletteModal
 from sase.ace.tui.modals.saved_agent_group_revival_modal import (
     SavedAgentGroupRevivalModal,
@@ -96,6 +100,70 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
     assert revived_group.agent_refs[0].raw_suffix == "20260527120000"
 
 
+async def test_saved_group_revive_restores_deleted_artifacts_and_tag_real_loader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """S/R revive restores deleted markers from the bundle and keeps the tag."""
+
+    _patch_non_agent_startup(monkeypatch)
+    project_file, artifacts_dir = _write_done_agent_artifacts(
+        project="saved-group-real",
+        cl_name="visual-polish",
+        raw_suffix="20260527123000",
+        agent_name="visual.worker",
+        tag="backend",
+    )
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=[
+            make_changespec(name="visual-polish", file_path=str(project_file))
+        ],
+        initial_tab="agents",
+    ) as page:
+        await wait_for_startup(page)
+        await page.expect_state("agent_count", 1)
+        assert page.app._agents[0].tag == "backend"
+
+        await page.press("m")
+        await page.press("S")
+        await page.expect_state("agent_count", 0)
+        await _wait_until(
+            lambda: bool(dismissed_agents.list_dismissed_agent_groups().groups)
+        )
+
+        group = dismissed_agents.list_dismissed_agent_groups().groups[0]
+        loaded_group = dismissed_agents.load_dismissed_agent_group(group.group_id)
+        assert loaded_group is not None
+        assert loaded_group.agent_refs[0].tag == "backend"
+        bundled = dismissed_agents.load_dismissed_bundles({"20260527123000"})
+        assert [agent.tag for agent in bundled] == ["backend"]
+
+        shutil.rmtree(artifacts_dir)
+        page.app._load_agents(full_history=True)
+        await page.expect_state("agent_count", 0)
+
+        await page.press("R")
+        await page.expect_modal("SavedAgentGroupRevivalModal")
+        await page.press("enter")
+        await page.expect_no_modal()
+        await _wait_until(
+            lambda: any(
+                agent.raw_suffix == "20260527123000" and agent.tag == "backend"
+                for agent in page.app._agents
+            )
+        )
+
+        revived = next(
+            agent for agent in page.app._agents if agent.raw_suffix == "20260527123000"
+        )
+        assert revived.tag == "backend"
+        assert (
+            json.loads((artifacts_dir / "agent_meta.json").read_text())["tag"]
+            == "backend"
+        )
+
+
 async def test_agents_command_palette_exposes_save_marked_group(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -170,6 +238,123 @@ def _patch_dismissed_archive_paths(
         "_OLD_BUNDLES_FILE",
         tmp_path / "dismissed_agent_bundles.json",
     )
+
+
+def _write_done_agent_artifacts(
+    *,
+    project: str,
+    cl_name: str,
+    raw_suffix: str,
+    agent_name: str,
+    tag: str,
+) -> tuple[Path, Path]:
+    project_dir = sase_home() / "projects" / project
+    project_dir.mkdir(parents=True, exist_ok=True)
+    project_file = project_dir / f"{project}.sase"
+    project_file.write_text("", encoding="utf-8")
+    artifacts_dir = project_dir / "artifacts" / "ace-run" / raw_suffix
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "status": "DONE",
+                "cl_name": cl_name,
+                "project_file": str(project_file),
+                "outcome": "completed",
+                "name": agent_name,
+                "model": "gpt-5",
+                "llm_provider": "codex",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": agent_name,
+                "tag": tag,
+                "model": "gpt-5",
+                "llm_provider": "codex",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return project_file, artifacts_dir
+
+
+def _patch_non_agent_startup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep startup deterministic without replacing the real agent loader."""
+
+    import sase.notifications as notifications
+    from sase.ace import grouping_strategy
+    from sase.ace import tui_activity
+    from sase.ace.tui.models.agent_groups import GroupingMode
+    from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
+    from sase.ace.tui.widgets import llm_override_indicator
+    from sase.llm_provider import temporary_override
+
+    async def _fake_axe_startup(app: AceApp) -> None:
+        app._axe_first_load_done = True
+        app._maybe_end_startup_stopwatch()
+
+    async def _fake_axe_status_async(app: AceApp) -> None:
+        app._axe_first_load_done = True
+
+    def _fake_notification_snapshot(*_args: object, **_kwargs: object) -> object:
+        return SimpleNamespace(
+            notifications=[],
+            expired_ids=[],
+            counts=SimpleNamespace(priority=0, rest=0, muted=0, errors=0),
+        )
+
+    def _fake_activity_write(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(AceApp, "_run_axe_startup_init", _fake_axe_startup)
+    monkeypatch.setattr(AceApp, "_load_axe_status_async", _fake_axe_status_async)
+    monkeypatch.setattr(
+        notifications,
+        "read_notification_snapshot",
+        _fake_notification_snapshot,
+    )
+    monkeypatch.setattr(
+        grouping_strategy,
+        "load_agent_grouping_mode",
+        lambda *_args, **_kwargs: GroupingMode.STANDARD,
+    )
+    monkeypatch.setattr(
+        grouping_strategy,
+        "load_changespec_grouping_mode",
+        lambda *_args, **_kwargs: ChangeSpecGroupingMode.BY_PROJECT,
+    )
+    monkeypatch.setattr(
+        temporary_override,
+        "resolve_effective_default_provider_model",
+        lambda *_args, **_kwargs: ("codex", "test-model"),
+    )
+    monkeypatch.setattr(
+        temporary_override,
+        "get_active_temporary_override",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        llm_override_indicator,
+        "resolve_effective_default_provider_model",
+        lambda *_args, **_kwargs: ("codex", "test-model"),
+    )
+    monkeypatch.setattr(
+        llm_override_indicator,
+        "get_active_temporary_override",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(tui_activity, "read_pinned_idle", lambda: False)
+    monkeypatch.setattr(tui_activity, "write_tui_pid", _fake_activity_write)
+    monkeypatch.setattr(tui_activity, "write_activity_timestamp", _fake_activity_write)
+    monkeypatch.setattr(tui_activity, "write_last_keypress", _fake_activity_write)
+    monkeypatch.setattr(tui_activity, "write_idle_state", _fake_activity_write)
+    monkeypatch.setattr(tui_activity, "remove_tui_pid", _fake_activity_write)
+    monkeypatch.setattr(tui_activity, "remove_idle_state", _fake_activity_write)
+    monkeypatch.setattr(tui_activity, "remove_last_keypress", _fake_activity_write)
 
 
 async def _wait_until(

@@ -39,6 +39,7 @@ def test_saved_agent_group_facade_round_trip(tmp_path: Path) -> None:
     assert [summary.group_id for summary in page.groups] == ["group-a"]
     assert loaded is not None
     assert loaded.agent_refs[0].bundle_path == str(missing_bundle)
+    assert loaded.agent_refs[0].tag == "backend"
     assert not missing_bundle.exists()
 
 
@@ -98,6 +99,7 @@ def test_saved_agent_group_corrupt_missing_and_revived_marking(
     payload = json.loads((groups_dir / "valid.json").read_text(encoding="utf-8"))
     assert payload["title"] == "1 agent in cl"
     assert payload["agent_refs"][0]["raw_suffix"] == "ts-1"
+    assert payload["agent_refs"][0]["tag"] == "backend"
 
 
 def test_saved_agent_group_python_fallback_when_binding_missing(
@@ -147,6 +149,7 @@ def _group(
                 start_time="2026-05-27T11:00:00Z",
                 model="gpt",
                 llm_provider="codex",
+                tag="backend",
             ),
         ),
     )

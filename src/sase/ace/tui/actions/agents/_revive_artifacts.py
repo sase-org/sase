@@ -337,6 +337,8 @@ class ArtifactRestorationMixin:
             data["workspace_dir"] = agent.workspace_dir
         if agent.agent_name:
             data["name"] = agent.agent_name
+        if agent.tag:
+            data["tag"] = agent.tag
         if agent.waiting_for:
             data["wait_for"] = agent.waiting_for
         if agent.wait_duration is not None:

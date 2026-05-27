@@ -52,6 +52,7 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
         question_session_id="session-1",
         retry_times=retry_times,
         epic_time=epic_time,
+        tag="backend",
     )
 
     AgentRevivalMixin._restore_agent_meta(agent, tmp_path)
@@ -61,6 +62,7 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
     assert data["llm_provider"] == "claude"
     assert data["vcs_provider"] == "GitHub"
     assert data["name"] == "@d.1"
+    assert data["tag"] == "backend"
     assert data["wait_for"] == ["@f"]
     assert data["approve"] is True
     assert data["hidden"] is True

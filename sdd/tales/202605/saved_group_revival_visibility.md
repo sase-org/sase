@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 15:06:10
-status: wip
+status: done
 prompt: sdd/prompts/202605/saved_group_revival_visibility.md
 ---
 # Saved Group Revival Visibility Plan

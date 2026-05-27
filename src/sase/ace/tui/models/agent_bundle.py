@@ -22,7 +22,6 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             "attempt_history",
             "_loaded_from_dismissed_bundle",
             "_dismissed_bundle_path",
-            "tag",
         ):
             continue
         value = getattr(agent, f.name)

@@ -31,6 +31,25 @@ def test_bundle_round_trip_basic() -> None:
     assert restored.identity == agent.identity
 
 
+def test_bundle_round_trip_preserves_agent_tag() -> None:
+    """Dismissed bundles preserve the Agents-tab tag for revive restoration."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 30, 0),
+        raw_suffix="20250615103000",
+        tag="backend",
+    )
+
+    bundle = agent.to_bundle_dict()
+    restored = Agent.from_bundle_dict(bundle)
+
+    assert bundle["tag"] == "backend"
+    assert restored.tag == "backend"
+
+
 def test_bundle_serialization_keeps_agent_state_without_artifact_text(
     tmp_path: Path,
 ) -> None:

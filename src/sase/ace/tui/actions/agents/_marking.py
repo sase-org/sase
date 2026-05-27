@@ -106,6 +106,7 @@ def _saved_group_ref_for_agent(agent: Agent) -> SavedAgentGroupRefWire:
         start_time=_agent_start_time_wire(agent),
         model=agent.model,
         llm_provider=agent.llm_provider,
+        tag=agent.tag,
     )
 
 

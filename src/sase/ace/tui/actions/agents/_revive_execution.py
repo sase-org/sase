@@ -75,7 +75,10 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
 
             if save_dismissed_agents(self._dismissed_agents):
                 try:
-                    sync_dismissed_agent_artifact_index(self._dismissed_agents)
+                    sync_dismissed_agent_artifact_index(
+                        self._dismissed_agents,
+                        added=(),
+                    )
                 except Exception:
                     pass
 
@@ -218,7 +221,10 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             # Phase 2: Single disk write for dismissed set
             if save_dismissed_agents(self._dismissed_agents):
                 try:
-                    sync_dismissed_agent_artifact_index(self._dismissed_agents)
+                    sync_dismissed_agent_artifact_index(
+                        self._dismissed_agents,
+                        added=(),
+                    )
                 except Exception:
                     pass
         except Exception as exc:
