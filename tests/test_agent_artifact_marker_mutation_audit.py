@@ -238,6 +238,10 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
+    "src/sase/workflows/commit/commit_tracking.py:_persist_commit_diff_path": Review(
+        mutation_calls=("open", "dump"),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
     (
         "src/sase/integrations/_mobile_notification_side_effects.py:"
         "_persist_plan_approved_metadata"

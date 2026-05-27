@@ -100,13 +100,19 @@ class TestWriteResultMarker:
             assert data["run_id"] == "20260522112233"
             assert data["cwd"] == os.getcwd()
 
-    def test_does_not_update_agent_meta_with_graph_relationships(self) -> None:
+    def test_persists_commit_diff_path_without_graph_relationships(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "agent_meta.json"
             meta_path.write_text(json.dumps({"name": "agent-alpha"}))
             diff_path = str(Path(tmpdir) / "commit.diff")
             payload = {"message": "fix: bug", "bead_id": "sase-1.2"}
-            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+            with (
+                patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}),
+                patch(
+                    "sase.workflows.commit.commit_tracking."
+                    "update_agent_artifact_index_for_marker_mutation"
+                ) as update_index,
+            ):
                 write_result_marker(
                     "create_commit",
                     payload,
@@ -117,7 +123,39 @@ class TestWriteResultMarker:
                 )
 
             meta = json.loads(meta_path.read_text())
+            assert meta == {
+                "name": "agent-alpha",
+                "commit_diff_path": diff_path,
+            }
+            assert "commit_entry_id" not in meta
+            assert "commit_result" not in meta
+            assert "commit_changespec_name" not in meta
+            update_index.assert_called_once_with(tmpdir)
+
+    def test_does_not_update_agent_meta_without_diff_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            meta_path = Path(tmpdir) / "agent_meta.json"
+            meta_path.write_text(json.dumps({"name": "agent-alpha"}))
+            payload = {"message": "fix: bug"}
+            with (
+                patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}),
+                patch(
+                    "sase.workflows.commit.commit_tracking."
+                    "update_agent_artifact_index_for_marker_mutation"
+                ) as update_index,
+            ):
+                write_result_marker(
+                    "create_commit",
+                    payload,
+                    None,
+                    "abc123",
+                    "proj_feat_1",
+                    entry_id="7",
+                )
+
+            meta = json.loads(meta_path.read_text())
             assert meta == {"name": "agent-alpha"}
+            update_index.assert_not_called()
 
     def test_skips_when_no_artifacts_dir(self) -> None:
         payload = {"message": "test"}

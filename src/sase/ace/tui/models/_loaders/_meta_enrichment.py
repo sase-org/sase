@@ -176,6 +176,9 @@ def enrich_agent_from_meta(
         agent.vcs_provider = data["vcs_provider"]
     if data.get("workspace_dir"):
         agent.workspace_dir = data["workspace_dir"]
+    commit_diff_path = data.get("commit_diff_path")
+    if not agent.diff_path and isinstance(commit_diff_path, str) and commit_diff_path:
+        agent.diff_path = commit_diff_path
     if not workflow_child and data.get("name"):
         agent.agent_name = data["name"]
     meta_tag = _valid_meta_tag(data.get("tag"))
@@ -437,6 +440,8 @@ def enrich_agent_from_meta_wire(
         agent.vcs_provider = meta.vcs_provider
     if meta.workspace_dir:
         agent.workspace_dir = meta.workspace_dir
+    if not agent.diff_path and meta.commit_diff_path:
+        agent.diff_path = meta.commit_diff_path
     if meta.name:
         agent.agent_name = meta.name
     if meta.tag:

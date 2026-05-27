@@ -7,6 +7,9 @@ import os
 import re
 from typing import TYPE_CHECKING
 
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.output import print_status
 from sase.workflows.commit.plan_paths import format_sase_plan_reference
 
@@ -209,6 +212,26 @@ def append_commits_entry(
     return entry_id if ok else None
 
 
+def _persist_commit_diff_path(artifacts_dir: str, diff_path: str | None) -> None:
+    if not diff_path:
+        return
+
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        if not isinstance(meta, dict):
+            return
+        if meta.get("commit_diff_path") == diff_path:
+            return
+        meta["commit_diff_path"] = diff_path
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return
+
+
 def write_result_marker(
     method: str,
     payload: dict,
@@ -246,6 +269,7 @@ def write_result_marker(
     marker_path = os.path.join(artifacts_dir, "commit_result.json")
     with open(marker_path, "w", encoding="utf-8") as f:
         json.dump(marker, f)
+    _persist_commit_diff_path(artifacts_dir, diff_path)
 
 
 def create_changespec(
