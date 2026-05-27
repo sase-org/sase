@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 10:31:40
-status: wip
+status: done
 prompt: sdd/prompts/202605/move_pencil_provider_badge.md
 ---
 # Move Agent Row Pencil Next To Provider Badge

@@ -146,10 +146,16 @@ def format_agent_option(
         else:
             text.append(f"[{dt}] ", style=f"bold {color}")
 
-    if _should_render_provider_badge(agent) and (
-        emoji_badge := provider_emoji_badge(agent.llm_provider)
-    ):
+    emoji_badge = (
+        provider_emoji_badge(agent.llm_provider)
+        if _should_render_provider_badge(agent)
+        else None
+    )
+    if emoji_badge:
         text.append(f"{emoji_badge} ")
+    if _has_file_change_hint(agent):
+        text.append(_FILE_CHANGE_GLYPH, style=_FILE_CHANGE_GLYPH_STYLE)
+        text.append(" ")
 
     # Agent display name (workflow name for top-level workflows, CL name otherwise)
     name_style = "bold #00D7AF" if is_selected else "#00D7AF"
@@ -248,10 +254,6 @@ def format_agent_option(
             text.append(fold_annotation, style="dim")
         else:
             text.append(fold_annotation, style="dim #00D7D7")
-
-    if _has_file_change_hint(agent):
-        text.append(" ")
-        text.append(_FILE_CHANGE_GLYPH, style=_FILE_CHANGE_GLYPH_STYLE)
 
     bead_id = derive_agent_bead_id(agent)
     if bead_id:

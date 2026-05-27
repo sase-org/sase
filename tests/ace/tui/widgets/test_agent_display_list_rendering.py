@@ -71,11 +71,11 @@ class TestAgentListBeadBadge:
 
 class TestAgentListFileChangePencil:
     def test_row_with_diff_path_renders_pencil(self) -> None:
-        agent = make_agent(diff_path="/tmp/sase/demo.diff")
+        agent = make_agent(diff_path="/tmp/sase/demo.diff", llm_provider=None)
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "✏️" in left.plain
+        assert "✏️ test_cl (RUNNING)" in left.plain
 
     def test_row_without_diff_path_omits_pencil(self) -> None:
         agent = make_agent()
@@ -84,7 +84,7 @@ class TestAgentListFileChangePencil:
 
         assert "✏️" not in left.plain
 
-    def test_pencil_flows_from_fold_annotation_to_bead_and_agent_name(self) -> None:
+    def test_pencil_flows_before_display_name_not_bead_metadata(self) -> None:
         agent = make_agent(
             agent_name="sase-x.3",
             diff_path="/tmp/sase/demo.diff",
@@ -99,7 +99,8 @@ class TestAgentListFileChangePencil:
             tag_label="fix",
         )
 
-        assert " #fix (RUNNING)×3 ✏️ ◆ @sase-x.3" in left.plain
+        assert "✏️ test_cl #fix (RUNNING)×3 ◆ @sase-x.3" in left.plain
+        assert "(RUNNING)×3 ✏️" not in left.plain
         assert "@pinned" not in left.plain
 
 
@@ -151,6 +152,18 @@ class TestAgentListProviderEmojiBadges:
 
         assert "🐙 root-agent (RUNNING)" in left.plain
 
+    def test_root_row_renders_provider_then_pencil_before_name(self) -> None:
+        agent = make_agent(
+            cl_name="root-agent",
+            llm_provider="opencode",
+            diff_path="/tmp/sase/demo.diff",
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "🐙 ✏️ root-agent (RUNNING)" in left.plain
+        assert "root-agent (RUNNING) ✏️" not in left.plain
+
     def test_root_row_renders_qwen_provider_emoji_after_prefix_controls(self) -> None:
         agent = make_agent(cl_name="qwen-agent", llm_provider="qwen")
 
@@ -190,11 +203,12 @@ class TestAgentListProviderEmojiBadges:
             step_index=0,
             total_steps=2,
             llm_provider="claude",
+            diff_path="/tmp/sase/demo.diff",
         )
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "1/2 🐚 diff (RUNNING)" in left.plain
+        assert "1/2 🐚 ✏️ diff (RUNNING)" in left.plain
         assert "🎭" not in left.plain
 
     def test_row_without_provider_omits_provider_emoji(self) -> None:
