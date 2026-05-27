@@ -179,6 +179,7 @@ def _spawn_segments_into(
             with timer.stage("prompt_normalize", segment_index=i):
                 segment = normalize_default_vcs_workflow_segment(segment)
         with timer.stage("wait_resume_rewrite", segment_index=i):
+            segment = name_allocator.rewrite_indexed_references(segment)
             segment_has_bare_wait = _has_bare_wait_directive(segment)
             segment_has_bare_resume = _has_bare_resume_reference(segment)
             if previous_agent_name:

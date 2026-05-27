@@ -147,6 +147,14 @@ def rewrite_bare_wait_directives(prompt: str, agent_name: str) -> str:
 
 
 _BARE_RESUME_RE = re.compile(r"#fork(?![A-Za-z0-9_])")
+_RESUME_REF_RE = re.compile(
+    r"#(?P<kind>fork|resume)(?![A-Za-z0-9_])"
+    r"(?:"
+    r":(?P<colon>`[^`]*`|[^\s,)]+)"
+    r"|"
+    r"(?P<open_paren>\()"
+    r")"
+)
 _XPROMPT_REF_RE = re.compile(r"#([A-Za-z_][A-Za-z0-9_]*(?:/[A-Za-z_][A-Za-z0-9_]*)*)")
 
 
@@ -231,11 +239,23 @@ class PlannedNameAllocator:
         self._auto_reserved: set[str] | None = None
         self._resume_reserved: dict[str, set[str]] = {}
         self._wait_reserved: dict[str, set[str]] = {}
+        self._indexed_reserved: dict[str, set[str]] = {}
+        self._indexed_latest: dict[str, str] = {}
+
+    def rewrite_indexed_references(self, prompt: str) -> str:
+        """Resolve indexed wait/resume refs against this launch's plan."""
+        prompt = self._rewrite_indexed_wait_directives(prompt)
+        return self._rewrite_indexed_resume_references(prompt)
 
     def planned_name_for_prompt(self, prompt: str) -> tuple[str | None, str | None]:
         """Return ``(name, env_value)`` for a prompt, if safely knowable."""
         explicit_name = extract_static_name_directive(prompt)
         if explicit_name is not None:
+            from sase.agent.names import is_indexed_agent_name_template
+
+            if is_indexed_agent_name_template(explicit_name):
+                name = self._allocate_indexed_name(explicit_name)
+                return name, name
             return explicit_name, None
 
         from sase.agent.names import (
@@ -278,3 +298,187 @@ class PlannedNameAllocator:
             self._auto_reserved = get_active_agent_names()
         name = allocate_auto_names(1, reserved=self._auto_reserved)[0]
         return name, name
+
+    def _rewrite_indexed_wait_directives(self, prompt: str) -> str:
+        if "%" not in prompt:
+            return prompt
+
+        from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+        from sase.xprompt._disabled_regions import (
+            protect_disabled_regions,
+            unprotect_disabled_regions,
+        )
+        from sase.xprompt._fenced_blocks import (
+            protect_fenced_blocks,
+            unprotect_fenced_blocks,
+        )
+        from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+
+        fenced: list[str] = []
+        protected = protect_fenced_blocks(prompt, fenced)
+        disabled: list[str] = []
+        protected = protect_disabled_regions(protected, disabled)
+
+        replacements: list[tuple[int, int, str]] = []
+        for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+            raw_name = match.group(1)
+            if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "wait":
+                continue
+
+            colon_arg = match.group(3)
+            if colon_arg is not None:
+                resolved_args = self._resolve_indexed_arg_list(
+                    _unquote_backtick_arg(colon_arg).split(",")
+                )
+                if resolved_args is None:
+                    continue
+                replacements.append(
+                    (
+                        match.start(),
+                        match.end(),
+                        f"%{raw_name}:{','.join(resolved_args)}",
+                    )
+                )
+                continue
+
+            if match.group(2) is None:
+                continue
+
+            paren_start = match.end() - 1
+            paren_end = find_matching_paren_for_args(protected, paren_start)
+            if paren_end is None:
+                continue
+            inner = protected[paren_start + 1 : paren_end]
+            positional_args, _ = parse_args(inner)
+            resolved_args = self._resolve_indexed_arg_list(list(positional_args))
+            if resolved_args is None:
+                continue
+            replacements.append(
+                (
+                    match.start(),
+                    paren_end + 1,
+                    f"%{raw_name}({','.join(resolved_args)})",
+                )
+            )
+
+        rewritten = protected
+        for start, end, value in reversed(replacements):
+            rewritten = rewritten[:start] + value + rewritten[end:]
+        rewritten = unprotect_disabled_regions(rewritten, disabled)
+        return unprotect_fenced_blocks(rewritten, fenced)
+
+    def _rewrite_indexed_resume_references(self, prompt: str) -> str:
+        if "#fork" not in prompt and "#resume" not in prompt:
+            return prompt
+
+        from sase.xprompt._disabled_regions import (
+            protect_disabled_regions,
+            unprotect_disabled_regions,
+        )
+        from sase.xprompt._fenced_blocks import (
+            protect_fenced_blocks,
+            unprotect_fenced_blocks,
+        )
+        from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+
+        fenced: list[str] = []
+        protected = protect_fenced_blocks(prompt, fenced)
+        disabled: list[str] = []
+        protected = protect_disabled_regions(protected, disabled)
+
+        replacements: list[tuple[int, int, str]] = []
+        for match in _RESUME_REF_RE.finditer(protected):
+            kind = match.group("kind")
+            colon = match.group("colon")
+            if colon is not None:
+                resolved = self._resolve_indexed_arg(_unquote_backtick_arg(colon))
+                if resolved is not None:
+                    replacements.append(
+                        (match.start(), match.end(), f"#{kind}:{resolved}")
+                    )
+                continue
+
+            if match.group("open_paren") is None:
+                continue
+            paren_start = match.end("open_paren") - 1
+            paren_end = find_matching_paren_for_args(protected, paren_start)
+            if paren_end is None:
+                continue
+            inner = protected[paren_start + 1 : paren_end]
+            positional_args, _ = parse_args(inner)
+            if not positional_args:
+                continue
+            resolved = self._resolve_indexed_arg(positional_args[0])
+            if resolved is not None:
+                replacements.append(
+                    (match.start(), paren_end + 1, f"#{kind}:{resolved}")
+                )
+
+        rewritten = protected
+        for start, end, value in reversed(replacements):
+            rewritten = rewritten[:start] + value + rewritten[end:]
+        rewritten = unprotect_disabled_regions(rewritten, disabled)
+        return unprotect_fenced_blocks(rewritten, fenced)
+
+    def _resolve_indexed_arg_list(self, args: list[str]) -> list[str] | None:
+        resolved: list[str] = []
+        changed = False
+        for arg in args:
+            value = self._resolve_indexed_arg(arg)
+            if value is None:
+                resolved.append(arg)
+            else:
+                resolved.append(value)
+                changed = True
+        return resolved if changed else None
+
+    def _resolve_indexed_arg(self, arg: str) -> str | None:
+        from sase.agent.names import is_indexed_agent_name_template
+
+        if not is_indexed_agent_name_template(arg):
+            return None
+        return self._latest_indexed_name(arg)
+
+    def _allocate_indexed_name(self, template: str) -> str:
+        from sase.agent.names import (
+            allocate_indexed_agent_name,
+            indexed_agent_name_base,
+        )
+
+        base = indexed_agent_name_base(template)
+        reserved = self._indexed_reserved_names(base)
+        name = allocate_indexed_agent_name(template, reserved=reserved)
+        self._indexed_latest[base] = name
+        return name
+
+    def _latest_indexed_name(self, template: str) -> str:
+        from sase.agent.names import (
+            IndexedAgentNameNotFoundError,
+            indexed_agent_name_base,
+            latest_indexed_agent_name,
+        )
+
+        base = indexed_agent_name_base(template)
+        latest = latest_indexed_agent_name(
+            template,
+            names=self._indexed_reserved_names(base),
+        )
+        if latest is None:
+            raise IndexedAgentNameNotFoundError(template)
+        self._indexed_latest[base] = latest
+        return latest
+
+    def _indexed_reserved_names(self, base: str) -> set[str]:
+        reserved = self._indexed_reserved.get(base)
+        if reserved is None:
+            from sase.agent.names import get_reserved_agent_names
+
+            reserved = get_reserved_agent_names()
+            self._indexed_reserved[base] = reserved
+        return reserved
+
+
+def _unquote_backtick_arg(arg: str) -> str:
+    if arg.startswith("`") and arg.endswith("`"):
+        return arg[1:-1]
+    return arg
