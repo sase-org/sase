@@ -29,13 +29,13 @@ _REVIEWED_DISMISSED_SAVE_CONTEXTS: dict[str, tuple[str, ...]] = {
     "src/sase/ace/tui/actions/agents/_marking.py:_persist_marked_agent_group_save": (
         _SYNC_DISMISSED_INDEX,
     ),
-    "src/sase/ace/tui/actions/agents/_revive.py:_do_revive_agent": (
+    "src/sase/ace/tui/actions/agents/_revive_execution.py:_do_revive_agent": (
         _SYNC_DISMISSED_INDEX,
     ),
-    "src/sase/ace/tui/actions/agents/_revive.py:_do_revive_agents": (
+    "src/sase/ace/tui/actions/agents/_revive_execution.py:_do_revive_agents": (
         _SYNC_DISMISSED_INDEX,
     ),
-    "src/sase/ace/tui/actions/agents/_revive.py:_load_dismissed_archive": (
+    "src/sase/ace/tui/actions/agents/_revive_archive.py:_load_dismissed_archive": (
         _SYNC_DISMISSED_INDEX,
     ),
     "src/sase/agent/running.py:_record_dismissal": (_SYNC_DISMISSED_INDEX,),

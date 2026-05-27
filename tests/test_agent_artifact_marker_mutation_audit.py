@@ -52,14 +52,16 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         batched_by=(
             BatchedCoverage(
                 caller_context=(
-                    "src/sase/ace/tui/actions/agents/_revive.py:_do_revive_agent"
+                    "src/sase/ace/tui/actions/agents/"
+                    "_revive_execution.py:_do_revive_agent"
                 ),
                 helper_call="_restore_agent_artifacts",
                 lifecycle_call=_UPSERT_INDEX,
             ),
             BatchedCoverage(
                 caller_context=(
-                    "src/sase/ace/tui/actions/agents/_revive.py:_do_revive_agents"
+                    "src/sase/ace/tui/actions/agents/"
+                    "_revive_execution.py:_do_revive_agents"
                 ),
                 helper_call="_restore_agent_artifacts",
                 lifecycle_call=_UPSERT_INDEX,
