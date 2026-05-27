@@ -694,10 +694,10 @@ Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`
 
 ## Skill Field
 
-XPrompts can be marked as agent skill sources by setting the `skill` field in their front matter. The `sase skills init`
-command reads the loaded xprompt catalog, including bundled skill sources and runtime config overlays, to determine
-which xprompts should be rendered into per-provider SKILL.md files and deployed to agent skill directories. The
-compatibility alias `sase init skills` runs the same initializer.
+XPrompts can be marked as agent skill sources by setting the `skill` field in their front matter. `sase skills list`
+shows the loaded skill catalog without writing files. `sase skills init` reads that catalog, including bundled skill
+sources and runtime config overlays, to determine which xprompts should be rendered into per-provider `SKILL.md` files
+and deployed to agent skill directories. The compatibility alias `sase init skills` runs the same initializer.
 
 ```markdown
 ---
@@ -721,11 +721,14 @@ The structured catalog also marks these entries with `is_skill: true`; ACE and e
 slash-skill completions such as `/sase_plan` while keeping ordinary xprompts out of slash completion results.
 
 **Workflow:** Edit packaged skill sources in `src/sase/xprompts/skills/`, or define user/runtime skill xprompts through
-the normal xprompt catalog sources, inspect target drift with `sase skills list`, then run `sase skills init --force`.
-When `use_chezmoi` is enabled, `sase skills init` commits, pushes, and applies the generated files unless passed
-`--no-commit`, `--no-push`, or `--no-apply`. Do not edit deployed SKILL.md files directly.
+the normal xprompt catalog sources. Then run `sase skills list`, `sase skills init --dry-run`, and finally
+`sase skills init --force` when the preview is correct. When `use_chezmoi` is enabled, `sase skills init` commits,
+pushes, and applies the generated files unless passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit deployed
+`SKILL.md` files directly. `sase init skills` is a compatibility alias for `sase skills init`.
 
-Provider plugins declare where generated skills should be written. Built-in targets are:
+Provider plugins declare where generated skills should be written. A source can target multiple providers, and a
+provider can have multiple filesystem targets; for example, Gemini deploys to both the normal Gemini skills directory
+and the Jetski compatibility directory. Built-in targets are:
 
 | Provider | Skill target(s)                                                                 |
 | -------- | ------------------------------------------------------------------------------- |
@@ -739,7 +742,8 @@ Provider plugins declare where generated skills should be written. Built-in targ
 
 The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase skills init`. They are packaged with
 sase, included in `sase xprompt list`, and available to prompt completion clients even when a checkout does not have
-local skill files. Coding agents invoke them as `/sase_<name>`:
+local skill files. Coding agents invoke them as `/sase_<name>`. Runtime config overlays can add more skill sources, so
+`sase skills list` may show entries that are not bundled here:
 
 | Skill                | Purpose                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -749,7 +753,7 @@ local skill files. Coding agents invoke them as `/sase_<name>`:
 | `sase_chats`         | Inspect prior sase agent chat transcripts via `sase chats list` and `sase chats show`                         |
 | `sase_changespecs`   | Inspect and reason about ChangeSpecs via `sase changespec search ...`, exact-name lookup, and safe edit rules |
 | `sase_git_commit`    | Commit changes for git-based VCS via `sase commit` (the only sanctioned commit path on git repos)             |
-| `sase_hg_commit`     | Gemini-only Mercurial counterpart of `sase_git_commit`                                                        |
+| `sase_hg_commit`     | Gemini-only commit skill for the hg/fig provider path                                                         |
 | `sase_memory_read`   | Guide audited long-term memory reads through `sase memory read`                                               |
 | `sase_notify`        | Inspect SASE notification inbox entries via `sase notify list` and `sase notify show`                         |
 | `sase_plan`          | Submit a plan file for approval (used in lieu of disabled `EnterPlanMode`)                                    |

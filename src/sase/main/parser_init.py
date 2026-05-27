@@ -99,7 +99,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "Advanced deploy controls live on explicit subcommands; for example, "
             "use `sase init amd --check`, `sase init memory --no-commit`, "
-            "or `sase init skills --no-push`."
+            "or `sase skills init --no-push`."
         ),
     )
     init_parser.add_argument(
@@ -168,6 +168,10 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
 
     skills_parser = init_subparsers.add_parser(
         "skills",
-        help="Generate and deploy agent skill files from xprompt sources",
+        help="Alias for `sase skills init`",
+        description=(
+            "Compatibility alias for `sase skills init`, which generates and "
+            "deploys agent skill files from xprompt sources."
+        ),
     )
     add_skills_init_arguments(skills_parser)

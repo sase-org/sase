@@ -1231,26 +1231,24 @@ map asset.
 
 ### `sase skills`
 
-With no subcommand, `sase skills` defaults to `sase skills list`.
+With no subcommand, `sase skills` defaults to the read-only `sase skills list` dashboard. It reports loaded skill
+sources, provider targets, and deployed-file drift without writing files. `sase skills init` generates and deploys agent
+skill files from xprompt sources marked with the `skill` field. See [xprompt.md — Skill Field](xprompt.md#skill-field)
+for the skill-source contract and provider targets. Existing files are skipped in non-interactive runs unless `--force`
+is passed; interactive runs prompt before overwriting. `sase init skills` is a compatibility alias for
+`sase skills init`.
 
-| Form               | Flags | Description                                                                     |
-| ------------------ | ----- | ------------------------------------------------------------------------------- |
-| `sase skills`      | -     | Show the same read-only generated-skill inventory as `sase skills list`.        |
-| `sase skills list` | -     | Inspect generated skill sources, provider targets, and deployed-file drift.     |
-| `sase skills init` | below | Generate and deploy agent skill files from xprompt sources marked with `skill`. |
-| `sase init skills` | below | Compatibility alias for `sase skills init`.                                     |
-
-See [xprompt.md — Skill Field](xprompt.md#skill-field) for the skill-source contract and provider targets. Existing
-files are skipped in non-interactive runs unless `--force` is passed; interactive runs prompt before overwriting.
-
-| Flag              | Values                                          | Default | Description                                                                                 |
-| ----------------- | ----------------------------------------------- | ------- | ------------------------------------------------------------------------------------------- |
-| `-A, --no-apply`  | flag                                            | -       | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.    |
-| `-C, --no-commit` | flag                                            | -       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                   |
-| `-f, --force`     | flag                                            | -       | Overwrite existing deployed skill files without confirmation.                               |
-| `-n, --dry-run`   | flag                                            | -       | Show what would be written without writing files.                                           |
-| `-P, --no-push`   | flag                                            | -       | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`. |
-| `-p, --provider`  | `claude`, `gemini`, `codex`, `opencode`, `qwen` | all     | Deploy only for one provider.                                                               |
+| Form               | Flags                                                | Description                                                                                 |
+| ------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `sase skills`      | -                                                    | Show the same read-only dashboard as `sase skills list`.                                    |
+| `sase skills list` | -                                                    | Inspect generated skill sources, provider targets, and deployed-file drift.                 |
+| `sase skills init` | `-f, --force`                                        | Overwrite existing deployed skill files without confirmation.                               |
+| `sase skills init` | `-n, --dry-run`                                      | Show what would be written without writing files.                                           |
+| `sase skills init` | `-p, --provider {claude,gemini,codex,opencode,qwen}` | Deploy only for one provider.                                                               |
+| `sase skills init` | `-A, --no-apply`                                     | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.    |
+| `sase skills init` | `-C, --no-commit`                                    | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                   |
+| `sase skills init` | `-P, --no-push`                                      | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`. |
+| `sase init skills` | same as `sase skills init`                           | Compatibility alias for `sase skills init`.                                                 |
 
 ### `sase git init`
 

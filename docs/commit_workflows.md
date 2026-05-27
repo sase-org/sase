@@ -45,8 +45,9 @@ postprocessed normally.
 
 If changes remain, the finalizer runs a bounded follow-up invocation with the same provider. The follow-up prompt lists
 the dirty files and instructs the agent to use a commit skill such as `/sase_git_commit` or `/sase_hg_commit`. For the
-main workspace, the skill name is selected from the detected VCS provider. For configured sibling repos, the current
-finalizer checks `git status` and emits Git commit-skill instructions that first `cd` into the sibling workspace.
+main workspace, the skill name is selected from the detected VCS provider; provider-specific generated skills can be
+scoped to the runtimes that support that provider. For configured sibling repos, the current finalizer checks
+`git status` and emits Git commit-skill instructions that first `cd` into the sibling workspace.
 
 Generated skills normally run an observable wrapper such as `sase_git_commit`, which records skill invocation evidence
 and then delegates to `sase commit`. A typical Git skill invocation omits `--type` because the xprompt already set

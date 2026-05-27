@@ -36,7 +36,6 @@ sase init sdd
 sase init sdd --check
 sase skills list
 sase skills init --dry-run
-sase init skills --dry-run
 
 # Agent-side audited operations, normally run from a SASE-launched agent:
 sase memory read long/generated_skills.md --reason "Need generated skill context"
@@ -77,7 +76,7 @@ a dry run: it can still write project files, write home memory, and follow home-
 | `sase init sdd`                       | Alias for `sase sdd init`; refreshes generated SDD README files and the directory map.        |
 | `sase init sdd --check`               | Report SDD generated-file drift without writing files.                                        |
 | `sase skills`                         | Alias for `sase skills list`.                                                                 |
-| `sase skills list`                    | Inspect generated skill sources, provider targets, and deployed-file drift.                   |
+| `sase skills list`                    | Inspect generated skill sources, provider targets, and deployed-file drift without writing.   |
 | `sase skills init`                    | Generate skill files; existing files require confirmation or `--force`.                       |
 | `sase skills init --dry-run`          | Preview generated skill target paths without writing files.                                   |
 | `sase skills init --force`            | Generate and overwrite deployed skill files without confirmation.                             |
@@ -219,13 +218,12 @@ them.
 
 ## Skill Initialization
 
-`sase skills list`, or bare `sase skills`, renders a read-only dashboard for generated skill sources, provider targets,
-and deployed-file drift. Use it before and after changing skill sources to see which provider skill files are current,
-stale, or missing.
+Generated skills start as xprompt sources marked with a `skill` frontmatter field. `sase skills list` is the read-only
+inventory: it shows loaded skill sources, the providers they target, and whether generated `SKILL.md` files are current,
+stale, or missing. Bare `sase skills` shows the same dashboard.
 
-`sase skills init` renders loaded xprompts marked with a `skill` frontmatter field into provider-specific `SKILL.md`
-files. `sase init skills` is a compatibility alias for the same initializer. Sources include bundled skill xprompts and
-user/runtime xprompt catalog entries. Run a dry run first when adding or changing skill sources:
+`sase skills init` renders those sources into provider-specific `SKILL.md` files. Sources include bundled skill xprompts
+and user/runtime xprompt catalog entries. The usual workflow is to inspect first, preview writes, then deploy:
 
 ```bash
 sase skills list
@@ -236,6 +234,6 @@ sase skills init --force
 Without `use_chezmoi`, generated skill files are written directly under the provider's home-directory skill targets.
 When `use_chezmoi: true`, skill initialization writes through the chezmoi-managed home tree and can commit, push, and
 apply those dotfile changes. The `--no-commit`, `--no-push`, and `--no-apply` flags only affect that chezmoi deployment
-sequence.
+sequence. `sase init skills` still works as a compatibility alias for `sase skills init`.
 
 See [XPrompt Skill Field](xprompt.md#skill-field) for the skill-source contract and bundled skill list.

@@ -66,10 +66,10 @@ unrelated dirty work.
 
 ## Runtime-Uniform Commit Skills
 
-Every supported agent runtime ships the same commit skill surface. The skill names, flags, and outputs are identical
-across Claude, Codex, Gemini, Qwen, and OpenCode. An XPrompt that calls into the commit workflow runs the same way
-regardless of who is on the other end. This is one of the gotchas baked into SASE's project memory: do not introduce
-runtime-specific special cases; treat all runtimes uniformly.
+Supported agent runtimes follow the same commit-finalizer control flow: the finalizer asks for the VCS-specific commit
+skill, the skill delegates to `sase commit`, and the finalizer re-checks for dirty work. The common Git skill surface is
+available across Claude, Codex, Gemini, Qwen, and OpenCode; provider-specific extras can be scoped to the runtimes that
+support that provider.
 
 ## The VCS Provider Boundary
 

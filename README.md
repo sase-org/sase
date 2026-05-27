@@ -79,7 +79,7 @@ sase memory log          # summarize audited long-term memory reads
 sase memory log --include proposals  # include memory proposal/review events
 sase init sdd             # create/refresh generated SDD guides and directory map
 sase skills list          # inspect generated skill sources, targets, and drift
-sase skills init --dry-run    # preview provider skill files before deploying them
+sase skills init --dry-run  # preview provider skill files before deploying them
 sase ace                  # open the interactive control surface
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
