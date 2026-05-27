@@ -1,0 +1,276 @@
+"""Dirty repository discovery for commit finalization."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, sibling_repo_metadata_from_env
+
+from . import commit_finalizer_git as finalizer_git
+from .commit_finalizer_git import (
+    agent_run_started_at,
+    git_changed_files,
+    git_remote_identities,
+    git_root_for_path,
+    observed_absolute_paths,
+    plausible_observed_changed_files,
+)
+from .commit_finalizer_prompting import build_dirty_details
+from .commit_finalizer_types import (
+    DirtyRepo,
+    DirtyState,
+    SiblingTarget,
+    _WorkspaceStrategy,
+)
+
+_WORKSPACE_NUM_ENV_VARS: tuple[str, ...] = (
+    "SASE_AGENT_WORKSPACE_NUM",
+    "SASE_GIT_WORKSPACE_NUM",
+    "SASE_CD_WORKSPACE_NUM",
+)
+
+
+def collect_dirty_state(
+    project_dir: str,
+    *,
+    artifact_root: Path | None = None,
+) -> DirtyState:
+    has_main_changes, main_files, main_instruction, main_details = (
+        _build_commit_details(project_dir)
+    )
+
+    main_repo = (
+        DirtyRepo(
+            name="main",
+            path=finalizer_git._normalize_path(project_dir),
+            changed_files=tuple(main_files),
+            kind="main",
+        )
+        if has_main_changes
+        else None
+    )
+    sibling_targets = _configured_sibling_targets(project_dir)
+    sibling_repos = tuple(_dirty_configured_sibling_repos(sibling_targets))
+    observed_repos = tuple(
+        _dirty_observed_workspaces(
+            project_dir=project_dir,
+            artifact_root=artifact_root,
+            sibling_targets=sibling_targets,
+        )
+    )
+    repos: list[DirtyRepo] = []
+    if main_repo is not None:
+        repos.append(main_repo)
+    repos.extend(sibling_repos)
+    repos.extend(observed_repos)
+    details = build_dirty_details(
+        main_details=main_details,
+        main_instruction=main_instruction,
+        main_repo=main_repo,
+        sibling_repos=sibling_repos,
+        observed_repos=observed_repos,
+    )
+    return DirtyState(
+        project_dir=finalizer_git._normalize_path(project_dir),
+        repos=tuple(repos),
+        details=details,
+    )
+
+
+def _build_commit_details(project_dir: str) -> tuple[bool, list[str], str, str]:
+    from . import commit_finalizer
+
+    return commit_finalizer.build_commit_details(project_dir)
+
+
+def _dirty_configured_sibling_repos(
+    sibling_targets: list[SiblingTarget],
+) -> list[DirtyRepo]:
+    dirty: list[DirtyRepo] = []
+    for target in sibling_targets:
+        if target.workspace_strategy == "none":
+            continue
+        changed_files = git_changed_files(target.workspace_dir)
+        if not changed_files:
+            continue
+        dirty.append(
+            DirtyRepo(
+                name=target.name,
+                path=target.workspace_dir,
+                changed_files=tuple(changed_files),
+                kind="sibling",
+            )
+        )
+    return dirty
+
+
+def _dirty_observed_workspaces(
+    *,
+    project_dir: str,
+    artifact_root: Path | None,
+    sibling_targets: list[SiblingTarget],
+) -> list[DirtyRepo]:
+    if artifact_root is None:
+        return []
+
+    observed_paths = observed_absolute_paths(artifact_root)
+    if not observed_paths:
+        return []
+
+    active_root = git_root_for_path(Path(project_dir))
+    if active_root is None:
+        return []
+
+    active_remote_ids = git_remote_identities(active_root)
+    if not active_remote_ids:
+        return []
+
+    excluded_roots = {active_root}
+    for target in sibling_targets:
+        sibling_root = git_root_for_path(Path(target.workspace_dir))
+        excluded_roots.add(
+            sibling_root or finalizer_git._normalize_path(target.workspace_dir)
+        )
+
+    run_started_at = agent_run_started_at(artifact_root)
+    dirty: list[DirtyRepo] = []
+    seen_roots: set[str] = set()
+    for path in sorted(observed_paths):
+        root = git_root_for_path(Path(path))
+        if root is None or root in seen_roots or root in excluded_roots:
+            continue
+        seen_roots.add(root)
+        if not (git_remote_identities(root) & active_remote_ids):
+            continue
+        changed_files = git_changed_files(root)
+        if not changed_files:
+            continue
+        plausible_files = plausible_observed_changed_files(
+            repo_root=root,
+            changed_files=changed_files,
+            observed_paths=observed_paths,
+            run_started_at=run_started_at,
+        )
+        if not plausible_files:
+            continue
+        dirty.append(
+            DirtyRepo(
+                name=Path(root).name,
+                path=root,
+                changed_files=tuple(plausible_files),
+                kind="observed_workspace",
+            )
+        )
+    return dirty
+
+
+def _configured_sibling_targets(
+    project_dir: str,
+) -> list[SiblingTarget]:
+    if SIBLING_REPOS_JSON_ENV in os.environ:
+        return _sibling_targets_from_env()
+    return _sibling_targets_from_config(project_dir)
+
+
+def _sibling_targets_from_env() -> list[SiblingTarget]:
+    targets: list[SiblingTarget] = []
+    for index, item in enumerate(sibling_repo_metadata_from_env(os.environ), start=1):
+        workspace_dir = item.get("workspace_dir")
+        if not isinstance(workspace_dir, str) or not workspace_dir.strip():
+            continue
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip():
+            name = f"sibling_{index}"
+        targets.append(
+            SiblingTarget(
+                name=name.strip(),
+                workspace_dir=finalizer_git._normalize_path(workspace_dir),
+                workspace_strategy=_sibling_workspace_strategy(
+                    item.get("workspace_strategy")
+                ),
+            )
+        )
+    return targets
+
+
+def _sibling_targets_from_config(
+    project_dir: str,
+) -> list[SiblingTarget]:
+    project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
+    if not project_file:
+        return []
+
+    workspace_num = _workspace_num_for_project_file(project_file, project_dir)
+    if workspace_num is None:
+        return []
+
+    try:
+        from sase.sibling_repos import resolve_sibling_repos_for_project
+
+        resolution = resolve_sibling_repos_for_project(
+            project_file=project_file,
+            workspace_dir=project_dir,
+            workspace_num=workspace_num,
+            materialize=False,
+        )
+    except Exception:
+        return []
+
+    return [
+        SiblingTarget(
+            name=repo.name,
+            workspace_dir=finalizer_git._normalize_path(repo.workspace_dir),
+            workspace_strategy=_sibling_workspace_strategy(repo.workspace_strategy),
+        )
+        for repo in resolution.repos
+    ]
+
+
+def _sibling_workspace_strategy(value: object) -> _WorkspaceStrategy:
+    if value == "none":
+        return "none"
+    return "suffix"
+
+
+def _workspace_num_for_project_file(project_file: str, project_dir: str) -> int | None:
+    env_num = _workspace_num_from_env()
+    if env_num is not None:
+        return env_num
+
+    try:
+        from sase.workspace_provider.utils import parse_workspace_dir
+
+        primary_dir = parse_workspace_dir(project_file)
+    except Exception:
+        return None
+
+    if not primary_dir:
+        return None
+
+    primary_path = Path(finalizer_git._normalize_path(primary_dir))
+    project_path = Path(finalizer_git._normalize_path(project_dir))
+    if project_path == primary_path:
+        return 0
+    if project_path.parent != primary_path.parent:
+        return None
+
+    prefix = f"{primary_path.name}_"
+    if not project_path.name.startswith(prefix):
+        return None
+    suffix = project_path.name[len(prefix) :]
+    if not suffix.isdigit():
+        return None
+    return int(suffix)
+
+
+def _workspace_num_from_env() -> int | None:
+    for key in _WORKSPACE_NUM_ENV_VARS:
+        raw = os.environ.get(key)
+        if not raw:
+            continue
+        try:
+            return int(raw)
+        except ValueError:
+            continue
+    return None

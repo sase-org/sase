@@ -2,95 +2,151 @@
 
 from __future__ import annotations
 
-import json
 import os
-import re
-import subprocess
-from collections.abc import Mapping
-from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any, Literal
-from urllib.parse import urlparse
 
-from sase.commit_instructions import (
-    build_commit_details,
-    build_commit_instruction_message,
-    build_name_instruction_text,
+from sase.commit_instructions import build_commit_details
+
+from . import commit_finalizer_artifacts as finalizer_artifacts
+from . import commit_finalizer_config as finalizer_config
+from . import commit_finalizer_git as finalizer_git
+from . import commit_finalizer_prompting as finalizer_prompting
+from . import commit_finalizer_state as finalizer_state
+from . import commit_finalizer_types as finalizer_types
+from .commit_finalizer_artifacts import artifact_root, write_result, write_text
+from .commit_finalizer_config import (
+    load_finalizer_config,
+    resolve_finalizer_project_dir,
 )
-from sase.config.core import load_merged_config
-from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
-from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, sibling_repo_metadata_from_env
-
+from .commit_finalizer_git import (
+    agent_run_started_at,
+    git_changed_files,
+    git_remote_identities,
+    git_root_for_path,
+    observed_absolute_paths,
+    plausible_observed_changed_files,
+)
+from .commit_finalizer_prompting import (
+    append_response,
+    build_dirty_details,
+    build_follow_up_prompt,
+    failure_message,
+    merge_usage,
+)
+from .commit_finalizer_state import collect_dirty_state
+from .commit_finalizer_types import (
+    CommitFinalizerConfig,
+    CommitFinalizerError,
+    CommitFinalizerResult,
+    DirtyRepo,
+    DirtyState,
+    SiblingTarget,
+)
 from .base import LLMProvider
 from .types import InvokeResult, ModelTier
 
-_WORKSPACE_ENV_VARS: tuple[str, ...] = (
-    "SASE_GIT_WORKSPACE_DIR",
-    "SASE_CD_WORKSPACE_DIR",
-)
-_WORKSPACE_NUM_ENV_VARS: tuple[str, ...] = (
-    "SASE_AGENT_WORKSPACE_NUM",
-    "SASE_GIT_WORKSPACE_NUM",
-    "SASE_CD_WORKSPACE_NUM",
-)
-_PROVIDER_PROJECT_ENV_VARS: tuple[str, ...] = (
-    "CODEX_PROJECT_DIR",
-    SASE_ACTIVE_PROJECT_DIR_ENV,
-    "CLAUDE_PROJECT_DIR",
-    "QWEN_PROJECT_DIR",
-    "GEMINI_PROJECT_DIR",
-    "OPENCODE_PROJECT_DIR",
-)
-_DEFAULT_ENABLED = True
-_DEFAULT_MAX_PASSES = 2
-_ABSOLUTE_PATH_RE = re.compile(r"(?<![\w./~-])/(?:[^\s'\"`$;&|<>{}\[\]]+)")
+_DirtyRepoKind = finalizer_types._DirtyRepoKind
+_FinalizerStatus = finalizer_types._FinalizerStatus
+_WorkspaceStrategy = finalizer_types._WorkspaceStrategy
 
-_FinalizerStatus = Literal["skipped", "clean", "finalized", "failed"]
-_DirtyRepoKind = Literal["main", "sibling", "observed_workspace"]
-_WorkspaceStrategy = Literal["suffix", "none"]
+_CommitFinalizerConfig = CommitFinalizerConfig
+_CommitFinalizerError = CommitFinalizerError
+_CommitFinalizerResult = CommitFinalizerResult
+_DirtyRepo = DirtyRepo
+_DirtyState = DirtyState
+_SiblingTarget = SiblingTarget
 
+_absolute_paths_from_text = finalizer_git._absolute_paths_from_text
+_absolute_paths_from_value = finalizer_git._absolute_paths_from_value
+_agent_run_started_at = agent_run_started_at
+_changed_file_abs_path = finalizer_git._changed_file_abs_path
+_changed_files_from_git_status = finalizer_git._changed_files_from_git_status
+_git_changed_files = git_changed_files
+_git_remote_identities = git_remote_identities
+_git_root_for_path = git_root_for_path
+_mtime_after = finalizer_git._mtime_after
+_normalize_path = finalizer_git._normalize_path
+_normalize_remote_identity = finalizer_git._normalize_remote_identity
+_observed_absolute_paths = observed_absolute_paths
+_plausible_observed_changed_files = plausible_observed_changed_files
+_read_tool_call_records = finalizer_git._read_tool_call_records
 
-class _CommitFinalizerError(Exception):
-    """Raised when the commit finalizer cannot prove the workspace is clean."""
+_append_response = append_response
+_build_dirty_details = build_dirty_details
+_build_follow_up_prompt = build_follow_up_prompt
+_failure_message = failure_message
+_merge_usage = merge_usage
+_result_changed_files = finalizer_prompting._result_changed_files
+_sibling_commit_instruction = finalizer_prompting._sibling_commit_instruction
 
+_artifact_root = artifact_root
+_write_result = write_result
+_write_text = write_text
 
-@dataclass(frozen=True)
-class _CommitFinalizerConfig:
-    enabled: bool = _DEFAULT_ENABLED
-    max_passes: int = _DEFAULT_MAX_PASSES
+_normalize_max_passes = finalizer_config._normalize_max_passes
+_workspace_env_value = finalizer_config._workspace_env_value
+_load_finalizer_config = load_finalizer_config
+_resolve_finalizer_project_dir = resolve_finalizer_project_dir
 
+_collect_dirty_state = collect_dirty_state
+_configured_sibling_targets = finalizer_state._configured_sibling_targets
+_dirty_configured_sibling_repos = finalizer_state._dirty_configured_sibling_repos
+_dirty_observed_workspaces = finalizer_state._dirty_observed_workspaces
+_sibling_targets_from_config = finalizer_state._sibling_targets_from_config
+_sibling_targets_from_env = finalizer_state._sibling_targets_from_env
+_sibling_workspace_strategy = finalizer_state._sibling_workspace_strategy
+_workspace_num_for_project_file = finalizer_state._workspace_num_for_project_file
+_workspace_num_from_env = finalizer_state._workspace_num_from_env
 
-@dataclass(frozen=True)
-class _CommitFinalizerResult:
-    status: _FinalizerStatus
-    reason: str
-    project_dir: str | None
-    passes: int
-    changed_files: list[str]
-    error: str | None = None
-
-
-@dataclass(frozen=True)
-class _DirtyRepo:
-    name: str
-    path: str
-    changed_files: tuple[str, ...]
-    kind: _DirtyRepoKind
-
-
-@dataclass(frozen=True)
-class _DirtyState:
-    project_dir: str
-    repos: tuple[_DirtyRepo, ...]
-    details: str
-
-
-@dataclass(frozen=True)
-class _SiblingTarget:
-    name: str
-    workspace_dir: str
-    workspace_strategy: _WorkspaceStrategy = "suffix"
+__all__ = [
+    "CommitFinalizerConfig",
+    "CommitFinalizerError",
+    "CommitFinalizerResult",
+    "DirtyRepo",
+    "_DirtyRepoKind",
+    "DirtyState",
+    "_FinalizerStatus",
+    "SiblingTarget",
+    "_WorkspaceStrategy",
+    "_absolute_paths_from_text",
+    "_absolute_paths_from_value",
+    "agent_run_started_at",
+    "append_response",
+    "artifact_root",
+    "build_dirty_details",
+    "build_follow_up_prompt",
+    "_changed_file_abs_path",
+    "_changed_files_from_git_status",
+    "collect_dirty_state",
+    "_configured_sibling_targets",
+    "_dirty_configured_sibling_repos",
+    "_dirty_observed_workspaces",
+    "failure_message",
+    "git_changed_files",
+    "git_remote_identities",
+    "git_root_for_path",
+    "load_finalizer_config",
+    "merge_usage",
+    "_mtime_after",
+    "_normalize_max_passes",
+    "_normalize_path",
+    "_normalize_remote_identity",
+    "observed_absolute_paths",
+    "plausible_observed_changed_files",
+    "_read_tool_call_records",
+    "resolve_finalizer_project_dir",
+    "_result_changed_files",
+    "_sibling_commit_instruction",
+    "_sibling_targets_from_config",
+    "_sibling_targets_from_env",
+    "_sibling_workspace_strategy",
+    "_workspace_env_value",
+    "_workspace_num_for_project_file",
+    "_workspace_num_from_env",
+    "write_result",
+    "write_text",
+    "build_commit_details",
+    "run_commit_finalizer",
+]
 
 
 def run_commit_finalizer(
@@ -223,671 +279,3 @@ def run_commit_finalizer(
         ),
     )
     raise _CommitFinalizerError(error)
-
-
-def _resolve_finalizer_project_dir() -> str:
-    """Resolve the workspace the finalizer should inspect."""
-    for key in _PROVIDER_PROJECT_ENV_VARS:
-        candidate = os.environ.get(key)
-        if candidate:
-            return candidate
-    workspace = _workspace_env_value()
-    if workspace:
-        return workspace
-    return os.getcwd()
-
-
-def _workspace_env_value() -> str | None:
-    for key in _WORKSPACE_ENV_VARS:
-        value = os.environ.get(key)
-        if value:
-            return value
-    return None
-
-
-def _collect_dirty_state(
-    project_dir: str,
-    *,
-    artifact_root: Path | None = None,
-) -> _DirtyState:
-    has_main_changes, main_files, main_instruction, main_details = build_commit_details(
-        project_dir
-    )
-
-    main_repo = (
-        _DirtyRepo(
-            name="main",
-            path=_normalize_path(project_dir),
-            changed_files=tuple(main_files),
-            kind="main",
-        )
-        if has_main_changes
-        else None
-    )
-    sibling_targets = _configured_sibling_targets(project_dir)
-    sibling_repos = tuple(_dirty_configured_sibling_repos(sibling_targets))
-    observed_repos = tuple(
-        _dirty_observed_workspaces(
-            project_dir=project_dir,
-            artifact_root=artifact_root,
-            sibling_targets=sibling_targets,
-        )
-    )
-    repos: list[_DirtyRepo] = []
-    if main_repo is not None:
-        repos.append(main_repo)
-    repos.extend(sibling_repos)
-    repos.extend(observed_repos)
-    details = _build_dirty_details(
-        main_details=main_details,
-        main_instruction=main_instruction,
-        main_repo=main_repo,
-        sibling_repos=sibling_repos,
-        observed_repos=observed_repos,
-    )
-    return _DirtyState(
-        project_dir=_normalize_path(project_dir),
-        repos=tuple(repos),
-        details=details,
-    )
-
-
-def _dirty_configured_sibling_repos(
-    sibling_targets: list[_SiblingTarget],
-) -> list[_DirtyRepo]:
-    dirty: list[_DirtyRepo] = []
-    for target in sibling_targets:
-        if target.workspace_strategy == "none":
-            continue
-        changed_files = _git_changed_files(target.workspace_dir)
-        if not changed_files:
-            continue
-        dirty.append(
-            _DirtyRepo(
-                name=target.name,
-                path=target.workspace_dir,
-                changed_files=tuple(changed_files),
-                kind="sibling",
-            )
-        )
-    return dirty
-
-
-def _dirty_observed_workspaces(
-    *,
-    project_dir: str,
-    artifact_root: Path | None,
-    sibling_targets: list[_SiblingTarget],
-) -> list[_DirtyRepo]:
-    if artifact_root is None:
-        return []
-
-    observed_paths = _observed_absolute_paths(artifact_root)
-    if not observed_paths:
-        return []
-
-    active_root = _git_root_for_path(Path(project_dir))
-    if active_root is None:
-        return []
-
-    active_remote_ids = _git_remote_identities(active_root)
-    if not active_remote_ids:
-        return []
-
-    excluded_roots = {active_root}
-    for target in sibling_targets:
-        sibling_root = _git_root_for_path(Path(target.workspace_dir))
-        excluded_roots.add(sibling_root or _normalize_path(target.workspace_dir))
-
-    run_started_at = _agent_run_started_at(artifact_root)
-    dirty: list[_DirtyRepo] = []
-    seen_roots: set[str] = set()
-    for path in sorted(observed_paths):
-        root = _git_root_for_path(Path(path))
-        if root is None or root in seen_roots or root in excluded_roots:
-            continue
-        seen_roots.add(root)
-        if not (_git_remote_identities(root) & active_remote_ids):
-            continue
-        changed_files = _git_changed_files(root)
-        if not changed_files:
-            continue
-        plausible_files = _plausible_observed_changed_files(
-            repo_root=root,
-            changed_files=changed_files,
-            observed_paths=observed_paths,
-            run_started_at=run_started_at,
-        )
-        if not plausible_files:
-            continue
-        dirty.append(
-            _DirtyRepo(
-                name=Path(root).name,
-                path=root,
-                changed_files=tuple(plausible_files),
-                kind="observed_workspace",
-            )
-        )
-    return dirty
-
-
-def _configured_sibling_targets(project_dir: str) -> list[_SiblingTarget]:
-    if SIBLING_REPOS_JSON_ENV in os.environ:
-        return _sibling_targets_from_env()
-    return _sibling_targets_from_config(project_dir)
-
-
-def _sibling_targets_from_env() -> list[_SiblingTarget]:
-    targets: list[_SiblingTarget] = []
-    for index, item in enumerate(sibling_repo_metadata_from_env(os.environ), start=1):
-        workspace_dir = item.get("workspace_dir")
-        if not isinstance(workspace_dir, str) or not workspace_dir.strip():
-            continue
-        name = item.get("name")
-        if not isinstance(name, str) or not name.strip():
-            name = f"sibling_{index}"
-        targets.append(
-            _SiblingTarget(
-                name=name.strip(),
-                workspace_dir=_normalize_path(workspace_dir),
-                workspace_strategy=_sibling_workspace_strategy(
-                    item.get("workspace_strategy")
-                ),
-            )
-        )
-    return targets
-
-
-def _sibling_targets_from_config(project_dir: str) -> list[_SiblingTarget]:
-    project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
-    if not project_file:
-        return []
-
-    workspace_num = _workspace_num_for_project_file(project_file, project_dir)
-    if workspace_num is None:
-        return []
-
-    try:
-        from sase.sibling_repos import resolve_sibling_repos_for_project
-
-        resolution = resolve_sibling_repos_for_project(
-            project_file=project_file,
-            workspace_dir=project_dir,
-            workspace_num=workspace_num,
-            materialize=False,
-        )
-    except Exception:
-        return []
-
-    return [
-        _SiblingTarget(
-            name=repo.name,
-            workspace_dir=_normalize_path(repo.workspace_dir),
-            workspace_strategy=_sibling_workspace_strategy(repo.workspace_strategy),
-        )
-        for repo in resolution.repos
-    ]
-
-
-def _sibling_workspace_strategy(value: object) -> _WorkspaceStrategy:
-    if value == "none":
-        return "none"
-    return "suffix"
-
-
-def _workspace_num_for_project_file(project_file: str, project_dir: str) -> int | None:
-    env_num = _workspace_num_from_env()
-    if env_num is not None:
-        return env_num
-
-    try:
-        from sase.workspace_provider.utils import parse_workspace_dir
-
-        primary_dir = parse_workspace_dir(project_file)
-    except Exception:
-        return None
-
-    if not primary_dir:
-        return None
-
-    primary_path = Path(_normalize_path(primary_dir))
-    project_path = Path(_normalize_path(project_dir))
-    if project_path == primary_path:
-        return 0
-    if project_path.parent != primary_path.parent:
-        return None
-
-    prefix = f"{primary_path.name}_"
-    if not project_path.name.startswith(prefix):
-        return None
-    suffix = project_path.name[len(prefix) :]
-    if not suffix.isdigit():
-        return None
-    return int(suffix)
-
-
-def _workspace_num_from_env() -> int | None:
-    for key in _WORKSPACE_NUM_ENV_VARS:
-        raw = os.environ.get(key)
-        if not raw:
-            continue
-        try:
-            return int(raw)
-        except ValueError:
-            continue
-    return None
-
-
-def _git_changed_files(repo_dir: str) -> list[str]:
-    if not Path(repo_dir).is_dir():
-        return []
-    try:
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                repo_dir,
-                "status",
-                "--porcelain=v1",
-                "--untracked-files=all",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=20,
-        )
-    except Exception:
-        return []
-    if result.returncode != 0:
-        return []
-    return _changed_files_from_git_status(result.stdout)
-
-
-def _observed_absolute_paths(artifact_root: Path) -> set[str]:
-    paths: set[str] = set()
-    for record in _read_tool_call_records(artifact_root):
-        cwd = record.get("cwd")
-        if isinstance(cwd, str):
-            paths.update(_absolute_paths_from_text(cwd))
-        for key in ("tool_input_summary", "tool_response_summary"):
-            paths.update(_absolute_paths_from_value(record.get(key)))
-    return paths
-
-
-def _read_tool_call_records(artifact_root: Path) -> list[Mapping[str, Any]]:
-    path = artifact_root / "tool_calls.jsonl"
-    try:
-        with open(path, encoding="utf-8") as f:
-            records: list[Mapping[str, Any]] = []
-            for line in f:
-                if not line.strip():
-                    continue
-                try:
-                    record = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(record, Mapping):
-                    records.append(record)
-            return records
-    except OSError:
-        return []
-
-
-def _absolute_paths_from_value(value: Any) -> set[str]:
-    paths: set[str] = set()
-    if isinstance(value, str):
-        paths.update(_absolute_paths_from_text(value))
-    elif isinstance(value, Mapping):
-        for item in value.values():
-            paths.update(_absolute_paths_from_value(item))
-    elif isinstance(value, list):
-        for item in value:
-            paths.update(_absolute_paths_from_value(item))
-    return paths
-
-
-def _absolute_paths_from_text(text: str) -> set[str]:
-    paths: set[str] = set()
-    for match in _ABSOLUTE_PATH_RE.finditer(text):
-        raw = match.group(0).rstrip(".,:;)]}'\"")
-        if len(raw) > 1:
-            paths.add(_normalize_path(raw))
-    return paths
-
-
-def _agent_run_started_at(artifact_root: Path) -> float | None:
-    meta_path = artifact_root / "agent_meta.json"
-    try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(meta, Mapping):
-        return None
-    raw = meta.get("run_started_at")
-    if not isinstance(raw, str) or not raw.strip():
-        return None
-    try:
-        started = datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if started.tzinfo is None:
-        started = started.replace(tzinfo=UTC)
-    return started.timestamp()
-
-
-def _git_root_for_path(path: Path) -> str | None:
-    current = path.expanduser()
-    while not current.exists():
-        parent = current.parent
-        if parent == current:
-            return None
-        current = parent
-    if current.is_file():
-        current = current.parent
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(current), "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=20,
-        )
-    except Exception:
-        return None
-    if result.returncode != 0:
-        return None
-    root = result.stdout.strip()
-    return _normalize_path(root) if root else None
-
-
-def _git_remote_identities(repo_dir: str) -> set[str]:
-    try:
-        result = subprocess.run(
-            ["git", "-C", repo_dir, "remote", "-v"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=20,
-        )
-    except Exception:
-        return set()
-    if result.returncode != 0:
-        return set()
-
-    identities: set[str] = set()
-    for line in result.stdout.splitlines():
-        parts = line.split()
-        if len(parts) < 2:
-            continue
-        identity = _normalize_remote_identity(parts[1])
-        if identity:
-            identities.add(identity)
-    return identities
-
-
-def _normalize_remote_identity(url: str) -> str:
-    value = url.strip()
-    if not value:
-        return ""
-    if value.startswith("git@") and ":" in value:
-        host, path = value.removeprefix("git@").split(":", 1)
-        value = f"{host}/{path}"
-    elif value.startswith("file://"):
-        value = value.removeprefix("file://")
-    elif "://" in value:
-        parsed = urlparse(value)
-        if parsed.hostname:
-            host = parsed.hostname
-            if parsed.port is not None:
-                host = f"{host}:{parsed.port}"
-            value = f"{host}{parsed.path}"
-
-    if value.startswith("/") or value.startswith("~"):
-        value = _normalize_path(value)
-    return value.rstrip("/").removesuffix(".git")
-
-
-def _plausible_observed_changed_files(
-    *,
-    repo_root: str,
-    changed_files: list[str],
-    observed_paths: set[str],
-    run_started_at: float | None,
-) -> list[str]:
-    plausible: list[str] = []
-    for changed_file in changed_files:
-        abs_path = _changed_file_abs_path(repo_root, changed_file)
-        if abs_path in observed_paths or _mtime_after(abs_path, run_started_at):
-            plausible.append(changed_file)
-    return plausible
-
-
-def _changed_file_abs_path(repo_root: str, changed_file: str) -> str:
-    # Porcelain v1 rename lines are rendered as "old -> new"; the new path is
-    # the current dirty file path when it exists in the worktree.
-    path = changed_file.split(" -> ")[-1]
-    return _normalize_path(str(Path(repo_root) / path))
-
-
-def _mtime_after(path: str, threshold: float | None) -> bool:
-    if threshold is None:
-        return False
-    try:
-        return Path(path).stat().st_mtime >= threshold
-    except OSError:
-        return False
-
-
-def _changed_files_from_git_status(status_text: str) -> list[str]:
-    changed: list[str] = []
-    for raw_line in status_text.splitlines():
-        line = raw_line.rstrip()
-        if not line:
-            continue
-        changed.append(line[3:] if len(line) > 3 else line)
-    return changed
-
-
-def _build_dirty_details(
-    *,
-    main_details: str,
-    main_instruction: str,
-    main_repo: _DirtyRepo | None,
-    sibling_repos: tuple[_DirtyRepo, ...],
-    observed_repos: tuple[_DirtyRepo, ...],
-) -> str:
-    if (
-        main_repo is not None
-        and not sibling_repos
-        and not observed_repos
-        and main_details
-    ):
-        return main_details
-
-    repos: list[_DirtyRepo] = []
-    if main_repo is not None:
-        repos.append(main_repo)
-    repos.extend(sibling_repos)
-    repos.extend(observed_repos)
-    if not repos:
-        return ""
-
-    lines = ["Uncommitted changes detected in repositories:"]
-    for repo in repos:
-        if repo.kind == "main":
-            label = "main workspace"
-        elif repo.kind == "sibling":
-            label = f"sibling repo {repo.name}"
-        else:
-            label = f"observed workspace {repo.name}"
-        lines.append(f"- {label}: {repo.path}")
-        lines.extend(f"  - {path}" for path in repo.changed_files[:20])
-        if len(repo.changed_files) > 20:
-            lines.append(f"  - ... ({len(repo.changed_files)} total)")
-
-    if main_repo is not None and main_instruction:
-        lines.extend(["", "Main workspace commit instructions:", main_instruction])
-
-    if sibling_repos:
-        lines.extend(["", "Sibling repository commit instructions:"])
-        for repo in sibling_repos:
-            lines.append(
-                f"- For `{repo.name}`, run `cd {repo.path}` before using "
-                "your /sase_git_commit skill."
-            )
-        lines.append(_sibling_commit_instruction())
-        lines.append(
-            "After each sibling commit, run `git status --short --branch` in "
-            "that sibling repo and make sure it is clean before continuing."
-        )
-
-    if observed_repos:
-        lines.extend(["", "Observed workspace commit instructions:"])
-        for repo in observed_repos:
-            lines.append(
-                f"- For observed workspace `{repo.name}`, run `cd {repo.path}` "
-                "before using your /sase_git_commit skill."
-            )
-        lines.append(_sibling_commit_instruction())
-        lines.append(
-            "After each observed workspace commit, run "
-            "`git status --short --branch` in that workspace and make sure the "
-            "listed files are clean before continuing."
-        )
-
-    return "\n".join(lines)
-
-
-def _sibling_commit_instruction() -> str:
-    method = os.environ.get("SASE_COMMIT_METHOD", "")
-    instruction = build_commit_instruction_message(
-        "/sase_git_commit", method, os.environ.get("SASE_BEAD_ID")
-    )
-    name_instruction = build_name_instruction_text()
-    if name_instruction:
-        instruction += " " + name_instruction
-    return instruction
-
-
-def _result_changed_files(dirty_state: _DirtyState) -> list[str]:
-    if len(dirty_state.repos) == 1 and dirty_state.repos[0].kind == "main":
-        return list(dirty_state.repos[0].changed_files)
-
-    changed: list[str] = []
-    for repo in dirty_state.repos:
-        changed.extend(f"{repo.name}:{path}" for path in repo.changed_files)
-    return changed
-
-
-def _normalize_path(path: str) -> str:
-    return str(Path(path).expanduser().resolve(strict=False))
-
-
-def _load_finalizer_config() -> _CommitFinalizerConfig:
-    try:
-        config = load_merged_config()
-    except Exception:
-        return _CommitFinalizerConfig()
-
-    commit_config = config.get("commit", {})
-    if not isinstance(commit_config, dict):
-        return _CommitFinalizerConfig()
-    finalizer_config = commit_config.get("finalizer", {})
-    if not isinstance(finalizer_config, dict):
-        return _CommitFinalizerConfig()
-
-    enabled = finalizer_config.get("enabled", _DEFAULT_ENABLED)
-    max_passes = finalizer_config.get("max_passes", _DEFAULT_MAX_PASSES)
-    return _CommitFinalizerConfig(
-        enabled=enabled if isinstance(enabled, bool) else _DEFAULT_ENABLED,
-        max_passes=_normalize_max_passes(max_passes),
-    )
-
-
-def _normalize_max_passes(value: Any) -> int:
-    if isinstance(value, bool):
-        return _DEFAULT_MAX_PASSES
-    try:
-        max_passes = int(value)
-    except (TypeError, ValueError):
-        return _DEFAULT_MAX_PASSES
-    return max(1, max_passes)
-
-
-def _build_follow_up_prompt(
-    *,
-    original_prompt: str,
-    accumulated_response: str,
-    details: str,
-    pass_number: int,
-    max_passes: int,
-) -> str:
-    return (
-        f"{original_prompt}\n\n"
-        f"--- Work So Far ---\n{accumulated_response}\n\n"
-        f"--- Commit Finalizer Pass {pass_number} of {max_passes} ---\n"
-        f"{details}\n\n"
-        "After handling the commit requirement, respond with a concise summary "
-        "of what you did."
-    )
-
-
-def _append_response(existing: str, new: str) -> str:
-    return (existing + "\n\n" + new.strip()).strip()
-
-
-def _merge_usage(
-    first: dict[str, int] | None,
-    second: dict[str, int] | None,
-) -> dict[str, int] | None:
-    if first is None:
-        return dict(second) if second is not None else None
-    if second is None:
-        return dict(first)
-    merged = dict(first)
-    for key, value in second.items():
-        merged[key] = merged.get(key, 0) + value
-    return merged
-
-
-def _failure_message(
-    dirty_state: _DirtyState,
-    max_passes: int,
-) -> str:
-    changed_files = _result_changed_files(dirty_state)
-    listed_files = ", ".join(changed_files[:10]) or "(unable to list changed files)"
-    if len(changed_files) > 10:
-        listed_files += f", ... ({len(changed_files)} total)"
-    repo_paths = ", ".join(f"{repo.name}={repo.path}" for repo in dirty_state.repos)
-    return (
-        "Commit finalizer failed: uncommitted changes remain after "
-        f"{max_passes} finalizer pass(es) in {repo_paths}: {listed_files}."
-    )
-
-
-def _artifact_root(artifacts_dir: str | None) -> Path | None:
-    root = artifacts_dir or os.environ.get("SASE_ARTIFACTS_DIR")
-    return Path(root) if root else None
-
-
-def _write_text(root: Path | None, filename: str, content: str) -> None:
-    if root is None:
-        return
-    try:
-        root.mkdir(parents=True, exist_ok=True)
-        (root / filename).write_text(content, encoding="utf-8")
-    except OSError:
-        pass
-
-
-def _write_result(root: Path | None, result: _CommitFinalizerResult) -> None:
-    if root is None:
-        return
-    try:
-        root.mkdir(parents=True, exist_ok=True)
-        (root / "commit_finalizer_result.json").write_text(
-            json.dumps(asdict(result), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-    except OSError:
-        pass
