@@ -3,78 +3,37 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.sdd._link_models import (
+    RepairAction,
+    RepairReport,
+    Severity,
+    SddFile,
+    SddIssue,
+    SddValidation,
+    files_to_json,
+    repair_to_json,
+    validation_to_json,
+)
 from sase.sdd.frontmatter import set_frontmatter_fields
 
 PLAN_KINDS = ("tales", "epics", "legends")
 LEGACY_PLAN_KINDS = ("plans",)
 PROMPT_KINDS = ("prompts", "specs")
 LIST_KINDS = ("prompts", "tales", "epics", "legends")
-Severity = Literal["error", "warning"]
 
 # Closed quarantine for historical invalid SDD files only; do not add new files.
 LEGACY_INVALID_SDD_ERROR_ALLOWLIST: frozenset[str] = frozenset()
 
-
-@dataclass(frozen=True)
-class _SddIssue:
-    severity: Severity
-    code: str
-    path: str
-    message: str
-
-
-@dataclass(frozen=True)
-class _SddFile:
-    path: Path
-    relpath: str
-    kind: str
-    yyyymm: str
-    name: str
-    frontmatter: dict[str, Any]
-    had_frontmatter: bool
-    parse_error: str | None = None
-
-
-@dataclass(frozen=True)
-class _SddValidation:
-    root: Path
-    files: list[_SddFile]
-    issues: list[_SddIssue]
-
-    @property
-    def errors(self) -> list[_SddIssue]:
-        return [issue for issue in self.issues if issue.severity == "error"]
-
-    @property
-    def warnings(self) -> list[_SddIssue]:
-        return [issue for issue in self.issues if issue.severity == "warning"]
-
-    @property
-    def ok(self) -> bool:
-        return not self.errors
-
-
-@dataclass(frozen=True)
-class _RepairAction:
-    path: str
-    field: str
-    old: str | None
-    new: str
-
-
-@dataclass(frozen=True)
-class _RepairReport:
-    root: Path
-    write: bool
-    actions: list[_RepairAction]
-    issues: list[_SddIssue]
-    changed_files: list[str]
+_SddIssue = SddIssue
+_SddFile = SddFile
+_SddValidation = SddValidation
+_RepairAction = RepairAction
+_RepairReport = RepairReport
 
 
 def resolve_sdd_root(path: str | None = None, *, cwd: Path | None = None) -> Path:
@@ -361,35 +320,6 @@ def repair_sdd_links(path: str | None = None, *, write: bool = False) -> _Repair
     )
 
 
-def validation_to_json(validation: _SddValidation) -> dict[str, Any]:
-    return {
-        "root": str(validation.root),
-        "ok": validation.ok,
-        "files": [_file_to_json(file) for file in validation.files],
-        "errors": [asdict(issue) for issue in validation.errors],
-        "warnings": [asdict(issue) for issue in validation.warnings],
-    }
-
-
-def repair_to_json(report: _RepairReport) -> dict[str, Any]:
-    return {
-        "root": str(report.root),
-        "write": report.write,
-        "actions": [asdict(action) for action in report.actions],
-        "warnings": [
-            asdict(issue) for issue in report.issues if issue.severity == "warning"
-        ],
-        "errors": [
-            asdict(issue) for issue in report.issues if issue.severity == "error"
-        ],
-        "changed_files": report.changed_files,
-    }
-
-
-def files_to_json(files: list[_SddFile]) -> list[dict[str, Any]]:
-    return [_file_to_json(file) for file in files]
-
-
 def _resolve_link_path(root: Path, link: str) -> Path:
     """Resolve a frontmatter link string to a filesystem path."""
     link_path = Path(link)
@@ -503,17 +433,6 @@ def _queue_update(
         return
     updates[source.path][field] = new
     actions.append(_RepairAction(path=source.relpath, field=field, old=old, new=new))
-
-
-def _file_to_json(file: _SddFile) -> dict[str, Any]:
-    return {
-        "path": file.relpath,
-        "kind": file.kind,
-        "yyyymm": file.yyyymm,
-        "name": file.name,
-        "has_frontmatter": file.had_frontmatter,
-        "parse_error": file.parse_error,
-    }
 
 
 def _relpath(root: Path, path: Path) -> str:
