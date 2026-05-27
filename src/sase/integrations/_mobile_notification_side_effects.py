@@ -87,7 +87,7 @@ def _archive_plan_for_mobile_approval(
         from sase.gemini_wrapper.file_references import format_with_prettier
         from sase.llm_provider._plan_utils import add_create_time_frontmatter
         from sase.running_field import get_workspace_directory
-        from sase.sdd.beads import get_sdd_config
+        from sase.sdd.beads import get_effective_sdd_config
         from sase.sdd.files import get_sdd_dir, get_yyyymm
 
         project_dir = notification.host_action_data.get("project_dir")
@@ -95,7 +95,7 @@ def _archive_plan_for_mobile_approval(
             return None
         project_basename = os.path.basename(str(project_dir))
         workspace_dir = get_workspace_directory(project_basename, 1)
-        sdd_dir = get_sdd_dir(workspace_dir, 1, get_sdd_config())
+        sdd_dir = get_sdd_dir(workspace_dir, 1, get_effective_sdd_config(workspace_dir))
         plan_kind = (
             "epics"
             if choice == "epic"

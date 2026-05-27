@@ -93,6 +93,27 @@ def test_lightweight_context_uses_primary_non_vc_store_over_current_vc_in_non_vc
     assert beads_dirname == _BEADS_DIRNAME_NON_VC
 
 
+def test_lightweight_context_treats_bare_git_as_vc_when_config_false(
+    tmp_path: Path, monkeypatch
+) -> None:
+    primary = tmp_path / "workspaces" / "sase"
+    sibling = tmp_path / "workspaces" / "sase_106"
+    (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    (sibling / "sdd/beads").mkdir(parents=True)
+    _write_project_file(tmp_path, "sase", primary)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
+    monkeypatch.setattr("sase.sdd.beads.detect_vcs", lambda cwd: "bare_git")
+
+    result = _resolve_lightweight_beads_context(sibling.resolve())
+
+    assert result is not None
+    read_dirs, write_dir, beads_dirname = result
+    assert read_dirs == [sibling / "sdd/beads"]
+    assert write_dir == sibling / "sdd/beads"
+    assert beads_dirname == _BEADS_DIRNAME
+
+
 def test_fast_path_ignores_legacy_store_by_default(tmp_path: Path, monkeypatch) -> None:
     primary = tmp_path / "workspaces" / "sase"
     (primary / ".sase_beads").mkdir(parents=True)

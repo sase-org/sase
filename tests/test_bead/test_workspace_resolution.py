@@ -50,11 +50,14 @@ def _write_marker(
     return marker_path
 
 
-def test_canonical_project_beads_dir_non_vc_primary_only(tmp_path: Path) -> None:
+def test_canonical_project_beads_dir_non_vc_primary_only(
+    tmp_path: Path, monkeypatch
+) -> None:
     primary = tmp_path / "project"
     workspace_2 = tmp_path / "project_2"
     (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
     (workspace_2 / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
 
     result = _canonical_project_beads_dir(primary)
 
@@ -91,16 +94,31 @@ def test_canonical_project_beads_dir_vc_ignores_siblings_and_legacy(
 
 
 def test_canonical_project_beads_dir_non_vc_ignores_legacy_siblings(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch
 ) -> None:
     primary = tmp_path / "project"
     workspace_2 = tmp_path / "project_2"
     (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
     (workspace_2 / ".sase_beads").mkdir(parents=True)
+    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
 
     result = _canonical_project_beads_dir(primary)
 
     assert result == primary / ".sase" / "sdd" / "beads"
+
+
+def test_canonical_project_beads_dir_treats_bare_git_as_vc(
+    tmp_path: Path, monkeypatch
+) -> None:
+    primary = tmp_path / "project"
+    (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    (primary / "sdd/beads").mkdir(parents=True)
+    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
+    monkeypatch.setattr("sase.sdd.beads.detect_vcs", lambda cwd: "bare_git")
+
+    result = _canonical_project_beads_dir(primary)
+
+    assert result == primary / "sdd/beads"
 
 
 def test_get_project_beads_dirs_for_project_uses_explicit_project(
@@ -125,6 +143,7 @@ def test_get_all_project_beads_dirs_dedupes_known_project_dirs(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
     shared_primary = tmp_path / "workspaces" / "shared"
     unique_primary = tmp_path / "workspaces" / "unique"
     (shared_primary / "sdd/beads").mkdir(parents=True)

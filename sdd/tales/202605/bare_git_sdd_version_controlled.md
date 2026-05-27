@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 12:18:10
-status: wip
+status: done
 prompt: sdd/prompts/202605/bare_git_sdd_version_controlled.md
 ---
 # Plan: Bare Git Implies Version-Controlled SDD

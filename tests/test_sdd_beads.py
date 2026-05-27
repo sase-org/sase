@@ -5,7 +5,59 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.sdd.beads import init_beads
+import pytest
+
+from sase.sdd.beads import get_effective_sdd_config, init_beads
+
+
+def test_effective_sdd_config_treats_bare_git_as_version_controlled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
+    monkeypatch.setattr("sase.sdd.beads.detect_vcs", lambda cwd: "bare_git")
+
+    assert get_effective_sdd_config(tmp_path) is True
+
+
+@pytest.mark.parametrize("detected", ["github", "hg", None])
+def test_effective_sdd_config_keeps_false_for_non_bare_providers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, detected: str | None
+) -> None:
+    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
+    monkeypatch.setattr("sase.sdd.beads.detect_vcs", lambda cwd: detected)
+
+    assert get_effective_sdd_config(tmp_path) is False
+
+
+def test_effective_sdd_config_falls_back_to_config_on_detection_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
+
+    def fail(_cwd: str) -> str:
+        raise RuntimeError("detection failed")
+
+    monkeypatch.setattr("sase.sdd.beads.detect_vcs", fail)
+
+    assert get_effective_sdd_config(tmp_path) is False
+
+
+def test_effective_sdd_config_uses_explicit_workspace_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "workspace"
+    elsewhere = tmp_path / "elsewhere"
+    workspace.mkdir()
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
+
+    def detect(cwd: str) -> str | None:
+        return "bare_git" if Path(cwd) == workspace else None
+
+    monkeypatch.setattr("sase.sdd.beads.detect_vcs", detect)
+
+    assert get_effective_sdd_config(workspace) is True
 
 
 def testinit_beads_creates_sdd_git_repo() -> None:

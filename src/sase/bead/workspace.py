@@ -191,11 +191,16 @@ def _current_or_primary_beads_dir(cwd: Path, primary_workspace: Path) -> Path | 
 
 def _canonical_project_beads_dir(primary_workspace: Path) -> Path | None:
     """Resolve a project's canonical bead store without sibling enumeration."""
+    from sase.sdd.beads import get_effective_sdd_config
+
+    primary_vc = primary_workspace / BEADS_DIRNAME
+    if get_effective_sdd_config(primary_workspace):
+        return primary_vc if primary_vc.is_dir() else None
+
     primary_non_vc = primary_workspace / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
     if primary_non_vc.is_dir():
         return primary_non_vc
 
-    primary_vc = primary_workspace / BEADS_DIRNAME
     if primary_vc.is_dir():
         return primary_vc
 

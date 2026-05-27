@@ -24,9 +24,11 @@ context those plans depend on.
 
 ## Storage Modes
 
-SDD supports two storage modes controlled by the `sdd.version_controlled` config option.
+SDD supports two storage modes. For non-bare-git projects the mode is controlled by the `sdd.version_controlled` config
+option. Projects resolved as the built-in `bare_git` VCS provider always use version-controlled SDD under `sdd/`, even
+when the merged config leaves `sdd.version_controlled` false.
 
-### Local Mode (default: `sdd.version_controlled: false`)
+### Local Mode (default for non-bare-git projects: `sdd.version_controlled: false`)
 
 Files are stored in a standalone git repo inside the primary workspace:
 
@@ -65,7 +67,7 @@ Files are stored in a standalone git repo inside the primary workspace:
 SDD auto-commits prompt and planning-artifact files to this local repo after each planning phase. The standalone repo
 keeps SDD history separate from the project's own git history.
 
-### Version-Controlled Mode (`sdd.version_controlled: true`)
+### Version-Controlled Mode (`sdd.version_controlled: true`, or any bare-git project)
 
 Files are stored at the project root and tracked in the project's own git repo:
 
@@ -258,9 +260,9 @@ sdd:
   version_controlled: false # default
 ```
 
-| Option                   | Type | Default | Description                                                                                                     |
-| ------------------------ | ---- | ------- | --------------------------------------------------------------------------------------------------------------- |
-| `sdd.version_controlled` | bool | `false` | Store SDD artifacts and beads under `sdd/` in the project repo instead of `.sase/sdd/` in the primary workspace |
+| Option                   | Type | Default | Description                                                                                                                                |
+| ------------------------ | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sdd.version_controlled` | bool | `false` | For non-bare-git projects, store SDD artifacts and beads under `sdd/` in the project repo instead of `.sase/sdd/` in the primary workspace |
 
 See [`configuration.md`](configuration.md) for the full configuration reference.
 

@@ -765,14 +765,15 @@ sdd:
   version_controlled: false # default: false
 ```
 
-| Field                    | Type | Default | Description                                                                                                      |
-| ------------------------ | ---- | ------- | ---------------------------------------------------------------------------------------------------------------- |
-| `sdd.version_controlled` | bool | `false` | Store SDD artifacts and beads under `sdd/` in the project repo instead of `.sase/sdd/` in the primary workspace. |
+| Field                    | Type | Default | Description                                                                                                                                 |
+| ------------------------ | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdd.version_controlled` | bool | `false` | For non-bare-git projects, store SDD artifacts and beads under `sdd/` in the project repo instead of `.sase/sdd/` in the primary workspace. |
 
 When enabled, prompt snapshots, tales, epics, legends, myths, research notes, and the bead database directory are placed
 in the project root so they can be committed with the code. When disabled, SDD writes to a standalone `.sase/sdd/` git
-repo in the primary workspace. See [`docs/sdd.md`](sdd.md) for storage behavior and [`docs/beads.md`](beads.md) for the
-bead system reference.
+repo in the primary workspace for providers that support local SDD mode. Projects resolved as the built-in `bare_git`
+VCS provider always use version-controlled SDD under `sdd/`, even if this option is false. See [`docs/sdd.md`](sdd.md)
+for storage behavior and [`docs/beads.md`](beads.md) for the bead system reference.
 
 Source: `src/sase/default_config.yml`
 

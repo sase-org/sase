@@ -290,7 +290,7 @@ def handle_plan_marker(
     )
 
     # Write SDD files (spec + plan) to project
-    from sase.sdd.beads import get_sdd_config
+    from sase.sdd.beads import get_effective_sdd_config
     from sase.sdd.files import (
         commit_sdd_files,
         expand_prompt_for_spec,
@@ -304,7 +304,7 @@ def handle_plan_marker(
     version_controlled = True  # safe default (VC path is the no-op path)
     sdd_dir = Path(ctx.workspace_dir)
     try:
-        version_controlled = get_sdd_config()
+        version_controlled = get_effective_sdd_config(ctx.workspace_dir)
         sdd_dir = get_sdd_dir(ctx.workspace_dir, ctx.workspace_num, version_controlled)
         sdd_plan_name = os.path.splitext(os.path.basename(plan_result.plan_file))[0]
         try:

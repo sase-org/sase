@@ -150,9 +150,9 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
     if not plan_path:
         return
 
-    from sase.sdd.beads import get_sdd_config
+    from sase.sdd.beads import get_effective_sdd_config
 
-    version_controlled = get_sdd_config()
+    version_controlled = get_effective_sdd_config(cwd)
 
     # Determine repo root
     repo_root = _get_repo_root(cwd)

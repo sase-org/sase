@@ -15,7 +15,7 @@ from sase.bead.project import (
 def find_beads_location() -> tuple[Path, str]:
     """Determine the beads root directory and subdirectory name.
 
-    Uses the primary workspace and ``sdd.version_controlled`` config to choose:
+    Uses the primary workspace and effective SDD mode to choose:
       - Non-VC (default): ``primary/.sase/sdd/beads/``
       - VC: nearest ancestor containing ``sdd/beads/`` (or primary workspace)
 
@@ -30,9 +30,9 @@ def find_beads_location() -> tuple[Path, str]:
 
     primary = resolve_primary_workspace()
     if primary:
-        from sase.sdd.beads import get_sdd_config
+        from sase.sdd.beads import get_effective_sdd_config
 
-        if get_sdd_config():
+        if get_effective_sdd_config(cwd):
             # VC mode: sdd/beads/ — prefer the current checkout, then primary.
             for parent in [cwd, *cwd.parents]:
                 if (parent / BEADS_DIRNAME).is_dir():

@@ -6,6 +6,7 @@ Groups SDD file operations and bead initialization.
 from sase.sdd.beads import (
     init_beads,
     ensure_beads_initialized,
+    get_effective_sdd_config,
     get_sdd_config,
 )
 from sase.sdd.files import (
@@ -27,6 +28,7 @@ __all__ = [
     "commit_sdd_files",
     "ensure_beads_initialized",
     "expand_prompt_for_spec",
+    "get_effective_sdd_config",
     "get_sdd_config",
     "get_sdd_dir",
     "set_prompt_qa",

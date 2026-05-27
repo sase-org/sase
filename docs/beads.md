@@ -98,7 +98,8 @@ Dependencies are one-way relationships: issue A **depends on** issue B. An issue
 
 ### Directory Structure
 
-When version-controlled mode is enabled (`sdd.version_controlled` config):
+When version-controlled mode is effective (`sdd.version_controlled: true`, or any project resolved as the built-in
+`bare_git` VCS provider):
 
 ```
 sdd/beads/
@@ -111,7 +112,7 @@ sdd/beads/
   beads.db              # SQLite compatibility cache (gitignored)
 ```
 
-In non-version-controlled mode, the directory is `.sase/sdd/beads/` with the same structure.
+In non-version-controlled mode for other providers, the directory is `.sase/sdd/beads/` with the same structure.
 
 Normal bead commands read and write one store for the active checkout. In version-controlled mode, canonical bead state
 lives in the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. If the event store is
@@ -144,8 +145,8 @@ event store is absent.
 
 ### `sase bead init`
 
-Initialize the bead store for the current project. In version-controlled SDD mode this is `sdd/beads/`; in local SDD
-mode this is `.sase/sdd/beads/`.
+Initialize the bead store for the current project. In effective version-controlled SDD mode this is `sdd/beads/`; in
+local SDD mode this is `.sase/sdd/beads/`.
 
 ### `sase bead create`
 
@@ -385,7 +386,7 @@ When creating a plan bead with `--type plan(PATH)`, the file path is stored in t
 navigate from a bead to its linked SDD file.
 
 For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan approval flow:
-`sdd/epics/YYYYMM/*.md` when `sdd.version_controlled: true`, or `.sase/sdd/epics/YYYYMM/*.md` in local SDD mode. These
+`sdd/epics/YYYYMM/*.md` in effective version-controlled mode, or `.sase/sdd/epics/YYYYMM/*.md` in local SDD mode. These
 relative references stay portable across checkouts while each checkout reads its own bead store.
 
 ### Plan Approval Flow

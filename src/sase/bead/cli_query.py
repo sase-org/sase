@@ -108,9 +108,9 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             if issue.changespec_bug_id:
                 print(f"  Bug ID: {issue.changespec_bug_id}")
         if issue.design:
-            from sase.sdd.beads import get_sdd_config
+            from sase.sdd.beads import get_effective_sdd_config
 
-            if get_sdd_config():
+            if get_effective_sdd_config():
                 display = os.path.relpath(issue.design)
             else:
                 display = issue.design

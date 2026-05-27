@@ -6,12 +6,31 @@ from pathlib import Path
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
 from sase.config import load_merged_config
 from sase.sdd.files import get_primary_workspace_dir, commit_sdd_files
+from sase.vcs_provider import detect_vcs
 
 
 def get_sdd_config() -> bool:
     """Check if sdd.version_controlled is enabled in merged config."""
     config = load_merged_config()
     return bool(config.get("sdd", {}).get("version_controlled", False))
+
+
+def get_effective_sdd_config(workspace_dir: str | Path | None = None) -> bool:
+    """Return the effective SDD version-controlled mode.
+
+    Bare-git workspaces always use version-controlled SDD, even when the
+    merged config leaves ``sdd.version_controlled`` false. VCS detection is
+    best-effort so config lookup remains non-fatal outside repositories.
+    """
+    configured = get_sdd_config()
+    if configured:
+        return True
+
+    cwd = Path.cwd() if workspace_dir is None else Path(workspace_dir).expanduser()
+    try:
+        return detect_vcs(str(cwd)) == "bare_git"
+    except Exception:
+        return configured
 
 
 def init_beads(workspace_dir: str, workspace_num: int) -> Path:
@@ -70,7 +89,7 @@ def ensure_beads_initialized(workspace_dir: str, workspace_num: int) -> None:
     For non-VC repos: delegates to ``init_beads()`` for ``.sase/sdd/beads/``.
     """
     primary = get_primary_workspace_dir(workspace_dir, workspace_num)
-    if get_sdd_config():
+    if get_effective_sdd_config(workspace_dir):
         beads_dir = Path(primary, BEADS_DIRNAME)
         if not beads_dir.is_dir():
             BeadProject.init(Path(primary))
