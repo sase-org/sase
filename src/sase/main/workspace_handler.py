@@ -205,6 +205,14 @@ def _handle_open_clean(args: argparse.Namespace) -> int:
         return 2
 
     try:
+        from sase.sdd.files import ensure_bare_git_sdd_initialized
+
+        ensure_bare_git_sdd_initialized(
+            ctx.primary_workspace_dir,
+            commit=True,
+            push=True,
+            raise_on_error=True,
+        )
         path = _resolve_checkout_path(ctx, workspace_num, materialize=True)
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)

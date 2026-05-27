@@ -58,6 +58,10 @@ def init_beads(root: Path, beads_dirname: str) -> None:
 
     For non-VC mode, bootstraps a standalone git repo inside the SDD directory.
     """
+    if beads_dirname == BEADS_DIRNAME:
+        from sase.sdd.files import ensure_bare_git_sdd_initialized
+
+        ensure_bare_git_sdd_initialized(root, commit=True, push=False)
     if beads_dirname == BEADS_DIRNAME_NON_VC:
         import subprocess
 

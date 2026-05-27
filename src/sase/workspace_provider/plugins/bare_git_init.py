@@ -6,6 +6,7 @@ repository.
 
 import os
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
 
 from sase.workspace_provider.plugins.bare_git_ref import set_bare_repo_dir
@@ -61,6 +62,14 @@ def init_bare_git_project(
             text=True,
             check=True,
         )
+        from sase.sdd.files import ensure_bare_git_sdd_initialized
+
+        ensure_bare_git_sdd_initialized(
+            clone_dir,
+            commit=True,
+            push=True,
+            raise_on_error=True,
+        )
     else:
         # Create new bare repo
         os.makedirs(bare_dir, exist_ok=True)
@@ -93,6 +102,11 @@ def init_bare_git_project(
             check=True,
         )
 
+        from sase.sdd.files import ensure_sdd_initialized
+
+        generated_paths = ensure_sdd_initialized(Path(clone_dir))
+        _stage_generated_paths(Path(clone_dir), generated_paths)
+
         # Create initial commit and push
         from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
@@ -124,3 +138,28 @@ def init_bare_git_project(
     set_workspace_dir(project_file, clone_dir)
 
     return project_file
+
+
+def _stage_generated_paths(repo_root: Path, paths: Iterable[Path]) -> None:
+    """Stage generated SDD init paths for the initial bare-git commit."""
+    rel_paths = _relative_paths(repo_root, paths)
+    if not rel_paths:
+        return
+    subprocess.run(
+        ["git", "add", "--", *rel_paths],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def _relative_paths(repo_root: Path, paths: Iterable[Path]) -> list[str]:
+    root = repo_root.resolve()
+    rel_paths: set[str] = set()
+    for path in paths:
+        try:
+            rel_paths.add(Path(path).resolve().relative_to(root).as_posix())
+        except ValueError:
+            continue
+    return sorted(rel_paths)

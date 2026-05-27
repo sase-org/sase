@@ -324,6 +324,59 @@ def test_execute_mobile_plan_action_approval_refreshes_artifact_index(
     update_index.assert_called_once_with(response_dir.parent)
 
 
+def test_execute_mobile_plan_action_archives_vc_plan_initializes_sdd(
+    tmp_path: Path,
+) -> None:
+    response_dir = tmp_path / "agent" / "plan_approval"
+    response_dir.mkdir(parents=True)
+    (response_dir / "plan_request.json").write_text("{}", encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text("# Plan\n", encoding="utf-8")
+    row = _notification(
+        "abcdef12-plan",
+        "2026-05-06T13:00:00+00:00",
+        action="PlanApproval",
+        files=[str(plan_file)],
+        action_data={
+            "response_dir": str(response_dir),
+            "project_dir": str(workspace),
+        },
+    )
+
+    with (
+        patch(
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+            return_value=_snapshot([row]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+        patch("sase.notifications.mark_dismissed"),
+        patch(
+            "sase.running_field.get_workspace_directory", return_value=str(workspace)
+        ),
+        patch("sase.sdd.beads.get_sdd_config", return_value=True),
+        patch("sase.sdd.files.get_yyyymm", return_value="202605"),
+        patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id="abcdef12-plan",
+            prefix="abcdef12",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        result = execute_mobile_plan_action("abcdef12", "legend")
+
+    saved = str(workspace / "sdd" / "legends" / "202605" / "plan.md")
+    assert result.response_json["saved_plan_path"] == saved
+    assert Path(saved).is_file()
+    ensure_sdd.assert_called_once_with(
+        str(workspace),
+        commit=True,
+        push=False,
+    )
+
+
 def test_execute_mobile_plan_action_rejects_duplicate_response(
     tmp_path: Path,
 ) -> None:

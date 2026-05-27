@@ -52,6 +52,36 @@ class TestPlanFollowupApprovals:
             plan_mod.update_meta_field.call_args_list
         )
 
+    def test_plan_approval_initializes_sdd_before_writing_files(self, tmp_path) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+        order: list[str] = []
+
+        def ensure_sdd(*_args, **_kwargs):
+            order.append("ensure")
+
+        def write_sdd(*_args, **_kwargs):
+            order.append("write")
+            return tmp_path / "spec.md", tmp_path / "plan.md"
+
+        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.ensure_bare_git_sdd_initialized",
+                side_effect=ensure_sdd,
+            ),
+            patch("sase.sdd.files.write_sdd_files", side_effect=write_sdd),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert order[:2] == ["ensure", "write"]
+
     def test_legend_prompt_uses_legend_sdd_ref(self, tmp_path) -> None:
         """Legend approval writes to sdd/legends and launches bd/new_legend."""
         ctx = make_ctx(tmp_path)

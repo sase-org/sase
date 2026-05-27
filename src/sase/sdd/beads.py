@@ -92,6 +92,13 @@ def ensure_beads_initialized(workspace_dir: str, workspace_num: int) -> None:
     if get_effective_sdd_config(workspace_dir):
         beads_dir = Path(primary, BEADS_DIRNAME)
         if not beads_dir.is_dir():
+            from sase.sdd.files import ensure_bare_git_sdd_initialized
+
+            ensure_bare_git_sdd_initialized(
+                primary,
+                commit=True,
+                push=False,
+            )
             BeadProject.init(Path(primary))
     else:
         beads_dir = Path(primary, ".sase", "sdd", BEADS_DIRNAME_NON_VC)

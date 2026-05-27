@@ -98,3 +98,16 @@ def testinit_beads_idempotent() -> None:
             mock_run.return_value = subprocess.CompletedProcess([], 0)
             result = init_beads(tmpdir, 1)
         assert result == sdd_dir
+
+
+def test_cli_init_beads_vc_ensures_generated_sdd_first(tmp_path: Path) -> None:
+    from sase.bead.cli_common import init_beads as cli_init_beads
+
+    with (
+        patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
+        patch("sase.bead.cli_common.BeadProject.init") as bead_init,
+    ):
+        cli_init_beads(tmp_path, "sdd/beads")
+
+    ensure_sdd.assert_called_once_with(tmp_path, commit=True, push=False)
+    bead_init.assert_called_once_with(tmp_path, beads_dirname="sdd/beads")

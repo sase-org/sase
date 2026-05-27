@@ -326,12 +326,18 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
         ),
         patch("sase.sdd.beads.get_sdd_config", return_value=True),
         patch("sase.sdd.files.get_yyyymm", return_value="202605"),
+        patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
     ):
         saved = _archive_plan_for_approval(notification, "legend")
 
     assert saved == str(workspace / "sdd" / "legends" / "202605" / "plan.md")
     assert Path(saved).read_text(encoding="utf-8").startswith("---\ncreate_time:")
     assert not (workspace / ".sase" / "sdd" / "legends").exists()
+    ensure_sdd.assert_called_once_with(
+        str(workspace),
+        commit=True,
+        push=False,
+    )
 
 
 def test_archive_plan_for_approval_uses_local_sdd_dir(tmp_path: Path) -> None:
@@ -360,11 +366,13 @@ def test_archive_plan_for_approval_uses_local_sdd_dir(tmp_path: Path) -> None:
         ),
         patch("sase.sdd.beads.get_sdd_config", return_value=False),
         patch("sase.sdd.files.get_yyyymm", return_value="202605"),
+        patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
     ):
         saved = _archive_plan_for_approval(notification, "approve")
 
     assert saved == str(workspace / ".sase" / "sdd" / "tales" / "202605" / "plan.md")
     assert Path(saved).exists()
+    ensure_sdd.assert_not_called()
 
 
 def test_approve_uses_cached_refresh_instead_of_sync_load(tmp_path: Path) -> None:

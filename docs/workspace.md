@@ -162,6 +162,11 @@ home-directory run without VCS.
 The `sase git init` command also supports `--bare-dir` and `--clone-dir` for new bare-git projects. Its defaults are
 `~/.sase/repos/<name>.git` for the bare repo and `~/projects/git/<name>/` for the primary clone.
 
+Bare-git projects use version-controlled SDD under `sdd/`. SASE creates or refreshes generated SDD guide files during
+new project initialization, existing bare-repo registration, and first `#git` or `sase workspace open` materialization.
+When materialization owns the checkout setup, SASE commits and pushes only those generated guide paths with an
+`Initialize SDD` init commit.
+
 ## Known-Project VCS Fallback
 
 SASE also recognizes provider-prefixed VCS refs that target registered project names even when the corresponding
@@ -318,10 +323,11 @@ Use this command when you only need to inspect the path.
 
 `open` is intentionally more forceful. It materializes the requested checkout, backs up uncommitted local changes
 through the normal workspace-preparation path, cleans it, checks out the active VCS provider's default parent revision,
-runs the provider's workspace sync hook when available, and then prints the path. `--clean` is accepted as a
-compatibility flag for this default behavior. Use a claim-range number such as `10` when handing a numbered checkout to
-an external shell, editor, or debugging tool. `#0` is the primary checkout, and `#1` through `#9` are reserved
-compatibility numbers rather than good choices for new manual checkouts.
+runs the provider's workspace sync hook when available, and then prints the path. For built-in bare-git projects, it
+first makes sure the primary checkout has generated SDD guide files. `list` and `path` remain read-only and do not run
+SDD initialization. `--clean` is accepted as a compatibility flag for this default behavior. Use a claim-range number
+such as `10` when handing a numbered checkout to an external shell, editor, or debugging tool. `#0` is the primary
+checkout, and `#1` through `#9` are reserved compatibility numbers rather than good choices for new manual checkouts.
 
 `cleanup` and `repair` skip workspace `#0` and any workspace number with an active claim. `cleanup --include-shares`
 opts workflow-share checkouts into the same cleanup pass.

@@ -1,5 +1,7 @@
 """Tests for SDD file writing and frontmatter utilities."""
 
+import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -7,16 +9,106 @@ from unittest.mock import patch
 import pytest
 
 from sase.sdd.files import (
+    ensure_bare_git_sdd_initialized,
+    ensure_sdd_initialized,
+    expected_sdd_generated_paths,
+    expected_sdd_readme,
     set_prompt_qa,
     update_prompt_with_qa,
     update_spec_with_qa,
+    write_sdd_readme,
     write_sdd_files,
 )
 from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
 
+_GIT_AVAILABLE = shutil.which("git") is not None
+
+
+def _git(repo: Path | None, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
 # ---------------------------------------------------------------------------
 # write_sdd_files
 # ---------------------------------------------------------------------------
+
+
+def test_ensure_sdd_initialized_writes_generated_files(tmp_path: Path) -> None:
+    refreshed = ensure_sdd_initialized(tmp_path)
+
+    expected = set(expected_sdd_generated_paths(str(tmp_path)))
+    assert set(refreshed) == expected
+    assert all(path.exists() for path in expected)
+
+
+def test_ensure_sdd_initialized_skips_current_tree(tmp_path: Path) -> None:
+    write_sdd_readme(str(tmp_path))
+
+    with patch("sase.sdd.files.write_sdd_readme") as write_readme:
+        refreshed = ensure_sdd_initialized(tmp_path)
+
+    assert refreshed == ()
+    write_readme.assert_not_called()
+
+
+def test_ensure_sdd_initialized_refreshes_only_stale_paths(tmp_path: Path) -> None:
+    write_sdd_readme(str(tmp_path))
+    readme = expected_sdd_readme(str(tmp_path)).path
+    readme.write_text("stale\n", encoding="utf-8")
+
+    refreshed = ensure_sdd_initialized(tmp_path)
+
+    assert refreshed == (readme,)
+    assert readme.read_text(encoding="utf-8").startswith(
+        "# Structured Development Docs"
+    )
+
+
+@pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
+def test_ensure_bare_git_sdd_initialized_commits_only_generated_paths(
+    tmp_path: Path,
+) -> None:
+    bare = tmp_path / "remote.git"
+    repo = tmp_path / "repo"
+    _git(None, "init", "--bare", str(bare))
+    _git(None, "clone", str(bare), str(repo))
+    (repo / "notes.txt").write_text("dirty\n", encoding="utf-8")
+
+    refreshed = ensure_bare_git_sdd_initialized(repo, commit=True, push=True)
+
+    assert repo / "sdd" / "README.md" in refreshed
+    status = _git(
+        repo, "-c", "color.status=false", "status", "--short"
+    ).stdout.splitlines()
+    assert status == ["?? notes.txt"]
+    commit_message = _git(repo, "log", "-1", "--format=%B").stdout.strip()
+    assert commit_message == "Initialize SDD\n\nTYPE=init"
+    committed_paths = _git(
+        repo,
+        "show",
+        "--name-only",
+        "--format=",
+        "HEAD",
+    ).stdout.splitlines()
+    assert committed_paths
+    assert all(path.startswith("sdd/") for path in committed_paths)
+    remote_tree = _git(
+        None,
+        "--git-dir",
+        str(bare),
+        "ls-tree",
+        "-r",
+        "--name-only",
+        "HEAD",
+    ).stdout.splitlines()
+    assert "sdd/README.md" in remote_tree
+    assert "notes.txt" not in remote_tree
 
 
 def test_write_sdd_files() -> None:

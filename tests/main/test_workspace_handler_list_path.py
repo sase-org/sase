@@ -62,6 +62,24 @@ class TestList:
         assert payload["project"] == project_name
         assert payload["root_policy"] == "absolute"
 
+    def test_list_does_not_auto_initialize_sdd(
+        self,
+        project_layout: tuple[str, str, Path],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_name, _, _ = project_layout
+        args = make_args(workspace_subcommand="list", project=project_name, json=False)
+
+        with (
+            patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
+            pytest.raises(SystemExit) as exc,
+        ):
+            handle_workspace_command(args)
+
+        assert exc.value.code == 0
+        assert capsys.readouterr().out
+        ensure_sdd.assert_not_called()
+
 
 class TestPath:
     def test_path_zero_prints_primary(
@@ -127,6 +145,25 @@ class TestPath:
         # Resolved path is printed but no clone was performed.
         assert "_42" in out
         assert not os.path.isdir(out)
+
+    def test_path_does_not_auto_initialize_sdd(
+        self,
+        project_layout: tuple[str, str, Path],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_name, _, _ = project_layout
+        args = make_args(
+            workspace_subcommand="path", project=project_name, workspace_num=0
+        )
+        with (
+            patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
+            pytest.raises(SystemExit) as exc,
+        ):
+            handle_workspace_command(args)
+
+        assert exc.value.code == 0
+        assert capsys.readouterr().out
+        ensure_sdd.assert_not_called()
 
 
 class TestOpen:
@@ -230,3 +267,38 @@ class TestOpen:
 
         assert exc.value.code == 1
         assert capsys.readouterr().out == ""
+
+    def test_open_auto_initializes_bare_git_sdd_before_materializing(
+        self,
+        project_layout: tuple[str, str, Path],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_name, _, primary = project_layout
+        checkout = str(primary.parent / "managed" / "primary_42")
+        args = make_args(
+            workspace_subcommand="open",
+            project=project_name,
+            workspace_num=42,
+            print_path=False,
+            clean=True,
+        )
+
+        with (
+            patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
+            patch(
+                "sase.main.workspace_handler._resolve_checkout_path",
+                return_value=checkout,
+            ),
+            patch("sase.axe.runner_utils.prepare_workspace", return_value=True),
+            pytest.raises(SystemExit) as exc,
+        ):
+            handle_workspace_command(args)
+
+        assert exc.value.code == 0
+        ensure_sdd.assert_called_once_with(
+            str(primary),
+            commit=True,
+            push=True,
+            raise_on_error=True,
+        )
+        assert capsys.readouterr().out.strip() == checkout

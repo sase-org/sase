@@ -293,6 +293,7 @@ def handle_plan_marker(
     from sase.sdd.beads import get_effective_sdd_config
     from sase.sdd.files import (
         commit_sdd_files,
+        ensure_bare_git_sdd_initialized,
         expand_prompt_for_spec,
         get_sdd_dir,
         write_sdd_files,
@@ -306,6 +307,12 @@ def handle_plan_marker(
     try:
         version_controlled = get_effective_sdd_config(ctx.workspace_dir)
         sdd_dir = get_sdd_dir(ctx.workspace_dir, ctx.workspace_num, version_controlled)
+        if version_controlled:
+            ensure_bare_git_sdd_initialized(
+                ctx.workspace_dir,
+                commit=True,
+                push=False,
+            )
         sdd_plan_name = os.path.splitext(os.path.basename(plan_result.plan_file))[0]
         try:
             expanded = expand_prompt_for_spec(state.current_prompt)

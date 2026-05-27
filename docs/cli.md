@@ -151,7 +151,7 @@ GitHub pull requests, and other provider plugins.
 | `sase workspace cleanup`       | Remove stale unclaimed managed checkouts older than the configured TTL.                                 | [Workspace provider](workspace.md)                          |
 | `sase workspace repair`        | Reconcile the workspace registry with the filesystem.                                                   | [Workspace provider](workspace.md)                          |
 | `sase workspace migrate`       | Opt-in move of adjacent checkouts to a managed root, with optional symlink transition and finalization. | [Workspace provider](workspace.md)                          |
-| `sase git init`                | Initialize a bare-repo-backed git project.                                                              | [ProjectSpec](project_spec.md)                              |
+| `sase git init`                | Initialize a bare-repo-backed git project, including generated SDD guide files.                         | [ProjectSpec](project_spec.md)                              |
 | `sase mobile gateway start`    | Start the workstation-hosted mobile gateway.                                                            | [Mobile gateway](mobile_gateway.md)                         |
 | `sase mobile agent-bridge`     | Fixed JSON bridge used by the mobile gateway for agent operations.                                      | [Mobile gateway](mobile_gateway.md)                         |
 | `sase mobile helper-bridge`    | Fixed JSON bridge used by the mobile gateway for workflow helper operations.                            | [Mobile gateway](mobile_gateway.md)                         |

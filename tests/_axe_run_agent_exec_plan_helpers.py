@@ -68,6 +68,7 @@ PLAN_PATCHES = {
     "sase.sdd.beads.get_sdd_config": lambda: True,
     "sase.sdd.beads.ensure_beads_initialized": None,
     "sase.sdd.files.get_sdd_dir": lambda *a: None,
+    "sase.sdd.files.ensure_bare_git_sdd_initialized": None,
     "sase.sdd.files.write_sdd_files": None,
     "sase.sdd.files.expand_prompt_for_spec": lambda p: p,
     "sase.sdd.files.commit_sdd_files": None,

@@ -165,7 +165,7 @@ def test_init_sdd_alias_dispatches_to_sdd_init(
     calls: list[str | None] = []
     readme_path = tmp_path / "sdd" / "README.md"
 
-    def fake_write_sdd_readme(path: str | None = None) -> Path:
+    def fake_write_sdd_readme(path: str | None = None, **_: object) -> Path:
         calls.append(path)
         return readme_path
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 12:40:01
-status: wip
+status: done
 prompt: sdd/prompts/202605/auto_sdd_init_for_bare_git.md
 ---
 # Plan: Auto-Run SDD Init For Bare-Git Repositories

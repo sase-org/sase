@@ -775,6 +775,10 @@ repo in the primary workspace for providers that support local SDD mode. Project
 VCS provider always use version-controlled SDD under `sdd/`, even if this option is false. See [`docs/sdd.md`](sdd.md)
 for storage behavior and [`docs/beads.md`](beads.md) for the bead system reference.
 
+Built-in bare-git projects also auto-create or refresh generated SDD guide files during `sase git init`, existing bare
+repo registration, `#git`/workspace materialization, and the first version-controlled SDD write. Setup/materialization
+flows commit and push only those generated init paths with an `Initialize SDD` init commit when needed.
+
 Source: `src/sase/default_config.yml`
 
 ### bead
@@ -1242,7 +1246,8 @@ includes `sase workspace open` guidance when a configured sibling uses numbered 
 ### `sase init sdd`
 
 `sase init sdd` is an alias for `sase sdd init`. It creates or refreshes generated SDD README files and the directory
-map asset.
+map asset. Bare-git projects run this same generated-file refresh automatically during repository setup and first SDD
+writes, but the explicit command remains available for manual refresh and `--check` audits.
 
 | Flag          | Values | Default                  | Description                                            |
 | ------------- | ------ | ------------------------ | ------------------------------------------------------ |
@@ -1279,6 +1284,10 @@ is passed; interactive runs prompt before overwriting. `sase init skills` is a c
 | `-c, --clone-dir` | path   | `~/projects/git/<name>/`   | Override clone path.                                    |
 | `-e, --existing`  | path   | -                          | Register an existing bare repo instead of creating one. |
 
+New bare-git projects include generated SDD guide files in their initial commit. When `--existing` registers a bare repo
+that lacks current generated SDD guide files, SASE commits and pushes only those generated paths before writing the
+ProjectSpec.
+
 ### `sase workspace`
 
 Workspace commands inspect and maintain the managed checkout registry for the inferred project, or for the project named
@@ -1305,6 +1314,10 @@ by `-p/--project`.
 | `sase workspace migrate` | `-s, --symlink-transition` | flag         | Leave `<primary>_<num>` symlinks pointing to migrated managed checkouts.                            |
 | `sase workspace migrate` | `-f, --finalize`           | flag         | Remove transition symlinks left behind by a prior migration.                                        |
 | `sase workspace migrate` | `-n, --dry-run`            | flag         | Report planned migration or finalization actions without touching files or the registry.            |
+
+For built-in bare-git projects, `sase workspace open` may initialize generated SDD guide files in the primary checkout
+before materializing a numbered workspace. `sase workspace list` and `sase workspace path` remain read-only and do not
+run SDD initialization.
 
 ### `sase bead`
 

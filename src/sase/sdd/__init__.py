@@ -11,6 +11,11 @@ from sase.sdd.beads import (
 )
 from sase.sdd.files import (
     dry_expand_embedded_workflows,
+    ensure_bare_git_sdd_initialized,
+    ensure_sdd_initialized,
+    expected_sdd_directory_map,
+    expected_sdd_directory_readmes,
+    expected_sdd_generated_paths,
     get_primary_workspace_dir,
     commit_sdd_files,
     expand_prompt_for_spec,
@@ -18,11 +23,17 @@ from sase.sdd.files import (
     set_prompt_qa,
     update_prompt_with_qa,
     update_spec_with_qa,
+    write_sdd_readme,
     write_sdd_files,
 )
 
 __all__ = [
     "dry_expand_embedded_workflows",
+    "ensure_bare_git_sdd_initialized",
+    "ensure_sdd_initialized",
+    "expected_sdd_directory_map",
+    "expected_sdd_directory_readmes",
+    "expected_sdd_generated_paths",
     "get_primary_workspace_dir",
     "init_beads",
     "commit_sdd_files",
@@ -34,5 +45,6 @@ __all__ = [
     "set_prompt_qa",
     "update_prompt_with_qa",
     "update_spec_with_qa",
+    "write_sdd_readme",
     "write_sdd_files",
 ]

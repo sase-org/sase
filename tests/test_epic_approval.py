@@ -31,9 +31,15 @@ def test_ensure_beads_initialized_vc_creates_beads() -> None:
         with (
             patch("sase.sdd.beads.get_sdd_config", return_value=True),
             patch("sase.sdd.beads.BeadProject") as mock_bp,
+            patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
         ):
             ensure_beads_initialized(tmpdir, 1)
             mock_bp.init.assert_called_once_with(Path(tmpdir))
+            ensure_sdd.assert_called_once_with(
+                tmpdir,
+                commit=True,
+                push=False,
+            )
 
 
 def test_ensure_beads_initialized_non_vc_already_exists() -> None:

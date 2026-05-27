@@ -104,6 +104,12 @@ Files are stored at the project root and tracked in the project's own git repo:
 
 In this mode, SDD artifacts are committed alongside code changes via `sase commit`.
 
+For built-in bare-git projects, SASE also creates or refreshes the generated SDD guide files automatically. New
+`sase git init` projects include them in the initial commit; `sase git init --existing`, `#git` materialization, and
+`sase workspace open` commit and push an `Initialize SDD` init commit when the generated files are missing or stale.
+First SDD writes, plan archiving, and `sase bead init` also refresh the generated files before writing project-local SDD
+content.
+
 Research notes live under `sdd/research/` alongside the rest of the repository-local SDD corpus.
 
 The directory examples above show the storage roots. Most frontmatter links include the root prefix when the root is
@@ -219,6 +225,10 @@ The `sase sdd init` output is intentionally short project-local documentation. I
 directory map asset, and generated `README.md` files in `tales/`, `epics/`, `legends/`, `myths/`, and `research/`. Keep
 conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides. The generated guides
 are safe to overwrite, so do not put hand-maintained conceptual prose in those README files.
+
+Bare-git projects normally do not need a manual `sase sdd init`: SASE runs the same generated-file refresh during
+repository setup, workspace materialization, and the first version-controlled SDD write. The explicit command remains
+useful for manual refreshes and `--check` drift audits.
 
 ## Bead Integration
 

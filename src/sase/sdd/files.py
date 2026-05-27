@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from importlib import resources
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 _logger = logging.getLogger(__name__)
 
@@ -98,6 +98,17 @@ class _SddExpectedTextFile(NamedTuple):
 class _SddExpectedBytesFile(NamedTuple):
     path: Path
     content: bytes
+
+
+SddInitOperation = Literal["create", "update"]
+
+
+class _SddInitAction(NamedTuple):
+    """One generated SDD file that is missing or stale."""
+
+    path: Path
+    operation: SddInitOperation
+    detail: str
 
 
 def get_yyyymm(dt: datetime | None = None) -> str:
@@ -223,6 +234,65 @@ def expected_sdd_directory_map(
     )
 
 
+def expected_sdd_generated_paths(
+    path: str | None = None, *, cwd: Path | None = None
+) -> tuple[Path, ...]:
+    """Return all generated SDD init paths for *path*."""
+    text_paths = tuple(
+        expected_file.path for expected_file in _expected_sdd_text_files(path, cwd=cwd)
+    )
+    return (
+        *text_paths,
+        expected_sdd_directory_map(path, cwd=cwd).path,
+    )
+
+
+def plan_sdd_init_actions(
+    path: str | None = None, *, cwd: Path | None = None
+) -> tuple[_SddInitAction, ...]:
+    """Return missing/stale generated SDD files without writing anything."""
+    actions: list[_SddInitAction] = []
+    for expected_file in _expected_sdd_text_files(path, cwd=cwd):
+        operation = _planned_text_operation(expected_file.path, expected_file.content)
+        if operation is not None:
+            actions.append(
+                _SddInitAction(
+                    path=expected_file.path,
+                    operation=operation,
+                    detail=_sdd_init_detail_for_path(expected_file.path),
+                )
+            )
+
+    expected_map = expected_sdd_directory_map(path, cwd=cwd)
+    operation = _planned_bytes_operation(expected_map.path, expected_map.content)
+    if operation is not None:
+        actions.append(
+            _SddInitAction(
+                path=expected_map.path,
+                operation=operation,
+                detail="directory map asset",
+            )
+        )
+
+    return tuple(actions)
+
+
+def ensure_sdd_initialized(
+    path: str | Path | None = None, *, cwd: Path | None = None
+) -> tuple[Path, ...]:
+    """Create or refresh generated SDD guide files only when they drift.
+
+    Returns the generated paths that were missing or stale before the refresh.
+    A current SDD tree returns an empty tuple and performs no writes.
+    """
+    path_arg = str(path) if path is not None else None
+    actions = plan_sdd_init_actions(path_arg, cwd=cwd)
+    if not actions:
+        return ()
+    write_sdd_readme(path_arg, cwd=cwd)
+    return tuple(action.path for action in actions)
+
+
 def write_sdd_readme(path: str | None = None, *, cwd: Path | None = None) -> Path:
     """Create or refresh the canonical SDD README and return its path."""
     readme = expected_sdd_readme(path, cwd=cwd)
@@ -242,6 +312,38 @@ def _read_sdd_directory_map_bytes() -> bytes:
     source = resources.files("sase.sdd").joinpath("assets", SDD_DIRECTORY_MAP_FILENAME)
     with resources.as_file(source) as source_path:
         return source_path.read_bytes()
+
+
+def _planned_text_operation(
+    path: Path, expected_content: str
+) -> SddInitOperation | None:
+    if not path.exists():
+        return "create"
+    try:
+        return (
+            None if path.read_text(encoding="utf-8") == expected_content else "update"
+        )
+    except OSError:
+        return "update"
+    except UnicodeDecodeError:
+        return "update"
+
+
+def _planned_bytes_operation(
+    path: Path, expected_content: bytes
+) -> SddInitOperation | None:
+    if not path.exists():
+        return "create"
+    try:
+        return None if path.read_bytes() == expected_content else "update"
+    except OSError:
+        return "update"
+
+
+def _sdd_init_detail_for_path(path: Path) -> str:
+    if path.name == "README.md" and path.parent.name == "sdd":
+        return "top-level README"
+    return "directory README"
 
 
 def _looks_like_sdd_root(path: Path) -> bool:
@@ -359,6 +461,158 @@ def commit_sdd_files(
             check=True,
             capture_output=True,
         )
+
+
+def ensure_bare_git_sdd_initialized(
+    workspace_dir: str | Path,
+    *,
+    commit: bool = True,
+    push: bool = False,
+    raise_on_error: bool = False,
+) -> tuple[Path, ...]:
+    """Ensure generated SDD init files exist for a local bare-git checkout.
+
+    Non-bare-git workspaces are a no-op. When *commit* is true, only generated
+    SDD init paths are staged and committed. *push* is reserved for repository
+    setup/materialization flows that already own synchronization with the bare
+    remote.
+    """
+    workspace = Path(workspace_dir).expanduser()
+    if not _is_local_bare_git_workspace(workspace):
+        return ()
+
+    git_root = _git_toplevel(workspace)
+    if git_root is None:
+        return ()
+
+    refreshed = ensure_sdd_initialized(git_root)
+    if not refreshed or not commit:
+        return refreshed
+
+    try:
+        _commit_bare_git_sdd_init_paths(git_root, refreshed, push=push)
+    except Exception as exc:
+        message = f"Failed to commit generated SDD init files in {git_root}: {exc}"
+        if raise_on_error:
+            raise RuntimeError(message) from exc
+        _logger.warning(message)
+
+    return refreshed
+
+
+def _is_local_bare_git_workspace(workspace: Path) -> bool:
+    """Return true for SASE's built-in bare-git local-remote workspaces."""
+    try:
+        from sase.vcs_provider import detect_vcs
+
+        if detect_vcs(str(workspace)) != "bare_git":
+            return False
+    except Exception:
+        return False
+
+    result = subprocess.run(
+        ["git", "config", "--get", "remote.origin.url"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return False
+    url = result.stdout.strip()
+    if not url:
+        return False
+    return not url.startswith(("http://", "https://", "git@", "ssh://"))
+
+
+def _git_toplevel(workspace: Path) -> Path | None:
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    root = result.stdout.strip()
+    if not root:
+        return None
+    return Path(root).resolve()
+
+
+def _commit_bare_git_sdd_init_paths(
+    git_root: Path,
+    paths: Iterable[Path],
+    *,
+    push: bool,
+) -> None:
+    rel_paths = _relative_git_pathspecs(git_root, paths)
+    if not rel_paths:
+        return
+
+    subprocess.run(
+        ["git", "add", "--", *rel_paths],
+        cwd=git_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    diff = subprocess.run(
+        ["git", "diff", "--cached", "--quiet", "--", *rel_paths],
+        cwd=git_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if diff.returncode == 0:
+        return
+    if diff.returncode != 1:
+        raise RuntimeError((diff.stderr or "git diff --cached failed").strip())
+
+    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
+    message = apply_auto_commit_type_tag("Initialize SDD", "init")
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.email=sase@localhost",
+            "-c",
+            "user.name=sase",
+            "commit",
+            "-m",
+            message,
+            "--",
+            *rel_paths,
+        ],
+        cwd=git_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    if push:
+        subprocess.run(
+            ["git", "push", "origin", "HEAD"],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+
+def _relative_git_pathspecs(git_root: Path, paths: Iterable[Path]) -> list[str]:
+    root = git_root.resolve()
+    rel_paths: set[str] = set()
+    for raw_path in paths:
+        path = Path(raw_path)
+        try:
+            rel_paths.add(path.resolve().relative_to(root).as_posix())
+        except ValueError:
+            continue
+    return sorted(path for path in rel_paths if path)
 
 
 def _normalize_sdd_commit_pathspecs(

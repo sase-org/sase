@@ -331,8 +331,8 @@ class TestInitBareGitProject:
                 )
                 assert result.endswith("test.sase")
                 # git init --bare, git clone, git config email,
-                # git config name, git commit, git push
-                assert mock_run.call_count == 6
+                # git config name, git add generated SDD files, git commit, git push
+                assert mock_run.call_count == 7
                 commit_calls = [
                     call.args[0]
                     for call in mock_run.call_args_list
@@ -360,7 +360,10 @@ class TestInitBareGitProject:
             MagicMock(returncode=0, stdout="", stderr=""),
         ]
         with tempfile.TemporaryDirectory() as d:
-            with patch(f"{_INIT_MOD}.Path.home", return_value=Path(d)):
+            with (
+                patch(f"{_INIT_MOD}.Path.home", return_value=Path(d)),
+                patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
+            ):
                 existing = os.path.join(d, "existing.git")
                 os.makedirs(existing)
                 clone_dir = os.path.join(d, "clone") + "/"
@@ -371,6 +374,12 @@ class TestInitBareGitProject:
                 assert mock_run.call_count == 2
                 # bare_dir should be the existing path
                 mock_set_bare.assert_called_once_with(result, existing)
+                ensure_sdd.assert_called_once_with(
+                    clone_dir,
+                    commit=True,
+                    push=True,
+                    raise_on_error=True,
+                )
 
     @patch(f"{_INIT_MOD}.subprocess.run")
     def test_invalid_existing_bare(self, mock_run: MagicMock) -> None:
@@ -447,3 +456,34 @@ class TestWsGetWorkspaceName:
         ]
         result = self._make_plugin().ws_get_workspace_name(cwd="/tmp")
         assert result is None
+
+
+class TestWsGetWorkspaceDirectory:
+    def test_git_workspace_initializes_primary_sdd_before_checkout(self) -> None:
+        from sase.workspace_provider.plugins.bare_git_workspace import (
+            BareGitWorkspacePlugin,
+        )
+
+        plugin = BareGitWorkspacePlugin()
+        with (
+            patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
+            patch(
+                "sase.workspace_provider.utils.ensure_workspace_checkout",
+                return_value="/tmp/project_10",
+            ) as ensure_checkout,
+        ):
+            result = plugin.ws_get_workspace_directory(
+                "git",
+                10,
+                "project",
+                "/tmp/project",
+            )
+
+        assert result == "/tmp/project_10"
+        ensure_sdd.assert_called_once_with(
+            "/tmp/project",
+            commit=True,
+            push=True,
+            raise_on_error=True,
+        )
+        ensure_checkout.assert_called_once_with("/tmp/project", 10)

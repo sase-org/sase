@@ -141,6 +141,14 @@ class BareGitWorkspacePlugin:
         if workflow_type != "git":
             return None
         from sase.workspace_provider.utils import ensure_workspace_checkout
+        from sase.sdd.files import ensure_bare_git_sdd_initialized
+
+        ensure_bare_git_sdd_initialized(
+            primary_workspace_dir,
+            commit=True,
+            push=True,
+            raise_on_error=True,
+        )
 
         return ensure_workspace_checkout(primary_workspace_dir, workspace_num)
 
