@@ -146,8 +146,7 @@ class TestWorkflowChildResolution:
 
         app = FakeApp(agents_with_children=[])  # No parent in list
 
-        # Patch expanduser so ~/.sase/projects/... resolves to tmp_path
-        with patch.object(Path, "expanduser", return_value=state_file):
+        with patch.dict("os.environ", {"SASE_HOME": str(tmp_path)}):
             assert app._resolve_agent_cl_name(child) == "fallback_cl"
 
     def test_child_returns_none_when_parent_cl_name_is_unknown(self) -> None:

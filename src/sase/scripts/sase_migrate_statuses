@@ -20,6 +20,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from sase.core.paths import sase_projects_dir
+
 
 # ---------------------------------------------------------------------------
 # Replacement rules
@@ -117,7 +119,7 @@ def main() -> None:
     parser.add_argument(
         "--root",
         type=Path,
-        default=Path.home() / ".sase" / "projects",
+        default=sase_projects_dir(),
         help="Root directory to scan (default: ~/.sase/projects).",
     )
     args = parser.parse_args()

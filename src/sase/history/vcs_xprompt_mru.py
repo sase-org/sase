@@ -3,12 +3,14 @@
 import json
 from pathlib import Path
 
-_MRU_FILE = Path("~/.sase/vcs_xprompt_mru.json")
+from sase.core.paths import sase_home, sase_projects_dir
+
+_MRU_FILE: Path | None = None
 _MAX_ENTRIES = 100
 
 
 def _mru_file() -> Path:
-    return Path(_MRU_FILE).expanduser()
+    return _MRU_FILE or sase_home() / "vcs_xprompt_mru.json"
 
 
 def _load_vcs_xprompt_mru() -> list[str]:
@@ -85,7 +87,7 @@ def _is_stale_known_project_prefix(
 
     from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
-    projects_base = projects_dir or Path("~/.sase/projects").expanduser()
+    projects_base = projects_dir or sase_projects_dir()
     project_file = Path(
         preferred_project_spec_path(str(projects_base / project_name), project_name)
     )

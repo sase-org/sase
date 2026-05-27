@@ -5,6 +5,8 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 
+from sase.core.paths import sase_home
+
 from .tui.models.agent_groups import GroupingMode
 from .tui.models.changespec_groups import ChangeSpecGroupingMode
 
@@ -13,7 +15,7 @@ CHANGESPEC_GROUPING_MODE_FILENAME = "changespec_grouping_mode.txt"
 
 
 def _sase_dir() -> Path:
-    return Path.home() / ".sase"
+    return sase_home()
 
 
 def _agent_grouping_mode_path() -> Path:

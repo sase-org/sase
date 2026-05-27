@@ -11,19 +11,20 @@ _CHILD_COLLISION_MARKER_NAME = ".child_collision_fixed"
 
 def maybe_migrate_bundles(ctx: Any) -> None:
     """One-time migration from monolithic bundles file to per-agent files."""
-    if not ctx._OLD_BUNDLES_FILE.exists():
+    old_bundles_file = ctx._old_bundles_file()
+    if not old_bundles_file.exists():
         return
 
     from .tui.models.agent import Agent
 
     try:
-        with open(ctx._OLD_BUNDLES_FILE) as f:
+        with open(old_bundles_file) as f:
             data = json.load(f)
         if not isinstance(data, list):
-            ctx._OLD_BUNDLES_FILE.unlink()
+            old_bundles_file.unlink()
             return
 
-        ctx._DISMISSED_BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
+        ctx.dismissed_bundles_dir().mkdir(parents=True, exist_ok=True)
         for entry in data:
             if not isinstance(entry, dict):
                 continue
@@ -33,7 +34,7 @@ def maybe_migrate_bundles(ctx: Any) -> None:
             except (KeyError, ValueError, TypeError):
                 continue
 
-        ctx._OLD_BUNDLES_FILE.unlink()
+        old_bundles_file.unlink()
     except (OSError, json.JSONDecodeError):
         pass
 
@@ -47,14 +48,15 @@ def run_dismissed_archive_maintenance(ctx: Any) -> None:
 
 def maybe_shard_root_bundles(ctx: Any) -> None:
     """One-time migration: move pre-shard root bundle files into YYYYMM dirs."""
-    marker = ctx._DISMISSED_BUNDLES_DIR / _ROOT_SHARD_MARKER_NAME
+    bundles_dir = ctx.dismissed_bundles_dir()
+    marker = bundles_dir / _ROOT_SHARD_MARKER_NAME
     if marker.exists():
         return
-    if not ctx._DISMISSED_BUNDLES_DIR.is_dir():
+    if not bundles_dir.is_dir():
         return
 
     try:
-        for filepath in list(ctx._DISMISSED_BUNDLES_DIR.glob("*.json")):
+        for filepath in list(bundles_dir.glob("*.json")):
             if not filepath.is_file():
                 continue
             destination = ctx._bundle_shard_dir(filepath.name) / filepath.name
@@ -70,10 +72,11 @@ def maybe_shard_root_bundles(ctx: Any) -> None:
 
 def maybe_fix_child_collisions(ctx: Any) -> None:
     """One-time migration: rename child bundles that overwrote their parent."""
-    marker = ctx._DISMISSED_BUNDLES_DIR / _CHILD_COLLISION_MARKER_NAME
+    bundles_dir = ctx.dismissed_bundles_dir()
+    marker = bundles_dir / _CHILD_COLLISION_MARKER_NAME
     if marker.exists():
         return
-    if not ctx._DISMISSED_BUNDLES_DIR.is_dir():
+    if not bundles_dir.is_dir():
         return
 
     try:
@@ -92,7 +95,7 @@ def maybe_fix_child_collisions(ctx: Any) -> None:
         pass
 
     try:
-        ctx._DISMISSED_BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
+        bundles_dir.mkdir(parents=True, exist_ok=True)
         marker.touch()
     except OSError:
         pass

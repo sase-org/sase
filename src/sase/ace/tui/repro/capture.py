@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
+from sase.core.paths import sase_subdir
+
 from .redact import redact_bundle
 from .invariants import check_bundle_invariants
 from .schema import (
@@ -365,7 +367,7 @@ def _resolve_agents_repro_base_dir(app: Any) -> Path:
     env_base = os.environ.get("SASE_HOME")
     if env_base:
         return Path(env_base).expanduser() / "repros"
-    return Path.home() / ".sase" / "repros"
+    return sase_subdir("repros")
 
 
 def _safe_reason(reason: str) -> str:

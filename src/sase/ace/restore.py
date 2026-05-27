@@ -13,6 +13,7 @@ from sase.core.changespec import (
     get_workspace_directory_for_changespec,
     strip_reverted_suffix,
 )
+from sase.core.paths import sase_subdir
 from sase.core.shell import run_workspace_command
 from sase.running_field import (
     update_running_field_cl_name,
@@ -191,10 +192,10 @@ def restore_changespec(
         console.print(f"[green]Updated to: {update_target}[/green]")
 
     # Check for diff file in reverted or archived directory
-    diff_file = Path.home() / ".sase" / "reverted" / f"{changespec.name}.diff"
+    diff_file = sase_subdir("reverted") / f"{changespec.name}.diff"
     if not diff_file.exists():
         # Try archived directory
-        diff_file = Path.home() / ".sase" / "archived" / f"{changespec.name}.diff"
+        diff_file = sase_subdir("archived") / f"{changespec.name}.diff"
     if not diff_file.exists():
         return (False, "Diff file not found in reverted or archived directory")
 

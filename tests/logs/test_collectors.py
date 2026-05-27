@@ -1,8 +1,11 @@
 """Tests for sase.logs.collectors."""
 
 import json
+import os
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 from sase.logs.collectors import (
     _ts_from_artifacts_dir,
@@ -252,10 +255,9 @@ class TestNewCollectors:
         assert results == []
 
 
+@contextmanager
 def _patch_expanduser(tmp_path: Path):
-    """Patch Path.expanduser so ``~/.sase/`` resolves inside tmp_path."""
-    import unittest.mock
-
+    """Patch SASE home resolution so ``~/.sase/`` resolves inside tmp_path."""
     sase_dir = tmp_path
 
     original_expanduser = Path.expanduser
@@ -266,4 +268,8 @@ def _patch_expanduser(tmp_path: Path):
             return sase_dir / s[len("~/.sase/") :]
         return original_expanduser(self)
 
-    return unittest.mock.patch.object(Path, "expanduser", _fake_expanduser)
+    with (
+        patch.dict(os.environ, {"SASE_HOME": str(sase_dir)}),
+        patch.object(Path, "expanduser", _fake_expanduser),
+    ):
+        yield

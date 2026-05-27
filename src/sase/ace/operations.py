@@ -12,6 +12,7 @@ from sase.core.changespec import (
     get_next_suffix_number,
     has_suffix,
 )
+from sase.core.paths import sase_subdir
 from sase.running_field import (
     get_first_available_workspace,
     get_workspace_directory_for_num,
@@ -236,7 +237,7 @@ def save_diff_to_file(
     Returns:
         Tuple of (success, error_message).
     """
-    target_dir = Path.home() / ".sase" / subdir
+    target_dir = sase_subdir(subdir)
     target_dir.mkdir(parents=True, exist_ok=True)
 
     diff_file = target_dir / f"{new_name}.diff"

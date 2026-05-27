@@ -14,11 +14,12 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 
 
 def _marker_dir() -> str:
-    return os.path.expanduser("~/.sase/notifications")
+    return str(sase_subdir("notifications"))
 
 
 def _marker_file() -> str:

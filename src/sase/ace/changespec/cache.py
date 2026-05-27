@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 from threading import Lock
 
+from sase.core.paths import sase_projects_dir
+
 from .models import ChangeSpec
 from .parser import parse_project_file
 from .project_spec_path import (
@@ -53,7 +55,7 @@ class ChangeSpecSnapshotCache:
 
     def find_all_changespecs_cached(self) -> list[ChangeSpec]:
         """Find all ChangeSpecs across all project + archive files, cached."""
-        projects_dir = Path.home() / ".sase" / "projects"
+        projects_dir = sase_projects_dir()
         if not projects_dir.exists():
             return []
 

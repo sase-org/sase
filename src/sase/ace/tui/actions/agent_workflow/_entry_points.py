@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING
 
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.ace.tui.modals.project_discovery import is_launchable_project
+from sase.core.paths import sase_projects_dir
 
 from ._types import PromptContext, TabName
 
@@ -160,7 +160,7 @@ class EntryPointsMixin:
 
         # Resolve VCS prefix
         project_name: str = last.project_name
-        project_dir = os.path.expanduser(f"~/.sase/projects/{project_name}")
+        project_dir = str(sase_projects_dir() / project_name)
         project_file = preferred_project_spec_path(project_dir, project_name)
         name = last.cl_name if last.item_type == "cl" and last.cl_name else project_name
         prefix = self._vcs_prompt_prefix_or_notify(project_file, name)
@@ -175,7 +175,7 @@ class EntryPointsMixin:
             project_name="home",
             cl_name=None,
             project_file=preferred_project_spec_path(
-                os.path.expanduser("~/.sase/projects/home"), "home"
+                str(sase_projects_dir() / "home"), "home"
             ),
             workspace_dir=str(Path.home()),
             workspace_num=0,
@@ -410,7 +410,7 @@ class EntryPointsMixin:
             self._clear_stale_last_custom_agent_selection(project_name)
             return
 
-        project_dir = os.path.expanduser(f"~/.sase/projects/{project_name}")
+        project_dir = str(sase_projects_dir() / project_name)
         project_file = preferred_project_spec_path(project_dir, project_name)
 
         if selection.item_type == "cl" and selection.cl_name:
@@ -590,7 +590,7 @@ class EntryPointsMixin:
             project_name="home",
             cl_name=None,
             project_file=preferred_project_spec_path(
-                os.path.expanduser("~/.sase/projects/home"), "home"
+                str(sase_projects_dir() / "home"), "home"
             ),
             workspace_dir=str(Path.home()),
             workspace_num=0,

@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from sase.core.paths import sase_subdir
+
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -206,7 +208,7 @@ def _write_fanout_failure_report(
 
     from sase.core.time import get_timezone
 
-    report_dir = Path.home() / ".sase" / "notifications" / "fanout_failures"
+    report_dir = sase_subdir("notifications") / "fanout_failures"
     report_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(get_timezone()).strftime("%Y%m%d_%H%M%S_%f")
     report_path = report_dir / f"prompt_fanout_failure_{timestamp}.txt"

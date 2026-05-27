@@ -26,6 +26,8 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+from sase.core.paths import sase_subdir
+
 log = logging.getLogger(__name__)
 
 ENV_FLAG = "SASE_TUI_PERF"
@@ -43,7 +45,7 @@ def _perf_log_path() -> Path:
     override = os.environ.get(ENV_PATH)
     if override:
         return Path(override)
-    return Path.home() / ".sase" / "perf" / "tui_jk.jsonl"
+    return sase_subdir("perf") / "tui_jk.jsonl"
 
 
 class JKPerfTimer:

@@ -16,6 +16,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
     upsert_agent_artifact_index_artifacts,
 )
+from sase.core.paths import sase_home, sase_projects_dir, sase_subdir
 
 MIGRATION_SCHEMA_VERSION = 1
 MIGRATION_MARKER_FILENAME = "agent_name_auto_migration.json"
@@ -104,7 +105,7 @@ def ensure_historical_auto_name_migration() -> None:
 
 
 def _migration_marker_path() -> Path:
-    return Path.home() / ".sase" / MIGRATION_MARKER_FILENAME
+    return sase_home() / MIGRATION_MARKER_FILENAME
 
 
 def _marker_is_complete(path: Path) -> bool:
@@ -173,7 +174,7 @@ def _is_legacy_auto_name(name: str) -> bool:
 
 
 def _artifact_dirs() -> list[Path]:
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return []
     dirs: list[Path] = []
@@ -198,7 +199,7 @@ def _artifact_dirs() -> list[Path]:
 
 
 def _dismissed_bundle_paths() -> list[Path]:
-    bundles_dir = Path.home() / ".sase" / "dismissed_bundles"
+    bundles_dir = sase_subdir("dismissed_bundles")
     if not bundles_dir.is_dir():
         return []
     try:
@@ -334,7 +335,7 @@ def _rewrite_prompt_artifact_files(mapping: dict[str, str]) -> set[Path]:
 
 
 def _rewrite_prompt_history(mapping: dict[str, str]) -> set[Path]:
-    path = Path.home() / ".sase" / "prompt_history.json"
+    path = sase_home() / "prompt_history.json"
     data = _read_json_object(path)
     if data is None:
         return set()
@@ -359,7 +360,7 @@ def _rewrite_prompt_history(mapping: dict[str, str]) -> set[Path]:
 
 
 def _rewrite_notifications(mapping: dict[str, str]) -> set[Path]:
-    path = Path.home() / ".sase" / "notifications" / "notifications.jsonl"
+    path = sase_subdir("notifications") / "notifications.jsonl"
     if not path.is_file():
         return set()
     lines: list[str] = []

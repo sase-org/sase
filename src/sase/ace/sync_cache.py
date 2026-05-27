@@ -4,11 +4,17 @@ import json
 import time
 from pathlib import Path
 
+from sase.core.paths import sase_home
+
 # Minimum interval between checks in seconds (5 minutes)
 MIN_CHECK_INTERVAL_SECONDS = 5 * 60
 
 # Cache file location
-_CACHE_FILE = Path.home() / ".sase" / "sync_cache.json"
+_CACHE_FILE: Path | None = None
+
+
+def _cache_file() -> Path:
+    return _CACHE_FILE or sase_home() / "sync_cache.json"
 
 
 def _load_cache() -> dict[str, float]:
@@ -17,11 +23,12 @@ def _load_cache() -> dict[str, float]:
     Returns:
         Dictionary mapping ChangeSpec names to last_checked timestamps (Unix time).
     """
-    if not _CACHE_FILE.exists():
+    path = _cache_file()
+    if not path.exists():
         return {}
 
     try:
-        with open(_CACHE_FILE) as f:
+        with open(path) as f:
             return json.load(f)
     except (OSError, json.JSONDecodeError):
         return {}
@@ -34,10 +41,11 @@ def _save_cache(cache: dict[str, float]) -> None:
         cache: Dictionary mapping ChangeSpec names to last_checked timestamps.
     """
     # Ensure parent directory exists
-    _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    path = _cache_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        with open(_CACHE_FILE, "w") as f:
+        with open(path, "w") as f:
             json.dump(cache, f, indent=2)
     except OSError:
         pass  # Silently fail if we can't write the cache

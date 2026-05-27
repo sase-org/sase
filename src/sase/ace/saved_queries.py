@@ -3,12 +3,22 @@
 import json
 from pathlib import Path
 
+from sase.core.paths import sase_home
+
 # Key order: 0 is first, 9 is last
 KEY_ORDER = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
 # Cache file locations
-_SAVED_QUERIES_FILE = Path.home() / ".sase" / "saved_queries.json"
-_LAST_QUERY_FILE = Path.home() / ".sase" / "last_query.txt"
+_SAVED_QUERIES_FILE: Path | None = None
+_LAST_QUERY_FILE: Path | None = None
+
+
+def _saved_queries_file() -> Path:
+    return _SAVED_QUERIES_FILE or sase_home() / "saved_queries.json"
+
+
+def _last_query_file() -> Path:
+    return _LAST_QUERY_FILE or sase_home() / "last_query.txt"
 
 
 def load_saved_queries() -> dict[str, str]:
@@ -17,11 +27,12 @@ def load_saved_queries() -> dict[str, str]:
     Returns:
         Dictionary mapping slot number ("0"-"9") to canonical query string.
     """
-    if not _SAVED_QUERIES_FILE.exists():
+    path = _saved_queries_file()
+    if not path.exists():
         return {}
 
     try:
-        with open(_SAVED_QUERIES_FILE) as f:
+        with open(path) as f:
             data = json.load(f)
         # Filter to only valid keys
         return {k: v for k, v in data.items() if k in KEY_ORDER}
@@ -121,10 +132,11 @@ def load_last_query() -> str | None:
     Returns:
         The last used query string, or None if no saved query exists.
     """
-    if not _LAST_QUERY_FILE.exists():
+    path = _last_query_file()
+    if not path.exists():
         return None
     try:
-        content = _LAST_QUERY_FILE.read_text().strip()
+        content = path.read_text().strip()
         return content or None
     except OSError:
         return None
@@ -140,8 +152,9 @@ def save_last_query(query: str) -> bool:
         True if saved successfully, False otherwise.
     """
     try:
-        _LAST_QUERY_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _LAST_QUERY_FILE.write_text(query)
+        path = _last_query_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(query)
         return True
     except OSError:
         return False
@@ -157,8 +170,9 @@ def _write_queries(queries: dict[str, str]) -> bool:
         True if written successfully, False otherwise.
     """
     try:
-        _SAVED_QUERIES_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(_SAVED_QUERIES_FILE, "w") as f:
+        path = _saved_queries_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
             json.dump(queries, f, indent=2)
         return True
     except OSError:

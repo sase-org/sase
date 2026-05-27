@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from sase.bead.cli_common import get_project
 from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
+from sase.core.paths import sase_projects_dir
 
 if TYPE_CHECKING:
     from sase.bead.work import (
@@ -373,7 +374,7 @@ def _resolve_required_vcs_launch_context(*, purpose: str) -> VCSLaunchContext:
 
     from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
-    project_dir = Path.home() / ".sase" / "projects" / project_name
+    project_dir = sase_projects_dir() / project_name
     project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
     if not project_file.exists():
         raise ValueError(

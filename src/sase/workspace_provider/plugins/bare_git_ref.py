@@ -14,6 +14,7 @@ from sase.ace.changespec import (
     find_all_changespecs,
     write_changespec_atomic,
 )
+from sase.core.paths import sase_projects_dir
 from sase.workspace_provider.utils import (
     get_default_branch,
     parse_bare_repo_dir,
@@ -145,7 +146,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
         preferred_project_spec_path,
     )
 
-    projects_base = Path.home() / ".sase" / "projects"
+    projects_base = sase_projects_dir()
 
     # --- Mode 1: project shorthand (no /) ---
     if "/" not in git_ref:

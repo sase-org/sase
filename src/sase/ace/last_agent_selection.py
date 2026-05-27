@@ -7,11 +7,17 @@ import json
 from pathlib import Path
 from typing import Literal, cast
 
+from sase.core.paths import sase_home
+
 from .tui.modals import SelectionItem
 
-_LAST_SELECTION_FILE = Path.home() / ".sase" / "last_agent_selection.json"
+_LAST_SELECTION_FILE: Path | None = None
 _SelectionItemType = Literal["project", "cl", "home", "all"]
 _VALID_ITEM_TYPES: set[_SelectionItemType] = {"project", "cl", "home", "all"}
+
+
+def _last_selection_file() -> Path:
+    return _LAST_SELECTION_FILE or sase_home() / "last_agent_selection.json"
 
 
 def load_last_agent_selection() -> SelectionItem | None:
@@ -21,11 +27,12 @@ def load_last_agent_selection() -> SelectionItem | None:
         The persisted ``SelectionItem``, or ``None`` if the file is missing
         or contains invalid data.
     """
-    if not _LAST_SELECTION_FILE.exists():
+    path = _last_selection_file()
+    if not path.exists():
         return None
 
     try:
-        with open(_LAST_SELECTION_FILE) as f:
+        with open(path) as f:
             data = json.load(f)
         if not isinstance(data, dict):
             return None
@@ -68,8 +75,9 @@ def _save_last_agent_selection(selection: SelectionItem) -> bool:
         True if saved successfully, False otherwise.
     """
     try:
-        _LAST_SELECTION_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(_LAST_SELECTION_FILE, "w") as f:
+        path = _last_selection_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
             json.dump(dataclasses.asdict(selection), f, indent=2)
         return True
     except OSError:
@@ -102,7 +110,7 @@ def clear_last_agent_selection() -> bool:
         could not be removed.
     """
     try:
-        _LAST_SELECTION_FILE.unlink()
+        _last_selection_file().unlink()
         return True
     except FileNotFoundError:
         return False

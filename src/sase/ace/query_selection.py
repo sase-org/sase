@@ -3,8 +3,14 @@
 import json
 from pathlib import Path
 
+from sase.core.paths import sase_home
+
 MAX_SELECTIONS = 200
-_QUERY_SELECTION_FILE = Path.home() / ".sase" / "query_selections.json"
+_QUERY_SELECTION_FILE: Path | None = None
+
+
+def _query_selection_file() -> Path:
+    return _QUERY_SELECTION_FILE or sase_home() / "query_selections.json"
 
 
 def load_query_selections() -> dict[str, str]:
@@ -13,11 +19,12 @@ def load_query_selections() -> dict[str, str]:
     Returns:
         Dict mapping canonical query strings to ChangeSpec names.
     """
-    if not _QUERY_SELECTION_FILE.exists():
+    path = _query_selection_file()
+    if not path.exists():
         return {}
 
     try:
-        with open(_QUERY_SELECTION_FILE) as f:
+        with open(path) as f:
             data = json.load(f)
         if not isinstance(data, dict):
             return {}
@@ -39,13 +46,14 @@ def save_query_selections(selections: dict[str, str]) -> bool:
         True if saved successfully, False otherwise.
     """
     try:
-        _QUERY_SELECTION_FILE.parent.mkdir(parents=True, exist_ok=True)
+        path = _query_selection_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
         # Trim oldest entries if over limit (keep most recent at end)
         if len(selections) > MAX_SELECTIONS:
             keys = list(selections.keys())
             for key in keys[: len(keys) - MAX_SELECTIONS]:
                 del selections[key]
-        with open(_QUERY_SELECTION_FILE, "w") as f:
+        with open(path, "w") as f:
             json.dump(selections, f, indent=2)
         return True
     except OSError:

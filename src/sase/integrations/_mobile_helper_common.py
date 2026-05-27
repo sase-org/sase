@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any, TextIO
+
+from sase.core.paths import sase_home as _core_sase_home
 
 GATEWAY_WIRE_SCHEMA_VERSION = 1
 _SAFE_PROJECT_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -119,4 +120,4 @@ def path_display(path: object) -> str | None:
 
 
 def sase_home() -> Path:
-    return Path(os.environ.get("SASE_HOME") or Path.home() / ".sase").expanduser()
+    return _core_sase_home()

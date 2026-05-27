@@ -36,6 +36,7 @@ from sase.plan_chain import (
     is_agent_family_member,
     is_plan_chain_artifact_meta,
 )
+from sase.core.paths import sase_projects_dir
 
 if TYPE_CHECKING:
     from sase.core.agent_scan_wire import AgentArtifactRecordWire
@@ -96,7 +97,7 @@ def _ace_run_scan_options() -> Any:
 
 
 def _projects_root() -> Path:
-    return Path.home() / ".sase" / "projects"
+    return sase_projects_dir()
 
 
 def _read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -407,11 +408,11 @@ def _find_named_dismissed_bundle(name: str) -> NamedAgent | None:
     artifact dir was cleaned up).
     """
     try:
-        from sase.ace.dismissed_agents import _DISMISSED_BUNDLES_DIR
+        from sase.ace import dismissed_agents
     except Exception:
         return None
 
-    bundles_dir = _DISMISSED_BUNDLES_DIR
+    bundles_dir = dismissed_agents.dismissed_bundles_dir()
     if not bundles_dir.is_dir():
         return None
 
@@ -576,7 +577,7 @@ def get_most_recent_agent_name(
     Returns the name of the most recently created one, or ``None`` if no named
     agents exist.
     """
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.exists():
         return None
 

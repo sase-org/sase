@@ -5,9 +5,10 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Literal
 
-from sase.workflows.commit_utils import run_sase_hg_clean
+from sase.core.paths import sase_projects_dir
 from sase.running_field import get_workspace_directory
 from sase.vcs_provider import get_vcs_provider
+from sase.workflows.commit_utils import run_sase_hg_clean
 
 from ..bgcmd import (
     BackgroundCommandInfo,
@@ -213,7 +214,7 @@ class AxeBgCmdMixin:
         from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
         project_file = preferred_project_spec_path(
-            os.path.expanduser(f"~/.sase/projects/{project}"), project
+            str(sase_projects_dir() / project), project
         )
 
         # Synthetic dedup key for the no-CL path, scoped per slot so two

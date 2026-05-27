@@ -8,6 +8,7 @@ from pathlib import Path
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 from sase.bead.project_name import infer_project_name_from_cwd, scan_projects_for_cwd
+from sase.core.paths import sase_projects_dir
 
 
 def get_project_beads_dirs() -> list[Path] | None:
@@ -226,4 +227,4 @@ def _sase_projects_dir() -> Path:
     root = os.environ.get("SASE_HOME")
     if root:
         return Path(root).expanduser() / "projects"
-    return Path.home() / ".sase" / "projects"
+    return sase_projects_dir()

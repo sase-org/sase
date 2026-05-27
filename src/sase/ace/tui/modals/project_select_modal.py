@@ -14,6 +14,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList
 from textual.widgets.option_list import Option
 
+from sase.core.paths import sase_projects_dir
+
 from ...changespec import find_all_changespecs, parse_project_file
 from ...changespec.project_spec_path import (
     archive_project_spec_filename,
@@ -258,7 +260,7 @@ class ProjectSelectModal(
             return
 
         # Check if project file or archive file contains any ChangeSpecs
-        project_dir = Path.home() / ".sase" / "projects" / item.project_name
+        project_dir = sase_projects_dir() / item.project_name
         active_path = Path(
             preferred_project_spec_path(str(project_dir), item.project_name)
         )

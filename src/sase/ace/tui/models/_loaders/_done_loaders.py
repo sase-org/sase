@@ -13,6 +13,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanWire,
 )
+from sase.core.paths import sase_projects_dir
 
 from ._json_cache import load_json_cached
 from ._meta_enrichment import (
@@ -195,7 +196,7 @@ def load_done_agents(
     """
     from ._json_cache import get_loader_executor
 
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
 
     if not projects_dir.exists():
         return []

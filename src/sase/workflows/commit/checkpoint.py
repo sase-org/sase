@@ -8,6 +8,7 @@ import os
 import time
 from dataclasses import dataclass, field
 
+from sase.core.paths import sase_subdir
 from sase.output import print_status
 
 _CHECKPOINT_VERSION = 1
@@ -46,7 +47,7 @@ def _get_checkpoint_path() -> str:
         path = os.path.join(artifacts_dir, _CHECKPOINT_FILENAME)
     else:
         session_id = os.environ.get("SASE_AGENT_TIMESTAMP") or str(os.getpid())
-        path = os.path.expanduser(f"~/.sase/commit_state/{session_id}.json")
+        path = str(sase_subdir("commit_state") / f"{session_id}.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     return path
 

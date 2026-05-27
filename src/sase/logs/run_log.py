@@ -12,15 +12,28 @@ from collections.abc import Iterator
 from datetime import datetime
 from typing import Any
 
+from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 
 REVIVE_EVENTS: frozenset[str] = frozenset(
     {"agent_revive_started", "agent_revived", "agent_revive_failed"}
 )
 
-LOGS_DIR = os.path.expanduser("~/.sase/logs")
-RUNS_FILE = os.path.join(LOGS_DIR, "runs.jsonl")
-EVENTS_FILE = os.path.join(LOGS_DIR, "events.jsonl")
+LOGS_DIR: str | None = None
+RUNS_FILE: str | None = None
+EVENTS_FILE: str | None = None
+
+
+def _logs_dir() -> str:
+    return LOGS_DIR or str(sase_subdir("logs"))
+
+
+def _runs_file() -> str:
+    return RUNS_FILE or os.path.join(_logs_dir(), "runs.jsonl")
+
+
+def _events_file() -> str:
+    return EVENTS_FILE or os.path.join(_logs_dir(), "events.jsonl")
 
 
 def _append_jsonl(path: str, record: dict[str, Any]) -> None:
@@ -70,7 +83,7 @@ def log_agent_run(
         record["chat_file"] = chat_file
     if prompt_preview:
         record["prompt_preview"] = prompt_preview[:100]
-    _append_jsonl(RUNS_FILE, record)
+    _append_jsonl(_runs_file(), record)
 
 
 def log_event(
@@ -89,7 +102,7 @@ def log_event(
         "event": event,
         **kwargs,
     }
-    _append_jsonl(EVENTS_FILE, record)
+    _append_jsonl(_events_file(), record)
 
 
 def _parse_event_timestamp(record: dict[str, Any]) -> datetime | None:
@@ -122,7 +135,7 @@ def iter_revive_events(
 
     Malformed JSON lines and records missing required fields are skipped.
     """
-    path = events_file if events_file is not None else EVENTS_FILE
+    path = events_file if events_file is not None else _events_file()
     if not os.path.exists(path):
         return
     try:

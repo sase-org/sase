@@ -83,9 +83,7 @@ def test_get_all_project_files_nonexistent_dir() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         # Point home to temp dir with no .sase/projects directory
         fake_home = Path(tmpdir)
-        with patch("sase.ace.scheduler.stale_running_cleanup.Path") as mock_path:
-            mock_path.home.return_value = fake_home
-
+        with patch.dict("os.environ", {"SASE_HOME": str(fake_home / ".sase")}):
             result = _get_all_project_files()
 
             assert result == []
@@ -110,9 +108,7 @@ def test_get_all_project_files_finds_project_spec_files() -> None:
         # Create a regular file (not a directory)
         (projects_dir / "somefile.txt").write_text("not a dir")
 
-        with patch("sase.ace.scheduler.stale_running_cleanup.Path") as mock_path:
-            mock_path.home.return_value = fake_home
-
+        with patch.dict("os.environ", {"SASE_HOME": str(fake_home / ".sase")}):
             result = _get_all_project_files()
 
             # Should only find proj1.sase

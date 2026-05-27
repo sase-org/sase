@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from sase.core.paths import sase_projects_dir
+
 from ....hooks.processes import is_process_running
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
@@ -32,7 +34,7 @@ def _iter_workflow_timestamp_dirs() -> Iterator[tuple[Path, Path]]:
     Both load_workflow_states() and load_workflow_agent_steps() use this
     shared iterator to avoid redundant directory traversal.
     """
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
 
     if not projects_dir.exists():
         return

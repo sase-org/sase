@@ -89,7 +89,8 @@ def test_load_merged_config_non_dict_yaml_skipped(tmp_path: Path) -> None:
 
 def test_config_dir_is_correct() -> None:
     """CONFIG_DIR points to ~/.config/sase."""
-    assert CONFIG_DIR == Path.home() / ".config" / "sase"
+    assert CONFIG_DIR.is_absolute()
+    assert CONFIG_DIR.parts[-2:] == (".config", "sase")
 
 
 # --- local config tests ---

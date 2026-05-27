@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from pathlib import Path
 
+from sase.core.paths import sase_projects_dir
 from sase.running_field import get_claimed_workspaces, release_workspace
 
 from ..hooks.processes import is_process_running
@@ -61,7 +62,7 @@ def _get_all_project_files() -> list[str]:
         legacy_active_project_spec_filename,
     )
 
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.exists():
         return []
 

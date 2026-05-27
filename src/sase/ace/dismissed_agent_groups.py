@@ -18,12 +18,17 @@ from sase.core.agent_group_archive_wire import (
     saved_agent_group_summary_from_group,
     saved_agent_group_wire_to_json_dict,
 )
+from sase.core.paths import sase_subdir
 from sase.core.rust import require_rust_binding
 
 from .dismissed_agents_bundles import write_json_file_atomic
 
-_DEFAULT_DISMISSED_AGENT_GROUPS_DIR = Path.home() / ".sase" / "dismissed_agent_groups"
+_DEFAULT_DISMISSED_AGENT_GROUPS_DIR: Path | None = None
 _WIRE_EXPORT_TYPES = (SavedAgentGroupRefWire, SavedAgentGroupSummaryWire)
+
+
+def _default_dismissed_agent_groups_dir() -> Path:
+    return _DEFAULT_DISMISSED_AGENT_GROUPS_DIR or sase_subdir("dismissed_agent_groups")
 
 
 def save_dismissed_agent_group(
@@ -33,7 +38,7 @@ def save_dismissed_agent_group(
 ) -> SavedAgentGroupWire:
     """Persist one saved group record and return the normalized record."""
 
-    root = groups_dir or _DEFAULT_DISMISSED_AGENT_GROUPS_DIR
+    root = groups_dir or _default_dismissed_agent_groups_dir()
     payload = _normalize_group_dict(group)
     try:
         binding = require_rust_binding("save_dismissed_agent_group")
@@ -52,7 +57,7 @@ def list_dismissed_agent_groups(
 ) -> SavedAgentGroupPageWire:
     """List saved groups in newest-first deterministic pages."""
 
-    root = groups_dir or _DEFAULT_DISMISSED_AGENT_GROUPS_DIR
+    root = groups_dir or _default_dismissed_agent_groups_dir()
     try:
         binding = require_rust_binding("list_dismissed_agent_groups")
     except (ImportError, AttributeError):
@@ -69,7 +74,7 @@ def load_dismissed_agent_group(
 ) -> SavedAgentGroupWire | None:
     """Load one saved group, returning ``None`` for absent/corrupt files."""
 
-    root = groups_dir or _DEFAULT_DISMISSED_AGENT_GROUPS_DIR
+    root = groups_dir or _default_dismissed_agent_groups_dir()
     try:
         binding = require_rust_binding("load_dismissed_agent_group")
     except (ImportError, AttributeError):
@@ -89,7 +94,7 @@ def mark_dismissed_agent_group_revived(
 ) -> SavedAgentGroupWire | None:
     """Mark one saved group revived without deleting the group metadata."""
 
-    root = groups_dir or _DEFAULT_DISMISSED_AGENT_GROUPS_DIR
+    root = groups_dir or _default_dismissed_agent_groups_dir()
     try:
         binding = require_rust_binding("mark_dismissed_agent_group_revived")
     except (ImportError, AttributeError):

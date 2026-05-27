@@ -9,13 +9,13 @@ import json
 import re
 import string
 from collections.abc import Iterator
-from pathlib import Path
 
 from sase.agent.names._common import (
     extract_auto_name_prefix,
     is_process_alive,
 )
 from sase.agent.names._registry import get_reserved_agent_names
+from sase.core.paths import sase_projects_dir
 
 
 def get_next_auto_name() -> str:
@@ -47,7 +47,7 @@ def get_active_agent_names() -> set[str]:
     This legacy visible-agent snapshot is kept for retry/repeat collision
     checks. Permanent auto-name allocation uses the durable registry instead.
     """
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.exists():
         return set()
 
@@ -131,7 +131,7 @@ def get_active_agent_name_map() -> dict[str, str]:
     the value, so collision diagnostics can point the user at the offending
     agent. Auto-name prefixes are not included.
     """
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.exists():
         return {}
 
@@ -183,7 +183,7 @@ def get_live_agent_name_map() -> dict[str, str]:
     reserve names here. This is for workflows that can intentionally retry a
     completed or failed historical name but must not duplicate a running agent.
     """
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.exists():
         return {}
 
@@ -240,7 +240,7 @@ def get_live_agent_name_subset(expected_names: set[str]) -> dict[str, str]:
     if not remaining:
         return {}
 
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.exists():
         return {}
 
@@ -346,7 +346,7 @@ def get_active_child_names(base: str) -> set[str]:
     on each agent's ``name`` field (not its ``workflow_name``), so callers
     can detect collisions for individual repeat slots like ``sase-z.2``.
     """
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.exists():
         return set()
 

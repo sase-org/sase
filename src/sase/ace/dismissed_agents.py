@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.core.paths import sase_home, sase_subdir
+
 from .dismissed_agents_bundles import (
     bundle_filename as _bundle_filename_impl,
     bundle_paths_for_suffixes as _bundle_paths_for_suffixes_impl,
@@ -49,26 +51,42 @@ from .dismissed_agents_state import (
 if TYPE_CHECKING:
     from .tui.models.agent import Agent, AgentType
 
-_DISMISSED_AGENTS_FILE = Path.home() / ".sase" / "dismissed_agents.json"
-_DISMISSED_BUNDLES_DIR = Path.home() / ".sase" / "dismissed_bundles"
-_DISMISSED_AGENT_GROUPS_DIR = Path.home() / ".sase" / "dismissed_agent_groups"
-_OLD_BUNDLES_FILE = Path.home() / ".sase" / "dismissed_agent_bundles.json"
+_DISMISSED_AGENTS_FILE: Path | None = None
+_DISMISSED_BUNDLES_DIR: Path | None = None
+_DISMISSED_AGENT_GROUPS_DIR: Path | None = None
+_OLD_BUNDLES_FILE: Path | None = None
 
 
 def _ctx() -> Any:
     return sys.modules[__name__]
 
 
+def _dismissed_agents_file() -> Path:
+    return _DISMISSED_AGENTS_FILE or sase_home() / "dismissed_agents.json"
+
+
+def dismissed_bundles_dir() -> Path:
+    return _DISMISSED_BUNDLES_DIR or sase_subdir("dismissed_bundles")
+
+
+def _dismissed_agent_groups_dir() -> Path:
+    return _DISMISSED_AGENT_GROUPS_DIR or sase_subdir("dismissed_agent_groups")
+
+
+def _old_bundles_file() -> Path:
+    return _OLD_BUNDLES_FILE or sase_home() / "dismissed_agent_bundles.json"
+
+
 def _bundle_shard_dir(filename: str) -> Path:
-    return _bundle_shard_dir_impl(_DISMISSED_BUNDLES_DIR, filename)
+    return _bundle_shard_dir_impl(dismissed_bundles_dir(), filename)
 
 
 def _iter_bundle_paths(pattern: str = "*.json") -> list[Path]:
-    return _iter_bundle_paths_impl(_DISMISSED_BUNDLES_DIR, pattern)
+    return _iter_bundle_paths_impl(dismissed_bundles_dir(), pattern)
 
 
 def _find_bundle(filename: str) -> Path | None:
-    return _find_bundle_impl(_DISMISSED_BUNDLES_DIR, filename)
+    return _find_bundle_impl(dismissed_bundles_dir(), filename)
 
 
 def has_dismissed_bundle(raw_suffix: str) -> bool:
@@ -76,12 +94,12 @@ def has_dismissed_bundle(raw_suffix: str) -> bool:
 
 
 def load_dismissed_agents() -> set[tuple[AgentType, str, str | None]]:
-    return _load_dismissed_agents_impl(_DISMISSED_AGENTS_FILE)
+    return _load_dismissed_agents_impl(_dismissed_agents_file())
 
 
 def dismissed_agents_file_signature() -> tuple[int, int] | None:
     try:
-        stat = _DISMISSED_AGENTS_FILE.stat()
+        stat = _dismissed_agents_file().stat()
     except OSError:
         return None
     return (stat.st_mtime_ns, stat.st_size)
@@ -92,13 +110,13 @@ def dismissed_bundle_index_signature() -> tuple[int, int, int, int] | None:
         from .dismissed_bundle_index import index_signature
     except (ImportError, AttributeError):
         return None
-    return index_signature(_DISMISSED_BUNDLES_DIR)
+    return index_signature(dismissed_bundles_dir())
 
 
 def save_dismissed_agents(
     dismissed: set[tuple[AgentType, str, str | None]],
 ) -> bool:
-    return _save_dismissed_agents_impl(_DISMISSED_AGENTS_FILE, dismissed)
+    return _save_dismissed_agents_impl(_dismissed_agents_file(), dismissed)
 
 
 def save_dismissed_bundle(agent: Agent) -> bool:
@@ -142,7 +160,7 @@ def ensure_dismissed_archive_ready() -> None:
 
 def save_dismissed_agent_group(group: Any) -> Any:
     return _save_dismissed_agent_group_impl(
-        group, groups_dir=_DISMISSED_AGENT_GROUPS_DIR
+        group, groups_dir=_dismissed_agent_groups_dir()
     )
 
 
@@ -152,13 +170,13 @@ def list_dismissed_agent_groups(
     cursor: int | None = None,
 ) -> Any:
     return _list_dismissed_agent_groups_impl(
-        limit=limit, cursor=cursor, groups_dir=_DISMISSED_AGENT_GROUPS_DIR
+        limit=limit, cursor=cursor, groups_dir=_dismissed_agent_groups_dir()
     )
 
 
 def load_dismissed_agent_group(group_id: str) -> Any:
     return _load_dismissed_agent_group_impl(
-        group_id, groups_dir=_DISMISSED_AGENT_GROUPS_DIR
+        group_id, groups_dir=_dismissed_agent_groups_dir()
     )
 
 
@@ -170,7 +188,7 @@ def mark_dismissed_agent_group_revived(
     return _mark_dismissed_agent_group_revived_impl(
         group_id,
         revived_at=revived_at,
-        groups_dir=_DISMISSED_AGENT_GROUPS_DIR,
+        groups_dir=_dismissed_agent_groups_dir(),
     )
 
 
@@ -239,6 +257,7 @@ _PRIVATE_COMPAT_EXPORTS = (
     _maybe_fix_child_collisions,
     _maybe_migrate_bundles,
     _maybe_shard_root_bundles,
+    _old_bundles_file,
     _run_dismissed_archive_maintenance,
     _save_dismissed_bundle_python,
     _write_json_file_atomic,

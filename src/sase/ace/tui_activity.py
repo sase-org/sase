@@ -11,11 +11,13 @@ import threading
 import time
 from pathlib import Path
 
-ACTIVITY_FILE: Path = Path.home() / ".sase" / "tui_last_activity"
-PID_FILE: Path = Path.home() / ".sase" / "tui_pid"
-IDLE_STATE_FILE: Path = Path.home() / ".sase" / "tui_idle_state"
-LAST_KEYPRESS_FILE: Path = Path.home() / ".sase" / "tui_last_keypress"
-PINNED_IDLE_FILE: Path = Path.home() / ".sase" / "tui_pinned_idle"
+from sase.core.paths import sase_home
+
+ACTIVITY_FILE: Path | None = None
+PID_FILE: Path | None = None
+IDLE_STATE_FILE: Path | None = None
+LAST_KEYPRESS_FILE: Path | None = None
+PINNED_IDLE_FILE: Path | None = None
 
 # If the TUI is running and reports idle, but the last keypress was
 # less than this many seconds ago, something is wrong — override
@@ -31,16 +33,37 @@ _IDLE_GUARD_SECONDS = 120
 _PID_MISSING_GUARD_SECONDS = 30
 
 
+def _activity_file() -> Path:
+    return ACTIVITY_FILE or sase_home() / "tui_last_activity"
+
+
+def _pid_file() -> Path:
+    return PID_FILE or sase_home() / "tui_pid"
+
+
+def _idle_state_file() -> Path:
+    return IDLE_STATE_FILE or sase_home() / "tui_idle_state"
+
+
+def _last_keypress_file() -> Path:
+    return LAST_KEYPRESS_FILE or sase_home() / "tui_last_keypress"
+
+
+def _pinned_idle_file() -> Path:
+    return PINNED_IDLE_FILE or sase_home() / "tui_pinned_idle"
+
+
 def write_activity_timestamp(epoch: float) -> None:
     """Atomically write *epoch* to the activity file.
 
     Creates parent directories if they don't exist.  Uses a temporary
     file + ``os.replace()`` so readers never see a partial write.
     """
-    ACTIVITY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = ACTIVITY_FILE.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+    path = _activity_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(str(epoch))
-    os.replace(tmp, ACTIVITY_FILE)
+    os.replace(tmp, path)
 
 
 def write_last_keypress(epoch: float) -> None:
@@ -51,16 +74,17 @@ def write_last_keypress(epoch: float) -> None:
     the most recent user keypress, allowing ``is_idle()`` to
     independently verify that enough time has elapsed.
     """
-    LAST_KEYPRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = LAST_KEYPRESS_FILE.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+    path = _last_keypress_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(str(epoch))
-    os.replace(tmp, LAST_KEYPRESS_FILE)
+    os.replace(tmp, path)
 
 
 def get_last_keypress() -> float | None:
     """Return the epoch stored in the last-keypress file, or ``None``."""
     try:
-        return float(LAST_KEYPRESS_FILE.read_text().strip())
+        return float(_last_keypress_file().read_text().strip())
     except (FileNotFoundError, ValueError):
         return None
 
@@ -68,7 +92,7 @@ def get_last_keypress() -> float | None:
 def _get_tui_last_activity() -> float | None:
     """Return the epoch stored in the activity file, or ``None``."""
     try:
-        return float(ACTIVITY_FILE.read_text().strip())
+        return float(_activity_file().read_text().strip())
     except (FileNotFoundError, ValueError):
         return None
 
@@ -78,16 +102,17 @@ def write_tui_pid() -> None:
 
     Uses a temporary file + ``os.replace()`` so readers never see a partial write.
     """
-    PID_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = PID_FILE.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+    path = _pid_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(str(os.getpid()))
-    os.replace(tmp, PID_FILE)
+    os.replace(tmp, path)
 
 
 def remove_tui_pid() -> None:
     """Delete the PID file, ignoring if it doesn't exist."""
     try:
-        PID_FILE.unlink()
+        _pid_file().unlink()
     except FileNotFoundError:
         pass
 
@@ -99,16 +124,17 @@ def write_idle_state(idle: bool) -> None:
     (e.g. the Telegram outbound chop) read this file via ``is_idle()``
     instead of independently recomputing idle from raw timestamps.
     """
-    IDLE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = IDLE_STATE_FILE.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+    path = _idle_state_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text("1" if idle else "0")
-    os.replace(tmp, IDLE_STATE_FILE)
+    os.replace(tmp, path)
 
 
 def remove_idle_state() -> None:
     """Delete the idle-state file, ignoring if it doesn't exist."""
     try:
-        IDLE_STATE_FILE.unlink()
+        _idle_state_file().unlink()
     except FileNotFoundError:
         pass
 
@@ -116,7 +142,7 @@ def remove_idle_state() -> None:
 def remove_last_keypress() -> None:
     """Delete the last-keypress file, ignoring if it doesn't exist."""
     try:
-        LAST_KEYPRESS_FILE.unlink()
+        _last_keypress_file().unlink()
     except FileNotFoundError:
         pass
 
@@ -126,16 +152,17 @@ def write_pinned_idle(pinned: bool) -> None:
 
     Persists the pinned idle flag so the TUI can restore it after a restart.
     """
-    PINNED_IDLE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = PINNED_IDLE_FILE.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+    path = _pinned_idle_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text("1" if pinned else "0")
-    os.replace(tmp, PINNED_IDLE_FILE)
+    os.replace(tmp, path)
 
 
 def read_pinned_idle() -> bool:
     """Return whether pinned idle was active in a previous session."""
     try:
-        return PINNED_IDLE_FILE.read_text().strip() == "1"
+        return _pinned_idle_file().read_text().strip() == "1"
     except (FileNotFoundError, ValueError):
         return False
 
@@ -148,14 +175,15 @@ def _is_tui_running() -> bool:
     process is dead.  Cleans up stale PID files.
     """
     try:
-        pid = int(PID_FILE.read_text().strip())
+        pid_file = _pid_file()
+        pid = int(pid_file.read_text().strip())
     except (FileNotFoundError, ValueError):
         return False
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         # Process is dead — clean up stale PID file
-        PID_FILE.unlink(missing_ok=True)
+        pid_file.unlink(missing_ok=True)
         return False
     except PermissionError:
         # Process exists but owned by a different user
@@ -192,7 +220,7 @@ def _is_idle() -> bool:
     active but no PID and no recent keypress).
     """
     try:
-        idle_flag = IDLE_STATE_FILE.read_text().strip() == "1"
+        idle_flag = _idle_state_file().read_text().strip() == "1"
     except (FileNotFoundError, ValueError):
         return True
 

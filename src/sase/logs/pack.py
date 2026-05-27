@@ -5,6 +5,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+from sase.core.paths import sase_projects_dir, sase_subdir
 from sase.core.time import get_timezone
 
 from sase.logs.collectors import (
@@ -36,7 +37,7 @@ def build_pack(start: datetime, end: datetime, range_spec: str) -> str:
     """
     now = datetime.now(get_timezone())
     pack_name = now.strftime("%y%m%d_%H%M%S")
-    pack_dir = Path("~/.sase/logs/pack").expanduser() / pack_name
+    pack_dir = sase_subdir("logs") / "pack" / pack_name
     pack_dir.mkdir(parents=True, exist_ok=True)
 
     file_count = 0
@@ -73,7 +74,7 @@ def build_pack(start: datetime, end: datetime, range_spec: str) -> str:
         artifacts_dest.mkdir(exist_ok=True)
         for art_dir in artifact_dirs:
             # Preserve project/workflow/timestamp hierarchy
-            rel = art_dir.relative_to(Path("~/.sase/projects").expanduser())
+            rel = art_dir.relative_to(sase_projects_dir())
             dest = artifacts_dest / rel
             shutil.copytree(art_dir, dest, dirs_exist_ok=True)
             file_count += 1
@@ -82,9 +83,7 @@ def build_pack(start: datetime, end: datetime, range_spec: str) -> str:
     axe_files = collect_axe_state(start, end)
     if axe_files:
         for jack_name, src_path in axe_files:
-            rel = src_path.relative_to(
-                Path("~/.sase/axe/lumberjacks").expanduser() / jack_name
-            )
+            rel = src_path.relative_to(sase_subdir("axe") / "lumberjacks" / jack_name)
             dest = pack_dir / "axe" / jack_name / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src_path, dest)

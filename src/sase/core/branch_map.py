@@ -11,9 +11,11 @@ and maps *current ChangeSpec name* → *actual git branch name*.
 import json
 from pathlib import Path
 
+from sase.core.paths import sase_projects_dir
+
 
 def _branch_map_path(project_basename: str) -> Path:
-    return Path.home() / ".sase" / "projects" / project_basename / "branch_map.json"
+    return sase_projects_dir() / project_basename / "branch_map.json"
 
 
 def read_branch_map(project_basename: str) -> dict[str, str]:

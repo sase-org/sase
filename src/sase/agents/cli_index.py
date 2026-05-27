@@ -25,6 +25,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     agent_scan_wire_to_json_dict,
 )
+from sase.core.paths import sase_projects_dir
 
 
 def handle_agents_index(args: argparse.Namespace) -> None:
@@ -50,7 +51,7 @@ def handle_agents_index(args: argparse.Namespace) -> None:
 def _agent_index_paths(args: argparse.Namespace) -> tuple[Path, Path]:
     """Return ``(projects_root, index_path)`` for artifact-index commands."""
     projects_root = Path(
-        getattr(args, "projects_root", None) or Path.home() / ".sase" / "projects"
+        getattr(args, "projects_root", None) or sase_projects_dir()
     ).expanduser()
     index_path = Path(
         getattr(args, "index_path", None) or default_agent_artifact_index_path()

@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.core.paths import sase_projects_dir
 from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
 
 if TYPE_CHECKING:
@@ -51,10 +52,8 @@ class ArtifactRestorationMixin:
             timestamp = agent.extract_artifacts_timestamp()
             if not timestamp:
                 return
-            artifacts_dir = Path(
-                os.path.expanduser(
-                    f"~/.sase/projects/{project_name}/artifacts/ace-run/{timestamp}"
-                )
+            artifacts_dir = (
+                sase_projects_dir() / project_name / "artifacts" / "ace-run" / timestamp
             )
             artifacts_dir.mkdir(parents=True, exist_ok=True)
             done_file = artifacts_dir / "done.json"
@@ -85,10 +84,12 @@ class ArtifactRestorationMixin:
                     parent_ts = agent.parent_timestamp
                     if len(parent_ts) == 13 and parent_ts[6] == "_":
                         parent_ts = f"20{parent_ts[:6]}{parent_ts[7:]}"
-                    artifacts_dir = Path(
-                        os.path.expanduser(
-                            f"~/.sase/projects/{project_name}/artifacts/{workflow_dir_name}/{parent_ts}"
-                        )
+                    artifacts_dir = (
+                        sase_projects_dir()
+                        / project_name
+                        / "artifacts"
+                        / workflow_dir_name
+                        / parent_ts
                     )
                 artifacts_dir.mkdir(parents=True, exist_ok=True)
                 step_file = artifacts_dir / f"prompt_step_{step_index}.json"
@@ -114,10 +115,12 @@ class ArtifactRestorationMixin:
                         workflow.split("/")[-1] if "/" in workflow else workflow
                     )
                     workflow_dir_name = f"workflow-{base_workflow}"
-                    artifacts_dir = Path(
-                        os.path.expanduser(
-                            f"~/.sase/projects/{project_name}/artifacts/{workflow_dir_name}/{timestamp}"
-                        )
+                    artifacts_dir = (
+                        sase_projects_dir()
+                        / project_name
+                        / "artifacts"
+                        / workflow_dir_name
+                        / timestamp
                     )
                 artifacts_dir.mkdir(parents=True, exist_ok=True)
                 state_file = artifacts_dir / "workflow_state.json"

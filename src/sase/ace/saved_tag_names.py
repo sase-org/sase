@@ -3,7 +3,13 @@
 import json
 from pathlib import Path
 
-_SAVED_TAG_NAMES_FILE = Path.home() / ".sase" / "saved_tag_names.json"
+from sase.core.paths import sase_home
+
+_SAVED_TAG_NAMES_FILE: Path | None = None
+
+
+def _saved_tag_names_file() -> Path:
+    return _SAVED_TAG_NAMES_FILE or sase_home() / "saved_tag_names.json"
 
 
 def load_saved_tags() -> dict[str, str]:
@@ -15,11 +21,12 @@ def load_saved_tags() -> dict[str, str]:
     Returns:
         Dict mapping uppercase tag names to their last-used values.
     """
-    if not _SAVED_TAG_NAMES_FILE.exists():
+    path = _saved_tag_names_file()
+    if not path.exists():
         return {}
 
     try:
-        with open(_SAVED_TAG_NAMES_FILE) as f:
+        with open(path) as f:
             data = json.load(f)
         if isinstance(data, dict):
             return {str(k): str(v) for k, v in data.items()}
@@ -71,8 +78,9 @@ def _write_tags(tags: dict[str, str]) -> bool:
         True if written successfully, False otherwise.
     """
     try:
-        _SAVED_TAG_NAMES_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(_SAVED_TAG_NAMES_FILE, "w") as f:
+        path = _saved_tag_names_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
             json.dump(tags, f, indent=2)
         return True
     except OSError:

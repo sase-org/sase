@@ -24,6 +24,8 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from sase.core.paths import sase_home
+
 from .types import ModelTier
 
 _STATE_FILENAME = "llm_override.json"
@@ -32,10 +34,9 @@ _STATE_FILENAME = "llm_override.json"
 def _state_path() -> Path:
     """Return the absolute path to the override state file.
 
-    Resolved lazily so ``conftest.py``'s ``~/.sase/`` redirection (and
-    user-set ``$HOME``) is honored per-call.
+    Resolved lazily so ``$SASE_HOME`` and test redirection are honored per-call.
     """
-    return Path(os.path.expanduser(f"~/.sase/{_STATE_FILENAME}"))
+    return sase_home() / _STATE_FILENAME
 
 
 @dataclass(frozen=True)

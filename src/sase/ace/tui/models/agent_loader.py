@@ -14,6 +14,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
+from sase.core.paths import sase_projects_dir
 
 from ...changespec import ChangeSpec, find_all_changespecs
 from ...hooks.processes import is_process_running
@@ -115,13 +116,13 @@ def _scan_artifacts_for_loader(
     consumer.
     """
     return scan_agent_artifacts(
-        Path.home() / ".sase" / "projects",
+        sase_projects_dir(),
         options or _TUI_SCAN_OPTIONS,
     )
 
 
 def _projects_root_for_loader() -> Path:
-    return Path.home() / ".sase" / "projects"
+    return sase_projects_dir()
 
 
 def _query_artifact_index_for_loader(

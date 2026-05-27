@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sase.core.paths import sase_projects_dir
+
 from ._panel_types import TabName
 
 if TYPE_CHECKING:
@@ -74,10 +76,14 @@ class AgentChangespecNavigationMixin:
             if "/" in agent.parent_workflow
             else agent.parent_workflow
         )
-        state_file = Path(
-            f"~/.sase/projects/{project_name}/artifacts/"
-            f"workflow-{base_workflow}/{agent.raw_suffix}/workflow_state.json"
-        ).expanduser()
+        state_file = (
+            sase_projects_dir()
+            / project_name
+            / "artifacts"
+            / f"workflow-{base_workflow}"
+            / agent.raw_suffix
+            / "workflow_state.json"
+        )
 
         try:
             with open(state_file, encoding="utf-8") as f:

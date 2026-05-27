@@ -48,6 +48,7 @@ from sase.core.agent_scan_wire import (
     agent_scan_wire_to_json_dict,
     agent_scan_wire_from_dict,
 )
+from sase.core.paths import sase_home as _sase_home
 from sase.core.rust import require_rust_binding
 
 
@@ -87,9 +88,7 @@ def scan_agent_artifacts(
 
 def default_agent_artifact_index_path(sase_home: Path | str | None = None) -> Path:
     """Return the default persistent artifact index path."""
-    root = (
-        Path(sase_home).expanduser() if sase_home is not None else Path.home() / ".sase"
-    )
+    root = Path(sase_home).expanduser() if sase_home is not None else _sase_home()
     return root / "agent_artifact_index.sqlite"
 
 

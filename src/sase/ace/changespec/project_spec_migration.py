@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from contextlib import ExitStack
 from pathlib import Path
 
+from sase.core.paths import sase_projects_dir
+
 from .locking import changespec_lock
 from .project_spec_path import (
     active_project_spec_filename,
@@ -144,7 +146,7 @@ def migrate_all_projects(
     The aggregated report covers all project directories visited.
     """
     if projects_dir is None:
-        projects_dir = Path.home() / ".sase" / "projects"
+        projects_dir = sase_projects_dir()
 
     aggregate = MigrationReport()
     if not projects_dir.is_dir():

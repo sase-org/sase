@@ -3,6 +3,8 @@
 from pathlib import Path
 from typing import Any
 
+from sase.core.paths import sase_projects_dir
+
 from .locking import (
     LockTimeoutError,
     acquire_edit_lock,
@@ -143,7 +145,7 @@ def find_all_changespecs() -> list[ChangeSpec]:
     Returns:
         List of all ChangeSpec objects from both main and archive project files.
     """
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
 
     if not projects_dir.exists():
         return []

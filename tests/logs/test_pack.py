@@ -13,7 +13,6 @@ class TestBuildPack:
     def test_creates_pack_with_manifest(self, tmp_path: Path) -> None:
         sase_dir = tmp_path / "sase_home"
         sase_dir.mkdir()
-        pack_base = tmp_path / "pack_output"
 
         # Create some test data
         chats_dir = sase_dir / "chats"
@@ -27,17 +26,7 @@ class TestBuildPack:
         start = datetime(2026, 3, 14, 0, 0, 0, tzinfo=get_timezone())
         end = datetime(2026, 3, 16, 23, 59, 59, tzinfo=get_timezone())
 
-        original_expanduser = Path.expanduser
-
-        def _fake_expanduser(self: Path) -> Path:
-            s = str(self)
-            if s.startswith("~/.sase/logs/pack"):
-                return pack_base / s[len("~/.sase/logs/pack/") :]
-            if s.startswith("~/.sase/"):
-                return sase_dir / s[len("~/.sase/") :]
-            return original_expanduser(self)
-
-        with patch.object(Path, "expanduser", _fake_expanduser):
+        with patch.dict("os.environ", {"SASE_HOME": str(sase_dir)}):
             pack_dir = build_pack(start, end, "-2d..0d")
 
         pack_path = Path(pack_dir)
@@ -55,22 +44,11 @@ class TestBuildPack:
     def test_empty_pack(self, tmp_path: Path) -> None:
         sase_dir = tmp_path / "sase_home"
         sase_dir.mkdir()
-        pack_base = tmp_path / "pack_output"
 
         start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=get_timezone())
         end = datetime(2020, 1, 2, 23, 59, 59, tzinfo=get_timezone())
 
-        original_expanduser = Path.expanduser
-
-        def _fake_expanduser(self: Path) -> Path:
-            s = str(self)
-            if s.startswith("~/.sase/logs/pack"):
-                return pack_base / s[len("~/.sase/logs/pack/") :]
-            if s.startswith("~/.sase/"):
-                return sase_dir / s[len("~/.sase/") :]
-            return original_expanduser(self)
-
-        with patch.object(Path, "expanduser", _fake_expanduser):
+        with patch.dict("os.environ", {"SASE_HOME": str(sase_dir)}):
             pack_dir = build_pack(start, end, "200101..200102")
 
         manifest = json.loads((Path(pack_dir) / "manifest.json").read_text())
@@ -79,7 +57,6 @@ class TestBuildPack:
     def test_pack_includes_new_sources(self, tmp_path: Path) -> None:
         sase_dir = tmp_path / "sase_home"
         sase_dir.mkdir()
-        pack_base = tmp_path / "pack_output"
 
         # Comments
         comments_dir = sase_dir / "comments"
@@ -116,17 +93,7 @@ class TestBuildPack:
         start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=get_timezone())
         end = datetime(2030, 12, 31, 23, 59, 59, tzinfo=get_timezone())
 
-        original_expanduser = Path.expanduser
-
-        def _fake_expanduser(self: Path) -> Path:
-            s = str(self)
-            if s.startswith("~/.sase/logs/pack"):
-                return pack_base / s[len("~/.sase/logs/pack/") :]
-            if s.startswith("~/.sase/"):
-                return sase_dir / s[len("~/.sase/") :]
-            return original_expanduser(self)
-
-        with patch.object(Path, "expanduser", _fake_expanduser):
+        with patch.dict("os.environ", {"SASE_HOME": str(sase_dir)}):
             pack_dir = build_pack(start, end, "-7d..0d")
 
         pack_path = Path(pack_dir)

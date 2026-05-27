@@ -4,9 +4,15 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.core.paths import sase_home
+
 # Stack configuration
 MAX_STACK_SIZE = 50
-_QUERY_HISTORY_FILE = Path.home() / ".sase" / "query_history.json"
+_QUERY_HISTORY_FILE: Path | None = None
+
+
+def _query_history_file() -> Path:
+    return _QUERY_HISTORY_FILE or sase_home() / "query_history.json"
 
 
 @dataclass
@@ -23,11 +29,12 @@ def load_query_history() -> QueryHistoryStacks:
     Returns:
         QueryHistoryStacks with prev and next lists.
     """
-    if not _QUERY_HISTORY_FILE.exists():
+    path = _query_history_file()
+    if not path.exists():
         return QueryHistoryStacks(prev=[], next=[])
 
     try:
-        with open(_QUERY_HISTORY_FILE) as f:
+        with open(path) as f:
             data = json.load(f)
         # Validate and truncate if needed
         prev = data.get("prev", [])[-MAX_STACK_SIZE:]
@@ -47,13 +54,14 @@ def save_query_history(stacks: QueryHistoryStacks) -> bool:
         True if saved successfully, False otherwise.
     """
     try:
-        _QUERY_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        path = _query_history_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
         # Truncate to max size before saving
         data = {
             "prev": stacks.prev[-MAX_STACK_SIZE:],
             "next": stacks.next[-MAX_STACK_SIZE:],
         }
-        with open(_QUERY_HISTORY_FILE, "w") as f:
+        with open(path, "w") as f:
             json.dump(data, f, indent=2)
         return True
     except OSError:

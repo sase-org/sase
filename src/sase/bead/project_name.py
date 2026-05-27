@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+from sase.core.paths import sase_projects_dir
 from sase.workspace_provider.utils import parse_workspace_dir
 
 
@@ -40,7 +41,7 @@ def _cwd_matches_project_workspace(cwd: str, primary: Path, project_name: str) -
 
 def scan_projects_for_cwd(cwd: str) -> tuple[str, Path] | None:
     """Find ``(project_name, primary_workspace)`` for *cwd* by scanning projects."""
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return None
 
@@ -81,7 +82,7 @@ def infer_project_name_from_cwd(cwd: str | None = None) -> str | None:
 
         project_name = get_workspace_name(cwd_abs)
         if project_name:
-            project_dir = Path.home() / ".sase" / "projects" / project_name
+            project_dir = sase_projects_dir() / project_name
             project_file = Path(
                 preferred_project_spec_path(str(project_dir), project_name)
             )
@@ -115,7 +116,7 @@ def _project_name_from_marker(cwd_abs: str) -> str | None:
     if not project_name:
         return None
 
-    project_dir = Path.home() / ".sase" / "projects" / project_name
+    project_dir = sase_projects_dir() / project_name
     project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
     if not project_file.exists():
         return None

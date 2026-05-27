@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-27 13:54:28
-status: wip
+status: done
 prompt: sdd/prompts/202605/sase_home_path_isolation.md
 ---
 # Fix SASE Home Path Isolation

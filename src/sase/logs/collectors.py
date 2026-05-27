@@ -5,7 +5,12 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from sase.core.paths import iter_sharded_files
+from sase.core.paths import (
+    iter_sharded_files,
+    sase_home,
+    sase_projects_dir,
+    sase_subdir,
+)
 from sase.core.time import get_timezone
 
 
@@ -34,6 +39,15 @@ def _subdir_name(directory: str) -> str | None:
     if name in _SHARDED_SUBDIRS:
         return name
     return None
+
+
+def _directory_path(directory: str) -> Path:
+    prefix = "~/.sase"
+    if directory == prefix:
+        return sase_home()
+    if directory.startswith(f"{prefix}/"):
+        return sase_home() / directory[len(f"{prefix}/") :]
+    return Path(directory).expanduser()
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +111,7 @@ def _iter_files(directory: str, glob: str = "*") -> list[Path]:
     subdir = _subdir_name(directory)
     if subdir is not None:
         return [p for p in iter_sharded_files(subdir, pattern=glob) if p.is_file()]
-    d = Path(directory).expanduser()
+    d = _directory_path(directory)
     if not d.is_dir():
         return []
     return [p for p in d.glob(glob) if p.is_file()]
@@ -145,7 +159,7 @@ def collect_diffs(start: datetime, end: datetime) -> list[Path]:
 
 def collect_artifacts(start: datetime, end: datetime) -> list[Path]:
     """Collect artifact directories whose ``YYYYmmddHHMMSS`` name is in range."""
-    projects_dir = Path("~/.sase/projects").expanduser()
+    projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return []
     results: list[Path] = []
@@ -186,7 +200,7 @@ def collect_questions(start: datetime, end: datetime) -> list[Path]:
 
 def _collect_jsonl_by_timestamp(path: str, start: datetime, end: datetime) -> list[str]:
     """Filter JSONL lines by their ``timestamp`` field (``YYmmdd_HHMMSS`` format)."""
-    p = Path(path).expanduser()
+    p = _directory_path(path)
     if not p.is_file():
         return []
     lines: list[str] = []
@@ -214,7 +228,7 @@ def _collect_jsonl_by_iso_timestamp(
     path: str, start: datetime, end: datetime
 ) -> list[str]:
     """Filter JSONL lines by their ``timestamp`` field (ISO 8601 format)."""
-    p = Path(path).expanduser()
+    p = _directory_path(path)
     if not p.is_file():
         return []
     lines: list[str] = []
@@ -264,7 +278,7 @@ def collect_axe_state(start: datetime, end: datetime) -> list[tuple[str, Path]]:
     Returns a list of (lumberjack_name, file_path) tuples so the pack builder
     can preserve the per-lumberjack directory structure.
     """
-    jacks_dir = Path("~/.sase/axe/lumberjacks").expanduser()
+    jacks_dir = sase_subdir("axe") / "lumberjacks"
     if not jacks_dir.is_dir():
         return []
     results: list[tuple[str, Path]] = []

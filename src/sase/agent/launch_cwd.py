@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.launch_validation import internal_agent_name_bypass_enabled
+from sase.core.paths import sase_projects_dir
 
 
 @dataclass(frozen=True)
@@ -83,7 +84,7 @@ def resolve_known_project_vcs_launch_ref(
 
     from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
-    project_dir = Path.home() / ".sase" / "projects" / project_name
+    project_dir = sase_projects_dir() / project_name
     project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
     return _KnownProjectVcsLaunchRef(
         workflow_type=workflow_type,
@@ -141,7 +142,7 @@ def launch_agents_from_cwd(
         from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
         project_name = "home"
-        home_dir = os.path.expanduser("~/.sase/projects/home")
+        home_dir = str(sase_projects_dir() / "home")
         project_file = preferred_project_spec_path(home_dir, "home")
 
     assert project_file is not None
@@ -442,7 +443,7 @@ def launch_agents_from_cwd(
 
         is_home_mode = True
         project_name = "home"
-        home_dir = os.path.expanduser("~/.sase/projects/home")
+        home_dir = str(sase_projects_dir() / "home")
         project_file = preferred_project_spec_path(home_dir, "home")
 
     # --- Resolve fixed workspace contexts ---

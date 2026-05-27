@@ -7,9 +7,16 @@ import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from sase.core.paths import sase_subdir
+
 log = logging.getLogger(__name__)
 
-SASE_MENTORS_DIR = Path.home() / ".sase" / "mentors"
+SASE_MENTORS_DIR: Path | None = None
+
+
+def _sase_mentors_dir() -> Path:
+    return SASE_MENTORS_DIR or sase_subdir("mentors")
+
 
 # ── Dataclasses ──────────────────────────────────────────────────────────
 
@@ -85,10 +92,11 @@ def save_mentor_output(
     Returns:
         Path to the saved file.
     """
-    SASE_MENTORS_DIR.mkdir(parents=True, exist_ok=True)
+    mentors_dir = _sase_mentors_dir()
+    mentors_dir.mkdir(parents=True, exist_ok=True)
     safe_cl = cl_name.replace("/", "_")
     filename = f"{safe_cl}-{profile_name}-{mentor_name}-{timestamp}.json"
-    path = SASE_MENTORS_DIR / filename
+    path = mentors_dir / filename
     path.write_text(json.dumps(asdict(output), indent=2), encoding="utf-8")
     return path
 
@@ -116,11 +124,12 @@ def _load_all_mentor_outputs(cl_name: str) -> list[tuple[Path, MentorOutput]]:
     Returns:
         List of (path, MentorOutput) tuples sorted by filename (timestamp order).
     """
-    if not SASE_MENTORS_DIR.is_dir():
+    mentors_dir = _sase_mentors_dir()
+    if not mentors_dir.is_dir():
         return []
     safe_cl = cl_name.replace("/", "_")
     results: list[tuple[Path, MentorOutput]] = []
-    for path in sorted(SASE_MENTORS_DIR.glob(f"{safe_cl}-*.json")):
+    for path in sorted(mentors_dir.glob(f"{safe_cl}-*.json")):
         # Skip acceptance state files
         if path.name.endswith("-acceptance.json"):
             continue
@@ -147,10 +156,11 @@ def save_file_snapshots(
 
     File is written to ``~/.sase/mentors/<cl>-<profile>-<mentor>-<ts>-files.json``.
     """
-    SASE_MENTORS_DIR.mkdir(parents=True, exist_ok=True)
+    mentors_dir = _sase_mentors_dir()
+    mentors_dir.mkdir(parents=True, exist_ok=True)
     safe_cl = cl_name.replace("/", "_")
     filename = f"{safe_cl}-{profile_name}-{mentor_name}-{timestamp}-files.json"
-    path = SASE_MENTORS_DIR / filename
+    path = mentors_dir / filename
     data = {"revision": revision, "files": files}
     path.write_text(json.dumps(data), encoding="utf-8")
     return path
@@ -168,7 +178,7 @@ def load_file_snapshots(
     """
     safe_cl = cl_name.replace("/", "_")
     filename = f"{safe_cl}-{profile_name}-{mentor_name}-{timestamp}-files.json"
-    path = SASE_MENTORS_DIR / filename
+    path = _sase_mentors_dir() / filename
     if not path.is_file():
         return {}
     try:
@@ -294,10 +304,11 @@ def save_read_state(cl_name: str, entry_id: str, state: MentorReadState) -> Path
 
     File is written to ``~/.sase/mentors/<cl>-<entry_id>-readstate.json``.
     """
-    SASE_MENTORS_DIR.mkdir(parents=True, exist_ok=True)
+    mentors_dir = _sase_mentors_dir()
+    mentors_dir.mkdir(parents=True, exist_ok=True)
     safe_cl = cl_name.replace("/", "_")
     filename = f"{safe_cl}-{entry_id}-readstate.json"
-    path = SASE_MENTORS_DIR / filename
+    path = mentors_dir / filename
     path.write_text(json.dumps(state.read, indent=2), encoding="utf-8")
     return path
 
@@ -309,7 +320,7 @@ def load_read_state(cl_name: str, entry_id: str) -> MentorReadState:
     """
     safe_cl = cl_name.replace("/", "_")
     filename = f"{safe_cl}-{entry_id}-readstate.json"
-    path = SASE_MENTORS_DIR / filename
+    path = _sase_mentors_dir() / filename
     if not path.is_file():
         return MentorReadState()
     try:
@@ -327,10 +338,11 @@ def save_acceptance_state(
 
     File is written to ``~/.sase/mentors/<cl>-<entry_id>-acceptance.json``.
     """
-    SASE_MENTORS_DIR.mkdir(parents=True, exist_ok=True)
+    mentors_dir = _sase_mentors_dir()
+    mentors_dir.mkdir(parents=True, exist_ok=True)
     safe_cl = cl_name.replace("/", "_")
     filename = f"{safe_cl}-{entry_id}-acceptance.json"
-    path = SASE_MENTORS_DIR / filename
+    path = mentors_dir / filename
     path.write_text(json.dumps(state.accepted, indent=2), encoding="utf-8")
     return path
 
@@ -342,7 +354,7 @@ def load_acceptance_state(cl_name: str, entry_id: str) -> MentorAcceptanceState:
     """
     safe_cl = cl_name.replace("/", "_")
     filename = f"{safe_cl}-{entry_id}-acceptance.json"
-    path = SASE_MENTORS_DIR / filename
+    path = _sase_mentors_dir() / filename
     if not path.is_file():
         return MentorAcceptanceState()
     try:

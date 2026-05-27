@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.names._common import extract_auto_name_prefix
+from sase.core.paths import sase_home, sase_projects_dir, sase_subdir
 
 SCHEMA_VERSION = 1
 INDEX_FILENAME = "agent_name_registry.json"
@@ -21,7 +22,7 @@ _CACHE_DATA: dict[str, Any] | None = None
 
 def _registry_path() -> Path:
     """Return the durable agent-name registry path."""
-    return Path.home() / ".sase" / INDEX_FILENAME
+    return sase_home() / INDEX_FILENAME
 
 
 def lookup_registered_name(name: str) -> dict[str, Any] | None:
@@ -251,13 +252,12 @@ def _source_signature() -> dict[str, int]:
 
 
 def _source_signature_paths() -> list[Path]:
-    home = Path.home()
     paths = [
-        home / ".sase" / "projects",
-        home / ".sase" / "dismissed_agents.json",
-        home / ".sase" / "dismissed_bundles",
+        sase_projects_dir(),
+        sase_home() / "dismissed_agents.json",
+        sase_subdir("dismissed_bundles"),
     ]
-    projects_dir = home / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     try:
         project_dirs = [p for p in projects_dir.iterdir() if p.is_dir()]
     except OSError:
@@ -284,7 +284,7 @@ def _file_signature(path: Path) -> tuple[int, int]:
 
 
 def _collect_artifact_entries(entries: dict[str, dict[str, Any]]) -> None:
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return
     dismissed_suffixes = _load_dismissed_suffixes()
@@ -328,7 +328,7 @@ def _collect_artifact_entries(entries: dict[str, dict[str, Any]]) -> None:
 
 
 def _collect_dismissed_bundle_entries(entries: dict[str, dict[str, Any]]) -> None:
-    bundles_dir = Path.home() / ".sase" / "dismissed_bundles"
+    bundles_dir = sase_subdir("dismissed_bundles")
     if not bundles_dir.is_dir():
         return
     try:
@@ -467,7 +467,7 @@ def _read_json_object(path: Path) -> dict[str, Any] | None:
 
 
 def _load_dismissed_suffixes() -> set[str]:
-    path = Path.home() / ".sase" / "dismissed_agents.json"
+    path = sase_home() / "dismissed_agents.json"
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)

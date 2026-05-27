@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from sase.core.paths import sase_subdir
+from sase.core.time import get_timezone
 from sase.notifications.models import Notification, normalize_notification_tags
 from sase.notifications.store import append_notification
-from sase.core.time import get_timezone
 from sase.telemetry.metrics import NOTIFICATIONS_SENT
 
 
@@ -138,7 +139,7 @@ def notify_axe_error_digest(
     errors: list[dict],
 ) -> None:
     """Send a digest notification summarising recent axe errors."""
-    digest_dir = Path.home() / ".sase" / "axe" / "error_digests"
+    digest_dir = sase_subdir("axe") / "error_digests"
     digest_dir.mkdir(parents=True, exist_ok=True)
     digest_file = (
         digest_dir

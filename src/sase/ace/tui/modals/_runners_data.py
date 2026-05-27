@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
+from sase.core.paths import sase_projects_dir
+
 from ...changespec import (
     ChangeSpec,
     HookEntry,
@@ -223,8 +225,6 @@ def _read_prompt_preview(
     if not artifacts_timestamp:
         return None
 
-    import os
-
     # Convert YYmmdd_HHMMSS to YYYYmmddHHMMSS if needed
     ts = artifacts_timestamp
     if len(ts) == 13 and ts[6] == "_":
@@ -232,8 +232,13 @@ def _read_prompt_preview(
 
         ts = convert_timestamp_to_artifacts_format(ts)
 
-    raw_path = os.path.expanduser(
-        f"~/.sase/projects/{project_name}/artifacts/ace-run/{ts}/raw_xprompt.md"
+    raw_path = (
+        sase_projects_dir()
+        / project_name
+        / "artifacts"
+        / "ace-run"
+        / ts
+        / "raw_xprompt.md"
     )
     try:
         with open(raw_path, encoding="utf-8") as f:

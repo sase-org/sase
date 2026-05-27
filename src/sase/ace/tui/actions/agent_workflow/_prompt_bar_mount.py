@@ -8,6 +8,7 @@ from typing import ClassVar
 
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.core.paths import sase_projects_dir
 
 from ._types import PromptContext
 
@@ -59,7 +60,7 @@ class PromptBarMountMixin:
             self.notify("No project selected", severity="error")  # type: ignore[attr-defined]
             return
 
-        project_dir = os.path.expanduser(f"~/.sase/projects/{project_name}")
+        project_dir = str(sase_projects_dir() / project_name)
         project_file = preferred_project_spec_path(project_dir, project_name)
 
         # Create project file if it doesn't exist
@@ -286,7 +287,7 @@ class PromptBarMountMixin:
             project_name="home",
             cl_name=None,
             project_file=preferred_project_spec_path(
-                os.path.expanduser("~/.sase/projects/home"), "home"
+                str(sase_projects_dir() / "home"), "home"
             ),
             workspace_dir=str(Path.home()),
             workspace_num=0,

@@ -44,11 +44,25 @@ def redirect_sase_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> Path:
     home.mkdir(parents=True, exist_ok=True)
     original_path_expanduser = Path.expanduser
     original_os_expanduser = os.path.expanduser
-    initial_home_env = os.environ.get("HOME")
+    ambient_home_env = os.environ.get("HOME")
+
+    if home.name == ".sase":
+        monkeypatch.setenv("HOME", str(home.parent))
+        monkeypatch.setenv("SASE_HOME", "~/.sase")
+    else:
+        monkeypatch.setenv("SASE_HOME", str(home))
+    redirect_home_env = (
+        os.environ.get("HOME") if home.name == ".sase" else ambient_home_env
+    )
+
+    def _current_sase_home() -> Path:
+        if home.name == ".sase":
+            return Path.home() / ".sase"
+        return home
 
     def _home_env_overridden() -> bool:
         """True if a test has set HOME to a different value than at setup time."""
-        return os.environ.get("HOME") != initial_home_env
+        return os.environ.get("HOME") != redirect_home_env
 
     def _fake_os(path):  # accepts str or os.PathLike
         s = os.fspath(path) if hasattr(path, "__fspath__") else path
@@ -57,9 +71,10 @@ def redirect_sase_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> Path:
             and (s.startswith("~/.sase/") or s == "~/.sase")
             and not _home_env_overridden()
         ):
+            current_home = _current_sase_home()
             if s.startswith("~/.sase/"):
-                return str(home / s[len("~/.sase/") :])
-            return str(home)
+                return str(current_home / s[len("~/.sase/") :])
+            return str(current_home)
         return original_os_expanduser(path)
 
     def _fake_path(self: Path) -> Path:
@@ -69,9 +84,9 @@ def redirect_sase_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> Path:
             return original_path_expanduser(self)
         s = str(self)
         if s.startswith("~/.sase/"):
-            return home / s[len("~/.sase/") :]
+            return _current_sase_home() / s[len("~/.sase/") :]
         if s == "~/.sase":
-            return home
+            return _current_sase_home()
         return original_path_expanduser(self)
 
     monkeypatch.setattr(os.path, "expanduser", _fake_os)
@@ -89,7 +104,8 @@ def _isolate_sase_home(
     in a sibling directory and doesn't pollute tests that iterate over their
     own ``tmp_path``.
     """
-    redirect_sase_home(monkeypatch, tmp_path_factory.mktemp("sase_home"))
+    fake_home = tmp_path_factory.mktemp("home")
+    redirect_sase_home(monkeypatch, fake_home / ".sase")
 
 
 @pytest.fixture(autouse=True)

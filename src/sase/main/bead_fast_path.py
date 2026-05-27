@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from sase.core.paths import sase_projects_dir
+
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
@@ -120,7 +122,7 @@ def _resolve_lightweight_beads_context(
 
 
 def _resolve_primary_workspace_by_project_scan(cwd: Path) -> Path | None:
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return None
 

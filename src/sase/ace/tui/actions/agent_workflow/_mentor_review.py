@@ -6,6 +6,7 @@ import os
 from typing import TYPE_CHECKING
 
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+from sase.core.paths import sase_projects_dir, sase_subdir
 
 from ._types import PromptContext
 
@@ -209,7 +210,7 @@ class MentorReviewMixin:
             project_name="home",
             cl_name=None,
             project_file=preferred_project_spec_path(
-                os.path.expanduser("~/.sase/projects/home"), "home"
+                str(sase_projects_dir() / "home"), "home"
             ),
             workspace_dir=str(Path.home()),
             workspace_num=0,
@@ -222,7 +223,7 @@ class MentorReviewMixin:
         )
 
         # Save accepted comments as JSON artifact for traceability
-        artifacts_dir = Path.home() / ".sase" / "mentors"
+        artifacts_dir = sase_subdir("mentors")
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         artifact_path = (
             artifacts_dir / f"{cl_name.replace('/', '_')}-apply-{timestamp}.json"

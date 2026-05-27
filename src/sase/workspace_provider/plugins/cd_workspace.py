@@ -5,13 +5,14 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from sase.core.paths import sase_projects_dir
 from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata, hookimpl
 
 
 def _home_project_file() -> str:
     from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
-    project_dir = os.path.expanduser("~/.sase/projects/home")
+    project_dir = str(sase_projects_dir() / "home")
     return preferred_project_spec_path(project_dir, "home")
 
 

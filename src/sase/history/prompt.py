@@ -10,9 +10,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from sase.core.changespec import strip_reverted_suffix
+from sase.core.paths import sase_home
 from sase.core.time import generate_timestamp
 
-_PROMPT_HISTORY_FILE = Path.home() / ".sase" / "prompt_history.json"
+_PROMPT_HISTORY_FILE: Path | None = None
 
 # Display settings for fzf
 _PROMPT_PREVIEW_LENGTH = 60
@@ -48,6 +49,10 @@ class _PromptHistoryLoadError(Exception):
     """Raised when prompt history cannot be loaded for a safe mutation."""
 
 
+def _prompt_history_file() -> Path:
+    return _PROMPT_HISTORY_FILE or sase_home() / "prompt_history.json"
+
+
 def _get_current_branch_or_workspace() -> str:
     """Get the current branch or workspace name.
 
@@ -81,11 +86,12 @@ def _load_prompt_history() -> list[PromptEntry]:
     Returns:
         List of PromptEntry objects, or empty list if file doesn't exist.
     """
-    if not _PROMPT_HISTORY_FILE.exists():
+    history_file = _prompt_history_file()
+    if not history_file.exists():
         return []
 
     try:
-        with open(_PROMPT_HISTORY_FILE, encoding="utf-8") as f:
+        with open(history_file, encoding="utf-8") as f:
             data = json.load(f)
 
         prompts = data.get("prompts", [])
@@ -112,11 +118,12 @@ def _load_prompt_history() -> list[PromptEntry]:
 
 def _load_prompt_history_for_write() -> list[PromptEntry]:
     """Load prompt history for a writer without masking corrupt/partial files."""
-    if not _PROMPT_HISTORY_FILE.exists():
+    history_file = _prompt_history_file()
+    if not history_file.exists():
         return []
 
     try:
-        with open(_PROMPT_HISTORY_FILE, encoding="utf-8") as f:
+        with open(history_file, encoding="utf-8") as f:
             data = json.load(f)
 
         prompts = data.get("prompts", [])
@@ -143,7 +150,8 @@ def _load_prompt_history_for_write() -> list[PromptEntry]:
 
 def _prompt_history_lock_file() -> Path:
     """Return the lock file path for prompt history mutations."""
-    return _PROMPT_HISTORY_FILE.with_name(f"{_PROMPT_HISTORY_FILE.name}.lock")
+    history_file = _prompt_history_file()
+    return history_file.with_name(f"{history_file.name}.lock")
 
 
 @contextmanager
@@ -169,12 +177,13 @@ def _save_prompt_history(prompts: list[PromptEntry]) -> bool:
         True if saved successfully, False otherwise.
     """
     try:
-        _PROMPT_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        history_file = _prompt_history_file()
+        history_file.parent.mkdir(parents=True, exist_ok=True)
         data = {"prompts": [asdict(p) for p in prompts]}
         fd, temp_name = tempfile.mkstemp(
-            prefix=f".{_PROMPT_HISTORY_FILE.name}.",
+            prefix=f".{history_file.name}.",
             suffix=f".{os.getpid()}.tmp",
-            dir=_PROMPT_HISTORY_FILE.parent,
+            dir=history_file.parent,
             text=True,
         )
         temp_path = Path(temp_name)
@@ -183,7 +192,7 @@ def _save_prompt_history(prompts: list[PromptEntry]) -> bool:
                 json.dump(data, f, indent=2)
                 f.flush()
                 os.fsync(f.fileno())
-            os.replace(temp_path, _PROMPT_HISTORY_FILE)
+            os.replace(temp_path, history_file)
         except OSError:
             try:
                 temp_path.unlink()

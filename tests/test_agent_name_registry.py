@@ -38,6 +38,35 @@ def test_registry_rebuild_collects_active_agent(tmp_path: Path) -> None:
         assert lookup_registered_name("foo")["state"] == "active"
 
 
+def test_registry_rebuild_stays_under_sase_home(monkeypatch, tmp_path: Path) -> None:
+    real_home = tmp_path / "real-home"
+    isolated_home = tmp_path / "isolated-home"
+    real_sase_home = real_home / ".sase"
+    isolated_sase_home = isolated_home / ".sase"
+    _make_agent(real_home, "proj", "run-real", "real-name")
+    _make_agent(isolated_home, "proj", "run-isolated", "isolated-name")
+
+    monkeypatch.setenv("HOME", str(real_home))
+    monkeypatch.setenv("SASE_HOME", str(isolated_sase_home))
+    _registry._CACHE_PATH = None
+    _registry._CACHE_SIGNATURE = None
+    _registry._CACHE_DATA = None
+
+    assert _registry._registry_path() == isolated_sase_home / (
+        "agent_name_registry.json"
+    )
+    for path in _registry._source_signature_paths():
+        assert path == isolated_sase_home or isolated_sase_home in path.parents
+        assert path != real_sase_home and real_sase_home not in path.parents
+
+    data = rebuild_name_registry()
+    loaded = load_name_registry()
+
+    assert "isolated-name" in data["entries"]
+    assert "real-name" not in data["entries"]
+    assert "isolated-name" in loaded["entries"]
+
+
 def test_registry_rebuild_collects_done_agent(tmp_path: Path) -> None:
     _make_agent(tmp_path, "proj", "run1", "foo", done=True)
     with patch.object(Path, "home", return_value=tmp_path):

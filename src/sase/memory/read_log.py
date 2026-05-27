@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
+from sase.core.paths import sase_projects_dir
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.locks import locked_file
 
@@ -276,7 +277,7 @@ def memory_read_log_path(
 ) -> Path:
     """Return the project-scoped memory-read JSONL path under ``~/.sase``."""
     project_name = project or project_memory_name(cwd or Path.cwd())
-    return Path.home() / ".sase" / "projects" / project_name / "memory_reads.jsonl"
+    return sase_projects_dir() / project_name / "memory_reads.jsonl"
 
 
 def append_memory_read_event(

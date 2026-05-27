@@ -13,12 +13,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.core.paths import sase_subdir
 from sase.notifications.models import Notification
 
-PENDING_ACTIONS_PATH = Path.home() / ".sase" / "pending_actions" / "actions.json"
-LEGACY_TELEGRAM_PENDING_ACTIONS_PATH = (
-    Path.home() / ".sase" / "telegram" / "pending_actions.json"
-)
+PENDING_ACTIONS_PATH: Path | None = None
+LEGACY_TELEGRAM_PENDING_ACTIONS_PATH: Path | None = None
 PENDING_ACTION_SCHEMA_VERSION = 1
 PENDING_ACTION_PREFIX_LEN = 8
 STALE_THRESHOLD_SECONDS = 24 * 60 * 60
@@ -37,6 +36,17 @@ class _PrefixResolution:
     prefix: str
     prefix_len: int
     resolution: str
+
+
+def _pending_actions_path() -> Path:
+    return PENDING_ACTIONS_PATH or sase_subdir("pending_actions") / "actions.json"
+
+
+def _legacy_telegram_pending_actions_path() -> Path:
+    return (
+        LEGACY_TELEGRAM_PENDING_ACTIONS_PATH
+        or sase_subdir("telegram") / "pending_actions.json"
+    )
 
 
 def register_notification(
@@ -114,7 +124,7 @@ def read_pending_action_store(*, include_legacy: bool = False) -> dict[str, Any]
 
 def _load_store(*, include_legacy: bool = False) -> dict[str, Any]:
     """Load the shared pending-action store."""
-    store = _load_json(PENDING_ACTIONS_PATH)
+    store = _load_json(_pending_actions_path())
     if not isinstance(store, dict) or "actions" not in store:
         store = _empty_store()
     if not isinstance(store.get("actions"), dict):
@@ -217,7 +227,7 @@ def _action_path(notification: Notification, key: str) -> Path | None:
 
 
 def _merge_legacy_telegram(store: dict[str, Any]) -> None:
-    legacy = _load_json(LEGACY_TELEGRAM_PENDING_ACTIONS_PATH)
+    legacy = _load_json(_legacy_telegram_pending_actions_path())
     if not isinstance(legacy, dict):
         return
     actions = store["actions"]
@@ -266,8 +276,9 @@ def _empty_store() -> dict[str, Any]:
 
 @contextmanager
 def _locked_store() -> Any:
-    PENDING_ACTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    lock_path = PENDING_ACTIONS_PATH.with_suffix(".lock")
+    store_path = _pending_actions_path()
+    store_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = store_path.with_suffix(".lock")
     with lock_path.open("a+", encoding="utf-8") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         try:
@@ -279,17 +290,18 @@ def _locked_store() -> Any:
 
 
 def _write_store(store: dict[str, Any]) -> None:
-    PENDING_ACTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    store_path = _pending_actions_path()
+    store_path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(
-        dir=PENDING_ACTIONS_PATH.parent,
-        prefix=f".{PENDING_ACTIONS_PATH.name}.",
+        dir=store_path.parent,
+        prefix=f".{store_path.name}.",
         suffix=".tmp",
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(store, f, indent=2, sort_keys=True)
             f.write("\n")
-        os.replace(tmp_path, PENDING_ACTIONS_PATH)
+        os.replace(tmp_path, store_path)
     except BaseException:
         Path(tmp_path).unlink(missing_ok=True)
         raise

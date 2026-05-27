@@ -18,6 +18,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.paths import sase_home, sase_projects_dir, sase_subdir
 
 
 @dataclass(frozen=True)
@@ -222,7 +223,7 @@ def _add_bundle_record(plan: _WipePlan, record: _BundleRecord) -> None:
 
 
 def _scan_artifacts() -> list[_ArtifactRecord]:
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return []
 
@@ -257,7 +258,7 @@ def _scan_artifacts() -> list[_ArtifactRecord]:
 
 
 def _scan_bundles() -> list[_BundleRecord]:
-    bundles_dir = Path.home() / ".sase" / "dismissed_bundles"
+    bundles_dir = sase_subdir("dismissed_bundles")
     if not bundles_dir.is_dir():
         return []
 
@@ -377,7 +378,7 @@ def _remove_bundle_paths(
         from sase.ace.dismissed_bundle_index import delete_bundle_summaries_for_suffixes
 
         delete_bundle_summaries_for_suffixes(
-            dismissed_agents._DISMISSED_BUNDLES_DIR, suffixes
+            dismissed_agents.dismissed_bundles_dir(), suffixes
         )
     except Exception:
         pass
@@ -387,7 +388,7 @@ def _remove_bundle_paths(
 def _remove_dismissed_index_entries(suffixes: set[str], errors: list[str]) -> int:
     if not suffixes:
         return 0
-    path = Path.home() / ".sase" / "dismissed_agents.json"
+    path = sase_home() / "dismissed_agents.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:

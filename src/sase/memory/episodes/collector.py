@@ -9,6 +9,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
+from sase.core.paths import sase_projects_dir
 from sase.memory.episodes._collector_engine import EpisodeCollectorEngine
 from sase.memory.episodes._models import EpisodeDraft, EpisodeSelector
 
@@ -28,7 +29,7 @@ def collect_episode_draft(
     root = (
         Path(projects_root).expanduser()
         if projects_root is not None
-        else Path.home() / ".sase" / "projects"
+        else sase_projects_dir()
     )
     snapshot = scan if scan is not None else _scan_projects(root)
     collector = EpisodeCollectorEngine(

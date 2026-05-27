@@ -36,6 +36,8 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Generator
 
+from sase.core.paths import sase_subdir
+
 log = logging.getLogger(__name__)
 
 ENV_FLAG = "SASE_TUI_TRACE"
@@ -54,7 +56,7 @@ def _trace_log_path() -> Path:
     override = os.environ.get(ENV_PATH)
     if override:
         return Path(override)
-    return Path.home() / ".sase" / "perf" / "tui_trace.jsonl"
+    return sase_subdir("perf") / "tui_trace.jsonl"
 
 
 def set_trace_context(**fields: Any) -> None:

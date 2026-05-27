@@ -8,7 +8,9 @@ import re
 from collections.abc import Iterable
 from pathlib import Path
 
-_HISTORY_FILE = Path.home() / ".sase" / "file_reference_history.json"
+from sase.core.paths import sase_home
+
+_HISTORY_FILE: Path | None = None
 
 # Narrowed from the display-side _FILE_PATH_RE in
 # sase.ace.tui.widgets.prompt_panel._file_path_hints: only absolute paths
@@ -36,6 +38,10 @@ _FILE_REF_RE = re.compile(
 def _is_local_sase_path(path: str) -> bool:
     """True if *path* points into a project-local ``.sase/`` directory."""
     return path.startswith(".sase/")
+
+
+def _history_file() -> Path:
+    return _HISTORY_FILE or sase_home() / "file_reference_history.json"
 
 
 def extract_recordable_file_refs(text: str) -> list[str]:
@@ -84,10 +90,11 @@ def load_file_references() -> list[str]:
         Ordered list of paths, most recently referenced first.  Empty
         list if the file is missing or cannot be parsed.
     """
-    if not _HISTORY_FILE.exists():
+    history_file = _history_file()
+    if not history_file.exists():
         return []
     try:
-        with open(_HISTORY_FILE, encoding="utf-8") as f:
+        with open(history_file, encoding="utf-8") as f:
             data = json.load(f)
         paths = data.get("paths", [])
         return [p for p in paths if isinstance(p, str) and not _is_local_sase_path(p)]
@@ -98,11 +105,12 @@ def load_file_references() -> list[str]:
 def _write_history(paths: list[str]) -> None:
     """Atomically overwrite the history file with *paths*."""
     try:
-        _HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = _HISTORY_FILE.with_suffix(_HISTORY_FILE.suffix + ".tmp")
+        history_file = _history_file()
+        history_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = history_file.with_suffix(history_file.suffix + ".tmp")
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump({"paths": paths}, f, indent=2)
-        os.replace(tmp_path, _HISTORY_FILE)
+        os.replace(tmp_path, history_file)
     except OSError:
         pass
 
@@ -144,10 +152,11 @@ def remove_file_reference(path: str) -> None:
     stored form (``@`` already stripped, ``~`` not expanded) — which is
     exactly what :func:`load_file_references` returns.
     """
-    if not _HISTORY_FILE.exists():
+    history_file = _history_file()
+    if not history_file.exists():
         return
     try:
-        with open(_HISTORY_FILE, encoding="utf-8") as f:
+        with open(history_file, encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError):
         return

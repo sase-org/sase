@@ -4,9 +4,10 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from sase.core.paths import sase_home
 from sase.core.time import generate_timestamp
 
-_COMMAND_HISTORY_FILE = Path.home() / ".sase" / "command_history.json"
+_COMMAND_HISTORY_FILE: Path | None = None
 
 # Display settings
 _COMMAND_PREVIEW_LENGTH = 50
@@ -23,17 +24,22 @@ class CommandEntry:
     last_used: str  # When last used
 
 
+def _command_history_file() -> Path:
+    return _COMMAND_HISTORY_FILE or sase_home() / "command_history.json"
+
+
 def _load_command_history() -> list[CommandEntry]:
     """Load command history from disk.
 
     Returns:
         List of CommandEntry objects, or empty list if file doesn't exist.
     """
-    if not _COMMAND_HISTORY_FILE.exists():
+    history_file = _command_history_file()
+    if not history_file.exists():
         return []
 
     try:
-        with open(_COMMAND_HISTORY_FILE, encoding="utf-8") as f:
+        with open(history_file, encoding="utf-8") as f:
             data = json.load(f)
 
         commands = data.get("commands", [])
@@ -66,9 +72,10 @@ def _save_command_history(commands: list[CommandEntry]) -> bool:
         True if saved successfully, False otherwise.
     """
     try:
-        _COMMAND_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        history_file = _command_history_file()
+        history_file.parent.mkdir(parents=True, exist_ok=True)
         data = {"commands": [asdict(c) for c in commands]}
-        with open(_COMMAND_HISTORY_FILE, "w", encoding="utf-8") as f:
+        with open(history_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         return True
     except OSError:

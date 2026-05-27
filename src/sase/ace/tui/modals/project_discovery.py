@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+from sase.core.paths import sase_projects_dir
 from sase.workspace_provider import detect_workflow_type
 from sase.workspace_provider.utils import parse_workspace_dir
 
@@ -13,7 +14,7 @@ def list_launchable_projects(
     projects_dir: Path | None = None,
 ) -> list[str]:
     """Return project entries that are valid project-scoped launch targets."""
-    projects_base = projects_dir or Path.home() / ".sase" / "projects"
+    projects_base = projects_dir or sase_projects_dir()
     if not projects_base.exists():
         return []
 
@@ -44,7 +45,7 @@ def is_launchable_project(
     if not project_name or project_name == "home":
         return False
 
-    projects_base = projects_dir or Path.home() / ".sase" / "projects"
+    projects_base = projects_dir or sase_projects_dir()
     project_file = Path(
         preferred_project_spec_path(str(projects_base / project_name), project_name)
     )

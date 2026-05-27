@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 import time
 
+from sase.core.paths import sase_projects_dir, sase_subdir
+
 from ._debug_leaks import debug_leaks_enabled, log_leak_snapshot
 from ._event_base import EventHandlersBase
 
@@ -87,8 +89,8 @@ class EventRefreshMixin(EventHandlersBase):
             return {"changespecs", "agents", "axe", "notifications"}
 
         targets: set[str] = set()
-        projects_root = Path.home() / ".sase" / "projects"
-        notifications_root = Path.home() / ".sase" / "notifications"
+        projects_root = sase_projects_dir()
+        notifications_root = sase_subdir("notifications")
         beads_dir = Path.cwd() / "sdd" / "beads"
         for path in changed_paths:
             parts = path.parts

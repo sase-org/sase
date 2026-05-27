@@ -13,10 +13,11 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
+from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 
 # State directory location
-BGCMD_STATE_DIR = Path.home() / ".sase" / "axe" / "bgcmd"
+BGCMD_STATE_DIR = sase_subdir("axe") / "bgcmd"
 
 # Number of slots available (1-9)
 MAX_SLOTS = 9

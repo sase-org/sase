@@ -8,6 +8,7 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from sase.config import load_xprompts_by_source
+from sase.core.paths import sase_projects_dir
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
 from .loader_parsing import (
@@ -380,7 +381,7 @@ def get_known_project_workspaces() -> dict[str, Path]:
         PROJECT_SPEC_EXTENSIONS,
     )
 
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return {}
 

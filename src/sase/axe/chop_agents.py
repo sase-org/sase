@@ -13,6 +13,7 @@ from typing import Any
 
 from sase.ace.hooks.processes import is_process_running
 from sase.artifacts import convert_timestamp_to_artifacts_format
+from sase.core.paths import sase_projects_dir, sase_subdir
 from sase.core.time import get_timezone
 
 from . import state
@@ -104,9 +105,9 @@ def agent_meta_from_chop_env(env: dict[str, str] | None = None) -> dict[str, str
 
 def _registry_path(lumberjack_name: str) -> Path:
     jack_state_dir = state.JACK_STATE_DIR
-    default_dir = Path.home() / ".sase" / "axe" / "lumberjacks"
+    default_dir = sase_subdir("axe") / "lumberjacks"
     if jack_state_dir == default_dir:
-        jack_state_dir = Path("~/.sase/axe/lumberjacks").expanduser()
+        jack_state_dir = default_dir
     return jack_state_dir / lumberjack_name / "agent_chops.json"
 
 
@@ -143,7 +144,7 @@ def _artifacts_dir(record: _ChopAgentRecord) -> Path | None:
     if not record.project_name or not record.artifacts_timestamp:
         return None
     return (
-        Path("~/.sase/projects").expanduser()
+        sase_projects_dir()
         / record.project_name
         / "artifacts"
         / "ace-run"

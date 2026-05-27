@@ -28,6 +28,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.paths import sase_projects_dir
 from sase.core.time import get_timezone
 
 
@@ -92,7 +93,7 @@ def _scan_listing_snapshot() -> AgentArtifactScanWire:
     from sase.core.agent_scan_facade import scan_agent_artifacts
 
     return scan_agent_artifacts(
-        Path.home() / ".sase" / "projects",
+        sase_projects_dir(),
         _LISTING_SCAN_OPTIONS,
     )
 

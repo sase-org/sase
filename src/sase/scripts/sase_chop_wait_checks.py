@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.axe.chop_script_context import read_chop_context
+from sase.core.paths import sase_projects_dir
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
     agent_family_base,
@@ -217,7 +218,7 @@ def main() -> None:
     def log(message: str, style: str | None = None) -> None:
         print(message)
 
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.exists():
         log(
             "wait_checks: projects=0 artifacts=0 waiting=0 ready_written=0 reason=no_projects_dir"

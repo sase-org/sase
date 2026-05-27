@@ -7,6 +7,8 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
+from sase.core.paths import sase_projects_dir
+
 from ._types import PromptContext
 
 log = logging.getLogger(__name__)
@@ -263,8 +265,12 @@ class WorkflowExecMixin:
         base_workflow = (
             workflow_name.split("/")[-1] if "/" in workflow_name else workflow_name
         )
-        artifacts_dir = os.path.expanduser(
-            f"~/.sase/projects/{project_name}/artifacts/workflow-{base_workflow}/{timestamp}"
+        artifacts_dir = str(
+            sase_projects_dir()
+            / project_name
+            / "artifacts"
+            / f"workflow-{base_workflow}"
+            / timestamp
         )
         os.makedirs(artifacts_dir, exist_ok=True)
 

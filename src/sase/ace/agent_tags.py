@@ -23,10 +23,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.core.paths import sase_home
+
 if TYPE_CHECKING:
     from .tui.models.agent import AgentType
 
-_AGENT_TAGS_FILE = Path.home() / ".sase" / "agent_tags.json"
+_AGENT_TAGS_FILE: Path | None = None
 
 REVIEW_AGENT_TAG = "review"
 
@@ -35,6 +37,10 @@ TAG_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 class InvalidTagError(ValueError):
     """Raised when a tag name fails validation."""
+
+
+def _agent_tags_file() -> Path:
+    return _AGENT_TAGS_FILE or sase_home() / "agent_tags.json"
 
 
 def validate_tag_name(tag: str) -> str:
@@ -71,11 +77,12 @@ def load_agent_tags() -> dict[tuple[AgentType, str, str | None], str]:
     """
     from .tui.models.agent import AgentType
 
-    if not _AGENT_TAGS_FILE.exists():
+    path = _agent_tags_file()
+    if not path.exists():
         return {}
 
     try:
-        with open(_AGENT_TAGS_FILE) as f:
+        with open(path) as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError):
         return {}
@@ -130,7 +137,8 @@ def save_agent_tags(
         True on success, False on I/O failure.
     """
     try:
-        _AGENT_TAGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        path = _agent_tags_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
         entries = []
         for (agent_type, cl_name, raw_suffix), tag in tags_by_identity.items():
             if not tag:
@@ -143,12 +151,12 @@ def save_agent_tags(
             )
         # Atomic replace: write to a sibling tempfile, then rename.
         tmp_fd, tmp_path = tempfile.mkstemp(
-            prefix=".agent_tags.", suffix=".json", dir=_AGENT_TAGS_FILE.parent
+            prefix=".agent_tags.", suffix=".json", dir=path.parent
         )
         try:
             with os.fdopen(tmp_fd, "w") as f:
                 json.dump(entries, f, indent=2)
-            os.replace(tmp_path, _AGENT_TAGS_FILE)
+            os.replace(tmp_path, path)
         except OSError:
             try:
                 os.unlink(tmp_path)
@@ -165,8 +173,9 @@ def _agent_tags_file_lock() -> Iterator[None]:
     """Hold an exclusive lock for the agent tag store read-modify-write cycle."""
     import fcntl
 
-    _AGENT_TAGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    lock_path = _AGENT_TAGS_FILE.parent / f"{_AGENT_TAGS_FILE.name}.lock"
+    path = _agent_tags_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.parent / f"{path.name}.lock"
     with open(lock_path, "a+", encoding="utf-8") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         try:

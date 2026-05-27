@@ -3,8 +3,9 @@
 import sys
 from pathlib import Path
 
-from sase.history.chat import list_chat_histories
 from sase.artifacts import create_artifacts_directory
+from sase.core.paths import sase_projects_dir
+from sase.history.chat import list_chat_histories
 
 from ._daemon import run_query_daemon
 from ._editor import open_editor_for_prompt, show_prompt_history_picker
@@ -276,7 +277,7 @@ def _resolve_vcs_project_info(ref: str) -> tuple[str, str]:
         return ref, project_name
 
     # Check if ref matches a known project shorthand
-    projects_base = Path.home() / ".sase" / "projects"
+    projects_base = sase_projects_dir()
     project_dir = projects_base / ref
     if project_dir.is_dir():
         return ref, ref

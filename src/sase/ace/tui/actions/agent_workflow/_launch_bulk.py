@@ -57,12 +57,13 @@ class BulkLaunchMixin:
         """Worker-thread body for :meth:`_launch_bulk_agents`."""
         try:
             from sase.agent.launch_timing import LaunchTimingRecorder
-            from sase.workspace_provider import detect_workflow_type
             from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
+            from sase.core.paths import sase_projects_dir
             from sase.running_field import (
                 get_first_available_axe_workspace,
                 get_workspace_directory_for_num,
             )
+            from sase.workspace_provider import detect_workflow_type
 
             timer = LaunchTimingRecorder(
                 "tui_agent_launch_fanout",
@@ -82,7 +83,7 @@ class BulkLaunchMixin:
                     preferred_project_spec_path,
                 )
 
-                project_dir = os.path.expanduser(f"~/.sase/projects/{project_name}")
+                project_dir = str(sase_projects_dir() / project_name)
                 project_file = preferred_project_spec_path(project_dir, project_name)
 
                 if not os.path.isfile(project_file):

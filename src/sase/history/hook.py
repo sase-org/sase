@@ -4,9 +4,10 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from sase.core.paths import sase_home
 from sase.core.time import generate_timestamp
 
-_HOOK_HISTORY_FILE = Path.home() / ".sase" / "hook_history.json"
+_HOOK_HISTORY_FILE: Path | None = None
 
 
 @dataclass
@@ -18,17 +19,22 @@ class HookHistoryEntry:
     last_used: str  # When last used
 
 
+def _hook_history_file() -> Path:
+    return _HOOK_HISTORY_FILE or sase_home() / "hook_history.json"
+
+
 def _load_hook_history() -> list[HookHistoryEntry]:
     """Load hook history from disk.
 
     Returns:
         List of HookHistoryEntry objects, or empty list if file doesn't exist.
     """
-    if not _HOOK_HISTORY_FILE.exists():
+    history_file = _hook_history_file()
+    if not history_file.exists():
         return []
 
     try:
-        with open(_HOOK_HISTORY_FILE, encoding="utf-8") as f:
+        with open(history_file, encoding="utf-8") as f:
             data = json.load(f)
 
         hooks = data.get("hooks", [])
@@ -58,9 +64,10 @@ def _save_hook_history(hooks: list[HookHistoryEntry]) -> bool:
         True if saved successfully, False otherwise.
     """
     try:
-        _HOOK_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        history_file = _hook_history_file()
+        history_file.parent.mkdir(parents=True, exist_ok=True)
         data = {"hooks": [asdict(h) for h in hooks]}
-        with open(_HOOK_HISTORY_FILE, "w", encoding="utf-8") as f:
+        with open(history_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         return True
     except OSError:

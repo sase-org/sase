@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from sase.core.paths import sase_home as _sase_home
+
 AgentArtifactKind = Literal["chat", "plan", "image", "markdown", "pdf", "file"]
 
 AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 1
@@ -66,9 +68,7 @@ class AgentArtifact:
 def default_artifacts_root(sase_home: Path | str | None = None) -> Path:
     """Return the directory used for explicit user/agent artifacts."""
 
-    root = (
-        Path(sase_home).expanduser() if sase_home is not None else Path.home() / ".sase"
-    )
+    root = Path(sase_home).expanduser() if sase_home is not None else _sase_home()
     return root / "artifacts"
 
 

@@ -9,6 +9,7 @@ import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 
+from sase.core.paths import sase_projects_dir, sase_subdir
 from sase.workspace_provider.plugins.bare_git_ref import set_bare_repo_dir
 from sase.workspace_provider.utils import set_workspace_dir
 
@@ -38,7 +39,7 @@ def init_bare_git_project(
         RuntimeError: If git commands fail or existing_bare is not a bare repo.
     """
     if bare_dir is None:
-        bare_dir = str(Path.home() / ".sase" / "repos" / f"{project_name}.git")
+        bare_dir = str(sase_subdir("repos") / f"{project_name}.git")
     if clone_dir is None:
         clone_dir = str(Path.home() / "projects" / "git" / project_name) + "/"
 
@@ -129,7 +130,7 @@ def init_bare_git_project(
     # Create project spec file (canonical .sase extension).
     from sase.ace.changespec.project_spec_path import active_project_spec_filename
 
-    projects_base = Path.home() / ".sase" / "projects"
+    projects_base = sase_projects_dir()
     project_file = str(
         projects_base / project_name / active_project_spec_filename(project_name)
     )

@@ -17,6 +17,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_scan_wire import AgentArtifactScanWire
+from sase.core.paths import sase_projects_dir
 from sase.running_field import get_claimed_workspaces
 
 from ....agent_tags import REVIEW_AGENT_TAG
@@ -62,7 +63,7 @@ def get_all_project_files() -> list[str]:
     """
     from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
 
     if not projects_dir.exists():
         return []
@@ -167,7 +168,7 @@ def load_running_home_agents_from_snapshot(
 
     agents: list[Agent] = []
     home_project_file = preferred_project_spec_path(
-        str(Path.home() / ".sase" / "projects" / "home"), "home"
+        str(sase_projects_dir() / "home"), "home"
     )
     for record in snapshot.records:
         if record.project_name != "home":
@@ -222,9 +223,7 @@ def load_running_home_agents() -> list[Agent]:
         List of Agent objects with status="RUNNING".
     """
     agents: list[Agent] = []
-    home_ace_run_dir = (
-        Path.home() / ".sase" / "projects" / "home" / "artifacts" / "ace-run"
-    )
+    home_ace_run_dir = sase_projects_dir() / "home" / "artifacts" / "ace-run"
 
     if not home_ace_run_dir.exists():
         return agents
@@ -261,7 +260,7 @@ def load_running_home_agents() -> list[Agent]:
             )
 
             home_project_file = preferred_project_spec_path(
-                str(Path.home() / ".sase" / "projects" / "home"), "home"
+                str(sase_projects_dir() / "home"), "home"
             )
             agent = Agent(
                 agent_type=AgentType.RUNNING,

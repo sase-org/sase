@@ -42,8 +42,23 @@ def get_sase_tmpdir() -> str | None:
     return None
 
 
+def sase_home() -> Path:
+    """Return the root directory for SASE state."""
+    return Path(os.environ.get("SASE_HOME") or Path.home() / ".sase").expanduser()
+
+
+def sase_subdir(subdir: str) -> Path:
+    """Return a subdirectory under the SASE state root."""
+    return sase_home() / subdir
+
+
+def sase_projects_dir() -> Path:
+    """Return the SASE projects directory."""
+    return sase_subdir("projects")
+
+
 def get_sase_directory(subdir: str) -> str:
-    """Get the path to a subdirectory under ~/.sase/.
+    """Get the path to a subdirectory under the SASE state root.
 
     Args:
         subdir: The subdirectory name (e.g., "hooks", "diffs", "chats")
@@ -51,11 +66,11 @@ def get_sase_directory(subdir: str) -> str:
     Returns:
         Full path like "/home/user/.sase/hooks"
     """
-    return os.path.expanduser(f"~/.sase/{subdir}")
+    return str(sase_subdir(subdir))
 
 
 def ensure_sase_directory(subdir: str) -> str:
-    """Ensure a ~/.sase subdirectory exists and return its path.
+    """Ensure a SASE state subdirectory exists and return its path.
 
     Args:
         subdir: The subdirectory name (e.g., "hooks", "diffs", "chats")
@@ -107,7 +122,7 @@ _TS_PREFIX_RE = re.compile(r"^(\d{14})(?:__|\.|$)")
 
 def _sase_subdir(subdir: str) -> Path:
     """Return the ``~/.sase/<subdir>`` path (expanded, not necessarily existing)."""
-    return Path(f"~/.sase/{subdir}").expanduser()
+    return sase_subdir(subdir)
 
 
 def parse_filename_timestamp(filename: str) -> datetime | None:

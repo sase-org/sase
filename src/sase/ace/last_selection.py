@@ -2,15 +2,22 @@
 
 from pathlib import Path
 
-_LAST_SELECTION_FILE = Path.home() / ".sase" / "last_selection.txt"
+from sase.core.paths import sase_home
+
+_LAST_SELECTION_FILE: Path | None = None
+
+
+def _last_selection_file() -> Path:
+    return _LAST_SELECTION_FILE or sase_home() / "last_selection.txt"
 
 
 def load_last_selection() -> str | None:
     """Load the last selected ChangeSpec name from disk."""
-    if not _LAST_SELECTION_FILE.exists():
+    path = _last_selection_file()
+    if not path.exists():
         return None
     try:
-        content = _LAST_SELECTION_FILE.read_text().strip()
+        content = path.read_text().strip()
         return content or None
     except OSError:
         return None
@@ -19,8 +26,9 @@ def load_last_selection() -> str | None:
 def save_last_selection(name: str) -> bool:
     """Save the currently selected ChangeSpec name."""
     try:
-        _LAST_SELECTION_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _LAST_SELECTION_FILE.write_text(name)
+        path = _last_selection_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(name)
         return True
     except OSError:
         return False

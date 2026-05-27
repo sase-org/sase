@@ -126,9 +126,9 @@ class AgentSnapshotCache:
         Defers re-parsing every bundle JSON file when nothing in the
         bundles directory has changed since the previous call.
         """
-        from ....dismissed_agents import _DISMISSED_BUNDLES_DIR, load_dismissed_bundles
+        from .... import dismissed_agents
 
-        bundles_dir = _DISMISSED_BUNDLES_DIR
+        bundles_dir = dismissed_agents.dismissed_bundles_dir()
         sig: tuple[tuple[str, int, int], ...]
         try:
             paths: list[str] = []
@@ -152,7 +152,7 @@ class AgentSnapshotCache:
             if cached is not None and cached[0] == sig:
                 return list(cached[1])
 
-        bundles = load_dismissed_bundles()
+        bundles = dismissed_agents.load_dismissed_bundles()
         with self._lock:
             self._dismissed_bundles = (sig, bundles)
         return list(bundles)

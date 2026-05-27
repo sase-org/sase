@@ -16,10 +16,11 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 
 # State directory location
-AXE_STATE_DIR = Path.home() / ".sase" / "axe"
+AXE_STATE_DIR = sase_subdir("axe")
 
 # Per-lumberjack state lives under this subdirectory
 JACK_STATE_DIR = AXE_STATE_DIR / "lumberjacks"

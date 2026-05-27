@@ -17,13 +17,14 @@ from typing import Literal
 
 from sase.axe.process import is_axe_running, start_axe_daemon, stop_axe_daemon
 from sase.config.core import load_merged_config
+from sase.core.paths import sase_projects_dir, sase_subdir
 from sase.vcs_provider import get_vcs_provider
 
-_STATE_DIR = Path.home() / ".sase" / "chat_install"
-_LOG_DIR = _STATE_DIR / "logs"
-_COMPLETIONS_DIR = _STATE_DIR / "completions"
-_JOBS_DIR = _STATE_DIR / "jobs"
-_LOCK_PATH = _STATE_DIR / "install.lock"
+_STATE_DIR: Path | None = None
+_LOG_DIR: Path | None = None
+_COMPLETIONS_DIR: Path | None = None
+_JOBS_DIR: Path | None = None
+_LOCK_PATH: Path | None = None
 _LOCK_FD_ENV = "SASE_CHAT_INSTALL_LOCK_FD"
 
 LaunchStatus = Literal[
@@ -69,6 +70,26 @@ class ChatInstallStatusResult:
     restart_succeeded: bool | None = None
 
 
+def _state_dir() -> Path:
+    return _STATE_DIR or sase_subdir("chat_install")
+
+
+def _log_dir() -> Path:
+    return _LOG_DIR or _state_dir() / "logs"
+
+
+def _completions_dir() -> Path:
+    return _COMPLETIONS_DIR or _state_dir() / "completions"
+
+
+def _jobs_dir() -> Path:
+    return _JOBS_DIR or _state_dir() / "jobs"
+
+
+def _lock_path() -> Path:
+    return _LOCK_PATH or _state_dir() / "install.lock"
+
+
 def _load_chat_install_config() -> _ChatInstallConfig:
     """Read and normalize the ``chat_install`` merged-config section."""
     raw = load_merged_config().get("chat_install", {})
@@ -103,7 +124,7 @@ def _resolve_registered_sase_workspace() -> Path | None:
     """Resolve the registered ``sase`` project workspace without consulting CWD."""
     from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
-    project_dir = Path.home() / ".sase" / "projects" / "sase"
+    project_dir = sase_projects_dir() / "sase"
     project_file = Path(preferred_project_spec_path(str(project_dir), "sase"))
 
     from sase.workspace_provider.utils import parse_workspace_dir
@@ -403,8 +424,9 @@ def _positive_int(value: object, default: int) -> int:
 
 
 def _acquire_lock() -> int | None:
-    _STATE_DIR.mkdir(parents=True, exist_ok=True)
-    fd = os.open(_LOCK_PATH, os.O_RDWR | os.O_CREAT, 0o600)
+    lock_path = _lock_path()
+    _state_dir().mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
@@ -420,7 +442,7 @@ def _adopt_lock_fd() -> int | None:
     try:
         fd = int(raw)
         fd_stat = os.fstat(fd)
-        lock_stat = _LOCK_PATH.stat()
+        lock_stat = _lock_path().stat()
     except (OSError, ValueError):
         return None
     if (fd_stat.st_dev, fd_stat.st_ino) != (lock_stat.st_dev, lock_stat.st_ino):
@@ -434,20 +456,23 @@ def _new_job_id() -> str:
 
 
 def _new_log_path(job_id: str | None = None) -> Path:
-    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log_dir = _log_dir()
+    log_dir.mkdir(parents=True, exist_ok=True)
     if job_id is None:
         job_id = _new_job_id()
-    return _LOG_DIR / f"install_{job_id}.log"
+    return log_dir / f"install_{job_id}.log"
 
 
 def _completion_path(job_id: str) -> Path:
-    _COMPLETIONS_DIR.mkdir(parents=True, exist_ok=True)
-    return _COMPLETIONS_DIR / f"{job_id}.json"
+    completions_dir = _completions_dir()
+    completions_dir.mkdir(parents=True, exist_ok=True)
+    return completions_dir / f"{job_id}.json"
 
 
 def _job_state_path(job_id: str) -> Path:
-    _JOBS_DIR.mkdir(parents=True, exist_ok=True)
-    return _JOBS_DIR / f"{job_id}.json"
+    jobs_dir = _jobs_dir()
+    jobs_dir.mkdir(parents=True, exist_ok=True)
+    return jobs_dir / f"{job_id}.json"
 
 
 def _valid_job_id(job_id: str) -> bool:
@@ -566,8 +591,9 @@ def _write_job_state(
 
 
 def _lock_is_held() -> bool:
-    _STATE_DIR.mkdir(parents=True, exist_ok=True)
-    fd = os.open(_LOCK_PATH, os.O_RDWR | os.O_CREAT, 0o600)
+    lock_path = _lock_path()
+    _state_dir().mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
     try:
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)

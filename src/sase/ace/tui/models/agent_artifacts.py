@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from sase.agent.agent_artifacts_cache import get_global_cache
 from sase.ace.tui.models.agent import AgentType
+from sase.core.paths import sase_projects_dir
 
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
@@ -66,8 +67,8 @@ def get_artifacts_dir(agent: Agent) -> str | None:
             )
             # appears_as_agent workflows may use ace-run/ artifacts dir
             if agent.appears_as_agent:
-                ace_run_dir = os.path.expanduser(
-                    f"~/.sase/projects/{project_name}/artifacts/ace-run"
+                ace_run_dir = str(
+                    sase_projects_dir() / project_name / "artifacts" / "ace-run"
                 )
                 if os.path.isdir(ace_run_dir):
                     timestamp = extract_artifacts_timestamp(agent)
@@ -92,8 +93,8 @@ def get_artifacts_dir(agent: Agent) -> str | None:
         return None
 
     # Construct path
-    artifacts_dir = os.path.expanduser(
-        f"~/.sase/projects/{project_name}/artifacts/{workflow_name}/{timestamp}"
+    artifacts_dir = str(
+        sase_projects_dir() / project_name / "artifacts" / workflow_name / timestamp
     )
 
     if os.path.isdir(artifacts_dir):

@@ -41,16 +41,15 @@ def save_dismissed_bundle(ctx: Any, agent: Agent) -> bool:
         return False
     bundle = agent.to_bundle_dict()
     try:
-        saved_path = ctx._save_dismissed_bundle_python(
-            ctx._DISMISSED_BUNDLES_DIR, bundle
-        )
+        bundles_dir = ctx.dismissed_bundles_dir()
+        saved_path = ctx._save_dismissed_bundle_python(bundles_dir, bundle)
     except OSError:
         return False
 
     try:
         from .dismissed_bundle_index import upsert_bundle_summary
 
-        upsert_bundle_summary(ctx._DISMISSED_BUNDLES_DIR, saved_path, bundle)
+        upsert_bundle_summary(bundles_dir, saved_path, bundle)
     except (OSError, ValueError):
         pass
     return True
@@ -61,7 +60,7 @@ def rebuild_dismissed_bundle_index(ctx: Any) -> tuple[int, int]:
     from .dismissed_bundle_index import rebuild_index
 
     ctx._run_dismissed_archive_maintenance()
-    result = rebuild_index(ctx._DISMISSED_BUNDLES_DIR)
+    result = rebuild_index(ctx.dismissed_bundles_dir())
     return result.indexed_rows, result.skipped_corrupt
 
 
@@ -69,7 +68,7 @@ def verify_dismissed_bundle_index(ctx: Any) -> dict[str, int | bool]:
     """Return diagnostics for the persistent dismissed bundle summary index."""
     from .dismissed_bundle_index import verify_index
 
-    result = verify_index(ctx._DISMISSED_BUNDLES_DIR)
+    result = verify_index(ctx.dismissed_bundles_dir())
     return {
         "ok": result.ok,
         "indexed_rows": result.indexed_rows,
@@ -93,8 +92,9 @@ def load_dismissed_bundle_summaries(
     try:
         from .dismissed_bundle_index import query_summaries
 
+        bundles_dir = ctx.dismissed_bundles_dir()
         summaries = query_summaries(
-            ctx._DISMISSED_BUNDLES_DIR,
+            bundles_dir,
             suffixes=suffixes,
             cl_name=cl_name,
             project_name=project_name,
@@ -106,7 +106,7 @@ def load_dismissed_bundle_summaries(
         ctx.rebuild_dismissed_bundle_index()
         return (
             query_summaries(
-                ctx._DISMISSED_BUNDLES_DIR,
+                bundles_dir,
                 suffixes=suffixes,
                 cl_name=cl_name,
                 project_name=project_name,
@@ -124,8 +124,9 @@ def ensure_dismissed_archive_ready(ctx: Any) -> None:
     from .dismissed_bundle_index import archive_index_exists, rebuild_index
 
     ctx._run_dismissed_archive_maintenance()
-    if not archive_index_exists(ctx._DISMISSED_BUNDLES_DIR):
-        rebuild_index(ctx._DISMISSED_BUNDLES_DIR)
+    bundles_dir = ctx.dismissed_bundles_dir()
+    if not archive_index_exists(bundles_dir):
+        rebuild_index(bundles_dir)
 
 
 def mark_bundles_revived_by_suffixes(
@@ -147,7 +148,7 @@ def bundle_paths_for_suffixes(ctx: Any, suffixes: set[str]) -> list[Path]:
         from .dismissed_bundle_index import query_bundle_paths_by_suffixes
 
         indexed_paths = query_bundle_paths_by_suffixes(
-            ctx._DISMISSED_BUNDLES_DIR, suffixes
+            ctx.dismissed_bundles_dir(), suffixes
         )
     except (OSError, ValueError, sqlite3.Error):
         indexed_paths = None
@@ -229,7 +230,8 @@ def load_dismissed_bundles(ctx: Any, suffixes: set[str] | None = None) -> list[A
         ctx._maybe_migrate_bundles()
         ctx._maybe_shard_root_bundles()
 
-    if not ctx._DISMISSED_BUNDLES_DIR.is_dir():
+    bundles_dir = ctx.dismissed_bundles_dir()
+    if not bundles_dir.is_dir():
         return []
 
     bundle_paths: list[Path] = []
@@ -238,7 +240,7 @@ def load_dismissed_bundles(ctx: Any, suffixes: set[str] | None = None) -> list[A
             from .dismissed_bundle_index import query_bundle_paths_by_suffixes
 
             indexed_paths = query_bundle_paths_by_suffixes(
-                ctx._DISMISSED_BUNDLES_DIR,
+                bundles_dir,
                 suffixes,
             )
         except (OSError, ValueError):

@@ -14,6 +14,7 @@ from sase.core.episode_wire import (
     EPISODE_WIRE_SCHEMA_VERSION,
     EpisodeStorageIndexRowWire,
 )
+from sase.core.paths import sase_projects_dir
 from sase.memory.locks import locked_file
 
 EPISODE_INDEX_FILE_NAME = "index.jsonl"
@@ -33,7 +34,7 @@ def project_episodes_dir(
     root = (
         Path(projects_root).expanduser()
         if projects_root is not None
-        else Path.home() / ".sase" / "projects"
+        else sase_projects_dir()
     )
     return root / normalized / "episodes"
 

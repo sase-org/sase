@@ -13,6 +13,7 @@ from sase.axe.runner_utils import was_killed
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.paths import sase_subdir
 
 if TYPE_CHECKING:
     from sase.main.qa_markdown import QARound
@@ -44,7 +45,7 @@ def handle_questions_flow(
         return {"answers": answers, "global_note": ""}
 
     session_id = str(uuid.uuid4())
-    response_dir = os.path.expanduser(f"~/.sase/user_question/{session_id}")
+    response_dir = str(sase_subdir("user_question") / session_id)
     os.makedirs(response_dir, exist_ok=True)
 
     request_data = {

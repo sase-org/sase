@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from sase.core.changespec import (
     get_workspace_directory_for_changespec,
 )
+from sase.core.paths import sase_subdir
 from sase.status_state_machine import (
     reset_changespec_cl,
     transition_changespec_status,
@@ -146,7 +147,7 @@ def revert_changespec(
             return (False, f"Failed to save diff: {error}")
 
         if console:
-            diff_path = Path.home() / ".sase" / "reverted" / f"{new_name}.diff"
+            diff_path = sase_subdir("reverted") / f"{new_name}.diff"
             console.print(f"[green]Saved diff to: {diff_path}[/green]")
 
         # Run sase_hg_prune

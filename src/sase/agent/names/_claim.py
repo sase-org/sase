@@ -5,6 +5,7 @@ from pathlib import Path
 
 from sase.agent.names._common import NameCollisionError
 from sase.agent.names._registry import claim_registered_name, lowest_name_suggestion
+from sase.core.paths import sase_projects_dir
 
 
 def claim_agent_name(
@@ -49,7 +50,7 @@ def _reject_explicit_collision(name: str, claiming_dir: str) -> None:
 
 def _name_has_existing_owner(name: str, claiming_dir: Path) -> bool:
     claiming = claiming_dir.expanduser().resolve(strict=False)
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return _dismissed_bundle_name_exists(name)
     for project_dir in projects_dir.iterdir():
@@ -96,11 +97,11 @@ def _payload_names_include(path: Path, name: str) -> bool:
 
 def _dismissed_bundle_name_exists(name: str) -> bool:
     try:
-        from sase.ace.dismissed_agents import _DISMISSED_BUNDLES_DIR
+        from sase.ace import dismissed_agents
     except Exception:
         return False
     try:
-        paths = list(_DISMISSED_BUNDLES_DIR.rglob("*.json"))
+        paths = list(dismissed_agents.dismissed_bundles_dir().rglob("*.json"))
     except OSError:
         return False
     for path in paths:

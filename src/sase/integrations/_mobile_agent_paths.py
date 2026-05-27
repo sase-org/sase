@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
+
+from sase.core.paths import sase_home as _core_sase_home
 
 from ._mobile_agent_common import safe_device_id
 
 
 def sase_home() -> Path:
-    return Path(os.environ.get("SASE_HOME") or Path.home() / ".sase")
+    return _core_sase_home()
 
 
 def mobile_gateway_state_dir() -> Path:

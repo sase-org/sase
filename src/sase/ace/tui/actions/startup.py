@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 from textual.timer import Timer
 
+from sase.core.paths import sase_projects_dir, sase_subdir
+
 from ...query.types import QueryExpr
 from ..activity_log import ActivityLog
 from ..util.fs_watcher import ArtifactWatcher
@@ -277,7 +279,7 @@ class StartupMixin(StateInitMixin):
 
         if self._fs_watcher is not None:
             return
-        projects_dir = Path.home() / ".sase" / "projects"
+        projects_dir = sase_projects_dir()
         if not projects_dir.exists():
             return
         # Watch each project's artifacts dir directly.  inotify on a
@@ -296,7 +298,7 @@ class StartupMixin(StateInitMixin):
         beads_dir = Path.cwd() / "sdd" / "beads"
         if beads_dir.is_dir():
             watch_paths.append(beads_dir)
-        notifications_dir = Path.home() / ".sase" / "notifications"
+        notifications_dir = sase_subdir("notifications")
         if notifications_dir.is_dir():
             watch_paths.append(notifications_dir)
         if not watch_paths:

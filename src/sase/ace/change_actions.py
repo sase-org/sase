@@ -23,6 +23,7 @@ from sase.ace.hooks.processes import (
     mark_mentor_agents_as_killed,
 )
 from sase.ace.mentors import update_changespec_mentors_field
+from sase.core.paths import sase_projects_dir
 from rich.console import Console
 from rich.markup import escape as _esc
 from sase.running_field import get_claimed_workspaces, release_workspace
@@ -30,6 +31,10 @@ from sase.vcs_provider import get_vcs_provider
 
 # Type for change action prompt results
 ChangeAction = Literal["accept", "promote", "reject", "purge"]
+
+
+def _project_dir(project: str) -> str:
+    return str(sase_projects_dir() / project)
 
 
 def delete_proposal_entry(
@@ -198,7 +203,7 @@ def prompt_for_change_action(
             project = ws_name if ws_ok and ws_name else None
             if project:
                 resolved_project_file = preferred_project_spec_path(
-                    os.path.expanduser(f"~/.sase/projects/{project}"), project
+                    _project_dir(project), project
                 )
 
         if resolved_project_file and os.path.isfile(resolved_project_file):
@@ -411,7 +416,7 @@ def execute_change_action(
                 console.print("[red]Failed to get project name[/red]")
                 return False
             resolved_project_file = preferred_project_spec_path(
-                os.path.expanduser(f"~/.sase/projects/{project}"), project
+                _project_dir(project), project
             )
 
         branch_ok, branch_result_val = provider.get_branch_name(target_dir)
@@ -558,7 +563,7 @@ def execute_change_action(
                 console.print("[red]Failed to get project name[/red]")
                 return False
             resolved_project_file = preferred_project_spec_path(
-                os.path.expanduser(f"~/.sase/projects/{project}"), project
+                _project_dir(project), project
             )
 
         # Transition status from Draft to Ready
@@ -617,7 +622,7 @@ def execute_change_action(
                 console.print("[red]Failed to get project name[/red]")
                 return False
             resolved_project_file = preferred_project_spec_path(
-                os.path.expanduser(f"~/.sase/projects/{project}"), project
+                _project_dir(project), project
             )
 
         branch_ok, branch_result_val = provider.get_branch_name(target_dir)

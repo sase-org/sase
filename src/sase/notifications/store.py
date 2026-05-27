@@ -8,12 +8,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from sase.core.paths import sase_subdir
 from sase.notifications.models import Notification
 
 log = logging.getLogger(__name__)
 
-NOTIFICATIONS_DIR = os.path.expanduser("~/.sase/notifications")
-NOTIFICATIONS_FILE = os.path.join(NOTIFICATIONS_DIR, "notifications.jsonl")
+NOTIFICATIONS_DIR: str | None = None
+NOTIFICATIONS_FILE: str | None = None
 
 
 # Process-local cache of the parsed notifications file. Keyed by a
@@ -28,12 +29,22 @@ def _invalidate_load_cache() -> None:
     _LOAD_CACHE.clear()
 
 
+def _notifications_dir() -> str:
+    return NOTIFICATIONS_DIR or str(sase_subdir("notifications"))
+
+
+def _notifications_file() -> str:
+    return NOTIFICATIONS_FILE or os.path.join(
+        _notifications_dir(), "notifications.jsonl"
+    )
+
+
 def _notifications_path() -> Path:
-    return Path(NOTIFICATIONS_FILE)
+    return Path(_notifications_file())
 
 
 def _ensure_notifications_dir() -> None:
-    os.makedirs(NOTIFICATIONS_DIR, exist_ok=True)
+    os.makedirs(_notifications_dir(), exist_ok=True)
 
 
 def _clone_notifications(notifications: list[Notification]) -> list[Notification]:
@@ -121,7 +132,7 @@ def load_notifications(include_dismissed: bool = False) -> list[Notification]:
     Returned ``Notification`` instances are fresh copies, so callers may
     mutate top-level fields without corrupting the cache.
     """
-    path = Path(NOTIFICATIONS_FILE)
+    path = _notifications_path()
     try:
         st = path.stat()
     except FileNotFoundError:

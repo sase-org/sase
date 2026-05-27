@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.paths import sase_subdir
 from sase.output import print_status
 from sase.workflows.commit.plan_paths import format_sase_plan_reference
 
@@ -70,7 +71,7 @@ def capture_pre_commit_diff(
             return None
         from sase.core.time import generate_timestamp
 
-        diffs_dir = os.path.expanduser("~/.sase/diffs")
+        diffs_dir = str(sase_subdir("diffs"))
         os.makedirs(diffs_dir, exist_ok=True)
         diff_path = os.path.join(diffs_dir, f"{cl_name}-{generate_timestamp()}.diff")
 

@@ -9,6 +9,7 @@ from rich.markup import escape as escape_markup
 
 # Add parent directory to path for status_state_machine import
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from sase.core.paths import sase_subdir
 from sase.running_field import (
     claim_workspace,
     get_first_available_axe_workspace,
@@ -145,7 +146,7 @@ def archive_changespec(
             return (False, f"Failed to save diff: {error}")
 
         if console:
-            diff_path = Path.home() / ".sase" / "archived" / f"{new_name}.diff"
+            diff_path = sase_subdir("archived") / f"{new_name}.diff"
             console.print(f"[green]Saved diff to: {diff_path}[/green]")
 
         # Abandon remote change (close PR, drop CL, etc.)

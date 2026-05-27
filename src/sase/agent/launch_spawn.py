@@ -5,6 +5,7 @@ import sys
 from functools import lru_cache
 
 from sase.agent.launch_types import AgentLaunchResult
+from sase.core.paths import sase_projects_dir
 
 
 def _remove_inherited_sase_codex_home(env: dict[str, str]) -> None:
@@ -281,7 +282,7 @@ def spawn_agent_subprocess(
                 legacy_active_project_spec_filename,
             )
 
-            home_project_dir = os.path.expanduser("~/.sase/projects/home")
+            home_project_dir = str(sase_projects_dir() / "home")
             os.makedirs(home_project_dir, exist_ok=True)
             canonical_home = os.path.join(
                 home_project_dir, active_project_spec_filename("home")

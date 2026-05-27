@@ -5,10 +5,10 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 import fcntl
-from pathlib import Path
 import re
 import threading
 
+from sase.core.paths import sase_home
 from sase.xprompt._disabled_regions import protect_disabled_regions
 from sase.xprompt._fenced_blocks import protect_fenced_blocks
 from sase.xprompt._parsing import (
@@ -42,7 +42,7 @@ def agent_name_allocation_lock() -> Iterator[None]:
                 _LOCK_STATE.depth = depth
             return
 
-        lock_path = Path.home() / ".sase" / "agent_name_allocation.lock"
+        lock_path = sase_home() / "agent_name_allocation.lock"
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         with open(lock_path, "a+", encoding="utf-8") as lock_file:
             fcntl.flock(lock_file, fcntl.LOCK_EX)
