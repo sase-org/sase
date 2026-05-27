@@ -1189,6 +1189,7 @@ With no subcommand, `sase memory` defaults to `sase memory list`.
 | `sase memory write`       | `--title`, `--target` or `--slug`, repeatable `--evidence`, `--from-chat`, `--keyword`, `--body`, `--file`, `--allow-large`, `--manual-author`, `--notify`, `--json` | Create an attributable long-term memory proposal without modifying canonical memory files.          |
 | `sase memory review [id]` | `--list`, `--show`, `--approve`, `--edit`, `--reject`, `--all`, `--target`, `--edited-file`, `--reason`, `--json`                                                    | Human review of pending memory proposals; a bare TTY command opens the interactive review app.      |
 | `sase memory log`         | `--path`, `--agent`, `--id`, `--include`, `--json`                                                                                                                   | Summarize or inspect audited memory reads, optionally including proposal and review events.         |
+| `sase memory episodes`    | `build`, `list`, `show`, `verify`, `recall`                                                                                                                          | Build, inspect, verify, and recall deterministic source-linked episode records.                     |
 
 Examples:
 
@@ -1203,6 +1204,22 @@ sase memory log --include proposals
 sase memory log --path long/generated_skills.md
 sase memory log --id <read-id>
 ```
+
+#### `sase memory episodes`
+
+`sase memory episodes` stores deterministic records of prior agent work under `~/.sase/projects/<project>/episodes/`.
+All subcommands accept `-p, --project <project>`.
+
+| Form                                 | Flags                                                                                                                                                                           | Description                                                                   |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `sase memory episodes build`         | `-n, --agent`, `-a, --artifact-dir`, `-c, --changespec`, `-C, --chat`, `-s, --since`, `-u, --until`, `-l, --limit`, `-D, --dry-run`, `-f, --force`, `-q, --quiet`, `-j, --json` | Build an episode and write it unless `--dry-run` is set.                      |
+| `sase memory episodes list`          | `-l, --limit`, `-j, --json`                                                                                                                                                     | List stored episode index rows.                                               |
+| `sase memory episodes show <id>`     | `-f, --format lesson\|json\|sources\|timeline`, `-j, --json`                                                                                                                    | Show an episode lesson, canonical JSON, source refs, or timeline.             |
+| `sase memory episodes verify [id]`   | `-A, --all`, `-j, --json`                                                                                                                                                       | Verify source existence, size, and hashes for one episode or all stored rows. |
+| `sase memory episodes recall -q <q>` | `-l, --limit`, `-j, --json`                                                                                                                                                     | Search stored episode lessons with deterministic keyword matching.            |
+
+Human-mode `build` emits phase progress to stderr; `--quiet` suppresses that progress while keeping the final stdout
+summary. JSON build output is stderr-silent and includes `episode`, `build_request`, and `build_report` objects.
 
 ### `sase memory init`
 

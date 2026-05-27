@@ -32,6 +32,8 @@ sase memory log
 sase memory log --include proposals
 sase memory log --path long/generated_skills.md
 sase memory log --id <read-id>
+sase memory episodes build -n <agent-name>
+sase memory episodes recall -q "retry feedback"
 sase init sdd
 sase init sdd --check
 sase skills list
@@ -69,6 +71,7 @@ a dry run: it can still write project files, write home memory, and follow home-
 | `sase memory log --include proposals` | Include proposal and review events in the memory audit surface.                               |
 | `sase memory log --path <path>`       | Show a path-level summary and matching individual read events.                                |
 | `sase memory log --id <read-id>`      | Show one full audited read event by id or unambiguous id prefix.                              |
+| `sase memory episodes`                | Build, inspect, verify, and recall source-linked lessons from prior agent work.               |
 | `sase memory init`                    | Create or refresh project/home memory roots and AGENTS memory references.                     |
 | `sase memory init --check`            | Report memory initialization drift without writing files.                                     |
 | `sase memory init -C`                 | Write memory files but skip the project git commit/pull/push path.                            |

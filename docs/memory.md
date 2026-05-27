@@ -207,6 +207,11 @@ Episodes are stored under `~/.sase/projects/<project>/episodes/`. `show` default
 size, and hashes without changing the episode. Missing or changed sources mean the evidence drifted; they do not delete
 the episode or automatically block recall.
 
+Human-mode `build` prints phase progress to stderr and the final summary to stdout. Pass `--quiet` to suppress progress
+while keeping the final summary, or `--json` for a deterministic machine-readable payload with `episode`,
+`build_request`, and `build_report` objects. Date-bounded project scans keep transitive agent expansion inside the same
+project/date bounds; explicit selectors such as `--agent` and `--changespec` still follow the richer related-work graph.
+
 Episodes do not modify `memory/short` or `memory/long`. Promote a durable rule from an episode only through the reviewed
 proposal path:
 

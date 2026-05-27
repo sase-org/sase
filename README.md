@@ -77,6 +77,8 @@ sase memory list         # inspect loaded, referenced, available, and missing me
 sase memory review --list  # human review of pending long-term memory proposals
 sase memory log          # summarize audited long-term memory reads
 sase memory log --include proposals  # include memory proposal/review events
+sase memory episodes build -n <agent-name>  # turn completed agent work into a source-linked lesson
+sase memory episodes recall -q "retry feedback"  # search stored lessons by topic
 sase init sdd             # create/refresh generated SDD guides and directory map
 sase skills list          # inspect generated skill sources, targets, and drift
 sase skills init --dry-run  # preview provider skill files before deploying them
@@ -120,13 +122,13 @@ SASE keeps durable state outside any one chat session:
   anything is dirty, it runs a bounded follow-up invocation that tells the same agent to use the configured commit
   skill; if the workspace is still dirty after the configured pass limit, the agent run fails with a clear artifact
   trail.
-- **Durable artifacts** - Agent metadata, chats, notifications, prompt history, ChangeSpecs, SDD files, and beads are
-  stored in predictable project/user directories so ACE, AXE, CLI commands, and external integrations can share state.
-  Long-term memory reads and write proposals are also project-scoped and audited so agents can discover context without
-  silently changing canonical memory files. ACE uses a persistent artifact index for its normal Agents-tab "visible
-  inbox" - active plus recent completed, non-hidden rows - so startup does not scan all history. Use
-  `sase agents index status` for a lightweight health check, `verify` to compare the index with source artifacts, and
-  `gc` to rebuild the index and dismissed projection.
+- **Durable artifacts** - Agent metadata, chats, notifications, prompt history, source-linked episodes, ChangeSpecs, SDD
+  files, and beads are stored in predictable project/user directories so ACE, AXE, CLI commands, and external
+  integrations can share state. Long-term memory reads and write proposals are also project-scoped and audited so agents
+  can discover context without silently changing canonical memory files. ACE uses a persistent artifact index for its
+  normal Agents-tab "visible inbox" - active plus recent completed, non-hidden rows - so startup does not scan all
+  history. Use `sase agents index status` for a lightweight health check, `verify` to compare the index with source
+  artifacts, and `gc` to rebuild the index and dismissed projection.
 
 ## Keep reading
 
@@ -135,6 +137,7 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [ACE TUI](https://sase.sh/ace/) ([local](docs/ace.md))
 - [Initialization](https://sase.sh/init/) ([local](docs/init.md))
 - [Memory](https://sase.sh/memory/) ([local](docs/memory.md))
+- [Episodes](https://sase.sh/episodes/) ([local](docs/episodes.md))
 - [AXE Automation](https://sase.sh/axe/) ([local](docs/axe.md))
 - [Spec-Driven Development](https://sase.sh/sdd/) ([local](docs/sdd.md))
 - [XPrompts](https://sase.sh/xprompt/) ([local](docs/xprompt.md))
