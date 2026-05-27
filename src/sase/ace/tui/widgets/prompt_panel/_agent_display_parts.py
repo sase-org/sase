@@ -301,11 +301,12 @@ def build_header_text(
         header_text.append("\n")
 
     # Extract meta_* overrides from step_output
-    meta_project = None
-    meta_changespec = None
-    if agent.step_output and isinstance(agent.step_output, dict):
-        meta_project = agent.step_output.get("meta_project")
-        meta_changespec = agent.step_output.get("meta_changespec")
+    step_output = agent.step_output if isinstance(agent.step_output, dict) else None
+    meta_project = step_output.get("meta_project") if step_output is not None else None
+    meta_changespec = (
+        step_output.get("meta_changespec") if step_output is not None else None
+    )
+    meta_fields = extract_meta_fields(step_output) if step_output is not None else []
 
     # For workflow step agents, show "Step" instead of "ChangeSpec"
     if agent.is_workflow_child and agent.step_name:
@@ -470,7 +471,6 @@ def build_header_text(
     if not cheap and summary is not None:
         from ._agent_artifacts import append_agent_artifacts_section
         from ._agent_deltas import append_agent_deltas_section
-        from ._agent_memory_reads import append_agent_memory_reads_section
 
         append_agent_deltas_section(
             header_text,
@@ -482,23 +482,24 @@ def build_header_text(
             artifact_paths=summary.artifact_paths,
             hint_state=hint_state,
         )
-        if summary.memory_reads:
-            _append_major_section_divider(header_text)
-            append_agent_memory_reads_section(
-                header_text,
-                events=summary.memory_reads,
-            )
 
     # Meta fields from step output
-    if agent.step_output and isinstance(agent.step_output, dict):
-        meta_fields = extract_meta_fields(agent.step_output)
-        if meta_fields:
-            _append_major_section_divider(header_text)
-            header_text.append("STEP METADATA\n", style="bold #D7AF5F underline")
-            header_text.append("\n")
-            for name, value in meta_fields:
-                header_text.append(f"{name}: ", style="bold #87D7FF")
-                header_text.append(f"{value}\n", style="#5FD75F")
+    if meta_fields:
+        _append_major_section_divider(header_text)
+        header_text.append("STEP METADATA\n", style="bold #D7AF5F underline")
+        header_text.append("\n")
+        for name, value in meta_fields:
+            header_text.append(f"{name}: ", style="bold #87D7FF")
+            header_text.append(f"{value}\n", style="#5FD75F")
+
+    if not cheap and summary is not None and summary.memory_reads:
+        from ._agent_memory_reads import append_agent_memory_reads_section
+
+        _append_major_section_divider(header_text)
+        append_agent_memory_reads_section(
+            header_text,
+            events=summary.memory_reads,
+        )
 
     # Error message (for failed agents)
     if agent.error_message:
