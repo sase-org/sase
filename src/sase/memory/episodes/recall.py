@@ -208,6 +208,10 @@ def _recall_corpus(
         row.episode_id,
         " ".join(alias_episode_ids),
         row.title,
+        row.component_key,
+        row.status,
+        row.summary_excerpt,
+        row.importance_band,
         row.changespec_name or "",
         " ".join(row.root_agent_names),
         " ".join(row.bead_ids),
@@ -215,9 +219,18 @@ def _recall_corpus(
         episode.summary,
         lesson_text,
         _metadata_recall_terms(episode.metadata),
+        _weak_refs_recall_terms(episode),
+        _importance_recall_terms(episode),
+        _safety_recall_terms(episode),
     ]
     for lesson in episode.lessons:
         parts.extend([lesson.kind, lesson.text])
+    for event in episode.events:
+        parts.extend([event.kind, event.title, event.description or ""])
+    for node in episode.nodes:
+        parts.extend(
+            [node.kind, node.label or "", _metadata_recall_terms(node.metadata)]
+        )
     for source in episode.sources:
         parts.extend([source.kind, source.label or "", source.path])
     return "\n".join(parts)
@@ -239,11 +252,15 @@ def _lesson_text(
     episode: EpisodeWire,
     episode_dir: Path,
 ) -> str:
-    for path in (Path(row.lesson_path), episode_dir / EPISODE_LESSON_FILE_NAME):
+    paths = [Path(path) for path in (row.lesson_path, row.legacy_lesson_path) if path]
+    paths.append(episode_dir / EPISODE_LESSON_FILE_NAME)
+    for path in paths:
         try:
             return path.read_text(encoding="utf-8")
         except OSError:
             continue
+    if not episode.lessons:
+        return ""
     return render_lesson_markdown(episode)
 
 
@@ -257,6 +274,23 @@ def _recall_excerpt(
             return _truncate_excerpt(lesson.text)
     if query_terms & _token_set(episode.summary):
         return _truncate_excerpt(episode.summary)
+    for event in sorted(
+        episode.events,
+        key=lambda item: (item.timestamp is None, item.timestamp or "", item.id),
+    ):
+        event_text = " ".join([event.title, event.description or ""])
+        if query_terms & _token_set(event_text):
+            return _truncate_excerpt(event_text)
+    for factor in sorted(episode.importance_factors, key=lambda item: item.kind):
+        factor_text = " ".join(
+            [factor.kind, factor.label, " ".join(factor.metadata.values())]
+        )
+        if query_terms & _token_set(factor_text):
+            return _truncate_excerpt(factor.label)
+    for source in sorted(episode.sources, key=lambda item: (item.kind, item.path)):
+        source_text = " ".join([source.kind, source.label or "", source.path])
+        if query_terms & _token_set(source_text):
+            return _truncate_excerpt(source_text)
     for line in lesson_text.splitlines():
         if query_terms & _token_set(line):
             return _truncate_excerpt(line)
@@ -328,6 +362,17 @@ _LOOKUP_METADATA_KEYS = {
     "bead_ids",
     "changespec_name",
     "changespec_names",
+    "component_key",
+    "component_root_kind",
+    "component_seed_reason",
+    "existing_episode_ids",
+    "importance_band",
+    "selector_kind",
+    "selector_value",
+    "weak_agent_families",
+    "weak_bead_ids",
+    "weak_changespec_names",
+    "weak_touched_paths",
 }
 
 
@@ -343,6 +388,39 @@ def _metadata_recall_terms(metadata: dict[str, str]) -> str:
         ):
             parts.append(value)
     return "\n".join(parts)
+
+
+def _weak_refs_recall_terms(episode: EpisodeWire) -> str:
+    weak = episode.weak_refs
+    parts = [
+        *weak.changespec_names,
+        *weak.bead_ids,
+        *weak.agent_families,
+        *weak.touched_paths,
+    ]
+    for values in weak.metadata.values():
+        parts.extend(values)
+    return "\n".join(parts)
+
+
+def _importance_recall_terms(episode: EpisodeWire) -> str:
+    parts = [episode.importance_band]
+    for factor in episode.importance_factors:
+        parts.extend([factor.kind, factor.label, *factor.evidence_ids])
+        parts.extend(factor.metadata.values())
+    return "\n".join(parts)
+
+
+def _safety_recall_terms(episode: EpisodeWire) -> str:
+    safety = episode.safety
+    return "\n".join(
+        [
+            *safety.prompt_injection_phrase_hits,
+            *safety.redaction_hits,
+            *safety.private_or_missing_source_flags,
+            *safety.warnings,
+        ]
+    )
 
 
 def _recall_sort_key(match: EpisodeRecallMatch) -> tuple[int, int, int, str]:

@@ -105,7 +105,11 @@ def write_project_episode(
         content_sha256 = _episode_content_sha256(payloads)
         index_row = _build_episode_index_row(
             stored_episode,
-            lesson_path=target_dir / EPISODE_LESSON_FILE_NAME,
+            lesson_path=(
+                target_dir / EPISODE_LESSON_FILE_NAME
+                if _episode_writes_lesson(stored_episode)
+                else None
+            ),
             content_sha256=content_sha256,
         )
         temp_dir = Path(
@@ -315,6 +319,10 @@ def _is_v2_component_episode(episode: EpisodeWire) -> bool:
     return bool(episode.component_key) and not _is_legacy_episode(episode)
 
 
+def _episode_writes_lesson(episode: EpisodeWire) -> bool:
+    return not _is_v2_component_episode(episode)
+
+
 def _stored_episode_is_legacy(episodes_dir: Path, episode_id: str) -> bool:
     stored = _load_stored_episode_or_none(episodes_dir, episode_id)
     return stored is not None and _is_legacy_episode(stored)
@@ -351,7 +359,7 @@ def _first_event_timestamp(episode: EpisodeWire) -> str | None:
 def _build_episode_index_row(
     episode: EpisodeWire,
     *,
-    lesson_path: Path,
+    lesson_path: Path | None,
     content_sha256: str,
 ) -> EpisodeStorageIndexRowWire:
     """Build the deterministic index row for a stored episode."""
@@ -378,11 +386,16 @@ def _build_episode_index_row(
         source_count=len(episode.sources),
         chat_count=_chat_count(episode),
         agent_count=_agent_count(episode),
-        lesson_path=str(lesson_path.resolve(strict=False)),
+        lesson_path=(
+            str(lesson_path.resolve(strict=False)) if lesson_path is not None else ""
+        ),
         legacy_lesson_path=(
             str(lesson_path.resolve(strict=False))
-            if episode.schema_version < EPISODE_WIRE_SCHEMA_VERSION
-            or episode.status == "legacy"
+            if lesson_path is not None
+            and (
+                episode.schema_version < EPISODE_WIRE_SCHEMA_VERSION
+                or episode.status == "legacy"
+            )
             else None
         ),
         content_sha256=content_sha256,
@@ -474,16 +487,18 @@ def _episode_file_payloads(
     episode_json = canonical_episode_json(episode)
     if not episode_json.endswith("\n"):
         episode_json += "\n"
-    lesson = (
-        lesson_markdown
-        if lesson_markdown is not None
-        else (_render_minimal_lesson_markdown(episode))
-    )
-    return {
+    payloads = {
         EPISODE_JSON_FILE_NAME: _ensure_trailing_newline(episode_json),
-        EPISODE_LESSON_FILE_NAME: _ensure_trailing_newline(lesson),
         EPISODE_SOURCES_FILE_NAME: _render_sources_jsonl(episode),
     }
+    if _episode_writes_lesson(episode):
+        lesson = (
+            lesson_markdown
+            if lesson_markdown is not None
+            else (_render_minimal_lesson_markdown(episode))
+        )
+        payloads[EPISODE_LESSON_FILE_NAME] = _ensure_trailing_newline(lesson)
+    return payloads
 
 
 def _replace_changed_files(
@@ -499,6 +514,13 @@ def _replace_changed_files(
             continue
         os.replace(temp_dir / file_name, target)
         changed = True
+    for stale_name in (EPISODE_LESSON_FILE_NAME,):
+        if stale_name in payloads:
+            continue
+        stale_path = target_dir / stale_name
+        if stale_path.exists():
+            stale_path.unlink()
+            changed = True
     return changed
 
 

@@ -14,10 +14,16 @@ from sase.core.episode_wire import (
     EPISODE_WIRE_SCHEMA_VERSION,
     EpisodeEventWire,
     EpisodeLessonWire,
+    EpisodeSafetyWire,
     EpisodeSourceRefWire,
+    EpisodeWeakRefsWire,
     EpisodeWire,
 )
 from sase.memory.episodes.collector import EpisodeDraft
+from sase.memory.episodes.importance import (
+    EpisodeImportanceScore,
+    score_episode_importance,
+)
 from sase.memory.episodes.source_refs import sort_source_refs
 from sase.memory.episodes.title import (
     EpisodeGoal,
@@ -57,6 +63,23 @@ _VERIFICATION_PATTERNS = (
     re.compile(r"\bcargo\s+(?:test|clippy|fmt)\b"),
     re.compile(r"\buv\s+run\s+pytest\b(?:\s+[-\w./:=]+){0,6}"),
 )
+_PROMPT_INJECTION_PHRASES = (
+    "ignore previous instructions",
+    "disregard previous instructions",
+    "forget all previous instructions",
+    "reveal the system prompt",
+    "print the system prompt",
+    "developer message",
+    "system message",
+    "you are now",
+)
+_REDACTION_PATTERNS = {
+    "api-key-assignment": re.compile(
+        r"(?i)\b(?:api[_-]?key|token|secret|password)\b\s*[:=]\s*['\"]?[A-Za-z0-9_./+=-]{16,}"
+    ),
+    "bearer-token": re.compile(r"(?i)\bbearer\s+[A-Za-z0-9_./+=-]{16,}"),
+    "private-key-block": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+}
 
 
 def build_episode(draft: EpisodeDraft) -> EpisodeWire:
@@ -66,9 +89,30 @@ def build_episode(draft: EpisodeDraft) -> EpisodeWire:
     goal = derive_episode_goal(draft)
     title = derive_episode_title(draft)
     events = _derive_events(draft)
-    lessons = _derive_lessons(draft, goal)
-    summary = _derive_summary(draft, goal, lessons)
-    metadata = _derive_metadata(draft, events, lessons)
+    weak_refs = _derive_weak_refs(draft)
+    safety = _derive_safety(draft)
+    importance: EpisodeImportanceScore | None
+    if _is_v2_component_draft(draft):
+        lessons: list[EpisodeLessonWire] = []
+        summary = _derive_v2_summary(draft, goal, events, weak_refs, safety)
+        importance = score_episode_importance(
+            draft,
+            events=events,
+            weak_refs=weak_refs,
+        )
+    else:
+        lessons = _derive_lessons(draft, goal)
+        summary = _derive_summary(draft, goal, lessons)
+        importance = None
+    metadata = _derive_metadata(
+        draft,
+        events,
+        lessons,
+        weak_refs=weak_refs,
+        safety=safety,
+        importance_score=importance.score if importance is not None else 0,
+        importance_band=importance.band if importance is not None else "unknown",
+    )
     component_key = draft.metadata.get("component_key", "")
     episode_id = (
         generate_v2_episode_id(draft.project, component_key)
@@ -84,6 +128,12 @@ def build_episode(draft: EpisodeDraft) -> EpisodeWire:
         root_source_id=draft.root_source_id,
         component_key=component_key,
         component_root_kind=draft.metadata.get("component_root_kind", ""),
+        status="active" if component_key else "legacy",
+        importance_score=importance.score if importance is not None else 0,
+        importance_band=importance.band if importance is not None else "unknown",
+        importance_factors=importance.factors if importance is not None else [],
+        safety=safety,
+        weak_refs=weak_refs,
         sources=sources,
         nodes=sorted(draft.nodes, key=lambda node: node.id),
         edges=sorted(draft.edges, key=lambda edge: edge.id),
@@ -91,6 +141,10 @@ def build_episode(draft: EpisodeDraft) -> EpisodeWire:
         lessons=lessons,
         metadata=metadata,
     )
+
+
+def _is_v2_component_draft(draft: EpisodeDraft) -> bool:
+    return bool(draft.metadata.get("component_key"))
 
 
 def _derive_lessons(
@@ -213,10 +267,54 @@ def _derive_summary(
     return " ".join(parts)
 
 
+def _derive_v2_summary(
+    draft: EpisodeDraft,
+    goal: EpisodeGoal,
+    events: list[EpisodeEventWire],
+    weak_refs: EpisodeWeakRefsWire,
+    safety: EpisodeSafetyWire,
+) -> str:
+    agent_count = sum(1 for node in draft.nodes if node.kind == "agent_run")
+    chat_count = sum(1 for node in draft.nodes if node.kind == "chat")
+    outcomes = _recorded_outcomes(draft.sources)
+    timestamps = sorted({event.timestamp for event in events if event.timestamp})
+    parts: list[str] = []
+    if goal.text:
+        parts.append(goal.text.rstrip(".") + ".")
+    else:
+        parts.append("Collected factual connected-component evidence.")
+    parts.append(
+        f"The component contains {agent_count} agent run(s), {chat_count} chat(s), "
+        f"{len(draft.sources)} source(s), and {len(events)} timeline event(s)."
+    )
+    if timestamps:
+        parts.append(f"Time span: {timestamps[0]} to {timestamps[-1]}.")
+    if outcomes:
+        joined = ", ".join(f"{name}={outcome}" for name, outcome in outcomes)
+        parts.append(f"Recorded outcome(s): {joined}.")
+    weak_parts: list[str] = []
+    if weak_refs.changespec_names:
+        weak_parts.append("ChangeSpecs " + ", ".join(weak_refs.changespec_names))
+    if weak_refs.bead_ids:
+        weak_parts.append("beads " + ", ".join(weak_refs.bead_ids))
+    if weak_refs.agent_families:
+        weak_parts.append("families " + ", ".join(weak_refs.agent_families))
+    if weak_parts:
+        parts.append("Weak refs: " + "; ".join(weak_parts) + ".")
+    if safety.warnings:
+        parts.append(f"Warnings: {len(safety.warnings)} safety flag(s).")
+    return " ".join(parts)
+
+
 def _derive_metadata(
     draft: EpisodeDraft,
     events: list[EpisodeEventWire],
     lessons: list[EpisodeLessonWire],
+    *,
+    weak_refs: EpisodeWeakRefsWire,
+    safety: EpisodeSafetyWire,
+    importance_score: int,
+    importance_band: str,
 ) -> dict[str, str]:
     agent_names = sorted(
         {node.label for node in draft.nodes if node.kind == "agent_run" and node.label}
@@ -235,24 +333,156 @@ def _derive_metadata(
             if node.kind == "bead" and "id" in node.metadata
         }
     )
+    agent_count = sum(1 for node in draft.nodes if node.kind == "agent_run")
+    chat_count = sum(1 for node in draft.nodes if node.kind == "chat")
     timestamps = [event.timestamp for event in events if event.timestamp]
     metadata = {
         **draft.metadata,
         "selector_kind": draft.selector_kind,
         "selector_value": draft.selector_value or "",
+        "agent_count": str(agent_count),
+        "chat_count": str(chat_count),
         "source_count": str(len(draft.sources)),
         "lesson_count": str(len(lessons)),
+        "importance_score": str(importance_score),
+        "importance_band": importance_band,
+        "warning_count": str(len(safety.warnings)),
     }
     if agent_names:
         metadata["agent_names"] = ",".join(agent_names)
-    if changespec_names:
-        metadata["changespec_names"] = ",".join(changespec_names)
-    if bead_ids:
-        metadata["bead_ids"] = ",".join(bead_ids)
+    if changespec_names or weak_refs.changespec_names:
+        metadata["changespec_names"] = ",".join(
+            sorted({*changespec_names, *weak_refs.changespec_names})
+        )
+    if bead_ids or weak_refs.bead_ids:
+        metadata["bead_ids"] = ",".join(sorted({*bead_ids, *weak_refs.bead_ids}))
+    outcomes = _recorded_outcomes(draft.sources)
+    if outcomes:
+        metadata["outcome"] = ",".join(sorted({outcome for _name, outcome in outcomes}))
     if timestamps:
         metadata["first_event_at"] = min(timestamps)
         metadata["last_event_at"] = max(timestamps)
     return dict(sorted(metadata.items()))
+
+
+def _derive_weak_refs(draft: EpisodeDraft) -> EpisodeWeakRefsWire:
+    changespec_names = {
+        *(_metadata_csv(draft.metadata.get("weak_changespec_names"))),
+        *(
+            node.metadata["name"]
+            for node in draft.nodes
+            if node.kind == "changespec" and "name" in node.metadata
+        ),
+    }
+    bead_ids = {
+        *(_metadata_csv(draft.metadata.get("weak_bead_ids"))),
+        *(
+            node.metadata["id"]
+            for node in draft.nodes
+            if node.kind == "bead" and "id" in node.metadata
+        ),
+    }
+    agent_families = {
+        *(_metadata_csv(draft.metadata.get("weak_agent_families"))),
+        *(
+            node.metadata["family"]
+            for node in draft.nodes
+            if node.kind == "agent_run" and node.metadata.get("family")
+        ),
+    }
+    touched_paths = _metadata_csv(draft.metadata.get("weak_touched_paths"))
+    metadata = {
+        key: [value]
+        for key, value in {
+            "component_seed_reason": draft.metadata.get("component_seed_reason"),
+            "component_strong_edge_count": draft.metadata.get(
+                "component_strong_edge_count"
+            ),
+            "existing_episode_ids": draft.metadata.get("existing_episode_ids"),
+        }.items()
+        if value
+    }
+    return EpisodeWeakRefsWire(
+        changespec_names=sorted(changespec_names),
+        bead_ids=sorted(bead_ids),
+        agent_families=sorted(agent_families),
+        touched_paths=sorted(touched_paths),
+        metadata=metadata,
+    )
+
+
+def _derive_safety(draft: EpisodeDraft) -> EpisodeSafetyWire:
+    source_texts = {
+        source.id: text for source in draft.sources if (text := _read_text(source))
+    }
+    phrase_hits = sorted(
+        {
+            phrase
+            for text in source_texts.values()
+            for phrase in _PROMPT_INJECTION_PHRASES
+            if phrase in text.lower()
+        }
+    )
+    redaction_hits = sorted(
+        {
+            name
+            for text in source_texts.values()
+            for name, pattern in _REDACTION_PATTERNS.items()
+            if pattern.search(text)
+        }
+    )
+    private_or_missing_flags = sorted(
+        {
+            *_missing_source_flags(draft.sources),
+            *_private_source_flags(draft.sources),
+        }
+    )
+    warnings = sorted(
+        {
+            *draft.warnings,
+            *(f"prompt-injection:{phrase}" for phrase in phrase_hits),
+            *(f"redaction:{hit}" for hit in redaction_hits),
+            *private_or_missing_flags,
+        }
+    )
+    return EpisodeSafetyWire(
+        untrusted_transcript_text=any(
+            source.kind == "chat" for source in draft.sources
+        ),
+        prompt_injection_phrase_hits=phrase_hits,
+        redaction_hits=redaction_hits,
+        private_or_missing_source_flags=private_or_missing_flags,
+        warnings=warnings,
+    )
+
+
+def _metadata_csv(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return sorted({item.strip() for item in value.split(",") if item.strip()})
+
+
+def _missing_source_flags(
+    sources: list[EpisodeSourceRefWire],
+) -> list[str]:
+    return [
+        f"missing-source:{source.id}"
+        for source in sorted(sources, key=lambda item: item.id)
+        if not source.exists
+    ]
+
+
+def _private_source_flags(
+    sources: list[EpisodeSourceRefWire],
+) -> list[str]:
+    flags: list[str] = []
+    for source in sorted(sources, key=lambda item: item.id):
+        data = _read_json_object(source)
+        if data.get("private") is True:
+            flags.append(f"private-source:{source.id}")
+        if data.get("hidden") is True:
+            flags.append(f"hidden-source:{source.id}")
+    return flags
 
 
 def _plan_decision_lessons(

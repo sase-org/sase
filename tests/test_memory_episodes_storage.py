@@ -93,6 +93,31 @@ def test_write_project_episode_updates_same_index_row_when_content_changes(
     assert "Updated summary." in second.episode_json_path.read_text(encoding="utf-8")
 
 
+def test_write_project_episode_omits_lesson_file_for_v2_components(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    chat_path = tmp_path / "component-chat.md"
+    episode = _identity_episode(
+        "ep-v2-component",
+        component_key="component/v2",
+        sources=[_source_ref(chat_path, kind="chat", content="component\n")],
+        title="V2 Component",
+    )
+
+    result = write_project_episode(
+        episode,
+        lesson_markdown="# Should Not Persist\n",
+        projects_root=projects_root,
+    )
+
+    assert result.episode_json_path.is_file()
+    assert result.sources_path.is_file()
+    assert not result.lesson_path.exists()
+    assert result.index_row.lesson_path == ""
+    assert result.index_row.legacy_lesson_path is None
+
+
 def test_write_project_episode_records_component_members(
     tmp_path: Path,
 ) -> None:

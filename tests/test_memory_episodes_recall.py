@@ -6,9 +6,12 @@ from pathlib import Path
 from sase.core.episode_wire import (
     EPISODE_WIRE_SCHEMA_VERSION,
     EpisodeEventWire,
+    EpisodeImportanceFactorWire,
     EpisodeLessonWire,
     EpisodeNodeWire,
+    EpisodeSafetyWire,
     EpisodeSourceRefWire,
+    EpisodeWeakRefsWire,
     EpisodeWire,
 )
 from sase.memory.episodes.index import read_episode_index
@@ -80,6 +83,68 @@ def test_recall_does_not_match_outcome_only_text(tmp_path: Path) -> None:
         )
         == []
     )
+
+
+def test_recall_matches_v2_episode_without_lesson_records(tmp_path: Path) -> None:
+    projects_root = tmp_path / "projects"
+    source = _source(tmp_path, "component-source.md", "source-linked evidence\n")
+    episode = EpisodeWire(
+        schema_version=EPISODE_WIRE_SCHEMA_VERSION,
+        episode_id="ep-v2-recall",
+        project="proj",
+        title="Connected Retry Evidence",
+        summary="Factual component summary for source-linked retry recovery.",
+        root_source_id=source.id,
+        component_key="component/retry",
+        component_root_kind="artifact",
+        importance_score=72,
+        importance_band="high",
+        importance_factors=[
+            EpisodeImportanceFactorWire(
+                kind="retry_recovered",
+                label="Retry or failed attempt later succeeded",
+                score=18,
+                evidence_ids=[source.id],
+            )
+        ],
+        safety=EpisodeSafetyWire(warnings=["missing-source:src-missing"]),
+        weak_refs=EpisodeWeakRefsWire(
+            changespec_names=["episode-v2-cl"],
+            bead_ids=["sase-48.4"],
+            touched_paths=["sdd/research/episode_v2.md"],
+        ),
+        sources=[source],
+        nodes=[],
+        edges=[],
+        events=[
+            EpisodeEventWire(
+                id="event-retry",
+                kind="retry",
+                title="Retry recovered",
+                timestamp="2026-05-26T12:00:00Z",
+                evidence_ids=[source.id],
+            )
+        ],
+        lessons=[],
+    )
+    write_project_episode(episode, projects_root=projects_root)
+
+    matches = recall_episode_rows(
+        read_episode_index("proj", projects_root=projects_root),
+        "retry recovered sase-48.4 episode-v2-cl",
+        projects_root=projects_root,
+    )
+
+    assert [match.episode_id for match in matches] == ["ep-v2-recall"]
+    payload = matches[0].to_json_dict()
+    assert payload["lesson_ids"] == []
+    assert payload["lesson_path"] == ""
+    assert payload["lessons"] == []
+    assert payload["excerpt"] in {
+        "Factual component summary for source-linked retry recovery.",
+        "Retry recovered",
+        "Retry or failed attempt later succeeded",
+    }
 
 
 def test_recall_uses_recency_before_outcome_as_tiebreaker(tmp_path: Path) -> None:
