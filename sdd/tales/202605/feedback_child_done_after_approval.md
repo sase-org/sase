@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 08:28:28
-status: wip
+status: done
 prompt: sdd/prompts/202605/feedback_child_done_after_approval.md
 ---
 # Feedback Child Status After Plan Approval

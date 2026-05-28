@@ -140,6 +140,93 @@ def test_apply_status_overrides_feedback_child_awaiting_review_mirrors_plan() ->
     assert parent.status == "PLAN"
 
 
+def test_apply_status_overrides_feedback_child_approved_by_metadata_stays_done() -> (
+    None
+):
+    """A feedback child with approved-plan metadata is no longer awaiting review."""
+    feedback_time = datetime(2026, 5, 17, 9, 0, 0)
+    plan_time = datetime(2026, 5, 17, 9, 10, 0)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix="20260517085500",
+        role_suffix="-plan",
+        agent_name="root",
+        agent_family="root",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 9, 5, 0),
+        parent_timestamp="20260517085500",
+        role_suffix="-2",
+        feedback_times=[feedback_time],
+        plan_times=[plan_time],
+        plan_action="approve",
+    )
+
+    _apply_status_overrides([parent, feedback_child])
+
+    assert feedback_child.status == "DONE"
+    assert parent.status == "DONE"
+
+
+def test_apply_status_overrides_feedback_child_after_code_handoff_stays_done() -> None:
+    """A feedback child followed by active code is a completed handoff step."""
+    feedback_time = datetime(2026, 5, 17, 9, 0, 0)
+    plan_time = datetime(2026, 5, 17, 9, 10, 0)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix="20260517085500",
+        role_suffix="-plan",
+        agent_name="root",
+        agent_family="root",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 9, 5, 0),
+        parent_timestamp="20260517085500",
+        role_suffix="-2",
+        feedback_times=[feedback_time],
+        plan_times=[plan_time],
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 17, 9, 20, 0),
+        parent_timestamp="20260517085500",
+        role_suffix="-code",
+        agent_name="root-code",
+        agent_family="root",
+        agent_family_role="code",
+        plan_action="tale",
+    )
+
+    _apply_status_overrides([parent, feedback_child, code_child])
+
+    assert feedback_child.status == "DONE"
+    assert code_child.status == "TALE APPROVED"
+    assert parent.status == "TALE APPROVED"
+
+
 def test_apply_status_overrides_plan_rejected_stays_terminal() -> None:
     """A rejected plan is terminal, not another plan awaiting approval."""
     parent = Agent(

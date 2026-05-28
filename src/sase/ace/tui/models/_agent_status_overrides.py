@@ -14,6 +14,9 @@ from sase.plan_chain import (
 from .agent import Agent, AgentType
 
 
+_APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "legend", "commit"})
+
+
 def is_feedback_suffix(suffix: str | None) -> bool:
     """Check if a role suffix is a plan feedback round (e.g., "-2", ".2")."""
     canonical = canonical_plan_chain_suffix(suffix)
@@ -151,6 +154,26 @@ def _has_family_followup_child(parent: Agent, all_agents: list[Agent]) -> bool:
         child is not parent
         and child.parent_timestamp == parent.raw_suffix
         and not child.parent_workflow
+        for child in all_agents
+    )
+
+
+def _feedback_child_progressed_past_review(
+    agent: Agent,
+    all_agents: list[Agent],
+) -> bool:
+    """Return True when a feedback round's revised plan was already accepted."""
+    if agent.plan_action in _APPROVED_PLAN_ACTIONS:
+        return True
+    if not agent.parent_timestamp:
+        return False
+
+    launched_at = _child_launch_time(agent)
+    return any(
+        child is not agent
+        and child.parent_timestamp == agent.parent_timestamp
+        and not child.parent_workflow
+        and _child_launch_time(child) > launched_at
         for child in all_agents
     )
 
@@ -347,7 +370,11 @@ def apply_status_overrides(
             and agent.status in {"DONE", "RUNNING"}
             and _is_awaiting_plan_review(agent)
         ):
-            agent.status = "PLAN"
+            agent.status = (
+                "DONE"
+                if _feedback_child_progressed_past_review(agent, all_agents)
+                else "PLAN"
+            )
 
     for agent in all_agents:
         if (
