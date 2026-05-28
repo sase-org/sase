@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from dataclasses import replace
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -25,10 +27,59 @@ from .dismissed_agents_bundles import write_json_file_atomic
 
 _DEFAULT_DISMISSED_AGENT_GROUPS_DIR: Path | None = None
 _WIRE_EXPORT_TYPES = (SavedAgentGroupRefWire, SavedAgentGroupSummaryWire)
+_WIRE_CAPABILITY_PROBE = {
+    "schema_version": AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION,
+    "group_id": "wire-probe",
+    "created_at": "2026-05-27T12:00:00Z",
+    "source": "marked_agents",
+    "title": "1 agent in cl",
+    "name": "Probe group",
+    "agent_count": 1,
+    "top_level_agent_count": 1,
+    "status_counts": {"DONE": 1},
+    "project_names": ["proj"],
+    "cl_names": ["cl"],
+    "agent_refs": [
+        {
+            "agent_type": "run",
+            "cl_name": "cl",
+            "raw_suffix": "ts-1",
+            "tag": "backend",
+        }
+    ],
+}
 
 
 def _default_dismissed_agent_groups_dir() -> Path:
     return _DEFAULT_DISMISSED_AGENT_GROUPS_DIR or sase_subdir("dismissed_agent_groups")
+
+
+def _rust_group_archive_binding(name: str) -> Any:
+    if not _rust_group_archive_supports_current_wire():
+        raise AttributeError("sase_core_rs saved-group archive wire is stale")
+    return require_rust_binding(name)
+
+
+@lru_cache(maxsize=1)
+def _rust_group_archive_supports_current_wire() -> bool:
+    try:
+        binding = require_rust_binding("save_dismissed_agent_group")
+    except (ImportError, AttributeError):
+        return False
+
+    with tempfile.TemporaryDirectory(prefix="sase-group-wire-probe-") as tmpdir:
+        try:
+            result = binding(tmpdir, _WIRE_CAPABILITY_PROBE)
+        except Exception:
+            return False
+
+    if not isinstance(result, dict):
+        return False
+    refs = result.get("agent_refs")
+    first_ref = refs[0] if isinstance(refs, list) and refs else None
+    if not isinstance(first_ref, dict):
+        return False
+    return result.get("name") == "Probe group" and first_ref.get("tag") == "backend"
 
 
 def save_dismissed_agent_group(
@@ -41,7 +92,7 @@ def save_dismissed_agent_group(
     root = groups_dir or _default_dismissed_agent_groups_dir()
     payload = _normalize_group_dict(group)
     try:
-        binding = require_rust_binding("save_dismissed_agent_group")
+        binding = _rust_group_archive_binding("save_dismissed_agent_group")
     except (ImportError, AttributeError):
         return _save_dismissed_agent_group_python(root, payload)
 
@@ -59,7 +110,7 @@ def list_dismissed_agent_groups(
 
     root = groups_dir or _default_dismissed_agent_groups_dir()
     try:
-        binding = require_rust_binding("list_dismissed_agent_groups")
+        binding = _rust_group_archive_binding("list_dismissed_agent_groups")
     except (ImportError, AttributeError):
         return _list_dismissed_agent_groups_python(root, limit=limit, cursor=cursor)
 
@@ -76,7 +127,7 @@ def load_dismissed_agent_group(
 
     root = groups_dir or _default_dismissed_agent_groups_dir()
     try:
-        binding = require_rust_binding("load_dismissed_agent_group")
+        binding = _rust_group_archive_binding("load_dismissed_agent_group")
     except (ImportError, AttributeError):
         return _load_dismissed_agent_group_python(root, group_id)
 
@@ -96,7 +147,7 @@ def mark_dismissed_agent_group_revived(
 
     root = groups_dir or _default_dismissed_agent_groups_dir()
     try:
-        binding = require_rust_binding("mark_dismissed_agent_group_revived")
+        binding = _rust_group_archive_binding("mark_dismissed_agent_group_revived")
     except (ImportError, AttributeError):
         return _mark_dismissed_agent_group_revived_python(
             root, group_id, revived_at=revived_at
