@@ -39,7 +39,11 @@ from sase.memory.episodes._record_helpers import (
     record_related_timestamps,
 )
 from sase.memory.episodes.chat_parse import parse_chat_transcript
-from sase.memory.episodes.index import project_episodes_dir
+from sase.memory.episodes.identity import (
+    read_episode_alias_rows,
+    read_episode_member_rows,
+    resolve_alias_episode_id,
+)
 from sase.memory.episodes.source_refs import normalize_source_path
 
 
@@ -638,73 +642,16 @@ def _existing_episode_ids_for_members(
     *,
     projects_root: Path,
 ) -> list[str]:
-    episodes_dir = project_episodes_dir(project, projects_root=projects_root)
-    members_path = episodes_dir / "members.jsonl"
-    aliases_path = episodes_dir / "aliases.jsonl"
-    episode_ids: set[str] = set()
-    for row in _read_jsonl_objects(members_path):
-        row_member_key = _member_key_from_row(row)
-        if row_member_key not in member_keys:
-            continue
-        episode_id = _row_str(row, "canonical_episode_id", "episode_id")
-        if episode_id:
-            episode_ids.add(episode_id)
-    aliases = {
-        alias: canonical
-        for row in _read_jsonl_objects(aliases_path)
-        for alias, canonical in [_alias_pair_from_row(row)]
-        if alias and canonical
+    episode_ids = {
+        row.canonical_episode_id
+        for row in read_episode_member_rows(project, projects_root=projects_root)
+        if row.member_key in member_keys
     }
-    resolved = {aliases.get(episode_id, episode_id) for episode_id in episode_ids}
+    aliases = read_episode_alias_rows(project, projects_root=projects_root)
+    resolved = {
+        resolve_alias_episode_id(episode_id, aliases) for episode_id in episode_ids
+    }
     return sorted(resolved)
-
-
-def _read_jsonl_objects(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    rows: list[dict[str, Any]] = []
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return []
-    for line in lines:
-        try:
-            data = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(data, dict):
-            rows.append(data)
-    return rows
-
-
-def _member_key_from_row(row: dict[str, Any]) -> str | None:
-    explicit = _row_str(row, "member_key", "key")
-    if explicit:
-        return explicit
-    artifact_dir = _row_str(row, "artifact_dir", "artifact_path")
-    if artifact_dir:
-        return _record_key_from_path(artifact_dir)
-    chat_path = _row_str(row, "chat_path")
-    if chat_path:
-        return _chat_key(chat_path)
-    component_key = _row_str(row, "component_key")
-    if component_key:
-        return f"component:{component_key}"
-    return None
-
-
-def _alias_pair_from_row(row: dict[str, Any]) -> tuple[str | None, str | None]:
-    alias = _row_str(row, "alias_episode_id", "old_episode_id", "episode_id")
-    canonical = _row_str(row, "canonical_episode_id", "target_episode_id")
-    return alias, canonical
-
-
-def _row_str(row: dict[str, Any], *keys: str) -> str | None:
-    for key in keys:
-        value = row.get(key)
-        if isinstance(value, str) and value:
-            return value
-    return None
 
 
 def _record_key(record: AgentArtifactRecordWire) -> str:

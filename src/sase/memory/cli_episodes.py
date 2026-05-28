@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 from pathlib import Path
 import sys
@@ -25,6 +26,15 @@ from sase.memory.episodes.collector import EpisodeSelector, collect_episode_draf
 from sase.memory.episodes.index import (
     project_episodes_dir,
     read_episode_index,
+)
+from sase.memory.episodes.identity import (
+    EpisodeAliasIndexRow,
+    EpisodeIdResolution,
+    aliases_by_canonical_episode_id,
+    canonical_episode_ids,
+    episode_id_reference_map,
+    read_episode_alias_rows,
+    resolve_alias_episode_id,
 )
 from sase.memory.episodes.recall import recall_episode_rows
 from sase.memory.episodes.render import render_lesson_markdown
@@ -203,13 +213,22 @@ def _handle_list(
 ) -> None:
     _validate_limit(args.limit, "limit")
     project = _project_from_args(args)
-    rows = read_episode_index(project, projects_root=projects_root)
+    rows = _canonical_index_rows(project, projects_root)
+    alias_rows_by_canonical = aliases_by_canonical_episode_id(
+        project,
+        projects_root=projects_root,
+    )
     if args.limit is not None:
         rows = rows[: args.limit]
 
     if getattr(args, "json", False):
         _print_json(
             {
+                "aliases": [
+                    episode_wire_to_json_dict(alias)
+                    for aliases in alias_rows_by_canonical.values()
+                    for alias in aliases
+                ],
                 "episodes": [episode_wire_to_json_dict(row) for row in rows],
                 "project": project,
                 "schema_version": episode_wire_schema_version(),
@@ -227,7 +246,10 @@ def _handle_list(
         return
 
     for row in rows:
-        details = _list_row_details(row)
+        details = _list_row_details(
+            row,
+            aliases=alias_rows_by_canonical.get(row.episode_id, []),
+        )
         suffix = f"  {details}" if details else ""
         print(f"{row.episode_id}  {row.title}{suffix}")
 
@@ -238,7 +260,12 @@ def _handle_show(
     projects_root: Path | str | None,
 ) -> None:
     project = _project_from_args(args)
-    episode_dir = _resolve_episode_dir(project, args.episode_id, projects_root)
+    episode_dir = _resolve_episode_dir(
+        project,
+        args.episode_id,
+        projects_root,
+        report_alias=True,
+    )
     fmt = "json" if getattr(args, "json", False) else args.format
 
     if fmt == "json":
@@ -287,7 +314,14 @@ def _handle_verify(
         _fail("sase memory episodes verify: specify an episode id or --all, not both")
 
     episode_dirs = (
-        [_resolve_episode_dir(project, args.episode_id, projects_root)]
+        [
+            _resolve_episode_dir(
+                project,
+                args.episode_id,
+                projects_root,
+                report_alias=True,
+            )
+        ]
         if args.episode_id
         else _all_episode_dirs(project, projects_root)
     )
@@ -328,7 +362,7 @@ def _handle_recall(
     project = _project_from_args(args)
     try:
         matches = recall_episode_rows(
-            read_episode_index(project, projects_root=projects_root),
+            _canonical_index_rows(project, projects_root),
             args.query,
             projects_root=projects_root,
             limit=args.limit,
@@ -391,31 +425,51 @@ def _resolve_episode_dir(
     project: str,
     episode_id: str,
     projects_root: Path | str | None,
+    *,
+    report_alias: bool = False,
 ) -> Path:
-    resolved_id = _resolve_episode_id(project, episode_id, projects_root)
-    return project_episodes_dir(project, projects_root=projects_root) / resolved_id
+    resolution = _resolve_episode_reference(project, episode_id, projects_root)
+    if report_alias:
+        _report_alias_resolution(resolution)
+    return project_episodes_dir(project, projects_root=projects_root) / (
+        resolution.episode_id
+    )
 
 
-def _resolve_episode_id(
+def _resolve_episode_reference(
     project: str,
     episode_id: str,
     projects_root: Path | str | None,
-) -> str:
+) -> EpisodeIdResolution:
     requested = episode_id.strip()
     if not requested:
         _fail("sase memory episodes: episode id must not be empty")
-    ids = _available_episode_ids(project, projects_root)
-    exact = [item for item in ids if item == requested]
-    if exact:
-        return exact[0]
-    prefix_matches = [item for item in ids if item.startswith(requested)]
+    references = episode_id_reference_map(project, projects_root=projects_root)
+    exact = references.get(requested)
+    if exact is not None:
+        return replace(exact, requested_id=requested)
+    prefix_matches = [item for item in references if item.startswith(requested)]
     if len(prefix_matches) == 1:
-        return prefix_matches[0]
+        resolution = references[prefix_matches[0]]
+        return replace(resolution, requested_id=requested)
     if len(prefix_matches) > 1:
+        canonical_targets = {references[item].episode_id for item in prefix_matches}
+        if len(canonical_targets) == 1:
+            canonical_match = next(
+                (
+                    item
+                    for item in sorted(prefix_matches)
+                    if not references[item].is_alias
+                ),
+                sorted(prefix_matches)[0],
+            )
+            resolution = references[canonical_match]
+            return replace(resolution, requested_id=requested)
         _fail(
             "sase memory episodes: episode id prefix "
             f"`{requested}` is ambiguous: {', '.join(prefix_matches[:5])}"
         )
+    ids = sorted(references)
     available = ", ".join(ids[:5]) if ids else "list"
     _fail(
         f"sase memory episodes: No episode found for id `{requested}`. "
@@ -424,18 +478,30 @@ def _resolve_episode_id(
     raise AssertionError("unreachable")
 
 
-def _available_episode_ids(
+def _report_alias_resolution(resolution: EpisodeIdResolution) -> None:
+    if not resolution.is_alias:
+        return
+    reason = f" ({resolution.alias_reason})" if resolution.alias_reason else ""
+    print(
+        "sase memory episodes: "
+        f"`{resolution.matched_id}` is an alias for `{resolution.episode_id}`{reason}",
+        file=sys.stderr,
+    )
+
+
+def _canonical_index_rows(
     project: str,
     projects_root: Path | str | None,
-) -> list[str]:
+) -> list[EpisodeStorageIndexRowWire]:
+    alias_rows = read_episode_alias_rows(project, projects_root=projects_root)
+    alias_ids = {row.alias_episode_id for row in alias_rows}
     rows = read_episode_index(project, projects_root=projects_root)
-    ids = {row.episode_id for row in rows}
-    episodes_dir = project_episodes_dir(project, projects_root=projects_root)
-    if episodes_dir.is_dir():
-        for child in episodes_dir.iterdir():
-            if child.is_dir() and (child / EPISODE_JSON_FILE_NAME).is_file():
-                ids.add(child.name)
-    return sorted(ids)
+    return [
+        row
+        for row in rows
+        if row.episode_id not in alias_ids
+        and resolve_alias_episode_id(row.episode_id, alias_rows) == row.episode_id
+    ]
 
 
 def _all_episode_dirs(
@@ -444,7 +510,7 @@ def _all_episode_dirs(
 ) -> list[Path]:
     return [
         project_episodes_dir(project, projects_root=projects_root) / episode_id
-        for episode_id in _available_episode_ids(project, projects_root)
+        for episode_id in canonical_episode_ids(project, projects_root=projects_root)
     ]
 
 
@@ -480,8 +546,14 @@ def _print_json(payload: Any) -> None:
     sys.stdout.write("\n")
 
 
-def _list_row_details(row: EpisodeStorageIndexRowWire) -> str:
+def _list_row_details(
+    row: EpisodeStorageIndexRowWire,
+    *,
+    aliases: list[EpisodeAliasIndexRow],
+) -> str:
     parts: list[str] = []
+    if aliases:
+        parts.append("aliases=" + ",".join(alias.alias_episode_id for alias in aliases))
     if row.root_agent_names:
         parts.append("agents=" + ",".join(row.root_agent_names))
     if row.changespec_name:

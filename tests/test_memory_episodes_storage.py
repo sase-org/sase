@@ -16,6 +16,10 @@ from sase.core.episode_wire import (
     EpisodeWire,
 )
 from sase.memory.episodes.index import read_episode_index
+from sase.memory.episodes.identity import (
+    read_episode_alias_rows,
+    read_episode_member_rows,
+)
 from sase.memory.episodes.storage import (
     gc_corrupt_episode_temp_dirs,
     write_project_episode,
@@ -89,6 +93,160 @@ def test_write_project_episode_updates_same_index_row_when_content_changes(
     assert "Updated summary." in second.episode_json_path.read_text(encoding="utf-8")
 
 
+def test_write_project_episode_records_component_members(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    chat_path = tmp_path / "chat-a.md"
+    artifact_dir = projects_root / "proj" / "artifacts" / "ace-run" / "20260526120000"
+    done_path = artifact_dir / "done.json"
+    episode = _identity_episode(
+        "ep-root",
+        component_key="component/root",
+        sources=[
+            _source_ref(chat_path, kind="chat", content="chat a\n"),
+            _source_ref(done_path, kind="artifact", content='{"done":true}\n'),
+        ],
+    )
+
+    write_project_episode(episode, projects_root=projects_root)
+
+    member_keys = {
+        row.member_key
+        for row in read_episode_member_rows("proj", projects_root=projects_root)
+    }
+    assert member_keys == {
+        "component:component/root",
+        f"chat:{chat_path.resolve(strict=False)}",
+        f"artifact:{artifact_dir.resolve(strict=False)}",
+    }
+    assert read_episode_alias_rows("proj", projects_root=projects_root) == []
+
+
+def test_write_project_episode_reuses_existing_canonical_for_connected_member(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    shared_chat = tmp_path / "shared-chat.md"
+    fork_chat = tmp_path / "fork-chat.md"
+    first = _identity_episode(
+        "ep-root",
+        component_key="component/root",
+        sources=[_source_ref(shared_chat, kind="chat", content="shared\n")],
+    )
+    fork = _identity_episode(
+        "ep-fork",
+        component_key="component/fork",
+        sources=[
+            _source_ref(shared_chat, kind="chat", content="shared\n"),
+            _source_ref(fork_chat, kind="chat", content="fork\n"),
+        ],
+        title="Fork Episode",
+    )
+
+    first_result = write_project_episode(first, projects_root=projects_root)
+    fork_result = write_project_episode(fork, projects_root=projects_root)
+
+    assert first_result.episode_id == "ep-root"
+    assert fork_result.episode_id == "ep-root"
+    aliases = read_episode_alias_rows("proj", projects_root=projects_root)
+    assert [
+        (row.alias_episode_id, row.canonical_episode_id, row.reason) for row in aliases
+    ] == [("ep-fork", "ep-root", "existing_member")]
+    members = read_episode_member_rows("proj", projects_root=projects_root)
+    assert {row.member_key: row.canonical_episode_id for row in members}[
+        f"chat:{fork_chat.resolve(strict=False)}"
+    ] == "ep-root"
+
+
+def test_write_project_episode_late_bridge_aliases_noncanonical_directory(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    chat_a = tmp_path / "a.md"
+    chat_b = tmp_path / "b.md"
+    write_project_episode(
+        _identity_episode(
+            "ep-a",
+            component_key="component/a",
+            sources=[_source_ref(chat_a, kind="chat", content="a\n")],
+            title="Episode A",
+        ),
+        projects_root=projects_root,
+    )
+    write_project_episode(
+        _identity_episode(
+            "ep-b",
+            component_key="component/b",
+            sources=[_source_ref(chat_b, kind="chat", content="b\n")],
+            title="Episode B",
+        ),
+        projects_root=projects_root,
+    )
+
+    bridge_result = write_project_episode(
+        _identity_episode(
+            "ep-a",
+            component_key="component/a",
+            sources=[
+                _source_ref(chat_a, kind="chat", content="a\n"),
+                _source_ref(chat_b, kind="chat", content="b\n"),
+            ],
+            title="Bridge Episode",
+        ),
+        projects_root=projects_root,
+    )
+
+    assert bridge_result.episode_id == "ep-a"
+    aliases = read_episode_alias_rows("proj", projects_root=projects_root)
+    assert [
+        (row.alias_episode_id, row.canonical_episode_id, row.reason) for row in aliases
+    ] == [("ep-b", "ep-a", "late_bridge")]
+    old_episode = json.loads(
+        (projects_root / "proj" / "episodes" / "ep-b" / "episode.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert old_episode["episode_id"] == "ep-b"
+    assert old_episode["title"] == "Episode B"
+
+
+def test_write_project_episode_aliases_legacy_v1_without_rewriting_it(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    chat_path = tmp_path / "legacy-chat.md"
+    legacy = _identity_episode(
+        "ep-v1",
+        component_key="",
+        sources=[_source_ref(chat_path, kind="chat", content="legacy\n")],
+        schema_version=1,
+        status="legacy",
+        title="Legacy Episode",
+    )
+    v2 = _identity_episode(
+        "ep-v2",
+        component_key="component/v2",
+        sources=[_source_ref(chat_path, kind="chat", content="legacy\n")],
+        title="V2 Episode",
+    )
+
+    write_project_episode(legacy, projects_root=projects_root)
+    v2_result = write_project_episode(v2, projects_root=projects_root)
+
+    assert v2_result.episode_id == "ep-v2"
+    aliases = read_episode_alias_rows("proj", projects_root=projects_root)
+    assert [
+        (row.alias_episode_id, row.canonical_episode_id, row.reason) for row in aliases
+    ] == [("ep-v1", "ep-v2", "v1_migration")]
+    legacy_payload = json.loads(
+        (projects_root / "proj" / "episodes" / "ep-v1" / "episode.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert legacy_payload["title"] == "Legacy Episode"
+
+
 def test_gc_corrupt_episode_temp_dirs_only_removes_storage_temps(
     tmp_path: Path,
 ) -> None:
@@ -153,6 +311,61 @@ def test_concurrent_episode_writes_leave_one_complete_index_row(
         f"# {episode_data['title']}\n"
     )
     assert len(sources_path.read_text(encoding="utf-8").splitlines()) == 1
+
+
+def _source_ref(
+    path: Path,
+    *,
+    kind: str,
+    content: str,
+) -> EpisodeSourceRefWire:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    data = content.encode("utf-8")
+    return EpisodeSourceRefWire(
+        id=f"src-{kind}-{hashlib.sha256(str(path).encode('utf-8')).hexdigest()[:12]}",
+        kind=kind,
+        path=str(path.resolve(strict=False)),
+        label=path.name,
+        exists=True,
+        size_bytes=len(data),
+        sha256=hashlib.sha256(data).hexdigest(),
+    )
+
+
+def _identity_episode(
+    episode_id: str,
+    *,
+    component_key: str,
+    sources: list[EpisodeSourceRefWire],
+    schema_version: int = EPISODE_WIRE_SCHEMA_VERSION,
+    status: str = "active",
+    title: str = "Identity Episode",
+) -> EpisodeWire:
+    return EpisodeWire(
+        schema_version=schema_version,
+        episode_id=episode_id,
+        project="proj",
+        title=title,
+        summary=f"{title} summary.",
+        root_source_id=sources[0].id,
+        component_key=component_key,
+        component_root_kind="artifact" if component_key else "",
+        status=status,
+        sources=sources,
+        nodes=[],
+        edges=[],
+        events=[
+            EpisodeEventWire(
+                id=f"event-{episode_id}",
+                kind="agent_finish",
+                title="Agent finished",
+                timestamp="2026-05-26T12:00:00Z",
+                evidence_ids=[sources[0].id],
+            )
+        ],
+        lessons=[],
+    )
 
 
 def _episode(tmp_path: Path, *, summary: str) -> EpisodeWire:

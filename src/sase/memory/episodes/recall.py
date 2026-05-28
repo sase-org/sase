@@ -15,6 +15,10 @@ from sase.core.episode_wire import (
     EpisodeWire,
     episode_wire_from_dict,
 )
+from sase.memory.episodes.identity import (
+    read_episode_alias_rows,
+    resolve_alias_episode_id,
+)
 from sase.memory.episodes.index import project_episodes_dir
 from sase.memory.episodes.render import render_lesson_markdown
 from sase.memory.episodes.storage import (
@@ -114,10 +118,30 @@ def recall_episode_rows(
     if not query_terms:
         raise ValueError("query must include at least one token")
 
+    row_list = list(rows)
+    alias_rows_by_project = {
+        project: read_episode_alias_rows(project, projects_root=projects_root)
+        for project in sorted({row.project for row in row_list})
+    }
     matches = [
         match
-        for row in rows
-        if (match := _recall_match(row, query_terms, projects_root=projects_root))
+        for row in row_list
+        if resolve_alias_episode_id(
+            row.episode_id,
+            alias_rows_by_project.get(row.project, []),
+        )
+        == row.episode_id
+        if (
+            match := _recall_match(
+                row,
+                query_terms,
+                projects_root=projects_root,
+                alias_episode_ids=_alias_ids_for_row(
+                    row,
+                    alias_rows_by_project.get(row.project, []),
+                ),
+            )
+        )
         is not None
     ]
     matches.sort(key=_recall_sort_key)
@@ -129,6 +153,7 @@ def _recall_match(
     query_terms: set[str],
     *,
     projects_root: Path | str | None,
+    alias_episode_ids: list[str],
 ) -> EpisodeRecallMatch | None:
     episode_dir = project_episodes_dir(row.project, projects_root=projects_root) / (
         row.episode_id
@@ -143,7 +168,9 @@ def _recall_match(
         for lesson in sorted(episode.lessons, key=lambda item: item.id)
         if query_terms & _token_set(lesson.text)
     ]
-    token_counts = Counter(_token_list(_recall_corpus(row, episode, lesson_text)))
+    token_counts = Counter(
+        _token_list(_recall_corpus(row, episode, lesson_text, alias_episode_ids))
+    )
     matched_terms = sorted(term for term in query_terms if token_counts.get(term, 0))
     if not matched_terms:
         return None
@@ -175,8 +202,11 @@ def _recall_corpus(
     row: EpisodeStorageIndexRowWire,
     episode: EpisodeWire,
     lesson_text: str,
+    alias_episode_ids: list[str],
 ) -> str:
     parts: list[str] = [
+        row.episode_id,
+        " ".join(alias_episode_ids),
         row.title,
         row.changespec_name or "",
         " ".join(row.root_agent_names),
@@ -191,6 +221,17 @@ def _recall_corpus(
     for source in episode.sources:
         parts.extend([source.kind, source.label or "", source.path])
     return "\n".join(parts)
+
+
+def _alias_ids_for_row(
+    row: EpisodeStorageIndexRowWire, alias_rows: list[Any]
+) -> list[str]:
+    return sorted(
+        row_alias.alias_episode_id
+        for row_alias in alias_rows
+        if resolve_alias_episode_id(row_alias.canonical_episode_id, alias_rows)
+        == row.episode_id
+    )
 
 
 def _lesson_text(
