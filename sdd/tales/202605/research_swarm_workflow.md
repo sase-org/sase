@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 16:03:15
-status: wip
+status: done
 prompt: sdd/prompts/202605/research_swarm_workflow.md
 ---
 # Plan: Improve the `research_swarm` xprompt workflow

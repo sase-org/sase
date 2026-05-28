@@ -241,10 +241,30 @@ def testload_xprompts_from_default_files_includes_research_swarm() -> None:
     result = load_xprompts_from_default_files()
 
     assert "research_swarm" in result
+    assert "old_research_swarm" in result
+
     xprompt = result["research_swarm"]
     assert xprompt.name == "research_swarm"
     assert "default_xprompts/research_swarm.md" in xprompt.source_path
     assert "{{ prompt }} #research" in xprompt.content
+    assert "%name:research_swarm.cdx-@" in xprompt.content
+    assert "%model:codex/gpt-5.5" in xprompt.content
+    assert "%name:research_swarm.cld-@" in xprompt.content
+    assert "%model:claude/opus" in xprompt.content
+    assert "%name:research_swarm.final-@" in xprompt.content
+    assert "%wait:research_swarm.cdx-@" in xprompt.content
+    assert "%wait:research_swarm.cld-@" in xprompt.content
+    assert "{% raw %}{{ wait_chats }}{% endraw %}" in xprompt.content
+    assert "delete the two intermediate `sdd/research/` markdown files" in (
+        xprompt.content
+    )
+
+    legacy_xprompt = result["old_research_swarm"]
+    assert legacy_xprompt.name == "old_research_swarm"
+    assert "default_xprompts/old_research_swarm.md" in legacy_xprompt.source_path
+    assert "%g:research {{ prompt }} #research" in legacy_xprompt.content
+    assert "#research/more" in legacy_xprompt.content
+    assert "#research/image" in legacy_xprompt.content
 
 
 def testload_xprompts_from_internal_includes_packaged_skills() -> None:
