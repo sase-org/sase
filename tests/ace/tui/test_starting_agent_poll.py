@@ -1,10 +1,10 @@
 """Countdown-tick STARTING-transition poll (starting_to_running_row_latency).
 
-The poll runs once per countdown tick and stat()s ``agent_meta.json`` for
-each STARTING agent. When the meta file lands or its mtime advances, the
-poll fires exactly one debounced ``request_agents_refresh("starting_poll")``
-so the row catches up within ~1 s even when the inotify watcher misses the
-``run_started_at`` write.
+The poll runs once per countdown tick and stat()s ``agent_meta.json`` and
+``waiting.json`` for each STARTING agent. When either marker lands or
+changes, the poll fires exactly one debounced
+``request_agents_refresh("starting_poll")`` so the row catches up within
+~1 s even when the inotify watcher misses the marker write.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ class _PollApp(AgentLoadingRefreshMixin):
         self._timer_calls.append((delay, callback))
 
 
-def _write_meta(path: Path, content: str = "{}") -> None:
+def _write_marker(path: Path, content: str = "{}") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
 
@@ -83,7 +83,7 @@ def test_single_starting_agent_transition_fires_one_refresh(tmp_path: Path) -> N
     """A STARTING agent whose meta mtime advances triggers exactly one refresh."""
     artifacts_dir = tmp_path / "starting-agent"
     meta_path = artifacts_dir / "agent_meta.json"
-    _write_meta(meta_path, "{}")
+    _write_marker(meta_path, "{}")
 
     app = _PollApp()
     agent = _FakeAgent(identity_key="cl-a", artifacts_dir=str(artifacts_dir))
@@ -125,16 +125,16 @@ def test_fan_out_of_five_transitions_coalesces_to_one_refresh(
     indices: list[int] = []
     for i in range(5):
         ad = tmp_path / f"agent-{i}"
-        meta = ad / "agent_meta.json"
-        _write_meta(meta, "{}")
+        waiting = ad / "waiting.json"
+        _write_marker(waiting, '{"waiting_for": ["parent"]}')
         agent = _FakeAgent(identity_key=f"cl-{i}", artifacts_dir=str(ad))
         app._agents.append(agent)  # type: ignore[arg-type]
         indices.append(i)
     app._panel_index = _FakePanelIndex(hidden_starting_indices=indices)
 
     app._poll_starting_agent_transitions()
-    # First-observation appearance for all 5 in one tick should coalesce
-    # via the 150 ms debounce into a single armed timer.
+    # First-observation marker presence for all 5 in one tick should
+    # coalesce via the 150 ms debounce into a single armed timer.
     assert len(app._timer_calls) == 1
     assert app._agents_refresh_debounce_armed is True
 
@@ -153,12 +153,81 @@ def test_meta_file_appearance_fires_refresh(tmp_path: Path) -> None:
     # Tick 1: meta does not exist yet. No nudge (nothing to flip).
     app._poll_starting_agent_transitions()
     assert app._timer_calls == []
-    assert app._starting_poll_meta_cache[agent.identity] is None  # type: ignore[index]
+    assert app._starting_poll_meta_cache[agent.identity] == (  # type: ignore[index]
+        None,
+        None,
+    )
 
     # Tick 2: meta lands.
-    _write_meta(meta_path, "{}")
+    _write_marker(meta_path, "{}")
     app._poll_starting_agent_transitions()
     assert len(app._timer_calls) == 1, "file appearance should fire one refresh"
+
+
+def test_waiting_marker_appearance_fires_refresh(tmp_path: Path) -> None:
+    """A STARTING agent whose waiting marker appears triggers a refresh."""
+    artifacts_dir = tmp_path / "late-waiting-agent"
+    artifacts_dir.mkdir()
+    waiting_path = artifacts_dir / "waiting.json"
+
+    app = _PollApp()
+    agent = _FakeAgent(identity_key="cl-waiting", artifacts_dir=str(artifacts_dir))
+    app._agents = [agent]  # type: ignore[list-item]
+    app._panel_index = _FakePanelIndex(hidden_starting_indices=[0])
+
+    app._poll_starting_agent_transitions()
+    assert app._timer_calls == []
+    assert app._starting_poll_meta_cache[agent.identity] == (  # type: ignore[index]
+        None,
+        None,
+    )
+
+    _write_marker(waiting_path, '{"waiting_for": ["parent"]}')
+    app._poll_starting_agent_transitions()
+    assert len(app._timer_calls) == 1, "waiting marker appearance should refresh"
+
+
+def test_waiting_marker_present_on_first_observation_fires_refresh(
+    tmp_path: Path,
+) -> None:
+    """A pre-existing waiting marker triggers the missed-CREATE path."""
+    artifacts_dir = tmp_path / "waiting-agent"
+    waiting_path = artifacts_dir / "waiting.json"
+    _write_marker(waiting_path, '{"waiting_for": ["parent"]}')
+
+    app = _PollApp()
+    agent = _FakeAgent(identity_key="cl-waiting-now", artifacts_dir=str(artifacts_dir))
+    app._agents = [agent]  # type: ignore[list-item]
+    app._panel_index = _FakePanelIndex(hidden_starting_indices=[0])
+
+    app._poll_starting_agent_transitions()
+    assert len(app._timer_calls) == 1, (
+        "first-observation with present waiting marker should nudge once"
+    )
+
+
+def test_unchanged_marker_signature_does_not_rearm_after_debounce(
+    tmp_path: Path,
+) -> None:
+    """Unchanged marker signatures do not arm repeated timers."""
+    artifacts_dir = tmp_path / "unchanged-waiting-agent"
+    waiting_path = artifacts_dir / "waiting.json"
+    _write_marker(waiting_path, '{"waiting_for": ["parent"]}')
+
+    app = _PollApp()
+    agent = _FakeAgent(identity_key="cl-unchanged", artifacts_dir=str(artifacts_dir))
+    app._agents = [agent]  # type: ignore[list-item]
+    app._panel_index = _FakePanelIndex(hidden_starting_indices=[0])
+
+    app._poll_starting_agent_transitions()
+    assert len(app._timer_calls) == 1
+
+    _, fire = app._timer_calls[0]
+    fire()
+    timer_count_before = len(app._timer_calls)
+
+    app._poll_starting_agent_transitions()
+    assert len(app._timer_calls) == timer_count_before
 
 
 def test_stuck_starting_agent_does_not_grow_cache(tmp_path: Path) -> None:
@@ -171,7 +240,7 @@ def test_stuck_starting_agent_does_not_grow_cache(tmp_path: Path) -> None:
     app._agents = [agent]  # type: ignore[list-item]
     app._panel_index = _FakePanelIndex(hidden_starting_indices=[0])
 
-    # Tick once to populate the cache (meta absent → cache[identity] is None).
+    # Tick once to populate the cache with absent marker signatures.
     app._poll_starting_agent_transitions()
     assert agent.identity in app._starting_poll_meta_cache
 

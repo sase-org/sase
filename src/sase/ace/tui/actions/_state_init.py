@@ -102,12 +102,14 @@ class StateInitMixin:
         self._artifact_change_defer_pending: bool = False
         self._last_full_sanity_refresh: float = 0.0
         self._last_agents_load_mono: float = 0.0
-        # Per-STARTING-agent agent_meta.json (mtime_ns, size) cache used by
-        # the countdown-tick STARTING-transition poll. ``None`` records that
-        # the file was absent on the previous tick so a subsequent file
-        # *appearance* still triggers a refresh nudge.
+        # Per-STARTING-agent agent_meta.json/waiting.json (mtime_ns, size)
+        # cache used by the countdown-tick STARTING-transition poll. Each
+        # tuple slot is ``None`` when that marker was absent on the previous
+        # tick so a subsequent file appearance still triggers a refresh
+        # nudge.
         self._starting_poll_meta_cache: dict[
-            tuple[AgentType, str, str | None], tuple[int, int] | None
+            tuple[AgentType, str, str | None],
+            tuple[tuple[int, int] | None, tuple[int, int] | None],
         ] = {}
 
         # Hint mode state

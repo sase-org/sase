@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 07:45:15
-status: wip
+status: done
 prompt: sdd/prompts/202605/starting_waiting_poll.md
 ---
 # Plan: Refresh Hidden STARTING Agents When WAITING Markers Land

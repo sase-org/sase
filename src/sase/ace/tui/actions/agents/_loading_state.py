@@ -117,11 +117,13 @@ class AgentLoadingStateMixin:
     # a debounce timer is armed so a burst of fan-out spawn callbacks
     # collapses into a single deferred ``_schedule_agents_async_refresh``.
     _agents_refresh_debounce_armed: bool
-    # Per-STARTING-agent ``agent_meta.json`` (mtime_ns, size) cache used by
-    # the countdown-tick STARTING-transition poll. ``None`` records that
-    # the file was absent on the previous tick.
+    # Per-STARTING-agent ``agent_meta.json`` and ``waiting.json`` (mtime_ns,
+    # size) cache used by the countdown-tick STARTING-transition poll.
+    # Each tuple slot is ``None`` when that marker was absent on the
+    # previous tick.
     _starting_poll_meta_cache: dict[
-        tuple[AgentType, str, str | None], tuple[int, int] | None
+        tuple[AgentType, str, str | None],
+        tuple[tuple[int, int] | None, tuple[int, int] | None],
     ]
 
     # Navigation gate (set up in startup.py). Used to defer the post-await

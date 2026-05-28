@@ -13,11 +13,22 @@ from ._loading_state import AgentLoadingStateMixin
 
 log = logging.getLogger(__name__)
 
+_StartingPollSignature = tuple[int, int] | None
+_StartingPollMarkerState = tuple[_StartingPollSignature, _StartingPollSignature]
+
 # Seconds of input idleness required before the deferred Tier 2
 # full-history reconcile is scheduled in the background. Picked to land
 # well outside any j/k burst while still completing before the user
 # would typically reach for historic data.
 TIER2_RECONCILE_IDLE_THRESHOLD_S = 30.0
+
+
+def _marker_signature(path: Path) -> _StartingPollSignature:
+    try:
+        st = os.stat(path)
+    except FileNotFoundError:
+        return None
+    return (st.st_mtime_ns, st.st_size)
 
 
 class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
@@ -138,14 +149,14 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         return True
 
     def _poll_starting_agent_transitions(self) -> None:
-        """Nudge a refresh when a STARTING agent's meta lands on disk.
+        """Nudge a refresh when a STARTING agent's markers land on disk.
 
         The inotify watcher is the intended fast path for the
         STARTING→RUNNING/WAITING transition, but it races the creation of
         the per-agent ``artifacts/<workflow>/<timestamp>/`` subtree and is
         unavailable on some platforms. This poll runs once per countdown
-        tick (cheap; one ``stat`` per STARTING agent) and bounds the
-        worst-case visible time-to-row to ~1 s in that window.
+        tick (cheap; one ``stat`` per marker per STARTING agent) and
+        bounds the worst-case visible time-to-row to ~1 s in that window.
 
         No-op when no STARTING agent is present, which is the steady
         state. The cache is keyed by ``agent.identity`` and shrinks back
@@ -168,30 +179,30 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             artifacts_dir = agent.get_artifacts_dir()
             if not artifacts_dir:
                 continue
-            meta_path = Path(artifacts_dir) / "agent_meta.json"
+            artifacts_path = Path(artifacts_dir)
+            meta_path = artifacts_path / "agent_meta.json"
+            waiting_path = artifacts_path / "waiting.json"
             try:
-                st = os.stat(meta_path)
-                current: tuple[int, int] | None = (st.st_mtime_ns, st.st_size)
-            except FileNotFoundError:
-                current = None
+                current: _StartingPollMarkerState = (
+                    _marker_signature(meta_path),
+                    _marker_signature(waiting_path),
+                )
             except OSError:
                 continue
             had_entry = identity in cache
-            previous = cache.get(identity)
+            previous = cache[identity] if had_entry else None
             cache[identity] = current
             if not had_entry:
                 # First observation — record the baseline; only nudge if
-                # the file already exists, since that means the watcher
-                # likely missed the CREATE event and the agent has
-                # already written its meta.
-                if current is not None:
+                # either marker already exists, since that means the
+                # watcher likely missed the CREATE event and the agent has
+                # already written a loader-visible marker.
+                if current != (None, None):
                     nudge = True
                 continue
-            if previous is None and current is not None:
-                # File appearance — watcher likely missed CREATE.
-                nudge = True
-            elif previous is not None and current is not None and current != previous:
-                # Meta file was modified (likely run_started_at landing).
+            if previous is not None and current != previous:
+                # Marker appearance, removal, or update — watcher likely
+                # missed a loader-visible event.
                 nudge = True
 
         # Eviction: drop identities no longer STARTING.
