@@ -22,6 +22,9 @@ SASE_XPROMPT_DEFAULT_DIR_ENV = "SASE_XPROMPT_DEFAULT_DIR"
 SASE_DEFAULT_CONFIG_PATH_ENV = "SASE_DEFAULT_CONFIG_PATH"
 SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV = "SASE_XPROMPT_PLUGIN_DIRS_JSON"
 SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV = "SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON"
+SASE_CORE_DIR_ENV = "SASE_CORE_DIR"
+SASE_SIBLING_REPO_CORE_DIR_ENV = "SASE_SIBLING_REPO_CORE_DIR"
+SASE_SIBLING_REPO_SASE_CORE_DIR_ENV = "SASE_SIBLING_REPO_SASE_CORE_DIR"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -79,36 +82,60 @@ def _resolve_xprompt_lsp_command(
         if command:
             return command
 
+    cargo = which("cargo")
+    for sibling_core in _sase_core_dir_candidates(environ, repo_root):
+        manifest = sibling_core / "Cargo.toml"
+        if manifest.is_file():
+            if cargo:
+                return (
+                    cargo,
+                    "run",
+                    "--manifest-path",
+                    str(manifest),
+                    "-p",
+                    "sase_xprompt_lsp",
+                    "--",
+                )
+            for candidate in (
+                sibling_core / "target" / "debug" / XPROMPT_LSP_BINARY,
+                sibling_core / "target" / "release" / XPROMPT_LSP_BINARY,
+            ):
+                if candidate.is_file():
+                    return (str(candidate),)
+
     path = which(XPROMPT_LSP_BINARY)
     if path:
         return (path,)
-
-    root = repo_root or Path(__file__).resolve().parents[3]
-    sibling_core = root.parent / "sase-core"
-    for candidate in (
-        sibling_core / "target" / "debug" / XPROMPT_LSP_BINARY,
-        sibling_core / "target" / "release" / XPROMPT_LSP_BINARY,
-    ):
-        if candidate.is_file():
-            return (str(candidate),)
-
-    cargo = which("cargo")
-    manifest = sibling_core / "Cargo.toml"
-    if cargo and manifest.is_file():
-        return (
-            cargo,
-            "run",
-            "--manifest-path",
-            str(manifest),
-            "-p",
-            "sase_xprompt_lsp",
-            "--",
-        )
 
     raise _XPromptLspLaunchError(
         "xprompt LSP binary not found; install `sase-xprompt-lsp` on PATH "
         f"or set {SASE_XPROMPT_LSP_CMD_ENV}"
     )
+
+
+def _sase_core_dir_candidates(
+    environ: Mapping[str, str],
+    repo_root: Path | None,
+) -> list[Path]:
+    root = repo_root or Path(__file__).resolve().parents[3]
+    candidates = [
+        environ.get(SASE_CORE_DIR_ENV, ""),
+        environ.get(SASE_SIBLING_REPO_CORE_DIR_ENV, ""),
+        environ.get(SASE_SIBLING_REPO_SASE_CORE_DIR_ENV, ""),
+        str(root.parent / "sase-core"),
+    ]
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for raw in candidates:
+        if not raw.strip():
+            continue
+        path = Path(raw).expanduser()
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        paths.append(path)
+    return paths
 
 
 def _server_args_from_namespace(args: argparse.Namespace) -> list[str]:

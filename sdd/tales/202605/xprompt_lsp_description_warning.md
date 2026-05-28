@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 07:33:14
-status: wip
+status: done
 prompt: sdd/prompts/202605/xprompt_lsp_description_warning.md
 ---
 # Fix xprompt LSP description-field false warning
