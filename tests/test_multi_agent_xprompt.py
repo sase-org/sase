@@ -16,6 +16,7 @@ from sase.agent.multi_agent_xprompt import (
 )
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
+from sase.xprompt.loader import load_xprompt_from_file
 from sase.xprompt.processor import (
     process_xprompt_references,
     process_xprompt_references_with_catalog,
@@ -622,6 +623,34 @@ def test_multi_agent_xprompt_expands_local_helpers_before_splitting() -> None:
         "%name:a\nFind long articles about episodic memory.",
         "%name:b\nFind long articles about episodic memory.",
     ]
+
+
+def test_checked_in_reads_xprompt_uses_direct_local_helper() -> None:
+    reads_path = Path(__file__).resolve().parents[1] / "xprompts" / "reads.md"
+    source = reads_path.read_text(encoding="utf-8")
+
+    assert '#{{ "_" }}article_search_agent' not in source
+    assert source.count("#_article_search_agent") == 3
+
+    reads = load_xprompt_from_file(reads_path)
+    assert reads is not None
+    assert "_article_search_agent" in reads.local_xprompts
+
+    with _patch_catalog({"reads": reads}):
+        out = expand_multi_agent_xprompts(["#reads(episodic agent memory)"])
+
+    assert len(out) == 4
+    assert all("#_article_search_agent" not in segment for segment in out)
+    research_segments = out[:3]
+    assert all(
+        "Can you recommend recent, medium-to-long articles" in segment
+        for segment in research_segments
+    )
+    assert all(
+        "Treat every URL and title already present" in segment
+        for segment in research_segments
+    )
+    assert all("episodic agent memory" in segment for segment in out)
 
 
 def test_multi_agent_local_helper_separators_split_with_owner() -> None:

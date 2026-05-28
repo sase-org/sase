@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 09:01:41
-status: wip
+status: done
 prompt: sdd/prompts/202605/direct_local_reads_xprompt.md
 ---
 # Plan: Direct Local Helper Calls in `xprompts/reads.md`

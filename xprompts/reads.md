@@ -38,7 +38,7 @@ xprompts:
 
 %g:read
 
-#{{ "_" }}article_search_agent
+#_article_search_agent
 
 ---
 
@@ -48,7 +48,7 @@ xprompts:
 
 %g:read
 
-#{{ "_" }}article_search_agent
+#_article_search_agent
 
 ---
 
@@ -58,7 +58,7 @@ xprompts:
 
 %g:read
 
-#{{ "_" }}article_search_agent
+#_article_search_agent
 
 ---
 
