@@ -84,6 +84,7 @@ async def test_artifact_modal_letter_selector_skips_navigation_and_quit_keys() -
     assert "k" not in _artifact_selector_keys(16)
     assert "m" not in _artifact_selector_keys(25)
     assert "q" not in _artifact_selector_keys(16)
+    assert "y" not in _artifact_selector_keys(35)
     assert result is artifacts[15]
 
 
@@ -240,6 +241,8 @@ async def test_artifact_modal_hint_includes_open_all_and_mark_count() -> None:
         await pilot.pause()
 
         assert "A: open all" in modal._hint_text()
+        assert "y: copy" in modal._hint_text()
+        assert "Y: path" in modal._hint_text()
         assert "marked:" not in modal._hint_text()
 
         option_list = modal.query_one("#agent-artifacts-list", OptionList)
@@ -248,7 +251,164 @@ async def test_artifact_modal_hint_includes_open_all_and_mark_count() -> None:
         await pilot.pause()
 
         assert "A: open all" in modal._hint_text()
+        assert "y: copy" in modal._hint_text()
+        assert "Y: path" in modal._hint_text()
         assert modal._hint_text().endswith("marked: 1")
+
+
+async def test_artifact_modal_y_copies_highlighted_markdown_contents_and_stays_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_path = tmp_path / "artifact.md"
+    artifact_path.write_text("# Title\nbody\n", encoding="utf-8")
+    artifacts = [_artifact(1, label="artifact.md", path=str(artifact_path))]
+    copied: list[str] = []
+    notifications: list[tuple[str, str]] = []
+    result: object | None = "sentinel"
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.agent_artifacts_modal.copy_to_system_clipboard",
+        lambda content: copied.append(content) or True,
+    )
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        def notify(message: str, *, severity: str = "information") -> None:
+            notifications.append((message, severity))
+
+        modal = AgentArtifactSelectionModal(artifacts)
+        modal.notify = notify  # type: ignore[method-assign]
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        await pilot.press("y")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert result == "sentinel"
+
+    assert copied == ["# Title\nbody\n"]
+    assert notifications == [("Copied: artifact.md (2 lines)", "information")]
+
+
+async def test_artifact_modal_Y_copies_highlighted_path_and_stays_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    artifact_path = home / "work" / "artifact.md"
+    artifact_path.parent.mkdir(parents=True)
+    artifact_path.write_text("# Title\n", encoding="utf-8")
+    artifacts = [_artifact(1, label="artifact.md", path=str(artifact_path))]
+    copied: list[str] = []
+    result: object | None = "sentinel"
+
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.agent_artifacts_modal.copy_to_system_clipboard",
+        lambda content: copied.append(content) or True,
+    )
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = AgentArtifactSelectionModal(artifacts)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        await pilot.press("Y")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert result == "sentinel"
+
+    assert copied == ["~/work/artifact.md"]
+
+
+async def test_artifact_modal_copy_uses_pdf_markdown_source_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    source = workspace / "docs" / "report.md"
+    pdf = tmp_path / "artifacts" / "markdown_pdfs" / "docs__report.md.pdf"
+    source.parent.mkdir(parents=True)
+    pdf.parent.mkdir(parents=True)
+    source.write_text("# Source\n", encoding="utf-8")
+    pdf.write_text("generated pdf", encoding="utf-8")
+    artifact = _artifact(
+        1,
+        label="report.md",
+        kind="pdf",
+        path=str(pdf),
+        source_path="docs/report.md",
+        workspace_dir=str(workspace),
+    )
+    copied: list[str] = []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.agent_artifacts_modal.copy_to_system_clipboard",
+        lambda content: copied.append(content) or True,
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentArtifactSelectionModal([artifact])
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("y")
+        await pilot.press("Y")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+
+    assert copied == ["# Source\n", str(source.resolve(strict=False))]
+
+
+async def test_artifact_modal_y_warns_for_non_markdown_artifact_without_copying(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_path = tmp_path / "artifact.txt"
+    artifact_path.write_text("not markdown\n", encoding="utf-8")
+    artifacts = [
+        _artifact(1, label="artifact.txt", path=str(artifact_path), kind="text")
+    ]
+    copied: list[str] = []
+    notifications: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.agent_artifacts_modal.copy_to_system_clipboard",
+        lambda content: copied.append(content) or True,
+    )
+
+    async with _TestApp().run_test() as pilot:
+
+        def notify(message: str, *, severity: str = "information") -> None:
+            notifications.append((message, severity))
+
+        modal = AgentArtifactSelectionModal(artifacts)
+        modal.notify = notify  # type: ignore[method-assign]
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("y")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+
+    assert copied == []
+    assert notifications == [
+        ("Selected artifact is not Markdown", "warning"),
+    ]
 
 
 def test_artifact_modal_unmarked_option_text_omits_empty_checkbox() -> None:
