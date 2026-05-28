@@ -281,6 +281,12 @@ def main() -> NoReturn:
 
         handle_plan_command(args.plan_file)
 
+    # --- plugin ---
+    if args.command == "plugin":
+        from .plugin_handler import handle_plugin_command
+
+        handle_plugin_command(args)
+
     # --- questions ---
     if args.command == "questions":
         from .questions_command_handler import handle_questions_command

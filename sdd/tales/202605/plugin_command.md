@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 16:54:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/plugin_command.md
 ---
 # Plan: `sase plugin`
