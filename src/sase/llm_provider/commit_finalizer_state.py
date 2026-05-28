@@ -45,6 +45,9 @@ def collect_dirty_state(
     )
     sibling_targets = _configured_sibling_targets(project_dir)
     sibling_repos = tuple(_dirty_configured_sibling_repos(sibling_targets))
+    advisory_sibling_repos = tuple(
+        _dirty_configured_advisory_sibling_repos(sibling_targets)
+    )
     repos: list[DirtyRepo] = []
     if main_repo is not None:
         repos.append(main_repo)
@@ -54,11 +57,13 @@ def collect_dirty_state(
         main_instruction=main_instruction,
         main_repo=main_repo,
         sibling_repos=sibling_repos,
+        advisory_sibling_repos=advisory_sibling_repos,
     )
     return DirtyState(
         project_dir=finalizer_git._normalize_path(project_dir),
         repos=tuple(repos),
         details=details,
+        advisory_repos=advisory_sibling_repos,
     )
 
 
@@ -71,9 +76,29 @@ def _build_commit_details(project_dir: str) -> tuple[bool, list[str], str, str]:
 def _dirty_configured_sibling_repos(
     sibling_targets: list[SiblingTarget],
 ) -> list[DirtyRepo]:
+    return _dirty_configured_sibling_repos_for_strategy(
+        sibling_targets,
+        advisory=False,
+    )
+
+
+def _dirty_configured_advisory_sibling_repos(
+    sibling_targets: list[SiblingTarget],
+) -> list[DirtyRepo]:
+    return _dirty_configured_sibling_repos_for_strategy(
+        sibling_targets,
+        advisory=True,
+    )
+
+
+def _dirty_configured_sibling_repos_for_strategy(
+    sibling_targets: list[SiblingTarget],
+    *,
+    advisory: bool,
+) -> list[DirtyRepo]:
     dirty: list[DirtyRepo] = []
     for target in sibling_targets:
-        if target.workspace_strategy == "none":
+        if (target.workspace_strategy == "none") != advisory:
             continue
         changed_files = git_changed_files(target.workspace_dir)
         if not changed_files:

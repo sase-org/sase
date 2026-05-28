@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 09:37:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/static_sibling_finalizer_1.md
 ---
 # Plan: Advisory Finalizer Checks for Static Sibling Repositories

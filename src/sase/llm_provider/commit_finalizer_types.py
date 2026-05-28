@@ -31,6 +31,7 @@ class CommitFinalizerResult:
     passes: int
     changed_files: list[str]
     error: str | None = None
+    advisory_changed_files: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,11 @@ class DirtyState:
     project_dir: str
     repos: tuple[DirtyRepo, ...]
     details: str
+    advisory_repos: tuple[DirtyRepo, ...] = ()
+
+    @property
+    def is_clean(self) -> bool:
+        return not self.repos and not self.advisory_repos
 
 
 @dataclass(frozen=True)

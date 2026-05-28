@@ -104,6 +104,7 @@ __all__ = [
     "_normalize_max_passes",
     "_normalize_path",
     "resolve_finalizer_project_dir",
+    "_result_advisory_changed_files",
     "_result_changed_files",
     "_sibling_commit_instruction",
     "_sibling_targets_from_config",
@@ -179,7 +180,7 @@ def run_commit_finalizer(
         dirty_state,
         artifact_root,
     )
-    if not dirty_state.repos:
+    if dirty_state.is_clean:
         _write_result(
             artifact_root,
             _CommitFinalizerResult(
@@ -196,6 +197,7 @@ def run_commit_finalizer(
         )
         return invoke_result
 
+    saw_advisory_repos = bool(dirty_state.advisory_repos)
     accumulated_content = invoke_result.content
     accumulated_usage = invoke_result.usage
 
@@ -237,19 +239,29 @@ def run_commit_finalizer(
             dirty_state,
             artifact_root,
         )
+        saw_advisory_repos = saw_advisory_repos or bool(dirty_state.advisory_repos)
         if not dirty_state.repos:
+            if dirty_state.advisory_repos:
+                reason = "advisory_dirty_remaining"
+            elif saw_advisory_repos:
+                reason = "advisory_clean_after_pass"
+            elif auto_committed:
+                reason = "auto_committed_done_plan_status"
+            else:
+                reason = "clean_after_pass"
             _write_result(
                 artifact_root,
                 _CommitFinalizerResult(
                     status="finalized",
-                    reason=(
-                        "auto_committed_done_plan_status"
-                        if auto_committed
-                        else "clean_after_pass"
-                    ),
+                    reason=reason,
                     project_dir=project_dir,
                     passes=pass_number,
                     changed_files=[],
+                    advisory_changed_files=(
+                        _result_advisory_changed_files(dirty_state)
+                        if saw_advisory_repos
+                        else None
+                    ),
                 ),
             )
             return InvokeResult(content=accumulated_content, usage=accumulated_usage)
@@ -264,6 +276,11 @@ def run_commit_finalizer(
             passes=config.max_passes,
             changed_files=_result_changed_files(dirty_state),
             error=error,
+            advisory_changed_files=(
+                _result_advisory_changed_files(dirty_state)
+                if saw_advisory_repos
+                else None
+            ),
         ),
     )
     raise _CommitFinalizerError(error)
@@ -279,4 +296,11 @@ def _auto_commit_done_plan_status_if_possible(
     if not auto_commit_done_sdd_plan_status(dirty_state):
         return dirty_state, False
     refreshed = _collect_dirty_state(project_dir, artifact_root=artifact_root)
-    return refreshed, not refreshed.repos
+    return refreshed, True
+
+
+def _result_advisory_changed_files(dirty_state: DirtyState) -> list[str]:
+    changed: list[str] = []
+    for repo in dirty_state.advisory_repos:
+        changed.extend(f"{repo.name}:{path}" for path in repo.changed_files)
+    return changed

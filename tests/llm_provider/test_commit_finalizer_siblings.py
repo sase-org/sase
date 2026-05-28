@@ -62,6 +62,12 @@ def _write_tool_call_record(artifacts_dir: Path, record: dict[str, object]) -> N
         f.write(json.dumps(record) + "\n")
 
 
+def _read_result_json(artifacts_dir: Path) -> dict[str, object]:
+    return json.loads(
+        (artifacts_dir / "commit_finalizer_result.json").read_text(encoding="utf-8")
+    )
+
+
 def test_dirty_configured_sibling_triggers_follow_up_turn(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -184,7 +190,7 @@ def test_dirty_primary_sibling_checkout_is_ignored_when_workspace_is_configured(
     assert result.content == "primary response"
 
 
-def test_env_none_strategy_dirty_sibling_is_ignored(
+def test_env_none_strategy_dirty_sibling_triggers_advisory_follow_up(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -209,19 +215,34 @@ def test_env_none_strategy_dirty_sibling_is_ignored(
         ),
     )
     artifacts_dir = tmp_path / "artifacts"
+    prompts: list[str] = []
     provider = MagicMock()
+
+    def invoke(prompt: str, **_: object) -> InvokeResult:
+        prompts.append(prompt)
+        return InvokeResult(content="not mine")
+
+    provider.invoke.side_effect = invoke
 
     result = _run_finalizer(provider, artifacts_dir)
 
-    provider.invoke.assert_not_called()
-    assert result.content == "primary response"
+    assert provider.invoke.call_count == 1
+    assert result.content == "primary response\n\nnot mine"
+    assert "Advisory uncommitted changes detected" in prompts[0]
+    assert "static sibling repo chezmoi" in prompts[0]
+    assert "dotfile" in prompts[0]
+    assert f"cd {static_sibling.resolve()}" in prompts[0]
+    assert "/sase_git_commit" in prompts[0]
+    assert "will not make the finalizer fail" in prompts[0]
     assert dirty_file.exists()
-    assert '"status": "clean"' in (
-        artifacts_dir / "commit_finalizer_result.json"
-    ).read_text(encoding="utf-8")
+    result_json = _read_result_json(artifacts_dir)
+    assert result_json["status"] == "finalized"
+    assert result_json["reason"] == "advisory_dirty_remaining"
+    assert result_json["changed_files"] == []
+    assert result_json["advisory_changed_files"] == ["chezmoi:dotfile"]
 
 
-def test_config_fallback_ignores_none_strategy_absolute_sibling(
+def test_config_fallback_reports_none_strategy_absolute_sibling_as_advisory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -249,16 +270,29 @@ def test_config_fallback_ignores_none_strategy_absolute_sibling(
     monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", str(project_file))
     monkeypatch.delenv(SIBLING_REPOS_JSON_ENV, raising=False)
     artifacts_dir = tmp_path / "artifacts"
+    prompts: list[str] = []
     provider = MagicMock()
+
+    def invoke(prompt: str, **_: object) -> InvokeResult:
+        prompts.append(prompt)
+        dirty_file.unlink()
+        return InvokeResult(content="finalized static sibling")
+
+    provider.invoke.side_effect = invoke
 
     result = _run_finalizer(provider, artifacts_dir)
 
-    assert result.content == "primary response"
-    provider.invoke.assert_not_called()
-    assert dirty_file.exists()
-    assert '"status": "clean"' in (
-        artifacts_dir / "commit_finalizer_result.json"
-    ).read_text(encoding="utf-8")
+    assert result.content == "primary response\n\nfinalized static sibling"
+    assert provider.invoke.call_count == 1
+    assert "static sibling repo chezmoi" in prompts[0]
+    assert "dotfile" in prompts[0]
+    assert f"cd {chezmoi.resolve()}" in prompts[0]
+    assert not dirty_file.exists()
+    result_json = _read_result_json(artifacts_dir)
+    assert result_json["status"] == "finalized"
+    assert result_json["reason"] == "advisory_clean_after_pass"
+    assert result_json["changed_files"] == []
+    assert result_json["advisory_changed_files"] == []
 
 
 def test_config_fallback_checks_managed_root_sibling(
@@ -360,7 +394,7 @@ def test_multiple_dirty_configured_siblings_are_listed_and_rechecked(
     ).read_text(encoding="utf-8")
 
 
-def test_mixed_dirty_siblings_ignore_static_and_recheck_suffix(
+def test_mixed_dirty_siblings_report_static_but_only_suffix_blocks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -410,10 +444,12 @@ def test_mixed_dirty_siblings_ignore_static_and_recheck_suffix(
     assert result.content == "primary response\n\nfinalized suffix sibling"
     assert "sibling repo core" in prompts[0]
     assert "core.txt" in prompts[0]
-    assert "sibling repo chezmoi" not in prompts[0]
-    assert "dotfile" not in prompts[0]
-    assert f"cd {static_sibling.resolve()}" not in prompts[0]
+    assert "static sibling repo chezmoi" in prompts[0]
+    assert "dotfile" in prompts[0]
+    assert f"cd {static_sibling.resolve()}" in prompts[0]
     assert static_file.exists()
-    assert '"status": "finalized"' in (
-        tmp_path / "artifacts" / "commit_finalizer_result.json"
-    ).read_text(encoding="utf-8")
+    result_json = _read_result_json(tmp_path / "artifacts")
+    assert result_json["status"] == "finalized"
+    assert result_json["reason"] == "advisory_dirty_remaining"
+    assert result_json["changed_files"] == []
+    assert result_json["advisory_changed_files"] == ["chezmoi:dotfile"]

@@ -33,8 +33,11 @@ def write_result(
         return
     try:
         root.mkdir(parents=True, exist_ok=True)
+        payload = asdict(result)
+        if result.advisory_changed_files is None:
+            payload.pop("advisory_changed_files", None)
         (root / "commit_finalizer_result.json").write_text(
-            json.dumps(asdict(result), indent=2, sort_keys=True) + "\n",
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
     except OSError:

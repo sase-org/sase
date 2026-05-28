@@ -18,42 +18,83 @@ def build_dirty_details(
     main_instruction: str,
     main_repo: DirtyRepo | None,
     sibling_repos: tuple[DirtyRepo, ...],
+    advisory_sibling_repos: tuple[DirtyRepo, ...] = (),
 ) -> str:
-    if main_repo is not None and not sibling_repos and main_details:
+    if (
+        main_repo is not None
+        and not sibling_repos
+        and not advisory_sibling_repos
+        and main_details
+    ):
         return main_details
 
     repos: list[DirtyRepo] = []
     if main_repo is not None:
         repos.append(main_repo)
     repos.extend(sibling_repos)
-    if not repos:
+    if not repos and not advisory_sibling_repos:
         return ""
 
-    lines = ["Uncommitted changes detected in repositories:"]
-    for repo in repos:
-        if repo.kind == "main":
-            label = "main workspace"
-        elif repo.kind == "sibling":
-            label = f"sibling repo {repo.name}"
-        lines.append(f"- {label}: {repo.path}")
-        lines.extend(f"  - {path}" for path in repo.changed_files[:20])
-        if len(repo.changed_files) > 20:
-            lines.append(f"  - ... ({len(repo.changed_files)} total)")
+    lines: list[str] = []
+    if repos:
+        lines.append("Uncommitted changes detected in repositories:")
+        for repo in repos:
+            if repo.kind == "main":
+                label = "main workspace"
+            elif repo.kind == "sibling":
+                label = f"sibling repo {repo.name}"
+            lines.append(f"- {label}: {repo.path}")
+            lines.extend(f"  - {path}" for path in repo.changed_files[:20])
+            if len(repo.changed_files) > 20:
+                lines.append(f"  - ... ({len(repo.changed_files)} total)")
+
+    if advisory_sibling_repos:
+        if lines:
+            lines.append("")
+        lines.append(
+            "Advisory uncommitted changes detected in static sibling repositories:"
+        )
+        for repo in advisory_sibling_repos:
+            lines.append(f"- static sibling repo {repo.name}: {repo.path}")
+            lines.extend(f"  - {path}" for path in repo.changed_files[:20])
+            if len(repo.changed_files) > 20:
+                lines.append(f"  - ... ({len(repo.changed_files)} total)")
 
     if main_repo is not None and main_instruction:
         lines.extend(["", "Main workspace commit instructions:", main_instruction])
 
+    if sibling_repos or advisory_sibling_repos:
+        lines.extend(
+            [
+                "",
+                "Sibling repository commit instructions:",
+                _sibling_commit_instruction(),
+            ]
+        )
+
     if sibling_repos:
-        lines.extend(["", "Sibling repository commit instructions:"])
         for repo in sibling_repos:
             lines.append(
                 f"- For `{repo.name}`, run `cd {repo.path}` before using "
                 "your /sase_git_commit skill."
             )
-        lines.append(_sibling_commit_instruction())
         lines.append(
             "After each sibling commit, run `git status --short --branch` in "
             "that sibling repo and make sure it is clean before continuing."
+        )
+
+    if advisory_sibling_repos:
+        lines.extend(["", "Static sibling advisory instructions:"])
+        for repo in advisory_sibling_repos:
+            lines.append(
+                f"- For `{repo.name}`, run `cd {repo.path}` before using "
+                "your /sase_git_commit skill only if you made the listed "
+                "changes in this session."
+            )
+        lines.append(
+            "These static sibling repositories use `workspace.strategy: none`; "
+            "leaving advisory changes uncommitted will not make the finalizer "
+            "fail."
         )
 
     return "\n".join(lines)
@@ -93,8 +134,8 @@ def build_follow_up_prompt(
         f"--- Work So Far ---\n{accumulated_response}\n\n"
         f"--- Commit Finalizer Pass {pass_number} of {max_passes} ---\n"
         f"{details}\n\n"
-        "After handling the commit requirement, respond with a concise summary "
-        "of what you did."
+        "After handling the commit requirement or advisory, respond with a "
+        "concise summary of what you did."
     )
 
 
