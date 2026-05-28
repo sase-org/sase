@@ -1,0 +1,209 @@
+"""Auto-commit coverage for generated SDD plan done status changes."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+
+from sase.llm_provider import commit_finalizer_git as finalizer_git
+from sase.llm_provider.commit_finalizer import run_commit_finalizer
+from sase.llm_provider.types import InvokeResult
+from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
+
+_PLAN_WIP = """---
+title: Test plan
+status: wip
+---
+
+Original body.
+"""
+
+_PLAN_DONE = """---
+title: Test plan
+status: done
+---
+
+Original body.
+"""
+
+
+def _run_git(repo: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout
+
+
+def _init_git_repo(repo: Path) -> None:
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "SASE Test"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "sase-test@example.invalid"],
+        cwd=repo,
+        check=True,
+    )
+
+
+def _commit_all(repo: Path, message: str) -> None:
+    _run_git(repo, "add", ".")
+    _run_git(repo, "commit", "-q", "-m", message)
+
+
+def _create_repo_with_plan(repo: Path) -> Path:
+    _init_git_repo(repo)
+    plan = repo / "sdd" / "tales" / "test_plan.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(_PLAN_WIP, encoding="utf-8")
+    _commit_all(repo, "initial")
+    return plan
+
+
+def _set_agent_env(monkeypatch: pytest.MonkeyPatch, project_dir: Path) -> None:
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260528_120000")
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(project_dir))
+    monkeypatch.delenv("SASE_DISABLE_COMMIT_STOP_HOOK", raising=False)
+    monkeypatch.delenv(SIBLING_REPOS_JSON_ENV, raising=False)
+
+
+def _use_git_dirty_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    def build(project_dir: str) -> tuple[bool, list[str], str, str]:
+        changed_files = finalizer_git.git_changed_files(project_dir)
+        if not changed_files:
+            return (False, [], "", "")
+        details = "Uncommitted changes detected:\n" + "\n".join(changed_files)
+        return (True, changed_files, "commit", details)
+
+    monkeypatch.setattr(
+        "sase.llm_provider.commit_finalizer.build_commit_details",
+        build,
+    )
+
+
+def _run_finalizer(provider: MagicMock, artifacts_dir: Path) -> InvokeResult:
+    return run_commit_finalizer(
+        provider=provider,
+        original_prompt="primary prompt",
+        invoke_result=InvokeResult(content="primary response"),
+        model_tier="large",
+        suppress_output=True,
+        model_override=None,
+        artifacts_dir=str(artifacts_dir),
+    )
+
+
+def test_done_status_only_sdd_plan_change_is_auto_committed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "sase_10"
+    plan = _create_repo_with_plan(repo)
+    plan.write_text(_PLAN_DONE, encoding="utf-8")
+    _set_agent_env(monkeypatch, repo)
+    _use_git_dirty_details(monkeypatch)
+    provider = MagicMock()
+    artifacts_dir = tmp_path / "artifacts"
+
+    result = _run_finalizer(provider, artifacts_dir)
+
+    provider.invoke.assert_not_called()
+    assert result.content == "primary response"
+    assert _run_git(repo, "status", "--short") == ""
+    commit_message = _run_git(repo, "log", "-1", "--pretty=%B")
+    assert "chore: Mark SDD plan done" in commit_message
+    assert "TYPE=sdd" in commit_message
+    result_json = (artifacts_dir / "commit_finalizer_result.json").read_text(
+        encoding="utf-8"
+    )
+    assert '"status": "finalized"' in result_json
+    assert '"reason": "auto_committed_done_plan_status"' in result_json
+
+
+def test_additional_dirty_file_uses_provider_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "sase_10"
+    plan = _create_repo_with_plan(repo)
+    extra = repo / "src" / "extra.py"
+    extra.parent.mkdir()
+    extra.write_text("VALUE = 1\n", encoding="utf-8")
+    _commit_all(repo, "add extra")
+    plan.write_text(_PLAN_DONE, encoding="utf-8")
+    extra.write_text("VALUE = 2\n", encoding="utf-8")
+    _set_agent_env(monkeypatch, repo)
+    _use_git_dirty_details(monkeypatch)
+    provider = MagicMock()
+
+    def invoke(*_: object, **__: object) -> InvokeResult:
+        plan.write_text(_PLAN_WIP, encoding="utf-8")
+        extra.write_text("VALUE = 1\n", encoding="utf-8")
+        return InvokeResult(content="provider finalized")
+
+    provider.invoke.side_effect = invoke
+
+    result = _run_finalizer(provider, tmp_path / "artifacts")
+
+    assert provider.invoke.call_count == 1
+    assert result.content == "primary response\n\nprovider finalized"
+    assert _run_git(repo, "log", "-1", "--pretty=%s") == "add extra\n"
+
+
+def test_non_status_sdd_markdown_change_uses_provider_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "sase_10"
+    plan = _create_repo_with_plan(repo)
+    changed_body = _PLAN_WIP.replace("Original body.", "Updated body.")
+    plan.write_text(changed_body, encoding="utf-8")
+    _set_agent_env(monkeypatch, repo)
+    _use_git_dirty_details(monkeypatch)
+    provider = MagicMock()
+
+    def invoke(*_: object, **__: object) -> InvokeResult:
+        plan.write_text(_PLAN_WIP, encoding="utf-8")
+        return InvokeResult(content="provider finalized")
+
+    provider.invoke.side_effect = invoke
+
+    _run_finalizer(provider, tmp_path / "artifacts")
+
+    assert provider.invoke.call_count == 1
+    assert _run_git(repo, "log", "-1", "--pretty=%s") == "initial\n"
+
+
+def test_sibling_done_status_change_uses_provider_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main = tmp_path / "sase_10"
+    main.mkdir()
+    sibling = tmp_path / "sase-core_10"
+    plan = _create_repo_with_plan(sibling)
+    plan.write_text(_PLAN_DONE, encoding="utf-8")
+    _set_agent_env(monkeypatch, main)
+    _use_git_dirty_details(monkeypatch)
+    monkeypatch.setenv(
+        SIBLING_REPOS_JSON_ENV,
+        json.dumps([{"name": "core", "workspace_dir": str(sibling)}]),
+    )
+    provider = MagicMock()
+
+    def invoke(*_: object, **__: object) -> InvokeResult:
+        plan.write_text(_PLAN_WIP, encoding="utf-8")
+        return InvokeResult(content="provider finalized")
+
+    provider.invoke.side_effect = invoke
+
+    _run_finalizer(provider, tmp_path / "artifacts")
+
+    assert provider.invoke.call_count == 1
+    assert _run_git(sibling, "log", "-1", "--pretty=%s") == "initial\n"

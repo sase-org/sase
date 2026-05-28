@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from sase.commit_instructions import build_commit_details
 
@@ -17,7 +18,7 @@ from .commit_finalizer_config import (
     load_finalizer_config,
     resolve_finalizer_project_dir,
 )
-from .commit_finalizer_git import git_changed_files
+from .commit_finalizer_git import auto_commit_done_sdd_plan_status, git_changed_files
 from .commit_finalizer_prompting import (
     append_response,
     build_dirty_details,
@@ -173,12 +174,21 @@ def run_commit_finalizer(
 
     project_dir = _resolve_finalizer_project_dir()
     dirty_state = _collect_dirty_state(project_dir, artifact_root=artifact_root)
+    dirty_state, auto_committed = _auto_commit_done_plan_status_if_possible(
+        project_dir,
+        dirty_state,
+        artifact_root,
+    )
     if not dirty_state.repos:
         _write_result(
             artifact_root,
             _CommitFinalizerResult(
-                status="clean",
-                reason="no_changes",
+                status="finalized" if auto_committed else "clean",
+                reason=(
+                    "auto_committed_done_plan_status"
+                    if auto_committed
+                    else "no_changes"
+                ),
                 project_dir=project_dir,
                 passes=0,
                 changed_files=[],
@@ -222,12 +232,21 @@ def run_commit_finalizer(
         accumulated_usage = _merge_usage(accumulated_usage, follow_up.usage)
 
         dirty_state = _collect_dirty_state(project_dir, artifact_root=artifact_root)
+        dirty_state, auto_committed = _auto_commit_done_plan_status_if_possible(
+            project_dir,
+            dirty_state,
+            artifact_root,
+        )
         if not dirty_state.repos:
             _write_result(
                 artifact_root,
                 _CommitFinalizerResult(
                     status="finalized",
-                    reason="clean_after_pass",
+                    reason=(
+                        "auto_committed_done_plan_status"
+                        if auto_committed
+                        else "clean_after_pass"
+                    ),
                     project_dir=project_dir,
                     passes=pass_number,
                     changed_files=[],
@@ -248,3 +267,16 @@ def run_commit_finalizer(
         ),
     )
     raise _CommitFinalizerError(error)
+
+
+def _auto_commit_done_plan_status_if_possible(
+    project_dir: str,
+    dirty_state: DirtyState,
+    artifact_root: Path | None,
+) -> tuple[DirtyState, bool]:
+    if not dirty_state.repos:
+        return dirty_state, False
+    if not auto_commit_done_sdd_plan_status(dirty_state):
+        return dirty_state, False
+    refreshed = _collect_dirty_state(project_dir, artifact_root=artifact_root)
+    return refreshed, not refreshed.repos
