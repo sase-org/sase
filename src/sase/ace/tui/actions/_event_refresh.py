@@ -84,16 +84,16 @@ class EventRefreshMixin(EventHandlersBase):
     def _on_artifact_change(
         self, changed_paths: tuple[Path, ...] | None = None
     ) -> None:
-        """Inotify dispatch: schedule a reconcile when the user is idle.
+        """Inotify dispatch: mark dirty surfaces when the user is idle.
 
         Called on the UI thread by :class:`ArtifactWatcher` after coalescing
         a burst of file-system events.  Defers when the user is mid-burst
-        on j/k so the reconcile lands during a pause rather than spiking
-        latency in the middle of navigation.
+        on j/k so any immediate reconcile lands during a pause rather than
+        spiking latency in the middle of navigation.
 
-        Phase 7: also flips the per-surface dirty flags so the auto-refresh
-        tick (which is the watcher fallback) only does work for surfaces
-        that actually changed.
+        Agents changes only set ``_dirty_agents``; the tab-switch path,
+        auto-refresh gate, debounce floor, and sanity refresh decide when
+        the expensive loader actually runs.
         """
         if self._nav_gate.is_navigating():
             delay = self._nav_gate.time_until_idle() + 0.05
@@ -129,13 +129,9 @@ class EventRefreshMixin(EventHandlersBase):
                     self._on_artifact_change_deferred,
                 )
             return
-        # Existing schedulers already coalesce stampedes via the
-        # ``_*_loading`` / ``_*_refresh_pending`` machinery so a flurry of
-        # inotify wakeups still triggers at most one in-flight reload plus
-        # one follow-up. Keep the immediate work scoped to the inferred
-        # surfaces; the timer-driven dirty flags handle notifications/axe.
-        if "agents" in targets:
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+        # ChangeSpec refreshes are cheap enough to keep immediate and already
+        # coalesce through their pending/loading guard. Agents reloads are
+        # intentionally consumed by the auto-refresh/tab-switch gates above.
         if "changespecs" in targets:
             self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
 

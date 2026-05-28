@@ -97,8 +97,10 @@ def test_artifact_change_defers_when_navigating() -> None:
     assert callback == app._on_artifact_change
 
 
-def test_artifact_change_dispatches_when_idle() -> None:
+def test_artifact_change_marks_dirty_and_dispatches_changespecs_when_idle() -> None:
     app = _FakeApp()
     app._on_artifact_change()
-    assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
+    assert app._dirty_agents is True
+    assert app._dirty_changespecs is True
+    assert app.refresh_calls == ["schedule_changespecs"]
     assert app.deferred_calls == []

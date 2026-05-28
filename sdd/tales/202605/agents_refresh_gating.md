@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 18:15:37
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_refresh_gating.md
 ---
 # Plan: Gate Watcher-Triggered Agents Reloads

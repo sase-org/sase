@@ -255,11 +255,10 @@ def test_artifact_change_marks_all_surfaces_dirty() -> None:
     assert app._dirty_changespecs is True
     assert app._dirty_agents is True
     assert app._dirty_axe is True
-    # Existing scheduling behavior preserved.
-    assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
+    assert app.refresh_calls == ["schedule_changespecs"]
 
 
-def test_artifact_change_schedules_only_agents_for_done_marker() -> None:
+def test_artifact_change_marks_only_agents_dirty_for_done_marker() -> None:
     app = _FakeApp(watcher_active=True)
     path = Path.home() / ".sase" / "projects" / "sase" / "artifacts" / "a" / "done.json"
 
@@ -267,14 +266,14 @@ def test_artifact_change_schedules_only_agents_for_done_marker() -> None:
 
     assert app._dirty_agents is True
     assert app._dirty_changespecs is False
-    assert app.refresh_calls == ["schedule_agents"]
+    assert app.refresh_calls == []
 
 
 @pytest.mark.parametrize(
     "marker_name",
     ["workflow_state.json", "prompt_step_001.json"],
 )
-def test_artifact_change_schedules_agents_for_loader_visible_markers(
+def test_artifact_change_marks_agents_dirty_for_loader_visible_markers(
     marker_name: str,
 ) -> None:
     app = _FakeApp(watcher_active=True)
@@ -293,7 +292,7 @@ def test_artifact_change_schedules_agents_for_loader_visible_markers(
 
     assert app._dirty_agents is True
     assert app._dirty_changespecs is False
-    assert app.refresh_calls == ["schedule_agents"]
+    assert app.refresh_calls == []
 
 
 @pytest.mark.parametrize(
@@ -309,7 +308,7 @@ def test_artifact_change_schedules_agents_for_loader_visible_markers(
         Path.home() / ".sase" / "projects" / "sase" / "artifacts" / "20260528120000",
     ],
 )
-def test_artifact_change_schedules_agents_for_likely_agent_root_directory(
+def test_artifact_change_marks_agents_dirty_for_likely_agent_root_directory(
     path: Path,
 ) -> None:
     app = _FakeApp(watcher_active=True)
@@ -317,7 +316,7 @@ def test_artifact_change_schedules_agents_for_likely_agent_root_directory(
     app._on_artifact_change((path,))
 
     assert app._dirty_agents is True
-    assert app.refresh_calls == ["schedule_agents"]
+    assert app.refresh_calls == []
 
 
 @pytest.mark.parametrize(
@@ -353,7 +352,7 @@ def test_artifact_change_ignores_non_loader_artifact_content(path: Path) -> None
     assert app.refresh_calls == []
 
 
-def test_artifact_change_mixed_marker_and_content_schedules_agents_once() -> None:
+def test_artifact_change_mixed_marker_and_content_marks_agents_dirty() -> None:
     app = _FakeApp(watcher_active=True)
     artifacts_dir = (
         Path.home()
@@ -374,7 +373,7 @@ def test_artifact_change_mixed_marker_and_content_schedules_agents_once() -> Non
     )
 
     assert app._dirty_agents is True
-    assert app.refresh_calls == ["schedule_agents"]
+    assert app.refresh_calls == []
 
 
 def test_artifact_change_schedules_only_changespecs_for_project_file() -> None:
@@ -484,7 +483,7 @@ def test_artifact_change_preserves_deferred_paths_during_prompt_input() -> None:
     app._plan_feedback_context = None
     app._on_artifact_change_deferred()
 
-    assert app.refresh_calls == ["schedule_agents"]
+    assert app.refresh_calls == []
 
 
 def test_artifact_change_dedupes_defer_timers_during_prompt_input() -> None:
@@ -515,6 +514,6 @@ def test_artifact_change_deferred_resumes_refresh_after_prompt_closes() -> None:
     app = _FakeApp(watcher_active=True)
     app._artifact_change_defer_pending = True
     app._on_artifact_change_deferred()
-    assert "schedule_agents" in app.refresh_calls
     assert "schedule_changespecs" in app.refresh_calls
+    assert "schedule_agents" not in app.refresh_calls
     assert app._artifact_change_defer_pending is False
