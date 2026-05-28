@@ -87,10 +87,7 @@ class MarkingMixin:
         self.notify(f"Cleared {count} mark(s)")  # type: ignore[attr-defined]
 
     def action_bulk_change_status(self) -> None:
-        """Change status for marked ChangeSpecs or save marked agents."""
-        if self.current_tab == "agents":
-            self._save_marked_agent_group()  # type: ignore[attr-defined]
-            return
+        """Change status for marked ChangeSpecs."""
         if self.current_tab != "changespecs":
             return
 
@@ -123,6 +120,12 @@ class MarkingMixin:
             StatusModal(marked_specs[0].status, list(common_statuses)),
             on_dismiss,
         )
+
+    def action_save_marked_agents(self) -> None:
+        """Save and dismiss marked agents on the Agents tab."""
+        if self.current_tab != "agents":
+            return
+        self._save_marked_agent_group()  # type: ignore[attr-defined]
 
     def _apply_bulk_status_change(
         self, changespecs: list[ChangeSpec], new_status: str

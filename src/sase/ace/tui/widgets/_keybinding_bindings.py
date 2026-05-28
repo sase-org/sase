@@ -106,7 +106,7 @@ class KeybindingBindingsMixin:
             bindings.append((x, f"kill/dismiss ({marked_count} marked)"))
             bindings.append(
                 (
-                    self._kd("bulk_change_status"),
+                    self._kd("save_marked_agents"),
                     f"save/dismiss ({marked_count} marked)",
                 )
             )

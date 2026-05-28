@@ -133,7 +133,7 @@ def test_agents_help_lists_save_dismiss_marked_agents() -> None:
         for key, label in bindings
     }
 
-    assert ("S", "Save/dismiss marked agents") in agent_pairs
+    assert ("s", "Save/dismiss marked agents") in agent_pairs
     assert ("S", "Bulk status change (marked CLs)") in cls_pairs
 
 
@@ -315,9 +315,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 83 configurable + 10 digit = 93 bindings."""
+    """build_app_bindings produces 84 configurable + 10 digit = 94 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 93
+    assert len(bindings) == 94
 
 
 def test_build_app_bindings_priority() -> None:
@@ -337,6 +337,15 @@ def test_build_app_bindings_uses_config_keys() -> None:
     by_action = {b.action: b for b in bindings}
     assert by_action["next_changespec"].key == "n"
     assert by_action["quit"].key == "Q"
+
+
+def test_default_lowercase_s_bindings_are_tab_scoped_and_ordered() -> None:
+    """Default ``s`` is intentionally shared by CL status and Agents save."""
+    bindings = build_app_bindings(_default_app_keymaps())
+    assert [b.action for b in bindings if b.key == "s"] == [
+        "change_status",
+        "save_marked_agents",
+    ]
 
 
 def test_capital_x_binds_agent_cleanup_panel() -> None:

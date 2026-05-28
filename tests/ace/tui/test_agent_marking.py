@@ -322,15 +322,26 @@ def test_bulk_kill_cancel_preserves_marks() -> None:
     assert app._marked_agents == {running.identity}
 
 
-def test_bulk_change_status_dispatches_to_save_marked_agents_on_agents_tab() -> None:
-    """The global S action routes to the Agents-tab save/dismiss flow."""
+def test_save_marked_agents_dispatches_on_agents_tab() -> None:
+    """The Agents-tab save action delegates to the save/dismiss flow."""
+    a1 = _make_agent()
+    app = _FakeMarkApp([a1])
+
+    with patch.object(app, "_save_marked_agent_group") as mock_save:
+        app.action_save_marked_agents()
+
+    mock_save.assert_called_once_with()
+
+
+def test_bulk_change_status_does_not_save_marked_agents_on_agents_tab() -> None:
+    """The uppercase bulk-status action is CL-only."""
     a1 = _make_agent()
     app = _FakeMarkApp([a1])
 
     with patch.object(app, "_save_marked_agent_group") as mock_save:
         app.action_bulk_change_status()
 
-    mock_save.assert_called_once_with()
+    mock_save.assert_not_called()
 
 
 def test_bulk_change_status_keeps_changespec_status_flow() -> None:
@@ -353,7 +364,7 @@ def test_bulk_change_status_keeps_changespec_status_flow() -> None:
 def test_save_marked_agent_group_warns_when_no_agents_marked() -> None:
     app = _FakeMarkApp([_make_agent()])
 
-    app.action_bulk_change_status()
+    app.action_save_marked_agents()
 
     assert app.notifications == [("No agents marked", "warning")]
     assert app._scheduled == []
@@ -369,7 +380,7 @@ def test_save_marked_running_agents_hides_without_kill() -> None:
         patch.object(app, "_do_bulk_kill_agents") as mock_bulk_kill,
         patch.object(app, "_kill_process_group", create=True) as mock_killpg,
     ):
-        app.action_bulk_change_status()
+        app.action_save_marked_agents()
 
     mock_bulk_kill.assert_not_called()
     mock_killpg.assert_not_called()
@@ -401,7 +412,7 @@ def test_save_marked_group_persists_refs_in_display_order() -> None:
     app = _FakeMarkApp([parent, child, other])
     app._marked_agents = {other.identity, parent.identity}
 
-    app.action_bulk_change_status()
+    app.action_save_marked_agents()
 
     saved_groups: list[Any] = []
     saved_bundles: list[Agent] = []

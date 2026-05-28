@@ -76,7 +76,8 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("toggle_mark", "Mark", False),
     ("rename_cl", "Rename", False),
     ("clear_marks", "Unmark All", False),
-    ("bulk_change_status", "Bulk Status / Save Marked", False),
+    ("bulk_change_status", "Bulk Status", False),
+    ("save_marked_agents", "Save Marked Agents", False),
     ("show_notifications", "Notifications", False),
     ("kill_agent", "Kill", False),
     ("expand_or_layout", "Expand / Layout", False),
@@ -263,6 +264,7 @@ class AppKeymaps:
     toggle_mark: str
     clear_marks: str
     bulk_change_status: str
+    save_marked_agents: str
     mark_inactive_pinned: str
     # Agent / axe
     kill_agent: str

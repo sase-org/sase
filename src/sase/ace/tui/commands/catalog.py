@@ -143,9 +143,16 @@ _APP_COMMAND_META: tuple[
     ("clear_marks", "Clear all marks", "Marking", _CL_AGENTS, ("unmark",)),
     (
         "bulk_change_status",
-        "Bulk status / save marked agents",
+        "Bulk status change",
         "Marking",
-        _CL_AGENTS,
+        _CL_ONLY,
+        ("marked cl", "bulk"),
+    ),
+    (
+        "save_marked_agents",
+        "Save/dismiss marked agents",
+        "Marking",
+        _AGENTS_ONLY,
         ("save marked", "dismiss marked", "agent group"),
     ),
     ("mark_inactive_pinned", "Mark inactive pinned", "Marking", _AGENTS_ONLY, ()),

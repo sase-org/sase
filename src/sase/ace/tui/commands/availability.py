@@ -192,7 +192,7 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.clear_marks":
         return ctx.mark_count > 0
 
-    if spec.id == "app.bulk_change_status":
+    if spec.id == "app.save_marked_agents":
         return ctx.mark_count > 0
 
     if spec.id == "app.mark_inactive_pinned":

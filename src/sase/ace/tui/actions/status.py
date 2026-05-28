@@ -146,6 +146,8 @@ class StatusActionsMixin:
 
     def action_change_status(self) -> None:
         """Open status change modal."""
+        if self.current_tab != "changespecs":
+            return
         if not self.changespecs:
             return
 

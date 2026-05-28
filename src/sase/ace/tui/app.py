@@ -247,6 +247,12 @@ class AceApp(
 
             if isinstance(self.focused, PromptTextArea):
                 return False
+        if action in {"change_status", "bulk_change_status"}:
+            if self.current_tab != "changespecs":
+                return False
+        if action == "save_marked_agents":
+            if self.current_tab != "agents":
+                return False
         return super().check_action(action, parameters)
 
     def compose(self) -> ComposeResult:

@@ -32,7 +32,7 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Walk the Agents-tab m/S/R saved-group flow through preview and revive."""
+    """Walk the Agents-tab m/s/R saved-group flow through preview and revive."""
 
     agent = _agent(
         cl_name="visual-polish",
@@ -72,7 +72,7 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
         await page.expect_state("agent_count", 1)
 
         await page.press("m")
-        await page.press("S")
+        await page.press("s")
         await page.expect_state("agent_count", 0)
         await _wait_until(
             lambda: bool(dismissed_agents.list_dismissed_agent_groups().groups)
@@ -126,7 +126,7 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tag_real_loader
         assert page.app._agents[0].tag == "backend"
 
         await page.press("m")
-        await page.press("S")
+        await page.press("s")
         await page.expect_state("agent_count", 0)
         await _wait_until(
             lambda: bool(dismissed_agents.list_dismissed_agent_groups().groups)
@@ -182,7 +182,7 @@ async def test_agents_command_palette_exposes_save_marked_group(
         await page.expect_modal("CommandPaletteModal")
         modal = page.app.screen
         assert isinstance(modal, CommandPaletteModal)
-        assert "app.bulk_change_status" not in {spec.id for spec in modal._all_specs}
+        assert "app.save_marked_agents" not in {spec.id for spec in modal._all_specs}
         await page.press("escape")
         await page.expect_no_modal()
 
@@ -192,9 +192,43 @@ async def test_agents_command_palette_exposes_save_marked_group(
         modal = page.app.screen
         assert isinstance(modal, CommandPaletteModal)
         save_spec = next(
-            spec for spec in modal._all_specs if spec.id == "app.bulk_change_status"
+            spec for spec in modal._all_specs if spec.id == "app.save_marked_agents"
         )
-        assert save_spec.label == "Bulk status / save marked agents"
+        assert save_spec.label == "Save/dismiss marked agents"
+
+
+async def test_lowercase_s_dispatches_by_active_tab(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lowercase s remains CL status on CLs and saves marked agents on Agents."""
+
+    agent = _agent(raw_suffix="20260527122000")
+    patch_startup_loaders(monkeypatch, agents=[agent])
+    _patch_dismissed_archive_paths(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._marking.sync_dismissed_agent_artifact_index",
+        lambda *_args, **_kwargs: None,
+    )
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=[make_changespec(name="visual-polish", status="WIP")],
+        initial_tab="changespecs",
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("s")
+        await page.expect_modal("StatusModal")
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=[make_changespec(name="visual-polish")],
+        initial_tab="agents",
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("m")
+        await page.press("s")
+        await page.expect_state("agent_count", 0)
 
 
 def _agent(**overrides: object) -> Agent:
