@@ -1,8 +1,9 @@
 # Agent Revival Audit Log
 
-The TUI's revive flow (R on the Agents tab) writes a JSONL audit log to `~/.sase/logs/events.jsonl` so post-mortem
+The TUI's revive flow (`R` on the Agents tab) writes a JSONL audit log to `~/.sase/logs/events.jsonl` so post-mortem
 questions like "what was the last agent I tried to revive?" can be answered without grepping through dismissed-bundle
-directories.
+directories. Paths shown here use the default SASE state root; when `SASE_HOME` is set, the log lives under that root
+instead.
 
 Three event kinds are emitted:
 
@@ -24,6 +25,8 @@ Common fields on every record:
 - `outcome` — `"success"` or `"failure"` (omitted for `agent_revive_started`).
 - `selection_scope` — `"all"`, `"home"`, `"project"`, or `"cl"`, plus `selection_project` / `selection_cl` when
   applicable. These fields are omitted when the revive was not launched from a scoped selection.
+- `saved_group_id` / `saved_group_title` — present when the revival was launched from the saved-group modal rather than
+  the custom scoped search.
 
 Per-agent fields on `agent_revived` / `agent_revive_failed`:
 
@@ -36,7 +39,7 @@ Per-agent fields on `agent_revived` / `agent_revive_failed`:
 Failure-only fields:
 
 - `stage` — one of `dismissed_set_update`, `artifact_restore`, `bundle_marking`, `reload`, `refresh_display`,
-  `no_dismissed_agents`.
+  `saved_group_load`, `saved_group_bundle_load`, `saved_group_mark_revived`, or `no_dismissed_agents`.
 - `error_type` / `error_message` — exception class and `str(exc)` truncated to 500 characters.
 - `reason` — set for non-exceptional failures (currently only `no_dismissed_agents`).
 

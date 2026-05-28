@@ -123,12 +123,13 @@ SASE keeps durable state outside any one chat session:
   configured commit skill; if the workspace is still dirty after the configured pass limit, the agent run fails with a
   clear artifact trail.
 - **Durable artifacts** - Agent metadata, chats, notifications, prompt history, source-linked episode evidence,
-  ChangeSpecs, SDD files, and beads are stored in predictable project/user directories so ACE, AXE, CLI commands, and
-  external integrations can share state. Long-term memory reads and write proposals are also project-scoped and audited
-  so agents can discover context without silently changing canonical memory files. ACE uses a persistent artifact index
-  for its normal Agents-tab "visible inbox" - active plus recent completed, non-hidden rows - so startup does not scan
-  all history. Use `sase agents index status` for a lightweight health check, `verify` to compare the index with source
-  artifacts, and `gc` to rebuild the index and dismissed projection.
+  dismissed-agent bundles, saved agent groups, ChangeSpecs, SDD files, and beads are stored in predictable project/user
+  directories so ACE, AXE, CLI commands, and external integrations can share state. Long-term memory reads and write
+  proposals are also project-scoped and audited so agents can discover context without silently changing canonical
+  memory files. ACE uses a persistent artifact index for its normal Agents-tab "visible inbox" - active plus recent
+  completed, non-hidden rows - so startup does not scan all history. Use `sase agents index status` for a lightweight
+  health check, `verify` to compare the index with source artifacts, and `gc` to rebuild the index and dismissed
+  projection.
 
 ## Keep reading
 

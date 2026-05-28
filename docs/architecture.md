@@ -54,12 +54,16 @@ inspected by users, agents, and automation:
 | ---------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
 | ChangeSpecs      | Project `.sase` files under `~/.sase/projects/`                    | Review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps.            |
 | Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments.   |
+| Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                      |
 | SDD artifacts    | `sdd/` or `.sase/sdd/`                                             | Prompt snapshots, plans, executable epics, legends, myths, and research notes.                |
 | Beads            | `sdd/beads/` or `.sase/sdd/beads/`                                 | Issue graph, JSONL export, SQLite query cache, epic/legend execution metadata.                |
 | Memory context   | `memory/`, `.sase/memory/`, `~/.sase/projects/<project>/`          | Agent instructions, dynamic-memory cache files, audited reads, write proposals, and episodes. |
 | Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.     |
 | Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.              |
 | Workspace claims | Running-field state and provider metadata                          | Reservation and release of numbered workspaces for parallel agents.                           |
+
+`~/.sase` is the default SASE state root. Set `SASE_HOME` to move that root for isolated tests, alternate profiles, or
+containerized runs.
 
 This model lets ACE, CLI commands, axe, and future frontends read the same engineering state without depending on one
 terminal session.

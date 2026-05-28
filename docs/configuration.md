@@ -946,11 +946,11 @@ entry points directly.
 | `SASE_DISABLE_PLUGIN_XPROMPTS` | Disable plugin-provided xprompt and workflow files.                     |
 | `SASE_DISABLE_PLUGIN_CONFIG`   | Disable plugin-provided `default_config.yml` files and config xprompts. |
 
-### Source Store
+### State Root
 
-| Variable    | Description                                                                                        |
-| ----------- | -------------------------------------------------------------------------------------------------- |
-| `SASE_HOME` | Override the SASE source-store root. Used by mobile helpers, bead state, and source-store lookups. |
+| Variable    | Description                                                                                                                                                          |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_HOME` | Override the SASE state root. Defaults to `~/.sase`; project files, chats, artifacts, notifications, dismissed bundles, saved groups, and logs move under this root. |
 
 ### General
 
@@ -961,6 +961,7 @@ entry points directly.
 | `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                            |
 | `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                     |
 | `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                  |
+| `SASE_CORE_DIR`                       | Preferred sibling `sase-core` source checkout for `sase lsp` development; used before packaged PATH binaries.   |
 | `SASE_PYTEST_WORKERS`                 | Override the xdist worker count used by `just test`, `just test-slow`, `just test-visual`, and `just test-cov`. |
 | `SASE_JUST_INVOCATION_DIR`            | Internal value set by `just` so test selectors are normalized from the caller's directory.                      |
 
@@ -1480,8 +1481,8 @@ The snippet catalog uses the same source ordering as ACE: xprompts marked with `
 ### `sase lsp`
 
 Starts the xprompt language server over stdio for editor integrations. `SASE_XPROMPT_LSP_CMD` can override the server
-command during development; otherwise `sase lsp` resolves `sase-xprompt-lsp` from `PATH` or a sibling `../sase-core`
-checkout.
+command during development; otherwise `sase lsp` prefers a sibling `sase-core` source checkout (`SASE_CORE_DIR`,
+sibling-repo env vars, then `../sase-core`) and falls back to `sase-xprompt-lsp` on `PATH`.
 
 | Flag              | Values | Default | Description                            |
 | ----------------- | ------ | ------- | -------------------------------------- |

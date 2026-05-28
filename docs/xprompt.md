@@ -121,9 +121,12 @@ collection and classification code, but returns JSON metadata instead of requiri
 this order:
 
 1. `SASE_XPROMPT_LSP_CMD`, parsed as a shell-style command for development.
-2. `sase-xprompt-lsp` on `PATH`.
-3. A sibling `../sase-core` debug or release binary, then
-   `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --` when available.
+2. A source checkout from `SASE_CORE_DIR`, `SASE_SIBLING_REPO_CORE_DIR`, `SASE_SIBLING_REPO_SASE_CORE_DIR`, or
+   `../sase-core`; when `cargo` is available, the wrapper runs
+   `cargo run --manifest-path <core>/Cargo.toml -p sase_xprompt_lsp --`.
+3. A debug or release `sase-xprompt-lsp` binary under one of those sibling core checkouts, used only when `cargo` is not
+   available.
+4. `sase-xprompt-lsp` on `PATH`.
 
 Examples:
 
@@ -761,13 +764,24 @@ local skill files. Coding agents invoke them as `/sase_<name>`. Runtime config o
 
 ## Built-in XPrompts
 
-A handful of xprompts ship in `src/sase/default_config.yml` and `src/sase/default_xprompts/*.md` and are always
-available without needing a project- or user-level definition. They're at the built-in end of the
-[discovery order](#discovery-order), so any project, user, or config xprompt with the same name overrides the
-file-backed markdown defaults.
+Core xprompts ship in `src/sase/default_config.yml`, `src/sase/default_xprompts/*.md`, and `src/sase/xprompts/`. They
+are always available without needing a project- or user-level definition. They're at the built-in end of the
+[discovery order](#discovery-order), so any project, user, or config xprompt with the same name overrides the packaged
+defaults. Common entries include:
 
 | Reference             | Body summary                                                                                             |
 | --------------------- | -------------------------------------------------------------------------------------------------------- |
+| `#cd`                 | Directory workspace reference for running without claiming a numbered VCS workspace                      |
+| `#git`                | Built-in bare-git workspace reference                                                                    |
+| `#commit`             | Commit workflow reference                                                                                |
+| `#propose`            | Proposal workflow reference                                                                              |
+| `#file`               | Include file content in a prompt                                                                         |
+| `#fork`               | Relaunch from the focused agent's prompt/chat context                                                    |
+| `#fork_by_chat`       | Fork an agent from a saved chat transcript                                                               |
+| `#mentor`             | Launch configured mentor-review behavior                                                                 |
+| `#summarize`          | Summarize provided text or context                                                                       |
+| `#json`               | Request structured JSON output                                                                           |
+| `#!sync`              | Sync the primary SASE workspace and restart axe                                                          |
 | `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes          |
 | `#epic`               | Marks the request as a multi-phase epic and chains `#plan`                                               |
 | `#legend`             | Marks the request as a larger legend-level planning effort that should later split into epics            |

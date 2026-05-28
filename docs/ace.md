@@ -293,6 +293,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                               |
 | `W`                 | Wait for agent (populate prompt with `%w`); with marks, fans out to `%w:a,b,c`                                |
 | `m`                 | Mark / unmark current agent (auto-advances to next)                                                           |
+| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                         |
 | `U`                 | Toggle the focused agent's unread marker                                                                      |
 | `u`                 | Clear all agent marks                                                                                         |
 | `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group                                 |
@@ -1215,9 +1216,21 @@ respective modals.
 
 ### Agent Revival
 
-Press `R` on the Agents tab to revive a previously dismissed agent. Dismissed agents are saved as individual bundle
-files under month shards in `~/.sase/dismissed_bundles/YYYYMM/` and can be restored later. There is no limit on the
-number of dismissed agents that can be stored.
+Press `R` on the Agents tab to revive previously dismissed work. ACE opens the saved-group revival modal first, showing
+newest saved groups with a right-hand preview of included agents, projects, CLs, statuses, provider/model labels, and
+revival count. Select a group and press Enter to revive it, choose **Load more saved groups...** to page older groups,
+or choose **Custom revival search...** to open the legacy project/CL-scoped dismissed-agent search.
+
+Use `m` to mark related agents and then `s` to save them as a group before they disappear from the normal Agents tab.
+The save modal accepts an optional human name; leaving it blank uses the generated summary such as "3 agents from
+@review" or "2 agents in auth_retry". Saving a marked group dismisses/hides the selected rows without killing running
+processes. When a marked top-level workflow row has child rows, ACE includes the children in the saved group so revival
+can restore the original tree.
+
+Dismissed agents are saved as individual bundle files under month shards in `~/.sase/dismissed_bundles/YYYYMM/` and can
+be restored later. Saved group metadata lives under `~/.sase/dismissed_agent_groups/` and stores stable references to
+those bundle files plus the optional group name, status counts, projects, CLs, model/provider metadata, and agent tags.
+There is no limit on the number of dismissed agents or saved groups that can be stored.
 
 Dismiss operations are O(1) per agent: each agent is saved to its own JSON file rather than a monolithic store. Parent
 workflow rows use `<raw_suffix>.json`; workflow children use `<raw_suffix>__c<step_index>.json`. ACE keeps a SQLite
@@ -1227,9 +1240,11 @@ without opening every bundle. Use `sase agents archive verify` to check that mai
 project, model, provider, workflow, and ChangeSpec metadata; it is not a full-text copy of agent chat contents.
 
 Revival removes the agent identity from the dismissed set, restores enough artifact files for ACE to rediscover the
-agent, and preserves the dismissed bundle as historical recovery data. The reload path forces a full-history scan and
-can hydrate the just-revived row directly from the bundle, so agents still appear after revive even if the persistent
-artifact index was empty or stale.
+agent, and preserves the dismissed bundle as historical recovery data. Saved-group revival skips missing bundle
+references with a warning and restores the remaining agents. Group metadata is not deleted after revival; ACE marks the
+group with `revived_at` and increments `times_revived` so the modal can show previous use. The reload path forces a
+full-history scan and can hydrate the just-revived row directly from the bundle, so agents still appear after revive
+even if the persistent artifact index was empty or stale.
 
 Every revival also writes structured events to `~/.sase/logs/events.jsonl` (start, per-agent success, per-agent
 failure). Read them back with `sase revive-log` — see [Agent revival audit log](troubleshooting/agent-revival.md) for
@@ -1237,10 +1252,10 @@ the record schema and CLI flags.
 
 #### Legacy Dismissed-Name Prefix
 
-Current dismiss and revive operations preserve stored agent names. Older dismissed bundles may still contain
-`YYmmdd.<base>` names from the previous dismissal model, and ACE keeps compatibility helpers for reading those bundles.
-Bare `%wait` (no target) intentionally skips legacy dismissal-prefixed candidates so it anchors on a live, visible
-agent.
+Current dismiss and revive operations preserve stored agent names, group tags, and top-level/workflow-child identity.
+Older dismissed bundles may still contain `YYmmdd.<base>` names from the previous dismissal model, and ACE keeps
+compatibility helpers for reading those bundles. Bare `%wait` (no target) intentionally skips legacy dismissal-prefixed
+candidates so it anchors on a live, visible agent.
 
 ## Agents Tab Metadata Panel
 

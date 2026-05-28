@@ -160,11 +160,29 @@ The repository is organized around the CLI entry point, operational subsystems, 
 | `tests/`                       | Python test suite, with subdirectories mirroring major `src/sase/` areas.                              |
 | `docs/`                        | MkDocs Material site source.                                                                           |
 | `sdd/`                         | Project-local prompt, tale, epic, legend, research, and bead artifacts.                                |
+| `xprompts/`                    | Repository-local xprompts and workflows for SASE maintenance agents.                                   |
 | `tools/`                       | Development scripts used by `just` targets and CI checks.                                              |
 | `memory/`                      | SASE memory files used by repository agents.                                                           |
 
 Detailed subsystem pages often include narrower source-layout tables. Use this page for initial orientation, then jump
 to the specific reference for the area you are changing.
+
+## Repository XPrompts
+
+The checkout's top-level `xprompts/` directory is project-local to the `sase` repository. In this repo, those entries
+are auto-namespaced as `sase/<name>` so they do not collide with user or packaged prompts.
+
+Useful visible entries include:
+
+| Reference         | Purpose                                                                                                     |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| `#!sase/reads`    | Fan out a reading-recommendation request across Gemini, Claude, and Codex, then consolidate the final list. |
+| `#sase/pysplit`   | Ask an agent to split one large Python file into import-safe smaller files.                                 |
+| `#sase/pick_plan` | Compare two plan-agent drafts and recommend which one should be approved.                                   |
+
+Some repository workflows are hidden from normal catalog discovery because they are automation helpers, such as docs
+refresh, recent bug/improvement audits, and Python line-limit splitting. Use `sase xprompt list` or the ACE xprompt
+browser from a source checkout when you need the exact current catalog.
 
 ## Documentation Workflow
 
