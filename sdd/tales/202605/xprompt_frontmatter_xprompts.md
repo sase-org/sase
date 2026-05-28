@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 08:54:23
-status: wip
+status: done
 prompt: sdd/prompts/202605/xprompt_frontmatter_xprompts.md
 ---
 # XPrompt Frontmatter `xprompts` LSP Plan
