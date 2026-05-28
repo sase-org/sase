@@ -224,11 +224,13 @@ Hello, {{ user_name }}! Welcome aboard.
 
 If no front matter is present, the entire file content is the template body and the filename stem is the name.
 
-Markdown xprompt files can carry local helper xprompts under `xprompts:`. These helpers use the same structured format
-as config-based xprompts, can have typed inputs and descriptions, and may reference each other transitively. They are
-visible only while expanding the containing xprompt and must use `_`-prefixed names such as `_review_rules`; they do not
-leak into the global catalog. This is useful for multi-agent markdown xprompts where several segments share a long
-prompt fragment without exposing that helper as a standalone completion item.
+Markdown xprompt files can carry file-local helper xprompts under `xprompts:`. These helpers use the same structured
+format as config-based xprompts, including typed inputs and descriptions, and they can reference each other
+transitively. During expansion they inherit the containing xprompt's arguments and template scope, so a helper can use
+values such as `{{ topic }}` from the outer xprompt. They are visible only while expanding the containing xprompt and
+must use `_`-prefixed names such as `_review_rules`; they do not leak into the global catalog, completion catalog, or
+other xprompt files. This underscore rule also applies to local xprompts in ad hoc prompt front matter, while YAML
+workflow-local xprompts follow the workflow rules described in [workflow_spec.md](workflow_spec.md).
 
 ## Reference Syntax
 

@@ -282,10 +282,12 @@ When enabled, the finalizer checks the main workspace through the active VCS pro
 `sibling_repos` Git worktrees only at their resolved sibling `workspace_dir` for the agent's assigned workspace number.
 Dirty enforced workspaces trigger a follow-up invocation that instructs the same provider to use the appropriate commit
 skill. Dirty static siblings (`workspace.strategy: none`) are reported to that follow-up as advisory work and do not
-fail the finalizer if they remain dirty. When the only enforced change is one generated SDD plan markdown file whose
-frontmatter changes exactly from `status: wip` to `status: done`, the finalizer creates a direct
-`chore: Mark SDD plan done` commit instead of invoking the provider again. When `$SASE_ARTIFACTS_DIR` is set, each pass
-writes prompt/response artifacts there, and the final outcome is recorded in `commit_finalizer_result.json`.
+fail the finalizer if they remain dirty. Advisory-only static sibling changes still get one follow-up prompt so the
+agent can commit them when it made those changes. When the only enforced change is one tracked markdown file under
+`sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or `sdd/myths/`, and that file's only diff is leading front matter changing
+exactly from `status: wip` to `status: done`, the finalizer creates a direct `chore: Mark SDD plan done` commit instead
+of invoking the provider again. When `$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and
+the final outcome is recorded in `commit_finalizer_result.json`.
 
 Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable name is historical; it now disables
 the provider-neutral finalizer.

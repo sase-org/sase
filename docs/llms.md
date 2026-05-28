@@ -1164,7 +1164,8 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 ├── 11. Run commit finalizer for SASE agent sessions
 │   ├── Skip when disabled or outside an agent session
 │   ├── Check main workspace and configured Git sibling repos
-│   ├── Auto-commit exact SDD plan done-status closeouts
+│   ├── Treat static sibling repos as advisory dirty targets
+│   ├── Auto-commit exact tracked SDD done-status closeouts
 │   └── Run bounded follow-up provider invocations until enforced repos are clean or failed
 │
 ├── 12. Postprocess
