@@ -270,6 +270,13 @@ _APP_COMMAND_META: tuple[
     ("show_help", "Show help", "Display", _ALL_TABS, ("?",)),
     ("browse_xprompts", "Browse xprompts", "Display", _ALL_TABS, ("#",)),
     (
+        "open_episode_explorer",
+        "Open Episode Explorer",
+        "Display",
+        _ALL_TABS,
+        ("episode", "memory", "timeline", "graph", "source"),
+    ),
+    (
         "dismiss_toasts",
         "Dismiss toasts",
         "Display",

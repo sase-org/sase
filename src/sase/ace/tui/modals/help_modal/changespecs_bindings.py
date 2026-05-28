@@ -264,6 +264,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_hide_submitted), "Show/hide submitted CLs"),
                 (d(a.toggle_hide_reverted), "Show/hide reverted CLs"),
                 (d(a.browse_xprompts), "Browse xprompts"),
+                (d(a.open_episode_explorer), "Open Episode Explorer"),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.stop_axe_and_quit), "Stop axe and quit"),

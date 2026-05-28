@@ -251,12 +251,12 @@ def test_category_order_entries_are_unique() -> None:
 
 def test_catalog_specs_use_configured_keys() -> None:
     """A user-overridden app key must propagate through the catalog."""
-    reg = load_keymap_registry({"keymaps": {"app": {"refresh": "F"}}})
+    reg = load_keymap_registry({"keymaps": {"app": {"refresh": "B"}}})
     catalog = build_command_catalog(reg)
     spec = get_command_by_id(catalog, "app.refresh")
     assert spec is not None
-    assert spec.key_sequence == ("F",)
-    assert spec.key_display == "F"
+    assert spec.key_sequence == ("B",)
+    assert spec.key_display == "B"
 
 
 def test_open_command_palette_command_is_always_present() -> None:

@@ -119,6 +119,7 @@ ace:
       show_notifications: "i"
       show_help: "question_mark"
       browse_xprompts: "number_sign"
+      open_episode_explorer: "F"
       open_command_palette: "colon,semicolon"
       dismiss_toasts: "ctrl+l"
       # Workspace mode prefixes

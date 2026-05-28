@@ -99,6 +99,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("question_mark", "show_help", "Help", show=False),
     # XPrompt browser
     Binding("number_sign", "browse_xprompts", "XPrompts", show=False),
+    Binding("F", "open_episode_explorer", "Episode Explorer", show=False),
     # Query history navigation
     Binding("circumflex_accent", "prev_query", "Prev Query", show=False),
     Binding("underscore", "next_query", "Next Query", show=False),

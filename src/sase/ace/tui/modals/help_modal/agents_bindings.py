@@ -262,6 +262,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.start_agent_from_changespec), "Repeat last @/Space selection"),
                 (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
                 (d(a.browse_xprompts), "Browse xprompts"),
+                (d(a.open_episode_explorer), "Open Episode Explorer"),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.stop_axe_and_quit), "Stop axe and quit"),
