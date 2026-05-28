@@ -220,8 +220,15 @@ Hello, {{ user_name }}! Welcome aboard.
 | `description` | No       | Human-readable one-line description of what the xprompt does                   |
 | `skill`       | No       | Marks this xprompt as an agent skill source for `sase skills init` (see below) |
 | `keywords`    | No       | Trigger terms that append this xprompt as dynamic memory to matching prompts   |
+| `xprompts`    | No       | File-local helper xprompts whose names must start with `_`                     |
 
 If no front matter is present, the entire file content is the template body and the filename stem is the name.
+
+Markdown xprompt files can carry local helper xprompts under `xprompts:`. These helpers use the same structured format
+as config-based xprompts, can have typed inputs and descriptions, and may reference each other transitively. They are
+visible only while expanding the containing xprompt and must use `_`-prefixed names such as `_review_rules`; they do not
+leak into the global catalog. This is useful for multi-agent markdown xprompts where several segments share a long
+prompt fragment without exposing that helper as a standalone completion item.
 
 ## Reference Syntax
 
