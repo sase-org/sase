@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 09:18:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_root_diffs.md
 ---
 # Plan: Root Plan-Agent Rows Should Show Active Coder Diffs

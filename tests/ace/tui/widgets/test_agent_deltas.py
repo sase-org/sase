@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 from rich.console import Group
 from rich.syntax import Syntax
@@ -22,6 +23,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,
     build_header_text,
 )
+from sase.ace.tui.widgets.file_panel import _diff as diff_mod
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -42,6 +44,14 @@ class _FakePromptPanel(AgentDisplayMixin, AgentHintsDisplayMixin):
 
     def update(self, renderable: object) -> None:
         self.captured.append(renderable)
+
+
+class _WorkspaceDiffProvider:
+    def __init__(self, diff_by_workspace: dict[str, str]) -> None:
+        self.diff_by_workspace = diff_by_workspace
+
+    def diff_with_untracked(self, cwd: str, *, timeout: int = 10):  # type: ignore[no-untyped-def]
+        return (True, self.diff_by_workspace[Path(cwd).name])
 
 
 def _plain_of(renderable: object) -> str:
@@ -175,6 +185,73 @@ def test_completed_agent_with_diff_path_renders_deltas(tmp_path: Path) -> None:
     assert "Deltas:\n" in header.plain
     assert "DELTAS:\n" not in header.plain
     assert "~ src/foo.py  +1 ~1" in header.plain
+
+
+def test_root_plan_agent_renders_deltas_from_active_coder_followup(
+    tmp_path: Path,
+) -> None:
+    diff_mod._diff_cache.clear()
+    (tmp_path / "myproj_1").mkdir()
+    (tmp_path / "myproj_2").mkdir()
+    root = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my-feature",
+        project_file="/tmp/projects/myproj/myproj.sase",
+        status="PLAN APPROVED",
+        workspace_num=1,
+        workflow="ace(plan)-202604010000",
+        raw_suffix="202604010000",
+        role_suffix="-plan",
+        plan_chain_root=True,
+    )
+    coder = _make_agent(
+        cl_name="my-feature-code",
+        project_file="/tmp/projects/myproj/myproj.sase",
+        status="PLAN APPROVED",
+        start_time=datetime(2024, 1, 1, 15, 0),
+        workspace_num=2,
+        workflow="ace(run)-202604010000-code",
+        raw_suffix="202604010000-code",
+        parent_timestamp="202604010000",
+        role_suffix="-code",
+    )
+    root.followup_agents.append(coder)
+    provider = _WorkspaceDiffProvider(
+        {
+            "myproj_1": """diff --git a/src/planner.py b/src/planner.py
+--- a/src/planner.py
++++ b/src/planner.py
+@@ -1 +1 @@
+-old
++planner
+""",
+            "myproj_2": """diff --git a/src/coder.py b/src/coder.py
+--- a/src/coder.py
++++ b/src/coder.py
+@@ -1 +1 @@
+-old
++coder
+""",
+        }
+    )
+
+    def workspace_for(project_basename: str, workspace_num: int) -> str:
+        assert project_basename == "myproj"
+        return str(tmp_path / f"myproj_{workspace_num}")
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(
+            diff_mod, "get_workspace_directory", side_effect=workspace_for
+        ):
+            with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+                header, _ = build_header_text(
+                    root,
+                    summary=build_detail_header_summary(root),
+                )
+
+    assert "Deltas:\n" in header.plain
+    assert "~ src/coder.py  ~1" in header.plain
+    assert "src/planner.py" not in header.plain
 
 
 def test_completed_agent_without_diff_path_omits_deltas() -> None:

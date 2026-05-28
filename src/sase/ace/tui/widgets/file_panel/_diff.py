@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 import time
+from datetime import datetime
 from pathlib import Path
 from threading import Lock
 
@@ -29,6 +30,10 @@ from sase.running_field import get_workspace_directory
 from sase.vcs_provider import VCSProviderNotFoundError, get_vcs_provider
 
 from ...models.agent import Agent
+from ...models._agent_status_overrides import (
+    is_coder_followup_suffix,
+    is_root_plan_workflow,
+)
 
 # Primary invalidation signal for the diff cache. ``git diff HEAD`` reflects
 # the working tree and ``.git/index`` does not change on working-tree edits,
@@ -48,6 +53,37 @@ DiffCacheKey = tuple[
 
 _diff_cache: dict[DiffCacheKey, str | None] = {}
 _diff_cache_lock = Lock()
+
+_ACTIVE_DIFF_SOURCE_STATUSES = frozenset(
+    {
+        "STARTING",
+        "WAITING",
+        "RUNNING",
+        "PLAN APPROVED",
+        "TALE APPROVED",
+    }
+)
+
+
+def _agent_launch_time(agent: Agent) -> datetime:
+    return agent.run_start_time or agent.start_time or datetime.min
+
+
+def _resolve_agent_diff_source(agent: Agent) -> Agent:
+    """Return the agent whose workspace should provide live diff content."""
+    if not is_root_plan_workflow(agent):
+        return agent
+
+    active_coder_children = [
+        child
+        for child in agent.followup_agents
+        if is_coder_followup_suffix(child.role_suffix)
+        and child.status in _ACTIVE_DIFF_SOURCE_STATUSES
+    ]
+    if not active_coder_children:
+        return agent
+
+    return max(active_coder_children, key=_agent_launch_time)
 
 
 def _git_index_signature(workspace_dir: str) -> tuple[int, int] | None:
@@ -79,7 +115,8 @@ def _compute_diff_cache_key(agent: Agent) -> DiffCacheKey | None:
     secondary discriminator so a stage/commit during a TTL window
     invalidates the cached result immediately.
     """
-    workspace_dir = _resolve_workspace_dir(agent)
+    diff_source = _resolve_agent_diff_source(agent)
+    workspace_dir = _resolve_workspace_dir(diff_source)
     if workspace_dir is None:
         return None
     try:
@@ -89,7 +126,7 @@ def _compute_diff_cache_key(agent: Agent) -> DiffCacheKey | None:
     provider_name = type(provider).__name__
     fingerprint = _git_index_signature(workspace_dir)
     ttl_bucket = int(time.time() // DIFF_CACHE_TTL_SECONDS)
-    return (agent.identity, workspace_dir, provider_name, fingerprint, ttl_bucket)
+    return (diff_source.identity, workspace_dir, provider_name, fingerprint, ttl_bucket)
 
 
 def get_agent_diff(agent: Agent) -> str | None:
@@ -105,12 +142,14 @@ def get_agent_diff(agent: Agent) -> str | None:
     Returns:
         Diff output string, or None if unavailable.
     """
+    diff_source = _resolve_agent_diff_source(agent)
+
     # Prefer the pre-computed diff file (e.g. from the gh workflow's diff
     # step).  This is authoritative — the workspace may have been released
     # and reused by the time we display the diff.
-    if agent.diff_path:
+    if diff_source.diff_path:
         try:
-            text = Path(agent.diff_path).read_text()
+            text = Path(diff_source.diff_path).read_text()
             return text if text.strip() else None
         except OSError:
             pass
@@ -119,10 +158,10 @@ def get_agent_diff(agent: Agent) -> str | None:
     # The workspace may have been released and reused by another agent,
     # so falling back to `git diff HEAD~1..HEAD` would show an unrelated
     # commit's diff.
-    if agent.status in ("DONE", "FAILED"):
+    if diff_source.status in ("DONE", "FAILED"):
         return None
 
-    key = _compute_diff_cache_key(agent)
+    key = _compute_diff_cache_key(diff_source)
     if key is None:
         return None
 

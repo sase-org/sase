@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -23,8 +24,43 @@ def _make_running_agent(workspace_num: int = 1) -> Agent:
     )
 
 
-def _setup_workspace(tmp_path: Path) -> Path:
-    workspace = tmp_path / "myproj_1"
+def _make_root_plan_agent(workspace_num: int = 1) -> Agent:
+    return Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my-feature",
+        project_file="/tmp/projects/myproj/myproj.sase",
+        status="PLAN APPROVED",
+        start_time=datetime(2024, 1, 1, 14, 0),
+        workspace_num=workspace_num,
+        workflow="ace(plan)-202604010000",
+        raw_suffix="202604010000",
+        role_suffix="-plan",
+        plan_chain_root=True,
+    )
+
+
+def _make_active_coder_followup(
+    *,
+    workspace_num: int,
+    start_time: datetime,
+    raw_suffix: str,
+) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my-feature-code",
+        project_file="/tmp/projects/myproj/myproj.sase",
+        status="PLAN APPROVED",
+        start_time=start_time,
+        workspace_num=workspace_num,
+        workflow="ace(run)-202604010000-code",
+        raw_suffix=raw_suffix,
+        parent_timestamp="202604010000",
+        role_suffix="-code",
+    )
+
+
+def _setup_workspace(tmp_path: Path, name: str = "myproj_1") -> Path:
+    workspace = tmp_path / name
     (workspace / ".git").mkdir(parents=True)
     (workspace / ".git" / "index").write_bytes(b"\x00" * 16)
     return workspace
@@ -33,9 +69,11 @@ def _setup_workspace(tmp_path: Path) -> Path:
 class _FakeProvider:
     def __init__(self) -> None:
         self.calls = 0
+        self.cwd_calls: list[str] = []
 
     def diff_with_untracked(self, cwd: str, *, timeout: int = 10):  # type: ignore[no-untyped-def]
         self.calls += 1
+        self.cwd_calls.append(cwd)
         return (True, f"diff for call {self.calls}")
 
 
@@ -103,6 +141,45 @@ def test_get_agent_diff_invalidates_when_index_changes(tmp_path: Path) -> None:
 
     assert provider.calls == 2
     assert second == "diff for call 2"
+
+
+def test_get_agent_diff_resolves_root_plan_to_newest_active_coder_workspace(
+    tmp_path: Path,
+) -> None:
+    diff_mod._diff_cache.clear()
+    _setup_workspace(tmp_path, "myproj_1")
+    _setup_workspace(tmp_path, "myproj_2")
+    newest_workspace = _setup_workspace(tmp_path, "myproj_3")
+    root = _make_root_plan_agent(workspace_num=1)
+    older_coder = _make_active_coder_followup(
+        workspace_num=2,
+        start_time=datetime(2024, 1, 1, 15, 0),
+        raw_suffix="202604010000-code-1",
+    )
+    newest_coder = _make_active_coder_followup(
+        workspace_num=3,
+        start_time=datetime(2024, 1, 1, 16, 0),
+        raw_suffix="202604010000-code-2",
+    )
+    root.followup_agents.extend([older_coder, newest_coder])
+    provider = _FakeProvider()
+
+    def workspace_for(project_basename: str, workspace_num: int) -> str:
+        assert project_basename == "myproj"
+        return str(tmp_path / f"myproj_{workspace_num}")
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(
+            diff_mod, "get_workspace_directory", side_effect=workspace_for
+        ):
+            with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+                root_diff = diff_mod.get_agent_diff(root)
+                coder_diff = diff_mod.get_agent_diff(newest_coder)
+
+    assert root_diff == "diff for call 1"
+    assert coder_diff == "diff for call 1"
+    assert provider.calls == 1
+    assert provider.cwd_calls == [str(newest_workspace)]
 
 
 def test_compute_diff_cache_key_includes_provider_name(tmp_path: Path) -> None:
