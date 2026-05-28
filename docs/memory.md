@@ -181,13 +181,13 @@ review action appends a new event rather than mutating previous events.
 `sase memory episodes` builds deterministic, source-linked evidence records for prior agent work. Episodes are useful
 when raw chats are too fragmented but the lesson is not ready to become approved long-term memory. They connect prompts,
 chats, plans, diffs, feedback, questions, retries, beads, ChangeSpecs, dynamic memory, audited memory reads, and
-outcomes into `lesson.md` plus a canonical `episode.json`.
+outcomes into canonical `episode.json` evidence records.
 
 Start from a completed agent. `build` stores the episode by default; recall searches only stored episodes:
 
 ```bash
 sase memory episodes build -n <agent-name>
-sase memory episodes list
+sase memory episodes list -g day
 sase memory episodes show <episode-id>
 sase memory episodes verify <episode-id>
 sase memory episodes recall -q "retry feedback"
@@ -199,19 +199,23 @@ Other selectors are available when the agent name is not the best handle:
 sase memory episodes build -a ~/.sase/projects/<project>/artifacts/.../<timestamp>
 sase memory episodes build -c <changespec-name>
 sase memory episodes build -C ~/.sase/chats/202605/<chat>.md
-sase memory episodes build -s 2026-05-01 -u 2026-05-26 -l 20
+sase memory episodes build -s 2026-05-01 -u 2026-05-26 --split
+sase memory episodes list -s 2026-05-01 -u 2026-05-26 -b high -j
 ```
 
-Episodes are stored under `~/.sase/projects/<project>/episodes/`. `show` defaults to the human-readable lesson; use
-`--format timeline`, `--format sources`, or `--format json` to inspect provenance. `verify` recomputes source existence,
-size, and hashes without changing the episode. Missing or changed sources mean the evidence drifted; they do not delete
-the episode or automatically block recall.
+Episodes are stored under `~/.sase/projects/<project>/episodes/`. New split v2 episodes write `episode.json` and
+`sources.jsonl`; legacy aggregate episodes also write `lesson.md`. Use `--format timeline`, `--format sources`, or
+`--format json` to inspect provenance. `verify` recomputes source existence, size, and hashes without changing the
+episode. Missing or changed sources mean the evidence drifted; they do not delete the episode or automatically block
+recall.
 
 Human-mode `build` prints phase progress to stderr and the final summary to stdout. Pass `--quiet` to suppress progress
 while keeping the final summary, or `--json` for a deterministic machine-readable payload with `episode`,
-`build_request`, and `build_report` objects. Date-bounded project scans keep transitive agent expansion inside the same
-project/date bounds. Explicit selectors such as `--agent` and `--changespec` still follow the richer related-work graph;
-`--since` and `--until` do not prune that related work.
+`build_request`, and `build_report` objects. With `--split --json`, the payload contains a `components` list and a
+`build_reports` list with one entry per connected component. Date-bounded split project scans use the date window for
+seed records only; strong retry/fork/parent/chat/workflow lineage may pull connected evidence outside the window, while
+weak ChangeSpec, bead, family, touched-path, or date proximity refs do not merge unrelated work. `list` date filters use
+stored episode event spans rather than build time.
 
 Episodes do not modify `memory/short` or `memory/long`. Promote a durable rule from an episode only through the reviewed
 proposal path:

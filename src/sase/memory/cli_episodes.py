@@ -21,20 +21,31 @@ from sase.core.episode_wire import (
 )
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.episodes._build_progress import BuildProgress
+from sase.memory.episodes._collector_utils import compact_timestamp
 from sase.memory.episodes.builder import build_episode
-from sase.memory.episodes.collector import EpisodeSelector, collect_episode_draft
+from sase.memory.episodes.collector import (
+    EpisodeDraft,
+    EpisodeSelector,
+    collect_episode_draft,
+)
+from sase.memory.episodes.components import (
+    EpisodeComponentPlan,
+    build_episode_component_plans,
+    collect_episode_draft_for_component_plan,
+)
 from sase.memory.episodes.index import (
     project_episodes_dir,
-    read_episode_index,
 )
 from sase.memory.episodes.identity import (
-    EpisodeAliasIndexRow,
     EpisodeIdResolution,
-    aliases_by_canonical_episode_id,
     canonical_episode_ids,
     episode_id_reference_map,
-    read_episode_alias_rows,
-    resolve_alias_episode_id,
+)
+from sase.memory.episodes.inventory import (
+    EpisodeInventoryItem,
+    canonical_index_rows,
+    group_inventory_items,
+    query_episode_inventory,
 )
 from sase.memory.episodes.recall import recall_episode_rows
 from sase.memory.episodes.render import render_lesson_markdown
@@ -42,6 +53,7 @@ from sase.memory.episodes.storage import (
     EPISODE_JSON_FILE_NAME,
     EPISODE_LESSON_FILE_NAME,
     EPISODE_SOURCES_FILE_NAME,
+    EpisodeWriteResult,
     write_project_episode,
 )
 from sase.memory.episodes.verify import verify_episode
@@ -87,16 +99,16 @@ def _handle_build(
 ) -> None:
     _validate_limit(args.limit, "limit")
     project = _project_from_args(args)
-    selector = EpisodeSelector(
-        project=project,
-        agent=args.agent,
-        artifact_dir=args.artifact_dir,
-        changespec=args.changespec,
-        chat=args.chat,
-        since=args.since,
-        until=args.until,
-        limit=args.limit,
-    )
+    if getattr(args, "split", False):
+        _handle_split_build(
+            args,
+            project=project,
+            projects_root=projects_root,
+            repo_root=repo_root,
+        )
+        return
+
+    selector = _selector_from_args(args, project)
     is_json = bool(getattr(args, "json", False))
     is_quiet = bool(getattr(args, "quiet", False))
     progress = BuildProgress(enabled=not is_json and not is_quiet)
@@ -206,6 +218,112 @@ def _handle_build(
         print(f"warnings: {len(draft.warnings)}")
 
 
+def _handle_split_build(
+    args: argparse.Namespace,
+    *,
+    project: str,
+    projects_root: Path | str | None,
+    repo_root: Path | str | None,
+) -> None:
+    selector = _selector_from_args(args, project)
+    is_json = bool(getattr(args, "json", False))
+    is_quiet = bool(getattr(args, "quiet", False))
+    progress = BuildProgress(enabled=not is_json and not is_quiet)
+    selector_label = _selector_label(args)
+    component_payloads: list[dict[str, Any]] = []
+    try:
+        with progress:
+            with progress.phase(
+                f"Planning episode components (selector: {selector_label})"
+            ):
+                plans = build_episode_component_plans(
+                    selector,
+                    projects_root=projects_root,
+                    repo_root=repo_root if repo_root is not None else Path.cwd(),
+                )
+            progress.summary(f"Planned {len(plans)} component(s)")
+
+            for index, plan in enumerate(plans, 1):
+                component_label = _component_plan_label(plan, index, len(plans))
+                with progress.phase(f"Collecting {component_label}"):
+                    draft = collect_episode_draft_for_component_plan(
+                        plan,
+                        projects_root=projects_root,
+                        repo_root=repo_root if repo_root is not None else Path.cwd(),
+                    )
+                progress.summary(
+                    f"Drafted {component_label} with {len(draft.sources)} sources, "
+                    f"{len(draft.nodes)} nodes"
+                )
+
+                with progress.phase(f"Building {component_label}"):
+                    episode = build_episode(draft)
+                progress.summary(
+                    f"Built episode {episode.episode_id} "
+                    f"({episode.importance_band}, {len(episode.sources)} sources)"
+                )
+
+                write_result = None
+                with progress.phase(f"Writing {component_label}"):
+                    if not args.dry_run:
+                        write_result = write_project_episode(
+                            episode,
+                            projects_root=projects_root,
+                        )
+                if args.dry_run:
+                    progress.summary("Skipped (dry run)")
+                else:
+                    assert write_result is not None
+                    progress.summary(
+                        f"Wrote {write_result.episode_id}/"
+                        "{episode.json,sources.jsonl}"
+                    )
+
+                component_payloads.append(
+                    _component_build_payload(
+                        args,
+                        plan=plan,
+                        draft=draft,
+                        episode=episode,
+                        write_result=write_result,
+                        projects_root=projects_root,
+                    )
+                )
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        _fail(f"sase memory episodes build --split: {exc}")
+
+    schema_version = episode_wire_schema_version()
+    payload = {
+        "aggregate": False,
+        "build_reports": [
+            component["build_report"] for component in component_payloads
+        ],
+        "changed": any(component["changed"] for component in component_payloads),
+        "component_count": len(component_payloads),
+        "components": component_payloads,
+        "dry_run": bool(args.dry_run),
+        "force": bool(args.force),
+        "project": project,
+        "schema_version": schema_version,
+        "split": True,
+        "wrote": any(component["wrote"] for component in component_payloads),
+        "would_write": bool(args.dry_run),
+    }
+    if is_json:
+        _print_json(payload)
+        return
+
+    if not component_payloads:
+        print(f"No component episodes matched {selector_label} for project {project}.")
+        return
+    action = "Would build" if args.dry_run else "Built"
+    print(
+        f"{action} {len(component_payloads)} component episode(s) for project {project}"
+    )
+    for component in component_payloads:
+        print("  " + _component_build_summary(component))
+
+
 def _handle_list(
     args: argparse.Namespace,
     *,
@@ -213,45 +331,69 @@ def _handle_list(
 ) -> None:
     _validate_limit(args.limit, "limit")
     project = _project_from_args(args)
-    rows = _canonical_index_rows(project, projects_root)
-    alias_rows_by_canonical = aliases_by_canonical_episode_id(
+    items = query_episode_inventory(
         project,
         projects_root=projects_root,
+        since=args.since,
+        until=args.until,
+        band=args.band,
+        agent=args.agent,
+        changespec=args.changespec,
+        bead=args.bead,
+        query=args.query,
+        order=args.order,
+        limit=args.limit,
     )
-    if args.limit is not None:
-        rows = rows[: args.limit]
 
     if getattr(args, "json", False):
+        groups = [
+            {
+                "key": key,
+                "episode_ids": [item.row.episode_id for item in group_items],
+            }
+            for key, group_items in group_inventory_items(items, args.group)
+        ]
         _print_json(
             {
                 "aliases": [
                     episode_wire_to_json_dict(alias)
-                    for aliases in alias_rows_by_canonical.values()
-                    for alias in aliases
+                    for item in items
+                    for alias in item.aliases
                 ],
-                "episodes": [episode_wire_to_json_dict(row) for row in rows],
+                "episodes": [item.to_json_dict() for item in items],
+                "filters": {
+                    "agent": args.agent,
+                    "band": args.band,
+                    "bead": args.bead,
+                    "changespec": args.changespec,
+                    "query": args.query,
+                    "since": args.since,
+                    "until": args.until,
+                },
+                "group": args.group,
+                "groups": groups,
+                "order": args.order,
                 "project": project,
                 "schema_version": episode_wire_schema_version(),
             }
         )
         return
 
-    if not rows:
+    if not items:
         episodes_dir = project_episodes_dir(project, projects_root=projects_root)
         print(
-            "No episodes stored yet under "
-            f"{episodes_dir.resolve(strict=False)}. Build one with "
-            "`sase memory episodes build -n <agent>`."
+            "No episodes matched under "
+            f"{episodes_dir.resolve(strict=False)}. Build split inventory with "
+            "`sase memory episodes build --split -s <date> -u <date>`."
         )
         return
 
-    for row in rows:
-        details = _list_row_details(
-            row,
-            aliases=alias_rows_by_canonical.get(row.episode_id, []),
-        )
-        suffix = f"  {details}" if details else ""
-        print(f"{row.episode_id}  {row.title}{suffix}")
+    for group_key, group_items in group_inventory_items(items, args.group):
+        if group_key is not None:
+            print(f"{group_key}:")
+        prefix = "  " if group_key is not None else ""
+        for item in group_items:
+            print(prefix + _format_inventory_row(item))
 
 
 def _handle_show(
@@ -402,6 +544,157 @@ def _handle_recall(
             print(f"  {match.excerpt}")
 
 
+def _selector_from_args(args: argparse.Namespace, project: str) -> EpisodeSelector:
+    return EpisodeSelector(
+        project=project,
+        agent=args.agent,
+        artifact_dir=args.artifact_dir,
+        changespec=args.changespec,
+        chat=args.chat,
+        since=args.since,
+        until=args.until,
+        limit=args.limit,
+    )
+
+
+def _component_plan_label(
+    plan: EpisodeComponentPlan,
+    index: int,
+    total: int,
+) -> str:
+    return (
+        f"component {index}/{total} ({plan.component_root_kind}:{plan.component_key})"
+    )
+
+
+def _component_build_payload(
+    args: argparse.Namespace,
+    *,
+    plan: EpisodeComponentPlan,
+    draft: EpisodeDraft,
+    episode: EpisodeWire,
+    write_result: EpisodeWriteResult | None,
+    projects_root: Path | str | None,
+) -> dict[str, Any]:
+    stored_episode = (
+        replace(episode, episode_id=write_result.episode_id)
+        if write_result is not None and write_result.episode_id != episode.episode_id
+        else episode
+    )
+    episode_dir = (
+        write_result.episode_dir
+        if write_result is not None
+        else project_episodes_dir(stored_episode.project, projects_root=projects_root)
+        / stored_episode.episode_id
+    )
+    schema_version = episode_wire_schema_version()
+    warnings = sorted({*draft.warnings, *stored_episode.safety.warnings})
+    build_request = EpisodeBuildRequestWire(
+        schema_version=schema_version,
+        project=stored_episode.project,
+        selector_kind=draft.selector_kind,
+        selector_value=draft.selector_value,
+        since=args.since,
+        until=args.until,
+        limit=args.limit,
+        dry_run=bool(args.dry_run),
+        force=bool(args.force),
+        source_refs=list(stored_episode.sources),
+    )
+    build_report = EpisodeBuildReportWire(
+        schema_version=schema_version,
+        project=stored_episode.project,
+        source_count=len(stored_episode.sources),
+        lesson_count=len(stored_episode.lessons),
+        episode_id=stored_episode.episode_id,
+        would_write=bool(args.dry_run),
+        changed=write_result.changed if write_result is not None else False,
+        warnings=warnings,
+    )
+    return {
+        "build_report": episode_wire_to_json_dict(build_report),
+        "build_request": episode_wire_to_json_dict(build_request),
+        "changed": write_result.changed if write_result is not None else False,
+        "component_key": plan.component_key,
+        "component_plan": plan.to_json_dict(),
+        "dry_run": bool(args.dry_run),
+        "episode": episode_wire_to_json_dict(stored_episode),
+        "episode_dir": str(episode_dir.resolve(strict=False)),
+        "episode_id": stored_episode.episode_id,
+        "force": bool(args.force),
+        "importance_band": stored_episode.importance_band,
+        "importance_score": stored_episode.importance_score,
+        "lesson_count": len(stored_episode.lessons),
+        "project": stored_episode.project,
+        "schema_version": schema_version,
+        "source_count": len(stored_episode.sources),
+        "status": stored_episode.status,
+        "title": stored_episode.title,
+        "warnings": warnings,
+        "would_write": bool(args.dry_run),
+        "wrote": write_result is not None,
+    }
+
+
+def _component_build_summary(component: dict[str, Any]) -> str:
+    details = [
+        f"sources={component['source_count']}",
+        f"band={component['importance_band']}",
+        f"status={component['status']}",
+    ]
+    warnings = component.get("warnings") or []
+    if warnings:
+        details.append(f"warnings={len(warnings)}")
+    return f"{component['episode_id']}  {component['title']}  " + " ".join(details)
+
+
+def _format_inventory_row(item: EpisodeInventoryItem) -> str:
+    row = item.row
+    details = [
+        "agents=" + (",".join(row.root_agent_names) if row.root_agent_names else "-"),
+        f"chats={row.chat_count}",
+        f"sources={row.source_count}",
+    ]
+    if row.changespec_name:
+        details.append(f"changespec={row.changespec_name}")
+    if row.bead_ids:
+        details.append("beads=" + ",".join(row.bead_ids))
+    if item.aliases:
+        details.append(
+            "aliases=" + ",".join(alias.alias_episode_id for alias in item.aliases)
+        )
+    if item.is_legacy:
+        details.append("legacy")
+    if item.warnings:
+        details.append(f"warnings={len(item.warnings)}")
+    return (
+        f"{_inventory_time_span(row)}  {row.importance_band}  {row.status}  "
+        f"{row.episode_id}  {row.title}  {' '.join(details)}"
+    )
+
+
+def _inventory_time_span(row: EpisodeStorageIndexRowWire) -> str:
+    start = _format_event_timestamp(row.first_event_at)
+    end = _format_event_timestamp(row.last_event_at)
+    if start and end and start != end:
+        return f"{start}..{end}"
+    return start or end or "undated"
+
+
+def _format_event_timestamp(timestamp: str | None) -> str:
+    if not timestamp:
+        return ""
+    compact = compact_timestamp(timestamp)
+    if len(compact) >= 12 and compact[:12].isdigit():
+        return (
+            f"{compact[:4]}-{compact[4:6]}-{compact[6:8]} "
+            f"{compact[8:10]}:{compact[10:12]}"
+        )
+    if len(compact) >= 8 and compact[:8].isdigit():
+        return f"{compact[:4]}-{compact[4:6]}-{compact[6:8]}"
+    return timestamp
+
+
 def _selector_label(args: argparse.Namespace) -> str:
     if args.agent:
         return f"agent={args.agent}"
@@ -493,15 +786,7 @@ def _canonical_index_rows(
     project: str,
     projects_root: Path | str | None,
 ) -> list[EpisodeStorageIndexRowWire]:
-    alias_rows = read_episode_alias_rows(project, projects_root=projects_root)
-    alias_ids = {row.alias_episode_id for row in alias_rows}
-    rows = read_episode_index(project, projects_root=projects_root)
-    return [
-        row
-        for row in rows
-        if row.episode_id not in alias_ids
-        and resolve_alias_episode_id(row.episode_id, alias_rows) == row.episode_id
-    ]
+    return canonical_index_rows(project, projects_root)
 
 
 def _all_episode_dirs(
@@ -544,25 +829,6 @@ def _print_file(path: Path) -> None:
 def _print_json(payload: Any) -> None:
     json.dump(payload, sys.stdout, sort_keys=True)
     sys.stdout.write("\n")
-
-
-def _list_row_details(
-    row: EpisodeStorageIndexRowWire,
-    *,
-    aliases: list[EpisodeAliasIndexRow],
-) -> str:
-    parts: list[str] = []
-    if aliases:
-        parts.append("aliases=" + ",".join(alias.alias_episode_id for alias in aliases))
-    if row.root_agent_names:
-        parts.append("agents=" + ",".join(row.root_agent_names))
-    if row.changespec_name:
-        parts.append(f"changespec={row.changespec_name}")
-    if row.bead_ids:
-        parts.append("beads=" + ",".join(row.bead_ids))
-    if row.outcome:
-        parts.append(f"outcome={row.outcome}")
-    return " ".join(parts)
 
 
 def _validate_limit(value: int | None, label: str) -> None:

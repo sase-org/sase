@@ -78,7 +78,8 @@ sase memory review --list  # human review of pending long-term memory proposals
 sase memory log          # summarize audited long-term memory reads
 sase memory log --include proposals  # include memory proposal/review events
 sase memory episodes build -n <agent-name>  # store a source-linked episode from completed work
-sase memory episodes recall -q "retry feedback"  # search stored episode lessons by topic
+sase memory episodes build -s 2026-05-01 -u 2026-05-26 --split  # backfill connected components
+sase memory episodes recall -q "retry feedback"  # search stored episode evidence by topic
 sase init sdd             # create/refresh generated SDD guides and directory map
 sase skills list          # inspect generated skill sources, targets, and drift
 sase skills init --dry-run  # preview provider skill files before deploying them

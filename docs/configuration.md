@@ -1224,18 +1224,19 @@ sase memory log --id <read-id>
 `sase memory episodes` stores deterministic records of prior agent work under `~/.sase/projects/<project>/episodes/`.
 All subcommands accept `-p, --project <project>`.
 
-| Form                                 | Flags                                                                                                                                                                           | Description                                                                   |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `sase memory episodes build`         | `-n, --agent`, `-a, --artifact-dir`, `-c, --changespec`, `-C, --chat`, `-s, --since`, `-u, --until`, `-l, --limit`, `-D, --dry-run`, `-f, --force`, `-q, --quiet`, `-j, --json` | Build an episode and write it unless `--dry-run` is set.                      |
-| `sase memory episodes list`          | `-l, --limit`, `-j, --json`                                                                                                                                                     | List stored episode index rows.                                               |
-| `sase memory episodes show <id>`     | `-f, --format lesson\|json\|sources\|timeline`, `-j, --json`                                                                                                                    | Show an episode lesson, canonical JSON, source refs, or timeline.             |
-| `sase memory episodes verify [id]`   | `-A, --all`, `-j, --json`                                                                                                                                                       | Verify source existence, size, and hashes for one episode or all stored rows. |
-| `sase memory episodes recall -q <q>` | `-l, --limit`, `-j, --json`                                                                                                                                                     | Search stored episode lessons with deterministic keyword matching.            |
+| Form                                 | Flags                                                                                                                                                                                                             | Description                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `sase memory episodes build`         | `-n, --agent`, `-a, --artifact-dir`, `-c, --changespec`, `-C, --chat`, `-s, --since`, `-u, --until`, `-l, --limit`, `-S, --split`, `-A, --aggregate`, `-D, --dry-run`, `-f, --force`, `-q, --quiet`, `-j, --json` | Build split v2 component episodes or aggregate compatibility output.          |
+| `sase memory episodes list`          | `-s, --since`, `-u, --until`, `-b, --band`, `-n, --agent`, `-c, --changespec`, `-B, --bead`, `-q, --query`, `-g, --group`, `-o, --order`, `-l, --limit`, `-j, --json`                                             | Inventory stored episodes by event span, importance, metadata, and query.     |
+| `sase memory episodes show <id>`     | `-f, --format lesson\|json\|sources\|timeline`, `-j, --json`                                                                                                                                                      | Show an episode lesson, canonical JSON, source refs, or timeline.             |
+| `sase memory episodes verify [id]`   | `-A, --all`, `-j, --json`                                                                                                                                                                                         | Verify source existence, size, and hashes for one episode or all stored rows. |
+| `sase memory episodes recall -q <q>` | `-l, --limit`, `-j, --json`                                                                                                                                                                                       | Search stored episode evidence with deterministic keyword matching.           |
 
 Human-mode `build` emits phase progress to stderr; `--quiet` suppresses that progress while keeping the final stdout
-summary. JSON build output is stderr-silent and includes `episode`, `build_request`, and `build_report` objects. Current
-episode writes are content-idempotent. `--force` is accepted and appears in the JSON build request, but unchanged
-episode files are still left untouched.
+summary. JSON aggregate build output is stderr-silent and includes `episode`, `build_request`, and `build_report`
+objects. JSON split build output includes `components` and `build_reports` lists. Current episode writes are
+content-idempotent. `--force` is accepted and appears in the JSON build request, but unchanged episode files are still
+left untouched.
 
 ### `sase memory init`
 

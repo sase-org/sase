@@ -33,6 +33,7 @@ sase memory log --include proposals
 sase memory log --path long/generated_skills.md
 sase memory log --id <read-id>
 sase memory episodes build -n <agent-name>
+sase memory episodes build -s 2026-05-01 -u 2026-05-26 --split
 sase memory episodes recall -q "retry feedback"
 sase init sdd
 sase init sdd --check

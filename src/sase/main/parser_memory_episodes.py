@@ -23,8 +23,9 @@ def register_memory_episodes_parser(
         epilog=(
             "examples:\n"
             "  sase memory episodes build -n <agent>\n"
+            "  sase memory episodes build -p <project> -s 2026-05-19 -u 2026-05-20 --split\n"
             "  sase memory episodes build -n <agent> -D -j\n"
-            "  sase memory episodes list\n"
+            "  sase memory episodes list -s 2026-05-19 -u 2026-05-20 -g day\n"
             "  sase memory episodes show <episode-id>\n"
             "  sase memory episodes verify <episode-id>\n"
             '  sase memory episodes recall -q "retry feedback"'
@@ -95,6 +96,19 @@ def _register_build_parser(
         metavar="N",
         help="Limit seed records for agent or project-scan builds",
     )
+    mode_group = build_parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "-S",
+        "--split",
+        action="store_true",
+        help="Build one v2 episode per connected component",
+    )
+    mode_group.add_argument(
+        "-A",
+        "--aggregate",
+        action="store_true",
+        help="Use the temporary aggregate v1-compatible build path",
+    )
     build_parser.add_argument(
         "-D",
         "--dry-run",
@@ -121,9 +135,65 @@ def _register_list_parser(
 ) -> None:
     list_parser = episodes_subparsers.add_parser(
         "list",
-        help="List stored episodes for a project",
+        help="List stored episodes for a project and time window",
     )
     _add_project_argument(list_parser)
+    list_parser.add_argument(
+        "-s",
+        "--since",
+        metavar="DATE",
+        help="Show episodes whose event span overlaps DATE or later",
+    )
+    list_parser.add_argument(
+        "-u",
+        "--until",
+        metavar="DATE",
+        help="Show episodes whose event span overlaps DATE or earlier",
+    )
+    list_parser.add_argument(
+        "-b",
+        "--band",
+        metavar="BAND",
+        help="Filter by importance band",
+    )
+    list_parser.add_argument(
+        "-n",
+        "--agent",
+        metavar="AGENT",
+        help="Filter by root agent name",
+    )
+    list_parser.add_argument(
+        "-c",
+        "--changespec",
+        metavar="NAME",
+        help="Filter by ChangeSpec name",
+    )
+    list_parser.add_argument(
+        "-B",
+        "--bead",
+        metavar="BEAD",
+        help="Filter by bead id",
+    )
+    list_parser.add_argument(
+        "-q",
+        "--query",
+        metavar="QUERY",
+        help="Filter by text in title, summary, metadata, aliases, or warnings",
+    )
+    list_parser.add_argument(
+        "-g",
+        "--group",
+        choices=("day", "week", "none"),
+        default="none",
+        help="Group human output by day, week, or none (default: none)",
+    )
+    list_parser.add_argument(
+        "-o",
+        "--order",
+        choices=("time", "importance", "title"),
+        default="time",
+        help="Sort by time, importance, or title (default: time)",
+    )
     list_parser.add_argument(
         "-l",
         "--limit",

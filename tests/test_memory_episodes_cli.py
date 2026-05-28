@@ -11,6 +11,7 @@ from sase.core.episode_wire import (
     EpisodeEventWire,
     EpisodeLessonWire,
     EpisodeNodeWire,
+    EpisodeSafetyWire,
     EpisodeSourceRefWire,
     EpisodeWire,
 )
@@ -234,6 +235,191 @@ def test_memory_episodes_build_writes_episode_from_agent_selector(
     assert Path(payload["episode_dir"], "episode.json").is_file()
 
 
+def test_memory_episodes_split_build_writes_component_reports(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    projects_root, repo_root = _seed_split_agent_artifacts(tmp_path)
+
+    build_args = create_parser().parse_args(
+        [
+            "memory",
+            "episodes",
+            "build",
+            "-p",
+            "proj",
+            "-s",
+            "2026-05-19",
+            "-u",
+            "2026-05-19",
+            "--split",
+            "-j",
+        ]
+    )
+    handle_memory_episodes_command(
+        build_args,
+        projects_root=projects_root,
+        repo_root=repo_root,
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["split"] is True
+    assert payload["aggregate"] is False
+    assert payload["component_count"] == 2
+    assert len(payload["build_reports"]) == 2
+    assert len({component["episode_id"] for component in payload["components"]}) == 2
+    assert all(
+        component["build_report"]["episode_id"] == component["episode_id"]
+        for component in payload["components"]
+    )
+    assert all(
+        component["episode"]["lessons"] == [] for component in payload["components"]
+    )
+    assert all(
+        not Path(component["episode_dir"], "lesson.md").exists()
+        for component in payload["components"]
+    )
+
+    list_args = create_parser().parse_args(
+        ["memory", "episodes", "list", "-p", "proj", "-j"]
+    )
+    handle_memory_episodes_command(list_args, projects_root=projects_root)
+    list_payload = json.loads(capsys.readouterr().out)
+    assert len(list_payload["episodes"]) == 2
+    assert {episode["version"] for episode in list_payload["episodes"]} == {"v2"}
+
+
+def test_memory_episodes_list_inventory_filters_groups_and_json(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    projects_root = tmp_path / "projects"
+    write_project_episode(
+        _inventory_episode(
+            "ep-high",
+            tmp_path,
+            title="Retry Recovery",
+            timestamp="2026-05-19T10:00:00Z",
+            agent="agent-a",
+            band="high",
+            score=90,
+            changespec="cl-retry",
+            bead_id="sase-48.5",
+            warnings=["missing-source:chat"],
+        ),
+        projects_root=projects_root,
+    )
+    write_project_episode(
+        _inventory_episode(
+            "ep-low",
+            tmp_path,
+            title="No-Op Cleanup",
+            timestamp="2026-05-21T10:00:00Z",
+            agent="agent-b",
+            band="low",
+            score=10,
+            changespec="cl-cleanup",
+            bead_id="sase-48.7",
+        ),
+        projects_root=projects_root,
+    )
+    write_project_episode(
+        _inventory_episode(
+            "ep-span",
+            tmp_path,
+            title="Bridge Episode",
+            timestamp="2026-05-18T22:00:00Z",
+            agent="agent-c",
+            band="medium",
+            score=50,
+            changespec="cl-bridge",
+            bead_id="sase-48.6",
+            extra_timestamp="2026-05-20T01:00:00Z",
+        ),
+        projects_root=projects_root,
+    )
+
+    human_args = create_parser().parse_args(
+        [
+            "memory",
+            "episodes",
+            "list",
+            "-p",
+            "proj",
+            "-s",
+            "2026-05-19",
+            "-u",
+            "2026-05-20",
+            "-g",
+            "day",
+            "-b",
+            "high",
+        ]
+    )
+    handle_memory_episodes_command(human_args, projects_root=projects_root)
+    human = capsys.readouterr().out
+    assert "2026-05-19:" in human
+    assert "ep-high" in human
+    assert "Retry Recovery" in human
+    assert "chats=1" in human
+    assert "sources=1" in human
+    assert "warnings=1" in human
+    assert "ep-low" not in human
+
+    json_args = create_parser().parse_args(
+        [
+            "memory",
+            "episodes",
+            "list",
+            "-p",
+            "proj",
+            "-s",
+            "2026-05-19",
+            "-u",
+            "2026-05-20",
+            "-n",
+            "agent-a",
+            "-c",
+            "cl-retry",
+            "-B",
+            "sase-48.5",
+            "-q",
+            "retry",
+            "-o",
+            "importance",
+            "-j",
+        ]
+    )
+    handle_memory_episodes_command(json_args, projects_root=projects_root)
+    payload = json.loads(capsys.readouterr().out)
+    assert [episode["episode_id"] for episode in payload["episodes"]] == ["ep-high"]
+    assert payload["episodes"][0]["version"] == "v2"
+    assert payload["episodes"][0]["warnings"] == ["missing-source:chat"]
+    assert payload["filters"]["bead"] == "sase-48.5"
+
+    span_args = create_parser().parse_args(
+        [
+            "memory",
+            "episodes",
+            "list",
+            "-p",
+            "proj",
+            "-s",
+            "2026-05-19",
+            "-u",
+            "2026-05-19",
+            "-q",
+            "bridge",
+            "-j",
+        ]
+    )
+    handle_memory_episodes_command(span_args, projects_root=projects_root)
+    span_payload = json.loads(capsys.readouterr().out)
+    assert [episode["episode_id"] for episode in span_payload["episodes"]] == [
+        "ep-span"
+    ]
+
+
 def test_memory_episodes_build_prints_progress_to_stderr_in_human_mode(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -334,6 +520,70 @@ def _seed_agent_artifacts(tmp_path: Path) -> tuple[Path, Path]:
     return projects_root, tmp_path
 
 
+def _seed_split_agent_artifacts(tmp_path: Path) -> tuple[Path, Path]:
+    projects_root = tmp_path / "projects"
+    chats_dir = tmp_path / "chats"
+    chats_dir.mkdir()
+    _seed_agent_artifact(
+        projects_root,
+        timestamp="20260519120000",
+        name="component-a",
+        chat_path=_write_chat(chats_dir / "a-260519_120000.md", "Build split A."),
+    )
+    _seed_agent_artifact(
+        projects_root,
+        timestamp="20260519121000",
+        name="component-b",
+        chat_path=_write_chat(chats_dir / "b-260519_121000.md", "Build split B."),
+    )
+    return projects_root, tmp_path
+
+
+def _seed_agent_artifact(
+    projects_root: Path,
+    *,
+    timestamp: str,
+    name: str,
+    chat_path: Path,
+) -> None:
+    artifact_dir = projects_root / "proj" / "artifacts" / "ace-run" / timestamp
+    artifact_dir.mkdir(parents=True)
+    output_path = artifact_dir / "output.txt"
+    output_path.write_text(f"{name}\ncompleted\n", encoding="utf-8")
+    (artifact_dir / "submitted_xprompt.md").write_text(
+        f"# {name}\n\nBuild one component.\n",
+        encoding="utf-8",
+    )
+    _write_json(
+        artifact_dir / "agent_meta.json",
+        {
+            "name": name,
+            "chat_path": str(chat_path),
+            "changespec_name": "shared-cl",
+            "phase_bead_id": "sase-48.5",
+            "agent_family": "shared-family",
+        },
+    )
+    _write_json(
+        artifact_dir / "done.json",
+        {
+            "name": name,
+            "outcome": "completed",
+            "finished_at": 1.0,
+            "response_path": str(chat_path),
+            "output_path": str(output_path),
+        },
+    )
+
+
+def _write_chat(path: Path, prompt: str) -> Path:
+    path.write_text(
+        f"## Prompt\n\n{prompt}\n\n## Response\n\nDone.\n",
+        encoding="utf-8",
+    )
+    return path
+
+
 def _episode(source_path: Path) -> EpisodeWire:
     content = source_path.read_bytes()
     source = EpisodeSourceRefWire(
@@ -399,6 +649,82 @@ def _source_ref(
         exists=True,
         size_bytes=len(data),
         sha256=hashlib.sha256(data).hexdigest(),
+    )
+
+
+def _inventory_episode(
+    episode_id: str,
+    tmp_path: Path,
+    *,
+    title: str,
+    timestamp: str,
+    agent: str,
+    band: str,
+    score: int,
+    changespec: str,
+    bead_id: str,
+    warnings: list[str] | None = None,
+    extra_timestamp: str | None = None,
+) -> EpisodeWire:
+    source = _source_ref(
+        tmp_path / f"{episode_id}.md",
+        kind="chat",
+        content=f"{title}\n",
+    )
+    events = [
+        EpisodeEventWire(
+            id=f"event-{episode_id}-start",
+            kind="agent_finish",
+            title="Agent finished",
+            timestamp=timestamp,
+            evidence_ids=[source.id],
+        )
+    ]
+    if extra_timestamp is not None:
+        events.append(
+            EpisodeEventWire(
+                id=f"event-{episode_id}-end",
+                kind="agent_finish",
+                title="Agent finished later",
+                timestamp=extra_timestamp,
+                evidence_ids=[source.id],
+            )
+        )
+    return EpisodeWire(
+        schema_version=EPISODE_WIRE_SCHEMA_VERSION,
+        episode_id=episode_id,
+        project="proj",
+        title=title,
+        summary=f"{title} summary for inventory.",
+        root_source_id=source.id,
+        component_key=f"component/{episode_id}",
+        component_root_kind="artifact",
+        status="active",
+        importance_score=score,
+        importance_band=band,
+        safety=EpisodeSafetyWire(warnings=warnings or []),
+        sources=[source],
+        nodes=[
+            EpisodeNodeWire(
+                id=f"agent-{episode_id}",
+                kind="agent_run",
+                label=agent,
+                metadata={"outcome": "completed"},
+            ),
+            EpisodeNodeWire(
+                id=f"chat-{episode_id}",
+                kind="chat",
+                label=f"{episode_id}.md",
+                source_id=source.id,
+            ),
+        ],
+        edges=[],
+        events=events,
+        lessons=[],
+        metadata={
+            "bead_ids": bead_id,
+            "changespec_name": changespec,
+        },
     )
 
 
