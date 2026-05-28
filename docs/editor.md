@@ -22,12 +22,14 @@ In editor configuration terms, the command is `sase` and the argument list is `[
 The wrapper resolves the server command in this order:
 
 1. `SASE_XPROMPT_LSP_CMD`, parsed as a shell-style command for development.
-2. A source checkout from `SASE_CORE_DIR`, `SASE_SIBLING_REPO_CORE_DIR`, `SASE_SIBLING_REPO_SASE_CORE_DIR`, or
-   `../sase-core`; when `cargo` is available, the wrapper runs
-   `cargo run --manifest-path <core>/Cargo.toml -p sase_xprompt_lsp --`.
-3. A debug or release `sase-xprompt-lsp` binary under one of those sibling core checkouts, used only when `cargo` is not
-   available.
-4. `sase-xprompt-lsp` on `PATH`.
+2. `sase-xprompt-lsp` on `PATH`.
+3. A debug or release `sase-xprompt-lsp` binary under a sibling `../sase-core` checkout.
+4. `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --` when `cargo` is available and the sibling
+   checkout has a `Cargo.toml`.
+
+Use `SASE_XPROMPT_LSP_CMD` when you need to point the editor wrapper at a different source checkout or command. The
+`Justfile` uses `SASE_CORE_DIR` and `SASE_SIBLING_REPO_CORE_DIR` for local `sase-core` build/install targets, but
+`sase lsp` itself does not read those variables.
 
 The wrapper also exports installed package xprompt locations, bundled default config, plugin xprompt directories, and
 plugin config paths to the Rust server. The server refreshes its catalog when the LSP session starts, keeps a short

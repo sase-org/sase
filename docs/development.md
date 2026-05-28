@@ -169,20 +169,23 @@ to the specific reference for the area you are changing.
 
 ## Repository XPrompts
 
-The checkout's top-level `xprompts/` directory is project-local to the `sase` repository. In this repo, those entries
-are auto-namespaced as `sase/<name>` so they do not collide with user or packaged prompts.
+The checkout's top-level `xprompts/` directory is project-local to the `sase` repository. When SASE resolves prompts
+from this project checkout, those entries are namespaced as `sase/<name>` so they do not collide with user or packaged
+prompts. Use the catalog's `insertion` value to know whether an entry should be invoked with `#` or `#!`.
 
 Useful visible entries include:
 
 | Reference         | Purpose                                                                                                     |
 | ----------------- | ----------------------------------------------------------------------------------------------------------- |
 | `#!sase/reads`    | Fan out a reading-recommendation request across Gemini, Claude, and Codex, then consolidate the final list. |
+| `#sase/sync`      | Sync the primary SASE workspace and restart axe.                                                            |
 | `#sase/pysplit`   | Ask an agent to split one large Python file into import-safe smaller files.                                 |
 | `#sase/pick_plan` | Compare two plan-agent drafts and recommend which one should be approved.                                   |
 
-Some repository workflows are hidden from normal catalog discovery because they are automation helpers, such as docs
-refresh, recent bug/improvement audits, and Python line-limit splitting. Use `sase xprompt list` or the ACE xprompt
-browser from a source checkout when you need the exact current catalog.
+Some repository workflows are marked `hidden: true` because they are automation helpers, such as docs refresh, recent
+bug/improvement audits, and Python line-limit splitting. That flag hides workflow run rows in ACE; it does not mean the
+workflow is unavailable. Use `sase xprompt list` or the ACE xprompt browser from a source checkout when you need the
+exact current catalog.
 
 ## Documentation Workflow
 

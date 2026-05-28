@@ -961,7 +961,7 @@ entry points directly.
 | `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                            |
 | `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                     |
 | `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                  |
-| `SASE_CORE_DIR`                       | Preferred sibling `sase-core` source checkout for `sase lsp` development; used before packaged PATH binaries.   |
+| `SASE_CORE_DIR`                       | Preferred `sase-core` source checkout for `Justfile` Rust build/install targets; overrides `../sase-core`.      |
 | `SASE_PYTEST_WORKERS`                 | Override the xdist worker count used by `just test`, `just test-slow`, `just test-visual`, and `just test-cov`. |
 | `SASE_JUST_INVOCATION_DIR`            | Internal value set by `just` so test selectors are normalized from the caller's directory.                      |
 
@@ -1481,8 +1481,9 @@ The snippet catalog uses the same source ordering as ACE: xprompts marked with `
 ### `sase lsp`
 
 Starts the xprompt language server over stdio for editor integrations. `SASE_XPROMPT_LSP_CMD` can override the server
-command during development; otherwise `sase lsp` prefers a sibling `sase-core` source checkout (`SASE_CORE_DIR`,
-sibling-repo env vars, then `../sase-core`) and falls back to `sase-xprompt-lsp` on `PATH`.
+command during development. Without that override, `sase lsp` uses `sase-xprompt-lsp` from `PATH`, then checks a sibling
+`../sase-core` checkout for debug/release binaries, then falls back to `cargo run` from that sibling checkout when Cargo
+is available.
 
 | Flag              | Values | Default | Description                            |
 | ----------------- | ------ | ------- | -------------------------------------- |
