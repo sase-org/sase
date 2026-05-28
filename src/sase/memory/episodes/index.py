@@ -13,6 +13,7 @@ from typing import Any
 from sase.core.episode_wire import (
     EPISODE_WIRE_SCHEMA_VERSION,
     EpisodeStorageIndexRowWire,
+    episode_storage_index_row_from_dict,
 )
 from sase.core.paths import sase_projects_dir
 from sase.memory.locks import locked_file
@@ -167,24 +168,10 @@ def _episode_index_row_from_dict(
         schema_version = int(data.get("schema_version", 0))
     except (TypeError, ValueError):
         return None
-    if schema_version != EPISODE_WIRE_SCHEMA_VERSION:
+    if schema_version < 1 or schema_version > EPISODE_WIRE_SCHEMA_VERSION:
         return None
     try:
-        return EpisodeStorageIndexRowWire(
-            schema_version=schema_version,
-            episode_id=str(data["episode_id"]),
-            project=str(data["project"]),
-            title=str(data["title"]),
-            source_count=int(data["source_count"]),
-            lesson_path=str(data["lesson_path"]),
-            content_sha256=str(data["content_sha256"]),
-            root_agent_names=_strings(data.get("root_agent_names")),
-            changespec_name=_optional_str(data.get("changespec_name")),
-            bead_ids=_strings(data.get("bead_ids")),
-            outcome=_optional_str(data.get("outcome")),
-            first_event_at=_optional_str(data.get("first_event_at")),
-            last_event_at=_optional_str(data.get("last_event_at")),
-        )
+        return episode_storage_index_row_from_dict(data)
     except (KeyError, TypeError, ValueError):
         return None
 
@@ -193,19 +180,6 @@ def _sort_rows(
     rows: list[EpisodeStorageIndexRowWire] | Any,
 ) -> list[EpisodeStorageIndexRowWire]:
     return sorted(rows, key=lambda row: (row.project, row.episode_id))
-
-
-def _strings(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return sorted({str(item) for item in value if str(item)})
-
-
-def _optional_str(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value)
-    return text if text else None
 
 
 def _read_text_or_none(path: Path) -> str | None:

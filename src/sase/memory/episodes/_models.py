@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.core.episode_facade import generate_episode_id
+from sase.core.episode_facade import generate_episode_id, generate_v2_episode_id
 from sase.core.episode_wire import (
     EPISODE_WIRE_SCHEMA_VERSION,
     EpisodeEdgeWire,
@@ -118,10 +118,15 @@ class EpisodeDraft:
     ) -> EpisodeWire:
         """Project the draft graph to an ``EpisodeWire`` without lessons."""
 
-        episode_id = generate_episode_id(
-            self.project,
-            self.root_source_id,
-            self.sources,
+        component_key = self.metadata.get("component_key", "")
+        episode_id = (
+            generate_v2_episode_id(self.project, component_key)
+            if component_key
+            else generate_episode_id(
+                self.project,
+                self.root_source_id,
+                self.sources,
+            )
         )
         return EpisodeWire(
             schema_version=EPISODE_WIRE_SCHEMA_VERSION,
@@ -130,6 +135,8 @@ class EpisodeDraft:
             title=title,
             summary=summary,
             root_source_id=self.root_source_id,
+            component_key=component_key,
+            component_root_kind=self.metadata.get("component_root_kind", ""),
             sources=self.sources,
             nodes=self.nodes,
             edges=self.edges,

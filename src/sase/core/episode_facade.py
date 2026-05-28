@@ -44,6 +44,11 @@ def generate_episode_id(
     )
 
 
+def generate_v2_episode_id(project: str, component_key: str) -> str:
+    rust_episode_id = require_rust_binding("episode_v2_id")
+    return str(rust_episode_id(project, component_key))
+
+
 def verify_episode_sources(
     episode_id: str,
     sources: Sequence[EpisodeSourceRefWire],
@@ -60,6 +65,7 @@ __all__ = [
     "canonical_episode_json",
     "episode_wire_schema_version",
     "generate_episode_id",
+    "generate_v2_episode_id",
     "generate_source_id",
     "verify_episode_sources",
 ]

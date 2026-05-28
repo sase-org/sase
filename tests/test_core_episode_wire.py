@@ -9,16 +9,22 @@ from sase.core.episode_facade import (
     episode_wire_schema_version,
     generate_episode_id,
     generate_source_id,
+    generate_v2_episode_id,
     verify_episode_sources,
 )
 from sase.core.episode_wire import (
     EPISODE_WIRE_SCHEMA_VERSION,
     EpisodeEdgeWire,
     EpisodeEventWire,
+    EpisodeImportanceFactorWire,
     EpisodeLessonWire,
     EpisodeNodeWire,
+    EpisodeSafetyWire,
     EpisodeSourceRefWire,
+    EpisodeStorageIndexRowWire,
+    EpisodeWeakRefsWire,
     EpisodeWire,
+    episode_storage_index_row_from_dict,
     episode_wire_from_dict,
 )
 
@@ -110,6 +116,127 @@ def test_episode_ids_are_stable_across_source_order() -> None:
     assert generate_episode_id("sase", "src-root", [source_a, source_b]) == (
         generate_episode_id("sase", "src-root", [source_b, source_a])
     )
+    assert generate_v2_episode_id("sase", "component/chat/root") == (
+        generate_v2_episode_id("sase", "component/chat/root")
+    )
+    assert generate_v2_episode_id("sase", "component/chat/root") != (
+        generate_v2_episode_id("sase", "component/chat/other")
+    )
+
+
+def test_v2_episode_with_no_lessons_round_trips_and_uses_component_id() -> None:
+    component_key = "component/chat/src-root"
+    episode = EpisodeWire(
+        schema_version=EPISODE_WIRE_SCHEMA_VERSION,
+        episode_id=generate_v2_episode_id("sase", component_key),
+        project="sase",
+        title="Component Episode",
+        summary="Connected component evidence.",
+        root_source_id="src-root",
+        component_key=component_key,
+        component_root_kind="chat",
+        status="active",
+        importance_score=84,
+        importance_band="high",
+        importance_factors=[
+            EpisodeImportanceFactorWire(
+                kind="verification",
+                label="Focused checks passed",
+                score=25,
+                evidence_ids=["src-root"],
+                metadata={"command": "cargo test"},
+            )
+        ],
+        safety=EpisodeSafetyWire(
+            untrusted_transcript_text=True,
+            private_or_missing_source_flags=["private-chat"],
+        ),
+        weak_refs=EpisodeWeakRefsWire(
+            changespec_names=["memory"],
+            bead_ids=["sase-48.1"],
+            agent_families=["coder"],
+            touched_paths=["src/sase/core/episode_wire.py"],
+        ),
+        lessons=[],
+    )
+
+    payload = json.loads(canonical_episode_json(episode))
+    round_tripped = episode_wire_from_dict(payload)
+
+    assert payload["schema_version"] == 2
+    assert payload["lessons"] == []
+    assert payload["episode_id"] == generate_v2_episode_id("sase", component_key)
+    assert round_tripped == episode
+
+
+def test_v1_episode_and_index_row_parse_with_compatibility_defaults(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "legacy.md"
+    source_path.write_text("legacy evidence\n", encoding="utf-8")
+    source_bytes = source_path.read_bytes()
+    source_sha = hashlib.sha256(source_bytes).hexdigest()
+    episode = episode_wire_from_dict(
+        {
+            "schema_version": 1,
+            "episode_id": "ep-legacy",
+            "project": "sase",
+            "title": "Legacy Episode",
+            "summary": "Legacy lesson summary.",
+            "root_source_id": "src-legacy",
+            "sources": [
+                {
+                    "id": "src-legacy",
+                    "kind": "chat",
+                    "path": str(source_path),
+                    "label": None,
+                    "exists": True,
+                    "size_bytes": len(source_bytes),
+                    "sha256": source_sha,
+                }
+            ],
+            "nodes": [],
+            "edges": [],
+            "events": [],
+            "lessons": [
+                {
+                    "id": "lesson-1",
+                    "kind": "goal",
+                    "text": "Legacy lessons remain readable.",
+                    "evidence_ids": ["src-legacy"],
+                    "source_confidence": "deterministic",
+                }
+            ],
+            "metadata": {},
+        }
+    )
+    row = episode_storage_index_row_from_dict(
+        {
+            "schema_version": 1,
+            "episode_id": "ep-legacy",
+            "project": "sase",
+            "title": "Legacy Episode",
+            "source_count": 1,
+            "lesson_path": "/tmp/lesson.md",
+            "content_sha256": "abc123",
+        }
+    )
+    report = verify_episode_sources(episode.episode_id, episode.sources)
+
+    assert episode.status == "legacy"
+    assert episode.lessons[0].text == "Legacy lessons remain readable."
+    assert row == EpisodeStorageIndexRowWire(
+        schema_version=1,
+        episode_id="ep-legacy",
+        project="sase",
+        title="Legacy Episode",
+        source_count=1,
+        content_sha256="abc123",
+        status="legacy",
+        lesson_path="/tmp/lesson.md",
+        legacy_lesson_path="/tmp/lesson.md",
+    )
+    assert report.ok is True
 
 
 def test_verify_episode_sources_reports_drift(tmp_path: Path) -> None:

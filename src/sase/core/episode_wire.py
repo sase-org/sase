@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-EPISODE_WIRE_SCHEMA_VERSION = 1
+EPISODE_WIRE_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -61,6 +61,33 @@ class EpisodeLessonWire:
 
 
 @dataclass(frozen=True)
+class EpisodeImportanceFactorWire:
+    kind: str
+    label: str
+    score: int = 0
+    evidence_ids: list[str] = field(default_factory=list)
+    metadata: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class EpisodeSafetyWire:
+    untrusted_transcript_text: bool = False
+    prompt_injection_phrase_hits: list[str] = field(default_factory=list)
+    redaction_hits: list[str] = field(default_factory=list)
+    private_or_missing_source_flags: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class EpisodeWeakRefsWire:
+    changespec_names: list[str] = field(default_factory=list)
+    bead_ids: list[str] = field(default_factory=list)
+    agent_families: list[str] = field(default_factory=list)
+    touched_paths: list[str] = field(default_factory=list)
+    metadata: dict[str, list[str]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class EpisodeWire:
     schema_version: int
     episode_id: str
@@ -68,6 +95,14 @@ class EpisodeWire:
     title: str
     summary: str
     root_source_id: str
+    component_key: str = ""
+    component_root_kind: str = ""
+    status: str = "active"
+    importance_score: int = 0
+    importance_band: str = "unknown"
+    importance_factors: list[EpisodeImportanceFactorWire] = field(default_factory=list)
+    safety: EpisodeSafetyWire = field(default_factory=EpisodeSafetyWire)
+    weak_refs: EpisodeWeakRefsWire = field(default_factory=EpisodeWeakRefsWire)
     sources: list[EpisodeSourceRefWire] = field(default_factory=list)
     nodes: list[EpisodeNodeWire] = field(default_factory=list)
     edges: list[EpisodeEdgeWire] = field(default_factory=list)
@@ -109,8 +144,16 @@ class EpisodeStorageIndexRowWire:
     project: str
     title: str
     source_count: int
-    lesson_path: str
     content_sha256: str
+    component_key: str = ""
+    status: str = "active"
+    summary_excerpt: str = ""
+    chat_count: int = 0
+    agent_count: int = 0
+    importance_score: int = 0
+    importance_band: str = "unknown"
+    lesson_path: str = ""
+    legacy_lesson_path: str | None = None
     root_agent_names: list[str] = field(default_factory=list)
     changespec_name: str | None = None
     bead_ids: list[str] = field(default_factory=list)
@@ -145,6 +188,7 @@ class EpisodeVerifyReportWire:
 
 
 from sase.core.episode_wire_conversion import (  # noqa: E402
+    episode_storage_index_row_from_dict,
     episode_verify_report_from_dict,
     episode_wire_from_dict,
     episode_wire_to_json_dict,
@@ -156,13 +200,17 @@ __all__ = [
     "EpisodeBuildRequestWire",
     "EpisodeEdgeWire",
     "EpisodeEventWire",
+    "EpisodeImportanceFactorWire",
     "EpisodeLessonWire",
     "EpisodeNodeWire",
+    "EpisodeSafetyWire",
     "EpisodeSourceRefWire",
     "EpisodeSourceVerifyResultWire",
     "EpisodeStorageIndexRowWire",
     "EpisodeVerifyReportWire",
+    "EpisodeWeakRefsWire",
     "EpisodeWire",
+    "episode_storage_index_row_from_dict",
     "episode_verify_report_from_dict",
     "episode_wire_from_dict",
     "episode_wire_to_json_dict",

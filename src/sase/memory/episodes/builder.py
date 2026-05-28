@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
-from sase.core.episode_facade import generate_episode_id
+from sase.core.episode_facade import generate_episode_id, generate_v2_episode_id
 from sase.core.episode_wire import (
     EPISODE_WIRE_SCHEMA_VERSION,
     EpisodeEventWire,
@@ -69,7 +69,12 @@ def build_episode(draft: EpisodeDraft) -> EpisodeWire:
     lessons = _derive_lessons(draft, goal)
     summary = _derive_summary(draft, goal, lessons)
     metadata = _derive_metadata(draft, events, lessons)
-    episode_id = generate_episode_id(draft.project, draft.root_source_id, sources)
+    component_key = draft.metadata.get("component_key", "")
+    episode_id = (
+        generate_v2_episode_id(draft.project, component_key)
+        if component_key
+        else generate_episode_id(draft.project, draft.root_source_id, sources)
+    )
     return EpisodeWire(
         schema_version=EPISODE_WIRE_SCHEMA_VERSION,
         episode_id=episode_id,
@@ -77,6 +82,8 @@ def build_episode(draft: EpisodeDraft) -> EpisodeWire:
         title=title,
         summary=summary,
         root_source_id=draft.root_source_id,
+        component_key=component_key,
+        component_root_kind=draft.metadata.get("component_root_kind", ""),
         sources=sources,
         nodes=sorted(draft.nodes, key=lambda node: node.id),
         edges=sorted(draft.edges, key=lambda edge: edge.id),

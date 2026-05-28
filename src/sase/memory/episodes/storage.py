@@ -123,14 +123,27 @@ def _build_episode_index_row(
         episode_id=episode.episode_id,
         project=episode.project,
         title=episode.title,
+        component_key=_component_key(episode),
+        status=episode.status or "active",
+        summary_excerpt=_summary_excerpt(episode.summary),
         root_agent_names=_root_agent_names(episode),
         changespec_name=_changespec_name(episode),
         bead_ids=_bead_ids(episode),
         outcome=_outcome(episode),
         first_event_at=event_timestamps[0] if event_timestamps else None,
         last_event_at=event_timestamps[-1] if event_timestamps else None,
+        importance_score=episode.importance_score,
+        importance_band=episode.importance_band or "unknown",
         source_count=len(episode.sources),
+        chat_count=_chat_count(episode),
+        agent_count=_agent_count(episode),
         lesson_path=str(lesson_path.resolve(strict=False)),
+        legacy_lesson_path=(
+            str(lesson_path.resolve(strict=False))
+            if episode.schema_version < EPISODE_WIRE_SCHEMA_VERSION
+            or episode.status == "legacy"
+            else None
+        ),
         content_sha256=content_sha256,
     )
 
@@ -283,7 +296,40 @@ def _root_agent_names(episode: EpisodeWire) -> list[str]:
     return sorted(names)
 
 
+def _component_key(episode: EpisodeWire) -> str:
+    return (
+        episode.component_key
+        or episode.metadata.get("component_key")
+        or episode.root_source_id
+    )
+
+
+def _summary_excerpt(summary: str) -> str:
+    collapsed = " ".join(summary.split())
+    if len(collapsed) <= 240:
+        return collapsed
+    return collapsed[:237].rstrip() + "..."
+
+
+def _chat_count(episode: EpisodeWire) -> int:
+    explicit = episode.metadata.get("chat_count")
+    if explicit and explicit.isdigit():
+        return int(explicit)
+    return sum(1 for node in episode.nodes if node.kind == "chat")
+
+
+def _agent_count(episode: EpisodeWire) -> int:
+    explicit = episode.metadata.get("agent_count") or episode.metadata.get(
+        "agent_record_count"
+    )
+    if explicit and explicit.isdigit():
+        return int(explicit)
+    return sum(1 for node in episode.nodes if node.kind == "agent_run")
+
+
 def _changespec_name(episode: EpisodeWire) -> str | None:
+    if episode.weak_refs.changespec_names:
+        return ", ".join(sorted(set(episode.weak_refs.changespec_names)))
     explicit = episode.metadata.get("changespec_name")
     if explicit:
         return explicit
@@ -297,6 +343,8 @@ def _changespec_name(episode: EpisodeWire) -> str | None:
 
 
 def _bead_ids(episode: EpisodeWire) -> list[str]:
+    if episode.weak_refs.bead_ids:
+        return sorted(set(episode.weak_refs.bead_ids))
     explicit = _metadata_list(episode.metadata.get("bead_ids"))
     if explicit:
         return explicit
