@@ -1,5 +1,5 @@
 ---
-description: Launch two independent research agents and consolidate their findings.
+description: Launch two independent research agents, consolidate their findings, and generate an infographic.
 input:
   - name: prompt
     type: text
@@ -33,3 +33,8 @@ the prior agents.
 Research request:
 
 {{ prompt }}
+
+---
+
+%name:research_swarm.image-@ %wait:research_swarm.final-@ %g:research #fork:research_swarm.final-@ #research/image
+%m:gpt-5.5

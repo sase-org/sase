@@ -258,6 +258,11 @@ def testload_xprompts_from_default_files_includes_research_swarm() -> None:
     assert "delete the two intermediate `sdd/research/` markdown files" in (
         xprompt.content
     )
+    assert "%name:research_swarm.image-@" in xprompt.content
+    assert "%wait:research_swarm.final-@" in xprompt.content
+    assert "#fork:research_swarm.final-@" in xprompt.content
+    assert "#research/image" in xprompt.content
+    assert "%m:gpt-5.5" in xprompt.content
 
     legacy_xprompt = result["old_research_swarm"]
     assert legacy_xprompt.name == "old_research_swarm"
