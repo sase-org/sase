@@ -210,6 +210,7 @@ def test_root_plan_agent_renders_deltas_from_active_coder_followup(
         status="PLAN APPROVED",
         start_time=datetime(2024, 1, 1, 15, 0),
         workspace_num=2,
+        workspace_dir=str(tmp_path / "myproj_2"),
         workflow="ace(run)-202604010000-code",
         raw_suffix="202604010000-code",
         parent_timestamp="202604010000",
@@ -235,13 +236,10 @@ def test_root_plan_agent_renders_deltas_from_active_coder_followup(
         }
     )
 
-    def workspace_for(project_basename: str, workspace_num: int) -> str:
-        assert project_basename == "myproj"
-        return str(tmp_path / f"myproj_{workspace_num}")
-
     with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
-        with patch.object(
-            diff_mod, "get_workspace_directory", side_effect=workspace_for
+        with patch(
+            "sase.running_field.get_workspace_directory",
+            side_effect=AssertionError("workspace materialization was called"),
         ):
             with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
                 header, _ = build_header_text(

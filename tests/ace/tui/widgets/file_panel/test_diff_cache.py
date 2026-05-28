@@ -11,14 +11,20 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.file_panel import _diff as diff_mod
 
 
-def _make_running_agent(workspace_num: int = 1) -> Agent:
+def _make_running_agent(
+    *,
+    workspace_num: int = 1,
+    workspace_dir: str | None = None,
+    project_file: str = "/tmp/projects/myproj/myproj.sase",
+) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my-feature",
-        project_file="/tmp/projects/myproj/myproj.sase",
+        project_file=project_file,
         status="RUNNING",
         start_time=None,
         workspace_num=workspace_num,
+        workspace_dir=workspace_dir,
         workflow="ace(run)-202604010000",
         raw_suffix="202604010000",
     )
@@ -42,16 +48,19 @@ def _make_root_plan_agent(workspace_num: int = 1) -> Agent:
 def _make_active_coder_followup(
     *,
     workspace_num: int,
+    workspace_dir: str | None = None,
+    project_file: str = "/tmp/projects/myproj/myproj.sase",
     start_time: datetime,
     raw_suffix: str,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my-feature-code",
-        project_file="/tmp/projects/myproj/myproj.sase",
+        project_file=project_file,
         status="PLAN APPROVED",
         start_time=start_time,
         workspace_num=workspace_num,
+        workspace_dir=workspace_dir,
         workflow="ace(run)-202604010000-code",
         raw_suffix=raw_suffix,
         parent_timestamp="202604010000",
@@ -64,6 +73,16 @@ def _setup_workspace(tmp_path: Path, name: str = "myproj_1") -> Path:
     (workspace / ".git").mkdir(parents=True)
     (workspace / ".git" / "index").write_bytes(b"\x00" * 16)
     return workspace
+
+
+def _write_project_file(tmp_path: Path, primary_workspace: Path) -> Path:
+    project_file = tmp_path / "projects" / "myproj.sase"
+    project_file.parent.mkdir(parents=True)
+    project_file.write_text(
+        f"WORKSPACE_DIR: {primary_workspace}\nNAME: my-feature\n",
+        encoding="utf-8",
+    )
+    return project_file
 
 
 class _FakeProvider:
@@ -80,12 +99,13 @@ class _FakeProvider:
 def test_get_agent_diff_caches_on_unchanged_worktree(tmp_path: Path) -> None:
     diff_mod._diff_cache.clear()
     workspace = _setup_workspace(tmp_path)
-    agent = _make_running_agent()
+    agent = _make_running_agent(workspace_dir=str(workspace))
     provider = _FakeProvider()
 
     with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
-        with patch.object(
-            diff_mod, "get_workspace_directory", return_value=str(workspace)
+        with patch(
+            "sase.running_field.get_workspace_directory",
+            side_effect=AssertionError("workspace materialization was called"),
         ):
             with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
                 first = diff_mod.get_agent_diff(agent)
@@ -106,13 +126,16 @@ def test_get_agent_diff_invalidates_after_ttl(tmp_path: Path) -> None:
     """
     diff_mod._diff_cache.clear()
     workspace = _setup_workspace(tmp_path)
-    agent = _make_running_agent()
+    agent = _make_running_agent(workspace_dir=str(workspace))
     provider = _FakeProvider()
 
     t0 = 1_700_000_000.0
     t1 = t0 + diff_mod.DIFF_CACHE_TTL_SECONDS + 0.01
 
-    with patch.object(diff_mod, "get_workspace_directory", return_value=str(workspace)):
+    with patch(
+        "sase.running_field.get_workspace_directory",
+        side_effect=AssertionError("workspace materialization was called"),
+    ):
         with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
             with patch.object(diff_mod.time, "time", return_value=t0):
                 first = diff_mod.get_agent_diff(agent)
@@ -129,10 +152,13 @@ def test_get_agent_diff_invalidates_after_ttl(tmp_path: Path) -> None:
 def test_get_agent_diff_invalidates_when_index_changes(tmp_path: Path) -> None:
     diff_mod._diff_cache.clear()
     workspace = _setup_workspace(tmp_path)
-    agent = _make_running_agent()
+    agent = _make_running_agent(workspace_dir=str(workspace))
     provider = _FakeProvider()
 
-    with patch.object(diff_mod, "get_workspace_directory", return_value=str(workspace)):
+    with patch(
+        "sase.running_field.get_workspace_directory",
+        side_effect=AssertionError("workspace materialization was called"),
+    ):
         with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
             diff_mod.get_agent_diff(agent)
             # Mutate the .git/index file (changes mtime + size).
@@ -153,24 +179,23 @@ def test_get_agent_diff_resolves_root_plan_to_newest_active_coder_workspace(
     root = _make_root_plan_agent(workspace_num=1)
     older_coder = _make_active_coder_followup(
         workspace_num=2,
+        workspace_dir=str(tmp_path / "myproj_2"),
         start_time=datetime(2024, 1, 1, 15, 0),
         raw_suffix="202604010000-code-1",
     )
     newest_coder = _make_active_coder_followup(
         workspace_num=3,
+        workspace_dir=str(newest_workspace),
         start_time=datetime(2024, 1, 1, 16, 0),
         raw_suffix="202604010000-code-2",
     )
     root.followup_agents.extend([older_coder, newest_coder])
     provider = _FakeProvider()
 
-    def workspace_for(project_basename: str, workspace_num: int) -> str:
-        assert project_basename == "myproj"
-        return str(tmp_path / f"myproj_{workspace_num}")
-
     with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
-        with patch.object(
-            diff_mod, "get_workspace_directory", side_effect=workspace_for
+        with patch(
+            "sase.running_field.get_workspace_directory",
+            side_effect=AssertionError("workspace materialization was called"),
         ):
             with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
                 root_diff = diff_mod.get_agent_diff(root)
@@ -184,10 +209,13 @@ def test_get_agent_diff_resolves_root_plan_to_newest_active_coder_workspace(
 
 def test_compute_diff_cache_key_includes_provider_name(tmp_path: Path) -> None:
     workspace = _setup_workspace(tmp_path)
-    agent = _make_running_agent()
+    agent = _make_running_agent(workspace_dir=str(workspace))
     provider = _FakeProvider()
 
-    with patch.object(diff_mod, "get_workspace_directory", return_value=str(workspace)):
+    with patch(
+        "sase.running_field.get_workspace_directory",
+        side_effect=AssertionError("workspace materialization was called"),
+    ):
         with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
             key = diff_mod._compute_diff_cache_key(agent)
 
@@ -204,10 +232,13 @@ def test_compute_diff_cache_key_ttl_bucket_present_without_git_index(
     workspace = tmp_path / "myproj_1"
     workspace.mkdir()
     # No .git directory → fingerprint is None; TTL bucket still present.
-    agent = _make_running_agent()
+    agent = _make_running_agent(workspace_dir=str(workspace))
     provider = _FakeProvider()
 
-    with patch.object(diff_mod, "get_workspace_directory", return_value=str(workspace)):
+    with patch(
+        "sase.running_field.get_workspace_directory",
+        side_effect=AssertionError("workspace materialization was called"),
+    ):
         with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
             key = diff_mod._compute_diff_cache_key(agent)
 
@@ -220,13 +251,77 @@ def test_compute_diff_cache_key_returns_none_without_provider(
     tmp_path: Path,
 ) -> None:
     workspace = _setup_workspace(tmp_path)
-    agent = _make_running_agent()
+    agent = _make_running_agent(workspace_dir=str(workspace))
 
     from sase.vcs_provider import VCSProviderNotFoundError
 
     def raise_not_found(*args: Any, **kwargs: Any):  # type: ignore[no-untyped-def]
         raise VCSProviderNotFoundError("none")
 
-    with patch.object(diff_mod, "get_workspace_directory", return_value=str(workspace)):
+    with patch(
+        "sase.running_field.get_workspace_directory",
+        side_effect=AssertionError("workspace materialization was called"),
+    ):
         with patch.object(diff_mod, "get_vcs_provider", side_effect=raise_not_found):
             assert diff_mod._compute_diff_cache_key(agent) is None
+
+
+def test_compute_diff_cache_key_derives_numbered_workspace_from_project_file(
+    tmp_path: Path,
+) -> None:
+    primary_workspace = _setup_workspace(tmp_path, "primary")
+    derived_workspace = _setup_workspace(tmp_path, "primary_3")
+    project_file = _write_project_file(tmp_path, primary_workspace)
+    agent = _make_running_agent(workspace_num=3, project_file=str(project_file))
+    provider = _FakeProvider()
+
+    with patch(
+        "sase.running_field.get_workspace_directory",
+        side_effect=AssertionError("workspace materialization was called"),
+    ):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            key = diff_mod._compute_diff_cache_key(agent)
+
+    assert key is not None
+    assert key[1] == str(derived_workspace)
+
+
+def test_get_agent_diff_returns_none_without_read_only_workspace_metadata(
+    tmp_path: Path,
+) -> None:
+    diff_mod._diff_cache.clear()
+    project_file = tmp_path / "projects" / "myproj.sase"
+    project_file.parent.mkdir(parents=True)
+    project_file.write_text("NAME: my-feature\n", encoding="utf-8")
+    agent = _make_running_agent(workspace_num=3, project_file=str(project_file))
+
+    with patch(
+        "sase.running_field.get_workspace_directory",
+        side_effect=AssertionError("workspace materialization was called"),
+    ):
+        with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
+            assert diff_mod.get_agent_diff(agent) is None
+
+    mock_get_provider.assert_not_called()
+
+
+def test_compute_diff_cache_key_returns_none_when_explicit_workspace_is_missing(
+    tmp_path: Path,
+) -> None:
+    primary_workspace = _setup_workspace(tmp_path, "primary")
+    _setup_workspace(tmp_path, "primary_3")
+    project_file = _write_project_file(tmp_path, primary_workspace)
+    agent = _make_running_agent(
+        workspace_num=3,
+        workspace_dir=str(tmp_path / "missing_3"),
+        project_file=str(project_file),
+    )
+
+    with patch(
+        "sase.running_field.get_workspace_directory",
+        side_effect=AssertionError("workspace materialization was called"),
+    ):
+        with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
+            assert diff_mod._compute_diff_cache_key(agent) is None
+
+    mock_get_provider.assert_not_called()

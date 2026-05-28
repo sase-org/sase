@@ -26,8 +26,8 @@ from datetime import datetime
 from pathlib import Path
 from threading import Lock
 
-from sase.running_field import get_workspace_directory
 from sase.vcs_provider import VCSProviderNotFoundError, get_vcs_provider
+from sase.workspace_provider.utils import parse_workspace_dir
 
 from ...models.agent import Agent
 from ...models._agent_status_overrides import (
@@ -95,14 +95,38 @@ def _git_index_signature(workspace_dir: str) -> tuple[int, int] | None:
     return (st.st_mtime_ns, st.st_size)
 
 
-def _resolve_workspace_dir(agent: Agent) -> str | None:
-    project_basename = Path(agent.project_file).stem
-    try:
-        if agent.workspace_num:
-            return get_workspace_directory(project_basename, agent.workspace_num)
-        return get_workspace_directory(project_basename, 1)
-    except RuntimeError:
+def _existing_workspace_dir(workspace_dir: str | None) -> str | None:
+    if not workspace_dir:
         return None
+    expanded = os.path.expanduser(workspace_dir)
+    return expanded if os.path.isdir(expanded) else None
+
+
+def _derive_workspace_dir_from_primary(
+    primary_workspace_dir: str,
+    workspace_num: int | None,
+) -> str | None:
+    if workspace_num is None or workspace_num <= 1:
+        return primary_workspace_dir
+    primary_base = primary_workspace_dir.rstrip(os.sep)
+    if not primary_base:
+        return None
+    return f"{primary_base}_{workspace_num}"
+
+
+def _resolve_workspace_dir(agent: Agent) -> str | None:
+    if agent.workspace_dir:
+        return _existing_workspace_dir(agent.workspace_dir)
+
+    primary_workspace = parse_workspace_dir(agent.project_file)
+    if primary_workspace is None:
+        return None
+
+    derived_workspace = _derive_workspace_dir_from_primary(
+        primary_workspace,
+        agent.workspace_num,
+    )
+    return _existing_workspace_dir(derived_workspace)
 
 
 def _compute_diff_cache_key(agent: Agent) -> DiffCacheKey | None:
@@ -133,8 +157,8 @@ def get_agent_diff(agent: Agent) -> str | None:
     """Get diff output for an agent.
 
     For completed agents with a diff_path, read the pre-computed diff file.
-    For RUNNING agents, use workspace_num to find directory and run live diff,
-    caching by ``_compute_diff_cache_key``.
+    For active agents, resolve an existing workspace from agent/project
+    metadata and run live diff, caching by ``_compute_diff_cache_key``.
 
     Args:
         agent: The agent to get diff for.
