@@ -33,43 +33,30 @@ xprompts:
 ---
 
 %name:reads.gem-@
-
 %model:gemini/gemini-3.1-pro-preview
-
 %g:read
-
 #_article_search_agent
 
 ---
 
 %name:reads.cld-@
-
 %model:claude/opus
-
 %g:read
-
 #_article_search_agent
 
 ---
 
 %name:reads.cdx-@
-
 %model:codex/gpt-5.5
-
 %g:read
-
 #_article_search_agent
 
 ---
 
 %name:reads.final-@
-
 %wait:reads.gem-@
-
 %wait:reads.cld-@
-
 %wait:reads.cdx-@
-
 %g:read
 
 The three article-search agents have finished. Their chat transcript paths are available here:
