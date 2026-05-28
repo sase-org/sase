@@ -210,7 +210,7 @@ def resolve_chat_file_path(basename: str) -> str | None:
 
 
 def _clean_metadata_field(value: str | None) -> str | None:
-    """Normalize a transcript metadata field for single-line markdown output."""
+    """Normalize a transcript metadata field for compact markdown output."""
     if value is None:
         return None
     cleaned = " ".join(str(value).split())
@@ -231,20 +231,21 @@ def _format_metadata_model(
     return model or provider
 
 
-def _format_transcript_metadata(
+def _format_transcript_metadata_blocks(
     *,
+    display_timestamp: str,
     metadata_model: str | None,
     metadata_llm_provider: str | None,
     metadata_agent: str | None,
 ) -> str:
-    fields: list[str] = []
+    blocks = [f"**Timestamp** {display_timestamp}"]
     model = _format_metadata_model(metadata_llm_provider, metadata_model)
     agent = _clean_metadata_field(metadata_agent)
     if model:
-        fields.append(f"**MODEL:** {model}")
+        blocks.append(f"**MODEL** {model}")
     if agent:
-        fields.append(f"**AGENT:** {agent}")
-    return f" {' '.join(fields)}" if fields else ""
+        blocks.append(f"**AGENT** {agent}")
+    return "\n\n".join(blocks)
 
 
 def save_chat_history(
@@ -271,7 +272,7 @@ def save_chat_history(
         previous_history: Optional previous conversation history to prepend
         timestamp: Optional timestamp for filename (YYmmdd_HHMMSS format)
         extra_sections: Optional markdown content (plan feedback, Q&A) to
-            insert after the timestamp and before the prompt.
+            insert after transcript metadata and before the prompt.
         branch_or_workspace: Optional branch/workspace name for filename.
         metadata_model: Optional model name to render in the transcript header.
         metadata_llm_provider: Optional LLM provider to render with the model.
@@ -298,12 +299,13 @@ def save_chat_history(
     content_parts.append(f"# Chat History - {workflow}")
     if agent:
         content_parts.append(f" ({agent})")
-    metadata_suffix = _format_transcript_metadata(
+    metadata_blocks = _format_transcript_metadata_blocks(
+        display_timestamp=display_timestamp,
         metadata_model=metadata_model,
         metadata_llm_provider=metadata_llm_provider,
         metadata_agent=metadata_agent,
     )
-    content_parts.append(f"\n\n**Timestamp:** {display_timestamp}{metadata_suffix}\n")
+    content_parts.append(f"\n\n{metadata_blocks}\n")
 
     # Add extra sections (plan feedback, Q&A) before prompt
     if extra_sections:

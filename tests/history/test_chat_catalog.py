@@ -56,7 +56,7 @@ def _write_chat(
         header += f" ({agent})"
     body = (
         f"{header}\n\n"
-        f"**Timestamp:** 2026-04-29 10:15:08 EDT\n\n"
+        f"**Timestamp** 2026-04-29 10:15:08 EDT\n\n"
         f"## Prompt\n\n{prompt}\n\n"
         f"## Response\n\n{response}\n"
     )
@@ -192,7 +192,7 @@ def test_list_handles_giant_transcript_without_full_read(
     big = big_dir / "huge-run-260429_101500.md"
     head = (
         "# Chat History - run\n\n"
-        "**Timestamp:** 2026-04-29 10:15:08 EDT\n\n"
+        "**Timestamp** 2026-04-29 10:15:08 EDT\n\n"
         "## Prompt\n\nshort prompt\n\n"
         "## Response\n\nshort response\n\n"
         "## Trailer\n\n"

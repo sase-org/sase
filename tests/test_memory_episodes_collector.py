@@ -40,7 +40,7 @@ def test_collect_episode_draft_follows_deterministic_source_graph(
     retry_chat = chats_dir / "retry-260526_122000.md"
     planner_chat.write_text(
         "# Chat History - run (planner)\n\n"
-        "**Timestamp:** 2026-05-26 12:00:00 UTC\n\n"
+        "**Timestamp** 2026-05-26 12:00:00 UTC\n\n"
         "## Linked Chats\n\n"
         f"- 1. code - `{coder_chat}`\n\n"
         "**Plan:** {plan_path}\n\n"

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 09:24:04
-status: wip
+status: done
 prompt: sdd/prompts/202605/chat_transcript_metadata_description_lists.md
 ---
 # Chat Transcript Metadata Description Lists Plan

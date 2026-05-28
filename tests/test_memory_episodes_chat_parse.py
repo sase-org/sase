@@ -17,7 +17,7 @@ def test_parse_chat_transcript_extracts_turns_links_and_fork_refs(
     chat = tmp_path / "chat.md"
     chat.write_text(
         "# Chat History - run\n\n"
-        "**Timestamp:** 2026-05-26 12:00:00 UTC\n\n"
+        "**Timestamp** 2026-05-26 12:00:00 UTC\n\n"
         "## Linked Chats\n\n"
         f"- 1. plan - `{linked}`\n\n"
         "## Prompt\n\n"

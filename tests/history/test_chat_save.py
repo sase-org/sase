@@ -36,14 +36,14 @@ def test_save_chat_history_basic(
     assert "Hello, how are you?" in content
     assert "I am fine, thank you!" in content
     assert "# Chat History - run" in content
-    assert "**MODEL:**" not in content
-    assert "**AGENT:**" not in content
+    assert "**MODEL**" not in content
+    assert "**AGENT**" not in content
 
 
 def test_save_chat_history_with_transcript_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Metadata fields are rendered on the timestamp line before the prompt."""
+    """Metadata fields are rendered as compact blocks before the prompt."""
     redirect_sase_home(monkeypatch, tmp_path)
     with (
         patch(
@@ -62,14 +62,13 @@ def test_save_chat_history_with_transcript_metadata(
         )
 
     content = Path(os.path.expanduser(result)).read_text(encoding="utf-8")
-    timestamp_line = next(
-        line for line in content.splitlines() if line.startswith("**Timestamp:**")
-    )
-    assert "**MODEL:** claude/claude-sonnet" in timestamp_line
-    assert "**AGENT:** alpha" in timestamp_line
-    assert content.index("**Timestamp:**") < content.index("**MODEL:**")
-    assert content.index("**MODEL:**") < content.index("**AGENT:**")
-    assert content.index("**AGENT:**") < content.index("## Prompt")
+    assert "**Timestamp:**" not in content
+    assert "\n\n**Timestamp** " in content
+    assert "\n\n**MODEL** claude/claude-sonnet\n\n" in content
+    assert "\n\n**AGENT** alpha\n\n" in content
+    assert content.index("**Timestamp**") < content.index("**MODEL**")
+    assert content.index("**MODEL**") < content.index("**AGENT**")
+    assert content.index("**AGENT**") < content.index("## Prompt")
 
 
 def test_save_chat_history_filename_agent_can_differ_from_metadata_agent(
@@ -92,7 +91,7 @@ def test_save_chat_history_filename_agent_can_differ_from_metadata_agent(
     content = actual_path.read_text(encoding="utf-8")
     assert actual_path.name == "branch-ace_run-planner_role-260501_225009.md"
     assert "# Chat History - ace-run (planner-role)" in content
-    assert "**AGENT:** sase-agent-plan" in content
+    assert "**AGENT** sase-agent-plan" in content
 
 
 def test_save_chat_history_with_path_like_branch(
@@ -170,7 +169,7 @@ def test_save_chat_history_with_extra_sections(
     assert "### Round 1" in content
     assert "> Fix the bug" in content
     # Verify ordering: timestamp < extra < prompt
-    ts_pos = content.index("**Timestamp:**")
+    ts_pos = content.index("**Timestamp**")
     extra_pos = content.index("## Plan Feedback")
     prompt_pos = content.index("## Prompt")
     assert ts_pos < extra_pos < prompt_pos
