@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 10:21:45
-status: wip
+status: done
 prompt: sdd/prompts/202605/nvim_xprompt_frontmatter_hover.md
 ---
 # Plan: xprompt Markdown frontmatter hover
