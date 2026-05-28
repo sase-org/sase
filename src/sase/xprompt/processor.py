@@ -168,6 +168,14 @@ def expand_single_xprompt(
     rendered = substitute_placeholders(
         xprompt.content, conv_positional, conv_named, xprompt.name, scope=scope
     )
+    rendered = _expand_local_xprompt_references(
+        xprompt,
+        rendered,
+        conv_positional,
+        conv_named,
+        scope,
+        preserve_segment_separators=preserve_segment_separators,
+    )
     if preserve_segment_separators:
         return rendered
 
@@ -214,6 +222,43 @@ def _resolve_command_substitution_in_args(
         for k, v in named_args.items()
     }
     return resolved_positional, resolved_named
+
+
+def _scope_for_local_xprompts(
+    scope: dict[str, Any] | None,
+    positional_args: list[Any],
+    named_args: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the context inherited by local helpers from their owning xprompt."""
+    local_scope = dict(scope or {})
+    for i, arg in enumerate(positional_args, 1):
+        local_scope[f"_{i}"] = arg
+    local_scope["_args"] = positional_args
+    local_scope.update(named_args)
+    return local_scope
+
+
+def _expand_local_xprompt_references(
+    xprompt: XPrompt,
+    rendered: str,
+    positional_args: list[Any],
+    named_args: dict[str, Any],
+    scope: dict[str, Any] | None,
+    *,
+    preserve_segment_separators: bool,
+) -> str:
+    """Expand helpers scoped to *xprompt* without consulting the global catalog."""
+    if not xprompt.local_xprompts or "#" not in rendered:
+        return rendered
+
+    return process_xprompt_references_with_catalog(
+        rendered,
+        dict(xprompt.local_xprompts),
+        extra_xprompts=xprompt.local_xprompts,
+        scope=_scope_for_local_xprompts(scope, positional_args, named_args),
+        aliases_resolved=True,
+        preserve_segment_separators=preserve_segment_separators,
+    )
 
 
 def process_xprompt_references(
@@ -290,6 +335,7 @@ def process_xprompt_references_with_catalog(
     *,
     trace: ExpansionTrace | None = None,
     aliases_resolved: bool = False,
+    preserve_segment_separators: bool = False,
 ) -> str:
     """Process xprompt references using an already-loaded xprompt catalog."""
     if "#" not in prompt:
@@ -429,7 +475,11 @@ def process_xprompt_references_with_catalog(
                 )
 
                 expanded = expand_single_xprompt(
-                    xprompt, positional_args, named_args, scope=scope
+                    xprompt,
+                    positional_args,
+                    named_args,
+                    scope=scope,
+                    preserve_segment_separators=preserve_segment_separators,
                 )
 
                 if trace is not None:

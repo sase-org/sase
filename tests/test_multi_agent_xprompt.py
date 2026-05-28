@@ -16,7 +16,10 @@ from sase.agent.multi_agent_xprompt import (
 )
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
-from sase.xprompt.processor import process_xprompt_references
+from sase.xprompt.processor import (
+    process_xprompt_references,
+    process_xprompt_references_with_catalog,
+)
 
 
 def _xp(name: str, content: str, *, inputs: list[InputArg] | None = None) -> XPrompt:
@@ -575,6 +578,74 @@ def test_expand_local_xprompts_bare_reference() -> None:
     with _patch_catalog({}):
         out = expand_multi_agent_xprompts(["#_local_three"], local_xprompts=local)
     assert out == ["alpha", "beta", "gamma"]
+
+
+def test_markdown_xprompt_local_helper_expands_without_global_leak() -> None:
+    outer = XPrompt(
+        name="outer",
+        content="Do #_helper for {{ topic }}.",
+        inputs=[InputArg(name="topic", type=InputType.TEXT)],
+        local_xprompts={
+            "_helper": XPrompt(name="_helper", content="focused work on {{ topic }}")
+        },
+    )
+    catalog = {"outer": outer}
+
+    out = process_xprompt_references_with_catalog(
+        "#outer(episodic memory)",
+        catalog,
+        aliases_resolved=True,
+    )
+
+    assert out == "Do focused work on episodic memory for episodic memory."
+    assert "_helper" not in catalog
+
+
+def test_multi_agent_xprompt_expands_local_helpers_before_splitting() -> None:
+    catalog = {
+        "reads": XPrompt(
+            name="reads",
+            content="%name:a\n#_article\n---\n%name:b\n#_article",
+            inputs=[InputArg(name="topic", type=InputType.TEXT)],
+            local_xprompts={
+                "_article": XPrompt(
+                    name="_article",
+                    content="Find long articles about {{ topic }}.",
+                )
+            },
+        )
+    }
+    with _patch_catalog(catalog):
+        out = expand_multi_agent_xprompts(["#reads(episodic memory)"])
+
+    assert out == [
+        "%name:a\nFind long articles about episodic memory.",
+        "%name:b\nFind long articles about episodic memory.",
+    ]
+
+
+def test_multi_agent_local_helper_separators_split_with_owner() -> None:
+    catalog = {
+        "outer": XPrompt(
+            name="outer",
+            content="#_fanout\n---\nthird {{ topic }}",
+            inputs=[InputArg(name="topic", type=InputType.TEXT)],
+            local_xprompts={
+                "_fanout": XPrompt(
+                    name="_fanout",
+                    content="first {{ topic }}\n---\nsecond {{ topic }}",
+                )
+            },
+        )
+    }
+    with _patch_catalog(catalog):
+        out = expand_multi_agent_xprompts(["#outer(episodic memory)"])
+
+    assert out == [
+        "first episodic memory",
+        "second episodic memory",
+        "third episodic memory",
+    ]
 
 
 def test_expand_depth_cap() -> None:

@@ -12,6 +12,10 @@ from .models import UNSET, InputArg, InputType, OutputSpec, XPrompt
 from .tags import parse_tags
 
 
+class LocalXPromptNameError(ValueError):
+    """Raised when a local xprompt name does not start with ``_``."""
+
+
 def parse_yaml_front_matter(content: str) -> tuple[dict[str, Any] | None, str]:
     """Parse YAML front matter delimited by --- lines.
 
@@ -423,4 +427,22 @@ def parse_xprompt_entries(
             keywords=keywords,
         )
 
+    return xprompts
+
+
+def _validate_local_xprompt_names(xprompts: dict[str, XPrompt]) -> None:
+    """Raise if any local xprompt name does not start with ``_``."""
+    for name in xprompts:
+        if not name.startswith("_"):
+            raise LocalXPromptNameError(
+                f"Local xprompt '{name}' must start with '_' (e.g. '_{name}')"
+            )
+
+
+def parse_local_xprompt_entries(
+    entries: dict[str, Any], source_path: str
+) -> dict[str, XPrompt]:
+    """Parse local xprompt entries and enforce local-name scoping rules."""
+    xprompts = parse_xprompt_entries(entries, source_path)
+    _validate_local_xprompt_names(xprompts)
     return xprompts

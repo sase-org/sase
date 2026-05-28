@@ -13,6 +13,7 @@ from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disa
 
 from .loader_parsing import (
     parse_inputs_from_front_matter,
+    parse_local_xprompt_entries,
     parse_xprompt_entries,
     parse_yaml_front_matter,
 )
@@ -35,7 +36,19 @@ def namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
         description=xp.description,
         skill=xp.skill,
         keywords=xp.keywords,
+        local_xprompts=xp.local_xprompts,
     )
+
+
+def _parse_markdown_local_xprompts(
+    front_matter: dict[str, Any] | None, source_path: str
+) -> dict[str, XPrompt]:
+    if not front_matter:
+        return {}
+    xprompts_data = front_matter.get("xprompts")
+    if not isinstance(xprompts_data, dict):
+        return {}
+    return parse_local_xprompt_entries(xprompts_data, source_path)
 
 
 def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
@@ -78,6 +91,8 @@ def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
     # Parse keywords if present
     keywords = front_matter.get("keywords", []) if front_matter else []
 
+    local_xprompts = _parse_markdown_local_xprompts(front_matter, str(file_path))
+
     return XPrompt(
         name=name,
         content=body,
@@ -88,6 +103,7 @@ def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
         description=description,
         skill=skill,
         keywords=keywords,
+        local_xprompts=local_xprompts,
     )
 
 
@@ -322,6 +338,7 @@ def load_xprompts_from_plugins() -> dict[str, XPrompt]:
             skill = front_matter.get("skill") if front_matter else None
             keywords = front_matter.get("keywords", []) if front_matter else []
             source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
+            local_xprompts = _parse_markdown_local_xprompts(front_matter, source)
             xprompts[name] = XPrompt(
                 name=name,
                 content=body,
@@ -332,6 +349,7 @@ def load_xprompts_from_plugins() -> dict[str, XPrompt]:
                 description=description,
                 skill=skill,
                 keywords=keywords,
+                local_xprompts=local_xprompts,
             )
 
     return xprompts

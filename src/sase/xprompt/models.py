@@ -167,6 +167,7 @@ class XPrompt:
     description: str | None = None
     skill: bool | list[str] | None = None
     keywords: list[str] = field(default_factory=list)
+    local_xprompts: dict[str, XPrompt] = field(default_factory=dict)
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this xprompt has the given tag."""
@@ -227,6 +228,7 @@ def xprompt_to_workflow(xprompt: XPrompt) -> Workflow:
         tags=xprompt.tags,
         keywords=xprompt.keywords,
         description=xprompt.description,
+        xprompts=xprompt.local_xprompts,
     )
 
 

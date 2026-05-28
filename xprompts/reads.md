@@ -13,6 +13,23 @@ input:
       - ~/org/gemini_cli_ref.zo
       - ~/org/xprompt_ref.zo
     description: Reference note files whose existing URLs and titles should be excluded.
+xprompts:
+  _article_search_agent:
+    content: |
+      Can you recommend recent, medium-to-long articles that I would likely enjoy reading for this request?
+
+      {{ topic }}
+
+      Read the reference note files below first:
+
+      {{ notes }}
+
+      Treat every URL and title already present in those notes as off-limits, including entries marked unread. Search the
+      current web for fresh, high-quality articles that match the request and are not already in those notes.
+
+      Return a ranked list of recommendations. For each item, include the title, link, publication date when available,
+      publisher or author when useful, and a short relevance rationale. Prefer substantive essays, engineering writeups,
+      surveys, papers with readable HTML, or long-form posts over short announcements.
 ---
 
 %name:reads.gem-@
@@ -21,20 +38,7 @@ input:
 
 %g:read
 
-Can you recommend recent, medium-to-long articles that I would likely enjoy reading for this request?
-
-{{ topic }}
-
-Read the reference note files below first:
-
-{{ notes }}
-
-Treat every URL and title already present in those notes as off-limits, including entries marked unread. Search the
-current web for fresh, high-quality articles that match the request and are not already in those notes.
-
-Return a ranked list of recommendations. For each item, include the title, link, publication date when available,
-publisher or author when useful, and a short relevance rationale. Prefer substantive essays, engineering writeups,
-surveys, papers with readable HTML, or long-form posts over short announcements.
+#{{ "_" }}article_search_agent
 
 ---
 
@@ -44,20 +48,7 @@ surveys, papers with readable HTML, or long-form posts over short announcements.
 
 %g:read
 
-Can you recommend recent, medium-to-long articles that I would likely enjoy reading for this request?
-
-{{ topic }}
-
-Read the reference note files below first:
-
-{{ notes }}
-
-Treat every URL and title already present in those notes as off-limits, including entries marked unread. Search the
-current web for fresh, high-quality articles that match the request and are not already in those notes.
-
-Return a ranked list of recommendations. For each item, include the title, link, publication date when available,
-publisher or author when useful, and a short relevance rationale. Prefer substantive essays, engineering writeups,
-surveys, papers with readable HTML, or long-form posts over short announcements.
+#{{ "_" }}article_search_agent
 
 ---
 
@@ -67,20 +58,7 @@ surveys, papers with readable HTML, or long-form posts over short announcements.
 
 %g:read
 
-Can you recommend recent, medium-to-long articles that I would likely enjoy reading for this request?
-
-{{ topic }}
-
-Read the reference note files below first:
-
-{{ notes }}
-
-Treat every URL and title already present in those notes as off-limits, including entries marked unread. Search the
-current web for fresh, high-quality articles that match the request and are not already in those notes.
-
-Return a ranked list of recommendations. For each item, include the title, link, publication date when available,
-publisher or author when useful, and a short relevance rationale. Prefer substantive essays, engineering writeups,
-surveys, papers with readable HTML, or long-form posts over short announcements.
+#{{ "_" }}article_search_agent
 
 ---
 

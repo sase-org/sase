@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+from typing import Any
 
 from sase.xprompt.models import UNSET as _UNSET
 from sase.xprompt.models import XPrompt
@@ -60,9 +61,8 @@ def serialize_local_xprompts(xprompts: dict[str, XPrompt]) -> str:
     """
     from sase.core.paths import get_sase_tmpdir
 
-    data: dict[str, object] = {}
-    for name, xp in xprompts.items():
-        data[name] = {
+    def serialize_xprompt(xp: XPrompt) -> dict[str, object]:
+        return {
             "name": xp.name,
             "content": xp.content,
             "inputs": [
@@ -76,7 +76,15 @@ def serialize_local_xprompts(xprompts: dict[str, XPrompt]) -> str:
             ],
             "source_path": xp.source_path,
             "tags": [t.value for t in xp.tags],
+            "local_xprompts": {
+                name: serialize_xprompt(local)
+                for name, local in xp.local_xprompts.items()
+            },
         }
+
+    data: dict[str, object] = {
+        name: serialize_xprompt(xp) for name, xp in xprompts.items()
+    }
 
     fd, path = tempfile.mkstemp(
         suffix=".json", prefix="sase_local_xprompts_", dir=get_sase_tmpdir()
@@ -94,10 +102,11 @@ def deserialize_local_xprompts(path: str) -> dict[str, XPrompt]:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
-    result: dict[str, XPrompt] = {}
-    for name, entry in data.items():
+    def deserialize_xprompt(entry: dict[str, Any]) -> XPrompt:
         inputs = []
         for inp in entry.get("inputs", []):
+            if not isinstance(inp, dict):
+                continue
             default = inp.get("default")
             if default is None:
                 default = _UNSET
@@ -109,11 +118,27 @@ def deserialize_local_xprompts(path: str) -> dict[str, XPrompt]:
                     is_step_input=inp.get("is_step_input", False),
                 )
             )
-        result[name] = XPrompt(
+        nested_data = entry.get("local_xprompts", {})
+        nested = (
+            {
+                name: deserialize_xprompt(local)
+                for name, local in nested_data.items()
+                if isinstance(name, str) and isinstance(local, dict)
+            }
+            if isinstance(nested_data, dict)
+            else {}
+        )
+        return XPrompt(
             name=entry["name"],
             content=entry["content"],
             inputs=inputs,
             source_path=entry.get("source_path"),
             tags=parse_tags(entry.get("tags")),
+            local_xprompts=nested,
         )
+
+    result: dict[str, XPrompt] = {}
+    for name, entry in data.items():
+        if isinstance(name, str) and isinstance(entry, dict):
+            result[name] = deserialize_xprompt(entry)
     return result

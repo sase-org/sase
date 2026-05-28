@@ -1,17 +1,19 @@
 """Tests for xprompt.loader config and file loading functions."""
 
 import tempfile
+import importlib
 from pathlib import Path
 from unittest.mock import patch
 
 from sase.xprompt.loader import (
     load_xprompt_from_file,
+    load_xprompts_from_plugins,
     load_xprompts_from_default_files,
     load_xprompts_from_internal,
     get_all_prompts,
     get_all_xprompts,
 )
-from sase.xprompt.loader_parsing import parse_yaml_front_matter
+from sase.xprompt.loader_parsing import LocalXPromptNameError, parse_yaml_front_matter
 from sase.xprompt.models import InputType, XPrompt
 
 # Tests for load_xprompt_from_file
@@ -94,6 +96,79 @@ Commit with hg"""
         assert xprompt.description is None
     finally:
         temp_path.unlink()
+
+
+def testload_xprompt_from_file_with_local_xprompts(tmp_path: Path) -> None:
+    """Markdown xprompt frontmatter can define file-local helper xprompts."""
+    path = tmp_path / "outer.md"
+    path.write_text(
+        "---\n"
+        "input: {topic: text}\n"
+        "xprompts:\n"
+        "  _helper:\n"
+        "    input: {audience: word}\n"
+        '    content: "Explain {{ topic }} for {{ audience }}."\n'
+        "---\n"
+        "#_helper(devs)\n",
+        encoding="utf-8",
+    )
+
+    xprompt = load_xprompt_from_file(path)
+
+    assert xprompt is not None
+    assert xprompt.name == "outer"
+    assert xprompt.content == "#_helper(devs)\n"
+    assert set(xprompt.local_xprompts) == {"_helper"}
+    helper = xprompt.local_xprompts["_helper"]
+    assert helper.content == "Explain {{ topic }} for {{ audience }}."
+    assert helper.inputs[0].name == "audience"
+    assert helper.source_path == str(path)
+
+
+def testload_xprompt_from_file_rejects_bad_local_xprompt_name(
+    tmp_path: Path,
+) -> None:
+    """Markdown-local helpers use the same underscore-name rule as prompts."""
+    path = tmp_path / "outer.md"
+    path.write_text(
+        '---\nxprompts:\n  helper: "not local-scoped"\n---\nbody\n',
+        encoding="utf-8",
+    )
+
+    try:
+        load_xprompt_from_file(path)
+    except LocalXPromptNameError as exc:
+        assert "helper" in str(exc)
+    else:
+        raise AssertionError("Expected LocalXPromptNameError")
+
+
+def testload_xprompts_from_plugins_with_local_xprompts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Plugin markdown xprompts preserve frontmatter-local helpers too."""
+    package_dir = tmp_path / "plugin_pkg"
+    xprompts_dir = package_dir / "xprompts"
+    xprompts_dir.mkdir(parents=True)
+    (package_dir / "__init__.py").write_text("", encoding="utf-8")
+    (xprompts_dir / "outer.md").write_text(
+        '---\nxprompts:\n  _helper: "Plugin-local helper"\n---\n#_helper\n',
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    module = importlib.import_module("plugin_pkg")
+
+    with (
+        patch(
+            "sase.xprompt.loader_sources.discover_plugin_resources",
+            return_value=[module],
+        ),
+        patch("sase.xprompt.loader_sources.is_plugin_disabled", return_value=False),
+    ):
+        result = load_xprompts_from_plugins()
+
+    assert result["outer"].content == "#_helper\n"
+    assert result["outer"].local_xprompts["_helper"].content == "Plugin-local helper"
 
 
 # Tests for parse_yaml_front_matter

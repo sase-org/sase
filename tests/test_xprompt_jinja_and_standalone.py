@@ -17,6 +17,7 @@ from sase.xprompt.models import (
     InputArg,
     InputType,
     XPrompt,
+    xprompt_to_workflow,
 )
 from sase.xprompt.workflow_executor_utils import (
     _finalize_value,
@@ -154,6 +155,18 @@ def test_input_arg_bool_false() -> None:
 
 
 # Tests for xprompt_to_workflow
+
+
+def test_xprompt_to_workflow_copies_local_xprompts() -> None:
+    xp = XPrompt(
+        name="outer",
+        content="#_helper",
+        local_xprompts={"_helper": XPrompt(name="_helper", content="Help")},
+    )
+
+    workflow = xprompt_to_workflow(xp)
+
+    assert workflow.xprompts == xp.local_xprompts
 
 
 # Tests for validate_and_convert_args

@@ -17,7 +17,11 @@ import re
 from dataclasses import dataclass, field
 
 from sase.xprompt._fenced_blocks import protect_fenced_blocks
-from sase.xprompt.loader_parsing import parse_xprompt_entries, parse_yaml_front_matter
+from sase.xprompt.loader_parsing import (
+    LocalXPromptNameError,
+    parse_local_xprompt_entries,
+    parse_yaml_front_matter,
+)
 from sase.xprompt.models import XPrompt
 
 _SEGMENT_SEP_RE = re.compile(r"^---\s*$", re.MULTILINE)
@@ -46,8 +50,7 @@ class MultiPrompt:
     segments: list[str] = field(default_factory=list)
 
 
-class _LocalXPromptNameError(ValueError):
-    """Raised when a local xprompt name does not start with ``_``."""
+_LocalXPromptNameError = LocalXPromptNameError
 
 
 def parse_multi_prompt(text: str) -> MultiPrompt:
@@ -72,10 +75,9 @@ def parse_multi_prompt(text: str) -> MultiPrompt:
     if frontmatter is not None:
         xprompt_entries = frontmatter.pop("xprompts", None)
         if isinstance(xprompt_entries, dict):
-            local_xprompts = parse_xprompt_entries(
+            local_xprompts = parse_local_xprompt_entries(
                 xprompt_entries, source_path="user-prompt"
             )
-            _validate_local_xprompt_names(local_xprompts)
 
     segments = split_segments_protecting_fences(body)
 
@@ -101,12 +103,3 @@ def is_multi_prompt(text: str) -> bool:
     parts = _SEGMENT_SEP_RE.split(protected)
     non_empty = sum(1 for p in parts if p.strip())
     return non_empty > 1
-
-
-def _validate_local_xprompt_names(xprompts: dict[str, XPrompt]) -> None:
-    """Raise if any local xprompt name does not start with ``_``."""
-    for name in xprompts:
-        if not name.startswith("_"):
-            raise _LocalXPromptNameError(
-                f"Local xprompt '{name}' must start with '_' (e.g. '_{name}')"
-            )

@@ -71,3 +71,22 @@ def test_serialize_deserialize_multiple_xprompts() -> None:
         assert set(result.keys()) == {"_a", "_b"}
     finally:
         os.unlink(path)
+
+
+def test_serialize_deserialize_nested_local_xprompts() -> None:
+    """An xprompt carrying markdown-local helpers survives round-trip."""
+    xprompts = {
+        "_outer": XPrompt(
+            name="_outer",
+            content="Use #_inner",
+            local_xprompts={"_inner": XPrompt(name="_inner", content="Nested helper")},
+        )
+    }
+    path = _serialize_local_xprompts(xprompts)
+    try:
+        result = deserialize_local_xprompts(path)
+        assert result["_outer"].content == "Use #_inner"
+        assert set(result["_outer"].local_xprompts) == {"_inner"}
+        assert result["_outer"].local_xprompts["_inner"].content == "Nested helper"
+    finally:
+        os.unlink(path)
