@@ -240,6 +240,8 @@ class CollectorGraphMixin:
         self: Any,
         record: AgentArtifactRecordWire,
     ) -> bool:
+        if self.component_scope:
+            return True
         if self.selector.explicit_selector_count() > 0:
             return True
         if (
@@ -254,14 +256,21 @@ class CollectorGraphMixin:
         )
 
     def _queue_record(self: Any, record: AgentArtifactRecordWire) -> bool:
+        component_keys = self.component_artifact_keys
+        record_key = normalize_source_path(record.artifact_dir)
+        if component_keys is not None and record_key not in component_keys:
+            return False
         if not self._record_matches_transitive_bounds(record):
             return False
-        if normalize_source_path(record.artifact_dir) not in self.included_record_keys:
+        if record_key not in self.included_record_keys:
             self.record_queue.append(record)
         return True
 
     def _queue_chat(self: Any, chat_path: str) -> None:
         normalized = normalize_source_path(chat_path)
+        component_paths = self.component_chat_paths
+        if component_paths is not None and normalized not in component_paths:
+            return
         if normalized not in self.included_chat_paths:
             self.chat_queue.append(normalized)
 

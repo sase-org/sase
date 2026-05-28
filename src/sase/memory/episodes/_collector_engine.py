@@ -40,11 +40,20 @@ class EpisodeCollectorEngine(
         projects_root: Path,
         scan: AgentArtifactScanWire,
         repo_root: Path,
+        component_artifact_keys: set[str] | None = None,
+        component_chat_paths: set[str] | None = None,
+        component_metadata: dict[str, str] | None = None,
     ) -> None:
         self.selector = selector
         self.projects_root = projects_root
         self.scan = scan
         self.repo_root = repo_root
+        self.component_artifact_keys = component_artifact_keys
+        self.component_chat_paths = component_chat_paths
+        self.component_metadata = component_metadata or {}
+        self.component_scope = (
+            component_artifact_keys is not None or component_chat_paths is not None
+        )
 
         self.records = sorted(
             scan.records,
@@ -110,6 +119,24 @@ class EpisodeCollectorEngine(
             self.root_node_id = sorted(self.nodes_by_id)[0]
         return self._build_draft()
 
+    def collect_component(
+        self,
+        *,
+        artifact_dirs: list[str],
+        chat_paths: list[str],
+    ) -> EpisodeDraft:
+        self._seed_component(artifact_dirs=artifact_dirs, chat_paths=chat_paths)
+        self._drain_queues()
+        if not self.sources_by_key:
+            raise ValueError("episode component plan did not resolve to any sources")
+        if not self.root_source_id:
+            self.root_source_id = sort_source_refs(list(self.sources_by_key.values()))[
+                0
+            ].id
+        if not self.root_node_id:
+            self.root_node_id = sorted(self.nodes_by_id)[0]
+        return self._build_draft()
+
     def _build_draft(self) -> EpisodeDraft:
         sources = sort_source_refs(list(self.sources_by_key.values()))
         return EpisodeDraft(
@@ -134,6 +161,7 @@ class EpisodeCollectorEngine(
                 "agent_record_count": str(len(self.included_record_keys)),
                 "chat_count": str(len(self.included_chat_paths)),
                 "changespec_count": str(len(self.included_changespec_names)),
+                **self.component_metadata,
             },
             warnings=sorted(self.warnings),
         )

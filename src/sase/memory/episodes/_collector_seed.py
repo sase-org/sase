@@ -100,6 +100,26 @@ class CollectorSeedMixin:
         for record in limit_records(records, self.selector.limit):
             self._queue_record(record)
 
+    def _seed_component(
+        self: Any,
+        *,
+        artifact_dirs: list[str],
+        chat_paths: list[str],
+    ) -> None:
+        for artifact_dir in sorted(
+            {normalize_source_path(path) for path in artifact_dirs}
+        ):
+            record = self.records_by_artifact.get(artifact_dir)
+            if record is None:
+                record = record_from_artifact_dir(
+                    Path(artifact_dir), self.projects_root
+                )
+                self.records_by_artifact[artifact_dir] = record
+                self.records_by_timestamp[record.timestamp].append(record)
+            self._queue_record(record)
+        for chat_path in sorted({normalize_source_path(path) for path in chat_paths}):
+            self._queue_chat(chat_path)
+
     def _drain_queues(self: Any) -> None:
         while self.record_queue or self.chat_queue or self.changespec_queue:
             while self.record_queue:

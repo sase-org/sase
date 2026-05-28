@@ -5,7 +5,14 @@ from __future__ import annotations
 from sase.memory.episodes.collector import (
     EpisodeDraft,
     EpisodeSelector,
+    collect_aggregate_episode_draft,
     collect_episode_draft,
+)
+from sase.memory.episodes.components import (
+    EpisodeComponentEdge,
+    EpisodeComponentPlan,
+    build_episode_component_plans,
+    collect_episode_draft_for_component_plan,
 )
 from sase.memory.episodes.builder import build_episode
 from sase.memory.episodes.index import read_episode_index
@@ -25,10 +32,15 @@ from sase.memory.episodes.verify import verify_episode, verify_episode_source_re
 __all__ = [
     "EpisodeGoal",
     "EpisodeDraft",
+    "EpisodeComponentEdge",
+    "EpisodeComponentPlan",
     "EpisodeSelector",
     "EpisodeWriteResult",
     "build_episode",
+    "build_episode_component_plans",
+    "collect_aggregate_episode_draft",
     "collect_episode_draft",
+    "collect_episode_draft_for_component_plan",
     "derive_episode_goal",
     "derive_episode_title",
     "gc_corrupt_episode_temp_dirs",

@@ -21,6 +21,28 @@ def collect_episode_draft(
     scan: AgentArtifactScanWire | None = None,
     repo_root: Path | str | None = None,
 ) -> EpisodeDraft:
+    """Collect one deterministic aggregate source graph.
+
+    This is the v1-compatible aggregate path. Episode v2 split builds should
+    plan components with ``build_episode_component_plans`` and collect each
+    plan with ``collect_episode_draft_for_component_plan``.
+    """
+
+    return collect_aggregate_episode_draft(
+        selector,
+        projects_root=projects_root,
+        scan=scan,
+        repo_root=repo_root,
+    )
+
+
+def collect_aggregate_episode_draft(
+    selector: EpisodeSelector | None = None,
+    *,
+    projects_root: Path | str | None = None,
+    scan: AgentArtifactScanWire | None = None,
+    repo_root: Path | str | None = None,
+) -> EpisodeDraft:
     """Collect one deterministic source graph from agent/chat/ChangeSpec inputs."""
 
     selected = selector or EpisodeSelector()
@@ -57,5 +79,6 @@ def _scan_projects(projects_root: Path) -> AgentArtifactScanWire:
 __all__ = [
     "EpisodeDraft",
     "EpisodeSelector",
+    "collect_aggregate_episode_draft",
     "collect_episode_draft",
 ]

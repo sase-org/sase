@@ -218,6 +218,8 @@ class CollectorRecordMixin:
         for changespec_name in record_changespec_names(record):
             cs_node = self._ensure_changespec_node(changespec_name)
             self._add_edge("changespec", agent_node.id, cs_node.id, evidence_ids=[])
+            if self.component_scope:
+                continue
             self._queue_changespec(changespec_name)
             for related in self.records_by_changespec.get(changespec_name, []):
                 self._queue_record(related)
@@ -233,6 +235,8 @@ class CollectorRecordMixin:
             self._add_edge(
                 "bead", agent_node.id, bead_node.id, evidence_ids=evidence_ids
             )
+            if self.component_scope:
+                continue
             for related in self.records_by_bead.get(bead_id, []):
                 self._queue_record(related)
 
@@ -251,6 +255,9 @@ class CollectorRecordMixin:
                 else:
                     from_node_id, to_node_id = agent_node.id, related_node.id
                 self._add_edge(kind, from_node_id, to_node_id, evidence_ids=[])
+
+        if self.component_scope:
+            return
 
         family = record_family(record)
         if family:
