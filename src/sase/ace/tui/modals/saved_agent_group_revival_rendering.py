@@ -82,7 +82,10 @@ def format_saved_group_row(
     text.append(f"{index + 1:>2}. ", style="dim")
     if summary.revived_at:
         text.append("revived ", style="dim italic")
-    text.append(summary.title, style="bold")
+    text.append(_saved_group_display_title(summary), style="bold")
+    if summary.name and summary.name != summary.title:
+        text.append("  ")
+        text.append(summary.title, style="dim")
     text.append("  ")
     text.append(_saved_group_row_time_label(summary.created_at, now=now), style="dim")
     text.append("  ")
@@ -115,8 +118,11 @@ def build_saved_group_preview(
         )
         return preview
 
-    preview.append(summary.title, style="bold #87D7FF")
+    preview.append(_saved_group_display_title(summary), style="bold #87D7FF")
     preview.append("\n")
+    if summary.name and summary.name != summary.title:
+        preview.append(summary.title, style="dim")
+        preview.append("\n")
     preview.append(_saved_group_time_label(summary.created_at), style="dim")
     preview.append("\n\n")
 
@@ -188,11 +194,15 @@ def build_empty_groups_preview() -> Text:
     preview.append("No saved groups yet", style="bold")
     preview.append("\n\n")
     preview.append(
-        "Use S on marked Agents-tab rows to save a group. Custom revival search "
+        "Use s on marked Agents-tab rows to save a group. Custom revival search "
         "is still available below.",
         style="dim",
     )
     return preview
+
+
+def _saved_group_display_title(summary: SavedAgentGroupSummaryWire) -> str:
+    return summary.name or summary.title
 
 
 def _append_ref_line(

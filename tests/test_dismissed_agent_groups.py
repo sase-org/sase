@@ -15,6 +15,7 @@ from sase.ace.dismissed_agents import (
 from sase.core.agent_group_archive_wire import (
     SavedAgentGroupRefWire,
     SavedAgentGroupWire,
+    saved_agent_group_wire_to_json_dict,
 )
 
 
@@ -27,6 +28,7 @@ def test_saved_agent_group_facade_round_trip(tmp_path: Path) -> None:
         "group-a",
         "2026-05-27T12:00:00Z",
         bundle_path=str(missing_bundle),
+        name="Backend batch",
     )
 
     with patch("sase.ace.dismissed_agents._DISMISSED_AGENT_GROUPS_DIR", groups_dir):
@@ -35,9 +37,12 @@ def test_saved_agent_group_facade_round_trip(tmp_path: Path) -> None:
         loaded = load_dismissed_agent_group("group-a")
 
     assert saved.group_id == "group-a"
+    assert saved.name == "Backend batch"
     assert (groups_dir / "group-a.json").is_file()
     assert [summary.group_id for summary in page.groups] == ["group-a"]
+    assert page.groups[0].name == "Backend batch"
     assert loaded is not None
+    assert loaded.name == "Backend batch"
     assert loaded.agent_refs[0].bundle_path == str(missing_bundle)
     assert loaded.agent_refs[0].tag == "backend"
     assert not missing_bundle.exists()
@@ -115,10 +120,34 @@ def test_saved_agent_group_python_fallback_when_binding_missing(
             side_effect=AttributeError("stale"),
         ),
     ):
-        save_dismissed_agent_group(_group("fallback", "2026-05-27T12:00:00Z"))
+        saved = save_dismissed_agent_group(
+            _group("fallback", "2026-05-27T12:00:00Z", name="   ")
+        )
         page = list_dismissed_agent_groups(limit=20)
 
+    assert saved.name is None
     assert [summary.group_id for summary in page.groups] == ["fallback"]
+    assert page.groups[0].name is None
+
+
+def test_saved_agent_group_missing_name_loads_as_none(tmp_path: Path) -> None:
+    """Legacy saved-group records without name remain readable."""
+
+    groups_dir = tmp_path / "groups"
+    groups_dir.mkdir()
+    payload = saved_agent_group_wire_to_json_dict(
+        _group("legacy", "2026-05-27T12:00:00Z")
+    )
+    payload.pop("name", None)
+    (groups_dir / "legacy.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    with patch("sase.ace.dismissed_agents._DISMISSED_AGENT_GROUPS_DIR", groups_dir):
+        loaded = load_dismissed_agent_group("legacy")
+        page = list_dismissed_agent_groups(limit=20)
+
+    assert loaded is not None
+    assert loaded.name is None
+    assert page.groups[0].name is None
 
 
 def _group(
@@ -126,12 +155,14 @@ def _group(
     created_at: str,
     *,
     bundle_path: str | None = None,
+    name: str | None = None,
 ) -> SavedAgentGroupWire:
     return SavedAgentGroupWire(
         group_id=group_id,
         created_at=created_at,
         source="marked_agents",
         title="1 agent in cl",
+        name=name,
         agent_count=1,
         top_level_agent_count=1,
         status_counts={"DONE": 1},

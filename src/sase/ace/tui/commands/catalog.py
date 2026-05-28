@@ -153,7 +153,13 @@ _APP_COMMAND_META: tuple[
         "Save/dismiss marked agents",
         "Marking",
         _AGENTS_ONLY,
-        ("save marked", "dismiss marked", "agent group"),
+        (
+            "save marked",
+            "dismiss marked",
+            "agent group",
+            "name group",
+            "saved group name",
+        ),
     ),
     ("mark_inactive_pinned", "Mark inactive pinned", "Marking", _AGENTS_ONLY, ()),
     # Agents / Axe actions

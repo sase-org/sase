@@ -1623,6 +1623,39 @@ CommandInputModal #command-input {
     width: 100%;
 }
 
+/* ===== Save Agent Group Modal Styling ===== */
+
+SaveAgentGroupModal {
+    align: center middle;
+}
+
+SaveAgentGroupModal > Container {
+    width: 64;
+    height: auto;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+SaveAgentGroupModal #save-agent-group-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+SaveAgentGroupModal #save-agent-group-context {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+SaveAgentGroupModal #save-agent-group-hint {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+SaveAgentGroupModal #save-agent-group-name-input {
+    width: 100%;
+}
+
 /* ===== Process Select Modal Styling ===== */
 
 ProcessSelectModal {

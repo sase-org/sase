@@ -37,6 +37,7 @@ class SavedAgentGroupWire:
     title: str
     agent_count: int
     top_level_agent_count: int
+    name: str | None = None
     schema_version: int = AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION
     status_counts: dict[str, int] = field(default_factory=dict)
     project_names: tuple[str, ...] = ()
@@ -56,6 +57,7 @@ class SavedAgentGroupSummaryWire:
     title: str
     agent_count: int
     top_level_agent_count: int
+    name: str | None = None
     schema_version: int = AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION
     status_counts: dict[str, int] = field(default_factory=dict)
     project_names: tuple[str, ...] = ()
@@ -127,6 +129,7 @@ def saved_agent_group_from_dict(data: dict[str, Any]) -> SavedAgentGroupWire:
         title=str(data["title"]),
         agent_count=int(data["agent_count"]),
         top_level_agent_count=int(data["top_level_agent_count"]),
+        name=_optional_nonblank_str(data.get("name")),
         status_counts=_status_counts_from_dict(data.get("status_counts") or {}),
         project_names=tuple(str(item) for item in data.get("project_names") or ()),
         cl_names=tuple(str(item) for item in data.get("cl_names") or ()),
@@ -154,6 +157,7 @@ def _saved_agent_group_summary_from_dict(
         title=str(data["title"]),
         agent_count=int(data["agent_count"]),
         top_level_agent_count=int(data["top_level_agent_count"]),
+        name=_optional_nonblank_str(data.get("name")),
         status_counts=_status_counts_from_dict(data.get("status_counts") or {}),
         project_names=tuple(str(item) for item in data.get("project_names") or ()),
         cl_names=tuple(str(item) for item in data.get("cl_names") or ()),
@@ -189,6 +193,7 @@ def saved_agent_group_summary_from_group(
         title=group.title,
         agent_count=group.agent_count,
         top_level_agent_count=group.top_level_agent_count,
+        name=group.name,
         status_counts=dict(group.status_counts),
         project_names=group.project_names,
         cl_names=group.cl_names,
@@ -199,6 +204,13 @@ def saved_agent_group_summary_from_group(
 
 def _status_counts_from_dict(data: dict[str, Any]) -> dict[str, int]:
     return {str(key): int(value) for key, value in data.items()}
+
+
+def _optional_nonblank_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
 
 
 def _check_schema(schema: int) -> None:

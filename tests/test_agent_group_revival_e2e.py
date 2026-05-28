@@ -11,13 +11,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from textual.widgets import Static
+from textual.widgets import Input, Static
 
 from sase.ace import dismissed_agents
 from sase.ace.testing import AcePage, make_changespec
 from sase.ace.tui import AceApp
 from sase.core.paths import sase_home
 from sase.ace.tui.modals.command_palette_modal import CommandPaletteModal
+from sase.ace.tui.modals.save_agent_group_modal import SaveAgentGroupModal
 from sase.ace.tui.modals.saved_agent_group_revival_modal import (
     SavedAgentGroupRevivalModal,
 )
@@ -73,12 +74,21 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
 
         await page.press("m")
         await page.press("s")
+        await page.expect_modal("SaveAgentGroupModal")
+        save_modal = page.app.screen
+        assert isinstance(save_modal, SaveAgentGroupModal)
+        save_modal.query_one(
+            "#save-agent-group-name-input", Input
+        ).value = "Visual backend"
+        await page.press("enter")
+        await page.expect_no_modal()
         await page.expect_state("agent_count", 0)
         await _wait_until(
             lambda: bool(dismissed_agents.list_dismissed_agent_groups().groups)
         )
 
         group = dismissed_agents.list_dismissed_agent_groups().groups[0]
+        assert group.name == "Visual backend"
         assert group.title == "1 agent from @backend"
         assert group.agent_count == 1
 
@@ -87,6 +97,7 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
         modal = page.app.screen
         assert isinstance(modal, SavedAgentGroupRevivalModal)
         preview = modal.query_one("#saved-agent-group-preview", Static)
+        assert "Visual backend" in _static_plain(preview)
         assert "visual.worker" in _static_plain(preview)
 
         await page.press("enter")
@@ -127,6 +138,9 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tag_real_loader
 
         await page.press("m")
         await page.press("s")
+        await page.expect_modal("SaveAgentGroupModal")
+        await page.press("enter")
+        await page.expect_no_modal()
         await page.expect_state("agent_count", 0)
         await _wait_until(
             lambda: bool(dismissed_agents.list_dismissed_agent_groups().groups)
@@ -228,6 +242,9 @@ async def test_lowercase_s_dispatches_by_active_tab(
         await wait_for_startup(page)
         await page.press("m")
         await page.press("s")
+        await page.expect_modal("SaveAgentGroupModal")
+        await page.press("enter")
+        await page.expect_no_modal()
         await page.expect_state("agent_count", 0)
 
 

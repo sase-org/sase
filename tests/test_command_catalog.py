@@ -116,6 +116,8 @@ def test_save_marked_agents_command_covers_agent_save_flow() -> None:
     assert spec.key_sequence == ("s",)
     assert "save marked" in spec.aliases
     assert "dismiss marked" in spec.aliases
+    assert "name group" in spec.aliases
+    assert "saved group name" in spec.aliases
 
 
 # --- Digit commands ---

@@ -7,9 +7,15 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import patch
 
+from sase.ace.tui.commands import build_command_catalog, execute_command
+from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
 from sase.ace.tui.actions.agents._wait_resume import AgentWaitResumeMixin
 from sase.ace.tui.actions.marking import MarkingMixin
+from sase.ace.tui.modals.save_agent_group_modal import (
+    SaveAgentGroupModal,
+    SaveAgentGroupResult,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 
@@ -151,6 +157,21 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
             a for a in self._agents_with_children if a.identity not in ids
         ]
         self._marked_agents = set()
+
+
+def _confirm_save_modal(app: _FakeMarkApp, *, name: str | None = None) -> None:
+    assert app.pushed_modals, "Save modal not registered"
+    assert isinstance(app.pushed_modals[-1], SaveAgentGroupModal)
+    callback = app.pushed_callbacks[-1]
+    assert callback is not None
+    callback(SaveAgentGroupResult(name=name))
+
+
+def _cancel_save_modal(app: _FakeMarkApp) -> None:
+    assert app.pushed_modals, "Save modal not registered"
+    callback = app.pushed_callbacks[-1]
+    assert callback is not None
+    callback(None)
 
 
 def test_toggle_mark_adds_identity() -> None:
@@ -327,7 +348,7 @@ def test_save_marked_agents_dispatches_on_agents_tab() -> None:
     a1 = _make_agent()
     app = _FakeMarkApp([a1])
 
-    with patch.object(app, "_save_marked_agent_group") as mock_save:
+    with patch.object(app, "_prompt_and_save_marked_agent_group") as mock_save:
         app.action_save_marked_agents()
 
     mock_save.assert_called_once_with()
@@ -338,7 +359,7 @@ def test_bulk_change_status_does_not_save_marked_agents_on_agents_tab() -> None:
     a1 = _make_agent()
     app = _FakeMarkApp([a1])
 
-    with patch.object(app, "_save_marked_agent_group") as mock_save:
+    with patch.object(app, "_prompt_and_save_marked_agent_group") as mock_save:
         app.action_bulk_change_status()
 
     mock_save.assert_not_called()
@@ -367,6 +388,38 @@ def test_save_marked_agent_group_warns_when_no_agents_marked() -> None:
     app.action_save_marked_agents()
 
     assert app.notifications == [("No agents marked", "warning")]
+    assert app.pushed_modals == []
+    assert app._scheduled == []
+
+
+def test_save_marked_agents_opens_group_name_modal_before_dismissing() -> None:
+    running = _make_agent(raw_suffix="20240101120000", status="RUNNING", pid=111)
+    app = _FakeMarkApp([running])
+    app._marked_agents = {running.identity}
+
+    app.action_save_marked_agents()
+
+    assert len(app.pushed_modals) == 1
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, SaveAgentGroupModal)
+    assert modal.candidate_count == 1
+    assert app._dismissed_agents == set()
+    assert app._marked_agents == {running.identity}
+    assert app._agents == [running]
+    assert app._scheduled == []
+
+
+def test_save_marked_agent_group_cancel_preserves_marks() -> None:
+    running = _make_agent(raw_suffix="20240101120000", status="RUNNING", pid=111)
+    app = _FakeMarkApp([running])
+    app._marked_agents = {running.identity}
+
+    app.action_save_marked_agents()
+    _cancel_save_modal(app)
+
+    assert app._dismissed_agents == set()
+    assert app._marked_agents == {running.identity}
+    assert app._agents == [running]
     assert app._scheduled == []
 
 
@@ -381,6 +434,7 @@ def test_save_marked_running_agents_hides_without_kill() -> None:
         patch.object(app, "_kill_process_group", create=True) as mock_killpg,
     ):
         app.action_save_marked_agents()
+        _confirm_save_modal(app)
 
     mock_bulk_kill.assert_not_called()
     mock_killpg.assert_not_called()
@@ -413,6 +467,7 @@ def test_save_marked_group_persists_refs_in_display_order() -> None:
     app._marked_agents = {other.identity, parent.identity}
 
     app.action_save_marked_agents()
+    _confirm_save_modal(app, name="Backend batch")
 
     saved_groups: list[Any] = []
     saved_bundles: list[Agent] = []
@@ -450,6 +505,49 @@ def test_save_marked_group_persists_refs_in_display_order() -> None:
     ]
     assert group.agent_count == 3
     assert group.top_level_agent_count == 2
+    assert group.name == "Backend batch"
+
+
+def test_blank_save_preserves_generated_group_title() -> None:
+    running = _make_agent(raw_suffix="20240101120000", status="DONE", pid=None)
+    app = _FakeMarkApp([running])
+    app._marked_agents = {running.identity}
+
+    app.action_save_marked_agents()
+    _confirm_save_modal(app)
+
+    saved_groups: list[Any] = []
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=True),
+        patch(
+            "sase.ace.dismissed_agents.save_dismissed_agent_group",
+            side_effect=lambda group: saved_groups.append(group) or group,
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._marking.sync_dismissed_agent_artifact_index"
+        ),
+    ):
+        callback, args = app._scheduled[0]
+        asyncio.run(callback(*args))
+
+    assert len(saved_groups) == 1
+    assert saved_groups[0].title == "1 agent in test_cl"
+    assert saved_groups[0].name is None
+
+
+def test_command_palette_save_marked_agents_opens_group_name_modal() -> None:
+    running = _make_agent(raw_suffix="20240101120000", status="DONE", pid=None)
+    app = _FakeMarkApp([running])
+    app._marked_agents = {running.identity}
+    catalog = {
+        spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
+    }
+
+    execute_command(app, catalog["app.save_marked_agents"])  # type: ignore[arg-type]
+
+    assert len(app.pushed_modals) == 1
+    assert isinstance(app.pushed_modals[0], SaveAgentGroupModal)
 
 
 def test_toggle_mark_dispatches_to_agents_tab_from_action() -> None:

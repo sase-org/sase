@@ -77,6 +77,13 @@ def _saved_group_title(agents: list[Agent]) -> str:
     return f"{count} {_plural_agent(count)}"
 
 
+def _normalize_saved_group_name(group_name: str | None) -> str | None:
+    if group_name is None:
+        return None
+    normalized = group_name.strip()
+    return normalized or None
+
+
 def _bundle_path_for_agent(agent: Agent) -> str | None:
     existing = getattr(agent, "_dismissed_bundle_path", None)
     if existing:
@@ -110,7 +117,11 @@ def _saved_group_ref_for_agent(agent: Agent) -> SavedAgentGroupRefWire:
     )
 
 
-def _build_saved_agent_group(agents: list[Agent]) -> SavedAgentGroupWire:
+def _build_saved_agent_group(
+    agents: list[Agent],
+    *,
+    group_name: str | None = None,
+) -> SavedAgentGroupWire:
     now = datetime.now(UTC)
     created_at = _utc_wire_timestamp(now)
     status_counts = dict(sorted(Counter(a.status for a in agents if a.status).items()))
@@ -126,6 +137,7 @@ def _build_saved_agent_group(agents: list[Agent]) -> SavedAgentGroupWire:
         created_at=created_at,
         source="marked_agents",
         title=_saved_group_title(agents),
+        name=_normalize_saved_group_name(group_name),
         agent_count=len(agents),
         top_level_agent_count=top_level_count,
         status_counts=status_counts,
@@ -139,6 +151,7 @@ def _persist_marked_agent_group_save(
     agents: list[Agent],
     dismissed_snapshot: set[AgentIdentity],
     added: set[AgentIdentity],
+    group_name: str | None = None,
 ) -> None:
     """Persist non-killing marked-agent dismissal side effects."""
 
@@ -152,7 +165,7 @@ def _persist_marked_agent_group_save(
         if not agent._from_changespec:
             save_dismissed_bundle(agent)
 
-    group = _build_saved_agent_group(agents)
+    group = _build_saved_agent_group(agents, group_name=group_name)
     save_dismissed_agent_group(group)
 
     if save_dismissed_agents(dismissed_snapshot):
@@ -356,7 +369,31 @@ class AgentMarkingMixin:
             seen.add(agent.identity)
         return candidates
 
-    def _save_marked_agent_group(self) -> None:
+    def _prompt_and_save_marked_agent_group(self) -> None:
+        """Prompt for an optional group name before saving marked agents."""
+        if not self._marked_agents:
+            self.notify("No agents marked", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        agents = self._marked_agent_group_candidates()
+        if not agents:
+            self._marked_agents = set()
+            self.notify("No marked agents remain", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from ...modals import SaveAgentGroupModal, SaveAgentGroupResult
+
+        def on_dismiss(result: SaveAgentGroupResult | None) -> None:
+            if result is None:
+                return
+            self._save_marked_agent_group(group_name=result.name)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            SaveAgentGroupModal(candidate_count=len(agents)),
+            on_dismiss,
+        )
+
+    def _save_marked_agent_group(self, *, group_name: str | None = None) -> None:
         """Save marked agents as a revivable group and hide them without killing."""
         if not self._marked_agents:
             self.notify("No agents marked", severity="warning")  # type: ignore[attr-defined]
@@ -391,6 +428,7 @@ class AgentMarkingMixin:
             list(agents),
             set(self._dismissed_agents),
             added,
+            _normalize_saved_group_name(group_name),
         )
 
     async def _run_marked_agent_group_save_persistence_async(
@@ -398,6 +436,7 @@ class AgentMarkingMixin:
         agents: list[Agent],
         dismissed_snapshot: set[AgentIdentity],
         added: set[AgentIdentity],
+        group_name: str | None = None,
     ) -> None:
         """Persist the saved group and dismissed index in a worker thread."""
         identities = {agent.identity for agent in agents}
@@ -413,6 +452,7 @@ class AgentMarkingMixin:
                 agents,
                 dismissed_snapshot,
                 added,
+                group_name,
             )
         except Exception as exc:
             success = False

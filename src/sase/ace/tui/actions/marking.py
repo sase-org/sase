@@ -125,7 +125,7 @@ class MarkingMixin:
         """Save and dismiss marked agents on the Agents tab."""
         if self.current_tab != "agents":
             return
-        self._save_marked_agent_group()  # type: ignore[attr-defined]
+        self._prompt_and_save_marked_agent_group()  # type: ignore[attr-defined]
 
     def _apply_bulk_status_change(
         self, changespecs: list[ChangeSpec], new_status: str

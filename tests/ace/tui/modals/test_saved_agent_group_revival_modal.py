@@ -131,6 +131,16 @@ def test_preview_rendering_includes_stable_time_and_status_text() -> None:
     assert "codex/gpt-5" in text
 
 
+def test_named_preview_uses_name_with_generated_summary_context() -> None:
+    text = build_saved_group_preview(
+        _summary(0, name="Backend batch"),
+        _group("group-00"),
+    ).plain
+
+    assert "Backend batch" in text
+    assert "3 agents from backend" in text
+
+
 def test_row_rendering_includes_compact_saved_time() -> None:
     text = format_saved_group_row(
         _summary(0),
@@ -142,6 +152,17 @@ def test_row_rendering_includes_compact_saved_time() -> None:
     assert "3 agents" in text
 
 
+def test_named_row_uses_name_with_generated_summary_context() -> None:
+    text = format_saved_group_row(
+        _summary(0, name="Backend batch"),
+        0,
+        now=datetime(2026, 5, 27, 13, 30, tzinfo=UTC),
+    ).plain
+
+    assert "Backend batch" in text
+    assert "3 agents from backend" in text
+
+
 def test_saved_group_time_label_is_deterministic_with_supplied_now() -> None:
     label = _saved_group_time_label(
         "2026-05-27T12:00:00Z",
@@ -151,12 +172,13 @@ def test_saved_group_time_label_is_deterministic_with_supplied_now() -> None:
     assert label == "1h ago | 2026-05-27 12:00"
 
 
-def _summary(idx: int) -> SavedAgentGroupSummaryWire:
+def _summary(idx: int, *, name: str | None = None) -> SavedAgentGroupSummaryWire:
     return SavedAgentGroupSummaryWire(
         group_id=f"group-{idx:02}",
         created_at=f"2026-05-27T12:{idx % 60:02}:00Z",
         source="marked_agents",
         title="3 agents from backend",
+        name=name,
         agent_count=3,
         top_level_agent_count=2,
         status_counts={"DONE": 2, "FAILED": 1},
