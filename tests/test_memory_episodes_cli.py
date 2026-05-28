@@ -8,11 +8,14 @@ import pytest
 
 from sase.core.episode_wire import (
     EPISODE_WIRE_SCHEMA_VERSION,
+    EpisodeEdgeWire,
     EpisodeEventWire,
+    EpisodeImportanceFactorWire,
     EpisodeLessonWire,
     EpisodeNodeWire,
     EpisodeSafetyWire,
     EpisodeSourceRefWire,
+    EpisodeWeakRefsWire,
     EpisodeWire,
 )
 from sase.main.parser import create_parser
@@ -420,6 +423,71 @@ def test_memory_episodes_list_inventory_filters_groups_and_json(
     ]
 
 
+def test_memory_episodes_show_v2_drill_down_formats(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    projects_root = tmp_path / "projects"
+    episode = _drilldown_episode(tmp_path)
+    write_project_episode(episode, projects_root=projects_root)
+
+    default_args = create_parser().parse_args(
+        ["memory", "episodes", "show", "ep-drill", "-p", "proj"]
+    )
+    handle_memory_episodes_command(default_args, projects_root=projects_root)
+    overview = capsys.readouterr().out
+    assert "# Drilldown Episode" in overview
+    assert "Importance: medium (55)" in overview
+    assert "Weak Metadata" in overview
+
+    graph_args = create_parser().parse_args(
+        [
+            "memory",
+            "episodes",
+            "show",
+            "ep-drill",
+            "-p",
+            "proj",
+            "-f",
+            "graph",
+            "-e",
+            "all",
+        ]
+    )
+    handle_memory_episodes_command(graph_args, projects_root=projects_root)
+    graph = capsys.readouterr().out
+    assert "Edge mode: all" in graph
+    assert "planner -> drilldown.md [response_chat; strong]" in graph
+    assert "planner -> cl-drill [changespec; weak]" in graph
+
+    sources_args = create_parser().parse_args(
+        ["memory", "episodes", "show", "ep-drill", "-p", "proj", "-f", "sources"]
+    )
+    handle_memory_episodes_command(sources_args, projects_root=projects_root)
+    sources = capsys.readouterr().out
+    assert "# Sources: Drilldown Episode" in sources
+    assert "sha256=" in sources
+
+    agent_args = create_parser().parse_args(
+        [
+            "memory",
+            "episodes",
+            "show",
+            "ep-drill",
+            "-p",
+            "proj",
+            "-f",
+            "agent",
+            "-j",
+        ]
+    )
+    handle_memory_episodes_command(agent_args, projects_root=projects_root)
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["episode_id"] == "ep-drill"
+    assert payload["framing"].startswith("This is historical evidence")
+    assert payload["source_refs"][0]["kind"] == "chat"
+
+
 def test_memory_episodes_build_prints_progress_to_stderr_in_human_mode(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -754,6 +822,89 @@ def _identity_episode(
                 title="Agent finished",
                 timestamp="2026-05-26T12:00:00Z",
                 evidence_ids=[sources[0].id],
+            )
+        ],
+        lessons=[],
+    )
+
+
+def _drilldown_episode(tmp_path: Path) -> EpisodeWire:
+    source = _source_ref(
+        tmp_path / "drilldown.md",
+        kind="chat",
+        content="Planner prompt and response.\n",
+    )
+    return EpisodeWire(
+        schema_version=EPISODE_WIRE_SCHEMA_VERSION,
+        episode_id="ep-drill",
+        project="proj",
+        title="Drilldown Episode",
+        summary="A connected planner/coder/retry episode for renderer drill-down.",
+        root_source_id=source.id,
+        component_key="component/drilldown",
+        component_root_kind="artifact",
+        status="active",
+        importance_score=55,
+        importance_band="medium",
+        importance_factors=[
+            EpisodeImportanceFactorWire(
+                kind="verification_present",
+                label="Verification evidence is present",
+                score=12,
+                evidence_ids=[source.id],
+            )
+        ],
+        safety=EpisodeSafetyWire(warnings=["missing-source:src-missing"]),
+        weak_refs=EpisodeWeakRefsWire(
+            changespec_names=["cl-drill"],
+            bead_ids=["sase-48.6"],
+            agent_families=["planner"],
+            touched_paths=["src/sase/memory/episodes/render.py"],
+        ),
+        sources=[source],
+        nodes=[
+            EpisodeNodeWire(
+                id="node-agent",
+                kind="agent_run",
+                label="planner",
+                source_id=source.id,
+                metadata={"outcome": "completed"},
+            ),
+            EpisodeNodeWire(
+                id="node-chat",
+                kind="chat",
+                label="drilldown.md",
+                source_id=source.id,
+            ),
+            EpisodeNodeWire(
+                id="node-changespec",
+                kind="changespec",
+                label="cl-drill",
+                metadata={"name": "cl-drill"},
+            ),
+        ],
+        edges=[
+            EpisodeEdgeWire(
+                id="edge-chat",
+                from_node_id="node-agent",
+                to_node_id="node-chat",
+                kind="response_chat",
+                evidence_ids=[source.id],
+            ),
+            EpisodeEdgeWire(
+                id="edge-cl",
+                from_node_id="node-agent",
+                to_node_id="node-changespec",
+                kind="changespec",
+            ),
+        ],
+        events=[
+            EpisodeEventWire(
+                id="event-finish",
+                kind="agent_finish",
+                title="Planner finished",
+                timestamp="2026-05-26T12:00:00Z",
+                evidence_ids=[source.id],
             )
         ],
         lessons=[],

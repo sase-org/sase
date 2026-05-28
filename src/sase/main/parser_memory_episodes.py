@@ -209,7 +209,7 @@ def _register_show_parser(
 ) -> None:
     show_parser = episodes_subparsers.add_parser(
         "show",
-        help="Show a stored episode lesson, JSON, sources, or timeline",
+        help="Show a stored episode overview, timeline, graph, sources, agent pack, JSON, or legacy lesson",
     )
     show_parser.add_argument(
         "episode_id",
@@ -220,15 +220,22 @@ def _register_show_parser(
     show_parser.add_argument(
         "-f",
         "--format",
-        choices=("lesson", "json", "sources", "timeline"),
-        default="lesson",
-        help="Output format (default: lesson)",
+        choices=("overview", "timeline", "graph", "sources", "agent", "json", "lesson"),
+        default="overview",
+        help="Output format (default: overview for v2, lesson for legacy episodes)",
+    )
+    show_parser.add_argument(
+        "-e",
+        "--edge-mode",
+        choices=("strong", "all"),
+        default="strong",
+        help="Graph edge mode for --format graph (default: strong)",
     )
     show_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
-        help="Shortcut for --format json",
+        help="Shortcut for --format json, or JSON agent pack with --format agent",
     )
 
 

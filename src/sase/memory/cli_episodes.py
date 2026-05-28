@@ -48,11 +48,18 @@ from sase.memory.episodes.inventory import (
     query_episode_inventory,
 )
 from sase.memory.episodes.recall import recall_episode_rows
-from sase.memory.episodes.render import render_lesson_markdown
+from sase.memory.episodes.render import (
+    agent_evidence_pack_json_dict,
+    render_agent_text,
+    render_graph_text,
+    render_lesson_markdown,
+    render_overview_text,
+    render_sources_text,
+    render_timeline_text,
+)
 from sase.memory.episodes.storage import (
     EPISODE_JSON_FILE_NAME,
     EPISODE_LESSON_FILE_NAME,
-    EPISODE_SOURCES_FILE_NAME,
     EpisodeWriteResult,
     write_project_episode,
 )
@@ -408,42 +415,42 @@ def _handle_show(
         projects_root,
         report_alias=True,
     )
-    fmt = "json" if getattr(args, "json", False) else args.format
+    fmt = args.format
+    if getattr(args, "json", False) and fmt != "agent":
+        fmt = "json"
 
     if fmt == "json":
         _print_file(episode_dir / EPISODE_JSON_FILE_NAME)
         return
-    if fmt == "sources":
-        sources_path = episode_dir / EPISODE_SOURCES_FILE_NAME
-        if sources_path.exists():
-            _print_file(sources_path)
+    episode = _load_episode(episode_dir)
+    if fmt == "agent" and getattr(args, "json", False):
+        _print_json(agent_evidence_pack_json_dict(episode))
+        return
+    if fmt == "overview":
+        lesson_path = episode_dir / EPISODE_LESSON_FILE_NAME
+        if _is_legacy_episode(episode) and lesson_path.exists():
+            _print_file(lesson_path)
             return
-        episode = _load_episode(episode_dir)
-        for source in sorted(episode.sources, key=lambda item: (item.kind, item.path)):
-            print(json.dumps(episode_wire_to_json_dict(source), sort_keys=True))
+        print(render_overview_text(episode), end="")
+        return
+    if fmt == "sources":
+        print(render_sources_text(episode), end="")
         return
     if fmt == "timeline":
-        episode = _load_episode(episode_dir)
-        for event in sorted(
-            episode.events,
-            key=lambda item: (item.timestamp is None, item.timestamp or "", item.id),
-        ):
-            evidence = (
-                " [evidence: " + ", ".join(sorted(event.evidence_ids)) + "]"
-                if event.evidence_ids
-                else ""
-            )
-            description = f" - {event.description}" if event.description else ""
-            print(
-                f"{event.timestamp or 'undated'} {event.title}{description}{evidence}"
-            )
+        print(render_timeline_text(episode), end="")
+        return
+    if fmt == "graph":
+        print(render_graph_text(episode, edge_mode=args.edge_mode), end="")
+        return
+    if fmt == "agent":
+        print(render_agent_text(episode), end="")
         return
 
     lesson_path = episode_dir / EPISODE_LESSON_FILE_NAME
     if lesson_path.exists():
         _print_file(lesson_path)
         return
-    print(render_lesson_markdown(_load_episode(episode_dir)), end="")
+    print(render_lesson_markdown(episode), end="")
 
 
 def _handle_verify(
@@ -816,6 +823,10 @@ def _load_episode(episode_dir: Path) -> EpisodeWire:
 
 def _verify_episode_dir(episode_dir: Path) -> EpisodeVerifyReportWire:
     return verify_episode(_load_episode(episode_dir))
+
+
+def _is_legacy_episode(episode: EpisodeWire) -> bool:
+    return episode.status == "legacy" or not episode.component_key
 
 
 def _print_file(path: Path) -> None:

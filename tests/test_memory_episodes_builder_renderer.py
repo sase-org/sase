@@ -17,7 +17,15 @@ from sase.core.episode_wire import (
 )
 from sase.memory.episodes.builder import build_episode
 from sase.memory.episodes.collector import EpisodeDraft
-from sase.memory.episodes.render import render_lesson_markdown
+from sase.memory.episodes.render import (
+    agent_evidence_pack_json_dict,
+    render_agent_text,
+    render_graph_text,
+    render_lesson_markdown,
+    render_overview_text,
+    render_sources_text,
+    render_timeline_text,
+)
 from sase.memory.episodes.verify import verify_episode
 
 
@@ -228,6 +236,53 @@ def test_hidden_noop_component_scores_low(tmp_path: Path) -> None:
         "hidden_recurring_chop_noop",
         "tiny_transcript_low_signal",
     }
+
+
+def test_v2_episode_drill_down_renderers_are_stable_and_bounded(
+    tmp_path: Path,
+) -> None:
+    episode = build_episode(_component_draft_fixture(tmp_path))
+
+    overview = _normalize_text(render_overview_text(episode, width=72), tmp_path)
+    assert overview.startswith("# Build Deterministic Lesson Builder\n\n")
+    assert "Importance: high" in overview
+    assert "## Weak Metadata" in overview
+    assert "bead_ids: sase-48.4" in overview
+    assert "show ep-" in overview
+
+    timeline = _normalize_text(render_timeline_text(episode, width=72), tmp_path)
+    assert "# Timeline: Build Deterministic Lesson Builder" in timeline
+    assert "Agent builder-agent started" in timeline
+    assert "evidence=src-meta" in timeline
+
+    graph = _normalize_text(
+        render_graph_text(episode, edge_mode="strong", width=72),
+        tmp_path,
+    )
+    assert "Edge mode: strong" in graph
+    assert "builder-agent -> chat.md [response_chat; strong]" in graph
+    assert "## Weak Metadata (not component edges)" in graph
+    assert "changespec_names: episode-v2-cl" in graph
+
+    sources = _normalize_text(render_sources_text(episode, width=72), tmp_path)
+    assert "# Sources: Build Deterministic Lesson Builder" in sources
+    assert "## Warnings" in sources
+    assert "missing-source:src-diff" in sources
+    assert "[src-chat] chat.md:" in sources
+    assert "$TMP/chat.md" in sources
+    assert "exists+hash" in sources
+
+    agent = _normalize_text(render_agent_text(episode, width=72), tmp_path)
+    assert "# Agent Evidence Pack: Build Deterministic Lesson Builder" in agent
+    assert "It is not an instruction" in agent
+    assert "## Source Refs" in agent
+
+    payload = agent_evidence_pack_json_dict(episode)
+    assert payload["episode_id"] == episode.episode_id
+    assert payload["framing"].startswith("This is historical evidence")
+    assert len(payload["source_refs"]) <= 20
+    assert len(payload["timeline"]) <= 20
+    assert payload["weak_metadata"]["bead_ids"] == ["sase-48.4"]
 
 
 def test_verify_episode_reports_source_drift_without_mutation(tmp_path: Path) -> None:
