@@ -19,6 +19,10 @@ REQUIRED_BINDINGS = (
     "plan_agent_cleanup",
     "save_dismissed_agents_index",
     "save_dismissed_bundle",
+    "save_dismissed_agent_group",
+    "list_dismissed_agent_groups",
+    "load_dismissed_agent_group",
+    "mark_dismissed_agent_group_revived",
     "delete_agent_artifacts",
     "release_workspace_from_content",
     "mark_hook_agents_as_killed",
@@ -136,6 +140,70 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
     return True
 
 
+def _validate_saved_group_wire_fields(module: ModuleType) -> bool:
+    payload = {
+        "schema_version": 1,
+        "group_id": "wire-probe",
+        "created_at": "2026-05-27T12:00:00Z",
+        "source": "marked_agents",
+        "title": "1 agent in cl",
+        "name": "Probe group",
+        "agent_count": 1,
+        "top_level_agent_count": 1,
+        "status_counts": {"DONE": 1},
+        "project_names": ["proj"],
+        "cl_names": ["cl"],
+        "agent_refs": [
+            {
+                "agent_type": "run",
+                "cl_name": "cl",
+                "raw_suffix": "ts-1",
+                "tag": "backend",
+            }
+        ],
+    }
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-group-probe-") as tmp:
+        try:
+            saved = module.save_dismissed_agent_group(tmp, payload)
+            page = module.list_dismissed_agent_groups(tmp, 20, None)
+            loaded = module.load_dismissed_agent_group(tmp, "wire-probe")
+            revived = module.mark_dismissed_agent_group_revived(
+                tmp, "wire-probe", "2026-05-27T13:00:00Z"
+            )
+        except Exception as exc:
+            _error(f"saved-group archive probe failed: {exc}")
+            return False
+
+    records = [saved, loaded, revived]
+    if not all(isinstance(record, dict) for record in records):
+        _error("saved-group archive probe returned a non-dict record")
+        return False
+    if not isinstance(page, dict) or not isinstance(page.get("groups"), list):
+        _error("saved-group archive list probe returned an invalid page")
+        return False
+    page_groups = page["groups"]
+    if not all(isinstance(record, dict) for record in page_groups):
+        _error("saved-group archive list probe returned a non-dict summary")
+        return False
+    records.extend(page_groups)
+    for record in records:
+        if record.get("name") != "Probe group":
+            _error(
+                "saved-group archive probe did not preserve group name: "
+                f"got {record.get('name')!r}"
+            )
+            return False
+    refs = loaded.get("agent_refs") if isinstance(loaded, dict) else None
+    first_ref = refs[0] if isinstance(refs, list) and refs else None
+    if not isinstance(first_ref, dict) or first_ref.get("tag") != "backend":
+        _error(
+            "saved-group archive probe did not preserve agent ref tag: "
+            f"got {first_ref!r}"
+        )
+        return False
+    return True
+
+
 def main() -> int:
     module = _load_extension()
     if module is None:
@@ -143,6 +211,8 @@ def main() -> int:
     if not _validate_bindings(module):
         return 1
     if not _validate_scalar_plan_timestamp(module):
+        return 1
+    if not _validate_saved_group_wire_fields(module):
         return 1
     return 0
 
