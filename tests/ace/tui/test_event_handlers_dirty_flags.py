@@ -259,7 +259,7 @@ def test_artifact_change_marks_all_surfaces_dirty() -> None:
     assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
 
 
-def test_artifact_change_schedules_only_agents_for_artifact_path() -> None:
+def test_artifact_change_schedules_only_agents_for_done_marker() -> None:
     app = _FakeApp(watcher_active=True)
     path = Path.home() / ".sase" / "projects" / "sase" / "artifacts" / "a" / "done.json"
 
@@ -267,6 +267,113 @@ def test_artifact_change_schedules_only_agents_for_artifact_path() -> None:
 
     assert app._dirty_agents is True
     assert app._dirty_changespecs is False
+    assert app.refresh_calls == ["schedule_agents"]
+
+
+@pytest.mark.parametrize(
+    "marker_name",
+    ["workflow_state.json", "prompt_step_001.json"],
+)
+def test_artifact_change_schedules_agents_for_loader_visible_markers(
+    marker_name: str,
+) -> None:
+    app = _FakeApp(watcher_active=True)
+    path = (
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "20260528120000"
+        / marker_name
+    )
+
+    app._on_artifact_change((path,))
+
+    assert app._dirty_agents is True
+    assert app._dirty_changespecs is False
+    assert app.refresh_calls == ["schedule_agents"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "20260528120000",
+        Path.home() / ".sase" / "projects" / "sase" / "artifacts" / "20260528120000",
+    ],
+)
+def test_artifact_change_schedules_agents_for_likely_agent_root_directory(
+    path: Path,
+) -> None:
+    app = _FakeApp(watcher_active=True)
+
+    app._on_artifact_change((path,))
+
+    assert app._dirty_agents is True
+    assert app.refresh_calls == ["schedule_agents"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "20260528120000"
+        / "live_reply.md",
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "20260528120000"
+        / "generated"
+        / "response.md",
+    ],
+)
+def test_artifact_change_ignores_non_loader_artifact_content(path: Path) -> None:
+    app = _FakeApp(watcher_active=True)
+
+    app._on_artifact_change((path,))
+
+    assert app._dirty_agents is False
+    assert app._dirty_changespecs is False
+    assert app._dirty_axe is False
+    assert app.refresh_calls == []
+
+
+def test_artifact_change_mixed_marker_and_content_schedules_agents_once() -> None:
+    app = _FakeApp(watcher_active=True)
+    artifacts_dir = (
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "20260528120000"
+    )
+
+    app._on_artifact_change(
+        (
+            artifacts_dir / "live_reply.md",
+            artifacts_dir / "done.json",
+            artifacts_dir / "generated" / "response.md",
+        )
+    )
+
+    assert app._dirty_agents is True
     assert app.refresh_calls == ["schedule_agents"]
 
 
@@ -279,6 +386,18 @@ def test_artifact_change_schedules_only_changespecs_for_project_file() -> None:
     assert app._dirty_changespecs is True
     assert app._dirty_axe is True
     assert app._dirty_agents is False
+    assert app.refresh_calls == ["schedule_changespecs"]
+
+
+def test_artifact_change_schedules_only_changespecs_for_bead_file() -> None:
+    app = _FakeApp(watcher_active=True)
+    path = Path.cwd() / "sdd" / "beads" / "sase-u.1.md"
+
+    app._on_artifact_change((path,))
+
+    assert app._dirty_changespecs is True
+    assert app._dirty_agents is False
+    assert app._dirty_axe is False
     assert app.refresh_calls == ["schedule_changespecs"]
 
 

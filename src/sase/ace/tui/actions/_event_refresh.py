@@ -21,6 +21,62 @@ PROMPT_INPUT_DEFER_SECONDS = 0.25
 # often the dirty flag is re-armed by inotify. Sanity refreshes bypass it.
 AGENTS_LOAD_MIN_INTERVAL_SECONDS = 5.0
 
+_AGENTS_RELEVANT_ARTIFACT_MARKERS = frozenset(
+    {
+        "agent_meta.json",
+        "done.json",
+        "running.json",
+        "waiting.json",
+        "pending_question.json",
+        "workflow_state.json",
+        "plan_path.json",
+        "retry_state.json",
+    }
+)
+
+
+def _artifact_relative_parts(path: Path) -> tuple[str, ...] | None:
+    """Return path components below the first ``artifacts`` segment."""
+    try:
+        artifacts_idx = path.parts.index("artifacts")
+    except ValueError:
+        return None
+    return path.parts[artifacts_idx + 1 :]
+
+
+def _is_prompt_step_marker(path: Path) -> bool:
+    name = path.name
+    return name.startswith("prompt_step_") and name.endswith(".json")
+
+
+def _artifact_path_affects_agents(path: Path) -> bool:
+    """Return True when an artifact-tree path can change the Agents rows."""
+    relative_parts = _artifact_relative_parts(path)
+    if relative_parts is None:
+        return False
+    if not relative_parts:
+        return True
+
+    if path.name in _AGENTS_RELEVANT_ARTIFACT_MARKERS:
+        return True
+    if _is_prompt_step_marker(path):
+        return True
+
+    # Watcher callbacks only carry paths, not inotify masks. A shallow,
+    # suffixless path is the best signal available for newly-created or
+    # deleted agent-root directories such as:
+    #   artifacts/<legacy-agent-dir>
+    #   artifacts/<workflow>/<timestamp-or-run-dir>
+    if len(relative_parts) <= 2:
+        try:
+            if path.is_dir():
+                return True
+        except OSError:
+            pass
+        return path.suffix == ""
+
+    return False
+
 
 class EventRefreshMixin(EventHandlersBase):
     """Mixin providing watcher, daemon, and refresh timer callbacks."""
@@ -52,6 +108,8 @@ class EventRefreshMixin(EventHandlersBase):
             )
             return
         targets = self._dirty_surfaces_for_paths(changed_paths)
+        if not targets:
+            return
         if "changespecs" in targets:
             self._dirty_changespecs = True
         if "agents" in targets:
@@ -89,6 +147,7 @@ class EventRefreshMixin(EventHandlersBase):
             return {"changespecs", "agents", "axe", "notifications"}
 
         targets: set[str] = set()
+        ignored_artifact_path = False
         projects_root = sase_projects_dir()
         notifications_root = sase_subdir("notifications")
         beads_dir = Path.cwd() / "sdd" / "beads"
@@ -101,7 +160,10 @@ class EventRefreshMixin(EventHandlersBase):
                 targets.add("changespecs")
                 continue
             if "artifacts" in parts:
-                targets.add("agents")
+                if _artifact_path_affects_agents(path):
+                    targets.add("agents")
+                else:
+                    ignored_artifact_path = True
                 continue
             if path.suffix in {".sase", ".gp"}:
                 targets.update({"changespecs", "axe"})
@@ -110,7 +172,11 @@ class EventRefreshMixin(EventHandlersBase):
                 targets.update({"changespecs", "agents", "axe"})
                 continue
             targets.update({"changespecs", "agents", "axe"})
-        return targets or {"changespecs", "agents", "axe"}
+        if targets:
+            return targets
+        if ignored_artifact_path:
+            return set()
+        return {"changespecs", "agents", "axe"}
 
     def _on_artifact_change_deferred(self) -> None:
         """Timer-fired wrapper that clears the dedup flag before reentering.

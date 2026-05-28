@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 14:30:51
-status: wip
+status: done
 prompt: sdd/prompts/202605/selective_artifact_dirty_routing.md
 ---
 # Selective Artifact Dirty Routing Plan
