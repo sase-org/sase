@@ -2,7 +2,7 @@
 
 import stat
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -54,6 +54,10 @@ def _make_script(tmp: Path, name: str, body: str) -> Path:
     script.write_text("#!/bin/sh\n" + body)
     script.chmod(script.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     return script
+
+
+def _started_at_seconds_ago(seconds: int) -> str:
+    return (datetime.now() - timedelta(seconds=seconds)).isoformat()
 
 
 # --- find_configured_chop ---
@@ -118,12 +122,11 @@ def test_active_script_chop_run_returns_none_when_no_history(
 
 
 def test_active_script_chop_run_finds_running_entry(temp_state_dir: Path) -> None:
-    started_at = datetime(2026, 1, 1, 12, 0, 0)
     entry = ChopRunEntry(
         run_id="20260101T120000_000000",
         lumberjack_name="lj",
         chop_name="chop",
-        started_at=started_at.isoformat(),
+        started_at=_started_at_seconds_ago(0),
         finished_at=None,
         duration_ms=0,
         status="running",
@@ -184,15 +187,14 @@ def test_active_script_chop_run_finalizes_dead_pid_and_returns_none(
     assert finalized.error == "stale running chop process exited: pid 12345"
 
 
-def test_active_script_chop_run_keeps_pidless_running_entry_conservatively(
+def test_active_script_chop_run_keeps_recent_pidless_running_entry(
     temp_state_dir: Path,
 ) -> None:
-    started_at = datetime(2026, 1, 1, 12, 0, 0)
     entry = ChopRunEntry(
         run_id="20260101T120000_000000",
         lumberjack_name="lj",
         chop_name="chop",
-        started_at=started_at.isoformat(),
+        started_at=_started_at_seconds_ago(30),
         finished_at=None,
         duration_ms=0,
         status="running",
@@ -200,11 +202,39 @@ def test_active_script_chop_run_keeps_pidless_running_entry_conservatively(
     start_chop_run(entry)
 
     with patch("sase.axe.chop_runner.is_process_running") as mock_running:
-        live = _active_script_chop_run("lj", "chop")
+        live = _active_script_chop_run("lj", "chop", pidless_stale_after_seconds=90)
 
     assert live is not None
     assert live.run_id == entry.run_id
     mock_running.assert_not_called()
+
+
+def test_active_script_chop_run_finalizes_old_pidless_running_entry(
+    temp_state_dir: Path,
+) -> None:
+    entry = ChopRunEntry(
+        run_id="20260101T120000_000000",
+        lumberjack_name="lj",
+        chop_name="chop",
+        started_at=_started_at_seconds_ago(120),
+        finished_at=None,
+        duration_ms=0,
+        status="running",
+    )
+    start_chop_run(entry)
+
+    with patch("sase.axe.chop_runner.is_process_running") as mock_running:
+        live = _active_script_chop_run("lj", "chop", pidless_stale_after_seconds=90)
+
+    assert live is None
+    mock_running.assert_not_called()
+    finalized = read_chop_run("lj", "chop", entry.run_id)
+    assert finalized is not None
+    assert finalized.status == "failure"
+    assert finalized.finished_at is not None
+    assert finalized.error == (
+        "stale running chop never recorded a pid after 90s grace window"
+    )
 
 
 def test_active_script_chop_run_returns_none_when_newest_finalized(
@@ -408,12 +438,11 @@ def test_run_configured_chop_once_dedupes_live_script_run(
     axe_config: AxeConfig,
 ) -> None:
     """A still-running script chop returns ``already_running`` instead of relaunching."""
-    started_at = datetime(2026, 1, 1, 12, 0, 0)
     live_entry = ChopRunEntry(
         run_id="20260101T120000_000000",
         lumberjack_name="hooks",
         chop_name="hook_checks",
-        started_at=started_at.isoformat(),
+        started_at=_started_at_seconds_ago(0),
         finished_at=None,
         duration_ms=0,
         status="running",
@@ -432,6 +461,61 @@ def test_run_configured_chop_once_dedupes_live_script_run(
     assert outcome.status == "already_running"
     assert outcome.run_id == live_entry.run_id
     mock_stream.assert_not_called()
+
+
+def test_run_configured_chop_once_recovers_old_pidless_script_run(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+    tmp_path: Path,
+) -> None:
+    old_entry = ChopRunEntry(
+        run_id="20260101T120000_000000",
+        lumberjack_name="hooks",
+        chop_name="hook_checks",
+        started_at=_started_at_seconds_ago(120),
+        finished_at=None,
+        duration_ms=0,
+        status="running",
+    )
+    start_chop_run(old_entry)
+
+    chop = ChopConfig(name="hook_checks", description="")
+    with (
+        patch(
+            "sase.axe.chop_runner.discover_chop_script",
+            return_value=Path("/fake/script"),
+        ),
+        patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
+    ):
+        from sase.axe.chop_script_runner import _StreamedScriptResult
+
+        mock_stream.return_value = _StreamedScriptResult(
+            returncode=0, pid=1234, output_bytes=0, timed_out=False
+        )
+        outcome = run_configured_chop_once(
+            lumberjack_name="hooks",
+            chop=chop,
+            axe_config=axe_config,
+            chop_timeout_default=90,
+            context_file=str(tmp_path / "context.json"),
+            source="manual",
+        )
+
+    assert outcome.status == "success"
+    assert outcome.run_id is not None
+    assert outcome.run_id != old_entry.run_id
+    mock_stream.assert_called_once()
+
+    old_finalized = read_chop_run("hooks", "hook_checks", old_entry.run_id)
+    assert old_finalized is not None
+    assert old_finalized.status == "failure"
+    assert old_finalized.error == (
+        "stale running chop never recorded a pid after 90s grace window"
+    )
+
+    index = read_chop_run_index("hooks", "hook_checks")
+    assert index[0] == outcome.run_id
+    assert old_entry.run_id in index[1:]
 
 
 def test_run_configured_chop_once_records_failure_with_exit_code(

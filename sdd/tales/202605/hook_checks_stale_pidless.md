@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 14:00:09
-status: wip
+status: done
 prompt: sdd/prompts/202605/hook_checks_stale_pidless.md
 ---
 # Diagnose And Fix Stale PID-less `hook_checks` Runs

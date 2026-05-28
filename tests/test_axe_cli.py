@@ -344,7 +344,7 @@ def test_handle_axe_chop_run_already_running_skips(
         run_id="20260101T120000_000000",
         lumberjack_name="hooks",
         chop_name="hook_checks",
-        started_at=datetime(2026, 1, 1, 12, 0, 0).isoformat(),
+        started_at=datetime.now().isoformat(),
         finished_at=None,
         duration_ms=0,
         status="running",
