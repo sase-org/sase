@@ -3,7 +3,8 @@
 The scheduled lumberjack tick, ``sase axe chop run``, and the AXE TUI manual
 run all execute one configured chop end-to-end the same way (context build,
 env propagation, timeout, streaming run history, agent dedupe). This module
-owns that single code path so the three surfaces cannot drift.
+owns the public entry point and compatibility surface; focused implementation
+modules own the type/lookup, context, agent, and script responsibilities.
 
 :func:`run_configured_chop_once` is the public entry point. It dispatches by
 chop type, performs live-run dedupe, and returns a typed
@@ -13,226 +14,71 @@ code, TUI notification, scheduler bookkeeping).
 
 from __future__ import annotations
 
-import traceback
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Literal
+from typing import Any
 
-from sase.ace.changespec import find_all_changespecs
+from sase.ace.changespec import ChangeSpec, find_all_changespecs
 from sase.ace.hooks.processes import is_process_running
 from sase.core.query_facade import evaluate_query_many
-from sase.core.time import get_timezone
 
-from .chop_agents import (
-    build_chop_launch_env,
-    get_live_chop_agent_records,
-    prompt_hash,
-    record_chop_agent_launch_result,
+from .chop_agents import record_chop_agent_launch_result
+from .chop_runner_agent import (
+    agent_launch_output,
+    run_agent_chop_once,
 )
-from .chop_script_context import (
-    ChopScriptContext,
-    serialize_changespecs,
-    write_chop_context,
+from .chop_runner_context import (
+    ONESHOT_LUMBERJACK_NAME,
+    build_oneshot_context,
 )
-from .chop_script_runner import (
-    discover_chop_script,
-    stream_chop_script,
+from .chop_runner_script import (
+    PIDLESS_SCRIPT_CHOP_STALE_FALLBACK_SECONDS,
+    active_script_chop_run,
+    run_script_chop_once,
 )
-from .config import AxeConfig, ChopConfig, LumberjackConfig
-from .state import (
-    ChopRunEntry,
-    ChopRunSource,
-    chop_run_log_path,
-    ensure_lumberjack_dirs,
-    finish_chop_run,
-    generate_chop_run_id,
-    read_chop_run,
-    read_chop_run_index,
-    start_chop_run,
-    update_chop_run_pid,
-    write_chop_run,
+from .chop_runner_trace import (
+    NO_PYTHON_TRACEBACK,
+    PROMPT_PREVIEW_CHARS,
+    TRACEBACK_UNAVAILABLE,
+    capture_traceback,
+    compact_preview,
 )
-
-NO_PYTHON_TRACEBACK = "<no python traceback: subprocess error>"
-TRACEBACK_UNAVAILABLE = "<traceback unavailable>"
-PIDLESS_SCRIPT_CHOP_STALE_FALLBACK_SECONDS = 300
-
-# Synthetic lumberjack name used by ``sase axe chop run <name>`` when the
-# chop is not configured under any real lumberjack. Matches the legacy CLI
-# fallback so unconfigured scripts continue to work.
-ONESHOT_LUMBERJACK_NAME = "_oneshot"
-PROMPT_PREVIEW_CHARS = 160
+from .chop_runner_types import (
+    AmbiguousChopError,
+    ChopMatch,
+    ChopNotFoundError,
+    ChopRunOutcome,
+    ChopRunOutcomeStatus,
+    find_configured_chop,
+)
+from .chop_script_runner import discover_chop_script, stream_chop_script
+from .config import AxeConfig, ChopConfig
+from .state import ChopRunEntry, ChopRunSource
 
 
 def _capture_traceback() -> str:
-    """Capture the active exception traceback, with a placeholder for empty."""
-    formatted = traceback.format_exc().rstrip("\n")
-    if formatted == "NoneType: None" or not formatted:
-        return TRACEBACK_UNAVAILABLE
-    return formatted
+    return capture_traceback()
 
 
 def _compact_preview(value: str, *, limit: int = PROMPT_PREVIEW_CHARS) -> str:
-    """Return a bounded single-line preview for chop run logs."""
-    preview = " ".join(value.split())
-    if len(preview) <= limit:
-        return preview
-    return preview[: limit - 3].rstrip() + "..."
+    return compact_preview(value, limit=limit)
 
 
-def _agent_launch_output(
-    *,
-    lumberjack_name: str,
-    chop: ChopConfig,
-    result: object,
-    extra_env: dict[str, str],
-    source: ChopRunSource,
-    started_by: str | None,
-) -> str:
-    """Build the persisted log for a successful agent-chop launch."""
-    pid = getattr(result, "pid", "")
-    workspace_num = getattr(result, "workspace_num", "")
-    workspace_dir = getattr(result, "workspace_dir", "")
-    output_path = getattr(result, "output_path", "")
-    project_name = getattr(result, "project_name", "")
-    workflow_name = getattr(result, "workflow_name", "")
-    cl_name = getattr(result, "cl_name", "")
-    timestamp = getattr(result, "timestamp", "")
-    prompt_hash_value = extra_env.get("SASE_CHOP_PROMPT_HASH", "-")
-    prompt_preview = _compact_preview(chop.agent or "")
-
-    lines = [
-        f"Launched agent chop '{chop.name}' (PID {pid})",
-        (
-            f"chop={chop.name} lumberjack={lumberjack_name} source={source} "
-            f"started_by={started_by or '-'} prompt_hash={prompt_hash_value}"
-        ),
-        (
-            f"agent_pid={pid} workspace={workspace_num or '-'} "
-            f"workspace_dir={workspace_dir or '-'} output={output_path or '-'}"
-        ),
-    ]
-    if project_name or workflow_name or cl_name or timestamp:
-        lines.append(
-            f"project={project_name or '-'} workflow={workflow_name or '-'} "
-            f"cl={cl_name or '-'} timestamp={timestamp or '-'}"
-        )
-    if prompt_preview:
-        lines.append(f"prompt_preview={prompt_preview!r}")
-    return "\n".join(lines) + "\n"
+def _agent_launch_output(*args: Any, **kwargs: Any) -> str:
+    return agent_launch_output(*args, **kwargs)
 
 
-ChopRunOutcomeStatus = Literal[
-    "success",
-    "failure",
-    "timeout",
-    "missing_script",
-    "agent_launched",
-    "agent_failed",
-    "already_running",
-]
+def _build_oneshot_context(lumberjack_name: str, axe_config: AxeConfig) -> str:
+    return build_oneshot_context(
+        lumberjack_name,
+        axe_config,
+        find_all_changespecs_fn=find_all_changespecs,
+        evaluate_query_many_fn=_evaluate_query_many_compat,
+    )
 
 
-@dataclass
-class ChopRunOutcome:
-    """Result of running one configured chop once.
-
-    ``run_id`` is set whenever an entry was opened in the chop run history,
-    including dedupe skips (where it points at the already-running entry).
-    ``error``/``traceback`` are populated for failure-shaped outcomes so
-    callers can surface diagnostics without re-reading the on-disk metadata.
-    """
-
-    lumberjack_name: str
-    chop_name: str
-    status: ChopRunOutcomeStatus
-    run_id: str | None = None
-    exit_code: int | None = None
-    agent_pid: int | None = None
-    output_bytes: int = 0
-    error: Exception | None = None
-    traceback: str | None = None
-
-
-class ChopNotFoundError(LookupError):
-    """Raised when a chop name does not match any configured chop."""
-
-    def __init__(self, chop_name: str, lumberjack_name: str | None = None) -> None:
-        if lumberjack_name is None:
-            super().__init__(f"chop '{chop_name}' is not configured")
-        else:
-            super().__init__(
-                f"chop '{chop_name}' is not configured under lumberjack "
-                f"'{lumberjack_name}'"
-            )
-        self.chop_name = chop_name
-        self.lumberjack_name = lumberjack_name
-
-
-class AmbiguousChopError(LookupError):
-    """Raised when a chop name appears under multiple lumberjacks and none was given."""
-
-    def __init__(self, chop_name: str, candidates: list[str]) -> None:
-        joined = ", ".join(sorted(candidates))
-        super().__init__(
-            f"chop '{chop_name}' is configured in multiple lumberjacks: {joined}"
-            " — pass --lumberjack to disambiguate"
-        )
-        self.chop_name = chop_name
-        self.candidates = sorted(candidates)
-
-
-@dataclass
-class _ChopMatch:
-    lumberjack_name: str
-    lumberjack: LumberjackConfig
-    chop: ChopConfig
-
-
-def find_configured_chop(
-    config: AxeConfig,
-    chop_name: str,
-    lumberjack_name: str | None = None,
-) -> _ChopMatch:
-    """Resolve a chop name to its configured lumberjack and chop config.
-
-    ``lumberjack_name`` constrains the search; without it, a chop name that
-    appears under more than one lumberjack raises :class:`AmbiguousChopError`.
-    """
-    matches: list[_ChopMatch] = []
-    for jack_name, jack in config.lumberjacks.items():
-        if lumberjack_name is not None and jack_name != lumberjack_name:
-            continue
-        for chop in jack.chops:
-            if chop.name == chop_name:
-                matches.append(_ChopMatch(jack_name, jack, chop))
-
-    if not matches:
-        raise ChopNotFoundError(chop_name=chop_name, lumberjack_name=lumberjack_name)
-    if len(matches) > 1 and lumberjack_name is None:
-        raise AmbiguousChopError(
-            chop_name=chop_name,
-            candidates=[m.lumberjack_name for m in matches],
-        )
-    return matches[0]
-
-
-def _pidless_script_chop_stale_after_seconds(resolved_timeout: int | None) -> int:
-    """Return the grace window before PID-less running script rows are stale."""
-    if resolved_timeout is not None and resolved_timeout > 0:
-        return resolved_timeout
-    return PIDLESS_SCRIPT_CHOP_STALE_FALLBACK_SECONDS
-
-
-def _script_chop_run_age_seconds(entry: ChopRunEntry, now: datetime) -> float | None:
-    """Return run age in seconds, or None when ``started_at`` is unreadable."""
-    try:
-        started_at = datetime.fromisoformat(entry.started_at)
-    except ValueError:
-        return None
-    if started_at.tzinfo is None:
-        started_at = started_at.replace(tzinfo=now.tzinfo)
-    return max(0.0, (now - started_at).total_seconds())
+def _evaluate_query_many_compat(
+    query: str, changespecs: list[ChangeSpec]
+) -> list[bool]:
+    return evaluate_query_many(query, changespecs)
 
 
 def _active_script_chop_run(
@@ -241,115 +87,53 @@ def _active_script_chop_run(
     *,
     pidless_stale_after_seconds: int | None = None,
 ) -> ChopRunEntry | None:
-    """Return the newest chop run entry if it is still in ``running`` state.
-
-    Only the head of the index is inspected: pruning keeps active runs at the
-    front, and a finalized newest entry means there is no live run to dedupe
-    against. A ``running`` row with a stored PID is trusted only while that
-    process is still alive; dead-PID rows are finalized so the next scheduled
-    run can recover. PID-less rows are kept active only for a grace window so
-    a crash before PID recording cannot block future runs indefinitely.
-    """
-    index = read_chop_run_index(lumberjack_name, chop_name)
-    if not index:
-        return None
-    head_id = index[0]
-    head = read_chop_run(lumberjack_name, chop_name, head_id)
-    if head is None:
-        return None
-    if head.status != "running":
-        return None
-
-    if head.pid is not None and head.pid > 0:
-        if not is_process_running(head.pid):
-            _finalize_stale_script_chop_run(
-                head,
-                reason=f"stale running chop process exited: pid {head.pid}",
-            )
-            return None
-        return head
-
-    stale_after = _pidless_script_chop_stale_after_seconds(pidless_stale_after_seconds)
-    age_seconds = _script_chop_run_age_seconds(head, datetime.now(get_timezone()))
-    if age_seconds is None or age_seconds >= stale_after:
-        _finalize_stale_script_chop_run(
-            head,
-            reason=(
-                "stale running chop never recorded a pid after "
-                f"{stale_after}s grace window"
-            ),
-        )
-        return None
-
-    return head
-
-
-def _finalize_stale_script_chop_run(entry: ChopRunEntry, *, reason: str) -> None:
-    """Mark a running script-chop entry stale after dedupe proves it stale."""
-    finished_at = datetime.now(get_timezone())
-    try:
-        started_at = datetime.fromisoformat(entry.started_at)
-    except ValueError:
-        duration_ms = 0
-    else:
-        if started_at.tzinfo is None:
-            started_at = started_at.replace(tzinfo=finished_at.tzinfo)
-        duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
-
-    try:
-        finish_chop_run(
-            entry.lumberjack_name,
-            entry.chop_name,
-            entry.run_id,
-            status="failure",
-            finished_at=finished_at.isoformat(),
-            duration_ms=duration_ms,
-            exit_code=None,
-            error=reason,
-            traceback=NO_PYTHON_TRACEBACK,
-        )
-    except OSError:
-        pass
-
-
-def _build_oneshot_context(lumberjack_name: str, axe_config: AxeConfig) -> str:
-    """Serialize a single-chop context.json under the lumberjack's tick dir.
-
-    Mirrors what :class:`Lumberjack` writes once per tick so chop scripts see
-    identical context regardless of whether the run was scheduled, kicked off
-    by the CLI, or triggered from the TUI.
-    """
-    state_dir = ensure_lumberjack_dirs(lumberjack_name)
-    tick_dir = state_dir / "tick"
-    tick_dir.mkdir(parents=True, exist_ok=True)
-
-    all_cs_file = str(tick_dir / "all_changespecs.json")
-    filtered_cs_file = str(tick_dir / "filtered_changespecs.json")
-    context_file = str(tick_dir / "context.json")
-
-    all_changespecs = find_all_changespecs()
-    filtered_changespecs = all_changespecs
-    if axe_config.query:
-        mask = evaluate_query_many(axe_config.query, all_changespecs)
-        filtered_changespecs = [
-            cs for cs, keep in zip(all_changespecs, mask, strict=True) if keep
-        ]
-
-    serialize_changespecs(all_changespecs, all_cs_file)
-    serialize_changespecs(filtered_changespecs, filtered_cs_file)
-
-    ctx = ChopScriptContext(
-        max_hook_runners=axe_config.max_hook_runners,
-        max_agent_runners=axe_config.max_agent_runners,
-        zombie_timeout_seconds=axe_config.zombie_timeout_seconds,
-        query=axe_config.query,
-        lumberjack_name=lumberjack_name,
-        state_dir=str(state_dir),
-        all_changespecs_file=all_cs_file,
-        filtered_changespecs_file=filtered_cs_file,
+    return active_script_chop_run(
+        lumberjack_name,
+        chop_name,
+        pidless_stale_after_seconds=pidless_stale_after_seconds,
+        is_process_running_fn=is_process_running,
     )
-    write_chop_context(ctx, context_file)
-    return context_file
+
+
+def _run_agent_chop_once(
+    *,
+    lumberjack_name: str,
+    chop: ChopConfig,
+    source: ChopRunSource,
+    started_by: str | None,
+) -> ChopRunOutcome:
+    return run_agent_chop_once(
+        lumberjack_name=lumberjack_name,
+        chop=chop,
+        source=source,
+        started_by=started_by,
+        record_chop_agent_launch_result_fn=record_chop_agent_launch_result,
+    )
+
+
+def _run_script_chop_once(
+    *,
+    lumberjack_name: str,
+    chop: ChopConfig,
+    axe_config: AxeConfig,
+    chop_timeout_default: int | None,
+    context_file: str | None,
+    source: ChopRunSource,
+    started_by: str | None,
+) -> ChopRunOutcome:
+    return run_script_chop_once(
+        lumberjack_name=lumberjack_name,
+        chop=chop,
+        axe_config=axe_config,
+        chop_timeout_default=chop_timeout_default,
+        context_file=context_file,
+        source=source,
+        started_by=started_by,
+        discover_chop_script_fn=discover_chop_script,
+        stream_chop_script_fn=stream_chop_script,
+        build_context_fn=_build_oneshot_context,
+        is_process_running_fn=is_process_running,
+    )
 
 
 def run_configured_chop_once(
@@ -398,331 +182,31 @@ def run_configured_chop_once(
     )
 
 
-def _run_agent_chop_once(
-    *,
-    lumberjack_name: str,
-    chop: ChopConfig,
-    source: ChopRunSource,
-    started_by: str | None,
-) -> ChopRunOutcome:
-    assert chop.agent is not None
-    started_at = datetime.now(get_timezone())
-    run_id = generate_chop_run_id(started_at)
+_ChopMatch = ChopMatch
 
-    prompt_hash_value = prompt_hash(chop.agent)
-    live = get_live_chop_agent_records(
-        lumberjack_name,
-        chop_name=chop.name,
-        prompt_hash_value=prompt_hash_value,
-    )
-    if live:
-        return ChopRunOutcome(
-            lumberjack_name=lumberjack_name,
-            chop_name=chop.name,
-            status="already_running",
-            agent_pid=next(iter(record.pid for record in live), None),
-        )
-
-    extra_env = build_chop_launch_env(
-        lumberjack_name=lumberjack_name,
-        chop_name=chop.name,
-        prompt=chop.agent,
-    )
-    try:
-        from sase.agent.launcher import launch_agent_from_cwd
-
-        result = launch_agent_from_cwd(chop.agent, extra_env=extra_env)
-    except Exception as e:
-        tb = _capture_traceback()
-        finished_at = datetime.now(get_timezone())
-        duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
-        try:
-            write_chop_run(
-                ChopRunEntry(
-                    run_id=run_id,
-                    lumberjack_name=lumberjack_name,
-                    chop_name=chop.name,
-                    started_at=started_at.isoformat(),
-                    finished_at=finished_at.isoformat(),
-                    duration_ms=duration_ms,
-                    status="failure",
-                    error=str(e),
-                    traceback=tb,
-                    source=source,
-                    started_by=started_by,
-                )
-            )
-        except OSError:
-            pass
-        return ChopRunOutcome(
-            lumberjack_name=lumberjack_name,
-            chop_name=chop.name,
-            status="agent_failed",
-            run_id=run_id,
-            error=e,
-            traceback=tb,
-        )
-
-    record_chop_agent_launch_result(result=result, prompt=chop.agent, env=extra_env)
-
-    finished_at = datetime.now(get_timezone())
-    duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
-    launch_output = _agent_launch_output(
-        lumberjack_name=lumberjack_name,
-        chop=chop,
-        result=result,
-        extra_env=extra_env,
-        source=source,
-        started_by=started_by,
-    )
-    try:
-        write_chop_run(
-            ChopRunEntry(
-                run_id=run_id,
-                lumberjack_name=lumberjack_name,
-                chop_name=chop.name,
-                started_at=started_at.isoformat(),
-                finished_at=finished_at.isoformat(),
-                duration_ms=duration_ms,
-                status="agent_launched",
-                agent_pid=result.pid,
-                source=source,
-                started_by=started_by,
-            ),
-            output=launch_output,
-        )
-    except OSError:
-        pass
-
-    return ChopRunOutcome(
-        lumberjack_name=lumberjack_name,
-        chop_name=chop.name,
-        status="agent_launched",
-        run_id=run_id,
-        agent_pid=result.pid,
-    )
-
-
-def _run_script_chop_once(
-    *,
-    lumberjack_name: str,
-    chop: ChopConfig,
-    axe_config: AxeConfig,
-    chop_timeout_default: int | None,
-    context_file: str | None,
-    source: ChopRunSource,
-    started_by: str | None,
-) -> ChopRunOutcome:
-    resolved_timeout = chop.timeout or chop_timeout_default
-    live = _active_script_chop_run(
-        lumberjack_name,
-        chop.name,
-        pidless_stale_after_seconds=resolved_timeout,
-    )
-    if live is not None:
-        return ChopRunOutcome(
-            lumberjack_name=lumberjack_name,
-            chop_name=chop.name,
-            status="already_running",
-            run_id=live.run_id,
-        )
-
-    started_at = datetime.now(get_timezone())
-    run_id = generate_chop_run_id(started_at)
-
-    script = discover_chop_script(chop.name, axe_config.chop_script_dirs)
-    if script is None:
-        error = RuntimeError(f"Chop script not found: {chop.name}")
-        finished_at = datetime.now(get_timezone())
-        duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
-        try:
-            write_chop_run(
-                ChopRunEntry(
-                    run_id=run_id,
-                    lumberjack_name=lumberjack_name,
-                    chop_name=chop.name,
-                    started_at=started_at.isoformat(),
-                    finished_at=finished_at.isoformat(),
-                    duration_ms=duration_ms,
-                    status="missing_script",
-                    error=str(error),
-                    traceback=NO_PYTHON_TRACEBACK,
-                    source=source,
-                    started_by=started_by,
-                )
-            )
-        except OSError:
-            pass
-        return ChopRunOutcome(
-            lumberjack_name=lumberjack_name,
-            chop_name=chop.name,
-            status="missing_script",
-            run_id=run_id,
-            error=error,
-            traceback=NO_PYTHON_TRACEBACK,
-        )
-
-    env = dict(chop.env)
-    env.update(
-        build_chop_launch_env(
-            lumberjack_name=lumberjack_name,
-            chop_name=chop.name,
-            prompt=chop.agent,
-        )
-    )
-
-    state_dir = ensure_lumberjack_dirs(lumberjack_name)
-    if context_file is None:
-        context_file = _build_oneshot_context(lumberjack_name, axe_config)
-
-    start_entry = ChopRunEntry(
-        run_id=run_id,
-        lumberjack_name=lumberjack_name,
-        chop_name=chop.name,
-        started_at=started_at.isoformat(),
-        finished_at=None,
-        duration_ms=0,
-        status="running",
-        source=source,
-        started_by=started_by,
-    )
-    try:
-        start_chop_run(start_entry)
-    except OSError:
-        pass
-
-    log_path = chop_run_log_path(lumberjack_name, chop.name, run_id)
-
-    def _record_pid(pid: int) -> None:
-        try:
-            update_chop_run_pid(lumberjack_name, chop.name, run_id, pid)
-        except OSError:
-            pass
-
-    try:
-        result = stream_chop_script(
-            script,
-            context_file,
-            log_path=log_path,
-            timeout=resolved_timeout,
-            env=env,
-            cwd=str(state_dir),
-            on_pid=_record_pid,
-        )
-    except Exception as e:
-        tb = _capture_traceback()
-        _finalize(
-            lumberjack_name=lumberjack_name,
-            chop_name=chop.name,
-            run_id=run_id,
-            started_at=started_at,
-            status="failure",
-            exit_code=None,
-            error=e,
-            tb=tb,
-        )
-        return ChopRunOutcome(
-            lumberjack_name=lumberjack_name,
-            chop_name=chop.name,
-            status="failure",
-            run_id=run_id,
-            error=e,
-            traceback=tb,
-        )
-
-    if result.timed_out:
-        error = RuntimeError(f"timed out after {resolved_timeout}s")
-        _finalize(
-            lumberjack_name=lumberjack_name,
-            chop_name=chop.name,
-            run_id=run_id,
-            started_at=started_at,
-            status="timeout",
-            exit_code=None,
-            error=error,
-            tb=NO_PYTHON_TRACEBACK,
-            output_bytes=result.output_bytes,
-        )
-        return ChopRunOutcome(
-            lumberjack_name=lumberjack_name,
-            chop_name=chop.name,
-            status="timeout",
-            run_id=run_id,
-            output_bytes=result.output_bytes,
-            error=error,
-            traceback=NO_PYTHON_TRACEBACK,
-        )
-
-    if result.returncode == 0:
-        _finalize(
-            lumberjack_name=lumberjack_name,
-            chop_name=chop.name,
-            run_id=run_id,
-            started_at=started_at,
-            status="success",
-            exit_code=0,
-            output_bytes=result.output_bytes,
-        )
-        return ChopRunOutcome(
-            lumberjack_name=lumberjack_name,
-            chop_name=chop.name,
-            status="success",
-            run_id=run_id,
-            exit_code=0,
-            output_bytes=result.output_bytes,
-        )
-
-    error = RuntimeError(f"exit code {result.returncode}")
-    _finalize(
-        lumberjack_name=lumberjack_name,
-        chop_name=chop.name,
-        run_id=run_id,
-        started_at=started_at,
-        status="failure",
-        exit_code=result.returncode,
-        error=error,
-        tb=NO_PYTHON_TRACEBACK,
-        output_bytes=result.output_bytes,
-    )
-    return ChopRunOutcome(
-        lumberjack_name=lumberjack_name,
-        chop_name=chop.name,
-        status="failure",
-        run_id=run_id,
-        exit_code=result.returncode,
-        output_bytes=result.output_bytes,
-        error=error,
-        traceback=NO_PYTHON_TRACEBACK,
-    )
-
-
-def _finalize(
-    *,
-    lumberjack_name: str,
-    chop_name: str,
-    run_id: str,
-    started_at: datetime,
-    status: str,
-    exit_code: int | None = None,
-    error: Exception | None = None,
-    tb: str | None = None,
-    output_bytes: int | None = None,
-) -> None:
-    """Stamp terminal state onto a previously-opened streaming run entry."""
-    finished_at = datetime.now(get_timezone())
-    duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
-    try:
-        finish_chop_run(
-            lumberjack_name,
-            chop_name,
-            run_id,
-            status=status,  # type: ignore[arg-type]
-            finished_at=finished_at.isoformat(),
-            duration_ms=duration_ms,
-            exit_code=exit_code,
-            error=str(error) if error is not None else None,
-            traceback=tb,
-            output_bytes=output_bytes,
-        )
-    except OSError:
-        pass
+__all__ = [
+    "AmbiguousChopError",
+    "ChopNotFoundError",
+    "ChopRunOutcome",
+    "ChopRunOutcomeStatus",
+    "NO_PYTHON_TRACEBACK",
+    "ONESHOT_LUMBERJACK_NAME",
+    "PIDLESS_SCRIPT_CHOP_STALE_FALLBACK_SECONDS",
+    "PROMPT_PREVIEW_CHARS",
+    "TRACEBACK_UNAVAILABLE",
+    "_ChopMatch",
+    "_active_script_chop_run",
+    "_agent_launch_output",
+    "_build_oneshot_context",
+    "_capture_traceback",
+    "_compact_preview",
+    "_run_agent_chop_once",
+    "_run_script_chop_once",
+    "discover_chop_script",
+    "find_all_changespecs",
+    "find_configured_chop",
+    "is_process_running",
+    "record_chop_agent_launch_result",
+    "run_configured_chop_once",
+    "stream_chop_script",
+]
