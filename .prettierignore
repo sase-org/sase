@@ -7,4 +7,4 @@ sdd/research/
 sase_plan_*.md
 
 # Prompt source syntax: bare xprompt references like #_helper are not Markdown headings.
-xprompts/reads.md
+xprompts/*.md
