@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from ._loading_compute import PreparedFinalizePlan
-from ._loading_helpers import DISMISSABLE_STATUSES
+from ._loading_helpers import should_clear_loaded_agent_status_override
 from ...util.trace import tui_trace
 
 if TYPE_CHECKING:
@@ -293,16 +293,18 @@ def finalize_agent_list(
         # memory stays bounded across many refresh cycles.
         app._agent_content_search_cache.prune(app._agents)
 
-    # Apply status overrides (PLAN/PLAN APPROVED/QUESTION)
+    # Apply status overrides (PLAN/PLAN APPROVED/QUESTION), clearing entries
+    # that the fresh loader state has overtaken.
     loaded_identities = {a.identity for a in app._agents}
     for agent in app._agents:
-        if agent.status in DISMISSABLE_STATUSES:
-            # Agent finished (DONE/FAILED, including dead-PID detection)
-            # -- clear any override
+        override = app._agent_status_overrides.get(agent.identity)
+        if override is None:
+            continue
+        if should_clear_loaded_agent_status_override(agent, override):
             app._agent_status_overrides.pop(agent.identity, None)
             app._agent_pre_question_status.pop(agent.identity, None)
-        elif agent.identity in app._agent_status_overrides:
-            agent.status = app._agent_status_overrides[agent.identity]
+        else:
+            agent.status = override
 
     # Clean overrides for agents that no longer exist in the loaded list
     for identity in list(app._agent_status_overrides):

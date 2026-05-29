@@ -208,6 +208,56 @@ def test_stale_plan_is_discarded_when_query_changes_after_worker() -> None:
     assert app._agents == [b]
 
 
+def test_stale_plan_is_discarded_when_status_override_value_changes() -> None:
+    """Same-row override value changes must invalidate worker override plans."""
+    root = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="boi",
+        agent_name="boi",
+        status="RUNNING",
+        raw_suffix="20260529090000",
+        role_suffix=".plan",
+        agent_family="boi",
+        agent_family_role="root",
+    )
+    app = FakeAgentApp()
+    app._agent_status_overrides = {root.identity: "QUESTION"}
+    app._agents = [root]
+
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+    )
+    prep = PreparedApplyData(
+        filtered_agents=[root],
+        has_always_visible=True,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    boundary = prepare_loaded_agents_apply_boundary(prep, snapshot)
+    boundary = attach_finalize_plan_to_boundary(boundary, snapshot, content_index=None)
+
+    # The stale worker plan would clear QUESTION, but the live UI state now has
+    # a different override value for the same identity.
+    app._agent_status_overrides[root.identity] = "PLAN"
+
+    app._apply_loaded_agents_prepared(
+        prep,
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+        persist_dismissed_changes=False,
+        incomplete_merge_already_applied=True,
+        precomputed_boundary=boundary,
+        precomputed_fold_levels=snapshot.fold_levels,
+    )
+
+    assert root.status == "PLAN"
+    assert app._agent_status_overrides[root.identity] == "PLAN"
+
+
 def test_status_override_plan_clears_dismissable_overrides() -> None:
     """Agents in terminal statuses drop their stale PLAN/QUESTION override."""
     running = _make_agent(cl_name="run", status="RUNNING")
@@ -240,3 +290,92 @@ def test_status_override_plan_clears_dismissable_overrides() -> None:
     assert done.identity not in app._agent_status_overrides
     assert done.identity not in app._agent_pre_question_status
     assert app._agent_status_overrides[running.identity] == "PLAN"
+
+
+def test_status_override_plan_clears_stale_question_for_running_root() -> None:
+    """A newer running follow-up should overtake a stale root QUESTION override."""
+    root = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="boi",
+        agent_name="boi",
+        status="RUNNING",
+        raw_suffix="20260529090000",
+        role_suffix=".plan",
+        agent_family="boi",
+        agent_family_role="root",
+    )
+    followup = _make_agent(
+        cl_name="boi",
+        agent_name="boi-2",
+        status="RUNNING",
+        raw_suffix="20260529093000",
+        parent_timestamp="20260529090000",
+        role_suffix="-2",
+        agent_family="boi",
+        agent_family_role="feedback",
+    )
+    app = FakeAgentApp()
+    app._agent_status_overrides = {root.identity: "QUESTION"}
+    app._agent_pre_question_status = {root.identity: "RUNNING"}
+    app._agents = [root, followup]
+
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+    )
+    plan = _compute_finalize_plan([root, followup], snapshot)
+
+    assert plan.overrides.overrides_to_apply == []
+    assert plan.overrides.cleared_identities == [root.identity]
+
+    app._finalize_agent_list(
+        on_agents_tab=False,
+        selected_identity=None,
+        save_unfiltered=False,
+        fold_filter_already_applied=True,
+        precomputed_plan=plan,
+    )
+
+    assert root.status == "RUNNING"
+    assert root.identity not in app._agent_status_overrides
+    assert root.identity not in app._agent_pre_question_status
+
+
+def test_sync_finalize_clears_stale_question_for_running_root() -> None:
+    """The synchronous finalizer matches the worker status-override plan."""
+    root = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="boi",
+        agent_name="boi",
+        status="RUNNING",
+        raw_suffix="20260529090000",
+        role_suffix=".plan",
+        agent_family="boi",
+        agent_family_role="root",
+    )
+    followup = _make_agent(
+        cl_name="boi",
+        agent_name="boi-2",
+        status="RUNNING",
+        raw_suffix="20260529093000",
+        parent_timestamp="20260529090000",
+        role_suffix="-2",
+        agent_family="boi",
+        agent_family_role="feedback",
+    )
+    app = FakeAgentApp()
+    app._agent_status_overrides = {root.identity: "QUESTION"}
+    app._agent_pre_question_status = {root.identity: "RUNNING"}
+    app._agents = [root, followup]
+
+    app._finalize_agent_list(
+        on_agents_tab=False,
+        selected_identity=None,
+        save_unfiltered=False,
+        fold_filter_already_applied=True,
+    )
+
+    assert root.status == "RUNNING"
+    assert root.identity not in app._agent_status_overrides
+    assert root.identity not in app._agent_pre_question_status

@@ -19,7 +19,7 @@ from ._loading_compute_types import (
     PreparedApplySnapshot,
     PreparedFinalizePlan,
 )
-from ._loading_helpers import DISMISSABLE_STATUSES
+from ._loading_helpers import should_clear_loaded_agent_status_override
 
 if TYPE_CHECKING:
     from ....agent_query import QueryExpr
@@ -71,7 +71,7 @@ class PreparedFinalizeStaleToken:
     fold_levels: tuple[tuple[str, FoldLevel], ...] | None
     agent_search_query: str
     agent_query_cache_identity: int | None
-    agent_status_override_keys: frozenset[tuple[AgentType, str, str | None]]
+    agent_status_overrides: frozenset[tuple[tuple[AgentType, str, str | None], str]]
     grouping_mode: GroupingMode | None
     hide_non_run_agents: bool
 
@@ -190,12 +190,13 @@ def _compute_status_override_plan(
     to_apply: list[tuple[tuple[AgentType, str, str | None], str]] = []
     cleared: list[tuple[AgentType, str, str | None]] = []
     for agent in agents:
-        if agent.status in DISMISSABLE_STATUSES:
-            if agent.identity in overrides:
-                cleared.append(agent.identity)
+        override = overrides.get(agent.identity)
+        if override is None:
             continue
-        if agent.identity in overrides:
-            to_apply.append((agent.identity, overrides[agent.identity]))
+        if should_clear_loaded_agent_status_override(agent, override):
+            cleared.append(agent.identity)
+            continue
+        to_apply.append((agent.identity, override))
 
     for identity in overrides:
         if identity not in loaded_identities and identity not in cleared:
@@ -244,8 +245,8 @@ def make_finalize_stale_token(
         if snapshot.agent_query_cache is not None
         else None
     )
-    override_keys: frozenset[tuple[AgentType, str, str | None]] = frozenset(
-        snapshot.agent_status_overrides.keys()
+    override_items: frozenset[tuple[tuple[AgentType, str, str | None], str]] = (
+        frozenset(snapshot.agent_status_overrides.items())
     )
     return PreparedFinalizeStaleToken(
         on_agents_tab=snapshot.selection.on_agents_tab,
@@ -254,7 +255,7 @@ def make_finalize_stale_token(
         fold_levels=fold_tuple,
         agent_search_query=snapshot.agent_search_query or "",
         agent_query_cache_identity=cache_identity,
-        agent_status_override_keys=override_keys,
+        agent_status_overrides=override_items,
         grouping_mode=snapshot.grouping_mode,
         hide_non_run_agents=snapshot.hide_non_run_agents,
     )

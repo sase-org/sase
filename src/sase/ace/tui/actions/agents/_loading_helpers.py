@@ -11,11 +11,22 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType  # noqa: F401
     from ...models.agent_loader import AgentLoadState
 
-from ...util.trace import tui_trace
 from ...models.agent_status import DISMISSABLE_STATUSES
+from ...util.trace import tui_trace
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
+
+_QUESTION_OVERRIDE_PROGRESS_STATUSES = frozenset(
+    {
+        "RUNNING",
+        "PLAN APPROVED",
+        "TALE APPROVED",
+        "EPIC APPROVED",
+        "LEGEND APPROVED",
+        "PLAN COMMITTED",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -46,6 +57,15 @@ def is_always_visible(agent: Agent) -> bool:
         return False
 
     return True
+
+
+def should_clear_loaded_agent_status_override(agent: Agent, override: str) -> bool:
+    """Return True when a loaded row should discard an in-memory override."""
+    if agent.status in DISMISSABLE_STATUSES:
+        return True
+    return (
+        override == "QUESTION" and agent.status in _QUESTION_OVERRIDE_PROGRESS_STATUSES
+    )
 
 
 def is_axe_spawned_agent(agent: Agent) -> bool:
