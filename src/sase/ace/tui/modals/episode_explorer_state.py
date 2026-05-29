@@ -1,4 +1,4 @@
-"""Detail-pane behavior for the ACE Episode Explorer modal."""
+"""State and rendering methods for the Episode Explorer modal."""
 
 from __future__ import annotations
 
@@ -18,28 +18,25 @@ from sase.core.episode_wire import (
 )
 from sase.memory.episodes.index import project_episodes_dir
 from sase.memory.episodes.inventory import EpisodeInventoryItem
-from sase.memory.episodes.render import (
-    render_agent_text,
-    render_graph_text,
-    render_overview_text,
-    render_sources_text,
-    render_timeline_text,
-)
 from sase.memory.episodes.storage import EPISODE_JSON_FILE_NAME
 
-from .episode_explorer_filters import (
-    VIEWS,
-    EpisodeExplorerDisplayRow,
-    EpisodeExplorerEdgeMode,
-    EpisodeExplorerFilters,
-    EpisodeExplorerView,
+from .episode_explorer_filtering import (
+    display_rows,
+    matches_filters,
     range_bounds,
 )
-from .episode_explorer_rendering import row_text
+from .episode_explorer_rendering import detail_text, row_text
+from .episode_explorer_types import (
+    EpisodeExplorerDisplayRow,
+    EpisodeExplorerFilters,
+    EpisodeExplorerEdgeMode,
+    EpisodeExplorerView,
+    VIEWS,
+)
 
 
-class EpisodeExplorerDetailMixin(ModalScreen[None]):
-    """Shared detail-pane and chrome helpers for EpisodeExplorerModal."""
+class EpisodeExplorerStateMixin(ModalScreen[None]):
+    """Render cached episode state and derive current selections."""
 
     _project: str
     _projects_root: Path | None
@@ -55,6 +52,21 @@ class EpisodeExplorerDetailMixin(ModalScreen[None]):
     _loading: bool
     _loaded_once: bool
     _error: str | None
+    _verify_worker: object
+
+    def _apply_filters_from_cache(
+        self, *, select_episode_id: str | None = None
+    ) -> None:
+        previous = select_episode_id or self._selected_display_episode_id()
+        filtered = [
+            item
+            for item in self._items
+            if matches_filters(item, self._filters, today=self._today)
+        ]
+        self._visible_rows = display_rows(filtered, self._filters.status)
+        self._refresh_static_chrome()
+        self._refresh_options(previous)
+        self._render_selected_detail()
 
     def _refresh_options(self, previous_episode_id: str | None) -> None:
         option_list = self.query_one("#episode-explorer-list", OptionList)
@@ -90,54 +102,33 @@ class EpisodeExplorerDetailMixin(ModalScreen[None]):
         episode = self._load_episode_for_row(row)
         if episode is None:
             return
-        detail.update(self._detail_text(row, episode))
+        width = max(72, min(110, self.size.width - 42 if self.size.width else 88))
+        verify_status = self._verify_status.get(episode.episode_id, "not checked")
+        current_source = (
+            self._current_source(episode=episode) if self._view == "sources" else None
+        )
+        detail.update(
+            detail_text(
+                row,
+                episode,
+                view=self._view,
+                edge_mode=self._edge_mode,
+                verify_status=verify_status,
+                width=width,
+                current_source=current_source,
+            )
+        )
         try:
             self.query_one(
                 "#episode-explorer-detail-scroll", VerticalScroll
             ).scroll_home(animate=False)
         except Exception:
-            pass
+            return
 
     def _render_loading(self) -> None:
         self.query_one("#episode-explorer-detail", Static).update(
             "Loading episode inventory..."
         )
-
-    def _detail_text(
-        self,
-        row: EpisodeExplorerDisplayRow,
-        episode: EpisodeWire,
-    ) -> str:
-        width = max(72, min(110, self.size.width - 42 if self.size.width else 88))
-        verify_status = self._verify_status.get(episode.episode_id, "not checked")
-        alias_line = (
-            f"Alias: {row.display_episode_id} -> {row.canonical_episode_id}\n"
-            if row.is_alias
-            else ""
-        )
-        source_line = ""
-        if self._view == "sources":
-            current = self._current_source(episode=episode)
-            if current is not None:
-                source_line = f"Source cursor: {current.id} {current.path}\n"
-        header = (
-            f"View: {self._view}"
-            f"{' (' + self._edge_mode + ')' if self._view == 'graph' else ''}\n"
-            f"Verification: {verify_status}\n"
-            f"{alias_line}"
-            f"{source_line}\n"
-        )
-        if self._view == "overview":
-            body = render_overview_text(episode, width=width)
-        elif self._view == "timeline":
-            body = render_timeline_text(episode, width=width)
-        elif self._view == "graph":
-            body = render_graph_text(episode, edge_mode=self._edge_mode, width=width)
-        elif self._view == "sources":
-            body = render_sources_text(episode, width=width)
-        else:
-            body = render_agent_text(episode, width=width)
-        return header + body
 
     def _load_episode_for_row(
         self,
@@ -238,7 +229,7 @@ class EpisodeExplorerDetailMixin(ModalScreen[None]):
                 if input_widget.value != value:
                     input_widget.value = value
             except Exception:
-                pass
+                continue
 
     def _title_text(self) -> str:
         status = "loading" if self._loading else f"{len(self._visible_rows)} shown"
@@ -283,5 +274,5 @@ class EpisodeExplorerDetailMixin(ModalScreen[None]):
 
 
 __all__ = [
-    "EpisodeExplorerDetailMixin",
+    "EpisodeExplorerStateMixin",
 ]

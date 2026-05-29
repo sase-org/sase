@@ -1,90 +1,18 @@
-"""Filtering helpers for the ACE Episode Explorer modal."""
+"""Inventory filtering helpers for the Episode Explorer modal."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 from datetime import date, timedelta
-from typing import Any, Literal
 
 from sase.memory.episodes._collector_utils import compact_timestamp
 from sase.memory.episodes.inventory import EpisodeInventoryItem
 
-
-EpisodeExplorerView = Literal["overview", "timeline", "graph", "sources", "agent"]
-EpisodeExplorerRange = Literal["all", "today", "yesterday", "week", "month"]
-EpisodeExplorerBand = Literal["all", "high", "medium", "low", "unknown"]
-EpisodeExplorerStatus = Literal["all", "v2", "v1", "aliases"]
-EpisodeExplorerEdgeMode = Literal["strong", "all"]
-
-RANGES: tuple[EpisodeExplorerRange, ...] = (
-    "all",
-    "today",
-    "yesterday",
-    "week",
-    "month",
+from .episode_explorer_types import (
+    EpisodeExplorerRange,
+    EpisodeExplorerStatus,
+    EpisodeExplorerDisplayRow,
+    EpisodeExplorerFilters,
 )
-BANDS: tuple[EpisodeExplorerBand, ...] = ("all", "high", "medium", "low", "unknown")
-STATUSES: tuple[EpisodeExplorerStatus, ...] = ("all", "v2", "v1", "aliases")
-VIEWS: tuple[EpisodeExplorerView, ...] = (
-    "overview",
-    "timeline",
-    "graph",
-    "sources",
-    "agent",
-)
-
-
-@dataclass(frozen=True)
-class EpisodeExplorerFilters:
-    """Current inventory filters."""
-
-    quick_range: EpisodeExplorerRange = "week"
-    query: str = ""
-    band: EpisodeExplorerBand = "all"
-    agent: str = ""
-    changespec: str = ""
-    bead: str = ""
-    status: EpisodeExplorerStatus = "all"
-
-
-@dataclass(frozen=True)
-class EpisodeExplorerDisplayRow:
-    """One selectable row in the left inventory pane."""
-
-    item: EpisodeInventoryItem
-    display_episode_id: str
-    canonical_episode_id: str
-    is_alias: bool = False
-    alias_reason: str = ""
-
-
-@dataclass(frozen=True)
-class EpisodeExplorerLoadResult:
-    """Background inventory load result."""
-
-    project: str
-    items: list[EpisodeInventoryItem]
-    error: str | None = None
-
-
-def replace_filters(
-    filters: EpisodeExplorerFilters,
-    **changes: Any,
-) -> EpisodeExplorerFilters:
-    return replace(filters, **changes)
-
-
-def cycle_value[T: str](
-    values: tuple[T, ...],
-    current: T,
-    *,
-    step: int = 1,
-) -> T:
-    try:
-        index = values.index(current)
-    except ValueError:
-        return values[0]
-    return values[(index + step) % len(values)]
 
 
 def display_rows(
@@ -130,15 +58,15 @@ def matches_filters(
     if filters.status == "aliases" and not item.aliases:
         return False
     since, until = range_bounds(filters.quick_range, today=today)
-    if not _matches_date_window(item, since=since, until=until):
+    if not matches_date_window(item, since=since, until=until):
         return False
-    if not _contains_all(_agent_haystack(item), filters.agent):
+    if not contains_all(agent_haystack(item), filters.agent):
         return False
-    if not _contains_all(item.row.changespec_name or "", filters.changespec):
+    if not contains_all(item.row.changespec_name or "", filters.changespec):
         return False
-    if not _contains_all(" ".join(item.row.bead_ids), filters.bead):
+    if not contains_all(" ".join(item.row.bead_ids), filters.bead):
         return False
-    return _contains_all(_query_haystack(item), filters.query)
+    return contains_all(query_haystack(item), filters.query)
 
 
 def range_bounds(
@@ -160,7 +88,7 @@ def range_bounds(
     return first.isoformat(), today.isoformat()
 
 
-def _matches_date_window(
+def matches_date_window(
     item: EpisodeInventoryItem,
     *,
     since: str | None,
@@ -182,7 +110,7 @@ def _matches_date_window(
     return True
 
 
-def _contains_all(haystack: str, query: str) -> bool:
+def contains_all(haystack: str, query: str) -> bool:
     terms = [term.casefold() for term in query.split() if term.strip()]
     if not terms:
         return True
@@ -190,11 +118,11 @@ def _contains_all(haystack: str, query: str) -> bool:
     return all(term in folded for term in terms)
 
 
-def _agent_haystack(item: EpisodeInventoryItem) -> str:
+def agent_haystack(item: EpisodeInventoryItem) -> str:
     return " ".join(item.row.root_agent_names)
 
 
-def _query_haystack(item: EpisodeInventoryItem) -> str:
+def query_haystack(item: EpisodeInventoryItem) -> str:
     row = item.row
     return " ".join(
         [
@@ -216,21 +144,11 @@ def _query_haystack(item: EpisodeInventoryItem) -> str:
 
 
 __all__ = [
-    "BANDS",
-    "RANGES",
-    "STATUSES",
-    "VIEWS",
-    "EpisodeExplorerBand",
-    "EpisodeExplorerDisplayRow",
-    "EpisodeExplorerEdgeMode",
-    "EpisodeExplorerFilters",
-    "EpisodeExplorerLoadResult",
-    "EpisodeExplorerRange",
-    "EpisodeExplorerStatus",
-    "EpisodeExplorerView",
-    "cycle_value",
+    "agent_haystack",
+    "contains_all",
     "display_rows",
+    "matches_date_window",
     "matches_filters",
+    "query_haystack",
     "range_bounds",
-    "replace_filters",
 ]

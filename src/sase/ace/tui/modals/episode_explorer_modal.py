@@ -12,10 +12,7 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.widgets import Input, Label, OptionList, Static
 from textual.worker import Worker, WorkerState
 
-from sase.core.episode_wire import (
-    EpisodeVerifyReportWire,
-    EpisodeWire,
-)
+from sase.core.episode_wire import EpisodeVerifyReportWire, EpisodeWire
 from sase.memory.episodes.inventory import (
     EpisodeInventoryItem,
     query_episode_inventory,
@@ -23,46 +20,71 @@ from sase.memory.episodes.inventory import (
 from sase.memory.episodes.verify import verify_episode
 
 from ..actions.clipboard import copy_to_system_clipboard
-from .base import FilterInput
-from .episode_explorer_detail import EpisodeExplorerDetailMixin
-from .episode_explorer_filters import (
-    BANDS as _BANDS,
-    RANGES as _RANGES,
-    STATUSES as _STATUSES,
-    VIEWS as _VIEWS,
-    EpisodeExplorerDisplayRow as _EpisodeExplorerDisplayRow,
+from .episode_explorer_filtering import (
+    agent_haystack,
+    contains_all,
+    display_rows,
+    matches_date_window,
+    matches_filters,
+    query_haystack,
+    range_bounds,
+)
+from .episode_explorer_input import EpisodeExplorerInput
+from .episode_explorer_rendering import (
+    detail_text,
+    format_timestamp,
+    row_details,
+    row_text,
+    short,
+    time_span,
+)
+from .episode_explorer_state import EpisodeExplorerStateMixin
+from .episode_explorer_types import (
+    BANDS,
+    RANGES,
+    STATUSES,
+    VIEWS,
+    WORKER_GROUP,
+    EpisodeExplorerDisplayRow,
+    EpisodeExplorerFilters,
+    EpisodeExplorerLoadResult,
+    EpisodeExplorerBand,
     EpisodeExplorerEdgeMode,
-    EpisodeExplorerFilters as _EpisodeExplorerFilters,
-    EpisodeExplorerLoadResult as _EpisodeExplorerLoadResult,
+    EpisodeExplorerRange,
+    EpisodeExplorerStatus,
     EpisodeExplorerView,
-    cycle_value as _cycle_value,
-    display_rows as _display_rows,
-    matches_filters as _matches_filters,
-    replace_filters as _replace_filters,
+    cycle_value,
+    replace_filters,
 )
 
+_BANDS = BANDS
+_EpisodeExplorerDisplayRow = EpisodeExplorerDisplayRow
+_EpisodeExplorerFilters = EpisodeExplorerFilters
+_EpisodeExplorerInput = EpisodeExplorerInput
+_EpisodeExplorerLoadResult = EpisodeExplorerLoadResult
+_EpisodeExplorerStateMixin = EpisodeExplorerStateMixin
+_RANGES = RANGES
+_STATUSES = STATUSES
+_VIEWS = VIEWS
+_WORKER_GROUP = WORKER_GROUP
+_agent_haystack = agent_haystack
+_contains_all = contains_all
+_cycle_value = cycle_value
+_detail_text = detail_text
+_display_rows = display_rows
+_format_timestamp = format_timestamp
+_matches_date_window = matches_date_window
+_matches_filters = matches_filters
+_query_haystack = query_haystack
+_range_bounds = range_bounds
+_replace_filters = replace_filters
+_row_details = row_details
+_row_text = row_text
+_short = short
+_time_span = time_span
 
-_WORKER_GROUP = "episode-explorer"
 
-
-class _EpisodeExplorerInput(FilterInput):
-    """Filter input that keeps modal navigation available while focused."""
-
-    BINDINGS = [
-        *FilterInput.BINDINGS,
-        ("ctrl+n", "forward('next_option')", "Next"),
-        ("ctrl+p", "forward('prev_option')", "Previous"),
-        ("ctrl+r", "forward('cycle_range')", "Range"),
-        ("ctrl+e", "forward('focus_inventory')", "Inventory"),
-    ]
-
-    def action_forward(self, action_name: str) -> None:
-        modal = self.screen
-        if isinstance(modal, EpisodeExplorerModal):
-            getattr(modal, f"action_{action_name}")()
-
-
-class EpisodeExplorerModal(EpisodeExplorerDetailMixin):
+class EpisodeExplorerModal(_EpisodeExplorerStateMixin):
     """Browse project memory episodes without leaving ACE."""
 
     BINDINGS = [
@@ -408,20 +430,6 @@ class EpisodeExplorerModal(EpisodeExplorerDetailMixin):
                 self._verify_status[row.canonical_episode_id] = "error"
             self.notify("Episode verification failed", severity="error")
             self._render_selected_detail()
-
-    def _apply_filters_from_cache(
-        self, *, select_episode_id: str | None = None
-    ) -> None:
-        previous = select_episode_id or self._selected_display_episode_id()
-        filtered = [
-            item
-            for item in self._items
-            if _matches_filters(item, self._filters, today=self._today)
-        ]
-        self._visible_rows = _display_rows(filtered, self._filters.status)
-        self._refresh_static_chrome()
-        self._refresh_options(previous)
-        self._render_selected_detail()
 
 
 __all__ = [
