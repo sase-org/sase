@@ -203,7 +203,8 @@ the bead falls back to the launcher default.
 
 The `sase sdd` command group manages generated SDD documentation and frontmatter links:
 
-With no subcommand, `sase sdd` defaults to `sase sdd list`.
+With no subcommand, `sase sdd` defaults to `sase sdd list` with default options. Use the explicit `sase sdd list` form
+when passing list flags such as `--kind` or `--json`.
 
 | Command                 | Purpose                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------- |

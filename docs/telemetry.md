@@ -70,7 +70,8 @@ Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 
 ## CLI Commands
 
-With no subcommand, `sase telemetry` defaults to `sase telemetry list`.
+With no subcommand, `sase telemetry` defaults to `sase telemetry list` with default options. Use the explicit
+`sase telemetry list` form when passing metric-catalog filters.
 
 ### `sase telemetry status`
 

@@ -78,7 +78,7 @@ sase memory review --list  # human review of pending long-term memory proposals
 sase memory log          # summarize audited long-term memory reads
 sase memory log --include proposals  # include memory proposal/review events
 sase memory episodes build -n <agent-name>  # store a source-linked episode from completed work
-sase memory episodes auto -p <project> -l 50  # checkpointed maintenance build over new completed runs
+sase memory episodes auto -p <project> -l 50  # one checkpointed maintenance pass over new completed runs
 sase memory episodes build -s 2026-05-01 -u 2026-05-26 --split  # backfill connected components
 sase memory episodes recall -q "retry feedback"  # search stored episode evidence by topic
 sase memory episodes export -s 2026-05-01 -u 2026-05-26 -b high -j  # read-only event-readiness summaries

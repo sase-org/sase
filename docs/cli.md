@@ -36,6 +36,9 @@ Command groups with an exact `list` child default to that list view when invoked
 `sase plugin`, `sase sdd`, `sase skills`, `sase telemetry`, `sase workspace`, and `sase xprompt`. Nested groups such as
 `sase agents tag`, `sase axe chop`, and `sase axe lumberjack` follow the same rule.
 
+The bare form is only the default view. When you need flags that belong to the list command, keep the `list` subcommand
+explicit, for example `sase notify list -j`, `sase memory episodes list -p <project>`, or `sase workspace list --json`.
+
 ## Work Tracking And Planning
 
 | Command                                      | Purpose                                                                                      | Details                                            |

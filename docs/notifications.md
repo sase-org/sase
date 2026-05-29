@@ -244,6 +244,9 @@ sase notify list -j -q digest
 sase notify list -j --all
 ```
 
+Use the explicit `list` subcommand when passing list flags; for example, use `sase notify list -j`, not
+`sase notify -j`.
+
 `sase notify list -j` prints notifications newest first with `id`, `timestamp`, `age`, `sender`, `priority`, `notes`,
 `files`, `tags`, `action`, `action_data`, `read`, `dismissed`, `silent`, `muted`, and `snooze_until`. The `-q/--query`
 filter matches tags as well as ids, senders, notes, files, actions, and action data. Dismissed notifications are hidden

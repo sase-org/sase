@@ -1017,6 +1017,10 @@ launch's values so follow-up agents cannot inherit stale workspace claims.
 
 ## CLI Flags
 
+Command groups that default to a nested `list` command still parse flags at the subcommand level. Use the explicit
+`list` form when passing list options, such as `sase notify list -j`, `sase memory episodes list -p <project>`, or
+`sase workspace list --json`.
+
 ### `sase ace`
 
 | Flag                     | Values              | Default                   | Description                                                                                                                                                                           |
@@ -1259,7 +1263,9 @@ sase memory log --id <read-id>
 #### `sase memory episodes`
 
 `sase memory episodes` stores deterministic records of prior agent work under `~/.sase/projects/<project>/episodes/`.
-With no subcommand, it defaults to `sase memory episodes list`. All subcommands accept `-p, --project <project>`.
+With no subcommand, it defaults to `sase memory episodes list` with default options. Use the explicit subcommand when
+passing flags, for example `sase memory episodes list -p <project> -j`. All subcommands accept
+`-p, --project <project>`.
 
 | Form                                 | Flags                                                                                                                                                                                                             | Description                                                                    |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -1342,7 +1348,8 @@ ProjectSpec.
 ### `sase workspace`
 
 Workspace commands inspect and maintain the managed checkout registry for the inferred project, or for the project named
-by `-p/--project`. With no subcommand, `sase workspace` defaults to `sase workspace list`.
+by `-p/--project`. With no subcommand, `sase workspace` defaults to `sase workspace list` with default options. Use
+`sase workspace list -p <project>` or `sase workspace list --json` when passing list flags.
 
 | Command                  | Flag / argument            | Values       | Description                                                                                         |
 | ------------------------ | -------------------------- | ------------ | --------------------------------------------------------------------------------------------------- |
@@ -1537,7 +1544,8 @@ With no subcommand, `sase file-history` defaults to `sase file-history list`.
 
 ### `sase plugin`
 
-With no subcommand, `sase plugin` defaults to `sase plugin list`.
+With no subcommand, `sase plugin` defaults to `sase plugin list` with default options. Use `sase plugin list --verbose`
+or `sase plugin doctor --json` when passing diagnostic flags.
 
 | Form                 | Flags                       | Description                                                                          |
 | -------------------- | --------------------------- | ------------------------------------------------------------------------------------ |
@@ -1563,12 +1571,13 @@ is available.
 
 ### `sase notify`
 
-With no subcommand, `sase notify` defaults to `sase notify list`. Use `sase notify create` to write a notification from
-stdin JSON.
+With no subcommand, `sase notify` defaults to the compact `sase notify list` view. Use `sase notify list` for JSON,
+limit, query, unread, dismissed, or the clearest sender/tag filtering form. Use `sase notify create` to write a
+notification from stdin JSON.
 
 | Form                 | Flags                                                                                         | Description                                                 |
 | -------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `sase notify`        | `-j/--json`, `-l/--limit`, `-q/--query`, `-t/--tag`, `-s/--sender`, `-u/--unread`, `-a/--all` | Shortcut for `sase notify list`                             |
+| `sase notify`        | `-s/--sender`, `-t/--tag`                                                                     | Shortcut for `sase notify list` with default compact output |
 | `sase notify create` | `-s/--sender`, `-t/--tag`                                                                     | Create a notification from stdin JSON                       |
 | `sase notify list`   | `-j/--json`, `-l/--limit`, `-q/--query`, `-t/--tag`, `-s/--sender`, `-u/--unread`, `-a/--all` | List recent notifications; `-j` emits the stable JSON shape |
 | `sase notify show`   | `-i/--id`, `-f/--format` (`markdown` or `json`)                                               | Show one notification by id; defaults to markdown           |

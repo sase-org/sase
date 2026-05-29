@@ -143,7 +143,8 @@ event store is absent.
 
 ## CLI Commands
 
-With no subcommand, `sase bead` defaults to `sase bead list`.
+With no subcommand, `sase bead` defaults to `sase bead list` with default options. Use the explicit `sase bead list`
+form when passing list filters.
 
 ### `sase bead init`
 

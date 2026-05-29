@@ -998,8 +998,8 @@ Press `Ctrl+O` to start the guided creation flow:
 ## Episode Explorer
 
 Press `F` on any tab to browse source-linked memory episodes for the current project without leaving ACE. The modal
-loads the project episode inventory, filters it locally, and renders the same overview, timeline, graph, sources, and
-agent evidence views exposed by `sase memory episodes show`.
+loads the project episode inventory, starts with the last-week range filter, and then filters locally. It renders the
+same overview, timeline, graph, sources, and agent evidence views exposed by `sase memory episodes show`.
 
 The left pane lists canonical episode ids and aliases. The filter row narrows by text, agent, ChangeSpec, and bead; the
 quick filters cycle through event ranges, importance bands, v1/v2 status, and alias-only rows. The graph view defaults

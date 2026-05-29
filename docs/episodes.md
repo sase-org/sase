@@ -52,6 +52,9 @@ sase memory episodes status -p <project>
 sase memory episodes doctor -p <project>
 ```
 
+`auto` is one pass, not a resident daemon. Put it in your scheduler or configure the installed `memory_episodes` axe
+chop when you want repeated maintenance.
+
 ## Command Summary
 
 | Command                            | Purpose                                                                                 |
@@ -136,6 +139,8 @@ component.
 `auto` runs one checkpointed build cycle over completed agent markers that have not yet been scanned by the automatic
 builder. It is intended for scheduled maintenance and defaults to a bounded batch size; use `--limit` to override the
 batch for one run. `--dry-run` reports the planned cycle and build reports without writing episodes, state, or metrics.
+The automatic builder is deliberately single-shot; repeated execution comes from an external scheduler or an axe
+lumberjack configured to run the `memory_episodes` chop script.
 
 The builder records its checkpoint under the project episode state so repeated cycles only scan new done markers.
 `status` reports the checkpoint, lock, index, and latest metrics. `doctor` inspects that state for recoverable problems;

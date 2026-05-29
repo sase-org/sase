@@ -59,7 +59,9 @@ sase plugin doctor --json
 available unconfigured chop scripts. `sase plugin doctor` runs the same inventory plus health checks for resource entry
 point load failures, missing configured chops, unconfigured scripts, GitHub CLI/auth prerequisites when GitHub plugins
 are installed, and Telegram `pass`/environment prerequisites when Telegram chop scripts are present. The doctor status
-is `ERROR` only for failures that block configured resources; optional integration prerequisites report `WARN`.
+is `ERROR` for resource entry point load failures or missing configured script chops. Unconfigured available scripts and
+optional integration prerequisites report `WARN`. Use the explicit `list` or `doctor` subcommand when passing flags;
+`sase plugin --verbose` and `sase plugin --json` are not valid forms.
 
 ## How Plugins Are Discovered
 

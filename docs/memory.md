@@ -216,8 +216,9 @@ episode. Missing or changed sources mean the evidence drifted; they do not delet
 recall.
 
 For scheduled maintenance, `sase memory episodes auto` runs one checkpointed builder cycle over new completed-agent
-markers. `status` shows the automatic builder checkpoint, lock, index, and latest metrics, while `doctor` inspects that
-state and can apply safe repairs with `--repair`.
+markers. It does not keep running after that pass; schedule it externally or configure the installed `memory_episodes`
+axe chop for repeated maintenance. `status` shows the automatic builder checkpoint, lock, index, and latest metrics,
+while `doctor` inspects that state and can apply safe repairs with `--repair`.
 
 Human-mode `build` prints phase progress to stderr and the final summary to stdout. Pass `--quiet` to suppress progress
 while keeping the final summary, or `--json` for a deterministic machine-readable payload with `episode`,
