@@ -2,104 +2,47 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from datetime import date, timedelta
-import json
+from datetime import date
 import os
 from pathlib import Path
 import subprocess
-from typing import Any, Literal
 
-from rich.text import Text
 from textual.app import ComposeResult, SuspendNotSupported
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
-from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
-from textual.widgets.option_list import Option
 from textual.worker import Worker, WorkerState
 
 from sase.core.episode_wire import (
-    EpisodeSourceRefWire,
     EpisodeVerifyReportWire,
     EpisodeWire,
-    episode_wire_from_dict,
 )
-from sase.memory.episodes._collector_utils import compact_timestamp
-from sase.memory.episodes.index import project_episodes_dir
 from sase.memory.episodes.inventory import (
     EpisodeInventoryItem,
     query_episode_inventory,
 )
-from sase.memory.episodes.render import (
-    render_agent_text,
-    render_graph_text,
-    render_overview_text,
-    render_sources_text,
-    render_timeline_text,
-)
-from sase.memory.episodes.storage import EPISODE_JSON_FILE_NAME
 from sase.memory.episodes.verify import verify_episode
 
 from ..actions.clipboard import copy_to_system_clipboard
 from .base import FilterInput
-
-
-EpisodeExplorerView = Literal["overview", "timeline", "graph", "sources", "agent"]
-EpisodeExplorerRange = Literal["all", "today", "yesterday", "week", "month"]
-EpisodeExplorerBand = Literal["all", "high", "medium", "low", "unknown"]
-EpisodeExplorerStatus = Literal["all", "v2", "v1", "aliases"]
-EpisodeExplorerEdgeMode = Literal["strong", "all"]
-
-_RANGES: tuple[EpisodeExplorerRange, ...] = (
-    "all",
-    "today",
-    "yesterday",
-    "week",
-    "month",
+from .episode_explorer_detail import EpisodeExplorerDetailMixin
+from .episode_explorer_filters import (
+    BANDS as _BANDS,
+    RANGES as _RANGES,
+    STATUSES as _STATUSES,
+    VIEWS as _VIEWS,
+    EpisodeExplorerDisplayRow as _EpisodeExplorerDisplayRow,
+    EpisodeExplorerEdgeMode,
+    EpisodeExplorerFilters as _EpisodeExplorerFilters,
+    EpisodeExplorerLoadResult as _EpisodeExplorerLoadResult,
+    EpisodeExplorerView,
+    cycle_value as _cycle_value,
+    display_rows as _display_rows,
+    matches_filters as _matches_filters,
+    replace_filters as _replace_filters,
 )
-_BANDS: tuple[EpisodeExplorerBand, ...] = ("all", "high", "medium", "low", "unknown")
-_STATUSES: tuple[EpisodeExplorerStatus, ...] = ("all", "v2", "v1", "aliases")
-_VIEWS: tuple[EpisodeExplorerView, ...] = (
-    "overview",
-    "timeline",
-    "graph",
-    "sources",
-    "agent",
-)
+
+
 _WORKER_GROUP = "episode-explorer"
-
-
-@dataclass(frozen=True)
-class _EpisodeExplorerFilters:
-    """Current inventory filters."""
-
-    quick_range: EpisodeExplorerRange = "week"
-    query: str = ""
-    band: EpisodeExplorerBand = "all"
-    agent: str = ""
-    changespec: str = ""
-    bead: str = ""
-    status: EpisodeExplorerStatus = "all"
-
-
-@dataclass(frozen=True)
-class _EpisodeExplorerDisplayRow:
-    """One selectable row in the left inventory pane."""
-
-    item: EpisodeInventoryItem
-    display_episode_id: str
-    canonical_episode_id: str
-    is_alias: bool = False
-    alias_reason: str = ""
-
-
-@dataclass(frozen=True)
-class _EpisodeExplorerLoadResult:
-    """Background inventory load result."""
-
-    project: str
-    items: list[EpisodeInventoryItem]
-    error: str | None = None
 
 
 class _EpisodeExplorerInput(FilterInput):
@@ -119,7 +62,7 @@ class _EpisodeExplorerInput(FilterInput):
             getattr(modal, f"action_{action_name}")()
 
 
-class EpisodeExplorerModal(ModalScreen[None]):
+class EpisodeExplorerModal(EpisodeExplorerDetailMixin):
     """Browse project memory episodes without leaving ACE."""
 
     BINDINGS = [
@@ -479,453 +422,6 @@ class EpisodeExplorerModal(ModalScreen[None]):
         self._refresh_static_chrome()
         self._refresh_options(previous)
         self._render_selected_detail()
-
-    def _refresh_options(self, previous_episode_id: str | None) -> None:
-        option_list = self.query_one("#episode-explorer-list", OptionList)
-        option_list.clear_options()
-        for index, row in enumerate(self._visible_rows):
-            option_list.add_option(Option(_row_text(row), id=f"episode-row-{index}"))
-        if not self._visible_rows:
-            option_list.highlighted = None
-            return
-        target_index = 0
-        if previous_episode_id:
-            for index, row in enumerate(self._visible_rows):
-                if row.display_episode_id == previous_episode_id:
-                    target_index = index
-                    break
-        option_list.highlighted = target_index
-
-    def _render_selected_detail(self) -> None:
-        detail = self.query_one("#episode-explorer-detail", Static)
-        row = self._selected_row()
-        if self._loading:
-            detail.update("Loading episode inventory...")
-            return
-        if self._error:
-            detail.update(f"Episode inventory error: {self._error}")
-            return
-        if row is None:
-            if self._loaded_once:
-                detail.update("No episodes match the current filters.")
-            else:
-                detail.update("Episode inventory has not loaded yet.")
-            return
-        episode = self._load_episode_for_row(row)
-        if episode is None:
-            return
-        detail.update(self._detail_text(row, episode))
-        try:
-            self.query_one(
-                "#episode-explorer-detail-scroll", VerticalScroll
-            ).scroll_home(animate=False)
-        except Exception:
-            pass
-
-    def _render_loading(self) -> None:
-        self.query_one("#episode-explorer-detail", Static).update(
-            "Loading episode inventory..."
-        )
-
-    def _detail_text(
-        self,
-        row: _EpisodeExplorerDisplayRow,
-        episode: EpisodeWire,
-    ) -> str:
-        width = max(72, min(110, self.size.width - 42 if self.size.width else 88))
-        verify_status = self._verify_status.get(episode.episode_id, "not checked")
-        alias_line = (
-            f"Alias: {row.display_episode_id} -> {row.canonical_episode_id}\n"
-            if row.is_alias
-            else ""
-        )
-        source_line = ""
-        if self._view == "sources":
-            current = self._current_source(episode=episode)
-            if current is not None:
-                source_line = f"Source cursor: {current.id} {current.path}\n"
-        header = (
-            f"View: {self._view}"
-            f"{' (' + self._edge_mode + ')' if self._view == 'graph' else ''}\n"
-            f"Verification: {verify_status}\n"
-            f"{alias_line}"
-            f"{source_line}\n"
-        )
-        if self._view == "overview":
-            body = render_overview_text(episode, width=width)
-        elif self._view == "timeline":
-            body = render_timeline_text(episode, width=width)
-        elif self._view == "graph":
-            body = render_graph_text(episode, edge_mode=self._edge_mode, width=width)
-        elif self._view == "sources":
-            body = render_sources_text(episode, width=width)
-        else:
-            body = render_agent_text(episode, width=width)
-        return header + body
-
-    def _load_episode_for_row(
-        self,
-        row: _EpisodeExplorerDisplayRow,
-    ) -> EpisodeWire | None:
-        cached = self._episode_cache.get(row.canonical_episode_id)
-        if cached is not None:
-            return cached
-        episode_path = (
-            project_episodes_dir(self._project, projects_root=self._projects_root)
-            / row.canonical_episode_id
-            / EPISODE_JSON_FILE_NAME
-        )
-        try:
-            payload = json.loads(episode_path.read_text(encoding="utf-8"))
-            episode = episode_wire_from_dict(payload)
-        except Exception as exc:
-            self.query_one("#episode-explorer-detail", Static).update(
-                f"Failed to read {episode_path}: {exc}"
-            )
-            return None
-        self._episode_cache[row.canonical_episode_id] = episode
-        return episode
-
-    def _selected_row(self) -> _EpisodeExplorerDisplayRow | None:
-        option_list = self.query_one("#episode-explorer-list", OptionList)
-        highlighted = option_list.highlighted
-        if highlighted is None:
-            return None
-        if highlighted < 0 or highlighted >= len(self._visible_rows):
-            return None
-        return self._visible_rows[highlighted]
-
-    def _selected_display_episode_id(self) -> str | None:
-        row = self._selected_row_or_none()
-        return row.display_episode_id if row is not None else None
-
-    def _selected_row_or_none(self) -> _EpisodeExplorerDisplayRow | None:
-        try:
-            return self._selected_row()
-        except Exception:
-            return None
-
-    def _current_source(
-        self,
-        *,
-        episode: EpisodeWire | None = None,
-    ) -> EpisodeSourceRefWire | None:
-        row = self._selected_row()
-        if row is None:
-            return None
-        if episode is None:
-            episode = self._load_episode_for_row(row)
-        if episode is None:
-            return None
-        sources = [source for source in episode.sources if source.path]
-        if not sources:
-            return None
-        index = self._source_index.get(episode.episode_id, 0) % len(sources)
-        self._source_index[episode.episode_id] = index
-        return sources[index]
-
-    def _step_source(self, step: int) -> None:
-        row = self._selected_row()
-        if row is None:
-            return
-        episode = self._load_episode_for_row(row)
-        if episode is None:
-            return
-        sources = [source for source in episode.sources if source.path]
-        if not sources:
-            return
-        current = self._source_index.get(episode.episode_id, 0)
-        self._source_index[episode.episode_id] = (current + step) % len(sources)
-        if self._view != "sources":
-            self._view = "sources"
-            self._refresh_static_chrome()
-        self._render_selected_detail()
-
-    def _refresh_static_chrome(self) -> None:
-        self.query_one("#episode-explorer-title", Label).update(self._title_text())
-        self.query_one("#episode-explorer-filter-summary", Static).update(
-            self._filter_summary()
-        )
-        self.query_one("#episode-explorer-tabs", Static).update(self._tabs_text())
-        self.query_one("#episode-explorer-hints", Static).update(self._hints_text())
-
-    def _sync_filter_inputs(self) -> None:
-        values = {
-            "episode-filter-query": self._filters.query,
-            "episode-filter-agent": self._filters.agent,
-            "episode-filter-changespec": self._filters.changespec,
-            "episode-filter-bead": self._filters.bead,
-        }
-        for widget_id, value in values.items():
-            try:
-                input_widget = self.query_one(f"#{widget_id}", Input)
-                if input_widget.value != value:
-                    input_widget.value = value
-            except Exception:
-                pass
-
-    def _title_text(self) -> str:
-        status = "loading" if self._loading else f"{len(self._visible_rows)} shown"
-        return f"Episode Explorer - {self._project} [{status}]"
-
-    def _filter_summary(self) -> str:
-        since, until = _range_bounds(self._filters.quick_range, today=self._today)
-        range_text = str(self._filters.quick_range)
-        if since or until:
-            range_text += f" ({since or '-'}..{until or '-'})"
-        parts = [
-            f"range={range_text}",
-            f"band={self._filters.band}",
-            f"status={self._filters.status}",
-            f"loaded={len(self._items)}",
-        ]
-        if self._filters.query.strip():
-            parts.append(f"text={self._filters.query.strip()}")
-        if self._filters.agent.strip():
-            parts.append(f"agent={self._filters.agent.strip()}")
-        if self._filters.changespec.strip():
-            parts.append(f"changespec={self._filters.changespec.strip()}")
-        if self._filters.bead.strip():
-            parts.append(f"bead={self._filters.bead.strip()}")
-        if self._error:
-            parts.append("error")
-        return "  ".join(parts)
-
-    def _tabs_text(self) -> str:
-        labels = []
-        for index, view in enumerate(_VIEWS, 1):
-            label = f"{index}:{view}"
-            labels.append(f"[{label}]" if view == self._view else label)
-        return "  ".join(labels)
-
-    def _hints_text(self) -> str:
-        return (
-            "r range  b band  s status  1-5 views  e edges  "
-            "o open source  y copy id  g canonical  v verify  "
-            "^r refresh  ^e inventory"
-        )
-
-
-def _replace_filters(
-    filters: _EpisodeExplorerFilters,
-    **changes: Any,
-) -> _EpisodeExplorerFilters:
-    return replace(filters, **changes)
-
-
-def _cycle_value[T: str](
-    values: tuple[T, ...],
-    current: T,
-    *,
-    step: int = 1,
-) -> T:
-    try:
-        index = values.index(current)
-    except ValueError:
-        return values[0]
-    return values[(index + step) % len(values)]
-
-
-def _display_rows(
-    items: list[EpisodeInventoryItem],
-    status: EpisodeExplorerStatus,
-) -> list[_EpisodeExplorerDisplayRow]:
-    rows: list[_EpisodeExplorerDisplayRow] = []
-    for item in items:
-        if status != "aliases":
-            rows.append(
-                _EpisodeExplorerDisplayRow(
-                    item=item,
-                    display_episode_id=item.row.episode_id,
-                    canonical_episode_id=item.row.episode_id,
-                )
-            )
-        if status in {"all", "aliases"}:
-            for alias in item.aliases:
-                rows.append(
-                    _EpisodeExplorerDisplayRow(
-                        item=item,
-                        display_episode_id=alias.alias_episode_id,
-                        canonical_episode_id=alias.canonical_episode_id,
-                        is_alias=True,
-                        alias_reason=alias.reason,
-                    )
-                )
-    return rows
-
-
-def _matches_filters(
-    item: EpisodeInventoryItem,
-    filters: _EpisodeExplorerFilters,
-    *,
-    today: date,
-) -> bool:
-    if filters.band != "all" and item.row.importance_band.lower() != filters.band:
-        return False
-    if filters.status == "v1" and item.version != "v1":
-        return False
-    if filters.status == "v2" and item.version != "v2":
-        return False
-    if filters.status == "aliases" and not item.aliases:
-        return False
-    since, until = _range_bounds(filters.quick_range, today=today)
-    if not _matches_date_window(item, since=since, until=until):
-        return False
-    if not _contains_all(_agent_haystack(item), filters.agent):
-        return False
-    if not _contains_all(item.row.changespec_name or "", filters.changespec):
-        return False
-    if not _contains_all(" ".join(item.row.bead_ids), filters.bead):
-        return False
-    return _contains_all(_query_haystack(item), filters.query)
-
-
-def _range_bounds(
-    quick_range: EpisodeExplorerRange,
-    *,
-    today: date,
-) -> tuple[str | None, str | None]:
-    if quick_range == "all":
-        return None, None
-    if quick_range == "today":
-        text = today.isoformat()
-        return text, text
-    if quick_range == "yesterday":
-        text = (today - timedelta(days=1)).isoformat()
-        return text, text
-    if quick_range == "week":
-        return (today - timedelta(days=6)).isoformat(), today.isoformat()
-    first = today.replace(day=1)
-    return first.isoformat(), today.isoformat()
-
-
-def _matches_date_window(
-    item: EpisodeInventoryItem,
-    *,
-    since: str | None,
-    until: str | None,
-) -> bool:
-    if since is None and until is None:
-        return True
-    row = item.row
-    start = row.first_event_at or row.last_event_at
-    end = row.last_event_at or row.first_event_at
-    if start is None or end is None:
-        return False
-    start_key = compact_timestamp(start)
-    end_key = compact_timestamp(end)
-    if since is not None and end_key < since.replace("-", "") + "000000":
-        return False
-    if until is not None and start_key > until.replace("-", "") + "235959":
-        return False
-    return True
-
-
-def _contains_all(haystack: str, query: str) -> bool:
-    terms = [term.casefold() for term in query.split() if term.strip()]
-    if not terms:
-        return True
-    folded = haystack.casefold()
-    return all(term in folded for term in terms)
-
-
-def _agent_haystack(item: EpisodeInventoryItem) -> str:
-    return " ".join(item.row.root_agent_names)
-
-
-def _query_haystack(item: EpisodeInventoryItem) -> str:
-    row = item.row
-    return " ".join(
-        [
-            row.episode_id,
-            row.title,
-            row.summary_excerpt,
-            row.component_key,
-            row.status,
-            row.importance_band,
-            row.changespec_name or "",
-            row.outcome or "",
-            " ".join(row.root_agent_names),
-            " ".join(row.bead_ids),
-            " ".join(alias.alias_episode_id for alias in item.aliases),
-            " ".join(item.warnings),
-            item.version,
-        ]
-    )
-
-
-def _row_text(row: _EpisodeExplorerDisplayRow) -> Text:
-    text = Text(no_wrap=True)
-    item = row.item
-    if row.is_alias:
-        text.append("alias ", style="bold #D7AF5F")
-        text.append(_short(row.display_episode_id, 28), style="bold #87D7FF")
-        text.append(" -> ", style="dim")
-        text.append(_short(row.canonical_episode_id, 28), style="bold")
-        if row.alias_reason:
-            text.append(f"  {row.alias_reason}", style="dim")
-        text.append("\n")
-        text.append(f"  {_short(item.row.title, 76)}", style="dim")
-        return text
-    row_data = item.row
-    text.append(_time_span(row_data.first_event_at, row_data.last_event_at))
-    text.append(f"  {row_data.importance_band}", style="bold #D7AF5F")
-    text.append(f"  {row_data.status}", style="dim")
-    text.append(f"  {item.version}", style="dim #87D7FF")
-    if item.warnings:
-        text.append(f"  warnings={len(item.warnings)}", style="bold red")
-    text.append("\n")
-    text.append(f"  {_short(row_data.episode_id, 24)}", style="bold #87D7FF")
-    text.append(f"  {_short(row_data.title, 58)}")
-    details = _row_details(item)
-    if details:
-        text.append(f"\n  {_short(details, 86)}", style="dim")
-    return text
-
-
-def _row_details(item: EpisodeInventoryItem) -> str:
-    row = item.row
-    parts = []
-    if row.root_agent_names:
-        parts.append("agents=" + ",".join(row.root_agent_names))
-    if row.changespec_name:
-        parts.append(f"cl={row.changespec_name}")
-    if row.bead_ids:
-        parts.append("beads=" + ",".join(row.bead_ids))
-    parts.append(f"sources={row.source_count}")
-    if item.aliases:
-        parts.append(f"aliases={len(item.aliases)}")
-    return "  ".join(parts)
-
-
-def _time_span(first: str | None, last: str | None) -> str:
-    start = _format_timestamp(first)
-    end = _format_timestamp(last)
-    if start and end and start != end:
-        return f"{start}..{end}"
-    return start or end or "undated"
-
-
-def _format_timestamp(value: str | None) -> str:
-    if not value:
-        return ""
-    compact = compact_timestamp(value)
-    if len(compact) >= 12 and compact[:12].isdigit():
-        return (
-            f"{compact[:4]}-{compact[4:6]}-{compact[6:8]} "
-            f"{compact[8:10]}:{compact[10:12]}"
-        )
-    if len(compact) >= 8 and compact[:8].isdigit():
-        return f"{compact[:4]}-{compact[4:6]}-{compact[6:8]}"
-    return value
-
-
-def _short(value: str, limit: int) -> str:
-    if len(value) <= limit:
-        return value
-    if limit <= 3:
-        return value[:limit]
-    return value[: limit - 3] + "..."
 
 
 __all__ = [
