@@ -53,57 +53,66 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         scope = selection_scope if isinstance(selection_scope, SelectionItem) else None
         log_revive_started(agents=[agent], selection_scope=scope)
 
+        child_agents: list[Agent] = []
         child_raw_suffixes: set[str] = set()
-        stage = "dismissed_set_update"
+        revived_suffixes: set[str] = set()
+        if agent.raw_suffix:
+            revived_suffixes.add(agent.raw_suffix)
+            if not agent.is_workflow_child:
+                child_agents = [
+                    dismissed_agent
+                    for dismissed_agent in list(self._dismissed_agent_objects)
+                    if is_child_of(dismissed_agent, agent)
+                ]
+                for dismissed_agent in child_agents:
+                    if dismissed_agent.raw_suffix:
+                        child_raw_suffixes.add(dismissed_agent.raw_suffix)
+                        revived_suffixes.add(dismissed_agent.raw_suffix)
+
+        stage = "artifact_restore"
         try:
-            self._dismissed_agents.discard(agent.identity)
-            revived_suffixes: set[str] = set()
-            if agent.raw_suffix:
-                revived_suffixes.add(agent.raw_suffix)
-
-            # Also revive child steps and follow-up agents (e.g. .code, .q)
-            if not agent.is_workflow_child and agent.raw_suffix:
-                for dismissed_agent in list(self._dismissed_agent_objects):
-                    if is_child_of(dismissed_agent, agent):
-                        self._dismissed_agents.discard(dismissed_agent.identity)
-                        if dismissed_agent.raw_suffix:
-                            child_raw_suffixes.add(dismissed_agent.raw_suffix)
-                            revived_suffixes.add(dismissed_agent.raw_suffix)
-
-            # Remove all dismissed aliases that share revived suffixes.
-            self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
-
-            if save_dismissed_agents(self._dismissed_agents):
-                try:
-                    sync_dismissed_agent_artifact_index(
-                        self._dismissed_agents,
-                        added=(),
-                    )
-                except Exception:
-                    pass
-
-            stage = "artifact_restore"
             # Restore minimal artifact files so load_all_agents() rediscovers
             # the agent.
             self._restore_agent_artifacts(agent)
             revived_artifact_dirs = [revived_artifact_dir(agent)]
 
             # Also restore child step / follow-up artifacts for workflow parents
-            if not agent.is_workflow_child and agent.raw_suffix:
-                for dismissed_agent in list(self._dismissed_agent_objects):
-                    if is_child_of(dismissed_agent, agent):
-                        self._restore_agent_artifacts(
-                            dismissed_agent,
-                            parent_artifacts_dir=agent.artifacts_dir,
-                        )
-                        revived_artifact_dirs.append(
-                            revived_artifact_dir(
-                                dismissed_agent,
-                                parent_artifacts_dir=agent.artifacts_dir,
-                            )
-                        )
-            upsert_agent_artifact_index_artifacts(revived_artifact_dirs)
+            for dismissed_agent in child_agents:
+                self._restore_agent_artifacts(
+                    dismissed_agent,
+                    parent_artifacts_dir=agent.artifacts_dir,
+                )
+                revived_artifact_dirs.append(
+                    revived_artifact_dir(
+                        dismissed_agent,
+                        parent_artifacts_dir=agent.artifacts_dir,
+                    )
+                )
 
+            stage = "dismissed_set_update"
+            original_dismissed_agents = set(self._dismissed_agents)
+            try:
+                self._dismissed_agents.discard(agent.identity)
+                for dismissed_agent in child_agents:
+                    self._dismissed_agents.discard(dismissed_agent.identity)
+
+                # Remove all dismissed aliases that share revived suffixes.
+                self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
+
+                if save_dismissed_agents(self._dismissed_agents):
+                    try:
+                        sync_dismissed_agent_artifact_index(
+                            self._dismissed_agents,
+                            added=(),
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                self._dismissed_agents = original_dismissed_agents
+                raise
+
+            stage = "artifact_index"
+            upsert_agent_artifact_index_artifacts(revived_artifact_dirs)
             stage = "bundle_marking"
             mark_bundles_revived_by_suffixes(revived_suffixes)
             self._record_revived_agent_suffixes(revived_suffixes)
@@ -191,59 +200,33 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             group_title=group_title,
         )
 
-        # Phase 1: Remove all from dismissed set (including children/follow-ups)
-        # and collect suffixes for archive revival marks.
+        # Phase 1: Plan dismissed-set removals (including children/follow-ups)
+        # and collect suffixes for archive revival marks. Disk state is not
+        # mutated until artifact restoration succeeds.
         child_suffixes_map: dict[tuple[AgentType, str, str | None], set[str]] = {}
+        identities_map: dict[
+            tuple[AgentType, str, str | None],
+            set[tuple[AgentType, str, str | None]],
+        ] = {}
         suffixes_map: dict[tuple[AgentType, str, str | None], set[str]] = {}
-        revived_suffixes: set[str] = set()
-        stage = "dismissed_set_update"
-        try:
-            for agent in valid_agents:
-                self._dismissed_agents.discard(agent.identity)
-                agent_suffixes: set[str] = set()
-                if agent.raw_suffix:
-                    agent_suffixes.add(agent.raw_suffix)
-                child_suffixes: set[str] = set()
-                if not agent.is_workflow_child and agent.raw_suffix:
-                    for dismissed_agent in list(self._dismissed_agent_objects):
-                        if is_child_of(dismissed_agent, agent):
-                            self._dismissed_agents.discard(dismissed_agent.identity)
-                            if dismissed_agent.raw_suffix:
-                                child_suffixes.add(dismissed_agent.raw_suffix)
-                                agent_suffixes.add(dismissed_agent.raw_suffix)
-                child_suffixes_map[agent.identity] = child_suffixes
-                suffixes_map[agent.identity] = agent_suffixes
-                revived_suffixes.update(agent_suffixes)
+        for agent in valid_agents:
+            identities_to_remove = {agent.identity}
+            agent_suffixes: set[str] = set()
+            if agent.raw_suffix:
+                agent_suffixes.add(agent.raw_suffix)
+            child_suffixes: set[str] = set()
+            if not agent.is_workflow_child and agent.raw_suffix:
+                for dismissed_agent in list(self._dismissed_agent_objects):
+                    if is_child_of(dismissed_agent, agent):
+                        identities_to_remove.add(dismissed_agent.identity)
+                        if dismissed_agent.raw_suffix:
+                            child_suffixes.add(dismissed_agent.raw_suffix)
+                            agent_suffixes.add(dismissed_agent.raw_suffix)
+            child_suffixes_map[agent.identity] = child_suffixes
+            identities_map[agent.identity] = identities_to_remove
+            suffixes_map[agent.identity] = agent_suffixes
 
-            # Remove all dismissed aliases that share revived suffixes.
-            self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
-
-            # Phase 2: Single disk write for dismissed set
-            if save_dismissed_agents(self._dismissed_agents):
-                try:
-                    sync_dismissed_agent_artifact_index(
-                        self._dismissed_agents,
-                        added=(),
-                    )
-                except Exception:
-                    pass
-        except Exception as exc:
-            for agent in valid_agents:
-                log_revive_failure(
-                    stage=stage,
-                    agent=agent,
-                    error=exc,
-                    batch_size=batch_size,
-                    selection_scope=scope,
-                    group_id=group_id,
-                    group_title=group_title,
-                )
-            self.notify(  # type: ignore[attr-defined]
-                f"Failed to revive {batch_size} agents: {exc}", severity="error"
-            )
-            return False
-
-        # Phase 3: Restore artifacts. Per-agent failures
+        # Phase 2: Restore artifacts. Per-agent failures
         # produce a per-agent ``agent_revive_failed`` event, so partial
         # success leaves an accurate log.
         succeeded: list[Agent] = []
@@ -281,6 +264,47 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             succeeded.append(agent)
             succeeded_suffixes.update(suffixes_map.get(agent.identity, set()))
 
+        if not succeeded:
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to revive {batch_size} agents", severity="error"
+            )
+            return False
+
+        stage = "dismissed_set_update"
+        original_dismissed_agents = set(self._dismissed_agents)
+        try:
+            for agent in succeeded:
+                for identity in identities_map.get(agent.identity, {agent.identity}):
+                    self._dismissed_agents.discard(identity)
+            # Remove all dismissed aliases that share successfully revived suffixes.
+            self._remove_dismissed_aliases_for_suffixes(succeeded_suffixes)
+
+            # Phase 3: Single disk write for dismissed set
+            if save_dismissed_agents(self._dismissed_agents):
+                try:
+                    sync_dismissed_agent_artifact_index(
+                        self._dismissed_agents,
+                        added=(),
+                    )
+                except Exception:
+                    pass
+        except Exception as exc:
+            self._dismissed_agents = original_dismissed_agents
+            for agent in succeeded:
+                log_revive_failure(
+                    stage=stage,
+                    agent=agent,
+                    error=exc,
+                    batch_size=batch_size,
+                    selection_scope=scope,
+                    group_id=group_id,
+                    group_title=group_title,
+                )
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to revive {len(succeeded)} agents: {exc}", severity="error"
+            )
+            return False
+
         upsert_agent_artifact_index_artifacts(revived_artifact_dirs)
 
         try:
@@ -314,14 +338,14 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         self._record_revived_agent_suffixes(succeeded_suffixes)
 
         # Phase 4: Single notification and async refresh
-        count = len(valid_agents)
+        count = len(succeeded)
         self.notify(f"Revived {count} agent{'s' if count != 1 else ''}")  # type: ignore[attr-defined]
 
         revive_candidates = [
-            agent for agent in valid_agents if not agent.is_workflow_child
+            agent for agent in succeeded if not agent.is_workflow_child
         ]
         if not revive_candidates:
-            revive_candidates = list(valid_agents)
+            revive_candidates = list(succeeded)
 
         # Patch visible rows from the cached list while the async load
         # reconciles dismissed-set removal off-thread, then run the

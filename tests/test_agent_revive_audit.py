@@ -62,7 +62,7 @@ def test_single_revive_failure_emits_failed_event_and_notifies(
 
     with (
         patch("sase.logs.run_log.EVENTS_FILE", str(events_file)),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(agent)
@@ -78,6 +78,8 @@ def test_single_revive_failure_emits_failed_event_and_notifies(
     assert any(sev == "error" for _, sev in app.notifications)
     # No success event was emitted.
     assert not any(e["event"] == "agent_revived" for e in events)
+    assert app._dismissed_agents == {agent.identity}
+    mock_save.assert_not_called()
 
 
 def test_no_dismissed_agents_emits_failure_event(tmp_path: Path) -> None:
@@ -137,8 +139,10 @@ def test_batch_revive_emits_per_agent_terminal_events(tmp_path: Path) -> None:
 
     with (
         patch("sase.logs.run_log.EVENTS_FILE", str(events_file)),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
-        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
+        ) as mock_mark,
     ):
         app._do_revive_agents([parent_one, parent_two, parent_three])
 
@@ -155,3 +159,6 @@ def test_batch_revive_emits_per_agent_terminal_events(tmp_path: Path) -> None:
     assert failures[0]["error_type"] == "RuntimeError"
     success_cl_names = {e["cl_name"] for e in successes}
     assert success_cl_names == {"f1", "f3"}
+    assert app._dismissed_agents == {parent_two.identity}
+    mock_save.assert_called_once()
+    mock_mark.assert_called_once_with({"20260301120000", "20260301140000"})
