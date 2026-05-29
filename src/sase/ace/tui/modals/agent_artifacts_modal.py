@@ -83,7 +83,7 @@ def _artifact_resolved_display_path(artifact: Any) -> Path | None:
         return None
     path = Path(path_text).expanduser()
     if not path.is_absolute():
-        workspace_dir = _artifact_workspace_dir(artifact)
+        workspace_dir = _artifact_clipboard_workspace_dir(artifact)
         if workspace_dir:
             path = Path(workspace_dir).expanduser() / path
     return path
