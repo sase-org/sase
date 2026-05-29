@@ -1,0 +1,231 @@
+"""Tests for soft live completion in the prompt input."""
+
+from __future__ import annotations
+
+from unittest.mock import patch
+
+from textual.widgets import Static
+
+from sase.ace.tui.widgets.prompt_completion import (
+    PromptCompletionSettings,
+    build_prompt_soft_completion,
+    parse_prompt_completion_settings,
+)
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    XPromptInputHint,
+)
+
+from ._completion_helpers import CompletionTestApp
+
+
+class RecordingCompletionTestApp(CompletionTestApp):
+    """Completion test app that records submitted prompt values."""
+
+    def __init__(self, snippets: dict[str, str] | None = None) -> None:
+        super().__init__(snippets=snippets)
+        self.submitted: list[str] = []
+
+    def on_prompt_input_bar_submitted(
+        self,
+        message: PromptInputBar.Submitted,
+    ) -> None:
+        self.submitted.append(message.value)
+
+
+def _input(
+    name: str,
+    type_: str,
+    *,
+    position: int = 0,
+) -> XPromptInputHint:
+    return XPromptInputHint(
+        name=name,
+        type=type_,
+        required=True,
+        default_display=None,
+        position=position,
+    )
+
+
+def _entry(
+    name: str,
+    *,
+    prefix: str = "#",
+    inputs: tuple[XPromptInputHint, ...] = (),
+    is_skill: bool = False,
+) -> XPromptAssistEntry:
+    return XPromptAssistEntry(
+        name=name,
+        insertion=f"{prefix}{name}",
+        reference_prefix=prefix,
+        kind="xprompt",
+        input_signature=None,
+        inputs=inputs,
+        content_preview=None,
+        is_skill=is_skill,
+    )
+
+
+def _seed_entries(
+    ta: PromptTextArea,
+    entries: list[XPromptAssistEntry],
+    project: str | None = None,
+) -> None:
+    ta._xprompt_arg_assist_entries_by_project[project] = entries
+
+
+def _compute_soft_now(ta: PromptTextArea) -> None:
+    ta._clear_soft_completion(cancel_timer=True)
+    ta._prompt_completion_generation += 1
+    generation = ta._prompt_completion_generation
+    ta._fire_prompt_completion_timer(
+        generation,
+        ta.text,
+        ta._absolute_offset(ta.cursor_location),
+    )
+
+
+def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
+    assert parse_prompt_completion_settings({}) == PromptCompletionSettings()
+    assert parse_prompt_completion_settings({"auto": False}).auto == "off"
+    assert parse_prompt_completion_settings({"auto": "soft"}).auto == "soft"
+    parsed = parse_prompt_completion_settings(
+        {"debounce_ms": "-1", "auto_file_paths": True, "max_auto_rows": "0"}
+    )
+    assert parsed.debounce_ms == 0
+    assert parsed.auto_file_paths is True
+    assert parsed.max_auto_rows == 1
+
+
+def test_xprompt_soft_builder_uses_warm_entries_only() -> None:
+    entries = [_entry("review")]
+    with patch(
+        "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+        side_effect=AssertionError("cold catalog build"),
+    ):
+        suggestion = build_prompt_soft_completion(
+            text="#r",
+            cursor_offset=2,
+            settings=PromptCompletionSettings(),
+            xprompt_entries=entries,
+        )
+        cold = build_prompt_soft_completion(
+            text="#r",
+            cursor_offset=2,
+            settings=PromptCompletionSettings(),
+            xprompt_entries=None,
+        )
+
+    assert suggestion is not None
+    assert suggestion.display == "#review"
+    assert cold is None
+
+
+async def test_soft_xprompt_suggestion_accepts_with_ctrl_l_not_enter() -> None:
+    app = RecordingCompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [_entry("review", inputs=(_input("path", "path"),))])
+
+        ta.load_text("#r")
+        ta.cursor_location = (0, 2)
+        _compute_soft_now(ta)
+
+        assert bar.border_subtitle == "[^L] accept #review"
+        await pilot.press("enter")
+        assert app.submitted == ["#r"]
+        assert ta._soft_completion is None
+
+        ta.load_text("#r")
+        ta.cursor_location = (0, 2)
+        _compute_soft_now(ta)
+        await pilot.press("ctrl+l")
+
+    assert ta.text == "#review:"
+    assert ta._active_xprompt_arg_hint is not None
+
+
+async def test_soft_directive_suggestion_replaces_only_with_ctrl_l() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%mo")
+        ta.cursor_location = (0, 3)
+        _compute_soft_now(ta)
+
+        assert bar.border_subtitle == "[^L] accept %model"
+        await pilot.press("ctrl+l")
+
+    assert ta.text == "%model"
+    assert ta._file_completion_active is False
+
+
+async def test_soft_xprompt_arg_name_and_bool_value_suggestions() -> None:
+    entry = _entry(
+        "review",
+        inputs=(
+            _input("path", "path", position=0),
+            _input("enabled", "bool", position=1),
+        ),
+    )
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [entry])
+
+        ta.load_text("#review(e")
+        ta.cursor_location = (0, len("#review(e"))
+        _compute_soft_now(ta)
+        assert bar.border_subtitle == "[^L] accept enabled="
+        await pilot.press("ctrl+l")
+        assert ta.text == "#review(enabled="
+
+        ta.load_text("#review(enabled=)")
+        ta.cursor_location = (0, len("#review(enabled="))
+        _compute_soft_now(ta)
+        assert bar.border_subtitle == "[^L] accept true"
+        await pilot.press("ctrl+l")
+
+    assert ta.text == "#review(enabled=true)"
+
+
+async def test_soft_completion_does_not_hide_ctrl_t_panel_path() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [_entry("review"), _entry("ship")])
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+        _compute_soft_now(ta)
+        assert ta._soft_completion is not None
+
+        await pilot.press("ctrl+t")
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert ta._soft_completion is None
+        assert ta._file_completion_active is True
+        assert panel.border_title == "xprompts"
+        assert "#review" in panel.render().plain
+
+
+async def test_cold_cache_auto_completion_does_not_build_catalog_sync() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#r")
+        ta.cursor_location = (0, 2)
+
+        with patch(
+            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
+            side_effect=AssertionError("cold catalog build"),
+        ):
+            _compute_soft_now(ta)
+
+    assert ta._soft_completion is None

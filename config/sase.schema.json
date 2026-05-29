@@ -97,6 +97,53 @@
             "type": "string"
           }
         },
+        "prompt_completion": {
+          "type": "object",
+          "description": "Live completion settings for the ACE prompt input",
+          "additionalProperties": false,
+          "properties": {
+            "auto": {
+              "description": "Automatic prompt completion mode. Use 'soft' for subtitle suggestions or false/off to disable.",
+              "oneOf": [
+                { "type": "boolean" },
+                {
+                  "type": "string",
+                  "enum": [
+                    "soft",
+                    "on",
+                    "off",
+                    "true",
+                    "false",
+                    "yes",
+                    "no",
+                    "1",
+                    "0",
+                    "none",
+                    "disabled"
+                  ]
+                }
+              ],
+              "default": "soft"
+            },
+            "debounce_ms": {
+              "type": "integer",
+              "description": "Delay in milliseconds before computing live prompt suggestions",
+              "minimum": 0,
+              "default": 90
+            },
+            "auto_file_paths": {
+              "type": "boolean",
+              "description": "Whether automatic completion may scan file path candidates while typing",
+              "default": false
+            },
+            "max_auto_rows": {
+              "type": "integer",
+              "description": "Maximum automatic completion rows reserved for future popup modes",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        },
         "keymaps": {
           "type": "object",
           "description": "Keymap configuration for the TUI",

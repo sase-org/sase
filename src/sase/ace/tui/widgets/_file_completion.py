@@ -61,6 +61,9 @@ class FileCompletionMixin(_MixinBase):
         def _clear_xprompt_arg_hint(self) -> None: ...
         def _show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None: ...
         def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]: ...
+        def _get_warm_xprompt_arg_assist_entries(
+            self,
+        ) -> list[XPromptAssistEntry] | None: ...
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
         def _expand_snippet_template_at_range(
             self,
@@ -224,6 +227,8 @@ class FileCompletionMixin(_MixinBase):
         if "#" not in self.text:
             return None
         cursor_offset = self._absolute_offset(self.cursor_location)
+        if not _cursor_prefix_may_contain_xprompt_args(self.text, cursor_offset):
+            return None
         return detect_xprompt_arg_completion_at_cursor(
             self.text,
             cursor_offset,
@@ -239,7 +244,7 @@ class FileCompletionMixin(_MixinBase):
         end_row, end = self._location_from_absolute(ctx.value_end)
         if row != end_row:
             return None
-        return row, start, end, _effective_xprompt_arg_token(ctx)
+        return row, start, end, effective_xprompt_arg_token(ctx)
 
     def _move_file_completion(self, delta: int) -> bool:
         """Move highlighted completion candidate."""
@@ -347,7 +352,7 @@ class FileCompletionMixin(_MixinBase):
                 self._file_completion_index
             ].insertion
         if self._completion_kind == "xprompt":
-            candidates, _shared = build_xprompt_completion_candidates(token)
+            candidates, _shared = self._build_xprompt_completion_candidates(token)
         elif self._completion_kind == "directive":
             candidates, _shared = build_directive_completion_candidates(token)
         elif self._completion_kind.startswith("xprompt_arg_"):
@@ -355,7 +360,7 @@ class FileCompletionMixin(_MixinBase):
             if arg_ctx is None:
                 self._clear_file_completion()
                 return
-            candidates, _shared = _build_xprompt_arg_completion_candidates(arg_ctx)
+            candidates, _shared = build_xprompt_arg_completion_candidates(arg_ctx)
         else:
             candidates, _shared = build_completion_candidates(token)
         if not candidates:
@@ -406,8 +411,8 @@ class FileCompletionMixin(_MixinBase):
                     self._clear_file_completion()
                     return False
                 row, start, end, token = ctx
-                candidates, shared_extension = build_xprompt_completion_candidates(
-                    token
+                candidates, shared_extension = (
+                    self._build_xprompt_completion_candidates(token)
                 )
             elif is_path_like_token(raw_token):
                 self._completion_kind = "file"
@@ -453,7 +458,7 @@ class FileCompletionMixin(_MixinBase):
                 return True
             row, start, end, token = ctx
             if self._completion_kind == "xprompt":
-                candidates, _ = build_xprompt_completion_candidates(token)
+                candidates, _ = self._build_xprompt_completion_candidates(token)
             elif self._completion_kind == "directive":
                 candidates, _ = build_directive_completion_candidates(token)
             elif self._completion_kind.startswith("xprompt_arg_"):
@@ -461,7 +466,7 @@ class FileCompletionMixin(_MixinBase):
                 if arg_ctx is None:
                     self._clear_file_completion()
                     return True
-                candidates, _ = _build_xprompt_arg_completion_candidates(arg_ctx)
+                candidates, _ = build_xprompt_arg_completion_candidates(arg_ctx)
             else:
                 candidates, _ = build_completion_candidates(token)
             if not candidates:
@@ -479,7 +484,7 @@ class FileCompletionMixin(_MixinBase):
         ctx: XPromptArgCompletionContext,
     ) -> bool:
         """Handle Ctrl+T-driven completion inside xprompt argument syntax."""
-        candidates, shared_extension = _build_xprompt_arg_completion_candidates(ctx)
+        candidates, shared_extension = build_xprompt_arg_completion_candidates(ctx)
         self._completion_kind = ctx.completion_kind
 
         if not candidates:
@@ -496,7 +501,7 @@ class FileCompletionMixin(_MixinBase):
             self._refresh_xprompt_arg_hint_from_cursor()
             return True
 
-        token = _effective_xprompt_arg_token(ctx)
+        token = effective_xprompt_arg_token(ctx)
         if shared_extension:
             next_token = f"{token}{shared_extension}"
             self._replace_absolute_range(ctx.value_start, ctx.value_end, next_token)
@@ -505,9 +510,9 @@ class FileCompletionMixin(_MixinBase):
                 self._clear_file_completion(clear_xprompt_arg_hint=False)
                 self._refresh_xprompt_arg_hint_from_cursor()
                 return True
-            candidates, _ = _build_xprompt_arg_completion_candidates(next_ctx)
+            candidates, _ = build_xprompt_arg_completion_candidates(next_ctx)
             ctx = next_ctx
-            token = _effective_xprompt_arg_token(ctx)
+            token = effective_xprompt_arg_token(ctx)
             self._completion_kind = ctx.completion_kind
             if not candidates:
                 self._clear_file_completion(clear_xprompt_arg_hint=False)
@@ -534,8 +539,18 @@ class FileCompletionMixin(_MixinBase):
         self._update_file_completion_panel("")
         return True
 
+    def _build_xprompt_completion_candidates(
+        self,
+        token: str,
+    ) -> tuple[list[CompletionCandidate], str]:
+        """Build xprompt candidates, reusing warm prompt-local cache if present."""
+        entries = self._get_warm_xprompt_arg_assist_entries()
+        if entries is not None:
+            return build_xprompt_completion_candidates(token, entries=entries)
+        return build_xprompt_completion_candidates(token)
 
-def _effective_xprompt_arg_token(ctx: XPromptArgCompletionContext) -> str:
+
+def effective_xprompt_arg_token(ctx: XPromptArgCompletionContext) -> str:
     """Return the token passed to an underlying completion engine."""
     if ctx.completion_kind != "xprompt_arg_path":
         return ctx.token
@@ -546,12 +561,12 @@ def _effective_xprompt_arg_token(ctx: XPromptArgCompletionContext) -> str:
     return f"./{ctx.token}"
 
 
-def _build_xprompt_arg_completion_candidates(
+def build_xprompt_arg_completion_candidates(
     ctx: XPromptArgCompletionContext,
 ) -> tuple[list[CompletionCandidate], str]:
     """Build candidates for an xprompt argument completion context."""
     if ctx.completion_kind == "xprompt_arg_path":
-        return build_completion_candidates(_effective_xprompt_arg_token(ctx))
+        return build_completion_candidates(effective_xprompt_arg_token(ctx))
     if ctx.completion_kind == "xprompt_arg_value":
         return _build_bool_completion_candidates(ctx.token)
     if ctx.completion_kind == "xprompt_arg_name":
@@ -574,6 +589,16 @@ def _build_bool_completion_candidates(
         if value.startswith(partial)
     ]
     return candidates, ""
+
+
+def _cursor_prefix_may_contain_xprompt_args(text: str, cursor_offset: int) -> bool:
+    """Return True when the cursor prefix has possible xprompt arg syntax."""
+    prefix = text[:cursor_offset]
+    marker = prefix.rfind("#")
+    if marker == -1:
+        return False
+    suffix = prefix[marker:]
+    return ":" in suffix or "(" in suffix
 
 
 def _build_named_arg_completion_candidates(

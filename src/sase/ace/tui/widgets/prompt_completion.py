@@ -1,0 +1,254 @@
+"""Soft live completion helpers for the ACE prompt input."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Literal
+
+from sase.ace.tui.widgets._file_completion import (
+    build_xprompt_arg_completion_candidates,
+    effective_xprompt_arg_token,
+)
+from sase.ace.tui.widgets.directive_completion import (
+    build_directive_completion_candidates,
+    extract_directive_token_around_cursor,
+)
+from sase.ace.tui.widgets.file_completion import (
+    CompletionCandidate,
+    build_completion_candidates,
+    extract_token_around_cursor,
+    is_path_like_token,
+)
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    detect_xprompt_arg_completion_at_cursor,
+)
+from sase.ace.tui.widgets.xprompt_completion import (
+    build_xprompt_completion_candidates,
+    is_xprompt_like_token,
+)
+
+PromptCompletionAutoMode = Literal["off", "soft"]
+
+
+@dataclass(frozen=True, slots=True)
+class PromptCompletionSettings:
+    """Parsed prompt completion settings for the TUI prompt bar."""
+
+    auto: PromptCompletionAutoMode = "soft"
+    debounce_ms: int = 90
+    auto_file_paths: bool = False
+    max_auto_rows: int = 1
+
+
+@dataclass(frozen=True, slots=True)
+class PromptSoftCompletion:
+    """A single non-disruptive prompt completion suggestion."""
+
+    candidate: CompletionCandidate
+    completion_kind: str
+    replacement_start: int
+    replacement_end: int
+    replacement_token: str
+    display: str
+
+
+DEFAULT_PROMPT_COMPLETION_SETTINGS = PromptCompletionSettings()
+
+
+def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
+    """Parse ``ace.prompt_completion`` with conservative fallbacks."""
+    if not isinstance(raw, dict):
+        raw = {}
+
+    auto = _parse_auto_mode(raw.get("auto", "soft"))
+    debounce_ms = _parse_non_negative_int(
+        raw.get("debounce_ms", DEFAULT_PROMPT_COMPLETION_SETTINGS.debounce_ms),
+        DEFAULT_PROMPT_COMPLETION_SETTINGS.debounce_ms,
+    )
+    auto_file_paths = bool(raw.get("auto_file_paths", False))
+    max_auto_rows = max(
+        1,
+        _parse_non_negative_int(
+            raw.get("max_auto_rows", DEFAULT_PROMPT_COMPLETION_SETTINGS.max_auto_rows),
+            DEFAULT_PROMPT_COMPLETION_SETTINGS.max_auto_rows,
+        ),
+    )
+    return PromptCompletionSettings(
+        auto=auto,
+        debounce_ms=debounce_ms,
+        auto_file_paths=auto_file_paths,
+        max_auto_rows=max_auto_rows,
+    )
+
+
+def build_prompt_soft_completion(
+    *,
+    text: str,
+    cursor_offset: int,
+    settings: PromptCompletionSettings,
+    xprompt_entries: list[XPromptAssistEntry] | None,
+) -> PromptSoftCompletion | None:
+    """Build the best warm soft completion at ``cursor_offset``."""
+    if settings.auto != "soft":
+        return None
+    if cursor_offset < 0 or cursor_offset > len(text):
+        return None
+
+    if xprompt_entries is not None and "#" in text:
+        arg_suggestion = _build_xprompt_arg_suggestion(
+            text,
+            cursor_offset,
+            xprompt_entries,
+            auto_file_paths=settings.auto_file_paths,
+        )
+        if arg_suggestion is not None:
+            return arg_suggestion
+
+    line_start = text.rfind("\n", 0, cursor_offset) + 1
+    line_end = text.find("\n", cursor_offset)
+    if line_end == -1:
+        line_end = len(text)
+    line = text[line_start:line_end]
+    col = cursor_offset - line_start
+
+    directive_ctx = extract_directive_token_around_cursor(line, col)
+    if directive_ctx is not None:
+        start, end, token = directive_ctx
+        candidates, _shared = build_directive_completion_candidates(token)
+        candidate = _first_candidate_that_changes(candidates, token)
+        if candidate is not None:
+            return _line_suggestion(
+                candidate,
+                "directive",
+                line_start,
+                start,
+                end,
+                token,
+            )
+
+    token_ctx = extract_token_around_cursor(line, col)
+    if token_ctx is None:
+        return None
+    start, end, token = token_ctx
+
+    if is_xprompt_like_token(token):
+        if xprompt_entries is None:
+            return None
+        candidates, _shared = build_xprompt_completion_candidates(
+            token,
+            entries=xprompt_entries,
+        )
+        candidate = _first_xprompt_soft_candidate(candidates, token)
+        if candidate is not None:
+            return _line_suggestion(
+                candidate,
+                "xprompt",
+                line_start,
+                start,
+                end,
+                token,
+            )
+
+    if settings.auto_file_paths and is_path_like_token(token):
+        candidates, _shared = build_completion_candidates(token)
+        candidate = _first_candidate_that_changes(candidates, token)
+        if candidate is not None:
+            return _line_suggestion(
+                candidate,
+                "file",
+                line_start,
+                start,
+                end,
+                token,
+            )
+
+    return None
+
+
+def _build_xprompt_arg_suggestion(
+    text: str,
+    cursor_offset: int,
+    entries: list[XPromptAssistEntry],
+    *,
+    auto_file_paths: bool,
+) -> PromptSoftCompletion | None:
+    ctx = detect_xprompt_arg_completion_at_cursor(text, cursor_offset, entries)
+    if ctx is None:
+        return None
+    if ctx.completion_kind == "xprompt_arg_path" and not auto_file_paths:
+        return None
+    candidates, _shared = build_xprompt_arg_completion_candidates(ctx)
+    token = effective_xprompt_arg_token(ctx)
+    candidate = _first_candidate_that_changes(candidates, token)
+    if candidate is None:
+        return None
+    return PromptSoftCompletion(
+        candidate=candidate,
+        completion_kind=ctx.completion_kind,
+        replacement_start=ctx.value_start,
+        replacement_end=ctx.value_end,
+        replacement_token=text[ctx.value_start : ctx.value_end],
+        display=candidate.display,
+    )
+
+
+def _line_suggestion(
+    candidate: CompletionCandidate,
+    completion_kind: str,
+    line_start: int,
+    start: int,
+    end: int,
+    token: str,
+) -> PromptSoftCompletion:
+    return PromptSoftCompletion(
+        candidate=candidate,
+        completion_kind=completion_kind,
+        replacement_start=line_start + start,
+        replacement_end=line_start + end,
+        replacement_token=token,
+        display=candidate.display,
+    )
+
+
+def _first_candidate_that_changes(
+    candidates: list[CompletionCandidate],
+    token: str,
+) -> CompletionCandidate | None:
+    for candidate in candidates:
+        if candidate.insertion != token:
+            return candidate
+    return None
+
+
+def _first_xprompt_soft_candidate(
+    candidates: list[CompletionCandidate],
+    token: str,
+) -> CompletionCandidate | None:
+    for candidate in candidates:
+        if candidate.insertion != token:
+            return candidate
+        if candidate.insertion.startswith("#"):
+            return candidate
+    return None
+
+
+def _parse_auto_mode(value: Any) -> PromptCompletionAutoMode:
+    if isinstance(value, bool):
+        return "soft" if value else "off"
+    if value is None:
+        return "off"
+    normalized = str(value).strip().lower()
+    if normalized in {"0", "false", "no", "off", "none", "disabled"}:
+        return "off"
+    if normalized in {"1", "true", "yes", "on", "soft"}:
+        return "soft"
+    return DEFAULT_PROMPT_COMPLETION_SETTINGS.auto
+
+
+def _parse_non_negative_int(value: Any, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(0, parsed)

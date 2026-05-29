@@ -6,7 +6,10 @@ import os
 import re
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.ace.tui.widgets.xprompt_arg_assist import build_xprompt_assist_entries
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    build_xprompt_assist_entries,
+)
 
 _SLASH_SKILL_TOKEN_RE = re.compile(r"^/[A-Za-z0-9_]*$")
 
@@ -26,6 +29,8 @@ def is_xprompt_like_token(token: str) -> bool:
 
 def build_xprompt_completion_candidates(
     token: str,
+    *,
+    entries: list[XPromptAssistEntry] | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
     """Build candidates and shared extension for an xprompt token.
 
@@ -40,8 +45,9 @@ def build_xprompt_completion_candidates(
     partial = token[2:] if standalone_only else token[1:]
     partial_lower = partial.lower()
 
+    source_entries = entries if entries is not None else build_xprompt_assist_entries()
     candidates: list[CompletionCandidate] = []
-    for entry in build_xprompt_assist_entries():
+    for entry in source_entries:
         if slash_skill:
             if not entry.is_skill:
                 continue

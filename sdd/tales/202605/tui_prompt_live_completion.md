@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 22:19:39
-status: wip
+status: done
 prompt: sdd/prompts/202605/tui_prompt_live_completion.md
 ---
 # TUI Prompt Live Completion Plan

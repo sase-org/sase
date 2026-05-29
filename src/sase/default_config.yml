@@ -29,6 +29,11 @@ ace:
   inactive_seconds: 600
   repro_output_dir: ""
   snippets: {}
+  prompt_completion:
+    auto: soft
+    debounce_ms: 90
+    auto_file_paths: false
+    max_auto_rows: 1
   keymaps:
     app:
       # Navigation

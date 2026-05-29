@@ -24,6 +24,7 @@ from ._state_init import StateInitMixin
 
 if TYPE_CHECKING:
     from .navigation._types import JumpAllResult
+    from ..widgets.prompt_completion import PromptCompletionSettings
 
 log = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ class StartupMixin(StateInitMixin):
     _last_full_sanity_refresh: float
     _user_snippets: dict[str, str]
     _snippets_cache: dict[str, str] | None
+    _prompt_completion_settings: PromptCompletionSettings
 
     def get_snippets(self) -> dict[str, str]:
         """Return the merged xprompt + user snippet registry, building on demand.
@@ -92,6 +94,10 @@ class StartupMixin(StateInitMixin):
         merged.update(self._user_snippets)
         self._snippets_cache = merged
         return merged
+
+    def get_prompt_completion_settings(self) -> PromptCompletionSettings:
+        """Return parsed prompt completion behavior settings."""
+        return self._prompt_completion_settings
 
     def _invalidate_saved_queries_cache(self) -> None:
         """Reload ``_saved_queries`` from disk after a save/delete.

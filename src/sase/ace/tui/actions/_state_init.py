@@ -536,6 +536,11 @@ class StateInitMixin:
             if isinstance(ace_cfg, dict)
             else ""
         )
+        from ..widgets.prompt_completion import parse_prompt_completion_settings
+
+        self._prompt_completion_settings = parse_prompt_completion_settings(
+            ace_cfg.get("prompt_completion", {}) if isinstance(ace_cfg, dict) else {}
+        )
         user_snippets: dict[str, str] = (
             ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
         )

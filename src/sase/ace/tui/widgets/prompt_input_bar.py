@@ -10,6 +10,7 @@ from textual.widgets import Static, TextArea
 
 from sase.ace.tui.widgets.directive_completion import DirectiveCompletionMetadata
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
+from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
     XPromptAssistEntry,
@@ -82,6 +83,8 @@ class PromptInputBar(Static):
         self._mode = mode
         self._completion_visible = False
         self._completion_line_count = 0
+        self._mode_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
+        self._soft_completion_visible = False
 
     @property
     def _base_title(self) -> str:
@@ -127,17 +130,27 @@ class PromptInputBar(Static):
         # Border title and subtitle
         self.border_title = self._base_title
         if self._mode in ("feedback", "approve_prompt"):
-            self.border_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
+            self.set_prompt_mode_subtitle("[Enter] send  [Esc] normal  [^C] cancel")
             self.add_class("feedback-mode")
         else:
-            self.border_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
+            self.set_prompt_mode_subtitle("[Enter] send  [Esc] normal  [^C] cancel")
+        text_area._warm_current_xprompt_assist_entries()
+        text_area._on_prompt_completion_context_changed()
         self._schedule_height_update()
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Update height and line numbers when text changes."""
-        text_area = self.query_one("#prompt-input", PromptTextArea)
+        text_area = event.text_area
+        if not isinstance(text_area, PromptTextArea):
+            text_area = self.query_one("#prompt-input", PromptTextArea)
         text_area.show_line_numbers = text_area.document.line_count > 1
+        text_area._on_prompt_completion_context_changed()
         self._schedule_height_update()
+
+    def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
+        """Refresh soft completion when the prompt cursor moves."""
+        if isinstance(event.text_area, PromptTextArea):
+            event.text_area._on_prompt_completion_context_changed()
 
     def _get_visual_line_count(self) -> int:
         """Count rendered text rows using Textual's wrapped document."""
@@ -335,6 +348,27 @@ class PromptInputBar(Static):
         self._completion_line_count = 0
         self._update_height()
 
+    def set_prompt_mode_subtitle(self, subtitle: str) -> None:
+        """Set the prompt mode subtitle, preserving any visible soft suggestion."""
+        self._mode_subtitle = subtitle
+        if not self._soft_completion_visible:
+            self.border_subtitle = subtitle
+
+    def show_soft_completion(self, suggestion: PromptSoftCompletion) -> None:
+        """Render a soft completion in the prompt bar subtitle."""
+        display = suggestion.display.replace("\n", " ").strip()
+        if len(display) > 48:
+            display = f"{display[:45]}..."
+        self._soft_completion_visible = True
+        self.border_subtitle = f"[^L] accept {display}"
+
+    def hide_soft_completion(self) -> None:
+        """Restore the mode subtitle when no soft completion is visible."""
+        if not self._soft_completion_visible:
+            return
+        self._soft_completion_visible = False
+        self.border_subtitle = self._mode_subtitle
+
     def show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
         """Show the post-accept xprompt argument hint panel."""
         panel = self.query_one("#prompt-completion", Static)
@@ -384,6 +418,7 @@ class PromptInputBar(Static):
     def action_cancel(self) -> None:
         """Cancel the input bar."""
         text_area = self.query_one("#prompt-input", PromptTextArea)
+        text_area._clear_soft_completion(cancel_timer=True)
         text_area._clear_xprompt_arg_hint()
         stripped = text_area.text.strip()
         self.post_message(self.Cancelled(cancelled_text=stripped, mode=self._mode))
