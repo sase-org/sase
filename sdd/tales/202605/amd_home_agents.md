@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-29 16:36:51
-status: wip
+status: done
 prompt: sdd/prompts/202605/amd_home_agents.md
 ---
 # Manage Home AGENTS.md With AMD

@@ -11,6 +11,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+import sase.config.core as config_core
 from sase.main.init_plan import InitAction, InitPlan
 
 from .constants import (
@@ -66,30 +67,89 @@ def _read_text(path: Path) -> tuple[str | None, str | None]:
         return None, f"{path}: failed to decode as UTF-8: {exc}"
 
 
-def _load_project_amd_h1_title(root: Path) -> tuple[str | None, str | None]:
-    config_path = root / "sase.yml"
-    if not config_path.exists():
-        return None, None
-    text, read_error = _read_text(config_path)
-    if read_error is not None:
+def _load_yaml_mapping(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    text, read_error = _read_text(path)
+    if read_error is not None or text is None:
         return None, read_error
     try:
         data = yaml.safe_load(text or "")
     except yaml.YAMLError as exc:
-        return None, f"{config_path}: failed to parse YAML: {exc}"
+        return None, f"{path}: failed to parse YAML: {exc}"
     if data is None:
         return None, None
     if not isinstance(data, dict):
-        return None, f"{config_path}: expected a YAML mapping at the top level"
-    raw = data.get("amd_h1_title")
+        return None, f"{path}: expected a YAML mapping at the top level"
+    return data, None
+
+
+def _validate_amd_h1_title(raw: object, *, path: Path) -> tuple[str | None, str | None]:
     if raw is None:
         return None, None
     if not isinstance(raw, str):
-        return None, f"{config_path}: amd_h1_title must be a string or null"
+        return None, f"{path}: amd_h1_title must be a string or null"
     title = raw.strip()
     if not title:
-        return None, f"{config_path}: amd_h1_title must not be empty"
+        return None, f"{path}: amd_h1_title must not be empty"
     return title, None
+
+
+def _load_project_amd_h1_title(root: Path) -> tuple[str | None, str | None]:
+    config_path = root / "sase.yml"
+    if not config_path.exists():
+        return None, None
+    data, load_error = _load_yaml_mapping(config_path)
+    if load_error is not None:
+        return None, load_error
+    if data is None or "amd_h1_title" not in data:
+        return None, None
+    return _validate_amd_h1_title(data["amd_h1_title"], path=config_path)
+
+
+def _same_resolved_path(left: Path, right: Path) -> bool:
+    return left.resolve(strict=False) == right.resolve(strict=False)
+
+
+def _user_config_dir_for_home_amd_root(root: Path) -> Path | None:
+    if _same_resolved_path(root, Path.home()):
+        return config_core.CONFIG_DIR
+    if _same_resolved_path(root, config_core.CHEZMOI_HOME):
+        return config_core.CHEZMOI_HOME / "dot_config" / "sase"
+    return None
+
+
+def _user_config_paths(config_dir: Path) -> tuple[Path, ...]:
+    overlays = sorted(config_dir.glob("sase_*.yml")) if config_dir.is_dir() else []
+    return (config_dir / "sase.yml", *overlays)
+
+
+def _load_user_amd_h1_title(config_dir: Path) -> tuple[str | None, str | None]:
+    title: str | None = None
+    for config_path in _user_config_paths(config_dir):
+        if not config_path.exists():
+            continue
+        data, load_error = _load_yaml_mapping(config_path)
+        if load_error is not None:
+            return None, load_error
+        if data is None or "amd_h1_title" not in data:
+            continue
+        title, title_error = _validate_amd_h1_title(
+            data["amd_h1_title"],
+            path=config_path,
+        )
+        if title_error is not None:
+            return None, title_error
+    return title, None
+
+
+def _load_amd_h1_title(root: Path) -> tuple[str | None, str | None]:
+    title, title_error = _load_project_amd_h1_title(root)
+    if title is not None or title_error is not None:
+        return title, title_error
+
+    config_dir = _user_config_dir_for_home_amd_root(root)
+    if config_dir is None:
+        return None, None
+    return _load_user_amd_h1_title(config_dir)
 
 
 def _is_shim_text(text: str) -> bool:
@@ -402,7 +462,7 @@ def _render_managed_agents(
 def plan_amd_memory_sync(root: Path | None = None) -> AmdMemorySyncPlan:
     """Plan AMD-managed memory block synchronization for ``sase memory init``."""
     root = root or Path.cwd()
-    title, title_error = _load_project_amd_h1_title(root)
+    title, title_error = _load_amd_h1_title(root)
     if title_error is not None:
         return AmdMemorySyncPlan(
             title=None,
@@ -506,7 +566,7 @@ def _build_amd_init_plan(
 ) -> _AmdInitPlan:
     """Return the pure AMD init plan for *root* without writing files."""
     root = root or Path.cwd()
-    title, title_error = _load_project_amd_h1_title(root)
+    title, title_error = _load_amd_h1_title(root)
     provider_statuses, provider_errors = _provider_statuses(root)
     blockers = tuple(error for error in (title_error, *provider_errors) if error)
     writes: list[_PlannedWrite] = []

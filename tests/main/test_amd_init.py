@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import sase.amd.init as amd_init
 from sase.amd.constants import (
     LONG_MEMORY_END_MARKER,
     LONG_MEMORY_START_MARKER,
@@ -158,7 +159,10 @@ def test_amd_init_generates_managed_agents_from_project_local_title(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    config_dir = tmp_path / "config"
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(amd_init.config_core, "CONFIG_DIR", config_dir)
+    write(config_dir / "sase_athena.yml", 'amd_h1_title: "Global Title"\n')
     write(tmp_path / "sase.yml", 'amd_h1_title: "Managed Agent Instructions"\n')
     write(tmp_path / "memory" / "short" / "sase.md", "# SASE\n")
     write(tmp_path / "memory" / "short" / "extra.md", "# Extra\n")
@@ -199,13 +203,15 @@ def test_amd_init_ignores_global_amd_h1_title(
 ) -> None:
     home = tmp_path / "home"
     project = tmp_path / "project"
+    config_dir = home / ".config" / "sase"
     home.mkdir()
     project.mkdir()
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.chdir(project)
+    monkeypatch.setattr(amd_init.config_core, "CONFIG_DIR", config_dir)
     write(
-        home / ".config" / "sase" / "sase.yml",
-        'amd_h1_title: "Global Title Must Be Ignored"\n',
+        config_dir / "sase_athena.yml",
+        'amd_h1_title: "Global Overlay Title Must Be Ignored"\n',
     )
 
     assert run_amd() == 0
@@ -213,5 +219,63 @@ def test_amd_init_ignores_global_amd_h1_title(
     assert not (project / "AGENTS.md").exists()
     for filename in PROVIDER_SHIM_FILES:
         assert (project / filename).read_text(encoding="utf-8") == (
+            PROVIDER_SHIM_CONTENT
+        )
+
+
+def test_amd_init_manages_live_home_from_user_overlay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    config_dir = home / ".config" / "sase"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.chdir(home)
+    monkeypatch.setattr(amd_init.config_core, "CONFIG_DIR", config_dir)
+    monkeypatch.setattr(
+        amd_init.config_core,
+        "CHEZMOI_HOME",
+        tmp_path / "chezmoi" / "home",
+    )
+    write(config_dir / "sase_athena.yml", 'amd_h1_title: "Athena Home"\n')
+    write(home / "memory" / "short" / "sase.md", "# SASE\n")
+
+    assert run_amd() == 0
+
+    agents = (home / "AGENTS.md").read_text(encoding="utf-8")
+    assert agents.startswith("# Athena Home\n")
+    assert "- @memory/short/sase.md" in agents
+    for filename in PROVIDER_SHIM_FILES:
+        assert (home / filename).read_text(encoding="utf-8") == (PROVIDER_SHIM_CONTENT)
+
+
+def test_amd_init_manages_chezmoi_home_from_source_overlay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    live_home = tmp_path / "home"
+    live_config_dir = live_home / ".config" / "sase"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    live_home.mkdir()
+    chezmoi_home.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(live_home))
+    monkeypatch.chdir(chezmoi_home)
+    monkeypatch.setattr(amd_init.config_core, "CONFIG_DIR", live_config_dir)
+    monkeypatch.setattr(amd_init.config_core, "CHEZMOI_HOME", chezmoi_home)
+    write(live_config_dir / "sase_athena.yml", 'amd_h1_title: "Live Title"\n')
+    write(
+        chezmoi_home / "dot_config" / "sase" / "sase_athena.yml",
+        'amd_h1_title: "Source Title"\n',
+    )
+    write(chezmoi_home / "memory" / "short" / "sase.md", "# SASE\n")
+
+    assert run_amd() == 0
+
+    agents = (chezmoi_home / "AGENTS.md").read_text(encoding="utf-8")
+    assert agents.startswith("# Source Title\n")
+    assert "Live Title" not in agents
+    for filename in PROVIDER_SHIM_FILES:
+        assert (chezmoi_home / filename).read_text(encoding="utf-8") == (
             PROVIDER_SHIM_CONTENT
         )
