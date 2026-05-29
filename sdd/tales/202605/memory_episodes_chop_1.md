@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-29 09:36:57
-status: wip
+status: done
 prompt: sdd/prompts/202605/memory_episodes_chop_1.md
 ---
 # Plan: Configure Athena memory_episodes chop
