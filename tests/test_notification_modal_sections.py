@@ -1,4 +1,4 @@
-"""Tests for NotificationModal section rendering and row selection."""
+"""Tests for NotificationModal tab rendering and row selection."""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -9,261 +9,120 @@ from sase.ace.tui.modals.notification_modal_tags import NotificationTagStrip
 from tests._notification_modal_helpers import _FakeOptionList, _make_notification
 
 
-def test_sections_render_in_priority_errors_inbox_muted_order() -> None:
-    """Options appear in PRIORITY → ERRORS → INBOX → MUTED order with gap spacers."""
-    priority = _make_notification("p1", action="PlanApproval")
-    error = _make_notification("e1", action="ViewErrorReport")
-    error.sender = "axe"
-    inbox = _make_notification("i1", action="JumpToAgent")
-    muted = _make_notification("m1", action="JumpToAgent")
-    muted.muted = True
-
-    modal = NotificationModal([priority, error, inbox, muted])
-    options = modal._create_sectioned_options()
-
-    ids = [opt.id for opt in options]
-    assert ids == [
-        "hdr:priority",
-        "0",
-        "hdr:gap:errors",
-        "hdr:errors",
-        "1",
-        "hdr:gap:inbox",
-        "hdr:inbox",
-        "2",
-        "hdr:gap:muted",
-        "hdr:muted",
-        "3",
-    ]
+def _option_ids(modal: NotificationModal) -> list[str | None]:
+    return [option.id for option in modal._create_sectioned_options()]
 
 
-def test_no_gap_before_first_or_after_last_section() -> None:
-    """Spacer rows only appear between adjacent populated sections."""
-    inbox = _make_notification("i1", action="JumpToAgent")
-    modal = NotificationModal([inbox])
-    options = modal._create_sectioned_options()
-
-    ids = [opt.id for opt in options]
-    assert ids == ["hdr:inbox", "0"]
-
-
-def test_axe_error_lives_in_errors_section() -> None:
-    """An axe ViewErrorReport notification renders under ERRORS, not PRIORITY."""
-    n = _make_notification("e1", action="ViewErrorReport")
-    n.sender = "axe"
-    modal = NotificationModal([n])
-    assert modal._section_for(n) == "errors"
-
-
-def test_user_agent_error_lives_in_errors_section() -> None:
-    """A failed-agent ViewErrorReport notification renders under ERRORS."""
-    n = _make_notification("e1", action="ViewErrorReport")
-    n.sender = "user-agent"
-    modal = NotificationModal([n])
-    assert modal._section_for(n) == "errors"
-
-
-def test_muted_error_falls_back_to_muted() -> None:
-    """A muted error still goes to MUTED; mute precedence wins."""
-    n = _make_notification("e1", action="ViewErrorReport")
-    n.sender = "axe"
-    n.muted = True
-    modal = NotificationModal([n])
-    assert modal._section_for(n) == "muted"
-
-
-def test_visual_notification_index_order_skips_section_headers() -> None:
-    """Visual index order contains only selectable notification rows."""
-    inbox = _make_notification("i1", action="JumpToAgent")
-    muted = _make_notification("m1", action="JumpToAgent")
-    muted.muted = True
-    priority = _make_notification("p1", action="PlanApproval")
-
-    modal = NotificationModal([inbox, muted, priority])
-
-    assert modal._visual_notification_index_order() == [2, 0, 1]
-
-
-def test_empty_section_header_not_rendered() -> None:
-    """Sections with no items emit no header row."""
-    modal = NotificationModal(
-        [
-            _make_notification("i1", action="JumpToAgent"),
-            _make_notification("i2", action="JumpToAgent"),
-        ]
-    )
-    options = modal._create_sectioned_options()
-
-    ids = [opt.id for opt in options]
-    assert "hdr:priority" not in ids
-    assert "hdr:muted" not in ids
-    assert ids == ["hdr:inbox", "0", "1"]
-
-
-def test_header_options_are_disabled() -> None:
-    """Header rows are added with disabled=True so cursor nav skips them."""
-    inbox = _make_notification("i1", action="JumpToAgent")
-    modal = NotificationModal([inbox])
-    options = modal._create_sectioned_options()
-
-    headers = [opt for opt in options if str(opt.id).startswith("hdr:")]
-    assert headers, "expected at least one header row"
-    assert all(opt.disabled for opt in headers)
-    notif_options = [opt for opt in options if not str(opt.id).startswith("hdr:")]
-    assert all(not opt.disabled for opt in notif_options)
-
-
-def test_get_selected_index_returns_none_for_header() -> None:
-    """_get_selected_index returns None when the highlighted row is a header."""
-    modal = NotificationModal([_make_notification("i1", action="JumpToAgent")])
-
-    fake_option = MagicMock()
-    fake_option.id = "hdr:inbox"
-    fake_list = MagicMock()
-    fake_list.highlighted = 0
-    fake_list.get_option_at_index.return_value = fake_option
-    modal.query_one = MagicMock(return_value=fake_list)  # type: ignore[method-assign]
-
-    assert modal._get_selected_index() is None
-
-
-def test_dismiss_no_ops_when_highlight_on_header() -> None:
-    """Action dismiss is a no-op when _get_selected_index returns None."""
-    modal = NotificationModal([_make_notification("i1", action="JumpToAgent")])
-    modal._get_selected_index = lambda: None  # type: ignore[method-assign]
-    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
-
-    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
-        modal.action_dismiss_notification()
-
-    mock_mark.assert_not_called()
-    modal._rebuild_list.assert_not_called()
-    assert len(modal._notifications) == 1
-
-
-def test_toggle_mute_no_ops_when_highlight_on_header() -> None:
-    """Action toggle_mute is a no-op when _get_selected_index returns None."""
-    modal = NotificationModal([_make_notification("i1", action="JumpToAgent")])
-    modal._get_selected_index = lambda: None  # type: ignore[method-assign]
-    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
-
-    with patch("sase.ace.tui.modals.notification_modal.mark_muted") as mock_mark:
-        modal.action_toggle_mute()
-
-    mock_mark.assert_not_called()
-    modal._rebuild_list.assert_not_called()
-
-
-def test_muted_priority_lives_in_muted_section() -> None:
-    """A priority-typed notification that is muted ends up under MUTED, not PRIORITY."""
-    n = _make_notification("p1", action="PlanApproval")
-    n.muted = True
-    modal = NotificationModal([n])
-
-    assert modal._section_for(n) == "muted"
-
-    options = modal._create_sectioned_options()
-    ids = [opt.id for opt in options]
-    assert "hdr:priority" not in ids
-    assert ids == ["hdr:muted", "0"]
-
-
-def test_section_for_inbox() -> None:
-    """A non-priority, non-muted notification lands in INBOX."""
-    n = _make_notification("i1", action="JumpToAgent")
-    modal = NotificationModal([n])
-    assert modal._section_for(n) == "inbox"
-
-
-def test_section_for_priority() -> None:
-    """A priority-typed unmuted notification lands in PRIORITY."""
-    n = _make_notification("p1", action="PlanApproval")
-    modal = NotificationModal([n])
-    assert modal._section_for(n) == "priority"
-
-
-def test_header_text_includes_label_and_count() -> None:
-    """The header text contains the section label and ' · N' count."""
-    text = NotificationModal._build_header_text("priority", 3)
-    assert "PRIORITY" in text.plain
-    assert "· 3" in text.plain
-
-
-def test_inbox_group_sorted_newest_first() -> None:
-    """Inbox entries render in descending-timestamp order within their section."""
+def test_active_tab_renders_flat_newest_first_without_section_rows() -> None:
+    """Rows in the active tab are flat and sorted by descending timestamp."""
     older = _make_notification(
         "i1", action="JumpToAgent", timestamp="2026-03-17T10:00:00-04:00"
     )
+    muted_middle = _make_notification(
+        "m1", action="JumpToAgent", timestamp="2026-03-17T12:00:00-04:00"
+    )
+    muted_middle.muted = True
     newest = _make_notification(
         "i2", action="JumpToAgent", timestamp="2026-03-17T13:00:00-04:00"
     )
-    middle = _make_notification(
-        "i3", action="JumpToAgent", timestamp="2026-03-17T12:00:00-04:00"
-    )
 
-    modal = NotificationModal([older, newest, middle])
+    modal = NotificationModal([older, muted_middle, newest])
     options = modal._create_sectioned_options()
 
-    ids = [opt.id for opt in options]
-    assert ids == ["hdr:inbox", "1", "2", "0"]
+    assert [option.id for option in options] == ["2", "1", "0"]
+    assert all(not option.disabled for option in options)
+    assert all(not str(option.id).startswith("hdr:") for option in options)
 
 
-def test_each_group_sorts_independently() -> None:
-    """Each section is sorted newest-first; section order is unchanged."""
-    p_old = _make_notification(
-        "p1", action="PlanApproval", timestamp="2026-03-17T08:00:00-04:00"
-    )
-    p_new = _make_notification(
-        "p2", action="PlanApproval", timestamp="2026-03-17T14:00:00-04:00"
-    )
-    e_old = _make_notification(
-        "e1", action="ViewErrorReport", timestamp="2026-03-17T09:00:00-04:00"
-    )
-    e_old.sender = "axe"
-    e_new = _make_notification(
-        "e2", action="ViewErrorReport", timestamp="2026-03-17T15:00:00-04:00"
-    )
-    e_new.sender = "axe"
-    i_old = _make_notification(
-        "i1", action="JumpToAgent", timestamp="2026-03-17T07:00:00-04:00"
-    )
-    i_new = _make_notification(
-        "i2", action="JumpToAgent", timestamp="2026-03-17T16:00:00-04:00"
-    )
-    m_old = _make_notification(
-        "m1", action="JumpToAgent", timestamp="2026-03-17T06:00:00-04:00"
-    )
-    m_old.muted = True
-    m_new = _make_notification(
-        "m2", action="JumpToAgent", timestamp="2026-03-17T17:00:00-04:00"
-    )
-    m_new.muted = True
+def test_compat_sectioned_options_wrapper_matches_flat_options() -> None:
+    """The old option-builder entrypoint delegates to the flat renderer."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
 
-    modal = NotificationModal([p_old, e_old, i_old, m_old, p_new, e_new, i_new, m_new])
-    options = modal._create_sectioned_options()
-    ids = [opt.id for opt in options]
-
-    assert ids == [
-        "hdr:priority",
-        "4",
-        "0",
-        "hdr:gap:errors",
-        "hdr:errors",
-        "5",
-        "1",
-        "hdr:gap:inbox",
-        "hdr:inbox",
-        "6",
-        "2",
-        "hdr:gap:muted",
-        "hdr:muted",
-        "7",
-        "3",
+    assert _option_ids(modal) == [
+        option.id for option in modal._create_notification_options()
     ]
 
 
-def test_jump_visual_order_matches_sorted_render() -> None:
-    """_visual_notification_index_order returns indexes in the new sorted order."""
+def test_hitl_actions_share_hitl_tab() -> None:
+    """Plan, question, and workflow HITL rows appear in the HITL tab."""
+    plan = _make_notification("plan", action="PlanApproval")
+    question = _make_notification("question", action="UserQuestion")
+    workflow_hitl = _make_notification("workflow", action="HITL")
+    regular = _make_notification("regular", action="JumpToAgent")
+
+    modal = NotificationModal([plan, question, workflow_hitl, regular])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        ("hitl", "HITL", 3),
+        (None, "General", 1),
+    ]
+    assert modal._active_notification_tag == "hitl"
+    assert _option_ids(modal) == ["0", "1", "2"]
+
+    modal._active_notification_tag = None
+    assert _option_ids(modal) == ["3"]
+
+
+def test_error_notifications_share_errors_tab() -> None:
+    """Axe and failed-agent error rows appear in the Errors tab."""
+    axe_error = _make_notification("axe", action="ViewErrorReport")
+    axe_error.sender = "axe"
+    agent_error = _make_notification("agent", action="ViewErrorReport")
+    agent_error.sender = "user-agent"
+    non_error_view = _make_notification("other", action="ViewErrorReport")
+    non_error_view.sender = "test"
+
+    modal = NotificationModal([axe_error, agent_error, non_error_view])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        ("errors", "Errors", 2),
+        (None, "General", 1),
+    ]
+    assert modal._active_notification_tag == "errors"
+    assert _option_ids(modal) == ["0", "1"]
+
+    modal._active_notification_tag = None
+    assert _option_ids(modal) == ["2"]
+
+
+def test_synthetic_tabs_take_precedence_over_stored_tags() -> None:
+    """HITL and Errors rows do not also populate regular tag tabs."""
+    plan = _make_notification("plan", action="PlanApproval")
+    plan.tags = ["done"]
+    error = _make_notification("error", action="ViewErrorReport")
+    error.sender = "axe"
+    error.tags = ["review"]
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+
+    modal = NotificationModal([plan, error, done])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        ("hitl", "HITL", 1),
+        ("errors", "Errors", 1),
+        ("done", "Done", 1),
+    ]
+
+    modal._active_notification_tag = "done"
+    assert _option_ids(modal) == ["2"]
+
+
+def test_muted_hitl_notification_stays_in_hitl_tab() -> None:
+    """Muted state affects row styling, not the tab taxonomy."""
+    notification = _make_notification("plan", action="PlanApproval")
+    notification.muted = True
+
+    modal = NotificationModal([notification])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        ("hitl", "HITL", 1)
+    ]
+    assert _option_ids(modal) == ["0"]
+
+
+def test_visual_notification_index_order_matches_flat_render() -> None:
+    """Visual index order contains selectable notification rows only."""
     older = _make_notification(
         "i1", action="JumpToAgent", timestamp="2026-03-17T10:00:00-04:00"
     )
@@ -280,7 +139,7 @@ def test_jump_visual_order_matches_sorted_render() -> None:
 
 
 def test_malformed_timestamp_does_not_crash_and_sinks() -> None:
-    """A non-parseable timestamp sinks to the bottom of its group without raising."""
+    """A non-parseable timestamp sinks to the bottom without raising."""
     good_old = _make_notification(
         "i1", action="JumpToAgent", timestamp="2026-03-17T10:00:00-04:00"
     )
@@ -290,14 +149,12 @@ def test_malformed_timestamp_does_not_crash_and_sinks() -> None:
     )
 
     modal = NotificationModal([good_old, bad, good_new])
-    options = modal._create_sectioned_options()
 
-    ids = [opt.id for opt in options]
-    assert ids == ["hdr:inbox", "2", "0", "1"]
+    assert _option_ids(modal) == ["2", "0", "1"]
 
 
 def test_equal_timestamps_preserve_insertion_order() -> None:
-    """Byte-equal timestamps keep their original relative order (stable sort)."""
+    """Byte-equal timestamps keep their original relative order."""
     first = _make_notification(
         "i1", action="JumpToAgent", timestamp="2026-03-17T12:00:00-04:00"
     )
@@ -309,34 +166,70 @@ def test_equal_timestamps_preserve_insertion_order() -> None:
     )
 
     modal = NotificationModal([first, second, third])
-    options = modal._create_sectioned_options()
 
-    ids = [opt.id for opt in options]
-    assert ids == ["hdr:inbox", "0", "1", "2"]
+    assert _option_ids(modal) == ["0", "1", "2"]
 
 
-def test_jump_hints_render_only_on_notification_rows_in_visual_order() -> None:
-    """Jump markers are assigned to selectable rows, not section headers."""
-    inbox = _make_notification("i1", action="JumpToAgent")
-    muted = _make_notification("m1", action="JumpToAgent")
-    muted.muted = True
-    priority = _make_notification("p1", action="PlanApproval")
+def test_jump_hints_render_on_notification_rows_in_visual_order() -> None:
+    """Jump markers are assigned to selectable rows in flat visual order."""
+    first = _make_notification("i1", action="JumpToAgent")
+    second = _make_notification("i2", action="JumpToAgent")
+    third = _make_notification("i3", action="JumpToAgent")
 
-    modal = NotificationModal([inbox, muted, priority])
-    hints = {2: "1", 0: "2", 1: "3"}
+    modal = NotificationModal([first, second, third])
+    hints = {0: "1", 1: "2", 2: "3"}
     options = modal._create_sectioned_options(jump_hints=hints)
 
     by_id = {str(option.id): str(option.prompt) for option in options}
-    assert "[1]" not in by_id["hdr:priority"]
-    assert "[2]" not in by_id["hdr:inbox"]
-    assert "[3]" not in by_id["hdr:muted"]
-    assert "[1]" in by_id["2"]
-    assert "[2]" in by_id["0"]
-    assert "[3]" in by_id["1"]
+    assert all(not option.disabled for option in options)
+    assert "[1]" in by_id["0"]
+    assert "[2]" in by_id["1"]
+    assert "[3]" in by_id["2"]
 
 
-def test_tag_tabs_order_counts_and_pin_done() -> None:
-    """Tag tabs are General, pinned done, then remaining tags alphabetically."""
+def test_get_selected_index_returns_none_for_legacy_header_like_option() -> None:
+    """_get_selected_index remains defensive if given a non-row option id."""
+    modal = NotificationModal([_make_notification("i1", action="JumpToAgent")])
+
+    fake_option = MagicMock()
+    fake_option.id = "hdr:inbox"
+    fake_list = MagicMock()
+    fake_list.highlighted = 0
+    fake_list.get_option_at_index.return_value = fake_option
+    modal.query_one = MagicMock(return_value=fake_list)  # type: ignore[method-assign]
+
+    assert modal._get_selected_index() is None
+
+
+def test_dismiss_no_ops_when_no_notification_is_selected() -> None:
+    """Action dismiss is a no-op when _get_selected_index returns None."""
+    modal = NotificationModal([_make_notification("i1", action="JumpToAgent")])
+    modal._get_selected_index = lambda: None  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_not_called()
+    modal._rebuild_list.assert_not_called()
+    assert len(modal._notifications) == 1
+
+
+def test_toggle_mute_no_ops_when_no_notification_is_selected() -> None:
+    """Action toggle_mute is a no-op when _get_selected_index returns None."""
+    modal = NotificationModal([_make_notification("i1", action="JumpToAgent")])
+    modal._get_selected_index = lambda: None  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_muted") as mock_mark:
+        modal.action_toggle_mute()
+
+    mock_mark.assert_not_called()
+    modal._rebuild_list.assert_not_called()
+
+
+def test_tag_tabs_order_counts_and_capitalized_labels() -> None:
+    """Tabs are General, pinned Done, then remaining tags by display label."""
     done = _make_notification("done", action="JumpToAgent")
     done.tags = ["done", "review"]
     foobar = _make_notification("foobar", action="JumpToAgent")
@@ -349,9 +242,9 @@ def test_tag_tabs_order_counts_and_pin_done() -> None:
 
     assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
         (None, "General", 1),
-        ("done", "done", 1),
-        ("foobar", "foobar", 1),
-        ("review", "review", 2),
+        ("done", "Done", 1),
+        ("foobar", "Foobar", 1),
+        ("review", "Review", 2),
     ]
 
 
@@ -369,10 +262,7 @@ def test_all_tagged_notifications_open_on_first_tag_tab() -> None:
         ("review", 1),
     ]
     assert modal._active_notification_tag == "done"
-    assert [opt.id for opt in modal._create_sectioned_options()] == [
-        "hdr:inbox",
-        "1",
-    ]
+    assert _option_ids(modal) == ["1"]
 
 
 def test_on_mount_highlights_first_visible_row_when_initial_is_hidden() -> None:
@@ -395,7 +285,7 @@ def test_on_mount_highlights_first_visible_row_when_initial_is_hidden() -> None:
 
     modal.on_mount()
 
-    assert option_list.highlighted == 1
+    assert option_list.highlighted == 0
     modal._display_file.assert_called_once_with(done)
 
 
@@ -411,9 +301,8 @@ def test_active_tag_filters_rows_but_preserves_original_option_ids() -> None:
 
     modal = NotificationModal([done, review, both, untagged])
     modal._active_notification_tag = "done"
-    options = modal._create_sectioned_options()
 
-    assert [opt.id for opt in options] == ["hdr:inbox", "0", "2"]
+    assert _option_ids(modal) == ["0", "2"]
     assert modal._visual_notification_index_order() == [0, 2]
 
 
@@ -428,16 +317,10 @@ def test_general_tab_excludes_tagged_notifications() -> None:
         (None, 1),
         ("done", 1),
     ]
-    assert [opt.id for opt in modal._create_sectioned_options()] == [
-        "hdr:inbox",
-        "0",
-    ]
+    assert _option_ids(modal) == ["0"]
 
     modal._active_notification_tag = "done"
-    assert [opt.id for opt in modal._create_sectioned_options()] == [
-        "hdr:inbox",
-        "1",
-    ]
+    assert _option_ids(modal) == ["1"]
 
 
 def test_multi_tag_notification_appears_in_each_tag_tab_not_general() -> None:
@@ -448,48 +331,13 @@ def test_multi_tag_notification_appears_in_each_tag_tab_not_general() -> None:
 
     modal = NotificationModal([both, untagged])
 
-    assert [opt.id for opt in modal._create_sectioned_options()] == [
-        "hdr:inbox",
-        "1",
-    ]
+    assert _option_ids(modal) == ["1"]
 
     modal._active_notification_tag = "done"
-    assert [opt.id for opt in modal._create_sectioned_options()] == [
-        "hdr:inbox",
-        "0",
-    ]
+    assert _option_ids(modal) == ["0"]
 
     modal._active_notification_tag = "review"
-    assert [opt.id for opt in modal._create_sectioned_options()] == [
-        "hdr:inbox",
-        "0",
-    ]
-
-
-def test_active_tag_section_headers_count_visible_rows_only() -> None:
-    """Section headers/counts are recomputed after tag filtering."""
-    priority = _make_notification("priority", action="PlanApproval")
-    priority.tags = ["done"]
-    error = _make_notification("error", action="ViewErrorReport")
-    error.sender = "axe"
-    error.tags = ["review"]
-    inbox = _make_notification("inbox", action="JumpToAgent")
-    inbox.tags = ["done"]
-
-    modal = NotificationModal([priority, error, inbox])
-    modal._active_notification_tag = "done"
-    options = modal._create_sectioned_options()
-
-    assert [opt.id for opt in options] == [
-        "hdr:priority",
-        "0",
-        "hdr:gap:inbox",
-        "hdr:inbox",
-        "2",
-    ]
-    by_id = {str(option.id): str(option.prompt) for option in options}
-    assert "· 1" in by_id["hdr:priority"]
-    assert "· 1" in by_id["hdr:inbox"]
+    assert _option_ids(modal) == ["0"]
 
 
 def test_styled_label_includes_compact_tag_badges() -> None:

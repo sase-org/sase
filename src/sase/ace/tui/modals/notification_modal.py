@@ -108,7 +108,7 @@ class NotificationModal(
                             classes="hidden" if len(tabs) <= 1 else None,
                         )
                         yield OptionList(
-                            *self._create_sectioned_options(),
+                            *self._create_notification_options(),
                             id="notification-list",
                         )
                     else:
@@ -432,7 +432,7 @@ class NotificationModal(
             return
 
         jump_hints = self._entry_jump_index_to_hint if show_jump_hints else None
-        for option in self._create_sectioned_options(jump_hints=jump_hints):
+        for option in self._create_notification_options(jump_hints=jump_hints):
             option_list.add_option(option)
 
         if highlight_index is not None:

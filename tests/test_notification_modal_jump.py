@@ -15,10 +15,10 @@ from tests._notification_modal_helpers import (
 
 def test_notification_jump_apostrophe_without_history_highlights_first_visual() -> None:
     """A second apostrophe in jump mode navigates to the first visual row."""
-    inbox = _make_notification("i1", action="JumpToAgent")
-    priority = _make_notification("p1", action="PlanApproval")
-    modal = NotificationModal([inbox, priority])
-    _wire_fake_option_list(modal, highlighted_index=0)
+    first = _make_notification("i1", action="JumpToAgent")
+    second = _make_notification("i2", action="JumpToAgent")
+    modal = NotificationModal([first, second])
+    _wire_fake_option_list(modal, highlighted_index=1)
     modal._display_file = MagicMock()  # type: ignore[method-assign]
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
@@ -26,10 +26,10 @@ def test_notification_jump_apostrophe_without_history_highlights_first_visual() 
     handled = modal._handle_entry_jump_key("apostrophe")
 
     assert handled is True
-    assert modal._get_selected_index() == 1
-    modal._display_file.assert_called_with(priority)
+    assert modal._get_selected_index() == 0
+    modal._display_file.assert_called_with(first)
     modal.dismiss.assert_not_called()
-    assert modal._entry_jump_last_index == 0
+    assert modal._entry_jump_last_index == 1
     assert modal._entry_jump_mode_active is False
 
 
@@ -174,17 +174,17 @@ def test_notification_jump_then_enter_activates_highlighted_notification() -> No
 
 async def test_notification_jump_pilot_keeps_modal_open_and_moves_highlight() -> None:
     """Pilot coverage for the exact apostrophe-hint modal interaction."""
-    inbox = _make_notification("i1", action="JumpToAgent")
-    priority = _make_notification("p1", action="PlanApproval")
+    first = _make_notification("i1", action="JumpToAgent")
+    second = _make_notification("i2", action="JumpToAgent")
     dismissed: list[Notification | None] = []
 
     async with _TestApp().run_test() as pilot:
-        modal = NotificationModal([inbox, priority], initial_index=0)
+        modal = NotificationModal([first, second], initial_index=0)
         pilot.app.push_screen(modal, callback=dismissed.append)
         await pilot.pause()
 
         await pilot.press("apostrophe")
-        await pilot.press("1")
+        await pilot.press("2")
         await pilot.pause()
 
         assert pilot.app.screen is modal

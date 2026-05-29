@@ -17,17 +17,12 @@ from sase.notifications import (
     Notification,
     format_relative_time,
     format_relative_until,
-    is_error,
-    is_priority,
 )
 from sase.notifications.sort import timestamp_sort_key
 
 from .notification_modal_constants import (
     ACTION_BADGES,
     DEFAULT_HINT_TEXT,
-    GAP_ID_PREFIX,
-    HEADER_ID_PREFIX,
-    SECTIONS,
 )
 from .notification_modal_tags import (
     notification_display_tags,
@@ -39,7 +34,7 @@ _REDUNDANT_AGENT_SENDERS = frozenset({"user-agent", "user-workflow"})
 
 
 class NotificationOptionMixin:
-    """Build sectioned notification options and handle row jump mode."""
+    """Build notification row options and handle row jump mode."""
 
     @staticmethod
     def _show_sender_label(notification: Notification) -> bool:
@@ -123,88 +118,45 @@ class NotificationOptionMixin:
 
         return text
 
-    @staticmethod
-    def _section_for(notification: Notification) -> str:
-        """Return the section key for a notification (mute dominates everything)."""
-        if notification.muted:
-            return "muted"
-        if is_error(notification):
-            return "errors"
-        if is_priority(notification):
-            return "priority"
-        return "inbox"
+    def _create_notification_options(
+        self: Any, *, jump_hints: dict[int, str] | None = None
+    ) -> list[Option]:
+        """Create a flat, recency-sorted option list for the active tab."""
+        active_tag: str | None = getattr(self, "_active_notification_tag", None)
+        rows: list[tuple[int, Notification]] = []
+        for i, n in enumerate(self._notifications):
+            if not notification_matches_tag_tab(n, active_tag):
+                continue
+            rows.append((i, n))
+        rows.sort(key=lambda pair: timestamp_sort_key(pair[1]), reverse=True)
 
-    @staticmethod
-    def _build_header_text(key: str, count: int) -> Text:
-        """Build the styled header row text for a section."""
-        label, color = next((lbl, c) for k, lbl, c in SECTIONS if k == key)
-        text = Text()
-        accent = f"bold {color}"
-        text.append("▌ ", style=accent)
-        text.append(label, style=accent)
-        text.append(f" · {count}", style=accent)
-        return text
+        options: list[Option] = []
+        marked_ids: set[str] = getattr(self, "_marked_notification_ids", set())
+        for idx, n in rows:
+            options.append(
+                Option(
+                    self._create_styled_label(
+                        n,
+                        hint_char=None if jump_hints is None else jump_hints.get(idx),
+                        is_marked=n.id in marked_ids,
+                    ),
+                    id=str(idx),
+                )
+            )
+        return options
 
     def _create_sectioned_options(
         self: Any, *, jump_hints: dict[int, str] | None = None
     ) -> list[Option]:
-        """Create options grouped by section, with disabled header rows.
-
-        Adjacent populated sections are separated by a disabled spacer row
-        so headers don't sit flush against the previous section's last entry.
-        """
-        groups: dict[str, list[tuple[int, Notification]]] = {
-            key: [] for key, _, _ in SECTIONS
-        }
-        active_tag: str | None = getattr(self, "_active_notification_tag", None)
-        for i, n in enumerate(self._notifications):
-            if not notification_matches_tag_tab(n, active_tag):
-                continue
-            groups[self._section_for(n)].append((i, n))
-
-        for key in groups:
-            groups[key].sort(key=lambda pair: timestamp_sort_key(pair[1]), reverse=True)
-
-        populated_keys = [key for key, _, _ in SECTIONS if groups[key]]
-        options: list[Option] = []
-        for position, key in enumerate(populated_keys):
-            if position > 0:
-                options.append(
-                    Option(Text(""), id=f"{GAP_ID_PREFIX}{key}", disabled=True)
-                )
-            options.append(
-                Option(
-                    self._build_header_text(key, len(groups[key])),
-                    id=f"{HEADER_ID_PREFIX}{key}",
-                    disabled=True,
-                )
-            )
-            marked_ids: set[str] = getattr(self, "_marked_notification_ids", set())
-            for idx, n in groups[key]:
-                options.append(
-                    Option(
-                        self._create_styled_label(
-                            n,
-                            hint_char=(
-                                None if jump_hints is None else jump_hints.get(idx)
-                            ),
-                            is_marked=n.id in marked_ids,
-                        ),
-                        id=str(idx),
-                    )
-                )
-        return options
+        """Compatibility wrapper for the former sectioned option builder."""
+        return self._create_notification_options(jump_hints=jump_hints)
 
     def _visual_notification_index_order(self: Any) -> list[int]:
         """Return notification indexes in the order displayed to the user."""
         indexes: list[int] = []
-        for option in self._create_sectioned_options():
+        for option in self._create_notification_options():
             option_id = option.id
-            if (
-                option.disabled
-                or option_id is None
-                or option_id.startswith(HEADER_ID_PREFIX)
-            ):
+            if option.disabled or option_id is None:
                 continue
             indexes.append(int(option_id))
         return indexes

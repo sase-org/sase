@@ -11,7 +11,16 @@ from textual.events import Click
 from textual.message import Message
 from textual.widgets import Static
 
-from sase.notifications import Notification
+from sase.notifications import Notification, is_error
+
+HITL_TAB_KEY = "hitl"
+ERRORS_TAB_KEY = "errors"
+
+_HITL_ACTIONS = frozenset({"PlanApproval", "UserQuestion", "HITL"})
+_SYNTHETIC_TAB_LABELS = {
+    HITL_TAB_KEY: "HITL",
+    ERRORS_TAB_KEY: "Errors",
+}
 
 
 @dataclass(frozen=True)
@@ -38,41 +47,67 @@ def notification_display_tags(notification: Notification) -> list[str]:
     return tags
 
 
+def _notification_modal_tab_keys(notification: Notification) -> list[str | None]:
+    """Return the top-level modal tabs this notification belongs to."""
+    if notification.action in _HITL_ACTIONS:
+        return [HITL_TAB_KEY]
+    if is_error(notification):
+        return [ERRORS_TAB_KEY]
+
+    tags = notification_display_tags(notification)
+    if tags:
+        tab_keys: list[str | None] = list(tags)
+        return tab_keys
+    return [None]
+
+
 def notification_matches_tag_tab(
     notification: Notification,
     tag: str | None,
 ) -> bool:
     """Return whether a notification belongs in the requested tag tab."""
-    tags = notification_display_tags(notification)
-    if tag is None:
-        return not tags
-    return tag in tags
+    return tag in _notification_modal_tab_keys(notification)
+
+
+def _notification_tab_label(tab_key: str | None) -> str:
+    """Return the display label for one modal tab key."""
+    if tab_key is None:
+        return "General"
+    synthetic_label = _SYNTHETIC_TAB_LABELS.get(tab_key)
+    if synthetic_label is not None:
+        return synthetic_label
+    return tab_key[:1].upper() + tab_key[1:]
 
 
 def build_notification_tag_tabs(
     notifications: list[Notification],
 ) -> list[NotificationTagTab]:
-    """Build modal tag tabs: General when present, pinned done, then tags."""
-    counts: Counter[str] = Counter()
-    untagged_count = 0
+    """Build modal tabs: HITL, Errors, General, pinned Done, then tags."""
+    counts: Counter[str | None] = Counter()
     for notification in notifications:
-        tags = notification_display_tags(notification)
-        if not tags:
-            untagged_count += 1
-            continue
-        for tag in tags:
-            counts[tag] += 1
+        for tab_key in _notification_modal_tab_keys(notification):
+            counts[tab_key] += 1
 
-    ordered_tags: list[str] = []
-    if "done" in counts:
-        ordered_tags.append("done")
-    ordered_tags.extend(sorted(tag for tag in counts if tag != "done"))
+    pinned_order: tuple[str | None, ...] = (
+        HITL_TAB_KEY,
+        ERRORS_TAB_KEY,
+        None,
+        "done",
+    )
+    ordered_keys: list[str | None] = [
+        tab_key for tab_key in pinned_order if tab_key in counts
+    ]
+    ordered_keys.extend(
+        sorted(
+            (tab_key for tab_key in counts if tab_key not in pinned_order),
+            key=lambda tab_key: _notification_tab_label(tab_key).casefold(),
+        )
+    )
 
-    tabs: list[NotificationTagTab] = []
-    if untagged_count:
-        tabs.append(NotificationTagTab(None, "General", untagged_count))
-    tabs.extend(NotificationTagTab(tag, tag, counts[tag]) for tag in ordered_tags)
-    return tabs
+    return [
+        NotificationTagTab(tab_key, _notification_tab_label(tab_key), counts[tab_key])
+        for tab_key in ordered_keys
+    ]
 
 
 def shorten_notification_tag(tag: str, *, max_width: int = 18) -> str:

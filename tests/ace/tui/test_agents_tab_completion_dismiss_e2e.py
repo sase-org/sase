@@ -171,17 +171,17 @@ def test_done_tab_matches_successful_unread_completion_notifications(
     }
     modal = NotificationModal(load_notifications())
     assert [(tab.tag, tab.count) for tab in modal._tag_tabs()] == [
-        (None, 1),
+        ("errors", 1),
         ("done", 2),
     ]
     assert _modal_visible_ids(modal) == ["n-failure"]
 
     modal._active_notification_tag = "done"
     assert set(_modal_visible_ids(modal)) == {"n-alpha", "n-beta"}
-
-    failure = next(n for n in modal._notifications if n.id == "n-failure")
-    assert modal._section_for(failure) == "errors"
     assert "n-failure" not in _modal_visible_ids(modal)
+
+    modal._active_notification_tag = "errors"
+    assert _modal_visible_ids(modal) == ["n-failure"]
 
 
 def test_acknowledging_done_agent_removes_completion_from_done_not_general_tab(

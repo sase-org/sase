@@ -52,8 +52,8 @@ def test_confirm_dismiss_notification_dismisses_pending_item() -> None:
     modal._rebuild_list.assert_called_once_with(highlight_index=None)
 
 
-def test_dismiss_highlights_next_notification_in_visual_order() -> None:
-    """Dismiss picks the next visible row, not the next raw-list index."""
+def test_dismiss_last_tab_row_highlights_first_row_after_tab_fallback() -> None:
+    """When the active tab disappears, dismiss highlights the new tab's first row."""
     inbox = _make_notification("i1", action="JumpToAgent")
     muted = _make_notification("m1", action="JumpToAgent")
     muted.muted = True
@@ -72,19 +72,24 @@ def test_dismiss_highlights_next_notification_in_visual_order() -> None:
 
 def test_dismiss_final_visible_notification_highlights_previous_visual_row() -> None:
     """Dismissing the final visible row falls back to the previous visible row."""
-    muted = _make_notification("m1", action="JumpToAgent")
-    muted.muted = True
-    priority = _make_notification("p1", action="PlanApproval")
-    inbox = _make_notification("i1", action="JumpToAgent")
-    modal = NotificationModal([muted, priority, inbox])
+    oldest = _make_notification(
+        "old", action="JumpToAgent", timestamp="2026-03-17T10:00:00-04:00"
+    )
+    newest = _make_notification(
+        "new", action="JumpToAgent", timestamp="2026-03-17T13:00:00-04:00"
+    )
+    middle = _make_notification(
+        "mid", action="JumpToAgent", timestamp="2026-03-17T12:00:00-04:00"
+    )
+    modal = NotificationModal([oldest, newest, middle])
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
 
     with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
         modal.action_dismiss_notification()
 
-    mock_mark.assert_called_once_with("m1")
-    assert [notification.id for notification in modal._notifications] == ["p1", "i1"]
+    mock_mark.assert_called_once_with("old")
+    assert [notification.id for notification in modal._notifications] == ["new", "mid"]
     modal._rebuild_list.assert_called_once_with(highlight_index=1)
 
 

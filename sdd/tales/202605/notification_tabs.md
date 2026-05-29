@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-29 08:17:28
-status: wip
+status: done
 prompt: sdd/prompts/202605/notification_tabs.md
 ---
 # Notification Modal Tabs Plan

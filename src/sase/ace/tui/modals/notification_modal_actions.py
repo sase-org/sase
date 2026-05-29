@@ -122,6 +122,8 @@ class NotificationStateActionsMixin:
             (i for i, n in enumerate(self._notifications) if n.id == replacement_id),
             None,
         )
+        if highlight is None:
+            highlight = self._first_visible_notification_index()
         self._rebuild_list(highlight_index=highlight)
 
     def action_toggle_mark(self: Any) -> None:
@@ -167,6 +169,8 @@ class NotificationStateActionsMixin:
             ),
             None,
         )
+        if highlight is None:
+            highlight = self._first_visible_notification_index()
         self._rebuild_list(highlight_index=highlight)
 
     def _bulk_dismiss_notifications_by_index(self: Any, count: int) -> int:

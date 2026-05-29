@@ -16,16 +16,7 @@ ACTION_BADGES: dict[str | None, str] = {
 }
 
 
-# Section taxonomy: (key, label, color). Order is render order.
-SECTIONS: list[tuple[str, str, str]] = [
-    ("priority", "PRIORITY", "#FF4444"),
-    ("errors", "ERRORS", "#FF8C00"),
-    ("inbox", "INBOX", "#FFD700"),
-    ("muted", "MUTED", "#5FAFAF"),
-]
-
 HEADER_ID_PREFIX = "hdr:"
-GAP_ID_PREFIX = "hdr:gap:"
 DEFAULT_HINT_TEXT = (
     "Enter: select  m: mark  x: dismiss  M: mute  s: snooze  e: edit  V: image  Y: copy path  "
     "C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close"
