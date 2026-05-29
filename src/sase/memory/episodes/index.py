@@ -70,6 +70,14 @@ def read_episode_index(
         return _read_episode_index_unlocked(path)
 
 
+def read_episode_index_unlocked(
+    index_path: Path,
+) -> list[EpisodeStorageIndexRowWire]:
+    """Read an episode index while the caller holds the project episode lock."""
+
+    return _read_episode_index_unlocked(index_path)
+
+
 def _read_episode_index_unlocked(index_path: Path) -> list[EpisodeStorageIndexRowWire]:
     """Read an episode index without acquiring a lock."""
 
@@ -196,5 +204,6 @@ __all__ = [
     "episode_index_path",
     "project_episodes_dir",
     "read_episode_index",
+    "read_episode_index_unlocked",
     "upsert_episode_index_row_unlocked",
 ]

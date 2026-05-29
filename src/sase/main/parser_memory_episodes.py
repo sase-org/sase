@@ -38,6 +38,9 @@ def register_memory_episodes_parser(
     )
 
     _register_build_parser(episodes_subparsers)
+    _register_auto_parser(episodes_subparsers)
+    _register_status_parser(episodes_subparsers)
+    _register_doctor_parser(episodes_subparsers)
     _register_list_parser(episodes_subparsers)
     _register_show_parser(episodes_subparsers)
     _register_verify_parser(episodes_subparsers)
@@ -202,6 +205,58 @@ def _register_list_parser(
         help="Limit the number of listed episodes",
     )
     _add_json_argument(list_parser)
+
+
+def _register_auto_parser(
+    episodes_subparsers: argparse._SubParsersAction,
+) -> None:
+    auto_parser = episodes_subparsers.add_parser(
+        "auto",
+        help="Run one checkpointed automatic episode build cycle",
+    )
+    _add_project_argument(auto_parser)
+    auto_parser.add_argument(
+        "-D",
+        "--dry-run",
+        action="store_true",
+        help="Plan and build reports without writing episodes, state, or metrics",
+    )
+    auto_parser.add_argument(
+        "-l",
+        "--limit",
+        type=int,
+        metavar="N",
+        help="Maximum new done markers to seed this cycle",
+    )
+    _add_json_argument(auto_parser)
+
+
+def _register_status_parser(
+    episodes_subparsers: argparse._SubParsersAction,
+) -> None:
+    status_parser = episodes_subparsers.add_parser(
+        "status",
+        help="Show automatic episode builder checkpoint and metrics status",
+    )
+    _add_project_argument(status_parser)
+    _add_json_argument(status_parser)
+
+
+def _register_doctor_parser(
+    episodes_subparsers: argparse._SubParsersAction,
+) -> None:
+    doctor_parser = episodes_subparsers.add_parser(
+        "doctor",
+        help="Inspect automatic episode builder state and recover safe issues",
+    )
+    _add_project_argument(doctor_parser)
+    doctor_parser.add_argument(
+        "-R",
+        "--repair",
+        action="store_true",
+        help="Apply reported safe repairs such as restoring build_state.json.prev",
+    )
+    _add_json_argument(doctor_parser)
 
 
 def _register_show_parser(

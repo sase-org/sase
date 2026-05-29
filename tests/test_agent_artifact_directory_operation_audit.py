@@ -56,10 +56,16 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "~/.sase/projects/<project>/episodes, not agent artifact directories."
         ),
     ),
-    "src/sase/memory/episodes/storage.py:write_project_episode": DirOpReview(
+    "src/sase/memory/episodes/storage.py:write_project_episode_unlocked": DirOpReview(
         exemption=(
             "Creates hidden episode storage staging directories under "
             "~/.sase/projects/<project>/episodes, not agent artifact directories."
+        ),
+    ),
+    "src/sase/memory/episodes/auto_build.py:_execute_repairs": DirOpReview(
+        exemption=(
+            "Removes abandoned hidden episode temp directories under the episode "
+            "store during doctor repair, not agent artifact directories."
         ),
     ),
     (
