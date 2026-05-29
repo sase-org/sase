@@ -109,6 +109,28 @@ def _same_resolved_path(left: Path, right: Path) -> bool:
     return left.resolve(strict=False) == right.resolve(strict=False)
 
 
+def _dedupe_roots_by_resolved_path(roots: tuple[Path, ...]) -> tuple[Path, ...]:
+    selected: list[Path] = []
+    seen: set[Path] = set()
+    for root in roots:
+        resolved = root.resolve(strict=False)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        selected.append(root)
+    return tuple(selected)
+
+
+def _amd_init_roots(cwd: Path) -> tuple[Path, ...]:
+    if not config_core.get_use_chezmoi():
+        return (cwd,)
+
+    chezmoi_home = config_core.CHEZMOI_HOME
+    if _same_resolved_path(cwd, Path.home()):
+        return _dedupe_roots_by_resolved_path((chezmoi_home,))
+    return _dedupe_roots_by_resolved_path((cwd, chezmoi_home))
+
+
 def _user_config_dir_for_home_amd_root(root: Path) -> Path | None:
     if _same_resolved_path(root, Path.home()):
         return config_core.CONFIG_DIR
@@ -561,11 +583,8 @@ def _summarize_amd_actions(
     return f"{verb} {len(actions)} agent markdown documents"
 
 
-def _build_amd_init_plan(
-    root: Path | None = None, *, explicit: bool = True
-) -> _AmdInitPlan:
-    """Return the pure AMD init plan for *root* without writing files."""
-    root = root or Path.cwd()
+def _build_single_amd_init_plan(root: Path, *, explicit: bool = True) -> _AmdInitPlan:
+    """Return the pure AMD init plan for one root without writing files."""
     title, title_error = _load_amd_h1_title(root)
     provider_statuses, provider_errors = _provider_statuses(root)
     blockers = tuple(error for error in (title_error, *provider_errors) if error)
@@ -604,6 +623,44 @@ def _build_amd_init_plan(
             blockers=blockers,
         ),
         writes=tuple(writes),
+    )
+
+
+def _combine_amd_init_plans(plans: tuple[_AmdInitPlan, ...]) -> _AmdInitPlan:
+    actions: list[InitAction] = []
+    warnings: list[str] = []
+    blockers: list[str] = []
+    writes: list[_PlannedWrite] = []
+
+    for built in plans:
+        actions.extend(built.plan.actions)
+        warnings.extend(built.plan.warnings)
+        blockers.extend(built.plan.blockers)
+        writes.extend(built.writes)
+
+    return _AmdInitPlan(
+        plan=InitPlan(
+            command="amd",
+            label="AMD",
+            summary=_summarize_amd_actions(tuple(actions), tuple(blockers)),
+            actions=tuple(actions),
+            warnings=tuple(warnings),
+            blockers=tuple(blockers),
+        ),
+        writes=tuple(writes),
+    )
+
+
+def _build_amd_init_plan(
+    root: Path | None = None, *, explicit: bool = True
+) -> _AmdInitPlan:
+    """Return the pure AMD init plan without writing files."""
+    if root is not None:
+        return _build_single_amd_init_plan(root, explicit=explicit)
+
+    roots = _amd_init_roots(Path.cwd())
+    return _combine_amd_init_plans(
+        tuple(_build_single_amd_init_plan(root, explicit=explicit) for root in roots)
     )
 
 

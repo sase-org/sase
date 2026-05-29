@@ -29,6 +29,11 @@ def run_amd(*, check: bool = False) -> int:
     return run_amd_init(argparse.Namespace(check=check))
 
 
+def write_provider_shims(root: Path) -> None:
+    for filename in PROVIDER_SHIM_FILES:
+        write(root / filename, PROVIDER_SHIM_CONTENT)
+
+
 def plan_amd() -> set[tuple[str, Path]]:
     plan = _build_amd_init_plan().plan
     return {(action.operation, action.path) for action in plan.actions}
@@ -279,3 +284,135 @@ def test_amd_init_manages_chezmoi_home_from_source_overlay(
         assert (chezmoi_home / filename).read_text(encoding="utf-8") == (
             PROVIDER_SHIM_CONTENT
         )
+
+
+def test_amd_init_use_chezmoi_from_home_updates_source_agents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    live_home = tmp_path / "home"
+    live_config_dir = live_home / ".config" / "sase"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    live_home.mkdir()
+    chezmoi_home.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(live_home))
+    monkeypatch.chdir(live_home)
+    monkeypatch.setattr(amd_init.config_core, "CONFIG_DIR", live_config_dir)
+    monkeypatch.setattr(amd_init.config_core, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(amd_init.config_core, "get_use_chezmoi", lambda: True)
+    write(
+        chezmoi_home / "dot_config" / "sase" / "sase_athena.yml",
+        'amd_h1_title: "Source Home"\n',
+    )
+    write(chezmoi_home / "memory" / "short" / "sase.md", "# SASE\n")
+    write(
+        chezmoi_home / "memory" / "long" / "source.md",
+        "---\ndescription: Fresh source description.\n---\n# Source\n",
+    )
+    write(
+        chezmoi_home / "AGENTS.md",
+        "# Source Home\n\n**`memory/long/source.md`**  \nStale description.\n",
+    )
+
+    assert run_amd() == 0
+
+    agents = (chezmoi_home / "AGENTS.md").read_text(encoding="utf-8")
+    assert agents.startswith("# Source Home\n")
+    assert "**`memory/long/source.md`**  \nFresh source description." in agents
+    assert "Stale description." not in agents
+    assert not (live_home / "AGENTS.md").exists()
+
+
+def test_amd_init_use_chezmoi_from_project_updates_project_and_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    live_home = tmp_path / "home"
+    project = tmp_path / "project"
+    live_config_dir = live_home / ".config" / "sase"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    live_home.mkdir()
+    project.mkdir()
+    chezmoi_home.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(live_home))
+    monkeypatch.chdir(project)
+    monkeypatch.setattr(amd_init.config_core, "CONFIG_DIR", live_config_dir)
+    monkeypatch.setattr(amd_init.config_core, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(amd_init.config_core, "get_use_chezmoi", lambda: True)
+    write(project / "sase.yml", 'amd_h1_title: "Project Instructions"\n')
+    write(project / "memory" / "short" / "sase.md", "# Project SASE\n")
+    write(
+        project / "memory" / "long" / "project.md",
+        "---\ndescription: Project description.\n---\n# Project\n",
+    )
+    write(
+        chezmoi_home / "dot_config" / "sase" / "sase_athena.yml",
+        'amd_h1_title: "Source Home"\n',
+    )
+    write(chezmoi_home / "memory" / "short" / "sase.md", "# Home SASE\n")
+    write(
+        chezmoi_home / "memory" / "long" / "source.md",
+        "---\ndescription: Source description.\n---\n# Source\n",
+    )
+
+    assert run_amd() == 0
+
+    project_agents = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert project_agents.startswith("# Project Instructions\n")
+    assert "**`memory/long/project.md`**  \nProject description." in project_agents
+    source_agents = (chezmoi_home / "AGENTS.md").read_text(encoding="utf-8")
+    assert source_agents.startswith("# Source Home\n")
+    assert "**`memory/long/source.md`**  \nSource description." in source_agents
+    for root in (project, chezmoi_home):
+        for filename in PROVIDER_SHIM_FILES:
+            assert (root / filename).read_text(encoding="utf-8") == (
+                PROVIDER_SHIM_CONTENT
+            )
+
+
+@pytest.mark.parametrize("cwd_name", ("home", "project"))
+def test_amd_check_use_chezmoi_reports_source_drift_without_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    cwd_name: str,
+) -> None:
+    live_home = tmp_path / "home"
+    project = tmp_path / "project"
+    live_config_dir = live_home / ".config" / "sase"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    live_home.mkdir()
+    project.mkdir()
+    chezmoi_home.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(live_home))
+    monkeypatch.setattr(amd_init.config_core, "CONFIG_DIR", live_config_dir)
+    monkeypatch.setattr(amd_init.config_core, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(amd_init.config_core, "get_use_chezmoi", lambda: True)
+    write(
+        chezmoi_home / "dot_config" / "sase" / "sase_athena.yml",
+        'amd_h1_title: "Source Home"\n',
+    )
+    write(chezmoi_home / "memory" / "short" / "sase.md", "# SASE\n")
+    write(
+        chezmoi_home / "memory" / "long" / "source.md",
+        "---\ndescription: Fresh source description.\n---\n# Source\n",
+    )
+    stale_agents = (
+        "# Source Home\n\n**`memory/long/source.md`**  \nStale description.\n"
+    )
+    write(chezmoi_home / "AGENTS.md", stale_agents)
+    write_provider_shims(chezmoi_home)
+    if cwd_name == "project":
+        write(project / "AGENTS.md", "# Project\n")
+        write_provider_shims(project)
+        monkeypatch.chdir(project)
+    else:
+        monkeypatch.chdir(live_home)
+
+    assert run_amd(check=True) == 1
+
+    assert (chezmoi_home / "AGENTS.md").read_text(encoding="utf-8") == stale_agents
+    out = capsys.readouterr().out
+    assert "SASE initialization check" in out
+    assert "Needs attention:" in out
+    assert str(chezmoi_home / "AGENTS.md") in out
