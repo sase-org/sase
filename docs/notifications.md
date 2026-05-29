@@ -221,17 +221,19 @@ continue to render under **ERRORS**.
 
 The `sase notify` command can create notifications and inspect the local notification inbox.
 
-Create remains backward-compatible with the original bare command form:
+Bare `sase notify` is a read-only shortcut for `sase notify list`. Use `sase notify create` when writing a notification
+from JSON input:
 
 ```bash
-echo '{"sender": "test", "notes": ["Hello"], "tags": ["review"]}' | sase notify
-sase notify -s my_sender < notification.json
+echo '{"sender": "test", "notes": ["Hello"], "tags": ["review"]}' | sase notify create
+sase notify create -s my_sender < notification.json
 sase notify create -s my_sender --tag review --tag handoff < notification.json
 ```
 
 For read-only inspection, list recent notifications as either a compact table or stable JSON:
 
 ```bash
+sase notify
 sase notify list
 sase notify list -j -l 20
 sase notify list -j --sender axe

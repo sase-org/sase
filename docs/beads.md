@@ -143,6 +143,8 @@ event store is absent.
 
 ## CLI Commands
 
+With no subcommand, `sase bead` defaults to `sase bead list`.
+
 ### `sase bead init`
 
 Initialize the bead store for the current project. In effective version-controlled SDD mode this is `sdd/beads/`; in

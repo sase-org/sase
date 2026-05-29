@@ -7,28 +7,34 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 
 ## Daily Operation
 
-| Command                              | Purpose                                                                                                              | Details                                               |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `sase ace`                           | Open ACE, the interactive control surface for ChangeSpecs, live agents, notifications, and axe state.                | [ACE TUI](ace.md)                                     |
-| `sase run [PROMPT]`                  | Launch an agent or workflow from a prompt, an xprompt reference, a workflow reference, history, or an editor buffer. | [XPrompts](xprompt.md), [workflows](workflow_spec.md) |
-| `sase agents status`                 | List active and recent agents across projects.                                                                       | [ACE Agents tab](ace.md#tab-system)                   |
-| `sase agents show`                   | Render one agent's detail panel by name, timestamp, or path.                                                         | [Agent attachments](agent_images.md)                  |
-| `sase agents kill`                   | Terminate a running agent.                                                                                           | [ACE TUI](ace.md)                                     |
-| `sase agents tag`                    | Set, clear, or list user-defined agent tags used for grouping.                                                       | [ACE TUI](ace.md)                                     |
-| `sase agents archive`                | Maintain dismissed-agent bundle summary indexes (`rebuild-index`, `verify`).                                         | [ACE TUI](ace.md#agent-revival)                       |
-| `sase agents index`                  | Manage the persistent agent artifact SQLite index (`status`, `rebuild`, `verify`, `gc`).                             | [ACE TUI](ace.md)                                     |
-| `sase agents names migrate-auto`     | Backfill the permanent agent-name registry from legacy auto-generated names; pass `--force` to rerun.                | [ACE TUI](ace.md)                                     |
-| `sase chats list`                    | List recent chat transcripts.                                                                                        | [XPrompts](xprompt.md)                                |
-| `sase chats show`                    | Show one chat transcript by agent name, path, or basename.                                                           | [XPrompts](xprompt.md)                                |
-| `sase notify` / `sase notify create` | Create a notification from JSON input.                                                                               | [Notifications](notifications.md)                     |
-| `sase notify list`                   | List recent notifications, optionally filtered by sender, tag, unread state, or query.                               | [Notifications](notifications.md)                     |
-| `sase notify show`                   | Show one notification as Markdown or JSON.                                                                           | [Notifications](notifications.md)                     |
-| `sase repro replay`                  | Replay an Agents-tab reproduction bundle through the headless TUI harness and emit a verdict.                        | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
-| `sase repro capture agents-tab`      | Capture a commit-safe out-of-band Agents-tab bundle from current filesystem state.                                   | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
+| Command                          | Purpose                                                                                                              | Details                                               |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `sase ace`                       | Open ACE, the interactive control surface for ChangeSpecs, live agents, notifications, and axe state.                | [ACE TUI](ace.md)                                     |
+| `sase run [PROMPT]`              | Launch an agent or workflow from a prompt, an xprompt reference, a workflow reference, history, or an editor buffer. | [XPrompts](xprompt.md), [workflows](workflow_spec.md) |
+| `sase agents status`             | List active and recent agents across projects.                                                                       | [ACE Agents tab](ace.md#tab-system)                   |
+| `sase agents show`               | Render one agent's detail panel by name, timestamp, or path.                                                         | [Agent attachments](agent_images.md)                  |
+| `sase agents kill`               | Terminate a running agent.                                                                                           | [ACE TUI](ace.md)                                     |
+| `sase agents tag`                | Set, clear, or list user-defined agent tags used for grouping.                                                       | [ACE TUI](ace.md)                                     |
+| `sase agents archive`            | Maintain dismissed-agent bundle summary indexes (`rebuild-index`, `verify`).                                         | [ACE TUI](ace.md#agent-revival)                       |
+| `sase agents index`              | Manage the persistent agent artifact SQLite index (`status`, `rebuild`, `verify`, `gc`).                             | [ACE TUI](ace.md)                                     |
+| `sase agents names migrate-auto` | Backfill the permanent agent-name registry from legacy auto-generated names; pass `--force` to rerun.                | [ACE TUI](ace.md)                                     |
+| `sase chats list`                | List recent chat transcripts.                                                                                        | [XPrompts](xprompt.md)                                |
+| `sase chats show`                | Show one chat transcript by agent name, path, or basename.                                                           | [XPrompts](xprompt.md)                                |
+| `sase notify`                    | Shortcut for `sase notify list`.                                                                                     | [Notifications](notifications.md)                     |
+| `sase notify create`             | Create a notification from JSON input.                                                                               | [Notifications](notifications.md)                     |
+| `sase notify list`               | List recent notifications, optionally filtered by sender, tag, unread state, or query.                               | [Notifications](notifications.md)                     |
+| `sase notify show`               | Show one notification as Markdown or JSON.                                                                           | [Notifications](notifications.md)                     |
+| `sase repro replay`              | Replay an Agents-tab reproduction bundle through the headless TUI harness and emit a verdict.                        | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
+| `sase repro capture agents-tab`  | Capture a commit-safe out-of-band Agents-tab bundle from current filesystem state.                                   | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
 
 `sase run` can run in the foreground, launch detached background agents with `--daemon`, resume previous conversations,
 or expand multi-prompt input into sequential background launches. ACE uses the same launch machinery when users start
 agents from the TUI.
+
+Command groups with an exact `list` child default to that list view when invoked bare, including `sase amd`,
+`sase bead`, `sase chats`, `sase file`, `sase file-history`, `sase memory`, `sase memory episodes`, `sase notify`,
+`sase plugin`, `sase sdd`, `sase skills`, `sase telemetry`, `sase workspace`, and `sase xprompt`. Nested groups such as
+`sase agents tag`, `sase axe chop`, and `sase axe lumberjack` follow the same rule.
 
 ## Work Tracking And Planning
 
@@ -47,7 +53,7 @@ agents from the TUI.
 | `sase memory write`                          | Agent-side proposal for human-reviewed long-term memory; `--notify` can add an inbox item.   | [Memory](memory.md#propose-memory)                 |
 | `sase memory review`                         | Human listing, inspection, approval, editing, or rejection of pending memory proposals.      | [Memory](memory.md#review-proposals)               |
 | `sase memory log`                            | Summarize audited memory reads; `--include proposals` also shows proposal and review events. | [Memory](memory.md#audited-reads)                  |
-| `sase memory episodes`                       | Build, inspect, verify, and recall source-linked evidence records for prior agent work.      | [Episodes](episodes.md)                            |
+| `sase memory episodes`                       | Build, inspect, maintain, verify, export, and recall source-linked evidence records.         | [Episodes](episodes.md)                            |
 | `sase memory init`                           | Create or refresh project/home memory files and AGENTS memory references.                    | [Initialization](init.md#memory-initialization)    |
 | `sase init memory`                           | Alias for `sase memory init`.                                                                | [Initialization](init.md#memory-initialization)    |
 | `sase sdd init`                              | Create or refresh SDD README files and directory map assets.                                 | [SDD](sdd.md)                                      |
@@ -144,6 +150,8 @@ GitHub pull requests, and other provider plugins.
 | `sase logs`                    | Collect and package agent run logs for a date range.                                                    | [Configuration CLI flags](configuration.md#sase-logs)       |
 | `sase revive-log`              | Inspect the agent-revival audit log (start / success / failure events).                                 | [Agent revival audit log](troubleshooting/agent-revival.md) |
 | `sase artifact create`         | Move an explicit file into persistent agent artifact storage.                                           | [Agent attachments](agent_images.md)                        |
+| `sase plugin` / `list`         | Inventory installed SASE plugin entry points and configured/available chop scripts.                     | [Plugins](plugins.md#cli-diagnostics)                       |
+| `sase plugin doctor`           | Diagnose plugin resource loading, configured chops, and optional integration prerequisites.             | [Plugins](plugins.md#cli-diagnostics)                       |
 | `sase path`                    | Print well-known paths such as schemas and xprompt directories.                                         | [Configuration CLI flags](configuration.md#sase-path)       |
 | `sase workspace list`          | List managed workspace checkouts in the registry, including primary `#0`.                               | [Workspace provider](workspace.md)                          |
 | `sase workspace path`          | Print the checkout path for a workspace number.                                                         | [Workspace provider](workspace.md)                          |

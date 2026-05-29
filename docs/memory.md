@@ -187,9 +187,12 @@ Start from a completed agent. `build` stores the episode by default; recall sear
 
 ```bash
 sase memory episodes build -n <agent-name>
+sase memory episodes auto -p <project> -l 50
+sase memory episodes status -p <project>
 sase memory episodes list -g day
 sase memory episodes show <episode-id>
 sase memory episodes verify <episode-id>
+sase memory episodes doctor -p <project>
 sase memory episodes recall -q "retry feedback"
 sase memory episodes export -s 2026-05-01 -u 2026-05-26 -b high -j
 ```
@@ -211,6 +214,10 @@ evidence cards and still supports legacy lesson cards. `export` emits bounded re
 does not write `sdd/events/` or proposals. `verify` recomputes source existence, size, and hashes without changing the
 episode. Missing or changed sources mean the evidence drifted; they do not delete the episode or automatically block
 recall.
+
+For scheduled maintenance, `sase memory episodes auto` runs one checkpointed builder cycle over new completed-agent
+markers. `status` shows the automatic builder checkpoint, lock, index, and latest metrics, while `doctor` inspects that
+state and can apply safe repairs with `--repair`.
 
 Human-mode `build` prints phase progress to stderr and the final summary to stdout. Pass `--quiet` to suppress progress
 while keeping the final summary, or `--json` for a deterministic machine-readable payload with `episode`,

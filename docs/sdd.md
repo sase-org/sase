@@ -203,6 +203,8 @@ the bead falls back to the launcher default.
 
 The `sase sdd` command group manages generated SDD documentation and frontmatter links:
 
+With no subcommand, `sase sdd` defaults to `sase sdd list`.
+
 | Command                 | Purpose                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------- |
 | `sase sdd init`         | Create or refresh `sdd/README.md`, tier READMEs, and `sdd/assets/sdd-directory-map.png`                 |

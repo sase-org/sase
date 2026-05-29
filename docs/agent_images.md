@@ -147,8 +147,10 @@ relative to the agent workspace when possible, home-relative when appropriate, a
 active.
 
 The panel supports one-key selectors, `j`/`k` navigation, `m` to mark rows, `Enter` to open the marked set or
-highlighted row, and `A` to open every artifact in list order. When multiple artifacts are opened together, the terminal
-viewer adds `n`/`p` navigation between artifacts in addition to page navigation.
+highlighted row, `y` to copy highlighted Markdown contents, `Y` to copy the highlighted artifact path, and `A` to open
+every artifact in list order. Copied paths are workspace-relative when possible and fall back to home-relative paths.
+When multiple artifacts are opened together, the terminal viewer adds `n`/`p` navigation between artifacts in addition
+to page navigation.
 
 When ACE is running inside tmux, the artifact viewer launches in a right-side tmux pane and the Agents list collapses
 while the pane is live. Press `l` from the Agents tab to focus the tracked artifact pane, or press `A` again to close

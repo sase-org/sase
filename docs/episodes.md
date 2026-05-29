@@ -44,14 +44,25 @@ sase memory episodes list -p <project> -s 2026-05-19 -u 2026-05-20 -g day
 sase memory episodes list -p <project> -s 2026-05-19 -u 2026-05-20 -b high -j
 ```
 
+For recurring maintenance, run one checkpointed automatic build cycle and inspect its state:
+
+```bash
+sase memory episodes auto -p <project> -l 50
+sase memory episodes status -p <project>
+sase memory episodes doctor -p <project>
+```
+
 ## Command Summary
 
 | Command                            | Purpose                                                                                 |
 | ---------------------------------- | --------------------------------------------------------------------------------------- |
+| `sase memory episodes auto`        | Run one checkpointed automatic build cycle over new completed agent markers.            |
 | `sase memory episodes build`       | Build aggregate compatibility output or split v2 component episodes.                    |
+| `sase memory episodes doctor`      | Inspect automatic builder state and apply safe repairs with `--repair`.                 |
 | `sase memory episodes export`      | Emit bounded read-only episode summaries for future event review.                       |
 | `sase memory episodes list`        | Inventory stored episodes by event time, status, metadata, and importance.              |
 | `sase memory episodes show <id>`   | Show overview, timeline, graph, sources, agent pack, JSON, or legacy lesson.            |
+| `sase memory episodes status`      | Show automatic-builder checkpoint, lock, index, and latest metrics state.               |
 | `sase memory episodes verify [id]` | Recompute source existence, size, and hash checks for one episode, or all when omitted. |
 | `sase memory episodes recall -q Q` | Search stored episode evidence with deterministic keyword scoring.                      |
 
@@ -119,6 +130,17 @@ The build JSON includes:
 
 With `--split --json`, the top-level object contains `components` and `build_reports` lists, one entry per connected
 component.
+
+## Automatic Builder
+
+`auto` runs one checkpointed build cycle over completed agent markers that have not yet been scanned by the automatic
+builder. It is intended for scheduled maintenance and defaults to a bounded batch size; use `--limit` to override the
+batch for one run. `--dry-run` reports the planned cycle and build reports without writing episodes, state, or metrics.
+
+The builder records its checkpoint under the project episode state so repeated cycles only scan new done markers.
+`status` reports the checkpoint, lock, index, and latest metrics. `doctor` inspects that state for recoverable problems;
+with `--repair`, it can apply safe fixes such as restoring a previous `build_state.json` or removing abandoned temporary
+builder directories.
 
 ## Inventory
 

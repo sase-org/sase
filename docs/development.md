@@ -15,7 +15,7 @@ Requirements:
 uv venv .venv
 source .venv/bin/activate
 just install
-sase
+sase --help
 ```
 
 `just install` installs the package in editable mode with development dependencies. When a sibling `../sase-core`

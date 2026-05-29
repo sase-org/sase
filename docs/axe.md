@@ -18,7 +18,7 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
 │  (spawns & monitors all lumberjacks)                    │
 ├──────────┬──────────┬──────────┬────────────┬───────────┤
 │  hooks   │  waits   │  checks  │  comments  │ housekeep │
-│  (5s)    │  (2s)    │  (5min)  │  (1min)    │ (1hr)     │
+│  (5s)    │  (10s)   │  (5min)  │  (1min)    │ (1hr)     │
 │          │          │          │            │           │
 │ hook_    │ wait_    │ cl_sub-  │ comment_   │ error_    │
 │ checks   │ checks   │ mitted_  │ checks     │ digest    │
@@ -44,6 +44,8 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
   variables and run frequency.
 
 ## CLI Commands
+
+`sase axe chop` and `sase axe lumberjack` default to their `list` views when invoked without a nested subcommand.
 
 | Command                                    | Description                                           |
 | ------------------------------------------ | ----------------------------------------------------- |
@@ -106,7 +108,7 @@ High-frequency hook lifecycle management:
 | `suffix_transforms`     | Strip stale suffixes, update mail-readiness   |
 | `orphan_cleanup`        | Release workspace claims for dead processes   |
 
-### waits (2-second interval)
+### waits (10-second interval)
 
 Fast-polling agent dependency resolution:
 
@@ -155,13 +157,15 @@ configuration reference.
 
 ### Global Settings
 
-| Setting                  | Default | Description                               |
-| ------------------------ | ------- | ----------------------------------------- |
-| `max_hook_runners`       | 3       | Concurrent hook runners allowed globally  |
-| `max_agent_runners`      | 3       | Concurrent agent runners allowed globally |
-| `zombie_timeout_seconds` | 7200    | Timeout for marking jobs as zombie        |
-| `query`                  | `""`    | Optional query filter for all changespecs |
-| `chop_script_dirs`       | `[]`    | Directories to search for chop scripts    |
+| Setting                          | Default  | Description                                             |
+| -------------------------------- | -------- | ------------------------------------------------------- |
+| `max_hook_runners`               | 3        | Concurrent hook runners allowed globally                |
+| `max_agent_runners`              | 3        | Concurrent agent runners allowed globally               |
+| `zombie_timeout_seconds`         | 7200     | Timeout for marking jobs as zombie                      |
+| `query`                          | `""`     | Optional query filter for all changespecs               |
+| `chop_script_dirs`               | `[]`     | Directories to search for chop scripts                  |
+| `lumberjack_log_max_bytes`       | 52428800 | Maximum bytes retained for each bounded lumberjack log  |
+| `verbose_lumberjack_diagnostics` | false    | Include verbose diagnostics in chop script context JSON |
 
 The `query` setting uses the same ChangeSpec query language as ACE. CLI flags on `sase axe start` and
 `sase axe lumberjack run` override the configured query, runner limits, and zombie timeout for that process.

@@ -46,7 +46,8 @@ The resolution path is easiest to read as a pipeline from prompt references to f
 
 ## CLI Subcommands
 
-The `sase xprompt` command provides five subcommands for working with xprompts.
+The `sase xprompt` command provides five subcommands for working with xprompts. With no subcommand, it defaults to
+`sase xprompt list`.
 
 ### `sase xprompt expand`
 

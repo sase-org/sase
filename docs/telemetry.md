@@ -70,6 +70,8 @@ Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 
 ## CLI Commands
 
+With no subcommand, `sase telemetry` defaults to `sase telemetry list`.
+
 ### `sase telemetry status`
 
 Quick health check and configuration display. Shows telemetry enabled/disabled status, metric counts by type, and

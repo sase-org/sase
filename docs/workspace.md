@@ -306,7 +306,7 @@ directory is not the right operational location.
 The `sase workspace` command surface inspects numbered workspace paths and maintains the per-project registry used by
 non-adjacent roots. All subcommands accept `-p/--project NAME` to override the project; without it, the project is
 inferred from the current directory via the nearest managed-checkout marker, the workspace provider hook, and finally a
-scan of `~/.sase/projects/`.
+scan of `~/.sase/projects/`. With no subcommand, `sase workspace` defaults to `sase workspace list`.
 
 | Command                                                                | Description                                                                                                                                                                            |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

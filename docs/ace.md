@@ -372,6 +372,8 @@ Artifact panel controls:
 | selector    | Open the artifact with that one-key selector (`1`-`0`, then letters)    |
 | `j` / `k`   | Move through artifact rows                                              |
 | `m`         | Mark / unmark the highlighted artifact and advance to the next row      |
+| `y`         | Copy highlighted Markdown artifact contents                             |
+| `Y`         | Copy the highlighted artifact path, workspace-relative when possible    |
 | `Enter`     | Open marked artifacts in list order, or the highlighted row if unmarked |
 | `A`         | Open all artifacts in list order, ignoring marks                        |
 | `q` / `Esc` | Close the panel                                                         |
@@ -813,6 +815,7 @@ These work on all tabs:
 | ------------------- | --------------------------------------------------------------------------------- |
 | `Tab` / `Shift+Tab` | Switch between CLs, Agents, and Axe tabs                                          |
 | `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)              |
+| `F`                 | Open Episode Explorer (see [Episode Explorer](#episode-explorer) below)           |
 | `.`                 | Toggle visibility of hidden items (reverted CLs, non-run agents, or axe commands) |
 | `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                        |
 | `,i`                | Open Activity Dashboard modal                                                     |
@@ -991,6 +994,33 @@ Press `Ctrl+O` to start the guided creation flow:
    with a YAML template containing the workflow scaffold.
 3. **Editor** — The file opens in `$EDITOR` for editing.
 4. **Git commit** — After saving, the browser offers to commit and push changes.
+
+## Episode Explorer
+
+Press `F` on any tab to browse source-linked memory episodes for the current project without leaving ACE. The modal
+loads the project episode inventory, filters it locally, and renders the same overview, timeline, graph, sources, and
+agent evidence views exposed by `sase memory episodes show`.
+
+The left pane lists canonical episode ids and aliases. The filter row narrows by text, agent, ChangeSpec, and bead; the
+quick filters cycle through event ranges, importance bands, v1/v2 status, and alias-only rows. The graph view defaults
+to strong lineage edges, while `e` toggles all weak evidence edges.
+
+| Key            | Action                                                        |
+| -------------- | ------------------------------------------------------------- |
+| `j` / `k`      | Move through episode rows                                     |
+| `r`            | Cycle range filter (`all`, today, yesterday, week, month)     |
+| `b`            | Cycle importance band                                         |
+| `s`            | Cycle status filter (`all`, v2, v1, aliases)                  |
+| `1`-`5`        | Switch detail view: overview, timeline, graph, sources, agent |
+| `Left`/`Right` | Previous / next detail view                                   |
+| `e`            | Toggle graph edge mode between strong and all                 |
+| `v`            | Verify the selected episode's sources                         |
+| `o`            | Open the currently selected source in `$EDITOR`               |
+| `[` / `]`      | Move the source cursor in the sources view                    |
+| `Enter`/`g`    | Jump from an alias row to its canonical episode               |
+| `y`            | Copy the selected episode id                                  |
+| `Ctrl+R`       | Refresh inventory                                             |
+| `q`/`Esc`      | Close the explorer                                            |
 
 ## Idle Detection
 
@@ -1554,6 +1584,16 @@ Press `Ctrl+T` to activate completion. The completion kind is determined by the 
 | `Ctrl+P` / `Up`    | Previous candidate                       |
 | `Enter` / `Ctrl+L` | Accept highlighted candidate             |
 | `Escape`           | Cancel completion                        |
+
+ACE also computes a non-disruptive live suggestion after a short debounce while the prompt input is in INSERT mode. The
+suggestion appears in the prompt bar subtitle as `[^L] accept ...`; press `Ctrl+L` to accept it. `Enter` still submits
+the prompt as typed, so live suggestions cannot accidentally replace text on send.
+
+Live soft completion covers directives, xprompt names, xprompt argument names, and bool argument values. File-path soft
+completion is disabled by default because it can scan the filesystem while typing; enable it with
+`ace.prompt_completion.auto_file_paths: true`. Manual `Ctrl+T` completion still supports file paths regardless of that
+setting. Live suggestions pause while the manual completion panel is open, while snippet tabstops are active, in NORMAL
+mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The

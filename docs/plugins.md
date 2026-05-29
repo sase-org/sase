@@ -11,15 +11,16 @@ core package.
 
 ## Plugin Groups
 
-Sase defines five entry point groups:
+Sase defines six entry point groups:
 
-| Entry Point Group | Entry Point Value | Purpose                                             | Example Plugin                  |
-| ----------------- | ----------------- | --------------------------------------------------- | ------------------------------- |
-| `sase_vcs`        | Provider class    | VCS provider plugins (git, hg, etc.)                | `sase-github`                   |
-| `sase_workspace`  | Provider class    | Workspace provider plugins (ref resolution, submit) | `sase-github`                   |
-| `sase_llm`        | Provider class    | LLM provider plugins                                | built-in or third-party         |
-| `sase_xprompts`   | Package module    | XPrompt templates and workflows                     | `my_sase_plugin`                |
-| `sase_config`     | Package module    | Default configuration (`default_config.yml`)        | `sase-github`, `my_sase_plugin` |
+| Entry Point Group      | Entry Point Value | Purpose                                             | Example Plugin                  |
+| ---------------------- | ----------------- | --------------------------------------------------- | ------------------------------- |
+| `sase_vcs`             | Provider class    | VCS provider plugins (git, hg, etc.)                | `sase-github`                   |
+| `sase_workspace`       | Provider class    | Workspace provider plugins (ref resolution, submit) | `sase-github`                   |
+| `sase_llm`             | Provider class    | LLM provider plugins                                | built-in or third-party         |
+| `sase_xprompts`        | Package module    | XPrompt templates and workflows                     | `my_sase_plugin`                |
+| `sase_config`          | Package module    | Default configuration (`default_config.yml`)        | `sase-github`, `my_sase_plugin` |
+| `sase_plugin_manifest` | Package module    | Plugin metadata resource used by diagnostics        | third-party plugin packages     |
 
 Provider-class entry points resolve to a class that is instantiated and registered with pluggy. Package-module entry
 points resolve to a module whose package resources are read by Sase.
@@ -43,6 +44,23 @@ pip install sase
 pip install sase-github
 ```
 
+## CLI Diagnostics
+
+`sase plugin` defaults to `sase plugin list`.
+
+```bash
+sase plugin
+sase plugin list --verbose
+sase plugin doctor
+sase plugin doctor --json
+```
+
+`sase plugin list` inventories installed SASE entry points, plugin distributions, configured axe chop scripts, and
+available unconfigured chop scripts. `sase plugin doctor` runs the same inventory plus health checks for resource entry
+point load failures, missing configured chops, unconfigured scripts, GitHub CLI/auth prerequisites when GitHub plugins
+are installed, and Telegram `pass`/environment prerequisites when Telegram chop scripts are present. The doctor status
+is `ERROR` only for failures that block configured resources; optional integration prerequisites report `WARN`.
+
 ## How Plugins Are Discovered
 
 Plugin discovery uses `importlib.metadata.entry_points()` to find installed packages that declare one of Sase's entry
@@ -52,9 +70,10 @@ There are two discovery paths:
 
 1. **Provider classes**: `sase_vcs`, `sase_workspace`, and `sase_llm` entry points resolve to classes. The relevant
    registry loads the class, instantiates it, and registers the instance with a pluggy `PluginManager`.
-2. **Package resources**: `sase_xprompts` and `sase_config` entry points resolve to modules. The shared helper in
-   `src/sase/main/plugin_discovery.py` sorts those entry points by name, loads the modules, and skips module load
-   failures after logging them at debug level.
+2. **Package resources**: `sase_xprompts`, `sase_config`, and `sase_plugin_manifest` entry points resolve to modules.
+   The shared helper in `src/sase/main/plugin_discovery.py` sorts config and xprompt entry points by name, loads the
+   modules, and skips module load failures after logging them at debug level. `sase plugin doctor` loads resource entry
+   points directly so packaging problems are visible as diagnostics instead of only debug logs.
 
 ### VCS Plugins (pluggy)
 

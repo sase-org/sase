@@ -32,8 +32,8 @@ actually running behind that tab.
 AXE is a multi-process daemon. A parent **Orchestrator** spawns and monitors a fixed set of **Lumberjacks**; each
 lumberjack is a scheduler loop that runs one or more **Chops** (jobs) on its own interval. The orchestrator holds a
 lifecycle lock, forwards `SIGTERM` to its children on shutdown, and restarts any lumberjack that crashes. The default
-lumberjacks and their cadences are: `hooks` (5s), `waits` (2s), `checks` (5m), `comments` (1m), and `housekeeping` (1h).
-ACE auto-starts AXE the first time it opens unless you pass `--no-axe`.
+lumberjacks and their cadences are: `hooks` (5s), `waits` (10s), `checks` (5m), `comments` (1m), and `housekeeping`
+(1h). ACE auto-starts AXE the first time it opens unless you pass `--no-axe`.
 
 ## The Hooks Chop Is Most of the Work
 

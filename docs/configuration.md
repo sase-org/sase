@@ -127,11 +127,12 @@ ace:
             shell: "just test"
 ```
 
-| Field              | Type         | Default | Description                                                             |
-| ------------------ | ------------ | ------- | ----------------------------------------------------------------------- |
-| `inactive_seconds` | int          | `600`   | Seconds of inactivity before the IDLE badge appears in the TUI top bar. |
-| `keymaps`          | dict         | -       | Configurable keybindings (see below).                                   |
-| `snippets`         | dict[string] | `{}`    | Trigger-word → template mappings for prompt input snippet expansion.    |
+| Field               | Type         | Default   | Description                                                             |
+| ------------------- | ------------ | --------- | ----------------------------------------------------------------------- |
+| `inactive_seconds`  | int          | `600`     | Seconds of inactivity before the IDLE badge appears in the TUI top bar. |
+| `keymaps`           | dict         | -         | Configurable keybindings (see below).                                   |
+| `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                 |
+| `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.    |
 
 The IDLE indicator can also be triggered manually via the leader-mode `,I` keybinding. External tools can query idle
 status via `sase.ace.tui_activity.is_idle()`.
@@ -185,6 +186,30 @@ moves to the end of the expanded text.
 See [docs/ace.md — Snippets](ace.md#snippets) for usage details.
 
 Source: `src/sase/ace/tui/widgets/prompt_text_area.py`
+
+#### `ace.prompt_completion`
+
+Controls automatic non-disruptive suggestions in the ACE prompt input. Suggestions appear in the prompt-bar subtitle and
+are accepted with `Ctrl+L`; `Enter` still submits the prompt as typed. Manual `Ctrl+T` completion is independent of
+these settings.
+
+```yaml
+ace:
+  prompt_completion:
+    auto: soft
+    debounce_ms: 90
+    auto_file_paths: false
+    max_auto_rows: 1
+```
+
+| Field             | Type        | Default | Description                                                                                                  |
+| ----------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `auto`            | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.    |
+| `debounce_ms`     | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                       |
+| `auto_file_paths` | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false. |
+| `max_auto_rows`   | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                   |
+
+Source: `src/sase/ace/tui/widgets/prompt_completion.py`, `src/sase/ace/tui/widgets/_prompt_soft_completion.py`
 
 ### llm_provider
 
@@ -406,7 +431,7 @@ axe:
         - name: orphan_cleanup
           description: Release workspace claims orphaned by reverted CLs with dead PIDs
     waits:
-      interval: 2
+      interval: 10
       chops:
         - name: wait_checks
           description: Resolve successful agent wait dependencies and write ready.json
@@ -431,14 +456,16 @@ axe:
 
 **Top-level fields:**
 
-| Field                    | Type         | Default | Description                                                                   |
-| ------------------------ | ------------ | ------- | ----------------------------------------------------------------------------- |
-| `max_hook_runners`       | int          | `3`     | Maximum concurrent hook runners (non-`$` hooks) across all ChangeSpecs.       |
-| `max_agent_runners`      | int          | `3`     | Maximum concurrent agent runners (agents and mentors) across all ChangeSpecs. |
-| `zombie_timeout_seconds` | int          | `7200`  | Seconds after which a running hook or workflow is flagged as a zombie.        |
-| `query`                  | string       | `""`    | Query string for filtering ChangeSpecs (empty = all).                         |
-| `chop_script_dirs`       | list[string] | `[]`    | Additional directories to search for external chop scripts.                   |
-| `lumberjacks`            | dict         | -       | Mapping of lumberjack name → config (see below).                              |
+| Field                            | Type         | Default    | Description                                                                   |
+| -------------------------------- | ------------ | ---------- | ----------------------------------------------------------------------------- |
+| `max_hook_runners`               | int          | `3`        | Maximum concurrent hook runners (non-`$` hooks) across all ChangeSpecs.       |
+| `max_agent_runners`              | int          | `3`        | Maximum concurrent agent runners (agents and mentors) across all ChangeSpecs. |
+| `zombie_timeout_seconds`         | int          | `7200`     | Seconds after which a running hook or workflow is flagged as a zombie.        |
+| `query`                          | string       | `""`       | Query string for filtering ChangeSpecs (empty = all).                         |
+| `chop_script_dirs`               | list[string] | `[]`       | Additional directories to search for external chop scripts.                   |
+| `lumberjack_log_max_bytes`       | int          | `52428800` | Maximum bytes retained for each bounded lumberjack log.                       |
+| `verbose_lumberjack_diagnostics` | bool         | `false`    | Include verbose diagnostics in chop script context JSON.                      |
+| `lumberjacks`                    | dict         | -          | Mapping of lumberjack name → config (see below).                              |
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 
@@ -1135,6 +1162,10 @@ Use the in-TUI `,R` capture when a transient row-list bug has just happened in a
 is out-of-band: it loads current filesystem state and cannot reconstruct refreshes that already passed through the
 running TUI.
 
+### `sase xprompt`
+
+With no subcommand, `sase xprompt` defaults to `sase xprompt list`.
+
 ### `sase xprompt expand`
 
 | Flag          | Values | Default | Description                                                  |
@@ -1163,6 +1194,12 @@ entries where `is_skill` is `true`.
 | ----------------- | ---------------- | --------- | ------------------------------------------------------- |
 | `[workflow_name]` | string           | -         | Workflow name to graph. Lists all workflows if omitted. |
 | `-f, --format`    | `mermaid`,`text` | `mermaid` | Output format for the DAG visualization.                |
+
+### `sase xprompt catalog`
+
+| Flag        | Values | Default | Description                                       |
+| ----------- | ------ | ------- | ------------------------------------------------- |
+| `-o, --out` | path   | tempdir | Directory where the rendered PDF should be saved. |
 
 ### `sase init`
 
@@ -1203,7 +1240,7 @@ With no subcommand, `sase memory` defaults to `sase memory list`.
 | `sase memory write`       | `--title`, `--target` or `--slug`, repeatable `--evidence`, `--from-chat`, `--keyword`, `--body`, `--file`, `--allow-large`, `--manual-author`, `--notify`, `--json` | Create an attributable long-term memory proposal without modifying canonical memory files.          |
 | `sase memory review [id]` | `--list`, `--show`, `--approve`, `--edit`, `--reject`, `--all`, `--target`, `--edited-file`, `--reason`, `--json`                                                    | Human review of pending memory proposals; a bare TTY command opens the interactive review app.      |
 | `sase memory log`         | `--path`, `--agent`, `--id`, `--include`, `--json`                                                                                                                   | Summarize or inspect audited memory reads, optionally including proposal and review events.         |
-| `sase memory episodes`    | `build`, `export`, `list`, `recall`, `show`, `verify`                                                                                                                | Build, inspect, verify, export, and recall deterministic source-linked episode records.             |
+| `sase memory episodes`    | `auto`, `build`, `doctor`, `export`, `list`, `recall`, `show`, `status`, `verify`                                                                                    | Build, inspect, verify, export, recall, and maintain deterministic source-linked episode records.   |
 
 Examples:
 
@@ -1222,14 +1259,17 @@ sase memory log --id <read-id>
 #### `sase memory episodes`
 
 `sase memory episodes` stores deterministic records of prior agent work under `~/.sase/projects/<project>/episodes/`.
-All subcommands accept `-p, --project <project>`.
+With no subcommand, it defaults to `sase memory episodes list`. All subcommands accept `-p, --project <project>`.
 
 | Form                                 | Flags                                                                                                                                                                                                             | Description                                                                    |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `sase memory episodes auto`          | `-D, --dry-run`, `-l, --limit`, `-j, --json`                                                                                                                                                                      | Run one checkpointed automatic episode-build cycle over new done markers.      |
 | `sase memory episodes build`         | `-n, --agent`, `-a, --artifact-dir`, `-c, --changespec`, `-C, --chat`, `-s, --since`, `-u, --until`, `-l, --limit`, `-S, --split`, `-A, --aggregate`, `-D, --dry-run`, `-f, --force`, `-q, --quiet`, `-j, --json` | Build split v2 component episodes or aggregate compatibility output.           |
+| `sase memory episodes doctor`        | `-R, --repair`, `-j, --json`                                                                                                                                                                                      | Inspect automatic-builder state and apply safe repairs when requested.         |
 | `sase memory episodes export`        | `-s, --since`, `-u, --until`, `-b, --band`, `-n, --agent`, `-c, --changespec`, `-B, --bead`, `-q, --query`, `-o, --order`, `-l, --limit`, `-j, --json`                                                            | Export bounded read-only episode summaries for future event review.            |
 | `sase memory episodes list`          | `-s, --since`, `-u, --until`, `-b, --band`, `-n, --agent`, `-c, --changespec`, `-B, --bead`, `-q, --query`, `-g, --group`, `-o, --order`, `-l, --limit`, `-j, --json`                                             | Inventory stored episodes by event span, importance, metadata, and query.      |
 | `sase memory episodes show <id>`     | `-f, --format overview\|timeline\|graph\|sources\|agent\|json\|lesson`, `-e, --edge-mode strong\|all`, `-j, --json`                                                                                               | Show overview, graph, provenance, agent evidence pack, JSON, or legacy lesson. |
+| `sase memory episodes status`        | `-j, --json`                                                                                                                                                                                                      | Show automatic-builder checkpoint, lock, index, and latest metrics status.     |
 | `sase memory episodes verify [id]`   | `-A, --all`, `-j, --json`                                                                                                                                                                                         | Verify source existence, size, and hashes for one episode or all stored rows.  |
 | `sase memory episodes recall -q <q>` | `-l, --limit`, `-j, --json`                                                                                                                                                                                       | Search stored episode evidence with deterministic keyword matching.            |
 
@@ -1302,7 +1342,7 @@ ProjectSpec.
 ### `sase workspace`
 
 Workspace commands inspect and maintain the managed checkout registry for the inferred project, or for the project named
-by `-p/--project`.
+by `-p/--project`. With no subcommand, `sase workspace` defaults to `sase workspace list`.
 
 | Command                  | Flag / argument            | Values       | Description                                                                                         |
 | ------------------------ | -------------------------- | ------------ | --------------------------------------------------------------------------------------------------- |
@@ -1332,9 +1372,11 @@ run SDD initialization.
 
 ### `sase bead`
 
-| Flag         | Values                                                                                                                                     | Default    | Description     |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | --------------- |
-| _subcommand_ | `init`, `create`, `list`, `show`, `ready`, `open`, `update`, `close`, `rm`, `dep`, `blocked`, `sync`, `stats`, `doctor`, `onboard`, `work` | (required) | Bead subcommand |
+With no subcommand, `sase bead` defaults to `sase bead list`.
+
+| Flag         | Values                                                                                                                                     | Default | Description     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ------- | --------------- |
+| _subcommand_ | `init`, `create`, `list`, `show`, `ready`, `open`, `update`, `close`, `rm`, `dep`, `blocked`, `sync`, `stats`, `doctor`, `onboard`, `work` | `list`  | Bead subcommand |
 
 #### `sase bead create`
 
@@ -1420,7 +1462,8 @@ run SDD initialization.
 ### `sase sdd`
 
 `sase sdd` manages SDD prompt/artifact documentation and frontmatter links. Every subcommand accepts `-p/--path`, which
-may point at an SDD root or at a project root containing `sdd/`. `sase init sdd` is an alias for `sase sdd init`.
+may point at an SDD root or at a project root containing `sdd/`. With no subcommand, `sase sdd` defaults to
+`sase sdd list`. `sase init sdd` is an alias for `sase sdd init`.
 
 | Subcommand     | Flags                                                                    | Description                                                                                                           |
 | -------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
@@ -1439,9 +1482,11 @@ SDD validation passes.
 
 ### `sase telemetry`
 
-| Flag         | Values                                                               | Default    | Description          |
-| ------------ | -------------------------------------------------------------------- | ---------- | -------------------- |
-| _subcommand_ | `status`, `list`, `snapshot`, `dashboard`, `health`, `export-config` | (required) | Telemetry subcommand |
+With no subcommand, `sase telemetry` defaults to `sase telemetry list`.
+
+| Flag         | Values                                                               | Default | Description          |
+| ------------ | -------------------------------------------------------------------- | ------- | -------------------- |
+| _subcommand_ | `status`, `list`, `snapshot`, `dashboard`, `health`, `export-config` | `list`  | Telemetry subcommand |
 
 See [docs/telemetry.md](telemetry.md) for the full CLI reference including per-subcommand flags.
 
@@ -1475,16 +1520,29 @@ The snippet catalog uses the same source ordering as ACE: xprompts marked with `
 
 ### `sase file`
 
+With no subcommand, `sase file` defaults to `sase file list`.
+
 | Form             | Flags                     | Description                                                                                     |
 | ---------------- | ------------------------- | ----------------------------------------------------------------------------------------------- |
 | `sase file list` | `-p/--path`, `-t/--token` | Emit JSON filesystem completion candidates rooted at `--path` and filtered by the cursor token. |
 
 ### `sase file-history`
 
+With no subcommand, `sase file-history` defaults to `sase file-history list`.
+
 | Form                       | Flags       | Description                                                      |
 | -------------------------- | ----------- | ---------------------------------------------------------------- |
 | `sase file-history list`   | none        | Emit the recency-ordered file-reference history as a JSON array. |
 | `sase file-history delete` | `-p/--path` | Remove one entry from the file-reference history.                |
+
+### `sase plugin`
+
+With no subcommand, `sase plugin` defaults to `sase plugin list`.
+
+| Form                 | Flags                       | Description                                                                          |
+| -------------------- | --------------------------- | ------------------------------------------------------------------------------------ |
+| `sase plugin list`   | `-j/--json`, `-v/--verbose` | Inventory installed SASE entry points and configured or available chop scripts.      |
+| `sase plugin doctor` | `-j/--json`, `-v/--verbose` | Diagnose resource loading, configured chops, and optional integration prerequisites. |
 
 ### `sase lsp`
 
@@ -1505,12 +1563,13 @@ is available.
 
 ### `sase notify`
 
-`sase notify` without a subcommand preserves the legacy create behavior and reads notification JSON from stdin.
+With no subcommand, `sase notify` defaults to `sase notify list`. Use `sase notify create` to write a notification from
+stdin JSON.
 
 | Form                 | Flags                                                                                         | Description                                                 |
 | -------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `sase notify`        | `-s/--sender`, `-t/--tag`                                                                     | Create a notification from stdin JSON                       |
-| `sase notify create` | `-s/--sender`, `-t/--tag`                                                                     | Explicit alias for the legacy create path                   |
+| `sase notify`        | `-j/--json`, `-l/--limit`, `-q/--query`, `-t/--tag`, `-s/--sender`, `-u/--unread`, `-a/--all` | Shortcut for `sase notify list`                             |
+| `sase notify create` | `-s/--sender`, `-t/--tag`                                                                     | Create a notification from stdin JSON                       |
 | `sase notify list`   | `-j/--json`, `-l/--limit`, `-q/--query`, `-t/--tag`, `-s/--sender`, `-u/--unread`, `-a/--all` | List recent notifications; `-j` emits the stable JSON shape |
 | `sase notify show`   | `-i/--id`, `-f/--format` (`markdown` or `json`)                                               | Show one notification by id; defaults to markdown           |
 
@@ -1556,7 +1615,8 @@ it with `A`, even after the agent has been dismissed and revived.
 
 ### `sase chats`
 
-`sase chats` discovers and inspects saved agent chat transcripts. Subcommands:
+`sase chats` discovers and inspects saved agent chat transcripts. With no subcommand, it defaults to `sase chats list`.
+Subcommands:
 
 | Subcommand | Flags                                                     | Description                                                                                              |
 | ---------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
