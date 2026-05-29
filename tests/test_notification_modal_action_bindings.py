@@ -2,7 +2,10 @@
 
 from unittest.mock import MagicMock, patch
 
+from textual.content import Content
+
 from sase.ace.tui.modals.notification_modal import NotificationModal
+from sase.ace.tui.modals.notification_modal_constants import DEFAULT_HINT_TEXT
 
 from tests._notification_modal_helpers import _make_notification
 
@@ -38,6 +41,12 @@ def test_notification_modal_binds_brackets_to_tag_tabs() -> None:
         "next_notification_tag_tab",
         "Next Tag",
     ) in NotificationModal.BINDINGS
+
+
+def test_notification_modal_footer_hint_advertises_tag_tab_brackets() -> None:
+    """The default footer exposes square-bracket tag navigation."""
+    assert "[]: tags" in DEFAULT_HINT_TEXT
+    assert Content.from_markup(DEFAULT_HINT_TEXT).plain == DEFAULT_HINT_TEXT
 
 
 def test_copy_file_path_copies_current_attachment() -> None:
