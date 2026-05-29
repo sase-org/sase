@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,24 @@ def _artifact_workspace_dir(artifact: Any) -> str | None:
     return workspace_dir if isinstance(workspace_dir, str) and workspace_dir else None
 
 
+def _artifact_clipboard_workspace_dir(artifact: Any) -> str | None:
+    workspace_dir = _artifact_workspace_dir(artifact)
+    if workspace_dir:
+        return workspace_dir
+
+    agent_artifacts_dir = getattr(artifact, "agent_artifacts_dir", None)
+    if not isinstance(agent_artifacts_dir, str) or not agent_artifacts_dir:
+        return None
+
+    artifacts_dir = Path(agent_artifacts_dir).expanduser()
+    for filename in ("done.json", "agent_meta.json"):
+        data = _read_json_object(artifacts_dir / filename)
+        workspace_dir = data.get("workspace_dir")
+        if isinstance(workspace_dir, str) and workspace_dir:
+            return workspace_dir
+    return None
+
+
 def _artifact_resolved_display_path(artifact: Any) -> Path | None:
     path_text = _artifact_display_path(artifact)
     if not path_text:
@@ -72,6 +91,67 @@ def _artifact_resolved_display_path(artifact: Any) -> Path | None:
 
 def _clipboard_path(path: Path) -> str:
     return _home_relative_path(path.expanduser().resolve(strict=False))
+
+
+def _artifact_clipboard_path(artifact: Any) -> str | None:
+    path_text = _artifact_display_path(artifact)
+    if not path_text:
+        return None
+
+    workspace_dir = _artifact_clipboard_workspace_dir(artifact)
+    path = _resolve_artifact_path(path_text, workspace_dir=workspace_dir)
+    workspace_path = _workspace_relative_path(path, workspace_dir=workspace_dir)
+    if workspace_path is not None:
+        return workspace_path
+
+    source_path_text = str(getattr(artifact, "source_path", "") or "")
+    if source_path_text and source_path_text != path_text:
+        source_path = _resolve_artifact_path(
+            source_path_text,
+            workspace_dir=workspace_dir,
+        )
+        workspace_path = _workspace_relative_path(
+            source_path,
+            workspace_dir=workspace_dir,
+        )
+        if workspace_path is not None:
+            return workspace_path
+
+    return _clipboard_path(path)
+
+
+def _resolve_artifact_path(path_text: str, *, workspace_dir: str | None) -> Path:
+    path = Path(path_text).expanduser()
+    if not path.is_absolute() and workspace_dir:
+        path = Path(workspace_dir).expanduser() / path
+    return path
+
+
+def _workspace_relative_path(
+    path: Path,
+    *,
+    workspace_dir: str | None,
+) -> str | None:
+    if not workspace_dir:
+        return None
+    try:
+        relative = (
+            path.expanduser()
+            .resolve(strict=False)
+            .relative_to(Path(workspace_dir).expanduser().resolve(strict=False))
+        )
+    except (OSError, ValueError):
+        return None
+    return relative.as_posix() or "."
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    try:
+        with path.open(encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def _is_markdown_path(path: Path) -> bool:
@@ -323,7 +403,10 @@ class AgentArtifactSelectionModal(
             self.notify("Selected artifact has no path", severity="warning")
             return
 
-        copy_path = _clipboard_path(path)
+        copy_path = _artifact_clipboard_path(artifact)
+        if copy_path is None:
+            self.notify("Selected artifact has no path", severity="warning")
+            return
         if copy_to_system_clipboard(copy_path):
             self.notify(f"Copied: {copy_path}")
         else:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-29 07:31:20
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_panel_relative_path.md
 ---
 # Plan: Artifact Panel `Y` Copies Repo-Relative Paths
