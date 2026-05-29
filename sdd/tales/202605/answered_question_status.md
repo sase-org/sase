@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-29 13:54:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/answered_question_status.md
 ---
 # Fix Answered Planner Question Status

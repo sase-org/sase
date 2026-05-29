@@ -71,6 +71,62 @@ def test_apply_status_overrides_done_with_recorded_question_response_stays_done(
     assert agent.status == "DONE"
 
 
+def test_apply_status_overrides_planner_child_with_answered_family_followup_is_done() -> (
+    None
+):
+    """A later family follow-up proves the planner question was answered."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 29, 9, 0, 0),
+        raw_suffix="20260529090000",
+        role_suffix="-plan",
+        agent_name="ap1",
+        agent_family="ap1",
+        agent_family_role="root",
+        plan_chain_root=True,
+        plan_times=[datetime(2026, 5, 29, 9, 10, 0)],
+        questions_times=[datetime(2026, 5, 29, 9, 15, 0)],
+    )
+    planner_child = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 29, 9, 0, 0),
+        raw_suffix="20260529090000",
+        parent_workflow="my_cl",
+        parent_timestamp="20260529090000",
+        step_type="agent",
+        step_index=0,
+        total_steps=2,
+        role_suffix="-plan",
+        agent_name="ap1-plan",
+        agent_family="ap1",
+        agent_family_role="plan",
+    )
+    followup_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 29, 9, 20, 0),
+        raw_suffix="20260529092000",
+        parent_timestamp="20260529090000",
+        role_suffix="-2",
+        agent_name="ap1-2",
+        agent_family="ap1",
+        agent_family_role="feedback",
+    )
+    agents = [parent, followup_child]
+    _apply_status_overrides(agents, [planner_child])
+
+    assert planner_child.status == "DONE"
+    assert parent.status == "DONE"
+
+
 def test_apply_status_overrides_parent_with_questioning_code_child_becomes_question() -> (
     None
 ):
