@@ -62,7 +62,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "~/.sase/projects/<project>/episodes, not agent artifact directories."
         ),
     ),
-    "src/sase/memory/episodes/auto_build.py:_execute_repairs": DirOpReview(
+    "src/sase/memory/episodes/_auto_build_doctor.py:_execute_repairs": DirOpReview(
         exemption=(
             "Removes abandoned hidden episode temp directories under the episode "
             "store during doctor repair, not agent artifact directories."
