@@ -2,7 +2,7 @@
 create_time: 2026-05-28 17:16:13
 bead_id: sase-48
 tier: epic
-status: plan
+status: done
 prompt: sdd/prompts/202605/episode_v2_explorer.md
 ---
 
