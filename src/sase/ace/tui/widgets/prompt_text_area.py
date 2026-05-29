@@ -6,33 +6,23 @@ from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
 from textual.screen import ModalScreen
-from textual.worker import WorkerState
 from textual.widgets import TextArea
 
 from sase.ace.tui.widgets._file_completion import FileCompletionMixin
 from sase.ace.tui.widgets._line_rendering import LineRenderingMixin
+from sase.ace.tui.widgets._prompt_soft_completion import PromptSoftCompletionMixin
 from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
+from sase.ace.tui.widgets._xprompt_arg_hints import XPromptArgHintMixin
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
-    extract_token_around_cursor,
 )
-from sase.ace.tui.widgets.prompt_completion import (
-    DEFAULT_PROMPT_COMPLETION_SETTINGS,
-    PromptCompletionSettings,
-    PromptSoftCompletion,
-    build_prompt_soft_completion,
-)
+from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
     XPromptAssistEntry,
-    accepted_xprompt_arg_hint,
     build_xprompt_assist_entries,
-    detect_xprompt_arg_hint_at_cursor,
-    named_args_skeleton,
-    xprompt_completion_skeleton,
 )
-from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
 from sase.xprompt._parsing import (
     extract_project_from_vcs_tag,
     extract_vcs_workflow_tag,
@@ -51,9 +41,19 @@ def _prompt_bar_class() -> type[PromptInputBar]:
     return PromptInputBar
 
 
+__all__ = [
+    "PromptTextArea",
+    "build_xprompt_assist_entries",
+    "extract_project_from_vcs_tag",
+    "extract_vcs_workflow_tag",
+]
+
+
 class PromptTextArea(
     VimNormalModeMixin,
     FileCompletionMixin,
+    PromptSoftCompletionMixin,
+    XPromptArgHintMixin,
     SnippetExpansionMixin,
     LineRenderingMixin,
     TextArea,
@@ -398,382 +398,6 @@ class PromptTextArea(
             remaining -= line_len + 1
         last_row = self.document.line_count - 1
         return last_row, len(self.document.get_line(last_row))
-
-    def _show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
-        """Render the active xprompt argument hint through the prompt bar."""
-        bar = self._find_prompt_bar()
-        if bar:
-            bar.show_xprompt_arg_hint(hint)
-
-    def _clear_xprompt_arg_hint(self) -> None:
-        """Clear active xprompt argument hint state and hide its panel."""
-        if self._active_xprompt_arg_hint is None:
-            return
-        self._active_xprompt_arg_hint = None
-        bar = self._find_prompt_bar()
-        if bar and not self._file_completion_active:
-            bar.hide_file_completions()
-
-    def _active_xprompt_hint_is_current(self) -> bool:
-        hint = self._active_xprompt_arg_hint
-        if hint is None:
-            return False
-        return (
-            self.text[hint.reference_start : hint.reference_end] == hint.reference_text
-        )
-
-    def _refresh_xprompt_arg_hint_from_cursor(self) -> None:
-        """Refresh typed xprompt arg hints and dismiss stale accepted hints."""
-        if self._file_completion_active or self._snippet_tabstops:
-            return
-
-        detected = self._detect_xprompt_arg_hint_from_cursor()
-        if detected is not None:
-            if detected != self._active_xprompt_arg_hint:
-                self._active_xprompt_arg_hint = detected
-                self._show_xprompt_arg_hint(detected)
-            return
-
-        hint = self._active_xprompt_arg_hint
-        if hint is None:
-            return
-        if not self._active_xprompt_hint_is_current():
-            self._clear_xprompt_arg_hint()
-            return
-        cursor_offset = self._absolute_offset(self.cursor_location)
-        if cursor_offset != hint.reference_end:
-            self._clear_xprompt_arg_hint()
-
-    def _detect_xprompt_arg_hint_from_cursor(self) -> ActiveXPromptArgHint | None:
-        """Return a typed xprompt argument hint at the current cursor."""
-        if "#" not in self.text:
-            return None
-        cursor_offset = self._absolute_offset(self.cursor_location)
-        prefix = self.text[:cursor_offset]
-        marker = prefix.rfind("#")
-        if marker == -1 or not any(ch in prefix[marker:] for ch in (":", "(")):
-            return None
-        return detect_xprompt_arg_hint_at_cursor(
-            self.text,
-            cursor_offset,
-            self._get_xprompt_arg_assist_entries(),
-        )
-
-    def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]:
-        """Return cached xprompt assist entries for the prompt's project context."""
-        project = self._xprompt_arg_assist_project_from_text()
-        entries = self._xprompt_arg_assist_entries_by_project.get(project)
-        if entries is None:
-            entries = build_xprompt_assist_entries(project=project)
-            self._xprompt_arg_assist_entries_by_project[project] = entries
-        return entries
-
-    def _get_warm_xprompt_arg_assist_entries(
-        self,
-    ) -> list[XPromptAssistEntry] | None:
-        """Return warm xprompt entries for the current project, if available."""
-        project = self._xprompt_arg_assist_project_from_text()
-        return self._xprompt_arg_assist_entries_by_project.get(project)
-
-    def _warm_current_xprompt_assist_entries(self) -> None:
-        """Warm prompt-local xprompt entries for the current project in a worker."""
-        self._schedule_xprompt_assist_warm(self._xprompt_arg_assist_project_from_text())
-
-    def _schedule_xprompt_assist_warm(self, project: str | None) -> None:
-        """Schedule a background xprompt assist catalog build if supported."""
-        if project in self._xprompt_arg_assist_entries_by_project:
-            return
-        if project in self._xprompt_arg_assist_warming_projects:
-            return
-        if not callable(getattr(self.app, "get_prompt_completion_settings", None)):
-            return
-
-        self._xprompt_arg_assist_warming_projects.add(project)
-        worker_name = f"prompt-xprompt-assist:{project or '<default>'}"
-        self._xprompt_arg_assist_worker_projects[worker_name] = project
-
-        def build() -> tuple[str | None, list[XPromptAssistEntry]]:
-            return project, build_xprompt_assist_entries(project=project)
-
-        self.run_worker(
-            build,
-            name=worker_name,
-            thread=True,
-        )
-
-    def on_worker_state_changed(self, event: Any) -> None:
-        """Apply async xprompt assist warm results."""
-        worker = event.worker
-        worker_name = str(getattr(worker, "name", ""))
-        if not worker_name.startswith("prompt-xprompt-assist:"):
-            return
-        pending_project = self._xprompt_arg_assist_worker_projects.pop(
-            worker_name,
-            None,
-        )
-        if event.state != WorkerState.SUCCESS:
-            self._xprompt_arg_assist_warming_projects.discard(pending_project)
-            return
-        project, entries = worker.result
-        self._xprompt_arg_assist_entries_by_project[project] = entries
-        self._xprompt_arg_assist_warming_projects.discard(project)
-        if project == self._xprompt_arg_assist_project_from_text():
-            self._on_prompt_completion_context_changed()
-
-    def _prompt_completion_settings(self) -> PromptCompletionSettings:
-        """Return prompt completion settings with a default for minimal apps."""
-        getter = getattr(self.app, "get_prompt_completion_settings", None)
-        if callable(getter):
-            value = getter()
-            if isinstance(value, PromptCompletionSettings):
-                return value
-        return DEFAULT_PROMPT_COMPLETION_SETTINGS
-
-    def _on_prompt_completion_context_changed(self) -> None:
-        """Debounce live prompt completion after text or cursor changes."""
-        self._prompt_completion_generation += 1
-        self._clear_stale_soft_completion()
-        self._schedule_prompt_completion_refresh()
-
-    def _schedule_prompt_completion_refresh(self) -> None:
-        settings = self._prompt_completion_settings()
-        if settings.auto != "soft" or self._soft_completion_blocked():
-            self._clear_soft_completion(cancel_timer=True)
-            return
-
-        if self._prompt_completion_timer is not None:
-            self._prompt_completion_timer.stop()
-        generation = self._prompt_completion_generation
-        text = self.text
-        cursor_offset = self._absolute_offset(self.cursor_location)
-        self._prompt_completion_timer = self.set_timer(
-            settings.debounce_ms / 1000,
-            lambda: self._fire_prompt_completion_timer(
-                generation,
-                text,
-                cursor_offset,
-            ),
-        )
-
-    def _fire_prompt_completion_timer(
-        self,
-        generation: int,
-        text: str,
-        cursor_offset: int,
-    ) -> None:
-        self._prompt_completion_timer = None
-        if generation != self._prompt_completion_generation:
-            return
-        if text != self.text or cursor_offset != self._absolute_offset(
-            self.cursor_location
-        ):
-            return
-        if self._soft_completion_blocked():
-            self._clear_soft_completion()
-            return
-
-        project = self._xprompt_arg_assist_project_from_text()
-        entries = self._xprompt_arg_assist_entries_by_project.get(project)
-        if entries is None and self._soft_completion_may_need_xprompt_entries(
-            text, cursor_offset
-        ):
-            self._schedule_xprompt_assist_warm(project)
-
-        suggestion = build_prompt_soft_completion(
-            text=text,
-            cursor_offset=cursor_offset,
-            settings=self._prompt_completion_settings(),
-            xprompt_entries=entries,
-        )
-        if generation != self._prompt_completion_generation:
-            return
-        self._set_soft_completion(suggestion)
-
-    def _soft_completion_blocked(self) -> bool:
-        if self._vim_mode != "insert":
-            return True
-        if self._file_completion_active or self._snippet_tabstops:
-            return True
-        bar = self._find_prompt_bar()
-        return bool(bar and bar._mode == "feedback")
-
-    def _soft_completion_may_need_xprompt_entries(
-        self,
-        text: str,
-        cursor_offset: int,
-    ) -> bool:
-        if "#" in text:
-            return True
-        line_start = text.rfind("\n", 0, cursor_offset) + 1
-        line_end = text.find("\n", cursor_offset)
-        if line_end == -1:
-            line_end = len(text)
-        token_ctx = extract_token_around_cursor(
-            text[line_start:line_end],
-            cursor_offset - line_start,
-        )
-        return token_ctx is not None and is_xprompt_like_token(token_ctx[2])
-
-    def _set_soft_completion(self, suggestion: PromptSoftCompletion | None) -> None:
-        self._soft_completion = suggestion
-        bar = self._find_prompt_bar()
-        if bar is None:
-            return
-        if suggestion is None:
-            bar.hide_soft_completion()
-        else:
-            bar.show_soft_completion(suggestion)
-
-    def _clear_stale_soft_completion(self) -> None:
-        if self._soft_completion is not None and not self._soft_completion_is_current():
-            self._clear_soft_completion()
-
-    def _clear_soft_completion(self, *, cancel_timer: bool = False) -> None:
-        if cancel_timer and self._prompt_completion_timer is not None:
-            self._prompt_completion_timer.stop()
-            self._prompt_completion_timer = None
-        if self._soft_completion is None:
-            return
-        self._soft_completion = None
-        bar = self._find_prompt_bar()
-        if bar:
-            bar.hide_soft_completion()
-
-    def _soft_completion_is_current(self) -> bool:
-        suggestion = self._soft_completion
-        if suggestion is None or self._soft_completion_blocked():
-            return False
-        cursor_offset = self._absolute_offset(self.cursor_location)
-        return (
-            cursor_offset == suggestion.replacement_end
-            and 0 <= suggestion.replacement_start <= suggestion.replacement_end
-            and suggestion.replacement_end <= len(self.text)
-            and self.text[suggestion.replacement_start : suggestion.replacement_end]
-            == suggestion.replacement_token
-        )
-
-    def _accept_soft_completion(self) -> bool:
-        suggestion = self._soft_completion
-        if suggestion is None:
-            return False
-        if not self._soft_completion_is_current():
-            self._clear_soft_completion(cancel_timer=True)
-            return False
-
-        selected = suggestion.candidate
-        accepted_kind = suggestion.completion_kind
-        start = self._location_from_absolute(suggestion.replacement_start)
-        end = self._location_from_absolute(suggestion.replacement_end)
-        used_xprompt_skeleton = False
-        if (
-            accepted_kind == "xprompt"
-            and isinstance(selected.metadata, XPromptAssistEntry)
-            and selected.insertion.startswith("#")
-        ):
-            used_xprompt_skeleton = self._expand_snippet_template_at_range(
-                xprompt_completion_skeleton(selected.metadata),
-                start,
-                end,
-            )
-
-        if not used_xprompt_skeleton:
-            self._replace_absolute_range(
-                suggestion.replacement_start,
-                suggestion.replacement_end,
-                selected.insertion,
-            )
-
-        self._clear_soft_completion(cancel_timer=True)
-        if accepted_kind == "xprompt":
-            if used_xprompt_skeleton:
-                self._refresh_xprompt_completion_skeleton_hint(selected)
-            else:
-                self._clear_xprompt_arg_hint()
-        elif accepted_kind.startswith("xprompt_arg_"):
-            self._refresh_xprompt_arg_hint_from_cursor()
-        else:
-            self._clear_xprompt_arg_hint()
-        return True
-
-    def _xprompt_arg_assist_project_from_text(self) -> str | None:
-        """Derive project-local xprompt context from a leading VCS tag."""
-        tag = extract_vcs_workflow_tag(self.text)
-        if tag is None:
-            return None
-        return extract_project_from_vcs_tag(tag)
-
-    def _maybe_show_inserted_xprompt_arg_hint(
-        self,
-        reference_start: int,
-        reference_end: int,
-    ) -> bool:
-        """Show a post-accept hint after non-completion xprompt insertion."""
-        hint = accepted_xprompt_arg_hint(
-            self.text,
-            reference_start,
-            reference_end,
-            self._get_xprompt_arg_assist_entries(),
-        )
-        if hint is None:
-            self._clear_xprompt_arg_hint()
-            return False
-        self._active_xprompt_arg_hint = hint
-        self._show_xprompt_arg_hint(hint)
-        return True
-
-    def _can_apply_xprompt_arg_action(self) -> bool:
-        """Return True when an active hint can consume syntax action keys."""
-        hint = self._active_xprompt_arg_hint
-        if hint is None or not self._active_xprompt_hint_is_current():
-            return False
-        return self._absolute_offset(self.cursor_location) == hint.reference_end
-
-    def _apply_xprompt_colon_arg_hint(self) -> bool:
-        """Rewrite the accepted reference with colon-argument syntax."""
-        hint = self._active_xprompt_arg_hint
-        if hint is None or not self._active_xprompt_hint_is_current():
-            self._clear_xprompt_arg_hint()
-            return False
-        if self._absolute_offset(self.cursor_location) != hint.reference_end:
-            self._clear_xprompt_arg_hint()
-            return False
-
-        start = self._location_from_absolute(hint.reference_start)
-        end = self._location_from_absolute(hint.reference_end)
-        replacement = f"{hint.entry.insertion}:"
-        self._replace_via_keyboard(replacement, start, end)
-        new_end = hint.reference_start + len(replacement)
-        self.cursor_location = self._location_from_absolute(new_end)
-        next_hint = ActiveXPromptArgHint(
-            entry=hint.entry,
-            reference_start=hint.reference_start,
-            reference_end=new_end,
-            reference_text=replacement,
-            trigger_mode="colon",
-            active_input_index=hint.active_input_index,
-        )
-        self._active_xprompt_arg_hint = next_hint
-        self._show_xprompt_arg_hint(next_hint)
-        return True
-
-    def _apply_xprompt_named_arg_hint(self) -> bool:
-        """Rewrite the accepted reference with a named-argument snippet."""
-        hint = self._active_xprompt_arg_hint
-        if hint is None or not self._active_xprompt_hint_is_current():
-            self._clear_xprompt_arg_hint()
-            return False
-        if self._absolute_offset(self.cursor_location) != hint.reference_end:
-            self._clear_xprompt_arg_hint()
-            return False
-
-        start = self._location_from_absolute(hint.reference_start)
-        end = self._location_from_absolute(hint.reference_end)
-        self._clear_xprompt_arg_hint()
-        return self._expand_snippet_template_at_range(
-            named_args_skeleton(hint.entry),
-            start,
-            end,
-        )
 
     def _refocus_if_needed(self) -> None:
         """Refocus this text area unless a modal is active."""
