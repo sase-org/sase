@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 20:46:46
-status: wip
+status: done
 prompt: sdd/prompts/202605/github_actions_home_init.md
 ---
 # Plan: Initialize SASE Home Surfaces In CI Before Validation
