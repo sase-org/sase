@@ -4,7 +4,10 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
-from sase.ace.tui.modals.notification_modal_tags import NotificationTagStrip
+from sase.ace.tui.modals.notification_modal_tags import (
+    MUTED_TAB_KEY,
+    NotificationTagStrip,
+)
 
 from tests._notification_modal_helpers import _FakeOptionList, _make_notification
 
@@ -25,13 +28,20 @@ def test_active_tab_renders_flat_newest_first_without_section_rows() -> None:
     newest = _make_notification(
         "i2", action="JumpToAgent", timestamp="2026-03-17T13:00:00-04:00"
     )
+    muted_newest = _make_notification(
+        "m2", action="JumpToAgent", timestamp="2026-03-17T14:00:00-04:00"
+    )
+    muted_newest.muted = True
 
-    modal = NotificationModal([older, muted_middle, newest])
+    modal = NotificationModal([older, muted_middle, newest, muted_newest])
     options = modal._create_sectioned_options()
 
-    assert [option.id for option in options] == ["2", "1", "0"]
+    assert [option.id for option in options] == ["2", "0"]
     assert all(not option.disabled for option in options)
     assert all(not str(option.id).startswith("hdr:") for option in options)
+
+    modal._active_notification_tag = MUTED_TAB_KEY
+    assert _option_ids(modal) == ["3", "1"]
 
 
 def test_compat_sectioned_options_wrapper_matches_flat_options() -> None:
@@ -108,17 +118,82 @@ def test_synthetic_tabs_take_precedence_over_stored_tags() -> None:
     assert _option_ids(modal) == ["2"]
 
 
-def test_muted_hitl_notification_stays_in_hitl_tab() -> None:
-    """Muted state affects row styling, not the tab taxonomy."""
+def test_muted_hitl_notification_appears_only_in_muted_tab() -> None:
+    """Muted HITL rows are isolated in the Muted tab."""
     notification = _make_notification("plan", action="PlanApproval")
     notification.muted = True
 
     modal = NotificationModal([notification])
 
     assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
-        ("hitl", "HITL", 1)
+        (MUTED_TAB_KEY, "Muted", 1)
+    ]
+    assert modal._active_notification_tag == MUTED_TAB_KEY
+    assert _option_ids(modal) == ["0"]
+
+    modal._active_notification_tag = "hitl"
+    assert _option_ids(modal) == []
+
+
+def test_muted_error_notification_appears_only_in_muted_tab() -> None:
+    """Muted error rows do not populate Errors."""
+    muted_error = _make_notification("muted-error", action="ViewErrorReport")
+    muted_error.sender = "axe"
+    muted_error.muted = True
+    active_error = _make_notification("active-error", action="ViewErrorReport")
+    active_error.sender = "axe"
+
+    modal = NotificationModal([muted_error, active_error])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        ("errors", "Errors", 1),
+        (MUTED_TAB_KEY, "Muted", 1),
+    ]
+    assert _option_ids(modal) == ["1"]
+
+    modal._active_notification_tag = MUTED_TAB_KEY
+    assert _option_ids(modal) == ["0"]
+
+
+def test_muted_tagged_notification_appears_only_in_muted_tab() -> None:
+    """Muted tagged rows do not populate stored tag tabs or General."""
+    muted_tagged = _make_notification("muted-tagged", action="JumpToAgent")
+    muted_tagged.tags = ["done", "review"]
+    muted_tagged.muted = True
+    active_done = _make_notification("active-done", action="JumpToAgent")
+    active_done.tags = ["done"]
+    untagged = _make_notification("untagged", action="JumpToAgent")
+
+    modal = NotificationModal([muted_tagged, active_done, untagged])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        (None, "General", 1),
+        ("done", "Done", 1),
+        (MUTED_TAB_KEY, "Muted", 1),
+    ]
+    assert _option_ids(modal) == ["2"]
+
+    modal._active_notification_tag = "done"
+    assert _option_ids(modal) == ["1"]
+    modal._active_notification_tag = "review"
+    assert _option_ids(modal) == []
+    modal._active_notification_tag = MUTED_TAB_KEY
+    assert _option_ids(modal) == ["0"]
+
+
+def test_snoozed_notification_appears_in_muted_tab_with_badge() -> None:
+    """Snoozed rows are muted rows and keep their snooze badge."""
+    notification = _make_notification("snoozed", action="UserQuestion")
+    notification.muted = True
+    notification.snooze_until = "2026-03-18T09:00:00-04:00"
+
+    modal = NotificationModal([notification])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        (MUTED_TAB_KEY, "Muted", 1)
     ]
     assert _option_ids(modal) == ["0"]
+    assert "⏰" in str(modal._create_sectioned_options()[0].prompt)
 
 
 def test_visual_notification_index_order_matches_flat_render() -> None:
@@ -246,6 +321,53 @@ def test_tag_tabs_order_counts_and_capitalized_labels() -> None:
         ("foobar", "Foobar", 1),
         ("review", "Review", 2),
     ]
+
+
+def test_mixed_tab_order_places_muted_last() -> None:
+    """Muted is the final synthetic tab after active tabs and stored tags."""
+    hitl = _make_notification("hitl", action="PlanApproval")
+    error = _make_notification("error", action="ViewErrorReport")
+    error.sender = "axe"
+    general = _make_notification("general", action="JumpToAgent")
+    done = _make_notification("done", action="JumpToAgent")
+    done.tags = ["done"]
+    zeta = _make_notification("zeta", action="JumpToAgent")
+    zeta.tags = ["zeta"]
+    alpha = _make_notification("alpha", action="JumpToAgent")
+    alpha.tags = ["alpha"]
+    muted = _make_notification("muted", action="JumpToAgent")
+    muted.muted = True
+
+    modal = NotificationModal([zeta, muted, done, hitl, alpha, error, general])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        ("hitl", "HITL", 1),
+        ("errors", "Errors", 1),
+        (None, "General", 1),
+        ("done", "Done", 1),
+        ("alpha", "Alpha", 1),
+        ("zeta", "Zeta", 1),
+        (MUTED_TAB_KEY, "Muted", 1),
+    ]
+
+
+def test_literal_muted_tag_does_not_collide_with_synthetic_muted_tab() -> None:
+    """A stored 'muted' tag remains distinct from muted-state taxonomy."""
+    tagged_muted = _make_notification("tagged-muted", action="JumpToAgent")
+    tagged_muted.tags = ["muted"]
+    muted = _make_notification("actually-muted", action="JumpToAgent")
+    muted.muted = True
+
+    modal = NotificationModal([tagged_muted, muted])
+
+    assert [(tab.tag, tab.label, tab.count) for tab in modal._tag_tabs()] == [
+        ("muted", "Muted", 1),
+        (MUTED_TAB_KEY, "Muted", 1),
+    ]
+    assert _option_ids(modal) == ["0"]
+
+    modal._active_notification_tag = MUTED_TAB_KEY
+    assert _option_ids(modal) == ["1"]
 
 
 def test_all_tagged_notifications_open_on_first_tag_tab() -> None:

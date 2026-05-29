@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
+from sase.ace.tui.modals.notification_modal_tags import MUTED_TAB_KEY
 
 from tests._notification_modal_helpers import _make_notification
 
@@ -21,6 +22,7 @@ def test_toggle_mute_sets_muted_and_rebuilds() -> None:
 
     mock_mark.assert_called_once_with("n1", True)
     assert notification.muted is True
+    assert modal._active_notification_tag == MUTED_TAB_KEY
     modal._rebuild_list.assert_called_once_with(highlight_index=0)
     modal.notify.assert_called_once_with("Muted")
 
@@ -39,7 +41,50 @@ def test_toggle_mute_unmutes_when_already_muted() -> None:
 
     mock_mark.assert_called_once_with("n1", False)
     assert notification.muted is False
+    assert modal._active_notification_tag is None
     modal.notify.assert_called_once_with("Unmuted")
+
+
+def test_toggle_mute_moves_row_to_muted_tab_and_highlights_replacement() -> None:
+    """Muting a row in a still-populated tab highlights a nearby visible row."""
+    selected = _make_notification("n1", action="JumpToAgent")
+    replacement = _make_notification("n2", action="JumpToAgent")
+    modal = NotificationModal([selected, replacement])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._marked_notification_ids = {"n2"}
+    modal._pending_confirm_notification_id = "n2"
+    modal._pending_confirm_notification_ids = ["n2"]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_muted"):
+        modal.action_toggle_mute()
+
+    assert selected.muted is True
+    assert modal._active_notification_tag is None
+    assert modal._marked_notification_ids == {"n2"}
+    assert modal._pending_confirm_notification_id == "n2"
+    assert modal._pending_confirm_notification_ids == ["n2"]
+    modal._rebuild_list.assert_called_once_with(highlight_index=1)
+
+
+def test_unmute_from_muted_tab_highlights_remaining_muted_row() -> None:
+    """Unmuting from a still-populated Muted tab highlights the next muted row."""
+    selected = _make_notification("n1", action="JumpToAgent")
+    selected.muted = True
+    replacement = _make_notification("n2", action="JumpToAgent")
+    replacement.muted = True
+    modal = NotificationModal([selected, replacement])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_muted"):
+        modal.action_toggle_mute()
+
+    assert selected.muted is False
+    assert modal._active_notification_tag == MUTED_TAB_KEY
+    modal._rebuild_list.assert_called_once_with(highlight_index=1)
 
 
 def test_styled_label_uses_tilde_prefix_for_muted() -> None:
@@ -137,6 +182,7 @@ def test_snooze_callback_with_timedelta_calls_mark_snoozed() -> None:
     assert isinstance(args[1], datetime)
     assert notification.muted is True
     assert notification.snooze_until == args[1].isoformat()
+    assert modal._active_notification_tag == MUTED_TAB_KEY
     modal.notify.assert_called_once_with("Snoozed for 15m")
 
 
@@ -211,6 +257,7 @@ def test_unmute_on_snoozed_clears_snooze_and_toasts() -> None:
     mock_mark.assert_called_once_with("n1", False)
     assert notification.muted is False
     assert notification.snooze_until is None
+    assert modal._active_notification_tag is None
     modal.notify.assert_called_once_with("Unmuted (snooze cancelled)")
 
 

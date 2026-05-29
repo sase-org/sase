@@ -205,6 +205,8 @@ class NotificationStateActionsMixin:
         if idx is None or idx >= len(self._notifications):
             return
 
+        previous_tabs = self._tag_tabs()
+        replacement_id = self._replacement_notification_id_after_reclassification(idx)
         notification = self._notifications[idx]
         new_muted = not notification.muted
         was_snoozed = notification.snooze_until is not None
@@ -213,7 +215,11 @@ class NotificationStateActionsMixin:
         if not new_muted:
             notification.snooze_until = None
 
-        self._rebuild_list(highlight_index=idx)
+        self._rebuild_after_notification_reclassification(
+            previous_tabs=previous_tabs,
+            changed_notification_id=notification.id,
+            replacement_notification_id=replacement_id,
+        )
         if new_muted:
             self.notify("Muted")
         elif was_snoozed:
@@ -233,6 +239,10 @@ class NotificationStateActionsMixin:
             if result is None:
                 self.notify("Snooze cancelled")
                 return
+            previous_tabs = self._tag_tabs()
+            replacement_id = self._replacement_notification_id_after_reclassification(
+                idx
+            )
             if isinstance(result, datetime):
                 snooze_until = result
                 description = "until tomorrow morning"
@@ -244,7 +254,11 @@ class NotificationStateActionsMixin:
             notification.muted = True
             notification.snooze_until = snooze_until.isoformat()
 
-            self._rebuild_list(highlight_index=idx)
+            self._rebuild_after_notification_reclassification(
+                previous_tabs=previous_tabs,
+                changed_notification_id=notification.id,
+                replacement_notification_id=replacement_id,
+            )
             self.notify(f"Snoozed {description}")
 
         self.app.push_screen(SnoozeDurationModal(), callback=_on_picked)

@@ -203,6 +203,12 @@ class NotificationModal(
 
         return self._notifications[replacement_idx].id
 
+    def _replacement_notification_id_after_reclassification(
+        self, idx: int
+    ) -> str | None:
+        """Return the nearby visible id before a row moves to another tab."""
+        return self._replacement_notification_id_after_dismiss(idx)
+
     def _replacement_notification_id_after_bulk_dismiss(
         self, indices: list[int]
     ) -> str | None:
@@ -339,10 +345,50 @@ class NotificationModal(
             return
 
         self._active_notification_tag = next_tag
+        self._clear_tab_scoped_state()
+        self._rebuild_list(highlight_index=self._first_visible_notification_index())
+
+    def _clear_tab_scoped_state(self) -> None:
+        """Clear modal-local state whose selected rows may now be hidden."""
         self._marked_notification_ids.clear()
         self._pending_confirm_notification_id = None
         self._pending_confirm_notification_ids = None
-        self._rebuild_list(highlight_index=self._first_visible_notification_index())
+
+    def _visible_notification_index_for_id(
+        self, notification_id: str | None
+    ) -> int | None:
+        """Return a notification index if the id is visible in the active tab."""
+        if notification_id is None:
+            return None
+        for idx in self._visual_notification_index_order():
+            if self._notifications[idx].id == notification_id:
+                return idx
+        return None
+
+    def _rebuild_after_notification_reclassification(
+        self,
+        *,
+        previous_tabs: list[NotificationTagTab],
+        changed_notification_id: str,
+        replacement_notification_id: str | None,
+    ) -> None:
+        """Rebuild after one row changes which top-level tab owns it."""
+        previous_active_tag = self._active_notification_tag
+        self._coerce_active_notification_tag(previous_tabs=previous_tabs)
+        tab_switched = self._active_notification_tag != previous_active_tag
+        if tab_switched:
+            self._clear_tab_scoped_state()
+            highlight = self._first_visible_notification_index()
+        else:
+            highlight = self._visible_notification_index_for_id(changed_notification_id)
+            if highlight is None:
+                highlight = self._visible_notification_index_for_id(
+                    replacement_notification_id
+                )
+            if highlight is None:
+                highlight = self._first_visible_notification_index()
+
+        self._rebuild_list(highlight_index=highlight)
 
     def action_prev_notification_tag_tab(self) -> None:
         """Switch to the previous notification tag tab."""

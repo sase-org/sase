@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-29 08:34:43
-status: wip
+status: done
 prompt: sdd/prompts/202605/muted_notification_tab.md
 ---
 # Plan: Add a Muted tab to the notification modal

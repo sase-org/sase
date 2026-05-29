@@ -15,11 +15,13 @@ from sase.notifications import Notification, is_error
 
 HITL_TAB_KEY = "hitl"
 ERRORS_TAB_KEY = "errors"
+MUTED_TAB_KEY = "__muted__"
 
 _HITL_ACTIONS = frozenset({"PlanApproval", "UserQuestion", "HITL"})
 _SYNTHETIC_TAB_LABELS = {
     HITL_TAB_KEY: "HITL",
     ERRORS_TAB_KEY: "Errors",
+    MUTED_TAB_KEY: "Muted",
 }
 
 
@@ -49,6 +51,8 @@ def notification_display_tags(notification: Notification) -> list[str]:
 
 def _notification_modal_tab_keys(notification: Notification) -> list[str | None]:
     """Return the top-level modal tabs this notification belongs to."""
+    if notification.muted:
+        return [MUTED_TAB_KEY]
     if notification.action in _HITL_ACTIONS:
         return [HITL_TAB_KEY]
     if is_error(notification):
@@ -82,27 +86,33 @@ def _notification_tab_label(tab_key: str | None) -> str:
 def build_notification_tag_tabs(
     notifications: list[Notification],
 ) -> list[NotificationTagTab]:
-    """Build modal tabs: HITL, Errors, General, pinned Done, then tags."""
+    """Build modal tabs: HITL, Errors, General, Done, tags, then Muted."""
     counts: Counter[str | None] = Counter()
     for notification in notifications:
         for tab_key in _notification_modal_tab_keys(notification):
             counts[tab_key] += 1
 
-    pinned_order: tuple[str | None, ...] = (
+    leading_order: tuple[str | None, ...] = (
         HITL_TAB_KEY,
         ERRORS_TAB_KEY,
         None,
         "done",
     )
     ordered_keys: list[str | None] = [
-        tab_key for tab_key in pinned_order if tab_key in counts
+        tab_key for tab_key in leading_order if tab_key in counts
     ]
     ordered_keys.extend(
         sorted(
-            (tab_key for tab_key in counts if tab_key not in pinned_order),
+            (
+                tab_key
+                for tab_key in counts
+                if tab_key not in leading_order and tab_key != MUTED_TAB_KEY
+            ),
             key=lambda tab_key: _notification_tab_label(tab_key).casefold(),
         )
     )
+    if MUTED_TAB_KEY in counts:
+        ordered_keys.append(MUTED_TAB_KEY)
 
     return [
         NotificationTagTab(tab_key, _notification_tab_label(tab_key), counts[tab_key])
