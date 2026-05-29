@@ -245,8 +245,12 @@ class CollectorRecordMixin:
         record: AgentArtifactRecordWire,
         agent_node: EpisodeNodeWire,
     ) -> None:
+        record_key = normalize_source_path(record.artifact_dir)
         for kind, timestamp in record_related_timestamps(record):
             for related in self.records_by_timestamp.get(timestamp, []):
+                related_key = normalize_source_path(related.artifact_dir)
+                if related_key == record_key:
+                    continue
                 if not self._queue_record(related):
                     continue
                 related_node = self._ensure_agent_node(related)

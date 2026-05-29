@@ -12,6 +12,7 @@ from sase.core.episode_wire import (
     EPISODE_WIRE_SCHEMA_VERSION,
     EpisodeEdgeWire,
     EpisodeEventWire,
+    EpisodeWire,
     EpisodeNodeWire,
     EpisodeSourceRefWire,
 )
@@ -26,6 +27,7 @@ from sase.memory.episodes.render import (
     render_sources_text,
     render_timeline_text,
 )
+from sase.memory.episodes.views import build_graph_view, build_timeline_view
 from sase.memory.episodes.verify import verify_episode
 
 
@@ -283,6 +285,116 @@ def test_v2_episode_drill_down_renderers_are_stable_and_bounded(
     assert len(payload["source_refs"]) <= 20
     assert len(payload["timeline"]) <= 20
     assert payload["weak_metadata"]["bead_ids"] == ["sase-48.4"]
+
+
+def test_timeline_group_prefers_agent_label_over_marker_file() -> None:
+    episode = EpisodeWire(
+        schema_version=EPISODE_WIRE_SCHEMA_VERSION,
+        episode_id="ep-group",
+        project="proj",
+        title="Grouped Episode",
+        summary="Grouped timeline.",
+        root_source_id="src-trace",
+        sources=[
+            EpisodeSourceRefWire(
+                id="src-trace",
+                kind="artifact",
+                path="/tmp/artifacts/20260526120000/episode_trace.json",
+                label="episode_trace.json",
+                exists=True,
+            )
+        ],
+        nodes=[
+            EpisodeNodeWire(
+                id="node-agent",
+                kind="agent_run",
+                label="episode-planner",
+                source_id="src-trace",
+            ),
+            EpisodeNodeWire(
+                id="node-file",
+                kind="artifact",
+                label="episode_trace.json",
+                source_id="src-trace",
+            ),
+        ],
+        events=[
+            EpisodeEventWire(
+                id="event-question",
+                kind="question_answer",
+                title="Question round 1",
+                timestamp="2026-05-26T12:03:00Z",
+                evidence_ids=["src-trace"],
+            )
+        ],
+    )
+
+    rows = build_timeline_view(episode)
+
+    assert [row.group for row in rows] == ["episode-planner"]
+
+
+def test_graph_view_treats_file_evidence_edges_as_weak() -> None:
+    episode = EpisodeWire(
+        schema_version=EPISODE_WIRE_SCHEMA_VERSION,
+        episode_id="ep-graph",
+        project="proj",
+        title="Graph Episode",
+        summary="Graph edge strength.",
+        root_source_id="src-chat",
+        sources=[],
+        nodes=[
+            EpisodeNodeWire(id="node-agent", kind="agent_run", label="planner"),
+            EpisodeNodeWire(id="node-chat", kind="chat", label="planner.md"),
+            EpisodeNodeWire(id="node-plan", kind="plan", label="plan.md"),
+            EpisodeNodeWire(id="node-output", kind="artifact", label="output.txt"),
+        ],
+        edges=[
+            EpisodeEdgeWire(
+                id="edge-chat",
+                from_node_id="node-agent",
+                to_node_id="node-chat",
+                kind="response_chat",
+            ),
+            EpisodeEdgeWire(
+                id="edge-plan",
+                from_node_id="node-agent",
+                to_node_id="node-plan",
+                kind="plan",
+                evidence_ids=["src-plan"],
+            ),
+            EpisodeEdgeWire(
+                id="edge-output",
+                from_node_id="node-agent",
+                to_node_id="node-output",
+                kind="output",
+                evidence_ids=["src-output"],
+            ),
+            EpisodeEdgeWire(
+                id="edge-source",
+                from_node_id="node-agent",
+                to_node_id="node-output",
+                kind="source",
+                evidence_ids=["src-output"],
+            ),
+        ],
+        events=[],
+    )
+
+    strong = build_graph_view(episode, edge_mode="strong")
+    all_edges = build_graph_view(episode, edge_mode="all")
+
+    assert [edge.kind for edge in strong.edges] == ["response_chat"]
+    assert {
+        edge.kind: edge.strength for edge in all_edges.edges if edge.kind != "source"
+    } == {
+        "output": "weak",
+        "plan": "weak",
+        "response_chat": "strong",
+    }
+    assert next(edge for edge in all_edges.edges if edge.kind == "source").strength == (
+        "weak"
+    )
 
 
 def test_verify_episode_reports_source_drift_without_mutation(tmp_path: Path) -> None:

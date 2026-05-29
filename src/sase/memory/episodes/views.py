@@ -18,12 +18,26 @@ EpisodeGraphEdgeMode = Literal["strong", "all"]
 
 _WEAK_EDGE_KINDS = {
     "agent_family",
+    "artifact",
     "bead",
     "changespec",
     "changespec_chat",
     "changespec_diff",
     "changespec_plan",
+    "diff",
+    "feedback",
+    "memory_context",
+    "output",
+    "plan",
+    "question",
+    "source",
     "touched_path",
+}
+
+_EVENT_GROUP_KIND_PRIORITY = {
+    "agent_run": 0,
+    "chat": 1,
+    "workflow_step": 2,
 }
 
 
@@ -451,14 +465,39 @@ def _episode_warnings(episode: EpisodeWire) -> list[str]:
 
 def _event_group(episode: EpisodeWire, event: EpisodeEventWire) -> str:
     nodes_by_source: dict[str, EpisodeNodeWire] = {}
-    for node in episode.nodes:
+    for node in sorted(episode.nodes, key=_event_group_node_sort_key):
         if node.source_id and (node.label or node.kind):
-            nodes_by_source[node.source_id] = node
-    for source_id in sorted(event.evidence_ids):
-        source_node = nodes_by_source.get(source_id)
-        if source_node is not None:
-            return source_node.label or source_node.kind
+            nodes_by_source.setdefault(node.source_id, node)
+    candidates = [
+        (source_id, source_node)
+        for source_id in sorted(event.evidence_ids)
+        if (source_node := nodes_by_source.get(source_id)) is not None
+    ]
+    if candidates:
+        _source_id, source_node = min(
+            candidates,
+            key=lambda item: (
+                _event_group_kind_rank(item[1]),
+                item[0],
+                item[1].label or item[1].kind,
+                item[1].id,
+            ),
+        )
+        return source_node.label or source_node.kind
     return event.kind or "events"
+
+
+def _event_group_node_sort_key(node: EpisodeNodeWire) -> tuple[int, str, str, str]:
+    return (
+        _event_group_kind_rank(node),
+        node.label or node.kind,
+        node.kind,
+        node.id,
+    )
+
+
+def _event_group_kind_rank(node: EpisodeNodeWire) -> int:
+    return _EVENT_GROUP_KIND_PRIORITY.get(node.kind, 3)
 
 
 def _node_label(node_id: str, nodes_by_id: dict[str, EpisodeNodeWire]) -> str:

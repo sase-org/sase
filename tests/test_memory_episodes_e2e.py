@@ -120,6 +120,25 @@ def test_memory_episodes_end_to_end_fixture_cli_flows(
     timeline = capsys.readouterr().out
     assert "Question round 1" in timeline
     assert "Retry started 1" in timeline
+    assert "## episode-planner" in timeline
+    assert "## episode-retry" in timeline
+    assert "## episode_trace.json" not in timeline
+
+    _run(["show", episode_id, "-p", PROJECT, "-f", "graph"], fixture, capsys)
+    graph = capsys.readouterr().out
+    assert "Edge mode: strong" in graph
+    assert "episode-coder -> episode-coder" not in graph
+    for weak_edge_kind in (
+        "artifact",
+        "diff",
+        "feedback",
+        "memory_context",
+        "output",
+        "plan",
+        "question",
+        "source",
+    ):
+        assert f"[{weak_edge_kind};" not in graph
 
     verify_payload = _run_json(
         ["verify", episode_id, "-p", PROJECT, "-j"], fixture, capsys

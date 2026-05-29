@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-29 09:20:37
-status: wip
+status: done
 prompt: sdd/prompts/202605/episodes_next_steps.md
 ---
 # Episode Visualization Next Steps Plan

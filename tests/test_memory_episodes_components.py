@@ -147,6 +147,44 @@ def test_date_window_seed_pulls_out_of_window_strong_parent_and_fork(
     }
 
 
+def test_component_collect_skips_same_record_retry_root_self_loop(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    chats_dir = tmp_path / "chats"
+    chats_dir.mkdir()
+    chat = _write_chat(chats_dir / "retry-root-260519_120000.md", "Retry root")
+    record = _make_record(
+        projects_root,
+        "20260519120000",
+        "retry-root",
+        chat_path=chat,
+        retry_chain_root_timestamp="20260519120000",
+    )
+    scan = _scan(projects_root, [record])
+    plans = build_episode_component_plans(
+        EpisodeSelector(project="proj", since="2026-05-19", until="2026-05-19"),
+        projects_root=projects_root,
+        scan=scan,
+        repo_root=tmp_path,
+        include_chat_catalog=False,
+    )
+    assert len(plans) == 1
+
+    draft = collect_episode_draft_for_component_plan(
+        plans[0],
+        projects_root=projects_root,
+        scan=scan,
+        repo_root=tmp_path,
+    )
+
+    assert not any(
+        edge.kind == "retry_root" and edge.from_node_id == edge.to_node_id
+        for edge in draft.edges
+    )
+    assert not any(edge.from_node_id == edge.to_node_id for edge in draft.edges)
+
+
 def _write_chat(path: Path, prompt: str) -> Path:
     path.write_text(
         f"## Prompt\n\n{prompt}\n\n## Response\n\nDone.\n",
@@ -165,6 +203,7 @@ def _make_record(
     bead_id: str | None = None,
     family: str | None = None,
     parent_timestamp: str | None = None,
+    retry_chain_root_timestamp: str | None = None,
 ) -> AgentArtifactRecordWire:
     artifact_dir = projects_root / "proj" / "artifacts" / "ace-run" / timestamp
     artifact_dir.mkdir(parents=True)
@@ -175,6 +214,7 @@ def _make_record(
         "phase_bead_id": bead_id,
         "agent_family": family,
         "parent_timestamp": parent_timestamp,
+        "retry_chain_root_timestamp": retry_chain_root_timestamp,
     }
     done_data = {
         "name": name,
@@ -197,6 +237,7 @@ def _make_record(
             phase_bead_id=bead_id,
             agent_family=family,
             parent_timestamp=parent_timestamp,
+            retry_chain_root_timestamp=retry_chain_root_timestamp,
         ),
         done=DoneMarkerWire(
             outcome="completed",
