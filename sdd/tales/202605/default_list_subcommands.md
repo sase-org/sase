@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-28 21:49:34
-status: wip
+status: done
 prompt: sdd/prompts/202605/default_list_subcommands.md
 ---
 # Default list Subcommands

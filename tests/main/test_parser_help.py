@@ -78,6 +78,48 @@ def test_all_visible_subparser_help_entries_are_sorted() -> None:
         assert visible_commands == sorted(visible_commands), " ".join(path)
 
 
+def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
+    """Every command group with an exact ``list`` child parses bare as list."""
+    parser = create_parser()
+    expected_groups = {
+        "sase agents tag",
+        "sase amd",
+        "sase axe chop",
+        "sase axe lumberjack",
+        "sase bead",
+        "sase chats",
+        "sase file",
+        "sase file-history",
+        "sase memory",
+        "sase memory episodes",
+        "sase notify",
+        "sase plugin",
+        "sase sdd",
+        "sase skills",
+        "sase telemetry",
+        "sase workspace",
+        "sase xprompt",
+    }
+    list_groups: set[str] = set()
+
+    for path, action in _walk_subparser_actions(parser):
+        if "list" not in action.choices:
+            continue
+
+        label = " ".join(path)
+        list_groups.add(label)
+        omitted_args = parser.parse_args([*path[1:]])
+        explicit_args = parser.parse_args([*path[1:], "list"])
+
+        assert getattr(omitted_args, action.dest) == "list", label
+        for key, value in vars(explicit_args).items():
+            assert hasattr(omitted_args, key), f"{label} missing {key}"
+            assert getattr(omitted_args, key) == value, f"{label} default {key}"
+
+    assert expected_groups <= list_groups
+    assert "sase agents" not in list_groups
+
+
 def test_agents_help_renders_sorted_subcommands() -> None:
     """A formerly unsorted help view renders its user-facing rows sorted."""
     agents_parser = _parser_for(("sase", "agents"))

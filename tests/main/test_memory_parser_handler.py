@@ -209,7 +209,16 @@ def test_parser_registers_memory_namespace() -> None:
 
     default_args = parser.parse_args(["memory"])
     assert default_args.command == "memory"
-    assert default_args.memory_subcommand is None
+    assert default_args.memory_subcommand == "list"
+
+    default_episodes_args = parser.parse_args(["memory", "episodes"])
+    assert default_episodes_args.command == "memory"
+    assert default_episodes_args.memory_subcommand == "episodes"
+    assert default_episodes_args.episodes_subcommand == "list"
+    assert default_episodes_args.project is None
+    assert default_episodes_args.limit is None
+    assert default_episodes_args.query is None
+    assert default_episodes_args.json is False
 
 
 def test_parser_requires_memory_read_reason() -> None:

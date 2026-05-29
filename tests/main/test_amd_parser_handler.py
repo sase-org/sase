@@ -16,7 +16,7 @@ def test_parser_registers_amd_namespace() -> None:
 
     default_args = parser.parse_args(["amd"])
     assert default_args.command == "amd"
-    assert default_args.amd_subcommand is None
+    assert default_args.amd_subcommand == "list"
 
     list_args = parser.parse_args(["amd", "list"])
     assert list_args.command == "amd"

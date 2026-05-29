@@ -115,7 +115,7 @@ def test_parser_registers_skills_namespace() -> None:
 
     default_args = parser.parse_args(["skills"])
     assert default_args.command == "skills"
-    assert default_args.skills_subcommand is None
+    assert default_args.skills_subcommand == "list"
 
 
 def test_bare_skills_defaults_to_list(monkeypatch: pytest.MonkeyPatch) -> None:

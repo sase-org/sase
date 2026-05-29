@@ -63,6 +63,50 @@ def _sort_subcommand_help(parser: argparse.ArgumentParser) -> None:
             _sort_subcommand_help(child_parser)
 
 
+def _copy_parser_defaults(
+    source_parser: argparse.ArgumentParser,
+    target_parser: argparse.ArgumentParser,
+) -> None:
+    """Copy defaults that parsing *source_parser* would add to a namespace."""
+    defaults = dict(source_parser._defaults)
+    for action in source_parser._actions:
+        if action.dest in (argparse.SUPPRESS, "help"):
+            continue
+        if isinstance(action, argparse._HelpAction):
+            continue
+        if isinstance(action, argparse._SubParsersAction):
+            continue
+        if not action.option_strings:
+            continue
+        if action.default is argparse.SUPPRESS:
+            continue
+        defaults.setdefault(action.dest, action.default)
+
+    if defaults:
+        target_parser.set_defaults(**defaults)
+
+
+def _default_list_subcommands(parser: argparse.ArgumentParser) -> None:
+    """Default command groups with an exact ``list`` child to that child."""
+    for action in parser._actions:
+        if not isinstance(action, argparse._SubParsersAction):
+            continue
+
+        list_parser = action.choices.get("list")
+        if list_parser is not None and action.dest != argparse.SUPPRESS:
+            action.required = False
+            parser.set_defaults(**{action.dest: "list"})
+            _copy_parser_defaults(list_parser, parser)
+
+        seen_child_parsers: set[int] = set()
+        for child_parser in action.choices.values():
+            child_id = id(child_parser)
+            if child_id in seen_child_parsers:
+                continue
+            seen_child_parsers.add(child_id)
+            _default_list_subcommands(child_parser)
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser with subcommands."""
     parser = argparse.ArgumentParser(
@@ -116,4 +160,5 @@ def create_parser() -> argparse.ArgumentParser:
     register_xprompt_parser(top_level_subparsers)
 
     _sort_subcommand_help(parser)
+    _default_list_subcommands(parser)
     return parser

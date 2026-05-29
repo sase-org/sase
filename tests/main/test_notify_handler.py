@@ -85,13 +85,18 @@ def _show_args(**overrides: object) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
-def test_parser_preserves_legacy_bare_notify_create() -> None:
+def test_parser_defaults_bare_notify_to_list() -> None:
     parser = create_parser()
-    args = parser.parse_args(["notify", "--sender", "axe", "--tag", "Done"])
+    args = parser.parse_args(["notify"])
     assert args.command == "notify"
-    assert args.notify_subcommand is None
-    assert args.sender == "axe"
-    assert args.tag == ["Done"]
+    assert args.notify_subcommand == "list"
+    assert args.json is False
+    assert args.limit == 20
+    assert args.query is None
+    assert args.sender is None
+    assert args.tag is None
+    assert args.unread is False
+    assert args.all is False
 
 
 def test_parser_registers_notify_list_options() -> None:
@@ -145,7 +150,7 @@ def test_parser_registers_explicit_create_alias() -> None:
     assert args.tag == ["Review"]
 
 
-def test_legacy_create_path_still_writes_notification(
+def test_explicit_create_path_writes_notification(
     temp_notifications_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -158,7 +163,9 @@ def test_legacy_create_path_still_writes_notification(
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_notify_command(argparse.Namespace(notify_subcommand=None, sender=None))
+        handle_notify_command(
+            argparse.Namespace(notify_subcommand="create", sender=None, tag=None)
+        )
 
     assert excinfo.value.code == 0
     notification_id = capsys.readouterr().out.strip()

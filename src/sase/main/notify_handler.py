@@ -15,11 +15,11 @@ from sase.core.time import get_timezone
 
 
 def handle_notify_command(args: argparse.Namespace) -> NoReturn:
-    """Dispatch notification subcommands or preserve legacy creation."""
+    """Dispatch notification subcommands."""
     subcommand = getattr(args, "notify_subcommand", None)
-    if subcommand in (None, "create"):
+    if subcommand == "create":
         _handle_notify_create(args)
-    if subcommand == "list":
+    if subcommand in (None, "list"):
         from sase.notifications.cli_list import handle_notify_list
 
         handle_notify_list(args)
