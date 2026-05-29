@@ -26,6 +26,7 @@ def register_memory_episodes_parser(
             "  sase memory episodes build -p <project> -s 2026-05-19 -u 2026-05-20 --split\n"
             "  sase memory episodes build -n <agent> -D -j\n"
             "  sase memory episodes list -s 2026-05-19 -u 2026-05-20 -g day\n"
+            "  sase memory episodes export -s 2026-05-19 -u 2026-05-20 -b high -j\n"
             "  sase memory episodes show <episode-id>\n"
             "  sase memory episodes verify <episode-id>\n"
             '  sase memory episodes recall -q "retry feedback"'
@@ -41,6 +42,7 @@ def register_memory_episodes_parser(
     _register_auto_parser(episodes_subparsers)
     _register_status_parser(episodes_subparsers)
     _register_doctor_parser(episodes_subparsers)
+    _register_export_parser(episodes_subparsers)
     _register_list_parser(episodes_subparsers)
     _register_show_parser(episodes_subparsers)
     _register_verify_parser(episodes_subparsers)
@@ -259,6 +261,73 @@ def _register_doctor_parser(
     _add_json_argument(doctor_parser)
 
 
+def _register_export_parser(
+    episodes_subparsers: argparse._SubParsersAction,
+) -> None:
+    export_parser = episodes_subparsers.add_parser(
+        "export",
+        help="Export bounded read-only episode summaries for future event review",
+    )
+    _add_project_argument(export_parser)
+    export_parser.add_argument(
+        "-s",
+        "--since",
+        metavar="DATE",
+        help="Export episodes whose event span overlaps DATE or later",
+    )
+    export_parser.add_argument(
+        "-u",
+        "--until",
+        metavar="DATE",
+        help="Export episodes whose event span overlaps DATE or earlier",
+    )
+    export_parser.add_argument(
+        "-b",
+        "--band",
+        metavar="BAND",
+        help="Filter by importance band",
+    )
+    export_parser.add_argument(
+        "-n",
+        "--agent",
+        metavar="AGENT",
+        help="Filter by root agent name",
+    )
+    export_parser.add_argument(
+        "-c",
+        "--changespec",
+        metavar="NAME",
+        help="Filter by ChangeSpec name",
+    )
+    export_parser.add_argument(
+        "-B",
+        "--bead",
+        metavar="BEAD",
+        help="Filter by bead id",
+    )
+    export_parser.add_argument(
+        "-q",
+        "--query",
+        metavar="QUERY",
+        help="Filter by text in title, summary, metadata, aliases, or warnings",
+    )
+    export_parser.add_argument(
+        "-o",
+        "--order",
+        choices=("time", "importance", "title"),
+        default="importance",
+        help="Sort by time, importance, or title (default: importance)",
+    )
+    export_parser.add_argument(
+        "-l",
+        "--limit",
+        type=int,
+        metavar="N",
+        help="Limit the number of exported episodes (default: 50)",
+    )
+    _add_json_argument(export_parser)
+
+
 def _register_show_parser(
     episodes_subparsers: argparse._SubParsersAction,
 ) -> None:
@@ -322,7 +391,7 @@ def _register_recall_parser(
 ) -> None:
     recall_parser = episodes_subparsers.add_parser(
         "recall",
-        help="Deterministically search stored episode lessons",
+        help="Deterministically search stored episode evidence",
     )
     recall_parser.add_argument(
         "-q",

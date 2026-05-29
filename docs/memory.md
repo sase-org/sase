@@ -191,6 +191,7 @@ sase memory episodes list -g day
 sase memory episodes show <episode-id>
 sase memory episodes verify <episode-id>
 sase memory episodes recall -q "retry feedback"
+sase memory episodes export -s 2026-05-01 -u 2026-05-26 -b high -j
 ```
 
 Other selectors are available when the agent name is not the best handle:
@@ -204,8 +205,10 @@ sase memory episodes list -s 2026-05-01 -u 2026-05-26 -b high -j
 ```
 
 Episodes are stored under `~/.sase/projects/<project>/episodes/`. New split v2 episodes write `episode.json` and
-`sources.jsonl`; legacy aggregate episodes also write `lesson.md`. Use `--format timeline`, `--format sources`, or
-`--format json` to inspect provenance. `verify` recomputes source existence, size, and hashes without changing the
+`sources.jsonl`; legacy aggregate episodes also write `lesson.md`. Use `--format overview`, `--format timeline`,
+`--format graph`, `--format sources`, `--format agent`, or `--format json` to inspect provenance. `recall` returns v2
+evidence cards and still supports legacy lesson cards. `export` emits bounded read-only event-readiness summaries and
+does not write `sdd/events/` or proposals. `verify` recomputes source existence, size, and hashes without changing the
 episode. Missing or changed sources mean the evidence drifted; they do not delete the episode or automatically block
 recall.
 

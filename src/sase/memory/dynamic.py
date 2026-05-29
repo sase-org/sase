@@ -193,7 +193,7 @@ def generate_episode_recall_memory(
     limit: int = EPISODE_RECALL_DEFAULT_LIMIT,
     projects_root: Path | str | None = None,
 ) -> _EpisodeRecallMemoryResult:
-    """Recall stored episode lessons for prompt augmentation.
+    """Recall stored episode evidence for prompt augmentation.
 
     This is intentionally separate from keyword-tagged dynamic memories:
     it reads only the project episode index, performs deterministic lexical
@@ -226,6 +226,14 @@ def format_episode_recall_section(result: _EpisodeRecallMemoryResult) -> str:
     lines = ["### EPISODIC MEMORY"]
     for match in result.matches:
         lines.append(f"- Episode `{match.episode_id}` ({match.title})")
+        if not match.lessons and match.evidence_cards:
+            for card in match.evidence_cards:
+                evidence = ", ".join(
+                    f"`{item.source_id}` {item.path}".rstrip() for item in card.evidence
+                )
+                suffix = f" [evidence: {evidence}]" if evidence else ""
+                lines.append(f"  - {card.title}: {card.text}{suffix}")
+            continue
         if not match.lessons and match.excerpt:
             lines.append(f"  - {match.excerpt}")
             continue

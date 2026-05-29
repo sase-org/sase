@@ -12,6 +12,7 @@ from sase.memory.cli_episodes_auto import (
     handle_episode_status,
 )
 from sase.memory.cli_episodes_build import handle_episode_build
+from sase.memory.cli_episodes_export import handle_episode_export
 from sase.memory.cli_episodes_inventory import handle_episode_list
 from sase.memory.cli_episodes_recall import handle_episode_recall
 from sase.memory.cli_episodes_show import handle_episode_show
@@ -39,6 +40,9 @@ def handle_memory_episodes_command(
     if subcommand == "doctor":
         handle_episode_doctor(args, projects_root=projects_root)
         return
+    if subcommand == "export":
+        handle_episode_export(args, projects_root=projects_root)
+        return
     if subcommand == "list":
         handle_episode_list(args, projects_root=projects_root)
         return
@@ -53,7 +57,8 @@ def handle_memory_episodes_command(
         return
 
     print(
-        "Usage: sase memory episodes {auto,build,doctor,list,recall,show,status,verify}",
+        "Usage: sase memory episodes "
+        "{auto,build,doctor,export,list,recall,show,status,verify}",
         file=sys.stderr,
     )
     sys.exit(1)

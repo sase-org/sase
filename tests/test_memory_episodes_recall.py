@@ -140,6 +140,13 @@ def test_recall_matches_v2_episode_without_lesson_records(tmp_path: Path) -> Non
     assert payload["lesson_ids"] == []
     assert payload["lesson_path"] == ""
     assert payload["lessons"] == []
+    card_kinds = {card["kind"] for card in payload["evidence_cards"]}
+    assert {"importance_factor", "timeline:retry", "weak_refs"} <= card_kinds
+    assert any(
+        evidence["source_id"] == source.id
+        for card in payload["evidence_cards"]
+        for evidence in card["evidence"]
+    )
     assert payload["excerpt"] in {
         "Factual component summary for source-linked retry recovery.",
         "Retry recovered",

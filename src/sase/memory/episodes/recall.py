@@ -11,6 +11,7 @@ import re
 from typing import Any
 
 from sase.core.episode_wire import (
+    EPISODE_WIRE_SCHEMA_VERSION,
     EpisodeStorageIndexRowWire,
     EpisodeWire,
     episode_wire_from_dict,
@@ -33,7 +34,7 @@ _SUCCESS_OUTCOMES = {"completed", "noop", "success", "succeeded"}
 
 @dataclass(frozen=True)
 class _EpisodeRecallEvidence:
-    """A compact source link attached to a recalled lesson."""
+    """A compact source link attached to a recalled card."""
 
     source_id: str
     kind: str
@@ -74,6 +75,28 @@ class _EpisodeRecallLessonCard:
 
 
 @dataclass(frozen=True)
+class _EpisodeRecallEvidenceCard:
+    """A compact v2 evidence card with traceable source links."""
+
+    card_id: str
+    kind: str
+    title: str
+    text: str
+    evidence: list[_EpisodeRecallEvidence]
+
+    def to_json_dict(self) -> dict[str, Any]:
+        """Return a deterministic JSON-safe projection."""
+
+        return {
+            "card_id": self.card_id,
+            "evidence": [item.to_json_dict() for item in self.evidence],
+            "kind": self.kind,
+            "text": self.text,
+            "title": self.title,
+        }
+
+
+@dataclass(frozen=True)
 class EpisodeRecallMatch:
     """One deterministic recall match against a stored episode."""
 
@@ -87,6 +110,7 @@ class EpisodeRecallMatch:
     last_event_at: str | None
     outcome: str | None
     lessons: list[_EpisodeRecallLessonCard]
+    evidence_cards: list[_EpisodeRecallEvidenceCard]
 
     def to_json_dict(self) -> dict[str, Any]:
         """Return a deterministic JSON-safe projection."""
@@ -98,6 +122,7 @@ class EpisodeRecallMatch:
             "lesson_ids": self.lesson_ids,
             "lesson_path": self.lesson_path,
             "lessons": [lesson.to_json_dict() for lesson in self.lessons],
+            "evidence_cards": [card.to_json_dict() for card in self.evidence_cards],
             "matched_terms": self.matched_terms,
             "outcome": self.outcome,
             "score": self.score,
@@ -175,7 +200,9 @@ def _recall_match(
     if not matched_terms:
         return None
 
-    lesson_cards = _recall_lesson_cards(episode, query_terms)
+    is_v2 = _is_v2_evidence_episode(episode)
+    lesson_cards = [] if is_v2 else _recall_lesson_cards(episode, query_terms)
+    evidence_cards = _recall_evidence_cards(episode, query_terms) if is_v2 else []
     return EpisodeRecallMatch(
         episode_id=row.episode_id,
         title=row.title,
@@ -187,6 +214,7 @@ def _recall_match(
         last_event_at=row.last_event_at,
         outcome=row.outcome,
         lessons=lesson_cards,
+        evidence_cards=evidence_cards,
     )
 
 
@@ -317,6 +345,136 @@ def _recall_lesson_cards(
     return cards[:3]
 
 
+def _recall_evidence_cards(
+    episode: EpisodeWire,
+    query_terms: set[str],
+) -> list[_EpisodeRecallEvidenceCard]:
+    source_by_id = {source.id: source for source in episode.sources}
+    candidates: list[_EpisodeRecallEvidenceCard] = []
+
+    summary_text = " ".join(
+        [
+            episode.title,
+            episode.summary,
+            episode.status,
+            episode.importance_band,
+            str(episode.importance_score),
+        ]
+    )
+    if query_terms & _token_set(summary_text):
+        candidates.append(
+            _EpisodeRecallEvidenceCard(
+                card_id="summary",
+                kind="summary",
+                title=episode.title,
+                text=_truncate_excerpt(
+                    f"{episode.summary} Status: {episode.status}. "
+                    f"Importance: {episode.importance_band} "
+                    f"({episode.importance_score})."
+                ),
+                evidence=[],
+            )
+        )
+
+    for event in sorted(
+        episode.events,
+        key=lambda item: (item.timestamp is None, item.timestamp or "", item.id),
+    ):
+        event_text = " ".join(
+            [
+                event.kind,
+                event.title,
+                event.description or "",
+                event.timestamp or "",
+                " ".join(event.evidence_ids),
+            ]
+        )
+        if not (query_terms & _token_set(event_text)):
+            continue
+        text_parts = [event.timestamp or "undated", event.description or ""]
+        candidates.append(
+            _EpisodeRecallEvidenceCard(
+                card_id=event.id,
+                kind=f"timeline:{event.kind}",
+                title=event.title,
+                text=_truncate_excerpt(" ".join(part for part in text_parts if part)),
+                evidence=_recall_evidence_links(event.evidence_ids, source_by_id),
+            )
+        )
+
+    for factor in sorted(
+        episode.importance_factors,
+        key=lambda item: (-item.score, item.kind, item.label),
+    ):
+        factor_text = " ".join(
+            [
+                factor.kind,
+                factor.label,
+                str(factor.score),
+                " ".join(factor.evidence_ids),
+                " ".join(factor.metadata.values()),
+            ]
+        )
+        if not (query_terms & _token_set(factor_text)):
+            continue
+        candidates.append(
+            _EpisodeRecallEvidenceCard(
+                card_id=f"importance:{factor.kind}",
+                kind="importance_factor",
+                title=factor.label,
+                text=_truncate_excerpt(f"{factor.kind} score={factor.score}"),
+                evidence=_recall_evidence_links(factor.evidence_ids, source_by_id),
+            )
+        )
+
+    for source in sorted(episode.sources, key=lambda item: (item.kind, item.path)):
+        source_text = " ".join([source.kind, source.label or "", source.path])
+        if not (query_terms & _token_set(source_text)):
+            continue
+        status = "exists" if source.exists else "missing"
+        candidates.append(
+            _EpisodeRecallEvidenceCard(
+                card_id=f"source:{source.id}",
+                kind=f"source:{source.kind}",
+                title=source.label or Path(source.path).name or source.path,
+                text=_truncate_excerpt(f"{source.path} ({status})"),
+                evidence=_recall_evidence_links([source.id], source_by_id),
+            )
+        )
+
+    weak_text = _weak_refs_recall_terms(episode)
+    if query_terms & _token_set(weak_text):
+        candidates.append(
+            _EpisodeRecallEvidenceCard(
+                card_id="weak_refs",
+                kind="weak_refs",
+                title="Weak metadata",
+                text=_truncate_excerpt(_weak_refs_summary(episode)),
+                evidence=[],
+            )
+        )
+
+    safety_text = _safety_recall_terms(episode)
+    if query_terms & _token_set(safety_text):
+        candidates.append(
+            _EpisodeRecallEvidenceCard(
+                card_id="safety",
+                kind="safety",
+                title="Safety flags",
+                text=_truncate_excerpt("; ".join(_safety_flags(episode))),
+                evidence=[],
+            )
+        )
+
+    scored = [
+        (_evidence_card_score(card, query_terms), card)
+        for card in _dedupe_evidence_cards(candidates)
+    ]
+    scored = [(score, card) for score, card in scored if score > 0]
+    scored.sort(key=lambda item: (-item[0], item[1].kind, item[1].card_id))
+    return [card for _, card in scored[:5]]
+
+
 def _recall_evidence_links(
     evidence_ids: list[str],
     source_by_id: dict[str, Any],
@@ -345,6 +503,42 @@ def _recall_evidence_links(
             )
         )
     return links[:5]
+
+
+def _dedupe_evidence_cards(
+    cards: list[_EpisodeRecallEvidenceCard],
+) -> list[_EpisodeRecallEvidenceCard]:
+    by_id: dict[str, _EpisodeRecallEvidenceCard] = {}
+    for card in cards:
+        by_id.setdefault(card.card_id, card)
+    return list(by_id.values())
+
+
+def _evidence_card_score(
+    card: _EpisodeRecallEvidenceCard,
+    query_terms: set[str],
+) -> int:
+    text = " ".join(
+        [
+            card.card_id,
+            card.kind,
+            card.title,
+            card.text,
+            " ".join(source.source_id for source in card.evidence),
+            " ".join(source.label for source in card.evidence),
+            " ".join(source.path for source in card.evidence),
+        ]
+    )
+    token_counts = Counter(_token_list(text))
+    return sum(token_counts[term] for term in query_terms)
+
+
+def _is_v2_evidence_episode(episode: EpisodeWire) -> bool:
+    return (
+        episode.schema_version >= EPISODE_WIRE_SCHEMA_VERSION
+        and episode.status != "legacy"
+        and bool(episode.component_key)
+    )
 
 
 _TAG_METADATA_KEYS = {
@@ -415,12 +609,44 @@ def _safety_recall_terms(episode: EpisodeWire) -> str:
     safety = episode.safety
     return "\n".join(
         [
+            "untrusted_transcript_text" if safety.untrusted_transcript_text else "",
             *safety.prompt_injection_phrase_hits,
             *safety.redaction_hits,
             *safety.private_or_missing_source_flags,
             *safety.warnings,
         ]
     )
+
+
+def _weak_refs_summary(episode: EpisodeWire) -> str:
+    weak = episode.weak_refs
+    parts: list[str] = []
+    if weak.changespec_names:
+        parts.append("changespecs=" + ",".join(sorted(set(weak.changespec_names))))
+    if weak.bead_ids:
+        parts.append("beads=" + ",".join(sorted(set(weak.bead_ids))))
+    if weak.agent_families:
+        parts.append("families=" + ",".join(sorted(set(weak.agent_families))))
+    if weak.touched_paths:
+        parts.append("paths=" + ",".join(sorted(set(weak.touched_paths))[:5]))
+    for key, values in sorted(weak.metadata.items()):
+        clean = sorted({value for value in values if value})
+        if clean:
+            parts.append(f"{key}=" + ",".join(clean[:5]))
+    return "; ".join(parts)
+
+
+def _safety_flags(episode: EpisodeWire) -> list[str]:
+    safety = episode.safety
+    flags = [
+        *safety.prompt_injection_phrase_hits,
+        *safety.redaction_hits,
+        *safety.private_or_missing_source_flags,
+        *safety.warnings,
+    ]
+    if safety.untrusted_transcript_text:
+        flags.append("untrusted_transcript_text")
+    return sorted({flag for flag in flags if flag})
 
 
 def _recall_sort_key(match: EpisodeRecallMatch) -> tuple[int, int, int, str]:

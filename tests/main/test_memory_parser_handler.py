@@ -82,6 +82,37 @@ def test_parser_registers_memory_namespace() -> None:
     assert recall_args.limit == 2
     assert recall_args.json is True
 
+    export_args = parser.parse_args(
+        [
+            "memory",
+            "episodes",
+            "export",
+            "-p",
+            "proj",
+            "-s",
+            "2026-05-01",
+            "-u",
+            "2026-05-26",
+            "-b",
+            "high",
+            "-o",
+            "importance",
+            "-l",
+            "3",
+            "-j",
+        ]
+    )
+    assert export_args.command == "memory"
+    assert export_args.memory_subcommand == "episodes"
+    assert export_args.episodes_subcommand == "export"
+    assert export_args.project == "proj"
+    assert export_args.since == "2026-05-01"
+    assert export_args.until == "2026-05-26"
+    assert export_args.band == "high"
+    assert export_args.order == "importance"
+    assert export_args.limit == 3
+    assert export_args.json is True
+
     read_args = parser.parse_args(
         ["memory", "read", "long/foo.md", "--reason", "Need context"]
     )

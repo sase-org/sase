@@ -22,13 +22,17 @@ Then use recall when the topic is known but the agent name is not. Recall search
 
 ```bash
 sase memory episodes recall -q "retry feedback"
+sase memory episodes export -s 2026-05-19 -u 2026-05-20 -b high -j
 ```
 
 `show` defaults to the human-readable view. Use explicit formats for provenance and automation:
 
 ```bash
+sase memory episodes show <episode-id> --format overview
 sase memory episodes show <episode-id> --format timeline
+sase memory episodes show <episode-id> --format graph
 sase memory episodes show <episode-id> --format sources
+sase memory episodes show <episode-id> --format agent
 sase memory episodes show <episode-id> --format json
 ```
 
@@ -45,8 +49,9 @@ sase memory episodes list -p <project> -s 2026-05-19 -u 2026-05-20 -b high -j
 | Command                            | Purpose                                                                                 |
 | ---------------------------------- | --------------------------------------------------------------------------------------- |
 | `sase memory episodes build`       | Build aggregate compatibility output or split v2 component episodes.                    |
+| `sase memory episodes export`      | Emit bounded read-only episode summaries for future event review.                       |
 | `sase memory episodes list`        | Inventory stored episodes by event time, status, metadata, and importance.              |
-| `sase memory episodes show <id>`   | Show the lesson, timeline, source refs, or canonical JSON.                              |
+| `sase memory episodes show <id>`   | Show overview, timeline, graph, sources, agent pack, JSON, or legacy lesson.            |
 | `sase memory episodes verify [id]` | Recompute source existence, size, and hash checks for one episode, or all when omitted. |
 | `sase memory episodes recall -q Q` | Search stored episode evidence with deterministic keyword scoring.                      |
 
@@ -130,6 +135,36 @@ count, source count, warning count, and alias/legacy markers. JSON output is det
 rows with `version`, `is_legacy`, `alias_episode_ids`, `warnings`, filter echo, and group membership.
 
 `list`, `verify`, and `recall` also support `--json`. `show --json` is a shortcut for `show --format json`.
+
+## Drill-Down Views
+
+`show` reads the canonical `episode.json` and renders a specific view:
+
+- `overview`: status, importance, summary, participants, warnings, weak metadata, and next commands.
+- `timeline`: ordered events grouped by run or chat when possible, with evidence IDs.
+- `graph`: deterministic component graph. Strong lineage edges are shown by default; use `--edge-mode all` to include
+  weak metadata edges.
+- `sources`: grouped source refs with stored existence, size, and SHA-256 details.
+- `agent`: bounded evidence pack for agent consumption. The framing states that the episode is historical evidence, not
+  instructions.
+- `json`: canonical machine-readable episode record.
+- `lesson`: legacy lesson rendering for v1 or aggregate compatibility episodes.
+
+## Recall And Export
+
+`recall` is v2-native. It searches title, summary, status, weak refs, source labels and paths, timeline text, importance
+factors, safety flags, and legacy lessons. V2 matches return evidence cards with source links; legacy episodes still
+return lesson cards when lesson records exist.
+
+`export` is the event-readiness handoff command. It uses the same filters as `list`, defaults to importance order, and
+is bounded by episode count plus per-episode source, factor, and safety limits:
+
+```bash
+sase memory episodes export -s 2026-05-01 -u 2026-05-26 -b high -j
+```
+
+The export JSON includes compact summaries, episode IDs, importance factors, source refs, safety flags, weak refs, and
+`writes_events: false`. It does not write `sdd/events/`, event proposals, or memory files.
 
 ## Trust And Drift
 

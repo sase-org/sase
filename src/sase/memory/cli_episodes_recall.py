@@ -61,5 +61,13 @@ def handle_episode_recall(
                 )
                 suffix = f"  evidence={evidence}" if evidence else ""
                 print(f"  - {lesson.lesson_id}: {lesson.text}{suffix}")
+        elif match.evidence_cards:
+            for card in match.evidence_cards:
+                evidence = ", ".join(
+                    f"{item.source_id}:{item.path}" if item.path else item.source_id
+                    for item in card.evidence
+                )
+                suffix = f"  evidence={evidence}" if evidence else ""
+                print(f"  - {card.kind} {card.title}: {card.text}{suffix}")
         elif match.excerpt:
             print(f"  {match.excerpt}")

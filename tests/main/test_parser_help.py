@@ -138,7 +138,11 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "--id READ_ID" in memory_log_help
     assert "--include KIND" in memory_log_help
     assert "sase memory log --id <read-id>" in memory_log_help
-    assert "{auto,build,doctor,list,recall,show,status,verify}" in memory_episodes_help
+    assert (
+        "{auto,build,doctor,export,list,recall,show,status,verify}"
+        in memory_episodes_help
+    )
+    assert "sase memory episodes export -s 2026-05-19" in memory_episodes_help
     assert 'sase memory episodes recall -q "retry feedback"' in memory_episodes_help
     assert "Compatibility alias for `sase memory init`" in init_alias_help
 
