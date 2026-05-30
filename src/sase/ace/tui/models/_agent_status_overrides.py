@@ -79,6 +79,17 @@ def _has_unanswered_completed_question(
     return bool(agent.raw_suffix) and agent.raw_suffix not in parents_with_followup
 
 
+def _has_unreviewed_submitted_plan(agent: Agent, all_agents: list[Agent]) -> bool:
+    """Return True when a completed row's submitted plan still awaits review."""
+    if agent.status != "DONE" or not agent.plan_times:
+        return False
+    if agent.plan_action in _APPROVED_PLAN_ACTIONS:
+        return False
+    if not _is_awaiting_plan_review(agent):
+        return False
+    return not _feedback_child_progressed_past_review(agent, all_agents)
+
+
 def _done_handoff_status(parent: Agent, child: Agent) -> str:
     if (
         parent.plan_action == "tale"
@@ -300,6 +311,7 @@ def apply_status_overrides(
 
     Compatibility behavior for non-family agents remains:
     - DONE -> QUESTION: agent submitted a question that was never answered
+    - DONE -> PLAN: agent submitted a plan that was never reviewed
     """
     all_agents = [*agents, *(workflow_agent_steps or [])]
     for agent in all_agents:
@@ -424,6 +436,13 @@ def apply_status_overrides(
     for agent in all_agents:
         if _has_unanswered_completed_question(agent, parents_with_followup):
             agent.status = "QUESTION"
+
+    # Override DONE -> PLAN for rows whose submitted plan still awaits manual
+    # review. This mirrors the QUESTION catch-all and covers planner entries
+    # that fall through suffix-gated workflow-step/feedback branches above.
+    for agent in all_agents:
+        if _has_unreviewed_submitted_plan(agent, all_agents):
+            agent.status = "PLAN"
 
     # Active family code handoff rows display the plan approval state while the
     # implementation agent runs. Normalize before root mirroring so the family
