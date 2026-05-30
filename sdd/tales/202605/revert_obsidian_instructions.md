@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-30 16:45:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/revert_obsidian_instructions.md
 ---
 # Revert Obsidian Sibling Config And Add Vault Agent Instructions
