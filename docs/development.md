@@ -175,12 +175,11 @@ prompts. Use the catalog's `insertion` value to know whether an entry should be 
 
 Useful visible entries include:
 
-| Reference         | Purpose                                                                                                     |
-| ----------------- | ----------------------------------------------------------------------------------------------------------- |
-| `#!sase/reads`    | Fan out a reading-recommendation request across Gemini, Claude, and Codex, then consolidate the final list. |
-| `#sase/sync`      | Sync the primary SASE workspace and restart axe.                                                            |
-| `#sase/pysplit`   | Ask an agent to split one large Python file into import-safe smaller files.                                 |
-| `#sase/pick_plan` | Compare two plan-agent drafts and recommend which one should be approved.                                   |
+| Reference       | Purpose                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| `#!sase/reads`  | Fan out a reading-recommendation request across Gemini, Claude, and Codex, then consolidate the final list. |
+| `#sase/sync`    | Sync the primary SASE workspace and restart axe.                                                            |
+| `#sase/pysplit` | Ask an agent to split one large Python file into import-safe smaller files.                                 |
 
 Some repository workflows are marked `hidden: true` because they are automation helpers, such as docs refresh, recent
 bug/improvement audits, and Python line-limit splitting. That flag hides workflow run rows in ACE; it does not mean the

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-30 13:43:03
-status: wip
+status: done
 prompt: sdd/prompts/202605/move_pick_plan_xprompt.md
 ---
 # Move `pick_plan` xprompt into chezmoi
