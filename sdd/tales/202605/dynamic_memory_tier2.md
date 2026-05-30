@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-29 20:26:28
-status: wip
+status: done
 prompt: sdd/prompts/202605/dynamic_memory_tier2.md
 ---
 # Plan: Conditional Tier 2 Dynamic Memory Section

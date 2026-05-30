@@ -467,6 +467,8 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "- @memory/short/extra.md" in agents
     assert "- @memory/short/sase.md" in agents
     assert SHORT_MEMORY_END_MARKER in agents
+    assert "## Tier 2 (dynamic) Memory" in agents
+    assert "### DYNAMIC MEMORY" in agents
     assert LONG_MEMORY_START_MARKER in agents
     assert "**`memory/long/curated.md`**  \nCurated description survives." in agents
     assert "**`memory/long/described.md`**  \nExisting description." in agents

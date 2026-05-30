@@ -192,6 +192,8 @@ def test_amd_init_generates_managed_agents_from_project_local_title(
     assert "- @memory/short/extra.md" in agents
     assert "- @memory/short/sase.md" in agents
     assert SHORT_MEMORY_END_MARKER in agents
+    assert "## Tier 2 (dynamic) Memory" not in agents
+    assert "### DYNAMIC MEMORY" not in agents
     assert LONG_MEMORY_START_MARKER in agents
     assert "**`memory/long/described.md`**  \nFrontmatter description." in agents
     assert "**`memory/long/curated.md`**  \nCurated description survives." in agents
@@ -200,6 +202,30 @@ def test_amd_init_generates_managed_agents_from_project_local_title(
         assert (tmp_path / filename).read_text(encoding="utf-8") == (
             PROVIDER_SHIM_CONTENT
         )
+
+
+def test_amd_init_includes_dynamic_memory_section_for_keyworded_long_memory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    write(tmp_path / "sase.yml", 'amd_h1_title: "Managed Agent Instructions"\n')
+    write(tmp_path / "memory" / "short" / "sase.md", "# SASE\n")
+    write(
+        tmp_path / "memory" / "long" / "dynamic.md",
+        "---\n"
+        "description: Dynamic description.\n"
+        "keywords: [foobar facts]\n"
+        "---\n"
+        "# Dynamic\n",
+    )
+
+    assert run_amd() == 0
+
+    agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "## Tier 2 (dynamic) Memory" in agents
+    assert "### DYNAMIC MEMORY" in agents
+    assert "**`memory/long/dynamic.md`**  \nDynamic description." in agents
 
 
 def test_amd_init_ignores_global_amd_h1_title(
