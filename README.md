@@ -72,8 +72,10 @@ Useful first commands:
 
 ```bash
 sase core health          # verify the required Rust backend before launching agents
+sase init -c              # read-only drift report for AMD, memory, SDD, and skills
 sase amd list             # inspect project, home, and chezmoi AGENTS.md surfaces
-sase amd init --check     # report AGENTS.md/provider-shim drift without writing
+sase amd init --check     # read-only AGENTS.md/provider-shim drift report
+sase memory init --check  # read-only memory drift report
 sase memory init --no-commit  # write memory files; skip only the project commit/push
 sase memory list         # inspect loaded, referenced, available, and missing memory files
 sase memory review --list  # human review of pending long-term memory proposals

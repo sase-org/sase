@@ -89,9 +89,9 @@ amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructio
 | -------------- | -------------- | ------- | --------------------------------------------------------------------------- |
 | `amd_h1_title` | string \| null | `null`  | H1 title used by the AMD `AGENTS.md` generator when enabled for that scope. |
 
-For ordinary project roots, this field is intentionally project-local. The AMD generator reads only the current
-project's `./sase.yml` value, so a global `~/.config/sase/sase.yml` value does not opt every repository on the machine
-into generated `AGENTS.md` files.
+For ordinary project roots, this field is intentionally local to the root being initialized. The AMD generator reads
+only that root's `./sase.yml` value, so a global `~/.config/sase/sase.yml` value does not opt every repository on the
+machine into generated `AGENTS.md` files.
 
 Home roots are the exception. When `sase amd init` targets the live home root, user config from
 `~/.config/sase/sase.yml` and `~/.config/sase/sase_*.yml` can provide the home `AGENTS.md` title. When it targets the
@@ -681,18 +681,22 @@ Source: `src/sase/xprompt/processor.py`
 
 ### use_chezmoi
 
-Enables chezmoi path remapping for xprompt file operations. When set to `true`, home-directory xprompt paths
-(`~/.xprompts/`, `~/xprompts/`) are remapped to their chezmoi-managed equivalents under `~/.local/share/chezmoi/home/`
-(e.g., `~/.xprompts/` becomes `~/.local/share/chezmoi/home/dot_xprompts/`). This ensures that xprompt edits and
-creations go through chezmoi's dotfile management rather than modifying the symlinked targets directly.
+Enables chezmoi-aware home-file writes. When set to `true`, SASE writes generated home instructions, memory, skills, and
+home-directory xprompt paths through the chezmoi source tree under `~/.local/share/chezmoi/home/` instead of writing the
+live home files directly. For example, `~/.xprompts/` is remapped to `~/.local/share/chezmoi/home/dot_xprompts/`.
+
+This affects initialization workflow as well as xprompt editing. `sase amd init` targets the chezmoi home source root
+when it needs to initialize home-level `AGENTS.md`; `sase memory init` writes home memory there and may run the
+configured chezmoi deploy path; `sase skills init` writes provider skill files there before optional commit, push, and
+apply steps.
 
 ```yaml
 use_chezmoi: true # default: false
 ```
 
-| Field         | Type | Default | Description                                              |
-| ------------- | ---- | ------- | -------------------------------------------------------- |
-| `use_chezmoi` | bool | `false` | Remap home xprompt paths to chezmoi-managed equivalents. |
+| Field         | Type | Default | Description                                                         |
+| ------------- | ---- | ------- | ------------------------------------------------------------------- |
+| `use_chezmoi` | bool | `false` | Write home-managed SASE files through the chezmoi source directory. |
 
 Source: `src/sase/config/core.py`
 
@@ -1231,12 +1235,12 @@ and `sase skills init --no-push`.
 
 With no subcommand, `sase amd` defaults to `sase amd list`.
 
-| Form            | Flags         | Description                                                              |
-| --------------- | ------------- | ------------------------------------------------------------------------ |
-| `sase amd`      | -             | Show the same read-only agent-markdown inventory as `sase amd list`.     |
-| `sase amd list` | -             | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims. |
-| `sase amd init` | `-c, --check` | Create or refresh AMD-root `AGENTS.md` files and shims, or report drift. |
-| `sase init amd` | `-c, --check` | Compatibility alias for `sase amd init`.                                 |
+| Form            | Flags         | Description                                                                                        |
+| --------------- | ------------- | -------------------------------------------------------------------------------------------------- |
+| `sase amd`      | -             | Show the same read-only agent-markdown inventory as `sase amd list`.                               |
+| `sase amd list` | -             | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims.                           |
+| `sase amd init` | `-c, --check` | Create or refresh `AGENTS.md` files and shims for the selected AMD root or roots, or report drift. |
+| `sase init amd` | `-c, --check` | Compatibility alias for `sase amd init`.                                                           |
 
 ### `sase memory`
 

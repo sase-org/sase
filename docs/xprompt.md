@@ -214,15 +214,15 @@ Hello, {{ user_name }}! Welcome aboard.
 
 ### Front Matter Fields
 
-| Field         | Required | Description                                                                    |
-| ------------- | -------- | ------------------------------------------------------------------------------ |
-| `name`        | No       | XPrompt name (defaults to filename stem)                                       |
-| `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))                |
-| `snippet`     | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below)    |
-| `description` | No       | Human-readable one-line description of what the xprompt does                   |
-| `skill`       | No       | Marks this xprompt as an agent skill source for `sase skills init` (see below) |
-| `keywords`    | No       | Trigger terms that append this xprompt as dynamic memory to matching prompts   |
-| `xprompts`    | No       | File-local helper xprompts whose names must start with `_`                     |
+| Field         | Required | Description                                                                        |
+| ------------- | -------- | ---------------------------------------------------------------------------------- |
+| `name`        | No       | XPrompt name (defaults to filename stem)                                           |
+| `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))                    |
+| `snippet`     | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below)        |
+| `description` | No       | Human-readable one-line description of what the xprompt does                       |
+| `skill`       | No       | Marks this xprompt as an agent skill source for `sase skills init` (see below)     |
+| `keywords`    | No       | Trigger terms used by memory-tagged xprompts and `memory/long/*.md` dynamic memory |
+| `xprompts`    | No       | File-local helper xprompts whose names must start with `_`                         |
 
 If no front matter is present, the entire file content is the template body and the filename stem is the name.
 
@@ -626,14 +626,17 @@ Source: `src/sase/xprompt/tags.py`, `src/sase/xprompt/models.py`
 
 ## Dynamic Memory (Keywords)
 
-An xprompt with a `keywords` front-matter field becomes a **dynamic memory**: whenever an agent prompt contains text
-that matches one of the keywords, SASE writes a prompt-local copy of that memory under `.sase/memory/` and appends a
-`### DYNAMIC MEMORY` section to the prompt. The section has one `@<path>` entry per matched memory, and the generated
-file contains the matched memory content for that launch.
+Dynamic memory is an xprompt with both the `memory` tag and a non-empty `keywords` list. Top-level `memory/long/*.md`
+files with `keywords` frontmatter are auto-discovered this way; ordinary xprompt files or config entries must set
+`tags: memory` themselves. Whenever an agent prompt contains text that matches one of the positive keywords, SASE writes
+a prompt-local copy of that memory under `.sase/memory/` and appends a `### DYNAMIC MEMORY` section to the prompt. The
+section has one `@<path>` entry per matched memory, and the generated file contains the matched memory content for that
+launch.
 
 ```markdown
 ---
 name: memory_long_external_repos
+tags: memory
 keywords: [chezmoi, plugin]
 ---
 

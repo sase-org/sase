@@ -46,11 +46,12 @@ sase memory read long/generated_skills.md --reason "Need generated skill context
 sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
 ```
 
-`sase amd init --check` is the safest way to inspect agent-markdown drift. `sase memory init --no-commit` is usually the
-safest first memory run because it writes the generated files but skips the project git commit/pull/push path. It is not
-a dry run: it can still write project files, write home memory, and follow home-level `use_chezmoi` deployment.
-`sase init amd` remains a compatibility alias for `sase amd init`, `sase init memory` remains a compatibility alias for
-`sase memory init`, and `sase init skills` remains a compatibility alias for `sase skills init`.
+Start with `sase init -c`, `sase amd init --check`, or `sase memory init --check` when you only want a drift report.
+After that, `sase memory init --no-commit` is the usual first apply run for memory because it writes the generated files
+but skips the project git commit/pull/push path. It is not a dry run: it can still write project files, write home
+memory, and follow home-level `use_chezmoi` deployment. `sase init amd` remains a compatibility alias for
+`sase amd init`, `sase init memory` remains a compatibility alias for `sase memory init`, and `sase init skills` remains
+a compatibility alias for `sase skills init`.
 
 ## Commands
 
@@ -61,7 +62,7 @@ a dry run: it can still write project files, write home memory, and follow home-
 | `sase init --yes`                     | Run every needed initializer in AMD, memory, SDD, skills order without prompting.             |
 | `sase amd`                            | Alias for `sase amd list`.                                                                    |
 | `sase amd list`                       | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider shims.               |
-| `sase amd init`                       | Create or refresh AMD-root `AGENTS.md` files and provider instruction shims.                  |
+| `sase amd init`                       | Create or refresh `AGENTS.md` files and provider shims for the selected AMD root or roots.    |
 | `sase amd init --check`               | Report AMD initialization drift without writing files.                                        |
 | `sase init amd`                       | Compatibility alias for `sase amd init`.                                                      |
 | `sase memory`                         | Alias for `sase memory list`.                                                                 |
@@ -108,18 +109,18 @@ With no subcommand, `sase amd` defaults to `sase amd list`. The inventory shows 
 chezmoi-source `AGENTS.md` files, their H1 titles, whether they look AMD-managed, short/long memory reference counts,
 and nearby provider shim status.
 
-`sase amd init` always creates or repairs provider shims for the AMD root it is initializing. When the current project
-root has a project-local `./sase.yml` with `amd_h1_title`, AMD writes a managed `AGENTS.md` with marker-delimited
-short-memory and long-memory sections. When the current directory is the live home root, a user config value from
-`~/.config/sase/sase.yml` or `~/.config/sase/sase_*.yml` can provide the home `AGENTS.md` title. When the current
-directory is the chezmoi home source root, AMD reads the source-side `dot_config/sase/sase.yml` and
-`dot_config/sase/sase_*.yml` files instead, so edited dotfile source config can drive source `AGENTS.md` generation
-before `chezmoi apply`.
+`sase amd init` plans against the current directory unless `use_chezmoi: true` adds or redirects to the chezmoi home
+source root. It always creates or repairs provider shims for each selected root. When a selected ordinary root has a
+local `./sase.yml` with `amd_h1_title`, AMD writes a managed `AGENTS.md` with marker-delimited short-memory and
+long-memory sections. When the selected root is the live home root, a user config value from `~/.config/sase/sase.yml`
+or `~/.config/sase/sase_*.yml` can provide the home `AGENTS.md` title. When the current directory is the chezmoi home
+source root, AMD reads the source-side `dot_config/sase/sase.yml` and `dot_config/sase/sase_*.yml` files instead, so
+edited dotfile source config can drive source `AGENTS.md` generation before `chezmoi apply`.
 
 With `use_chezmoi: true`, running `sase amd init` from the live home root initializes the chezmoi home source root
-instead of writing `~/AGENTS.md` directly. Running it from an ordinary project initializes that project and the chezmoi
-home source root, deduplicating roots that resolve to the same path. A global or user-level `amd_h1_title` still does
-not opt ordinary project roots into managed `AGENTS.md`; projects must set the title in their own `./sase.yml`.
+instead of writing `~/AGENTS.md` directly. Running it from any other directory initializes that directory and the
+chezmoi home source root, deduplicating roots that resolve to the same path. A global or user-level `amd_h1_title` still
+does not opt ordinary roots into managed `AGENTS.md`; each ordinary root must set the title in its own `./sase.yml`.
 
 When no applicable title is configured and `AGENTS.md` is missing, explicit AMD init can migrate exactly one custom
 provider instruction file into `AGENTS.md`; multiple custom provider files block so content is not guessed.
@@ -143,8 +144,9 @@ inside `AGENTS.md`, adds missing `description` frontmatter to long-memory files,
 descriptions before reachability validation runs.
 
 The generated Tier 2 dynamic-memory guidance appears only when at least one `memory/long/*.md` file has a `keywords`
-field in YAML frontmatter. Projects with long-term memory but no keyword-triggered sources omit that section so
-`AGENTS.md` does not advertise a dynamic surface that cannot currently trigger.
+field in YAML frontmatter. Dynamic matching itself expects `keywords` to be a YAML list. Projects with long-term memory
+but no keyword-triggered sources omit that section so `AGENTS.md` does not advertise a dynamic surface that cannot
+currently trigger.
 
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The command can then commit those home
 changes and run `chezmoi apply --force`; `--no-commit` does not disable that home deployment path.
