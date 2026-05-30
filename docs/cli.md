@@ -49,7 +49,7 @@ explicit, for example `sase notify list -j`, `sase memory episodes list -p <proj
 | `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.                                | [ChangeSpecs](change_spec.md)                      |
 | `sase init`                                  | Check and initialize AMD, memory, SDD, and skills from one coordinator.                      | [Initialization](init.md)                          |
 | `sase amd` / `sase amd list`                 | Inventory project, home, and chezmoi `AGENTS.md` files plus nearby provider shims.           | [Initialization](init.md#agent-markdown-documents) |
-| `sase amd init`                              | Create or refresh root `AGENTS.md` and provider instruction shims.                           | [Initialization](init.md#agent-markdown-documents) |
+| `sase amd init`                              | Create or refresh AMD-root `AGENTS.md` files and provider instruction shims.                 | [Initialization](init.md#agent-markdown-documents) |
 | `sase init amd`                              | Alias for `sase amd init`.                                                                   | [Initialization](init.md#agent-markdown-documents) |
 | `sase memory` / `sase memory list`           | Show loaded, referenced, available, and missing memory files.                                | [Memory](memory.md#inspect-context)                |
 | `sase memory read`                           | Agent-side read of one long-term memory file with an attributable audit event.               | [Memory](memory.md#audited-reads)                  |

@@ -13,9 +13,9 @@ sase init --yes    # run every needed initializer in order
 The coordinator plans in registry order: AMD, memory, SDD, then skills. Planning is read-only. In non-interactive
 shells, bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes` when you want an
 unattended apply run. Apply runs can write project files, deploy home files through chezmoi when configured, and use
-each initializer's normal commit/push behavior. Bare `sase init` only lets AMD manage `AGENTS.md` when the current
-project's own `./sase.yml` sets `amd_h1_title`; explicit AMD commands still repair provider shims and handle legacy
-one-file migrations when that field is unset.
+each initializer's normal commit/push behavior. Bare `sase init` only lets AMD generate managed project `AGENTS.md`
+content when the current project's own `./sase.yml` sets `amd_h1_title`; explicit AMD commands still repair provider
+shims and handle legacy one-file migrations when that field is unset.
 
 Explicit subcommands are still available when you need narrower control:
 
@@ -61,7 +61,7 @@ a dry run: it can still write project files, write home memory, and follow home-
 | `sase init --yes`                     | Run every needed initializer in AMD, memory, SDD, skills order without prompting.             |
 | `sase amd`                            | Alias for `sase amd list`.                                                                    |
 | `sase amd list`                       | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider shims.               |
-| `sase amd init`                       | Create or refresh `AGENTS.md` and provider instruction shims.                                 |
+| `sase amd init`                       | Create or refresh AMD-root `AGENTS.md` files and provider instruction shims.                  |
 | `sase amd init --check`               | Report AMD initialization drift without writing files.                                        |
 | `sase init amd`                       | Compatibility alias for `sase amd init`.                                                      |
 | `sase memory`                         | Alias for `sase memory list`.                                                                 |
@@ -108,10 +108,21 @@ With no subcommand, `sase amd` defaults to `sase amd list`. The inventory shows 
 chezmoi-source `AGENTS.md` files, their H1 titles, whether they look AMD-managed, short/long memory reference counts,
 and nearby provider shim status.
 
-`sase amd init` always creates or repairs root provider shims. When the project-local `./sase.yml` sets `amd_h1_title`,
-AMD also writes a managed `AGENTS.md` with marker-delimited short-memory and long-memory sections. When the title is
-unset and `AGENTS.md` is missing, explicit AMD init can migrate exactly one custom provider instruction file into
-`AGENTS.md`; multiple custom provider files block so content is not guessed.
+`sase amd init` always creates or repairs provider shims for the AMD root it is initializing. When the current project
+root has a project-local `./sase.yml` with `amd_h1_title`, AMD writes a managed `AGENTS.md` with marker-delimited
+short-memory and long-memory sections. When the current directory is the live home root, a user config value from
+`~/.config/sase/sase.yml` or `~/.config/sase/sase_*.yml` can provide the home `AGENTS.md` title. When the current
+directory is the chezmoi home source root, AMD reads the source-side `dot_config/sase/sase.yml` and
+`dot_config/sase/sase_*.yml` files instead, so edited dotfile source config can drive source `AGENTS.md` generation
+before `chezmoi apply`.
+
+With `use_chezmoi: true`, running `sase amd init` from the live home root initializes the chezmoi home source root
+instead of writing `~/AGENTS.md` directly. Running it from an ordinary project initializes that project and the chezmoi
+home source root, deduplicating roots that resolve to the same path. A global or user-level `amd_h1_title` still does
+not opt ordinary project roots into managed `AGENTS.md`; projects must set the title in their own `./sase.yml`.
+
+When no applicable title is configured and `AGENTS.md` is missing, explicit AMD init can migrate exactly one custom
+provider instruction file into `AGENTS.md`; multiple custom provider files block so content is not guessed.
 
 Bare `sase init` runs AMD before memory so memory validation can see the `AGENTS.md` that AMD would create. To avoid
 surprising existing repositories, bare `sase init` only lets AMD generate managed `AGENTS.md` when the current project's
@@ -130,6 +141,10 @@ own `./sase.yml` opts in with `amd_h1_title`; global config values are ignored f
 When the project-local `./sase.yml` sets `amd_h1_title`, `sase memory init` synchronizes the AMD-managed memory blocks
 inside `AGENTS.md`, adds missing `description` frontmatter to long-memory files, and renders the Tier 3 list from those
 descriptions before reachability validation runs.
+
+The generated Tier 2 dynamic-memory guidance appears only when at least one `memory/long/*.md` file has a `keywords`
+field in YAML frontmatter. Projects with long-term memory but no keyword-triggered sources omit that section so
+`AGENTS.md` does not advertise a dynamic surface that cannot currently trigger.
 
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The command can then commit those home
 changes and run `chezmoi apply --force`; `--no-commit` does not disable that home deployment path.

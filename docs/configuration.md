@@ -79,18 +79,24 @@ Source: `src/sase/config/core.py`
 
 ### amd_h1_title
 
-Opts a project into a generated, project-managed `AGENTS.md` by providing the Markdown H1 title for that file.
+Opts a root into a generated AMD-managed `AGENTS.md` by providing the Markdown H1 title for that file.
 
 ```yaml
 amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructions" # default: null
 ```
 
-| Field          | Type           | Default | Description                                                                |
-| -------------- | -------------- | ------- | -------------------------------------------------------------------------- |
-| `amd_h1_title` | string \| null | `null`  | Project-local H1 title used by the AMD `AGENTS.md` generator when enabled. |
+| Field          | Type           | Default | Description                                                                 |
+| -------------- | -------------- | ------- | --------------------------------------------------------------------------- |
+| `amd_h1_title` | string \| null | `null`  | H1 title used by the AMD `AGENTS.md` generator when enabled for that scope. |
 
-This field is intentionally project-local. The AMD generator reads only the current project's `./sase.yml` value, so a
-global `~/.config/sase/sase.yml` value does not opt every repository on the machine into generated `AGENTS.md` files.
+For ordinary project roots, this field is intentionally project-local. The AMD generator reads only the current
+project's `./sase.yml` value, so a global `~/.config/sase/sase.yml` value does not opt every repository on the machine
+into generated `AGENTS.md` files.
+
+Home roots are the exception. When `sase amd init` targets the live home root, user config from
+`~/.config/sase/sase.yml` and `~/.config/sase/sase_*.yml` can provide the home `AGENTS.md` title. When it targets the
+chezmoi home source root, source-side config under `dot_config/sase/` is used instead. With `use_chezmoi: true`, AMD
+initializes the chezmoi home source root rather than writing a live-home `AGENTS.md`.
 
 Source: `src/sase/default_config.yml`, `config/sase.schema.json`
 
@@ -1210,8 +1216,8 @@ entries where `is_skill` is `true`.
 Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs read-only planners for AMD, memory,
 SDD, and skills, prints a grouped summary, and prompts once per initializer that needs work when stdin is interactive.
 Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`. The AMD
-planner only generates managed `AGENTS.md` from bare `sase init` when the current project's own `./sase.yml` sets
-`amd_h1_title`.
+planner only generates managed project `AGENTS.md` from bare `sase init` when the current project's own `./sase.yml`
+sets `amd_h1_title`.
 
 Advanced deploy controls stay on explicit subcommands such as `sase init amd --check`, `sase init memory --no-commit`,
 and `sase skills init --no-push`.
@@ -1225,12 +1231,12 @@ and `sase skills init --no-push`.
 
 With no subcommand, `sase amd` defaults to `sase amd list`.
 
-| Form            | Flags         | Description                                                                      |
-| --------------- | ------------- | -------------------------------------------------------------------------------- |
-| `sase amd`      | -             | Show the same read-only agent-markdown inventory as `sase amd list`.             |
-| `sase amd list` | -             | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims.         |
-| `sase amd init` | `-c, --check` | Create or refresh `AGENTS.md` and provider shims, or report drift in check mode. |
-| `sase init amd` | `-c, --check` | Compatibility alias for `sase amd init`.                                         |
+| Form            | Flags         | Description                                                              |
+| --------------- | ------------- | ------------------------------------------------------------------------ |
+| `sase amd`      | -             | Show the same read-only agent-markdown inventory as `sase amd list`.     |
+| `sase amd list` | -             | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims. |
+| `sase amd init` | `-c, --check` | Create or refresh AMD-root `AGENTS.md` files and shims, or report drift. |
+| `sase init amd` | `-c, --check` | Compatibility alias for `sase amd init`.                                 |
 
 ### `sase memory`
 
@@ -1289,11 +1295,13 @@ left untouched.
 
 Creates or refreshes project and home memory roots and keeps `AGENTS.md` memory references reachable. It creates a
 minimal `AGENTS.md` when absent for repositories that are not opted into AMD-managed instructions, and it still repairs
-provider instruction shims for compatibility. When project-local `amd_h1_title` is set, memory init synchronizes the
-AMD-managed short/long memory blocks and inserts missing long-memory `description` frontmatter. By default it also tries
-to commit, rebase-pull, and push generated project-side files. `sase init memory` is a compatibility alias for this
-command. Generated sibling-repository memory lists direct paths for `workspace.strategy: none` siblings and only
-includes `sase workspace open` guidance when a configured sibling uses numbered workspace resolution.
+provider instruction shims for compatibility. When the project-local `./sase.yml` sets `amd_h1_title`, memory init
+synchronizes that project's AMD-managed short/long memory blocks and inserts missing long-memory `description`
+frontmatter. The generated Tier 2 dynamic-memory section is emitted only when at least one long-memory file has
+`keywords` frontmatter. By default it also tries to commit, rebase-pull, and push generated project-side files.
+`sase init memory` is a compatibility alias for this command. Generated sibling-repository memory lists direct paths for
+`workspace.strategy: none` siblings and only includes `sase workspace open` guidance when a configured sibling uses
+numbered workspace resolution.
 
 | Flag              | Values | Default | Description                                                                                             |
 | ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

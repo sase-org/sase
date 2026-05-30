@@ -627,9 +627,9 @@ Source: `src/sase/xprompt/tags.py`, `src/sase/xprompt/models.py`
 ## Dynamic Memory (Keywords)
 
 An xprompt with a `keywords` front-matter field becomes a **dynamic memory**: whenever an agent prompt contains text
-that matches one of the keywords, the memory xprompt is appended to the prompt as additional context. Matched memories
-are listed in a `### DYNAMIC MEMORY` section at the bottom of the prompt (one `@<path>` entry per memory), so the agent
-can load them on demand.
+that matches one of the keywords, SASE writes a prompt-local copy of that memory under `.sase/memory/` and appends a
+`### DYNAMIC MEMORY` section to the prompt. The section has one `@<path>` entry per matched memory, and the generated
+file contains the matched memory content for that launch.
 
 ```markdown
 ---
@@ -639,6 +639,11 @@ keywords: [chezmoi, plugin]
 
 Repo-layout notes for cross-repo work...
 ```
+
+Canonical long-memory sources produce tier-prefixed generated files such as `.sase/memory/long-external-repos.md`. The
+`long-` prefix means the generated file came from a `memory/long/` source. When that file appears in the dynamic memory
+section, it already carries the corresponding long-memory content; agents do not need to separately read the canonical
+`memory/long/*.md` file unless they need a fresh audited read.
 
 ### Negative Keywords
 

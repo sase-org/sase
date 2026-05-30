@@ -7,7 +7,7 @@ ledger:
   them through `@memory/...` references; `sase memory init` creates that wiring for the generated defaults and
   synchronizes AMD-managed `AGENTS.md` memory blocks when the project opts in with `amd_h1_title`.
 - **Long-term memory** under `memory/long/` is reference context. Files with `keywords` frontmatter can be discovered
-  dynamically and appended to matching agent prompts as on-demand references. Files can also carry `description`
+  dynamically and copied into `.sase/memory/` for matching agent prompts. Files can also carry `description`
   frontmatter; AMD-managed `AGENTS.md` files use those descriptions for the Tier 3 memory list.
 - **Audited memory operations** live under the project state directory and record agent reads plus proposed writes and
   human review decisions.
@@ -39,6 +39,39 @@ The dashboard separates:
 - `missing` referenced files that do not exist.
 
 Approximate token counts are included so large instruction surfaces are visible before an agent launch.
+
+## Dynamic Memory
+
+Long-memory files with a `keywords` frontmatter field can be attached to matching agent launches without being loaded
+for every prompt:
+
+```markdown
+---
+description: Notes for cross-repo dotfile work.
+keywords: [chezmoi, plugin]
+---
+
+# External Repos
+
+...
+```
+
+During `sase run` or an ACE/AXE launch, SASE scans the expanded prompt for those keywords. Each match is written as a
+prompt-local copy under `.sase/memory/`, using a tier-prefixed filename such as `.sase/memory/long-external-repos.md`,
+and the prompt receives a trailing section like:
+
+```text
+### DYNAMIC MEMORY
+- @.sase/memory/long-external-repos.md (memory/long/external_repos, matched: `chezmoi`)
+```
+
+The generated `.sase/memory/long-*.md` file contains the matched long-memory content for that launch. When a dynamic
+copy is listed, agents can use that provided context and do not need to separately read the canonical `memory/long/*.md`
+file unless a fresh audited read is specifically needed.
+
+`sase memory list` reports available and referenced memory files, but it does not generate `.sase/memory/` copies. Those
+files are prompt-dependent and are created during agent launch. AMD-managed `AGENTS.md` includes Tier 2 dynamic memory
+guidance only when at least one long-memory source has `keywords` frontmatter.
 
 ## Audited Reads
 
