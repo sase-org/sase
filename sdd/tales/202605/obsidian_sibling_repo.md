@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-30 15:44:14
-status: wip
+status: done
 prompt: sdd/prompts/202605/obsidian_sibling_repo.md
 ---
 # Plan: Add Obsidian Vault as a Static SASE Sibling Repo
