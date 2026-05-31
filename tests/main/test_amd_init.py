@@ -188,12 +188,15 @@ def test_amd_init_generates_managed_agents_from_project_local_title(
 
     agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Managed Agent Instructions\n")
+    assert "## Short-Term Memory Files" in agents
     assert SHORT_MEMORY_START_MARKER in agents
     assert "- @memory/short/extra.md" in agents
     assert "- @memory/short/sase.md" in agents
     assert SHORT_MEMORY_END_MARKER in agents
-    assert "## Tier 2 (dynamic) Memory" not in agents
+    assert "## Dynamic Memory Files" not in agents
+    assert "#### Long-Term Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
+    assert "## Long-Term Memory Files" in agents
     assert LONG_MEMORY_START_MARKER in agents
     assert "**`memory/long/described.md`**  \nFrontmatter description." in agents
     assert "**`memory/long/curated.md`**  \nCurated description survives." in agents
@@ -223,7 +226,10 @@ def test_amd_init_includes_dynamic_memory_section_for_keyworded_long_memory(
     assert run_amd() == 0
 
     agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
-    assert "## Tier 2 (dynamic) Memory" in agents
+    assert "## Short-Term Memory Files" in agents
+    assert "## Dynamic Memory Files" in agents
+    assert "tier 3" not in agents
+    assert "#### Long-Term Memory Files" not in agents
     assert "### DYNAMIC MEMORY" in agents
     assert "**`memory/long/dynamic.md`**  \nDynamic description." in agents
 

@@ -226,7 +226,7 @@ def render_managed_agents(
         "IMPORTANT: You should not modify any of these memory files without "
         "approval from the user.",
         "",
-        "## Tier 1 (short-term) Memory",
+        "## Short-Term Memory Files",
         "",
         "The following memory files contain core (always loaded) context:",
         "",
@@ -243,7 +243,7 @@ def render_managed_agents(
     if has_dynamic_memory:
         lines.extend(
             [
-                "## Tier 2 (dynamic) Memory",
+                "## Dynamic Memory Files",
                 "",
                 "When a user prompt matches keywords from dynamic memories, we "
                 "append a `### DYNAMIC MEMORY` section at the bottom of",
@@ -256,25 +256,23 @@ def render_managed_agents(
                 "(memory/long/facts_about_foobar, matched: `foobar facts`)",
                 "```",
                 "",
-                "File names use a prefix that encodes the source tier: `long-` "
-                "means the file originates from a long-term (tier 3) memory",
+                "File names use a prefix that encodes the memory source: `long-` "
+                "means the file originates from a long-term memory",
                 "source. If a `long-` prefixed file appears in your dynamic memory "
                 "section, it contains the same content as the",
-                "corresponding tier 3 file below \u2014 you do NOT need to separately "
-                "read the tier 3 file.",
+                "corresponding long-term memory file below \u2014 you do NOT need to "
+                "separately read the canonical file.",
                 "",
             ]
         )
     lines.extend(
         [
-            "## Tier 3 (long-term) Memory",
+            "## Long-Term Memory Files",
             "",
             "The below files contain detailed reference material. When working "
             "in their domain, you MUST use your `/sase_memory_read`",
             "skill to review their contents. Do not read canonical "
             "`memory/long/*.md` files directly.",
-            "",
-            "#### Long-Term Memory Files",
             "",
             LONG_MEMORY_START_MARKER,
             "",
