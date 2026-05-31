@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,9 +16,42 @@ from sase.ace.tui.actions.event_handlers import (
     PROMPT_INPUT_DEFER_SECONDS,
     EventHandlersMixin,
 )
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.ace.tui.widgets.changespec_list import ChangeSpecList
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+
+
+def _make_agent(
+    *,
+    status: str = "RUNNING",
+    cl_name: str = "agent",
+    raw_suffix: str = "20260531120000",
+    agent_type: AgentType = AgentType.RUNNING,
+    parent_timestamp: str | None = None,
+    step_type: str | None = None,
+) -> Agent:
+    return Agent(
+        agent_type=agent_type,
+        cl_name=cl_name,
+        project_file="/tmp/test.sase",
+        status=status,
+        start_time=datetime(2026, 5, 31, 12, 0, 0),
+        raw_suffix=raw_suffix,
+        parent_timestamp=parent_timestamp,
+        step_type=step_type,
+    )
+
+
+class _FakeAgentDetail:
+    def __init__(self, refresh_calls: list[str]) -> None:
+        self.panel_mode_label = "file"
+        self.refreshed_agents: list[Agent] = []
+        self._refresh_calls = refresh_calls
+
+    def refresh_current_file(self, agent: Agent) -> None:
+        self.refreshed_agents.append(agent)
+        self._refresh_calls.append("file")
 
 
 class _FakeApp(EventHandlersMixin):
@@ -34,6 +68,9 @@ class _FakeApp(EventHandlersMixin):
         self._countdown_remaining = 10
         self._agents_loading = False
         self.current_tab = "agents"
+        self.current_idx = 0
+        self.current_attempt_number = None
+        self._agents: list[Agent] = []
         self._prompt_context = None
         self._approve_prompt_context = None
         self._plan_feedback_context = None
@@ -49,11 +86,22 @@ class _FakeApp(EventHandlersMixin):
         self._poll_agent_completions_result = False
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
+        self.agent_detail = _FakeAgentDetail(self.refresh_calls)
 
     def query(self, selector: type[PromptInputBar]) -> list[PromptInputBar]:
         if selector is PromptInputBar and self._mounted_prompt_bar:
             return [PromptInputBar()]
         return []
+
+    def query_one(self, selector: str, _widget_type: object) -> Any:
+        if selector == "#agent-detail-panel":
+            return self.agent_detail
+        raise LookupError(selector)
+
+    def _get_selected_agent(self) -> Agent | None:
+        if self._agents and 0 <= self.current_idx < len(self._agents):
+            return self._agents[self.current_idx]
+        return None
 
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
         self.deferred_calls.append((delay, callback))
@@ -84,6 +132,101 @@ async def test_watcher_active_clean_flags_skip_all_refreshes() -> None:
     app = _FakeApp(watcher_active=True)
     await app._on_auto_refresh()
     assert app.refresh_calls == []
+
+
+@pytest.mark.asyncio
+async def test_watcher_active_clean_agents_tick_refreshes_selected_file_only() -> None:
+    """Clean Agents-tab ticks refresh the selected live diff, not the loader."""
+    app = _FakeApp(watcher_active=True)
+    agent = _make_agent()
+    app._agents = [agent]
+
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == ["file"]
+    assert app.agent_detail.refreshed_agents == [agent]
+    assert app._dirty_agents is False
+
+
+@pytest.mark.asyncio
+async def test_watcher_active_clean_tick_skips_completed_selected_agent() -> None:
+    app = _FakeApp(watcher_active=True)
+    app._agents = [_make_agent(status="DONE")]
+
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == []
+    assert app.agent_detail.refreshed_agents == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("panel_mode_label", ["tools", "collapsed"])
+async def test_watcher_active_clean_tick_skips_non_file_detail_modes(
+    panel_mode_label: str,
+) -> None:
+    app = _FakeApp(watcher_active=True)
+    app._agents = [_make_agent()]
+    app.agent_detail.panel_mode_label = panel_mode_label
+
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == []
+    assert app.agent_detail.refreshed_agents == []
+
+
+@pytest.mark.asyncio
+async def test_watcher_active_clean_tick_skips_attempt_pinned_detail() -> None:
+    app = _FakeApp(watcher_active=True)
+    app._agents = [_make_agent()]
+    app.current_attempt_number = 1
+
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == []
+    assert app.agent_detail.refreshed_agents == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "flag_name",
+    ["_hint_mode_active", "_entry_jump_mode_active", "_accept_mode_active"],
+)
+async def test_watcher_active_clean_tick_skips_file_refresh_in_transient_modes(
+    flag_name: str,
+) -> None:
+    app = _FakeApp(watcher_active=True)
+    app._agents = [_make_agent()]
+    setattr(app, flag_name, True)
+
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == []
+    assert app.agent_detail.refreshed_agents == []
+
+
+@pytest.mark.asyncio
+async def test_watcher_active_clean_tick_skips_file_refresh_while_loader_runs() -> None:
+    app = _FakeApp(watcher_active=True)
+    app._agents = [_make_agent()]
+    app._agents_loading = True
+
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == []
+    assert app.agent_detail.refreshed_agents == []
+
+
+@pytest.mark.asyncio
+async def test_watcher_active_dirty_agents_load_does_not_refresh_file_panel() -> None:
+    app = _FakeApp(watcher_active=True)
+    app._agents = [_make_agent()]
+    app._dirty_agents = True
+
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == ["agents"]
+    assert app.agent_detail.refreshed_agents == []
+    assert app._dirty_agents is False
 
 
 @pytest.mark.asyncio

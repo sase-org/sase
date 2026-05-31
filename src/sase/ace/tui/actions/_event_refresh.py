@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import time
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.core.paths import sase_projects_dir, sase_subdir
 
 from ._debug_leaks import debug_leaks_enabled, log_leak_snapshot
 from ._event_base import EventHandlersBase
+
+if TYPE_CHECKING:
+    from ..models import Agent
 
 # Slow sanity-refresh floor: even when the inotify watcher is active and
 # every dirty flag is clear we still reconcile every minute as a safety
@@ -31,6 +35,19 @@ _AGENTS_RELEVANT_ARTIFACT_MARKERS = frozenset(
         "workflow_state.json",
         "plan_path.json",
         "retry_state.json",
+    }
+)
+
+_LIVE_FILE_REFRESH_STATUSES = frozenset(
+    {
+        "RUNNING",
+        "WAITING",
+        "WAITING INPUT",
+        "PLAN",
+        "PLAN APPROVED",
+        "TALE APPROVED",
+        "QUESTION",
+        "RETRYING",
     }
 )
 
@@ -76,6 +93,13 @@ def _artifact_path_affects_agents(path: Path) -> bool:
         return path.suffix == ""
 
     return False
+
+
+def _agent_has_live_file_panel(agent: Agent) -> bool:
+    """Return True when the detail view can live-refresh this row's file panel."""
+    if agent.status not in _LIVE_FILE_REFRESH_STATUSES:
+        return False
+    return not (agent.is_workflow_child and agent.step_type in ("bash", "python"))
 
 
 class EventRefreshMixin(EventHandlersBase):
@@ -191,6 +215,34 @@ class EventRefreshMixin(EventHandlersBase):
         """Return True when the inotify watcher is currently driving refreshes."""
         return getattr(self, "_fs_watcher", None) is not None
 
+    def _refresh_selected_agent_file_panel(self) -> bool:
+        """Refresh only the selected agent's file panel when it is safe to do so."""
+        if self.current_tab != "agents":
+            return False
+        if getattr(self, "current_attempt_number", None) is not None:
+            return False
+
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None or not _agent_has_live_file_panel(agent):
+            return False
+
+        from textual.css.query import NoMatches
+
+        from ..widgets import AgentDetail
+
+        try:
+            agent_detail = self.query_one(  # type: ignore[attr-defined]
+                "#agent-detail-panel", AgentDetail
+            )
+        except NoMatches:
+            return False
+
+        if getattr(agent_detail, "panel_mode_label", "file") != "file":
+            return False
+
+        agent_detail.refresh_current_file(agent)
+        return True
+
     async def _on_auto_refresh(self) -> None:
         """Auto-refresh handler called by timer.
 
@@ -283,6 +335,8 @@ class EventRefreshMixin(EventHandlersBase):
                 self._agents_loading = False
                 self._last_agents_load_mono = time.monotonic()
             self._dirty_agents = False
+        elif watcher_active and not new_agent_notification:
+            self._refresh_selected_agent_file_panel()
 
         if self.current_tab == "changespecs" and _should_refresh("_dirty_changespecs"):
             await self._reload_and_reposition_async()  # type: ignore[attr-defined]
