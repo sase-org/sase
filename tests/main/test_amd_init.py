@@ -192,7 +192,7 @@ def test_amd_init_generates_managed_agents_from_project_local_title(
     assert "### DYNAMIC MEMORY" not in agents
     assert "## Tier 2 (long-term) Memory" in agents
     assert "## Tier 3 (long-term) Memory" not in agents
-    assert "#### Long-Term Memory Files" in agents
+    assert "#### Long-Term Memory Files" not in agents
     assert "**`memory/long/described.md`**  \nFrontmatter description." in agents
     assert "**`memory/long/curated.md`**  \nCurated description survives." in agents
     assert ("sase-" + "amd:") not in agents
@@ -226,7 +226,7 @@ def test_amd_init_does_not_render_dynamic_section_for_keyworded_long_memory(
     assert "## Dynamic Memory Files" not in agents
     assert "## Tier 2 (long-term) Memory" in agents
     assert "## Tier 3 (long-term) Memory" not in agents
-    assert "#### Long-Term Memory Files" in agents
+    assert "#### Long-Term Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
     assert "**`memory/long/dynamic.md`**  \nDynamic description." in agents
 

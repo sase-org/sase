@@ -233,8 +233,6 @@ def render_managed_agents(
             "skill to review their contents. Do not read canonical "
             "`memory/long/*.md` files directly.",
             "",
-            "#### Long-Term Memory Files",
-            "",
         ]
     )
     for index, path in enumerate(long_paths):

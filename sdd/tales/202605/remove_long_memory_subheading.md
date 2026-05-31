@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-31 12:09:53
-status: wip
+status: done
 prompt: sdd/prompts/202605/remove_long_memory_subheading.md
 ---
 # Plan: Remove Generated Long-Memory Subheading

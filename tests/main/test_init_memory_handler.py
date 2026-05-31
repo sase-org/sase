@@ -463,7 +463,7 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "### DYNAMIC MEMORY" not in agents
     assert "## Tier 2 (long-term) Memory" in agents
     assert "## Tier 3 (long-term) Memory" not in agents
-    assert "#### Long-Term Memory Files" in agents
+    assert "#### Long-Term Memory Files" not in agents
     assert "**`memory/long/curated.md`**  \nCurated description survives." in agents
     assert "**`memory/long/described.md`**  \nExisting description." in agents
     assert ("sase-" + "amd:") not in agents
