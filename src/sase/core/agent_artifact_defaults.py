@@ -9,6 +9,9 @@ from sase.core.agent_artifact_explicit import (
     list_indexed_agent_artifacts,
     store_default_agent_artifact,
 )
+from sase.core.commit_finalizer_prompt_artifacts import (
+    is_commit_finalizer_followup_prompt,
+)
 from sase.core.agent_artifact_helpers import (
     artifact_id,
     association_from_metadata,
@@ -253,7 +256,9 @@ def _prompt_artifact_files(artifacts_dir: Path) -> list[Path]:
         step_prompts = sorted(
             path
             for path in artifacts_dir.glob("*_prompt.md")
-            if path.is_file() and path != raw_prompt
+            if path.is_file()
+            and path != raw_prompt
+            and not is_commit_finalizer_followup_prompt(path.name)
         )
     except OSError:
         step_prompts = []

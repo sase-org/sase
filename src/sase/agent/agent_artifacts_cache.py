@@ -16,6 +16,10 @@ import os
 from dataclasses import dataclass, field
 from threading import Lock
 
+from sase.core.commit_finalizer_prompt_artifacts import (
+    is_commit_finalizer_followup_prompt,
+)
+
 
 def _stat_signature(path: str) -> tuple[int, int] | None:
     try:
@@ -112,10 +116,11 @@ class AgentArtifactCache:
     ) -> str | None:
         """Pick the prompt file path for an agent, cached by directory listing.
 
-        Mirrors the logic in ``get_prompt_content``: glob ``*_prompt.md``,
-        narrow workflow-children to ``-{step_name}_prompt.md`` matches, then
-        select the most-recently-modified entry. Cache invalidates when the
-        ``(path, mtime_ns)`` of any candidate changes.
+        Mirrors the logic in ``get_prompt_content``: glob ``*_prompt.md``
+        (excluding the commit finalizer's ``commit_finalizer_pass_*_prompt.md``
+        re-prompts), narrow workflow-children to ``-{step_name}_prompt.md``
+        matches, then select the most-recently-modified entry. Cache
+        invalidates when the ``(path, mtime_ns)`` of any candidate changes.
         """
         try:
             entries = os.listdir(artifacts_dir)
@@ -125,6 +130,11 @@ class AgentArtifactCache:
         candidates: list[tuple[str, int]] = []
         for entry in entries:
             if not entry.endswith("_prompt.md"):
+                continue
+            # Skip the commit finalizer's post-completion re-prompts: they
+            # match ``*_prompt.md`` and are newer than the submitted prompt,
+            # so they would hijack the panel away from what launched the agent.
+            if is_commit_finalizer_followup_prompt(entry):
                 continue
             full = os.path.join(artifacts_dir, entry)
             try:

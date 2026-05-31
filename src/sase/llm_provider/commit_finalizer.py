@@ -6,6 +6,9 @@ import os
 from pathlib import Path
 
 from sase.commit_instructions import build_commit_details
+from sase.core.commit_finalizer_prompt_artifacts import (
+    commit_finalizer_pass_prompt_filename,
+)
 
 from . import commit_finalizer_artifacts as finalizer_artifacts
 from . import commit_finalizer_config as finalizer_config
@@ -211,7 +214,7 @@ def run_commit_finalizer(
         )
         _write_text(
             artifact_root,
-            f"commit_finalizer_pass_{pass_number}_prompt.md",
+            commit_finalizer_pass_prompt_filename(pass_number),
             follow_up_prompt,
         )
 

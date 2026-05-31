@@ -62,6 +62,38 @@ def test_repeat_select_does_not_reglob_or_reread(tmp_path: Path) -> None:
     assert listdir_calls == 3
 
 
+def test_prompt_content_ignores_commit_finalizer_followup(tmp_path: Path) -> None:
+    get_global_cache().clear()
+
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    original = artifacts_dir / "sase_prompt.md"
+    original.write_text(
+        "Previous Conversation\n\n---\n\n# New Query\nfix the bug\n",
+        encoding="utf-8",
+    )
+    finalizer = artifacts_dir / "commit_finalizer_pass_1_prompt.md"
+    finalizer.write_text(
+        "Previous Conversation\n\n---\n\n# New Query\nfix the bug\n\n"
+        "--- Work So Far ---\n...\n\n--- Commit Finalizer Pass 1 of 3 ---\n...\n",
+        encoding="utf-8",
+    )
+    # The finalizer re-prompt is written after the agent completes, so it is
+    # the newest ``*_prompt.md`` and would otherwise win selection.
+    st = original.stat()
+    os.utime(
+        finalizer,
+        ns=(st.st_mtime_ns + 5_000_000_000, st.st_mtime_ns + 5_000_000_000),
+    )
+
+    agent = _StubAgent(str(artifacts_dir))
+    content = get_prompt_content(agent)
+
+    assert content is not None
+    assert content.rstrip().endswith("# New Query\nfix the bug")
+    assert "Commit Finalizer Pass" not in content
+
+
 def test_repeat_select_caches_content_read(tmp_path: Path) -> None:
     get_global_cache().clear()
 

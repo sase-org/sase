@@ -117,6 +117,27 @@ def test_select_prompt_file_filters_workflow_children(tmp_path: Path) -> None:
     assert selected == str(target)
 
 
+def test_select_prompt_file_skips_commit_finalizer_followups(tmp_path: Path) -> None:
+    cache = AgentArtifactCache()
+    d = tmp_path / "artifacts"
+    d.mkdir()
+    original = d / "sase_prompt.md"
+    original.write_text(
+        "Previous Conversation\n---\n# New Query\ndo it", encoding="utf-8"
+    )
+    finalizer = d / "commit_finalizer_pass_1_prompt.md"
+    finalizer.write_text("follow up", encoding="utf-8")
+    # Make the finalizer prompt the newest so it would win without the filter.
+    st = original.stat()
+    os.utime(
+        finalizer,
+        ns=(st.st_mtime_ns + 5_000_000_000, st.st_mtime_ns + 5_000_000_000),
+    )
+
+    selected = cache.select_prompt_file(str(d), is_workflow_child=False, step_name=None)
+    assert selected == str(original)
+
+
 def test_read_reply_chunks_decodes_jointly(tmp_path: Path) -> None:
     cache = AgentArtifactCache()
     reply = tmp_path / "live_reply.md"
