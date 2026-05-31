@@ -184,6 +184,17 @@ def _resolve_episode_write_identity(
             if row.member_key in member_keys
         }
     )
+    if _is_v2_component_episode(episode):
+        existing_ids = sorted(
+            {
+                *existing_ids,
+                *_stored_path_dependent_v2_episode_ids_for_member_keys(
+                    episodes_dir,
+                    member_keys,
+                    alias_rows,
+                ),
+            }
+        )
     canonical_id = _choose_canonical_episode_id(
         episode,
         desired_id=desired_id,
@@ -209,12 +220,12 @@ def _choose_canonical_episode_id(
 ) -> str:
     if not existing_ids:
         return desired_id
+    if desired_id in existing_ids:
+        return desired_id
     if _is_v2_component_episode(episode) and all(
-        _stored_episode_is_legacy(episodes_dir, episode_id)
+        _stored_episode_can_yield_to_logical_v2(episodes_dir, episode_id)
         for episode_id in existing_ids
     ):
-        return desired_id
-    if desired_id in existing_ids:
         return desired_id
     if len(existing_ids) == 1:
         existing_id = existing_ids[0]
@@ -277,11 +288,7 @@ def _alias_rows_for_identity_resolution(
     for existing_id in existing_ids:
         if existing_id == canonical_id:
             continue
-        reason = (
-            "v1_migration"
-            if _stored_episode_is_legacy(episodes_dir, existing_id)
-            else "late_bridge"
-        )
+        reason = _alias_reason_for_existing_episode(episodes_dir, existing_id)
         aliases[existing_id] = EpisodeAliasIndexRow(
             schema_version=EPISODE_IDENTITY_SCHEMA_VERSION,
             project=episode.project,
@@ -333,6 +340,69 @@ def _write_identity_aliases_if_needed(
 
 def _is_v2_component_episode(episode: EpisodeWire) -> bool:
     return bool(episode.component_key) and not _is_legacy_episode(episode)
+
+
+def _stored_path_dependent_v2_episode_ids_for_member_keys(
+    episodes_dir: Path,
+    member_keys: set[str],
+    alias_rows: list[EpisodeAliasIndexRow],
+) -> list[str]:
+    if not member_keys or not episodes_dir.is_dir():
+        return []
+    episode_ids: set[str] = set()
+    for child in sorted(episodes_dir.iterdir(), key=lambda path: path.name):
+        if not child.is_dir():
+            continue
+        stored = _load_stored_episode_or_none(episodes_dir, child.name)
+        if stored is None or not _is_path_dependent_v2_component_episode(stored):
+            continue
+        if not (set(episode_member_keys(stored)) & member_keys):
+            continue
+        episode_ids.add(resolve_alias_episode_id(stored.episode_id, alias_rows))
+    return sorted(episode_ids)
+
+
+def _stored_episode_can_yield_to_logical_v2(
+    episodes_dir: Path,
+    episode_id: str,
+) -> bool:
+    return _stored_episode_is_legacy(
+        episodes_dir,
+        episode_id,
+    ) or _stored_episode_is_path_dependent_v2_component(episodes_dir, episode_id)
+
+
+def _alias_reason_for_existing_episode(episodes_dir: Path, episode_id: str) -> str:
+    if _stored_episode_is_legacy(episodes_dir, episode_id):
+        return "v1_migration"
+    if _stored_episode_is_path_dependent_v2_component(episodes_dir, episode_id):
+        return "component_key_migration"
+    return "late_bridge"
+
+
+def _stored_episode_is_path_dependent_v2_component(
+    episodes_dir: Path,
+    episode_id: str,
+) -> bool:
+    stored = _load_stored_episode_or_none(episodes_dir, episode_id)
+    return stored is not None and _is_path_dependent_v2_component_episode(stored)
+
+
+def _is_path_dependent_v2_component_episode(episode: EpisodeWire) -> bool:
+    return _is_v2_component_episode(episode) and _component_key_is_path_dependent_v2(
+        episode.component_key
+    )
+
+
+def _component_key_is_path_dependent_v2(component_key: str) -> bool:
+    if component_key.startswith("component/chat/"):
+        return Path(component_key.removeprefix("component/chat/")).is_absolute()
+    if not component_key.startswith("component/artifact/"):
+        return False
+    parts = component_key.split("/")
+    if len(parts) < 5:
+        return False
+    return Path("/".join(parts[4:])).is_absolute()
 
 
 def _episode_writes_lesson(episode: EpisodeWire) -> bool:

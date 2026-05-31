@@ -132,30 +132,56 @@ def episode_member_keys(episode: EpisodeWire) -> list[str]:
     if episode.component_key:
         keys.add(f"component:{episode.component_key}")
 
-    source_paths_by_id = {source.id: source.path for source in episode.sources}
+    sources_by_id = {source.id: source for source in episode.sources}
     for source in episode.sources:
         if source.kind == "chat":
             keys.add(_chat_member_key(source.path))
+            logical_chat_key = _logical_chat_member_key(
+                source.path,
+                source.sha256,
+            )
+            if logical_chat_key is not None:
+                keys.add(logical_chat_key)
         artifact_dir = _artifact_dir_from_source_path(source.path)
         if artifact_dir is not None:
             keys.add(_artifact_member_key(artifact_dir))
+            logical_artifact_key = _logical_artifact_member_key(
+                artifact_dir,
+                episode.project,
+            )
+            if logical_artifact_key is not None:
+                keys.add(logical_artifact_key)
 
     for node in episode.nodes:
         if node.kind == "chat":
+            node_source = sources_by_id.get(node.source_id or "")
             path = node.metadata.get("path") or (
-                source_paths_by_id.get(node.source_id or "")
+                node_source.path if node_source is not None else None
             )
             if path:
                 keys.add(_chat_member_key(path))
+                logical_chat_key = _logical_chat_member_key(
+                    path,
+                    node_source.sha256 if node_source is not None else None,
+                )
+                if logical_chat_key is not None:
+                    keys.add(logical_chat_key)
         elif node.kind == "agent_run":
+            node_source = sources_by_id.get(node.source_id or "")
             path = (
                 node.metadata.get("artifact_dir")
                 or node.metadata.get("path")
-                or source_paths_by_id.get(node.source_id or "")
+                or (node_source.path if node_source is not None else None)
             )
             if path:
                 artifact_dir = _artifact_dir_from_source_path(path) or path
                 keys.add(_artifact_member_key(artifact_dir))
+                logical_artifact_key = _logical_artifact_member_key(
+                    artifact_dir,
+                    episode.project,
+                )
+                if logical_artifact_key is not None:
+                    keys.add(logical_artifact_key)
 
     return sorted(keys)
 
@@ -399,6 +425,35 @@ def _chat_member_key(path: str | Path) -> str:
 
 def _artifact_member_key(path: str | Path) -> str:
     return f"artifact:{normalize_source_path(path)}"
+
+
+def _logical_chat_member_key(path: str | Path, sha256: str | None) -> str | None:
+    if not sha256:
+        return None
+    basename = Path(path).name
+    if not basename:
+        return None
+    return f"chat:{basename}/{sha256[:16]}"
+
+
+def _logical_artifact_member_key(
+    path: str | Path,
+    episode_project: str,
+) -> str | None:
+    normalized = normalize_source_path(path)
+    parts = Path(normalized).parts
+    for index, part in enumerate(parts):
+        if part != "artifacts":
+            continue
+        if index + 2 >= len(parts):
+            return None
+        project = parts[index - 1] if index > 0 else episode_project
+        workflow = parts[index + 1]
+        timestamp = parts[index + 2]
+        if not project or not workflow or not timestamp:
+            return None
+        return f"artifact:{project}/{workflow}/{timestamp}"
+    return None
 
 
 def _artifact_dir_from_source_path(path: str | Path) -> str | None:

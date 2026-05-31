@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
+from sase.core.episode_facade import generate_v2_episode_id
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactRecordWire,
@@ -17,6 +19,95 @@ from sase.memory.episodes.components import (
     collect_episode_draft_for_component_plan,
 )
 from sase.memory.episodes.collector import EpisodeSelector
+
+
+def test_artifact_component_key_and_episode_id_ignore_projects_root(
+    tmp_path: Path,
+) -> None:
+    left_root = tmp_path / "left" / "projects"
+    right_root = tmp_path / "right" / "projects"
+    left_chat = _write_chat(tmp_path / "left" / "chats" / "root.md", "Root")
+    right_chat = _write_chat(tmp_path / "right" / "chats" / "root.md", "Root")
+    left_record = _make_record(
+        left_root,
+        "20260519120000",
+        "root-agent",
+        chat_path=left_chat,
+    )
+    right_record = _make_record(
+        right_root,
+        "20260519120000",
+        "root-agent",
+        chat_path=right_chat,
+    )
+
+    left_plans = build_episode_component_plans(
+        EpisodeSelector(project="proj", since="2026-05-19", until="2026-05-19"),
+        projects_root=left_root,
+        scan=_scan(left_root, [left_record]),
+        repo_root=tmp_path / "left",
+        include_chat_catalog=False,
+    )
+    right_plans = build_episode_component_plans(
+        EpisodeSelector(project="proj", since="2026-05-19", until="2026-05-19"),
+        projects_root=right_root,
+        scan=_scan(right_root, [right_record]),
+        repo_root=tmp_path / "right",
+        include_chat_catalog=False,
+    )
+
+    assert len(left_plans) == 1
+    assert len(right_plans) == 1
+    assert left_plans[0].component_key == (
+        "component/artifact/proj/ace-run/20260519120000"
+    )
+    assert right_plans[0].component_key == left_plans[0].component_key
+    assert str(left_root) not in left_plans[0].component_key
+    assert str(right_root) not in right_plans[0].component_key
+    assert generate_v2_episode_id("proj", left_plans[0].component_key) == (
+        generate_v2_episode_id("proj", right_plans[0].component_key)
+    )
+
+
+def test_chat_only_component_key_and_episode_id_ignore_chat_root(
+    tmp_path: Path,
+) -> None:
+    left_chat = _write_chat(
+        tmp_path / "left" / "chats" / "solo-260519_120000.md",
+        "Same transcript",
+    )
+    right_chat = _write_chat(
+        tmp_path / "right" / "chats" / "solo-260519_120000.md",
+        "Same transcript",
+    )
+    expected_digest = hashlib.sha256(left_chat.read_bytes()).hexdigest()[:16]
+
+    left_plans = build_episode_component_plans(
+        EpisodeSelector(project="proj", chat=str(left_chat)),
+        projects_root=tmp_path / "left" / "projects",
+        scan=_scan(tmp_path / "left" / "projects", []),
+        repo_root=tmp_path / "left",
+        include_chat_catalog=False,
+    )
+    right_plans = build_episode_component_plans(
+        EpisodeSelector(project="proj", chat=str(right_chat)),
+        projects_root=tmp_path / "right" / "projects",
+        scan=_scan(tmp_path / "right" / "projects", []),
+        repo_root=tmp_path / "right",
+        include_chat_catalog=False,
+    )
+
+    assert len(left_plans) == 1
+    assert len(right_plans) == 1
+    assert left_plans[0].component_key == (
+        f"component/chat/proj/solo-260519_120000.md/{expected_digest}"
+    )
+    assert right_plans[0].component_key == left_plans[0].component_key
+    assert str(left_chat.parent) not in left_plans[0].component_key
+    assert str(right_chat.parent) not in right_plans[0].component_key
+    assert generate_v2_episode_id("proj", left_plans[0].component_key) == (
+        generate_v2_episode_id("proj", right_plans[0].component_key)
+    )
 
 
 def test_project_scan_splits_unrelated_records_with_shared_weak_refs(
@@ -186,6 +277,7 @@ def test_component_collect_skips_same_record_retry_root_self_loop(
 
 
 def _write_chat(path: Path, prompt: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         f"## Prompt\n\n{prompt}\n\n## Response\n\nDone.\n",
         encoding="utf-8",

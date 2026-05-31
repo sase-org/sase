@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 import json
 from pathlib import Path
@@ -44,7 +44,7 @@ from sase.memory.episodes.identity import (
     read_episode_member_rows,
     resolve_alias_episode_id,
 )
-from sase.memory.episodes.source_refs import normalize_source_path
+from sase.memory.episodes.source_refs import hash_file, normalize_source_path
 
 
 @dataclass(frozen=True)
@@ -615,25 +615,126 @@ def _component_root(
     chat_paths: list[str],
 ) -> tuple[str, str | None, str | None, str]:
     if records:
-        root_record = sorted(
-            records,
-            key=lambda record: (
-                compact_timestamp(record.timestamp),
-                normalize_source_path(record.artifact_dir),
-            ),
-        )[0]
-        timestamp = compact_timestamp(root_record.timestamp)
-        artifact_key = normalize_source_path(root_record.artifact_dir)
+        root_kind, timestamp, workflow = _artifact_component_root(records)
         return (
-            "artifact",
+            root_kind,
             timestamp,
             None,
-            f"component/artifact/{project}/{timestamp}/{artifact_key}",
+            f"component/{root_kind}/{project}/{workflow}/{timestamp}",
         )
     root_chat_key = chat_paths[0] if chat_paths else None
     if root_chat_key is not None:
-        return "chat", None, root_chat_key, f"component/chat/{root_chat_key}"
+        chat_name = Path(root_chat_key).name
+        digest = _chat_content_sha256_prefix(root_chat_key) or "missing"
+        return (
+            "chat",
+            None,
+            root_chat_key,
+            f"component/chat/{project}/{chat_name}/{digest}",
+        )
     return "empty", None, None, f"component/empty/{project}"
+
+
+def _artifact_component_root(
+    records: list[AgentArtifactRecordWire],
+) -> tuple[str, str, str]:
+    retry_root = _component_root_timestamp_choice(
+        records,
+        root_kind="retry-root",
+        timestamp_getter=_record_retry_root_timestamp,
+    )
+    if retry_root is not None:
+        return retry_root
+
+    workflow_root = _component_root_timestamp_choice(
+        records,
+        root_kind="workflow-root",
+        timestamp_getter=_record_workflow_root_timestamp,
+    )
+    if workflow_root is not None:
+        return workflow_root
+
+    root_record = sorted(
+        records,
+        key=lambda record: (
+            compact_timestamp(record.timestamp),
+            record.project_name,
+            record.workflow_dir_name,
+        ),
+    )[0]
+    return (
+        "artifact",
+        compact_timestamp(root_record.timestamp),
+        root_record.workflow_dir_name,
+    )
+
+
+def _component_root_timestamp_choice(
+    records: list[AgentArtifactRecordWire],
+    *,
+    root_kind: str,
+    timestamp_getter: Callable[[AgentArtifactRecordWire], str | None],
+) -> tuple[str, str, str] | None:
+    candidates: list[tuple[str, str]] = []
+    for record in records:
+        timestamp = timestamp_getter(record)
+        if timestamp is None:
+            continue
+        candidates.append(
+            (
+                timestamp,
+                _workflow_for_component_root_timestamp(records, timestamp)
+                or record.workflow_dir_name,
+            )
+        )
+    if not candidates:
+        return None
+    timestamp, workflow = sorted(candidates)[0]
+    return root_kind, timestamp, workflow
+
+
+def _workflow_for_component_root_timestamp(
+    records: list[AgentArtifactRecordWire],
+    timestamp: str,
+) -> str | None:
+    workflows = sorted(
+        {
+            record.workflow_dir_name
+            for record in records
+            if compact_timestamp(record.timestamp) == timestamp
+        }
+    )
+    return workflows[0] if workflows else None
+
+
+def _record_retry_root_timestamp(record: AgentArtifactRecordWire) -> str | None:
+    trace = read_json_object(Path(record.artifact_dir) / "episode_trace.json")
+    for value in (
+        trace.get("retry_chain_root_timestamp"),
+        record.agent_meta.retry_chain_root_timestamp
+        if record.agent_meta is not None
+        else None,
+        record.done.retry_chain_root_timestamp if record.done is not None else None,
+    ):
+        if isinstance(value, str) and value:
+            return compact_timestamp(value)
+    return None
+
+
+def _record_workflow_root_timestamp(record: AgentArtifactRecordWire) -> str | None:
+    trace = read_json_object(Path(record.artifact_dir) / "episode_trace.json")
+    value = trace.get("root_timestamp")
+    return compact_timestamp(value) if isinstance(value, str) and value else None
+
+
+def _chat_content_sha256_prefix(path: str) -> str | None:
+    chat_path = Path(path)
+    if not chat_path.is_file():
+        return None
+    try:
+        return hash_file(chat_path)[:16]
+    except OSError:
+        return None
 
 
 def _existing_episode_ids_for_members(

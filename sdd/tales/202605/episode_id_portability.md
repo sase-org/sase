@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-31 15:25:56
-status: wip
+status: done
 prompt: sdd/prompts/202605/episode_id_portability.md
 ---
 # Episode ID Portability Fix Plan

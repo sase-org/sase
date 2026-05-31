@@ -140,9 +140,12 @@ def test_write_project_episode_records_component_members(
         row.member_key
         for row in read_episode_member_rows("proj", projects_root=projects_root)
     }
+    chat_digest = episode.sources[0].sha256[:16] if episode.sources[0].sha256 else ""
     assert member_keys == {
         "component:component/root",
+        "artifact:proj/ace-run/20260526120000",
         f"chat:{chat_path.resolve(strict=False)}",
+        f"chat:{chat_path.name}/{chat_digest}",
         f"artifact:{artifact_dir.resolve(strict=False)}",
     }
     assert read_episode_alias_rows("proj", projects_root=projects_root) == []
@@ -272,6 +275,83 @@ def test_write_project_episode_aliases_legacy_v1_without_rewriting_it(
     assert legacy_payload["title"] == "Legacy Episode"
 
 
+def test_write_project_episode_migrates_old_path_dependent_v2_id(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "store" / "projects"
+    timestamp = "20260526120000"
+    old_artifact_dir = (
+        tmp_path
+        / "old-root"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / timestamp
+    )
+    new_artifact_dir = (
+        tmp_path
+        / "new-root"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / timestamp
+    )
+    old_component_key = (
+        f"component/artifact/proj/{timestamp}/{old_artifact_dir.resolve(strict=False)}"
+    )
+    old = _identity_episode(
+        "ep-old",
+        component_key=old_component_key,
+        sources=[
+            _source_ref(
+                old_artifact_dir / "done.json",
+                kind="artifact",
+                content='{"done":true}\n',
+            )
+        ],
+        title="Old Path Dependent",
+    )
+    new = _identity_episode(
+        "ep-new",
+        component_key=f"component/artifact/proj/ace-run/{timestamp}",
+        sources=[
+            _source_ref(
+                new_artifact_dir / "done.json",
+                kind="artifact",
+                content='{"done":true}\n',
+            )
+        ],
+        title="New Logical",
+    )
+
+    write_project_episode(old, projects_root=projects_root)
+    _write_old_v2_member_rows(
+        projects_root,
+        old_episode_id="ep-old",
+        old_component_key=old_component_key,
+        old_artifact_dir=old_artifact_dir,
+    )
+    new_result = write_project_episode(new, projects_root=projects_root)
+
+    assert new_result.episode_id == "ep-new"
+    aliases = read_episode_alias_rows("proj", projects_root=projects_root)
+    assert [
+        (row.alias_episode_id, row.canonical_episode_id, row.reason) for row in aliases
+    ] == [("ep-old", "ep-new", "component_key_migration")]
+    old_payload = json.loads(
+        (projects_root / "proj" / "episodes" / "ep-old" / "episode.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert old_payload["title"] == "Old Path Dependent"
+    members = read_episode_member_rows("proj", projects_root=projects_root)
+    assert {row.member_key: row.canonical_episode_id for row in members}[
+        f"artifact:proj/ace-run/{timestamp}"
+    ] == "ep-new"
+
+
 def test_gc_corrupt_episode_temp_dirs_only_removes_storage_temps(
     tmp_path: Path,
 ) -> None:
@@ -390,6 +470,39 @@ def _identity_episode(
             )
         ],
         lessons=[],
+    )
+
+
+def _write_old_v2_member_rows(
+    projects_root: Path,
+    *,
+    old_episode_id: str,
+    old_component_key: str,
+    old_artifact_dir: Path,
+) -> None:
+    rows = [
+        {
+            "schema_version": 1,
+            "project": "proj",
+            "member_key": f"component:{old_component_key}",
+            "member_kind": "component",
+            "canonical_episode_id": old_episode_id,
+        },
+        {
+            "schema_version": 1,
+            "project": "proj",
+            "member_key": f"artifact:{old_artifact_dir.resolve(strict=False)}",
+            "member_kind": "artifact",
+            "canonical_episode_id": old_episode_id,
+        },
+    ]
+    members_path = projects_root / "proj" / "episodes" / "members.jsonl"
+    members_path.write_text(
+        "".join(
+            json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
+            for row in rows
+        ),
+        encoding="utf-8",
     )
 
 
