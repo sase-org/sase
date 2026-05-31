@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import textwrap
 from datetime import datetime
 
 from rich.text import Text
@@ -10,7 +11,7 @@ from sase.core.time import get_timezone
 from sase.memory.read_log import MemoryReadEvent
 
 MAX_VISIBLE_READS = 5
-REASON_LIMIT = 88
+REASON_WRAP_WIDTH = 88
 PATH_LIMIT = 64
 
 _COLOR_HEADER = "bold #D7AF5F underline"
@@ -22,6 +23,8 @@ _COLOR_REASON = "#D7D7AF"
 _COLOR_TRUNCATION = "dim italic"
 _FRONTMATTER_MARKER = "  ↩ frontmatter"
 _REASON_GLYPH = "↳"
+_REASON_PREFIX = f"            {_REASON_GLYPH} "
+_REASON_CONTINUATION_PREFIX = " " * len(_REASON_PREFIX)
 
 
 def _format_local_hhmmss(iso_timestamp: str) -> str:
@@ -42,11 +45,34 @@ def _format_local_hhmm(iso_timestamp: str) -> str:
         return "??:??"
 
 
-def _truncate(value: str, limit: int) -> str:
-    value = " ".join(value.split())
+def _normalize_display(value: str) -> str:
+    return " ".join(value.split())
+
+
+def _truncate_path(value: str, limit: int) -> str:
+    value = _normalize_display(value)
     if len(value) > limit:
         return value[: limit - 1] + "…"
     return value
+
+
+def _append_reason(text: Text, reason: str) -> None:
+    reason = _normalize_display(reason)
+    if not reason:
+        text.append(f"{_REASON_PREFIX}\n", style=_COLOR_REASON)
+        return
+
+    lines = textwrap.wrap(
+        reason,
+        width=REASON_WRAP_WIDTH,
+        break_long_words=True,
+        break_on_hyphens=False,
+    )
+    text.append(_REASON_PREFIX, style=_COLOR_REASON)
+    text.append(lines[0] + "\n", style=_COLOR_REASON)
+    for line in lines[1:]:
+        text.append(_REASON_CONTINUATION_PREFIX, style=_COLOR_REASON)
+        text.append(line + "\n", style=_COLOR_REASON)
 
 
 def append_agent_memory_reads_section(
@@ -73,12 +99,11 @@ def append_agent_memory_reads_section(
         text.append(
             f"  {_format_local_hhmmss(event.timestamp)}  ", style=_COLOR_TIMESTAMP
         )
-        text.append(_truncate(event.canonical_path, PATH_LIMIT), style=_COLOR_PATH)
+        text.append(_truncate_path(event.canonical_path, PATH_LIMIT), style=_COLOR_PATH)
         if event.frontmatter_stripped:
             text.append(_FRONTMATTER_MARKER, style=_COLOR_FRONTMATTER)
         text.append("\n")
-        text.append(f"            {_REASON_GLYPH} ", style=_COLOR_REASON)
-        text.append(_truncate(event.reason, REASON_LIMIT) + "\n", style=_COLOR_REASON)
+        _append_reason(text, event.reason)
 
     overflow = len(events) - len(visible)
     if overflow > 0:

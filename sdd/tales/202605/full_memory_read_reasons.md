@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-31 11:16:03
-status: wip
+status: done
 prompt: sdd/prompts/202605/full_memory_read_reasons.md
 ---
 # Show Full Memory Read Reasons in ACE Agent Metadata

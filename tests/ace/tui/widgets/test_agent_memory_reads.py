@@ -10,7 +10,7 @@ from rich.text import Text
 from sase.ace.tui.widgets.prompt_panel import _agent_memory_reads
 from sase.ace.tui.widgets.prompt_panel._agent_memory_reads import (
     MAX_VISIBLE_READS,
-    REASON_LIMIT,
+    REASON_WRAP_WIDTH,
     append_agent_memory_reads_section,
 )
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
@@ -95,8 +95,8 @@ def test_overflow_renders_truncation_footer() -> None:
     assert f"({earliest_hhmm} earliest)" in plain
 
 
-def test_long_reason_is_truncated_with_ellipsis() -> None:
-    long_reason = "x" * (REASON_LIMIT + 50)
+def test_long_reason_is_wrapped_without_truncation() -> None:
+    long_reason = " ".join(f"reason-word-{index:02d}" for index in range(18))
     text = Text()
     event = _event(
         canonical_path="long/skill.md",
@@ -106,9 +106,20 @@ def test_long_reason_is_truncated_with_ellipsis() -> None:
     append_agent_memory_reads_section(text, events=(event,))
 
     plain = text.plain
-    assert "…" in plain
-    truncated_marker = "x" * (REASON_LIMIT - 1) + "…"
-    assert truncated_marker in plain
+    assert "…" not in plain
+    assert long_reason in " ".join(plain.split())
+
+    lines = plain.splitlines()
+    first_reason_line_index = next(
+        index for index, line in enumerate(lines) if "↳ " in line
+    )
+    first_reason_line = lines[first_reason_line_index]
+    continuation_line = lines[first_reason_line_index + 1]
+
+    assert len(first_reason_line.partition("↳ ")[2]) <= REASON_WRAP_WIDTH
+    assert continuation_line.startswith(" " * len("            ↳ "))
+    assert "↳" not in continuation_line
+    assert continuation_line.strip()
 
 
 def test_frontmatter_marker_present_when_stripped() -> None:
