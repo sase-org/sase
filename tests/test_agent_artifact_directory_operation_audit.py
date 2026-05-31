@@ -50,7 +50,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "Removes a workspace checkout directory, not an agent artifact directory."
         ),
     ),
-    "src/sase/memory/episodes/storage.py:_gc_corrupt_episode_temp_dirs_unlocked": DirOpReview(
+    "src/sase/memory/episodes/_storage_files.py:gc_corrupt_episode_temp_dirs_unlocked": DirOpReview(
         exemption=(
             "Removes only hidden episode storage temp directories under "
             "~/.sase/projects/<project>/episodes, not agent artifact directories."
