@@ -462,16 +462,16 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Managed Instructions\n")
-    assert "## Short-Term Memory Files" in agents
+    assert "## Tier 1 (short-term) Memory" in agents
     assert SHORT_MEMORY_START_MARKER in agents
     assert "- @memory/short/extra.md" in agents
     assert "- @memory/short/sase.md" in agents
     assert SHORT_MEMORY_END_MARKER in agents
+    assert "## Tier 2 (dynamic) Memory" not in agents
     assert "## Dynamic Memory Files" not in agents
-    assert "tier 3" not in agents
-    assert "#### Long-Term Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
-    assert "## Long-Term Memory Files" in agents
+    assert "## Tier 3 (long-term) Memory" in agents
+    assert "#### Long-Term Memory Files" in agents
     assert LONG_MEMORY_START_MARKER in agents
     assert "**`memory/long/curated.md`**  \nCurated description survives." in agents
     assert "**`memory/long/described.md`**  \nExisting description." in agents
