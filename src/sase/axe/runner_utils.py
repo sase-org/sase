@@ -5,6 +5,7 @@ import logging
 import os
 import signal
 import sys
+import time
 from collections.abc import Callable
 
 from sase.ace.agent_tags import REVIEW_AGENT_TAG
@@ -14,13 +15,19 @@ from sase.vcs_provider import get_vcs_provider
 
 logger = logging.getLogger(__name__)
 
-# Global state for SIGTERM handler
-_killed_state: dict[str, bool] = {"killed": False}
+# Global state for SIGTERM handler.
+_killed_state: dict[str, object] = {"killed": False, "killed_at": None}
 
 
 def was_killed() -> bool:
     """Check if the process received SIGTERM."""
-    return _killed_state["killed"]
+    return bool(_killed_state["killed"])
+
+
+def killed_at() -> float | None:
+    """Return the wall-clock timestamp for the most recent SIGTERM."""
+    value = _killed_state.get("killed_at")
+    return value if isinstance(value, float) else None
 
 
 def install_sigterm_handler(
@@ -40,6 +47,7 @@ def install_sigterm_handler(
 
     def _handler(_signum: int, _frame: object) -> None:
         _killed_state["killed"] = True
+        _killed_state["killed_at"] = time.time()
         print(f"\nReceived SIGTERM - {description} was killed", file=sys.stderr)
         if not soft:
             sys.exit(128 + signal.SIGTERM)
@@ -50,6 +58,7 @@ def install_sigterm_handler(
 def reset_killed() -> None:
     """Clear the killed flag between follow-up loop iterations."""
     _killed_state["killed"] = False
+    _killed_state["killed_at"] = None
 
 
 def prepare_workspace(

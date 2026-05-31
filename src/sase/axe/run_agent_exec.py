@@ -27,7 +27,8 @@ from sase.axe.run_agent_helpers import (
     is_workflow_noop,
     read_and_delete_marker,
 )
-from sase.axe.runner_utils import reset_killed, was_killed
+from sase.axe.runner_utils import killed_at, reset_killed, was_killed
+from sase.agent.user_kill import has_user_kill_intent
 from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
@@ -106,6 +107,12 @@ def _handle_killed_iteration(
     ctx: AgentExecContext,
     state: LoopState,
 ) -> str | None:
+    if has_user_kill_intent(state.current_artifacts_dir):
+        read_and_delete_marker(state.current_artifacts_dir, ".sase_plan_pending")
+        read_and_delete_marker(state.current_artifacts_dir, ".sase_questions_pending")
+        AGENT_KILLS.labels(reason="user").inc()
+        return "killed"
+
     plan_data = read_and_delete_marker(
         state.current_artifacts_dir,
         ".sase_plan_pending",
@@ -115,13 +122,26 @@ def _handle_killed_iteration(
         ".sase_questions_pending",
     )
 
-    if plan_data:
+    kill_time = killed_at()
+    if plan_data and _marker_predates_kill(plan_data, kill_time):
         return handle_plan_marker(plan_data, ctx, state)
-    if q_data:
+    if q_data and _marker_predates_kill(q_data, kill_time):
         return handle_questions_marker(q_data, ctx, state)
 
     AGENT_KILLS.labels(reason="user").inc()
     return "killed"
+
+
+def _marker_predates_kill(
+    marker_data: dict[str, Any],
+    kill_time: float | None,
+) -> bool:
+    if kill_time is None:
+        return True
+    marker_time = marker_data.get("timestamp")
+    if not isinstance(marker_time, int | float):
+        return True
+    return float(marker_time) <= kill_time + 0.001
 
 
 def run_execution_loop(

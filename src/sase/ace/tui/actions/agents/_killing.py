@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import signal
 import time
 from typing import TYPE_CHECKING, cast
 
@@ -39,6 +38,7 @@ from ._kill_persistence import (
 from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
+from sase.agent.user_kill import request_user_kill
 
 log = logging.getLogger(__name__)
 
@@ -135,7 +135,13 @@ class AgentKillingMixin(AgentDismissingMixin):
     _dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]]
     _kill_persistence_inflight: set[tuple[AgentType, str, str | None]]
 
-    def _kill_process_group(self, pid: int) -> bool:
+    def _kill_process_group(
+        self,
+        pid: int,
+        *,
+        artifacts_dir: str | None = None,
+        reason: str | None = None,
+    ) -> bool:
         """Kill a process group by PID.
 
         Args:
@@ -144,16 +150,39 @@ class AgentKillingMixin(AgentDismissingMixin):
         Returns:
             True if kill succeeded or process was already dead, False on error.
         """
-        try:
-            os.killpg(pid, signal.SIGTERM)
+        result = request_user_kill(
+            pid,
+            artifacts_dir=artifacts_dir,
+            source="ace_tui",
+            reason=reason,
+            wait=False,
+            background=True,
+            killpg=os.killpg,
+        )
+        if result.success:
             return True
-        except ProcessLookupError:
-            return True
-        except PermissionError:
+        if result.status == "permission_denied":
             self.notify(  # type: ignore[attr-defined]
                 f"Permission denied killing PID {pid}", severity="error"
             )
             return False
+        if result.status == "already_stopped":
+            return True
+        self.notify(  # type: ignore[attr-defined]
+            f"Failed killing PID {pid}: {result.error or result.status}",
+            severity="error",
+        )
+        return False
+
+    def _kill_agent_process_group(self, agent: Agent) -> bool:
+        if agent.pid is None:
+            return True
+        artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
+        return self._kill_process_group(
+            agent.pid,
+            artifacts_dir=artifacts_dir,
+            reason=agent.display_name,
+        )
 
     def _classify_kill_kind(self, agent: Agent) -> KillKind | None:
         """Classify the side effects needed to kill an agent."""
@@ -306,7 +335,7 @@ class AgentKillingMixin(AgentDismissingMixin):
             )
             return
 
-        if agent.pid is not None and not self._kill_process_group(agent.pid):
+        if agent.pid is not None and not self._kill_agent_process_group(agent):
             return
         self._notify_killed_agent(agent, kind)
 
@@ -358,7 +387,7 @@ class AgentKillingMixin(AgentDismissingMixin):
                 )
                 failed_ids.add(agent.identity)
                 continue
-            if agent.pid is not None and not self._kill_process_group(agent.pid):
+            if agent.pid is not None and not self._kill_agent_process_group(agent):
                 failed_ids.add(agent.identity)
                 continue
             identities = self._collect_immediate_kill_identities(agent)

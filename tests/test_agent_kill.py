@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 # --- Kill Agent Tests ---
@@ -48,6 +49,34 @@ def test_kill_process_group_permission_error() -> None:
         assert len(app._notifications) == 1
         assert "Permission denied" in app._notifications[0][0]
         assert app._notifications[0][1] == "error"
+
+
+def test_kill_process_group_uses_user_kill_helper() -> None:
+    """The TUI kill path delegates signalling to the shared user-kill helper."""
+    from sase.ace.tui.actions.agents import AgentsMixin
+
+    class MockApp(AgentsMixin):
+        def __init__(self) -> None:
+            self._notifications: list[tuple[str, str]] = []
+
+        def notify(self, msg: str, severity: str = "information") -> None:
+            self._notifications.append((msg, severity))
+
+    app = MockApp()
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._killing.os.killpg",
+            side_effect=AssertionError("raw killpg should be delegated"),
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._killing.request_user_kill",
+            return_value=SimpleNamespace(success=True, status="killed"),
+        ) as request,
+    ):
+        assert app._kill_process_group(12345) is True
+
+    request.assert_called_once()
 
 
 def test_no_legacy_sync_kill_handlers_referenced() -> None:

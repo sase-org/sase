@@ -14,7 +14,9 @@ from sase.axe.runner_utils import (
     detect_write_and_persist_review_agent_meta,
     finalize_axe_runner,
     install_sigterm_handler,
+    killed_at,
     prepare_workspace,
+    reset_killed,
     was_killed,
     write_done_marker,
 )
@@ -255,7 +257,7 @@ def test_finalize_axe_runner_handles_errors() -> None:
 # Tests for was_killed / install_sigterm_handler
 def test_sigterm_handler_sets_killed() -> None:
     """Test that invoking the captured handler sets was_killed to True."""
-    _killed_state["killed"] = False
+    reset_killed()
     captured_handler = None
 
     with patch("sase.axe.runner_utils.signal.signal") as mock_signal:
@@ -263,12 +265,27 @@ def test_sigterm_handler_sets_killed() -> None:
         captured_handler = mock_signal.call_args[0][1]
 
     # Invoke the handler - it calls sys.exit, so we catch SystemExit
-    with patch("sase.axe.runner_utils.sys.exit"):
+    with (
+        patch("sase.axe.runner_utils.sys.exit"),
+        patch("sase.axe.runner_utils.time.time", return_value=123.456),
+    ):
         captured_handler(signal.SIGTERM, None)
 
     assert was_killed() is True
+    assert killed_at() == 123.456
     # Reset state
-    _killed_state["killed"] = False
+    reset_killed()
+
+
+def test_reset_killed_clears_timestamp() -> None:
+    """reset_killed clears both the boolean kill flag and timestamp."""
+    _killed_state["killed"] = True
+    _killed_state["killed_at"] = 42.0
+
+    reset_killed()
+
+    assert was_killed() is False
+    assert killed_at() is None
 
 
 # Tests for prepare_workspace

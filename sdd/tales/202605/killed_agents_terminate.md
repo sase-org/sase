@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-31 12:09:34
-status: wip
+status: done
 prompt: sdd/prompts/202605/killed_agents_terminate.md
 ---
 # Plan: Make Killed SASE Agents Actually Terminate

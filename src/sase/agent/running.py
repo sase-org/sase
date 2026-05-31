@@ -13,11 +13,11 @@ behind the facade.
 
 import json
 import os
-import signal
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from sase.agent.user_kill import request_user_kill
 from sase.agent.names import find_named_agent, is_process_alive
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
@@ -461,14 +461,13 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
             timestamp=timestamp,
         )
 
-    # Kill the process group
-    status = "killed"
-    try:
-        os.killpg(pid, signal.SIGTERM)
-    except ProcessLookupError:
-        status = "already_stopped"
-        pass  # Already dead — continue with cleanup
-    except PermissionError:
+    kill_result = request_user_kill(
+        pid,
+        artifacts_dir=artifacts_path,
+        source="agents_kill",
+        wait=True,
+    )
+    if not kill_result.success and kill_result.status == "permission_denied":
         return _KillResult(
             False,
             f"Permission denied killing agent '{name}' (PID {pid})",
@@ -479,6 +478,7 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
             project=project_name,
             timestamp=timestamp,
         )
+    status = kill_result.status
 
     # Cleanup
     if is_home:
