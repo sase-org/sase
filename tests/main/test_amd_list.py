@@ -31,7 +31,10 @@ def legacy_marker(name: str) -> str:
 
 
 def managed_agents(
-    title: str = "Managed Instructions", *, markered: bool = False
+    title: str = "Managed Instructions",
+    *,
+    markered: bool = False,
+    long_heading: str = "## Tier 2 (long-term) Memory",
 ) -> str:
     short_markers = ([legacy_marker("short-memory:start")] if markered else []) + (
         [legacy_marker("short-memory:end")] if markered else []
@@ -52,7 +55,7 @@ def managed_agents(
             "- @memory/short/sase.md",
             *short_markers[1:],
             "",
-            "## Tier 3 (long-term) Memory",
+            long_heading,
             "",
             "Prose mentions @memory/short/prose.md and memory/long/prose.md.",
             "",
@@ -163,7 +166,13 @@ def test_build_inventory_treats_legacy_markered_structure_as_managed(
 ) -> None:
     project = tmp_path / "repo"
     (project / ".git").mkdir(parents=True)
-    write(project / "AGENTS.md", managed_agents(markered=True))
+    write(
+        project / "AGENTS.md",
+        managed_agents(
+            markered=True,
+            long_heading="## Tier 3 (long-term) Memory",
+        ),
+    )
 
     inventory = _build_amd_inventory(
         root=project,

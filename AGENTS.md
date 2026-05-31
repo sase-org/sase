@@ -12,7 +12,7 @@ The following memory files contain core (always loaded) context:
 - @memory/short/rust_core_backend_boundary.md
 - @memory/short/sase.md
 
-## Tier 3 (long-term) Memory
+## Tier 2 (long-term) Memory
 
 The below files contain detailed reference material. When working in their domain, you MUST use your `/sase_memory_read`
 skill to review their contents. Do not read canonical `memory/long/*.md` files directly.

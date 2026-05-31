@@ -14,6 +14,7 @@ _SHORT_SECTION_HEADINGS = frozenset(
 )
 _LONG_SECTION_HEADINGS = frozenset(
     {
+        "## Tier 2 (long-term) Memory",
         "## Tier 3 (long-term) Memory",
         "## Long-Term Memory Files",
     }

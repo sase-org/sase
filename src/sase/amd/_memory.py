@@ -226,7 +226,7 @@ def render_managed_agents(
     lines.append("")
     lines.extend(
         [
-            "## Tier 3 (long-term) Memory",
+            "## Tier 2 (long-term) Memory",
             "",
             "The below files contain detailed reference material. When working "
             "in their domain, you MUST use your `/sase_memory_read`",
