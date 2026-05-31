@@ -2,15 +2,14 @@
 
 This module is the public facade for xprompt discovery: it aggregates
 xprompts from every source (filesystem, config, plugins, project workspaces,
-``memory/long/``) and exposes the public ``get_all_*`` API.  Per-source
-loaders live in :mod:`.loader_sources` and :mod:`.loader_memory`.
+and built-ins) and exposes the public ``get_all_*`` API. Per-source loaders
+live in :mod:`.loader_sources`.
 """
 
 import functools
 import logging
 from typing import TYPE_CHECKING
 
-from .loader_memory import load_memory_long_xprompts
 from .loader_sources import (
     load_xprompt_from_file,
     load_xprompts_from_config,
@@ -45,7 +44,6 @@ __all__ = [
     "get_sase_package_xprompts_dir",
     "get_xprompt_or_workflow",
     "get_xprompt_search_paths",
-    "load_memory_long_xprompts",
     "load_project_local_xprompts",
     "load_xprompt_from_file",
     "load_xprompts_from_config",
@@ -106,11 +104,10 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     3. ~/.xprompts/*.md (home, hidden)
     4. ~/xprompts/*.md (home, non-hidden)
     5. ~/.config/sase/xprompts/{project}/*.md (project-specific, if project given)
-    6. memory/long/*.md auto-discovered (frontmatter keywords)
-    7. sase.yml xprompts:/snippets: section
-    8. Plugin packages (via sase_xprompts entry points)
-    9. <sase_package>/default_xprompts/*.md (default built-ins)
-    10. <sase_package>/xprompts/*.md (internal)
+    6. sase.yml xprompts:/snippets: section
+    7. Plugin packages (via sase_xprompts entry points)
+    8. <sase_package>/default_xprompts/*.md (default built-ins)
+    9. <sase_package>/xprompts/*.md (internal)
 
     Args:
         project: Optional project name.  When ``None``, the project is
@@ -124,21 +121,18 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     # Start with lowest priority and let higher priority override
     all_xprompts: dict[str, XPrompt] = {}
 
-    # 10. Internal xprompts (lowest priority)
+    # 9. Internal xprompts (lowest priority)
     all_xprompts.update(load_xprompts_from_internal())
 
-    # 9. Default markdown xprompts
+    # 8. Default markdown xprompts
     all_xprompts.update(load_xprompts_from_default_files())
 
-    # 8. Plugin xprompts
+    # 7. Plugin xprompts
     all_xprompts.update(load_xprompts_from_plugins())
 
-    # 7. Config-based xprompts
+    # 6. Config-based xprompts
     config_xprompts = load_xprompts_from_config(project=effective_project)
     all_xprompts.update(config_xprompts)
-
-    # 6. memory/long/ auto-discovered xprompts
-    all_xprompts.update(load_memory_long_xprompts())
 
     # 5. Project-specific xprompts (if project provided)
     if effective_project:

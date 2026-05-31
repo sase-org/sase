@@ -121,7 +121,6 @@ def _namespace_workflow(project: str, wf: Workflow) -> Workflow:
         wraps_all=wf.wraps_all,
         hidden=wf.hidden,
         tags=wf.tags,
-        keywords=wf.keywords,
         environment=wf.environment,
         description=wf.description,
     )
@@ -401,7 +400,6 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
                         wraps_all=workflow.wraps_all,
                         hidden=workflow.hidden,
                         tags=workflow.tags,
-                        keywords=workflow.keywords,
                         environment=workflow.environment,
                         description=workflow.description,
                     )

@@ -90,7 +90,6 @@ class CollectorRecordMixin:
             "plan_path.json",
             "raw_xprompt.md",
             "submitted_xprompt.md",
-            "dynamic_memory.json",
             "memory_reads.jsonl",
             "episode_trace.json",
         ):

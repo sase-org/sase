@@ -42,9 +42,9 @@ and the 1600x900 Rust-backend image are all 16:9 PNGs.
 
 ### `docs/xprompt.md`
 
-- Show a user prompt containing `#name`, `#!workflow`, directives, workspace references, and dynamic-memory triggers.
+- Show a user prompt containing `#name`, `#!workflow`, directives, and workspace references.
 - Include the key resolution stages: protected/disabled-region masking, reference parsing, discovery order, aliases,
-  typed input validation, Jinja2 rendering, dynamic memory, and multi-agent fan-out.
+  typed input validation, Jinja2 rendering, and multi-agent fan-out.
 - Keep the distinction clear: `#name` expands inline-capable xprompts or workflows with `prompt_part`; `#!name` launches
   standalone workflows.
 - Do not imply recursive multi-agent fan-out beyond the documented one-level behavior.

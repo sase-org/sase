@@ -35,7 +35,7 @@ from sase.axe.run_agent_runner_finalize import (
     write_error_done_marker,
 )
 from sase.axe.run_agent_runner_setup import (
-    apply_dynamic_memory,
+    apply_episode_recall_memory,
     apply_retry_chain_to_meta,
     bump_spawn_telemetry,
     load_retry_handoff_from_env,
@@ -219,23 +219,16 @@ def main() -> None:
             os.chdir(workspace_dir)
             os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
 
-            # Keep ``.sase/`` untracked in this clone so embedded ``#git``
-            # pre-steps that run ``git clean -fd`` do not wipe dynamic-memory
-            # files written below. ``.git/info/exclude`` is git's per-clone,
-            # untracked ignore file and is honored by ``git clean`` identically
-            # to ``.gitignore`` entries.
+            # Keep ``.sase/`` untracked in this clone. Some workflows use it
+            # for project-local runtime artifacts, and ``.git/info/exclude`` is
+            # git's per-clone ignore file honored by ``git clean``.
             from sase.workspace_provider.git_exclude import (
                 ensure_git_info_exclude_entry,
             )
 
             ensure_git_info_exclude_entry(workspace_dir, ".sase/")
 
-            # Generate dynamic memory before agent starts. The on-disk files
-            # written here may be wiped by embedded-workflow pre-steps (e.g.
-            # `hg clean`); preprocess_prompt_late() re-writes them via
-            # rewrite_dynamic_memory_for_prompt() before file-reference
-            # validation.
-            prompt = apply_dynamic_memory(prompt, project_name, artifacts_dir)
+            prompt = apply_episode_recall_memory(prompt, project_name, artifacts_dir)
 
             # Extract directives and write agent metadata
             info = extract_directives_and_write_meta(

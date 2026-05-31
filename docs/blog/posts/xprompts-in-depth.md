@@ -32,12 +32,12 @@ workflows exist — because most of the time you do not need one.
 
 `xprompts/docstring.md` is the entire definition. Drop the file in `xprompts/` (or `.xprompts/` for hidden-dir layouts)
 and the prompt becomes reachable as `#docstring`. Optional YAML frontmatter on top of the file gives it a `name`, a
-`description`, typed `input` fields, a `snippet` for editor completion, a `skill` advertisement, and `keywords` for
-[dynamic memory](../../xprompt.md#dynamic-memory-keywords) matching. None of those fields are required.
+`description`, typed `input` fields, a `snippet` for editor completion, and a `skill` advertisement. None of those
+fields are required.
 
 Discovery order is deterministic and project-aware: project hidden dir, project plain dir, then user hidden dir, user
-plain dir, then `~/.config/sase/xprompts/{project}/`, then memory long-term files, then `sase.yml` `xprompts:` entries,
-then `sase_xprompts` plugin packages, then SASE's built-in defaults. First match wins. The
+plain dir, then `~/.config/sase/xprompts/{project}/`, then `sase.yml` `xprompts:` entries, then `sase_xprompts` plugin
+packages, then SASE's built-in defaults. First match wins. The
 [full table is in the docs](../../xprompt.md#discovery-order); the practical implication is that a project-local
 override always beats a user override which always beats a plugin which always beats a built-in. That ordering is what
 lets `crs`, `fix_hook`, and the commit workflows ship as overridable defaults.

@@ -33,7 +33,6 @@ _VERIFICATION_PATTERNS = (
 _HOUSEKEEPING_NAMES = {
     "agent_meta.json",
     "done.json",
-    "dynamic_memory.json",
     "memory_reads.jsonl",
     "plan_feedback.jsonl",
     "qa_log.jsonl",

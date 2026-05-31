@@ -23,7 +23,6 @@ class XPromptTag(Enum):
     diff_file = "diff_file"
     append_to_pr = "append_to_pr"
     append_to_commit_and_propose = "append_to_commit_and_propose"
-    memory = "memory"
     create_epic_bead = "create_epic_bead"
     create_legend_bead = "create_legend_bead"
     work_phase_bead = "work_phase_bead"

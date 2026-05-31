@@ -406,12 +406,6 @@ h3 { font-size: 12pt; font-weight: 600; }
   color: var(--muted);
 }
 
-.card-keywords {
-  color: var(--muted);
-  font-size: 8.5pt;
-  margin-top: 2mm;
-}
-
 .card-footnote {
   color: var(--muted);
   font-size: 8.5pt;

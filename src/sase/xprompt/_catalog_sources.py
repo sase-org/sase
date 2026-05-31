@@ -116,7 +116,6 @@ def classify_workflow(
             inputs=workflow.inputs,
             source_path=source,
             tags=workflow.tags,
-            keywords=workflow.keywords,
             description=workflow.description,
         ),
         project=project,
@@ -150,9 +149,6 @@ def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
                 return CatalogEntry(xp, bucket="built-in", project=None)
             except (ValueError, OSError):
                 pass
-
-    if source_path is not None and "memory/long" in source_path.as_posix():
-        return CatalogEntry(xp, bucket="memory", project=None)
 
     if project is not None:
         return CatalogEntry(xp, bucket="project", project=project)

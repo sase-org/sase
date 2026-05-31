@@ -28,7 +28,6 @@ The resolution path is easiest to read as a pipeline from prompt references to f
 - [Jinja2 Integration](#jinja2-integration)
 - [Legacy Placeholders](#legacy-placeholders)
 - [Tags](#tags)
-- [Dynamic Memory (Keywords)](#dynamic-memory-keywords)
 - [Snippet Field](#snippet-field)
 - [Skill Field](#skill-field)
   - [Bundled Skills](#bundled-skills)
@@ -170,18 +169,17 @@ higher-priority source wins (first-wins).
 | 3        | `~/.xprompts/` (home, hidden dir)      | User-wide overrides                              |
 | 4        | `~/xprompts/` (home)                   | Non-hidden variant                               |
 | 5        | `~/.config/sase/xprompts/{project}/`   | Project-specific (when project is set)           |
-| 6        | `memory/long/*.md`                     | Auto-discovered dynamic-memory xprompts          |
-| 7        | `sase.yml` `xprompts:` section         | Config-based definitions (local + global)        |
-| 8        | Plugin packages (`sase_xprompts` EPs)  | Installed plugin xprompts                        |
-| 9        | `<sase_package>/default_xprompts/*.md` | Built-in default markdown xprompts               |
-| 10       | `<sase_package>/xprompts/*.md`         | Built-in package xprompts shipped with core SASE |
+| 6        | `sase.yml` `xprompts:` section         | Config-based definitions (local + global)        |
+| 7        | Plugin packages (`sase_xprompts` EPs)  | Installed plugin xprompts                        |
+| 8        | `<sase_package>/default_xprompts/*.md` | Built-in default markdown xprompts               |
+| 9        | `<sase_package>/xprompts/*.md`         | Built-in package xprompts shipped with core SASE |
 
 Each directory-based source can contain individual `.md` files. YAML workflows use the same CWD, home, project, plugin,
-and package locations, with `.yml` or `.yaml` files loaded as workflow definitions. Within priority 7, the config merge
+and package locations, with `.yml` or `.yaml` files loaded as workflow definitions. Within priority 6, the config merge
 chain applies: built-in defaults, plugin configs, `~/.config/sase/sase.yml`, overlay files (`sase_*.yml`), and finally a
 local `./sase.yml` in the current working directory (highest config priority).
 
-For file-based xprompts (priorities 1-6 and 8-10), the xprompt name defaults to the filename stem (e.g., `summarize.md`
+For file-based xprompts (priorities 1-5 and 7-9), the xprompt name defaults to the filename stem (e.g., `summarize.md`
 defines the xprompt `summarize`). The name can be overridden via the `name` field in the YAML front matter.
 
 Project-specific xprompts (priority 5) are namespaced: a file `bar.md` in the `foo` project directory becomes `foo/bar`.
@@ -214,15 +212,14 @@ Hello, {{ user_name }}! Welcome aboard.
 
 ### Front Matter Fields
 
-| Field         | Required | Description                                                                        |
-| ------------- | -------- | ---------------------------------------------------------------------------------- |
-| `name`        | No       | XPrompt name (defaults to filename stem)                                           |
-| `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))                    |
-| `snippet`     | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below)        |
-| `description` | No       | Human-readable one-line description of what the xprompt does                       |
-| `skill`       | No       | Marks this xprompt as an agent skill source for `sase skills init` (see below)     |
-| `keywords`    | No       | Trigger terms used by memory-tagged xprompts and `memory/long/*.md` dynamic memory |
-| `xprompts`    | No       | File-local helper xprompts whose names must start with `_`                         |
+| Field         | Required | Description                                                                    |
+| ------------- | -------- | ------------------------------------------------------------------------------ |
+| `name`        | No       | XPrompt name (defaults to filename stem)                                       |
+| `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))                |
+| `snippet`     | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below)    |
+| `description` | No       | Human-readable one-line description of what the xprompt does                   |
+| `skill`       | No       | Marks this xprompt as an agent skill source for `sase skills init` (see below) |
+| `xprompts`    | No       | File-local helper xprompts whose names must start with `_`                     |
 
 If no front matter is present, the entire file content is the template body and the filename stem is the name.
 
@@ -565,7 +562,6 @@ making the system extensible — a plugin or user can override the CRS workflow 
 | `diff_file`                    | Injects the CL diff into the mentor prompt                                                                                    |
 | `append_to_pr`                 | VCS-specific post-commit prompt appended when the active commit method creates a pull request                                 |
 | `append_to_commit_and_propose` | VCS-specific post-commit prompt appended when the active commit method creates a commit or proposal                           |
-| `memory`                       | Auto-discovered dynamic-memory xprompt                                                                                        |
 | `create_epic_bead`             | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                             |
 | `create_legend_bead`           | Plan-approval Legend flow — creates a legend-tier bead with `epic_count`, then runs legend work                               |
 | `work_phase_bead`              | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                            |
@@ -623,53 +619,6 @@ The legacy `wraps_all: true` field on workflows is still supported — it automa
 should use `tags: vcs` instead.
 
 Source: `src/sase/xprompt/tags.py`, `src/sase/xprompt/models.py`
-
-## Dynamic Memory (Keywords)
-
-Dynamic memory is an xprompt with both the `memory` tag and a non-empty `keywords` list. Top-level `memory/long/*.md`
-files with `keywords` frontmatter are auto-discovered this way; ordinary xprompt files or config entries must set
-`tags: memory` themselves. Whenever an agent prompt contains text that matches one of the positive keywords, SASE writes
-a prompt-local copy of that memory under `.sase/memory/` and appends a `### DYNAMIC MEMORY` section to the prompt. The
-section has one `@<path>` entry per matched memory, and the generated file contains the matched memory content for that
-launch.
-
-```markdown
----
-name: memory_long_external_repos
-tags: memory
-keywords: [chezmoi, plugin]
----
-
-Repo-layout notes for cross-repo work...
-```
-
-Canonical long-memory sources produce tier-prefixed generated files such as `.sase/memory/long-external-repos.md`. The
-`long-` prefix means the generated file came from a `memory/long/` source. When that file appears in the dynamic memory
-section, it already carries the corresponding long-memory content; agents do not need to separately read the canonical
-`memory/long/*.md` file unless they need a fresh audited read.
-
-### Negative Keywords
-
-Any keyword prefixed with `!` is a **negative keyword**. Before positive-keyword matching runs, each negative keyword is
-matched against the prompt and its hit spans are masked out. The memory is then excluded only when every positive
-keyword hit falls inside a masked region. A negative keyword that doesn't cover any positive hit is a no-op.
-
-For example, `keywords: [foo, "!/foo/"]` matches `"update foo and /path/to/foo/"` (via the standalone `foo`) but not
-`"update /path/to/foo/"` (both `foo` occurrences land inside the `/foo/` masked span).
-
-> **YAML gotcha**: `!`-prefixed entries MUST be quoted (`"!vendor"`), otherwise YAML parses the leading `!` as a tag
-> directive and raises an error at load time.
-
-### Command Substitution Masking
-
-Keyword matching runs **after** xprompt expansion, which means `$(cmd)` substitutions have already been replaced with
-their stdout. To prevent environment-derived text (e.g. file paths emitted by `$(branch_changes ...)`) from triggering
-spurious matches, every `$(...)` span — including nested parentheses — is masked to spaces before keyword matching runs.
-Escaped `\$(...)` is preserved as literal text and remains eligible for matching.
-
-New long-term memory should go through the reviewed proposal flow: agents create candidates with `sase memory write`,
-and humans approve, edit, or reject them with `sase memory review`. See [Memory](memory.md#propose-memory) for the
-proposal contract and review commands.
 
 ## Snippet Field
 
@@ -899,7 +848,7 @@ xprompts:
     content: "Hello {{ name }}, count is {{ count }}"
 ```
 
-Config-based xprompts have priority 7 (below file-backed project, user, and memory xprompts; above plugin and built-in
+Config-based xprompts have priority 6 (below file-backed project and user xprompts; above plugin and built-in
 definitions).
 
 Standalone workflows must be defined as YAML files in an `xprompts/` directory (repo-level, project plugin, or built-in

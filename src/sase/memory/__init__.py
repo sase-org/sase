@@ -1,4 +1,3 @@
-from sase.memory.dynamic import DynamicMemoryResult, MatchedMemory
 from sase.memory.proposals import (
     EvidenceRecord,
     MemoryProposalAuthorError,
@@ -56,10 +55,8 @@ from sase.memory.read_log import (
 __all__ = [
     "AgentIdentity",
     "AgentIdentityError",
-    "DynamicMemoryResult",
     "EvidenceRecord",
     "FrontmatterStripResult",
-    "MatchedMemory",
     "MemoryProposalAuthorError",
     "MemoryProposalBodyError",
     "MemoryProposalError",

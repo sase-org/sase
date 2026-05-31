@@ -285,17 +285,6 @@ def _approval_reachability_warnings(
     state: MemoryProposalState, *, canonical_path: Path, cwd: Path
 ) -> tuple[ProposalWarning, ...]:
     warnings: list[ProposalWarning] = []
-    if not state.keywords:
-        warnings.append(
-            ProposalWarning(
-                code="reachability.missing_keywords",
-                message=(
-                    "approved memory has no keywords frontmatter; dynamic memory "
-                    "auto-discovery will skip it"
-                ),
-            )
-        )
-
     try:
         from sase.memory.inventory import build_memory_inventory
 
@@ -306,13 +295,12 @@ def _approval_reachability_warnings(
 
     if entry.path.resolve(strict=False) != canonical_path.resolve(strict=False):
         return tuple(warnings)
-    if entry.status == "available" and not state.keywords:
+    if entry.status == "available":
         warnings.append(
             ProposalWarning(
                 code="reachability.available_only",
                 message=(
-                    "approved memory is available but not loaded by an @ reference "
-                    "and is not dynamically discoverable"
+                    "approved memory is available but not loaded by an @ reference"
                 ),
             )
         )

@@ -80,23 +80,6 @@ def test_classify_config_label() -> None:
     assert entry.bucket == "config"
 
 
-def test_classify_memory(tmp_path: Path) -> None:
-    mem_file = tmp_path / "memory" / "long" / "x.md"
-    mem_file.parent.mkdir(parents=True)
-    mem_file.write_text("hi")
-
-    xp = make_xprompt("memory/long/x", source_path=str(mem_file))
-    with (
-        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
-        patch(
-            "sase.xprompt.catalog.get_sase_package_xprompts_dir",
-            return_value=Path("/nonexistent"),
-        ),
-    ):
-        entry = _classify(xp, project=None)
-    assert entry.bucket == "memory"
-
-
 def test_classify_project_explicit(tmp_path: Path) -> None:
     ws = tmp_path / "ws"
     ws.mkdir()

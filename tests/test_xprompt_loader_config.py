@@ -296,7 +296,6 @@ def test_default_file_xprompt_not_project_namespaced(
         patch("sase.xprompt.loader_sources.load_xprompts_by_source", return_value=[]),
         patch("sase.xprompt.loader.load_xprompts_from_internal", return_value={}),
         patch("sase.xprompt.loader.load_xprompts_from_plugins", return_value={}),
-        patch("sase.xprompt.loader.load_memory_long_xprompts", return_value={}),
         patch("sase.xprompt.loader.load_xprompts_from_project", return_value={}),
         patch(
             "sase.xprompt.loader_sources.get_xprompt_search_paths",
@@ -322,7 +321,6 @@ def test_config_xprompt_overrides_default_file_xprompt(tmp_path: Path) -> None:
         ),
         patch("sase.xprompt.loader.load_xprompts_from_internal", return_value={}),
         patch("sase.xprompt.loader.load_xprompts_from_plugins", return_value={}),
-        patch("sase.xprompt.loader.load_memory_long_xprompts", return_value={}),
         patch("sase.xprompt.loader.detect_project", return_value=None),
         patch("sase.xprompt.loader_sources.get_xprompt_search_paths", return_value=[]),
     ):
@@ -342,7 +340,6 @@ def test_research_xprompts_load_from_default_config(tmp_path: Path) -> None:
         patch("sase.xprompt.loader_sources.get_xprompt_search_paths", return_value=[]),
         patch("sase.xprompt.loader.load_xprompts_from_internal", return_value={}),
         patch("sase.xprompt.loader.load_xprompts_from_plugins", return_value={}),
-        patch("sase.xprompt.loader.load_memory_long_xprompts", return_value={}),
         patch("sase.xprompt.workflow_loader.get_all_workflows", return_value={}),
     ):
         prompts = get_all_prompts(project=None)

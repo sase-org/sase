@@ -134,11 +134,7 @@ def _notes_panel() -> Panel:
     notes = Text()
     notes.append("@path loads file contents into agent context.\n")
     notes.append("AGENTS.md is counted because it is loaded instruction context.\n")
-    notes.append("Plain memory/... paths are visible references only.\n")
-    notes.append(
-        "Dynamic memory under .sase/memory is prompt-dependent: keyword "
-        "matches are generated during agent launch, not by this list."
-    )
+    notes.append("Plain memory/... paths are visible references only.")
     return Panel(notes, title="Notes", border_style="dim")
 
 

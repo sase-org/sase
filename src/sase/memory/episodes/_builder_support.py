@@ -14,7 +14,6 @@ from sase.core.episode_wire import EpisodeEventWire, EpisodeSourceRefWire
 _HOUSEKEEPING_LABELS = {
     "agent_meta.json",
     "done.json",
-    "dynamic_memory.json",
     "memory_reads.jsonl",
     "plan_feedback.jsonl",
     "qa_log.jsonl",
@@ -84,12 +83,9 @@ def is_question_source(source: EpisodeSourceRefWire) -> bool:
 
 
 def is_memory_source(source: EpisodeSourceRefWire) -> bool:
-    return source.kind in {"dynamic_memory", "memory_read"} or Path(
-        source.path
-    ).name in {
-        "dynamic_memory.json",
-        "memory_reads.jsonl",
-    }
+    return (
+        source.kind == "memory_read" or Path(source.path).name == "memory_reads.jsonl"
+    )
 
 
 def is_verification_text_source(source: EpisodeSourceRefWire) -> bool:

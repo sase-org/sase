@@ -2,7 +2,7 @@
 
 Contains the bookkeeping that runs before the agent's execution loop:
 artifacts directory + initial workflow_state.json, prompt preprocessing,
-retry-spawn handoff loading, dynamic memory injection, retry-chain
+retry-spawn handoff loading, episode recall prompt augmentation, retry-chain
 ancestry recording, telemetry spawn counters, and the home-mode running
 marker.
 """
@@ -164,81 +164,47 @@ def load_retry_handoff_from_env() -> RetryHandoff | None:
     return handoff
 
 
-def apply_dynamic_memory(prompt: str, project_name: str, artifacts_dir: str) -> str:
-    """Generate dynamic memory and append the ``### DYNAMIC MEMORY`` section.
-
-    Writes the ``dynamic_memory.json`` artifact and prints a user-visible
-    summary. When ``SASE_MEMORY_EPISODES_RECALL`` is truthy, also appends
-    deterministic episode recall and records ``episode_recall.json``.
-    Returns the (possibly augmented) prompt.
-
-    On-disk dynamic memory files written here may be wiped by
-    embedded-workflow pre-steps (e.g. ``hg clean``); ``preprocess_prompt_late()``
-    re-writes them right before file-reference validation.
-    """
-    from sase.memory.dynamic import (
+def apply_episode_recall_memory(
+    prompt: str, project_name: str, artifacts_dir: str
+) -> str:
+    """Append opt-in episodic memory recall and record ``episode_recall.json``."""
+    from sase.memory.episodes.prompt_recall import (
         episode_recall_enabled,
         episode_recall_limit,
-        format_dynamic_memory_section,
         format_episode_recall_section,
-        generate_dynamic_memory,
-        generate_episode_recall_memory,
+        generate_episode_recall_prompt,
     )
 
-    sections: list[str] = []
-    dynamic_result = generate_dynamic_memory(prompt, project_name)
-    if dynamic_result.matched:
-        dynamic_artifact = [
-            {
-                "name": m.name,
-                "keywords_matched": m.keywords_matched,
-                "content": m.content,
-            }
-            for m in dynamic_result.matched
-        ]
-        with open(
-            os.path.join(artifacts_dir, "dynamic_memory.json"), "w", encoding="utf-8"
-        ) as f:
-            json.dump(dynamic_artifact, f, indent=2)
-
-        print("=== Dynamic Memory ===")
-        for m in dynamic_result.matched:
-            kws = ", ".join(m.keywords_matched)
-            print(f"  + {m.name}  (matched: {kws})")
-        print("======================")
-        print()
-        sections.append(format_dynamic_memory_section(dynamic_result))
-
-    if episode_recall_enabled():
-        recall_result = generate_episode_recall_memory(
-            prompt,
-            project_name,
-            limit=episode_recall_limit(),
-        )
-        if recall_result.matches:
-            recall_artifact = {
-                "limit": recall_result.limit,
-                "matches": [match.to_json_dict() for match in recall_result.matches],
-                "project": recall_result.project,
-                "query": recall_result.query,
-            }
-            with open(
-                os.path.join(artifacts_dir, "episode_recall.json"),
-                "w",
-                encoding="utf-8",
-            ) as f:
-                json.dump(recall_artifact, f, indent=2, sort_keys=True)
-
-            print("=== Episode Recall ===")
-            for match in recall_result.matches:
-                print(f"  + {match.episode_id}  (score: {match.score})")
-            print("======================")
-            print()
-            sections.append(format_episode_recall_section(recall_result))
-
-    if not sections:
+    if not episode_recall_enabled():
         return prompt
-    return prompt + "\n\n" + "\n\n".join(sections)
+
+    recall_result = generate_episode_recall_prompt(
+        prompt,
+        project_name,
+        limit=episode_recall_limit(),
+    )
+    if not recall_result.matches:
+        return prompt
+
+    recall_artifact = {
+        "limit": recall_result.limit,
+        "matches": [match.to_json_dict() for match in recall_result.matches],
+        "project": recall_result.project,
+        "query": recall_result.query,
+    }
+    with open(
+        os.path.join(artifacts_dir, "episode_recall.json"),
+        "w",
+        encoding="utf-8",
+    ) as f:
+        json.dump(recall_artifact, f, indent=2, sort_keys=True)
+
+    print("=== Episode Recall ===")
+    for match in recall_result.matches:
+        print(f"  + {match.episode_id}  (score: {match.score})")
+    print("======================")
+    print()
+    return prompt + "\n\n" + format_episode_recall_section(recall_result)
 
 
 def apply_retry_chain_to_meta(

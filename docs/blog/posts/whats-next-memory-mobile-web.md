@@ -29,17 +29,17 @@ work is happening.
 
 ## Shared Memory Across Agents
 
-The gap today: short-term memory (`memory/short/*.md`, always loaded through `AGENTS.md`) and dynamic memory
-(`memory/long/*.md` with `keywords` frontmatter, matched against the prompt) both work per-session. There is no
-canonical cross-agent store. Every agent reconstructs context from scratch.
+The gap today: short-term memory (`memory/short/*.md`, loaded through `AGENTS.md`) and audited long-term memory
+(`memory/long/*.md`, read on demand with `sase memory read`) both work per-session. There is no canonical cross-agent
+store. Every agent reconstructs context from scratch.
 
 The direction, sketched in
 [`sdd/research/202605/zettel_sase_shared_memory.md`](https://github.com/sase-org/sase/blob/master/sdd/research/202605/zettel_sase_shared_memory.md),
 is a two-layer system:
 
 1. **Canonical zettel** — curated, human-readable, linked knowledge objects with stable IDs.
-2. **SASE memory projections** — generated views of those zettel for agents: `memory/short`, `memory/long`, dynamic
-   memory, skills, project plans, review checklists.
+2. **SASE memory projections** — generated views of those zettel for agents: `memory/short`, `memory/long`, audited read
+   indexes, skills, project plans, review checklists.
 
 Agents propose facts via an inbox (`.sase/memory/inbox/`) and humans (or distillation workflows) promote them into
 canonical zettel. Agent-initiated retrieval (`sase memory search`, `sase memory show`, `sase memory related`) lets a
@@ -54,8 +54,8 @@ Three problems keep this on the research shelf for now:
   append-and-supersede (a new zettel that links `supersedes: @old`) rather than in-place mutation, and required human
   review for inbox promotions.
 - **Projection cost.** Generating projections on every read is wasteful; generating them on every write doesn't scale
-  either. The first version stays read-only and uses existing `memory/long/*.md` keyword injection so nothing in the
-  runtime has to change.
+  either. The first version stays read-only and uses existing audited `memory/long/*.md` reads so nothing in the runtime
+  has to change.
 - **Retrieval determinism.** Vector search is the wrong first abstraction. Existing zettel are already link-rich and
   ID-rich; deterministic structure (IDs, links, note types, triggers, applies-to paths, provenance) goes further before
   embeddings start to matter.

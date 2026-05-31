@@ -45,7 +45,6 @@ from tests.main.init_skills_handler_helpers import make_args
                 "sase memory read",
                 "--reason",
                 "memory/long/*.md",
-                ".sase/memory/long-*",
             ),
         ),
         ("sase_notify", ("sase notify list -j", "sase notify show --id")),

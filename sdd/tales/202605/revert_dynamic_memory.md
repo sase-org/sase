@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-31 10:48:44
-status: wip
+status: done
 prompt: sdd/prompts/202605/revert_dynamic_memory.md
 ---
 # Revert Dynamic Memory Functionality

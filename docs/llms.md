@@ -967,19 +967,18 @@ file, template, and formatting work.
 
 ### Steps
 
-| Phase | Step                       | Syntax                                     | Description                                               |
-| ----- | -------------------------- | ------------------------------------------ | --------------------------------------------------------- |
-| Early | Optional workflow Jinja2   | `{{ var }}`                                | Render workflow-supplied template context before xprompt  |
-| Early | xprompt references         | `#name`                                    | Expand reusable prompt snippets or workflows              |
-| Early | Prompt directives          | `%model`, `%m`, other `%...` directives    | Extract directives after xprompt expansion                |
-| Late  | Disabled/fenced protection | `%xprompts_enabled:false`, fenced code     | Protect regions that should not be rewritten              |
-| Late  | Command substitution       | `$(cmd)`                                   | Execute shell commands and inline their output            |
-| Late  | Dynamic memory rewrite     | `@.sase/memory/long-*.md`                  | Ensure dynamic memory files exist relative to current CWD |
-| Late  | File references            | `@path`                                    | Process, validate, or skip file references                |
-| Late  | Top-level Jinja2           | `{{ var }}`                                | Render remaining top-level Jinja2 templates               |
-| Late  | Prettier formatting        | -                                          | Format with prettier for consistent markdown              |
-| Late  | Comment stripping          | `<!-- ... -->`                             | Remove HTML/markdown comments                             |
-| Late  | Restore protected regions  | fenced code / disabled-region placeholders | Restore protected content after rewrites                  |
+| Phase | Step                       | Syntax                                     | Description                                              |
+| ----- | -------------------------- | ------------------------------------------ | -------------------------------------------------------- |
+| Early | Optional workflow Jinja2   | `{{ var }}`                                | Render workflow-supplied template context before xprompt |
+| Early | xprompt references         | `#name`                                    | Expand reusable prompt snippets or workflows             |
+| Early | Prompt directives          | `%model`, `%m`, other `%...` directives    | Extract directives after xprompt expansion               |
+| Late  | Disabled/fenced protection | `%xprompts_enabled:false`, fenced code     | Protect regions that should not be rewritten             |
+| Late  | Command substitution       | `$(cmd)`                                   | Execute shell commands and inline their output           |
+| Late  | File references            | `@path`                                    | Process, validate, or skip file references               |
+| Late  | Top-level Jinja2           | `{{ var }}`                                | Render remaining top-level Jinja2 templates              |
+| Late  | Prettier formatting        | -                                          | Format with prettier for consistent markdown             |
+| Late  | Comment stripping          | `<!-- ... -->`                             | Remove HTML/markdown comments                            |
+| Late  | Restore protected regions  | fenced code / disabled-region placeholders | Restore protected content after rewrites                 |
 
 ### Order Matters
 

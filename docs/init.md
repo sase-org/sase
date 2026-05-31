@@ -143,11 +143,6 @@ When the project-local `./sase.yml` sets `amd_h1_title`, `sase memory init` sync
 inside `AGENTS.md`, adds missing `description` frontmatter to long-memory files, and renders the Tier 3 list from those
 descriptions before reachability validation runs.
 
-The generated Tier 2 dynamic-memory guidance appears only when at least one `memory/long/*.md` file has a `keywords`
-field in YAML frontmatter. Dynamic matching itself expects `keywords` to be a YAML list. Projects with long-term memory
-but no keyword-triggered sources omit that section so `AGENTS.md` does not advertise a dynamic surface that cannot
-currently trigger.
-
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The command can then commit those home
 changes and run `chezmoi apply --force`; `--no-commit` does not disable that home deployment path.
 
@@ -183,9 +178,7 @@ command fail so important agent context is not silently ignored.
   does not reach.
 - `missing` referenced memory paths that do not exist.
 
-The dashboard includes approximate local token estimates. It reports discoverable long-term sources, but it does not
-generate prompt-dependent `.sase/memory/` files; those are written only during an agent launch when keyword-tagged
-long-term memory matches the prompt.
+The dashboard includes approximate local token estimates for loaded memory context.
 
 For day-to-day read/write operations, including audited reads and reviewed long-term memory proposals, see
 [Memory](memory.md).

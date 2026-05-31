@@ -41,9 +41,9 @@ regen produces will essentially be greenfield — there is no inline prose to an
 This is the single biggest accuracy problem. The image's whole reason to live in `docs/` is that SASE wants to project a
 curated zettelkasten into agent memory (`sdd/research/202605/zettel_sase_shared_memory.md`). None of that bridge is
 shown: no projection arrow into `memory/long/*.md`, no `keywords`-frontmatter step, no inbox/promotion box, no
-`APPLIES:` / `TRIGGERS:` / `PROVENANCE:` labels, no `dynamic memory` injection step. A reader of `docs/index.md` will
-look at this and reasonably ask "why is the SASE site showing me a generic zettelkasten with no SASE in it?" The image
-is currently a personal-tool vision picture, not a SASE doc-set asset.
+`APPLIES:` / `TRIGGERS:` / `PROVENANCE:` labels, no runtime injection step. A reader of `docs/index.md` will look at
+this and reasonably ask "why is the SASE site showing me a generic zettelkasten with no SASE in it?" The image is
+currently a personal-tool vision picture, not a SASE doc-set asset.
 
 ### A2. `@foo/bar` is presented as the canonical ID syntax, but zorg has two competing syntaxes
 
@@ -137,7 +137,7 @@ agent action — the reader has to guess.
 
 Other diagrams in this set (e.g. the bead infographic) anchor abstract concepts with concrete examples — `bd <id>`,
 `docs/beads.md`, `epic-work` — so a reader can map the picture to a real artifact. Here the central nodes are meta
-names. Using a real example pair (e.g. `@sase/memory/dynamic` with a child `@sase/memory/dynamic-keywords`) would make
+names. Using a real example pair (e.g. `@sase/memory/audited-read` with a child `@sase/memory/read-evidence`) would make
 the IDs self-explanatory and double as a hint about what kind of zettel SASE wants to store.
 
 ### C4. CAPTURE/USE column-row labels read as inputs/outputs but are actually feature lists
@@ -185,7 +185,7 @@ The regen phase (`sase-2s.20`, `codex/gpt-5.5`) should:
 4. **Disambiguate the central graph** by visually separating node IDs (`@foo`, `@foo/bar`), node kinds (`file zettel` /
    `dir zettel` / `note zettel`), and edge kinds (`child`, `sibling`, `backlink`, `inherited`, `folgezettel`, `tag`).
    Edge kinds belong on edges, not floating in the box.
-5. **Use a concrete pair of example IDs** (e.g. `@sase/memory/dynamic` and `@sase/memory/dynamic-keywords`) instead of
+5. **Use a concrete pair of example IDs** (e.g. `@sase/memory/audited-read` and `@sase/memory/read-evidence`) instead of
    `@foo` / `@foo/bar` so the placeholder syntax has a context.
 6. **Mark v2 / aspirational features** (LSP actions, `@foo/bar` v2 syntax) with a distinct fill or a "Planned" tag, so a
    reader can tell shipped from planned. Alternatively split into two columns: "Today" vs. "Vision".

@@ -146,13 +146,12 @@ class CatalogDocument:
     )
 
 
-SOURCE_BUCKETS = ("built-in", "project", "config", "plugin", "memory")
+SOURCE_BUCKETS = ("built-in", "project", "config", "plugin")
 SOURCE_BUCKET_LABELS = {
     "built-in": "Built-in",
     "project": "Project",
     "config": "Config",
     "plugin": "Plugin",
-    "memory": "Memory (auto)",
 }
 
 # Backwards-compatible private names exported by sase.xprompt.catalog.

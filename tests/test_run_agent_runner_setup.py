@@ -13,7 +13,7 @@ from sase.axe.run_agent_exec_markers import (
 )
 from sase.axe.run_agent_exec_plan_artifacts import write_plan_path_artifact
 from sase.axe.run_agent_runner_setup import (
-    apply_dynamic_memory,
+    apply_episode_recall_memory,
     preprocess_prompt_xprompts,
     refresh_sibling_repos_for_workspace,
     setup_artifacts_directory,
@@ -27,10 +27,9 @@ from sase.core.episode_wire import (
     EpisodeSourceRefWire,
     EpisodeWire,
 )
-from sase.memory.dynamic import (
+from sase.memory.episodes.prompt_recall import (
     EPISODE_RECALL_ENABLED_ENV,
     EPISODE_RECALL_LIMIT_ENV,
-    DynamicMemoryResult,
 )
 from sase.memory.episodes.storage import write_project_episode
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, resolve_sibling_repos_for_project
@@ -181,7 +180,7 @@ def test_plan_path_artifact_write_updates_artifact_index(tmp_path: Path) -> None
     )
 
 
-def test_apply_dynamic_memory_opt_in_episode_recall_records_artifact(
+def test_apply_episode_recall_memory_opt_in_records_artifact(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -193,15 +192,11 @@ def test_apply_dynamic_memory_opt_in_episode_recall_records_artifact(
     source = _episode_source(tmp_path, "retry-feedback.md", "retry feedback\n")
     write_project_episode(_episode_for_recall(source))
 
-    with patch(
-        "sase.memory.dynamic.generate_dynamic_memory",
-        return_value=DynamicMemoryResult(matched=[]),
-    ):
-        prompt = apply_dynamic_memory(
-            "Need retry feedback guidance",
-            "proj",
-            str(artifacts_dir),
-        )
+    prompt = apply_episode_recall_memory(
+        "Need retry feedback guidance",
+        "proj",
+        str(artifacts_dir),
+    )
 
     assert "### EPISODIC MEMORY" in prompt
     assert "ep-runner-recall" in prompt
@@ -209,7 +204,6 @@ def test_apply_dynamic_memory_opt_in_episode_recall_records_artifact(
     assert [match["episode_id"] for match in artifact["matches"]] == [
         "ep-runner-recall"
     ]
-    assert not (artifacts_dir / "dynamic_memory.json").exists()
 
 
 def test_workflow_pdf_status_updates_artifact_index(tmp_path: Path) -> None:

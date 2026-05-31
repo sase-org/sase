@@ -177,21 +177,18 @@ def test_structured_catalog_definition_paths_for_real_sources(
     pkg_dir = tmp_path / "pkg_xprompts"
     default_dir = tmp_path / "default_xprompts"
     config_dir = home / ".config" / "sase"
-    memory_dir = tmp_path / "memory" / "long"
-    for directory in (ws / ".xprompts", pkg_dir, default_dir, config_dir, memory_dir):
+    for directory in (ws / ".xprompts", pkg_dir, default_dir, config_dir):
         directory.mkdir(parents=True)
 
     package_source = pkg_dir / "builtin.md"
     default_source = default_dir / "defaulted.md"
     local_source = ws / ".xprompts" / "local.md"
     config_source = config_dir / "sase.yml"
-    memory_source = memory_dir / "topic.md"
     for path in (
         package_source,
         default_source,
         local_source,
         config_source,
-        memory_source,
     ):
         path.write_text("body")
 
@@ -200,9 +197,6 @@ def test_structured_catalog_definition_paths_for_real_sources(
         "builtin": make_xprompt("builtin", source_path=str(package_source)),
         "defaulted": make_xprompt("defaulted", source_path=str(default_source)),
         "cfg": make_xprompt("cfg", source_path="config"),
-        "memory/long/topic": make_xprompt(
-            "memory/long/topic", source_path=str(memory_source)
-        ),
         "plugin": make_xprompt("plugin", source_path="plugin:module/plugin.md"),
         "runtime": make_xprompt("runtime", source_path="config:runtime"),
     }
@@ -234,7 +228,6 @@ def test_structured_catalog_definition_paths_for_real_sources(
     assert by_name["builtin"].definition_path == str(package_source.resolve())
     assert by_name["defaulted"].definition_path == str(default_source.resolve())
     assert by_name["cfg"].definition_path == str(config_source.resolve())
-    assert by_name["memory/long/topic"].definition_path == str(memory_source.resolve())
     assert by_name["sase/local"].definition_path == str(local_source.resolve())
     assert by_name["plugin"].definition_path is None
     assert by_name["runtime"].definition_path is None

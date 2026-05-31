@@ -207,7 +207,7 @@ def test_amd_init_generates_managed_agents_from_project_local_title(
         )
 
 
-def test_amd_init_includes_dynamic_memory_section_for_keyworded_long_memory(
+def test_amd_init_does_not_render_dynamic_section_for_keyworded_long_memory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -227,10 +227,10 @@ def test_amd_init_includes_dynamic_memory_section_for_keyworded_long_memory(
 
     agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     assert "## Short-Term Memory Files" in agents
-    assert "## Dynamic Memory Files" in agents
+    assert "## Dynamic Memory Files" not in agents
     assert "tier 3" not in agents
     assert "#### Long-Term Memory Files" not in agents
-    assert "### DYNAMIC MEMORY" in agents
+    assert "### DYNAMIC MEMORY" not in agents
     assert "**`memory/long/dynamic.md`**  \nDynamic description." in agents
 
 

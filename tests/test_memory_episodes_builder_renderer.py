@@ -70,7 +70,7 @@ def test_build_episode_renders_source_grounded_golden_lesson(tmp_path: Path) -> 
         "outcome": "completed",
         "selector_kind": "artifact_dir",
         "selector_value": "$TMP/artifacts/20260526120000",
-        "source_count": "11",
+        "source_count": "10",
         "warning_count": "1",
     }
     lesson_rows = [
@@ -124,8 +124,8 @@ def test_build_episode_renders_source_grounded_golden_lesson(tmp_path: Path) -> 
         ),
         (
             "memory_context",
-            "Memory context was captured from `dynamic_memory.json`, `memory_reads.jsonl`.",
-            ["src-dynamic", "src-memory-read"],
+            "Memory context was captured from `memory_reads.jsonl`.",
+            ["src-memory-read"],
         ),
     ]
 
@@ -461,8 +461,6 @@ def _draft_fixture(tmp_path: Path) -> EpisodeDraft:
         json.dumps({"question": "include hashes?", "selected": ["yes"]}) + "\n",
         encoding="utf-8",
     )
-    dynamic = artifact_dir / "dynamic_memory.json"
-    _write_json(dynamic, {"matches": ["episode design"]})
     memory_read = artifact_dir / "memory_reads.jsonl"
     memory_read.write_text(
         json.dumps({"path": "memory/long/generated_skills.md"}) + "\n",
@@ -485,7 +483,6 @@ def _draft_fixture(tmp_path: Path) -> EpisodeDraft:
         _file_source("src-chat", "chat", chat, "chat.md"),
         _file_source("src-done", "artifact", done, "done.json"),
         _missing_source("src-diff", "artifact", missing_diff, "missing.diff"),
-        _file_source("src-dynamic", "dynamic_memory", dynamic, "dynamic_memory.json"),
         _file_source("src-feedback", "feedback", feedback, "plan_feedback.jsonl"),
         _file_source(
             "src-memory-read", "memory_read", memory_read, "memory_reads.jsonl"

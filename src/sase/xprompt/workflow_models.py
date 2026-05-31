@@ -156,7 +156,6 @@ class Workflow:
     wraps_all: bool = False  # Deprecated: use tags: vcs instead
     hidden: bool = False
     tags: frozenset[XPromptTag] = field(default_factory=frozenset)
-    keywords: list[str] = field(default_factory=list)
     environment: dict[str, str] = field(default_factory=dict)
     description: str | None = None
 

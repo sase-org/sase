@@ -15,7 +15,6 @@ def make_xprompt(
     skill: bool | None = None,
     content: str = "body",
     snippet: bool | None = None,
-    keywords: list[str] | None = None,
 ) -> XPrompt:
     return XPrompt(
         name=name,
@@ -26,7 +25,6 @@ def make_xprompt(
         description=description,
         skill=skill,
         snippet=snippet,
-        keywords=keywords or [],
     )
 
 

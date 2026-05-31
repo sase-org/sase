@@ -634,18 +634,17 @@ xprompts:
     tags: [crs]
 ```
 
-Xprompts defined in `sase.yml` are priority 7 out of 10 in the resolution order:
+Xprompts defined in `sase.yml` are priority 6 out of 9 in the resolution order:
 
 1. `.xprompts/*.md` (CWD, hidden directory)
 2. `xprompts/*.md` (CWD)
 3. `~/.xprompts/*.md` (home, hidden directory)
 4. `~/xprompts/*.md` (home)
 5. `~/.config/sase/xprompts/{project}/*.md` (project-specific)
-6. `memory/long/*.md` auto-discovered memory xprompts with `keywords` frontmatter
-7. `sase.yml` `xprompts:` section (local `./sase.yml` overrides global; see [Deep-Merge System](#deep-merge-system))
-8. Plugin packages (via `sase_xprompts` entry points)
-9. `<sase_package>/default_xprompts/*.md` (built-in default markdown xprompts)
-10. `<sase_package>/xprompts/*.md` (built-in package xprompts)
+6. `sase.yml` `xprompts:` section (local `./sase.yml` overrides global; see [Deep-Merge System](#deep-merge-system))
+7. Plugin packages (via `sase_xprompts` entry points)
+8. `<sase_package>/default_xprompts/*.md` (built-in default markdown xprompts)
+9. `<sase_package>/xprompts/*.md` (built-in package xprompts)
 
 Earlier sources win on name conflicts. File-based xprompts use YAML front matter for metadata and the file body for
 content.
@@ -1303,9 +1302,8 @@ Creates or refreshes project and home memory roots and keeps `AGENTS.md` memory 
 minimal `AGENTS.md` when absent for repositories that are not opted into AMD-managed instructions, and it still repairs
 provider instruction shims for compatibility. When the project-local `./sase.yml` sets `amd_h1_title`, memory init
 synchronizes that project's AMD-managed short/long memory blocks and inserts missing long-memory `description`
-frontmatter. The generated Tier 2 dynamic-memory section is emitted only when at least one long-memory file has
-`keywords` frontmatter. By default it also tries to commit, rebase-pull, and push generated project-side files.
-`sase init memory` is a compatibility alias for this command. Generated sibling-repository memory lists direct paths for
+frontmatter. By default it also tries to commit, rebase-pull, and push generated project-side files. `sase init memory`
+is a compatibility alias for this command. Generated sibling-repository memory lists direct paths for
 `workspace.strategy: none` siblings and only includes `sase workspace open` guidance when a configured sibling uses
 numbered workspace resolution.
 

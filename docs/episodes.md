@@ -2,7 +2,7 @@
 
 SASE episodes are deterministic, source-linked evidence records for prior agent work. They sit between raw chats and
 reviewed memory: an episode ties together prompts, chats, artifacts, plans, feedback, questions, retries, beads,
-ChangeSpecs, audited memory reads, dynamic-memory inputs, and outcomes into inspectable evidence records.
+ChangeSpecs, audited memory reads, and outcomes into inspectable evidence records.
 
 Episodes are evidence, not active instructions. They do not write `memory/short` or `memory/long`. If an episode
 contains a reusable project rule, propose that rule with `sase memory write` and approve it with `sase memory review`.

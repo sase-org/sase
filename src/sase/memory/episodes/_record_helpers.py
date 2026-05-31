@@ -202,18 +202,8 @@ def record_referenced_paths(
         (done.output_path if done is not None else None, "artifact", "output"),
         (str_value(raw_meta.get("chat_path")), "chat", "response_chat"),
         (
-            str_value(raw_meta.get("dynamic_memory_path")),
-            "dynamic_memory",
-            "memory_context",
-        ),
-        (
             str_value(raw_meta.get("memory_reads_path")),
             "memory_read",
-            "memory_context",
-        ),
-        (
-            str_value(raw_done.get("dynamic_memory_path")),
-            "dynamic_memory",
             "memory_context",
         ),
         (

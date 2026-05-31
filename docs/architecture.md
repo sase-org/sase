@@ -16,7 +16,7 @@ tracked, resumed, reviewed, retried, and handed off through stable project artif
 | XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                      | [XPrompts](xprompt.md)                       |
 | Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                               | [Workflow spec](workflow_spec.md)            |
 | ChangeSpecs  | CL/PR-sized review records with lifecycle state, commits, hooks, comments, mentors, and timestamps.                           | [ChangeSpecs](change_spec.md)                |
-| Memory       | Instruction memory, dynamic long-term context, audited reads, reviewed write proposals, and source-linked episode evidence.   | [Memory](memory.md), [episodes](episodes.md) |
+| Memory       | Instruction memory, audited long-term reads, reviewed write proposals, and source-linked episode evidence.                    | [Memory](memory.md), [episodes](episodes.md) |
 | SDD          | Durable prompt, tale, epic, legend, myth, and research artifacts.                                                             | [SDD](sdd.md)                                |
 | Beads        | Git-portable issue/dependency tracking and executable epic/legend launch plans.                                               | [Beads](beads.md)                            |
 | Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                | [Plugins](plugins.md)                        |
@@ -50,17 +50,17 @@ agents. Workflow launches persist step state so ACE and axe can inspect progress
 SASE avoids making a live chat session the source of truth. The durable state lives in files and stores that can be
 inspected by users, agents, and automation:
 
-| State            | Location / Owner                                                   | Use                                                                                           |
-| ---------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| ChangeSpecs      | Project `.sase` files under `~/.sase/projects/`                    | Review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps.            |
-| Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments.   |
-| Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                      |
-| SDD artifacts    | `sdd/` or `.sase/sdd/`                                             | Prompt snapshots, plans, executable epics, legends, myths, and research notes.                |
-| Beads            | `sdd/beads/` or `.sase/sdd/beads/`                                 | Issue graph, JSONL export, SQLite query cache, epic/legend execution metadata.                |
-| Memory context   | `memory/`, `.sase/memory/`, `~/.sase/projects/<project>/`          | Agent instructions, dynamic-memory cache files, audited reads, write proposals, and episodes. |
-| Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.     |
-| Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.              |
-| Workspace claims | Running-field state and provider metadata                          | Reservation and release of numbered workspaces for parallel agents.                           |
+| State            | Location / Owner                                                   | Use                                                                                         |
+| ---------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| ChangeSpecs      | Project `.sase` files under `~/.sase/projects/`                    | Review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps.          |
+| Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments. |
+| Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                    |
+| SDD artifacts    | `sdd/` or `.sase/sdd/`                                             | Prompt snapshots, plans, executable epics, legends, myths, and research notes.              |
+| Beads            | `sdd/beads/` or `.sase/sdd/beads/`                                 | Issue graph, JSONL export, SQLite query cache, epic/legend execution metadata.              |
+| Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, write proposals, and episodes.                           |
+| Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.   |
+| Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.            |
+| Workspace claims | Running-field state and provider metadata                          | Reservation and release of numbered workspaces for parallel agents.                         |
 
 `~/.sase` is the default SASE state root. Set `SASE_HOME` to move that root for isolated tests, alternate profiles, or
 containerized runs.

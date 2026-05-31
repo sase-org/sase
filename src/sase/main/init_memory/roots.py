@@ -121,9 +121,6 @@ def _render_memory_readme() -> str:
         "`memory/...` mentions make files visible as references, but do not "
         "load file contents unless the file is also reached through an "
         "`@...` reference.\n"
-        "- Dynamic memory files under `.sase/memory/` are prompt-dependent. "
-        "They are generated only during agent launch when keyword-tagged "
-        "long-term sources match the prompt, not by `sase memory list`.\n"
     )
 
 

@@ -1,2 +1,1 @@
-{"question": "Should dynamic memory be included?", "selected": ["yes, cite audited memory read rows"]}
-
+{"question": "Should audited memory reads be included?", "selected": ["yes, cite audited memory read rows"]}

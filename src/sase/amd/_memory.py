@@ -191,17 +191,6 @@ def _iter_memory_markdown(root: Path, tier: str) -> tuple[Path, ...]:
     return tuple(sorted(path for path in memory_root.rglob("*.md") if path.is_file()))
 
 
-def _has_long_memory_keywords(paths: tuple[Path, ...]) -> bool:
-    for path in paths:
-        text, error = read_text(path)
-        if error is not None or text is None:
-            continue
-        frontmatter, _body = _split_frontmatter(text)
-        if "keywords" in frontmatter:
-            return True
-    return False
-
-
 def _short_memory_references(root: Path) -> tuple[str, ...]:
     refs = {Path("memory/short/sase.md")}
     refs.update(path.relative_to(root) for path in _iter_memory_markdown(root, "short"))
@@ -217,7 +206,6 @@ def render_managed_agents(
     """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
     existing_descriptions = _existing_agents_long_descriptions(root)
     long_paths = _iter_memory_markdown(root, "long")
-    has_dynamic_memory = _has_long_memory_keywords(long_paths)
     descriptions = long_memory_descriptions or {}
 
     lines = [
@@ -240,31 +228,6 @@ def render_managed_agents(
             "",
         ]
     )
-    if has_dynamic_memory:
-        lines.extend(
-            [
-                "## Dynamic Memory Files",
-                "",
-                "When a user prompt matches keywords from dynamic memories, we "
-                "append a `### DYNAMIC MEMORY` section at the bottom of",
-                "that prompt listing individual `.sase/memory/` file paths \u2014 one "
-                "per matched memory:",
-                "",
-                "```",
-                "### DYNAMIC MEMORY",
-                "- @.sase/memory/long-facts-about-foobar.md "
-                "(memory/long/facts_about_foobar, matched: `foobar facts`)",
-                "```",
-                "",
-                "File names use a prefix that encodes the memory source: `long-` "
-                "means the file originates from a long-term memory",
-                "source. If a `long-` prefixed file appears in your dynamic memory "
-                "section, it contains the same content as the",
-                "corresponding long-term memory file below \u2014 you do NOT need to "
-                "separately read the canonical file.",
-                "",
-            ]
-        )
     lines.extend(
         [
             "## Long-Term Memory Files",

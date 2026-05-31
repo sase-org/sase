@@ -15,20 +15,6 @@ The following memory files contain core (always loaded) context:
 - @memory/short/sase.md
 <!-- sase-amd:short-memory:end -->
 
-## Dynamic Memory Files
-
-When a user prompt matches keywords from dynamic memories, we append a `### DYNAMIC MEMORY` section at the bottom of
-that prompt listing individual `.sase/memory/` file paths — one per matched memory:
-
-```
-### DYNAMIC MEMORY
-- @.sase/memory/long-facts-about-foobar.md (memory/long/facts_about_foobar, matched: `foobar facts`)
-```
-
-File names use a prefix that encodes the memory source: `long-` means the file originates from a long-term memory
-source. If a `long-` prefixed file appears in your dynamic memory section, it contains the same content as the
-corresponding long-term memory file below — you do NOT need to separately read the canonical file.
-
 ## Long-Term Memory Files
 
 The below files contain detailed reference material. When working in their domain, you MUST use your `/sase_memory_read`

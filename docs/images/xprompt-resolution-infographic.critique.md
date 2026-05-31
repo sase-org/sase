@@ -12,16 +12,16 @@ pdf: false
 The infographic gets the high-level shape right — three swimlanes (inputs → resolution pipeline → outputs), with a side
 "Discovery stack" annotation off the resolution column. The four output cards on the right are all real artifacts of the
 pipeline and read clearly. The input column gathers the right surface-level concepts (`#name`, `#!workflow`,
-`%directives`, workspace refs, keyword triggers) and the bottom-left "Fences + disabled regions" callout names the right
-two protective constructs.
+`%directives`, workspace refs) and the bottom-left "Fences + disabled regions" callout names the right two protective
+constructs.
 
 The substantive problems are in the **middle column**: the pipeline stages are listed in the wrong order, the
 "directives" stage is fused into Jinja2 rendering even though directives are extracted in a separate, later step, and
 two real stages of the resolver — alias substitution (which actually runs _first_) and recursive iterative expansion —
-are misplaced or absent. The "Discovery stack" itself collapses ten priority slots into five and labels them in a way
-that does not match the documented discovery order. The bottom-left "keyword trigger" entry on the input column also
-mislabels how dynamic memory actually attaches to a prompt. These are accuracy issues a reader checking the diagram
-against `docs/xprompt.md` and `src/sase/xprompt/processor.py` will notice immediately.
+are misplaced or absent. The "Discovery stack" itself collapses the priority slots into five and labels them in a way
+that does not match the documented discovery order. The stale "keyword trigger" entry on the input column also depicts a
+removed legacy feature. These are accuracy issues a reader checking the diagram against `docs/xprompt.md` and
+`src/sase/xprompt/processor.py` will notice immediately.
 
 ## What's actually in the rendered PNG
 
@@ -33,7 +33,7 @@ Reading the committed `xprompt-resolution-infographic.png` directly:
   - `#!workflow` — "launch standalone YAML workflow"
   - `%directives` — "append, override, repeat"
   - `#cd / #gh refs` — "workspace selection first"
-  - keyword trigger — "append dynamic memory"
+  - keyword trigger — obsolete legacy row
   - A separate boxed callout at the bottom: **Fences + disabled regions**.
 - Middle column ("RESOLUTION"), pipeline of stacked stages with downward arrows, top to bottom:
   1. **Mask protected regions** — "fences and disabled regions stay literal"
@@ -51,12 +51,10 @@ Reading the committed `xprompt-resolution-infographic.png` directly:
 
 ## Clarity issues a new user would hit
 
-1. **The input column blurs three different concepts.** It mixes (a) reference syntax (`#name`, `#!workflow`, workspace
-   refs), (b) directives (`%directives`), and (c) the dynamic-memory append mechanism ("keyword trigger") into one
-   bulleted stack. A reader new to xprompts cannot tell which of these are _something the user types_ and which come
-   _from the catalog_ (a memory xprompt is appended automatically; the user does not type a "keyword trigger"). At
-   minimum the column should split into two sub-stacks — "What the user writes in a prompt" vs. "What the catalog
-   contributes" — or label the keyword-trigger row as "auto-appended dynamic memory" so the magic is visible.
+1. **The input column blurs different concepts.** It mixes reference syntax (`#name`, `#!workflow`, workspace refs),
+   directives (`%directives`), and a stale keyword-trigger row into one bulleted stack. A reader new to xprompts cannot
+   tell which of these are something the user types and which are obsolete. At minimum the column should split into
+   "What the user writes in a prompt" and "Resolver support mechanics", and the keyword-trigger row should be removed.
 2. **The "Fences + disabled regions" callout dangles.** It sits below the inputs as a separate floating box with no
    arrow into the pipeline. A new user has to guess that this content travels with the prompt and is then _protected_
    inside the resolver. An explicit arrow from this callout into the **Mask protected regions** stage (the very thing
@@ -134,24 +132,18 @@ Grounding against `src/sase/xprompt/processor.py` (`process_xprompt_references` 
    argument substitution, including nested-paren handling and the per-pass cache. It is a real argument-time step (the
    xprompt arg parser executes `$(...)` segments) and worth at least one chip — its omission is conspicuous given that
    `%directives` got its own input row.
-6. **Discovery-stack label set is wrong.** `docs/xprompt.md` documents **ten** priority slots (priorities 1–10):
-   `.xprompts/` CWD hidden, `xprompts/` CWD, `~/.xprompts/`, `~/xprompts/`, `~/.config/sase/xprompts/{project}/`,
-   `memory/long/*.md`, `sase.yml xprompts:`, plugin packages, `<sase_package>/default_xprompts/*.md`, and
-   `<sase_package>/xprompts/*.md`. The diagram's discovery stack shows five rungs labeled `project-local`,
-   `user/project`, `config`, `plugins`, `6 built-in`. Issues with that:
+6. **Discovery-stack label set is wrong.** `docs/xprompt.md` documents the priority slots: `.xprompts/` CWD hidden,
+   `xprompts/` CWD, `~/.xprompts/`, `~/xprompts/`, `~/.config/sase/xprompts/{project}/`, `sase.yml xprompts:`, plugin
+   packages, `<sase_package>/default_xprompts/*.md`, and `<sase_package>/xprompts/*.md`. The diagram's discovery stack
+   shows five rungs labeled `project-local`, `user/project`, `config`, `plugins`, `6 built-in`. Issues with that:
    - The "6 built-in" rung is wrong: there are **two** built-in priorities (priorities 9 and 10), not six. Reading "6
      built-in" as "six built-in entries" misleads about how many built-in xprompts ship.
-   - `memory/long/*.md` (priority 6, dynamic memory) does not appear at all on the stack, even though the input column
-     explicitly mentions keyword-triggered dynamic memory.
    - `.xprompts/` (CWD hidden) and `xprompts/` (CWD) collapse into "project-local"; `~/.xprompts/`, `~/xprompts/`, and
      `~/.config/sase/xprompts/{project}/` collapse into "user/project" — this is a defensible compression, but the
      remaining rungs do not match the documented vocabulary.
-7. **The `keyword trigger` input row mislabels how dynamic memory works.** The arrow direction implied by placing it in
-   the input column is "user prompt → resolver." But dynamic memory does not flow that way: the **resolver** scans the
-   prompt for keywords declared by memory xprompts, and _appends_ matching memories at the bottom of the prompt as a
-   `### DYNAMIC MEMORY` section (per `docs/xprompt.md` "Dynamic Memory (Keywords)"). The user does not write a "keyword
-   trigger." The card should either move into the resolution column as an "append matching memories" step or be
-   rephrased as "matched dynamic memory (auto-appended)" to remove the implication that the user types it.
+7. **The `keyword trigger` input row is obsolete.** The arrow direction implied by placing it in the input column is
+   "user prompt → resolver", but that legacy injection feature has been removed. The row should be deleted from the next
+   diagram instead of moved elsewhere.
 8. **Workspace references are documented as running first, but the pipeline doesn't reflect that.** From the "VCS
    Workspace References" section: prompts without a workspace reference are normalized to `#git:home`, and the workspace
    reference is applied _before_ the rest of the prompt runs. The diagram's caption "workspace selection first" hints at
@@ -182,12 +174,10 @@ For the next phase (`sase-2s.18 — Regenerate diagram: xprompt-resolution`):
    default annotated. Wire it from the `#cd / #gh refs` input card.
 4. **Add a "Command substitution `$(cmd)`" chip** as a sub-step on the parse-args edge (or as a small annotation on
    "Validate typed inputs"). It is real, it is documented, and its omission is conspicuous.
-5. **Replace the `Discovery stack` side bar with the documented 10-priority list** (or a faithfully-collapsed 6-row
-   version that includes `memory/long/*.md` and disambiguates the two built-in slots). Drop the misleading "6 built-in"
-   rung.
-6. **Move the "keyword trigger" row out of the input column** and onto the resolution column as a post-expansion "Append
-   matching dynamic memories" step, with an arrow into a new (or relabeled) output card or back into the prompt body.
-   This honestly reflects that dynamic memory is a resolver-driven append, not a user-typed input.
+5. **Replace the `Discovery stack` side bar with the documented priority list** (or a faithfully-collapsed version that
+   disambiguates the two built-in slots). Drop the misleading "6 built-in" rung.
+6. **Remove the "keyword trigger" row from the input column** because that legacy injection feature is no longer part of
+   xprompt resolution.
 7. **Wire the `Fences + disabled regions` callout into the Mask stage** with an explicit arrow, so the relationship
    between the protective syntax and the masking step is visible.
 8. **Re-caption the `%directives` input card** with the documented categories: `launch overrides`, `scheduling`,

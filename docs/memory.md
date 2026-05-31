@@ -6,9 +6,8 @@ ledger:
 - **Short-term memory** under `memory/short/` is instruction context. The files are loaded only when `AGENTS.md` reaches
   them through `@memory/...` references; `sase memory init` creates that wiring for the generated defaults and
   synchronizes AMD-managed `AGENTS.md` memory blocks when the project opts in with `amd_h1_title`.
-- **Long-term memory** under `memory/long/` is reference context. Top-level files with a `keywords` YAML list can be
-  discovered dynamically and copied into `.sase/memory/` for matching agent prompts. Files can also carry `description`
-  frontmatter; AMD-managed `AGENTS.md` files use those descriptions for the Tier 3 memory list.
+- **Long-term memory** under `memory/long/` is reference context. Files can carry `description` frontmatter; AMD-managed
+  `AGENTS.md` files use those descriptions for the long-memory list.
 - **Audited memory operations** live under the project state directory and record agent reads plus proposed writes and
   human review decisions.
 
@@ -39,40 +38,6 @@ The dashboard separates:
 - `missing` referenced files that do not exist.
 
 Approximate token counts are included so large instruction surfaces are visible before an agent launch.
-
-## Dynamic Memory
-
-Top-level long-memory files with a `keywords` frontmatter list can be attached to matching agent launches without being
-loaded for every prompt:
-
-```markdown
----
-description: Notes for cross-repo dotfile work.
-keywords: [chezmoi, plugin]
----
-
-# External Repos
-
-...
-```
-
-During `sase run` or an ACE/AXE launch, SASE scans the expanded prompt for those keywords after xprompt expansion and
-before the provider starts. Each match is written as a prompt-local copy under `.sase/memory/`, using a tier-prefixed
-filename such as `.sase/memory/long-external-repos.md`, and the prompt receives a trailing section like:
-
-```text
-### DYNAMIC MEMORY
-- @.sase/memory/long-external-repos.md (memory/long/external_repos, matched: `chezmoi`)
-```
-
-The generated `.sase/memory/long-*.md` file contains the matched long-memory content for that launch. When a dynamic
-copy is listed, agents can use that provided context and do not need to separately read the canonical `memory/long/*.md`
-file unless a fresh audited read is specifically needed.
-
-`sase memory list` reports available and referenced memory files, but it does not generate `.sase/memory/` copies. Those
-files are prompt-dependent and are created during agent launch. AMD-managed `AGENTS.md` includes Tier 2 dynamic memory
-guidance only when at least one long-memory source has `keywords` frontmatter; a malformed or non-list value can still
-make the section appear, but it will not produce a dynamic-memory match.
 
 ## Audited Reads
 
@@ -184,8 +149,8 @@ Approval refuses to overwrite an existing target. Use `--target long/<slug>.md` 
 one-level target, `--edit` to open `$VISUAL`/`$EDITOR` before approving, or `--edited-file` for non-interactive edited
 approval.
 
-Approved memory without keywords is not dynamically discoverable. If the file is meant to be loaded every time, add an
-explicit `@memory/long/...` reference from the appropriate instruction file instead.
+If approved memory should be loaded every time, add an explicit `@memory/long/...` reference from the appropriate
+instruction file.
 
 ## Review TUI
 
@@ -214,8 +179,8 @@ review action appends a new event rather than mutating previous events.
 
 `sase memory episodes` builds deterministic, source-linked evidence records for prior agent work. Episodes are useful
 when raw chats are too fragmented but the lesson is not ready to become approved long-term memory. They connect prompts,
-chats, plans, diffs, feedback, questions, retries, beads, ChangeSpecs, dynamic memory, audited memory reads, and
-outcomes into canonical `episode.json` evidence records.
+chats, plans, diffs, feedback, questions, retries, beads, ChangeSpecs, audited memory reads, and outcomes into canonical
+`episode.json` evidence records.
 
 Start from a completed agent. `build` stores the episode by default; recall searches only stored episodes:
 

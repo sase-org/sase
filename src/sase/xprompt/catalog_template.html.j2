@@ -210,10 +210,6 @@
             {% endif %}
           {% endif %}
 
-          {% if xp.keywords %}
-            <div class="card-keywords">keywords: {{ xp.keywords | join(', ') }}</div>
-          {% endif %}
-
           {% if xp.snippet is sameas false %}
             <div class="card-footnote">Note: marked <code>snippet: false</code> — not eligible for snippet expansion.</div>
           {% endif %}

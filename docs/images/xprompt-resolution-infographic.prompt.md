@@ -48,9 +48,9 @@ dark theme, and no gradients that reduce label contrast.
   terminology stays exact and readable.
 - The revised labels follow the documented resolver order: workspace dispatch, alias substitution, protected-content
   masking, iterative reference expansion, discovery lookup, argument parsing with `$(cmd)`, typed-input validation,
-  Jinja2/legacy rendering, unmasking, directive extraction, dynamic-memory append, and final expanded prompt text.
+  Jinja2/legacy rendering, unmasking, directive extraction, and final expanded prompt text.
 - The discovery sidebar records the documented priority stack, including project-local paths, user paths, config,
-  `memory/long/*.md`, `sase.yml`, plugins, and the two package-provided xprompt locations.
+  `sase.yml`, plugins, and the two package-provided xprompt locations.
 - Runtime outputs are separated from the developer-tool output: inline expansion, standalone workflow launch,
   multi-agent fan-out, and `sase xprompt graph`/`explain`.
 
@@ -59,7 +59,7 @@ dark theme, and no gradients that reduce label contrast.
 - Verified on 2026-05-10 that `docs/xprompt.md` embeds `docs/images/xprompt-resolution-infographic.png` at the target
   insertion point with the intended alt text.
 - Verified the committed image is a 1672x941 PNG and that its labels address the prior critique: aliases run first,
-  masking precedes expansion, expansion is iterative, directives are extracted after expansion, dynamic memory is a
-  resolver-driven append, and multi-agent fan-out is depth-capped rather than one-level-only.
+  masking precedes expansion, expansion is iterative, directives are extracted after expansion, and multi-agent fan-out
+  is depth-capped rather than one-level-only.
 - Checked the depicted behaviors against `docs/xprompt.md`, `docs/images/xprompt-resolution-infographic.critique.md`,
-  and nearby xprompt/multi-agent/dynamic-memory implementation references.
+  and nearby xprompt/multi-agent implementation references.
