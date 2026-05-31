@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-31 11:53:10
-status: wip
+status: done
 prompt: sdd/prompts/202605/tier2_long_memory_heading.md
 ---
 # Rename AMD Long-Term Memory Heading To Tier 2
