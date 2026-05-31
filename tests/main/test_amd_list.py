@@ -8,14 +8,12 @@ from pathlib import Path
 from rich.console import Console
 
 from sase.amd.constants import (
-    LONG_MEMORY_END_MARKER,
-    LONG_MEMORY_START_MARKER,
     PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
-    SHORT_MEMORY_END_MARKER,
-    SHORT_MEMORY_START_MARKER,
 )
 from sase.amd.inventory import _render_amd_inventory, _build_amd_inventory
+
+_LEGACY_MARKER_PREFIX = "sase-" + "amd"
 
 
 def write(path: Path, content: str) -> None:
@@ -28,20 +26,42 @@ def write_shims(root: Path, filenames: tuple[str, ...] = PROVIDER_SHIM_FILES) ->
         write(root / filename, PROVIDER_SHIM_CONTENT)
 
 
-def managed_agents(title: str = "Managed Instructions") -> str:
+def legacy_marker(name: str) -> str:
+    return f"<!-- {_LEGACY_MARKER_PREFIX}:{name} -->"
+
+
+def managed_agents(
+    title: str = "Managed Instructions", *, markered: bool = False
+) -> str:
+    short_markers = ([legacy_marker("short-memory:start")] if markered else []) + (
+        [legacy_marker("short-memory:end")] if markered else []
+    )
+    long_markers = ([legacy_marker("long-memory:start")] if markered else []) + (
+        [legacy_marker("long-memory:end")] if markered else []
+    )
     return "\n".join(
         [
             f"# {title}",
             "",
-            SHORT_MEMORY_START_MARKER,
+            "## Tier 1 (short-term) Memory",
+            "",
+            "The following memory files contain core context.",
+            "",
+            *short_markers[:1],
             "- @memory/short/extra.md",
             "- @memory/short/sase.md",
-            SHORT_MEMORY_END_MARKER,
+            *short_markers[1:],
             "",
-            LONG_MEMORY_START_MARKER,
+            "## Tier 3 (long-term) Memory",
+            "",
+            "Prose mentions @memory/short/prose.md and memory/long/prose.md.",
+            "",
+            "#### Long-Term Memory Files",
+            "",
+            *long_markers[:1],
             "**`memory/long/generated_skills.md`**  ",
             "Skill pipeline notes.",
-            LONG_MEMORY_END_MARKER,
+            *long_markers[1:],
             "",
         ]
     )
@@ -138,7 +158,27 @@ def test_build_inventory_includes_live_home_and_chezmoi_source(
     )
 
 
-def test_build_inventory_reports_partial_marker_blocks(tmp_path: Path) -> None:
+def test_build_inventory_treats_legacy_markered_structure_as_managed(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "repo"
+    (project / ".git").mkdir(parents=True)
+    write(project / "AGENTS.md", managed_agents(markered=True))
+
+    inventory = _build_amd_inventory(
+        root=project,
+        home_root=tmp_path / "home",
+        chezmoi_root=tmp_path / "chezmoi",
+        include_chezmoi=False,
+    )
+
+    entry = entry_by_path("AGENTS.md", inventory.entries)
+    assert entry.management == "managed"
+    assert entry.short_memory_refs == 2
+    assert entry.long_memory_refs == 1
+
+
+def test_build_inventory_reports_partial_visible_amd_structure(tmp_path: Path) -> None:
     project = tmp_path / "repo"
     (project / ".git").mkdir(parents=True)
     write(
@@ -147,9 +187,9 @@ def test_build_inventory_reports_partial_marker_blocks(tmp_path: Path) -> None:
             [
                 "# Partial Managed Instructions",
                 "",
-                SHORT_MEMORY_START_MARKER,
+                "## Tier 1 (short-term) Memory",
+                "",
                 "- @memory/short/sase.md",
-                SHORT_MEMORY_END_MARKER,
                 "",
             ]
         ),
@@ -163,9 +203,32 @@ def test_build_inventory_reports_partial_marker_blocks(tmp_path: Path) -> None:
     )
 
     entry = entry_by_path("AGENTS.md", inventory.entries)
-    assert entry.management == "missing marker blocks"
+    assert entry.management == "incomplete managed structure"
     assert entry.short_memory_refs == 1
     assert entry.long_memory_refs == 0
+
+
+def test_build_inventory_uses_broad_memory_counts_for_custom_documents(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "repo"
+    (project / ".git").mkdir(parents=True)
+    write(
+        project / "AGENTS.md",
+        "# Custom Instructions\n\n@memory/short/base.md\nmemory/long/detail.md\n",
+    )
+
+    inventory = _build_amd_inventory(
+        root=project,
+        home_root=tmp_path / "home",
+        chezmoi_root=tmp_path / "chezmoi",
+        include_chezmoi=False,
+    )
+
+    entry = entry_by_path("AGENTS.md", inventory.entries)
+    assert entry.management == "custom"
+    assert entry.short_memory_refs == 1
+    assert entry.long_memory_refs == 1
 
 
 def test_render_amd_inventory_outputs_compact_rich_table(

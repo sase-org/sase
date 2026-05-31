@@ -17,18 +17,15 @@ from rich.text import Text
 
 from sase.config import core as config_core
 
+from ._agents_doc import parse_amd_agents_document
 from .constants import (
     AGENTS_FILENAME,
-    LONG_MEMORY_END_MARKER,
-    LONG_MEMORY_START_MARKER,
     PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
-    SHORT_MEMORY_END_MARKER,
-    SHORT_MEMORY_START_MARKER,
 )
 
 AmdScope = Literal["home", "chezmoi", "project", "project-subdir"]
-AmdManagement = Literal["managed", "custom", "missing marker blocks"]
+AmdManagement = Literal["managed", "custom", "incomplete managed structure"]
 ProviderShimState = Literal["exact_shim", "shim", "custom", "missing"]
 
 _PRUNED_DIR_NAMES = frozenset(
@@ -61,12 +58,6 @@ _PRUNED_DIR_NAMES = frozenset(
 _H1_RE = re.compile(r"^\s*#\s+(.+?)\s*$", re.MULTILINE)
 _MEMORY_REF_RE = re.compile(
     r"@?(?P<path>memory/(?P<tier>short|long)/[A-Za-z0-9_./-]+?\.md)"
-)
-_MARKERS = (
-    SHORT_MEMORY_START_MARKER,
-    SHORT_MEMORY_END_MARKER,
-    LONG_MEMORY_START_MARKER,
-    LONG_MEMORY_END_MARKER,
 )
 _SCOPE_ORDER: dict[AmdScope, int] = {
     "project": 0,
@@ -166,24 +157,30 @@ def _h1_title(text: str | None) -> str | None:
     return " ".join(match.group(1).split()) or None
 
 
-def _management_state(text: str | None) -> AmdManagement:
-    if text is None:
-        return "custom"
-    marker_presence = tuple(marker in text for marker in _MARKERS)
-    if all(marker_presence):
-        return "managed"
-    if any(marker_presence):
-        return "missing marker blocks"
-    return "custom"
-
-
-def _memory_reference_counts(text: str | None) -> tuple[int, int]:
+def _broad_memory_reference_counts(text: str | None) -> tuple[int, int]:
     if text is None:
         return 0, 0
     refs_by_tier: dict[str, set[str]] = {"short": set(), "long": set()}
     for match in _MEMORY_REF_RE.finditer(text):
         refs_by_tier[match.group("tier")].add(match.group("path"))
     return len(refs_by_tier["short"]), len(refs_by_tier["long"])
+
+
+def _management_state_and_memory_counts(
+    text: str | None,
+) -> tuple[AmdManagement, int, int]:
+    parsed = parse_amd_agents_document(text)
+    if parsed.has_short_section and parsed.has_long_section:
+        management: AmdManagement = "managed"
+    elif parsed.has_memory_structure:
+        management = "incomplete managed structure"
+    else:
+        short_count, long_count = _broad_memory_reference_counts(text)
+        return "custom", short_count, long_count
+
+    short_count = len(set(parsed.short_memory_paths))
+    long_count = len({entry.path for entry in parsed.long_memory_entries})
+    return management, short_count, long_count
 
 
 def _provider_shims(directory: Path) -> tuple[_ProviderShimStatus, ...]:
@@ -229,7 +226,7 @@ def _entry_for_agents(
     home_root: Path,
 ) -> _AmdDocumentEntry:
     text = _read_text(path)
-    short_count, long_count = _memory_reference_counts(text)
+    management, short_count, long_count = _management_state_and_memory_counts(text)
     if scope in {"project", "project-subdir"}:
         display_path = _project_display_path(project_root, path)
     else:
@@ -239,7 +236,7 @@ def _entry_for_agents(
         path=path,
         display_path=display_path,
         h1_title=_h1_title(text),
-        management=_management_state(text),
+        management=management,
         short_memory_refs=short_count,
         long_memory_refs=long_count,
         provider_shims=_provider_shims(path.parent),
@@ -338,7 +335,7 @@ def _management_text(state: AmdManagement) -> Text:
     styles: dict[AmdManagement, str] = {
         "managed": "green",
         "custom": "dim",
-        "missing marker blocks": "yellow",
+        "incomplete managed structure": "yellow",
     }
     return Text(state, style=styles[state])
 

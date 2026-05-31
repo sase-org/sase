@@ -9,12 +9,8 @@ import pytest
 
 import sase.amd.init as amd_init
 from sase.amd.constants import (
-    LONG_MEMORY_END_MARKER,
-    LONG_MEMORY_START_MARKER,
     PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
-    SHORT_MEMORY_END_MARKER,
-    SHORT_MEMORY_START_MARKER,
 )
 from sase.amd.init import _build_amd_init_plan, run_amd_init
 from sase.amd.init import plan_amd_init
@@ -189,19 +185,16 @@ def test_amd_init_generates_managed_agents_from_project_local_title(
     agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Managed Agent Instructions\n")
     assert "## Tier 1 (short-term) Memory" in agents
-    assert SHORT_MEMORY_START_MARKER in agents
     assert "- @memory/short/extra.md" in agents
     assert "- @memory/short/sase.md" in agents
-    assert SHORT_MEMORY_END_MARKER in agents
     assert "## Tier 2 (dynamic) Memory" not in agents
     assert "## Dynamic Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
     assert "## Tier 3 (long-term) Memory" in agents
     assert "#### Long-Term Memory Files" in agents
-    assert LONG_MEMORY_START_MARKER in agents
     assert "**`memory/long/described.md`**  \nFrontmatter description." in agents
     assert "**`memory/long/curated.md`**  \nCurated description survives." in agents
-    assert LONG_MEMORY_END_MARKER in agents
+    assert ("sase-" + "amd:") not in agents
     for filename in PROVIDER_SHIM_FILES:
         assert (tmp_path / filename).read_text(encoding="utf-8") == (
             PROVIDER_SHIM_CONTENT

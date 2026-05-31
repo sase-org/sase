@@ -8,19 +8,14 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from ._agents_doc import parse_amd_agents_document
 from ._config import load_amd_h1_title
 from ._shared import (
     AmdLongMemoryDescriptionUpdate,
     AmdMemorySyncPlan,
     read_text,
 )
-from .constants import (
-    AGENTS_FILENAME,
-    LONG_MEMORY_END_MARKER,
-    LONG_MEMORY_START_MARKER,
-    SHORT_MEMORY_END_MARKER,
-    SHORT_MEMORY_START_MARKER,
-)
+from .constants import AGENTS_FILENAME
 
 _AGENTS_LONG_MEMORY_RE = re.compile(
     r"^\*\*`(?P<path>memory/long/[^`]+\.md)`\*\*[ \t]*\n(?P<body>.*?)(?=\n\n|\Z)",
@@ -35,6 +30,14 @@ def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
     text, error = read_text(agents_path)
     if error is not None or text is None:
         return {}
+    parsed = parse_amd_agents_document(text)
+    if parsed.has_long_section:
+        return {
+            entry.path: entry.description
+            for entry in parsed.long_memory_entries
+            if entry.description
+        }
+
     descriptions: dict[str, str] = {}
     for match in _AGENTS_LONG_MEMORY_RE.finditer(text):
         body = " ".join(line.strip() for line in match.group("body").splitlines())
@@ -218,16 +221,9 @@ def render_managed_agents(
         "",
         "The following memory files contain core (always loaded) context:",
         "",
-        SHORT_MEMORY_START_MARKER,
-        "",
     ]
     lines.extend(f"- {ref}" for ref in _short_memory_references(root))
-    lines.extend(
-        [
-            SHORT_MEMORY_END_MARKER,
-            "",
-        ]
-    )
+    lines.append("")
     lines.extend(
         [
             "## Tier 3 (long-term) Memory",
@@ -238,8 +234,6 @@ def render_managed_agents(
             "`memory/long/*.md` files directly.",
             "",
             "#### Long-Term Memory Files",
-            "",
-            LONG_MEMORY_START_MARKER,
             "",
         ]
     )
@@ -254,7 +248,7 @@ def render_managed_agents(
         )
         lines.append(f"**`{rel}`**  ")
         lines.append(description)
-    lines.extend(["", LONG_MEMORY_END_MARKER, ""])
+    lines.append("")
     return "\n".join(lines)
 
 

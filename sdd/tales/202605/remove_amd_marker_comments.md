@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-31 11:30:32
-status: wip
+status: done
 prompt: sdd/prompts/202605/remove_amd_marker_comments.md
 ---
 # Remove AMD Marker Comments From AGENTS.md
