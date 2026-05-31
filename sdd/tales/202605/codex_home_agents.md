@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-31 08:16:32
-status: wip
+status: done
 prompt: sdd/prompts/202605/codex_home_agents.md
 ---
 # Plan: Make SASE-launched Codex see home AGENTS.md

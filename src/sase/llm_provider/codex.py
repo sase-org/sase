@@ -119,6 +119,28 @@ def _real_codex_home() -> Path:
     return Path.home() / ".codex"
 
 
+def _path_exists_or_is_symlink(path: Path) -> bool:
+    """Return whether a path exists or is present as a symlink."""
+    return path.exists() or path.is_symlink()
+
+
+def _link_home_agents_fallback(shadow_home: Path, real_home: Path) -> None:
+    """Expose SASE's home AGENTS.md to Codex when no Codex-global file wins."""
+    home_agents = Path.home() / "AGENTS.md"
+    shadow_agents = shadow_home / "AGENTS.md"
+
+    if not home_agents.exists():
+        return
+    if _path_exists_or_is_symlink(shadow_agents):
+        return
+    if _path_exists_or_is_symlink(real_home / "AGENTS.override.md"):
+        return
+    if _path_exists_or_is_symlink(shadow_home / "AGENTS.override.md"):
+        return
+
+    shadow_agents.symlink_to(home_agents)
+
+
 def _create_shadow_codex_home(real_home: Path) -> Path:
     """Create a disposable CODEX_HOME with a copied config and linked state."""
     cache_root = _sase_codex_shadow_home_root()
@@ -128,6 +150,7 @@ def _create_shadow_codex_home(real_home: Path) -> Path:
     shadow_home.mkdir(mode=0o700)
 
     if not real_home.exists():
+        _link_home_agents_fallback(shadow_home, real_home)
         return shadow_home
 
     for source in real_home.iterdir():
@@ -138,6 +161,7 @@ def _create_shadow_codex_home(real_home: Path) -> Path:
             continue
         dest.symlink_to(source, target_is_directory=source.is_dir())
 
+    _link_home_agents_fallback(shadow_home, real_home)
     return shadow_home
 
 

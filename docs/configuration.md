@@ -955,8 +955,10 @@ variable is used as a fallback. Values are split on whitespace and appended to t
 
 SASE-launched Codex subprocesses use a disposable shadow `CODEX_HOME` by default. The shadow home is created under
 `~/.cache/sase/codex_home/`, receives a copy of the real `config.toml`, symlinks other Codex home entries back to the
-real home, and is removed when the subprocess exits. This prevents Codex runtime config rewrites from dirtying the
-user-managed Codex config while preserving auth, hooks, skills, logs, and caches.
+real home, and is removed when the subprocess exits. If the real Codex home does not provide `AGENTS.override.md` or
+`AGENTS.md`, SASE also links `~/AGENTS.md` into the shadow as Codex's `$CODEX_HOME/AGENTS.md` fallback. This prevents
+Codex runtime config rewrites from dirtying the user-managed Codex config while preserving auth, hooks, skills, logs,
+and caches.
 
 Qwen Code uses `qwen --input-format text --output-format stream-json --yolo --model <model>` and expects users to
 configure Qwen auth through Qwen's supported settings path. Qwen OAuth free tier access ended on 2026-04-15; use API

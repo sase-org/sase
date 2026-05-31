@@ -7,7 +7,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.llm_provider.codex import CodexProvider, _real_codex_home
+from sase.llm_provider.codex import (
+    CodexProvider,
+    _create_shadow_codex_home,
+    _real_codex_home,
+)
 
 
 def test_real_codex_home_ignores_sase_managed_shadow_home(
@@ -32,6 +36,69 @@ def test_real_codex_home_honors_non_sase_custom_home(
     monkeypatch.setenv("CODEX_HOME", str(custom_home))
 
     assert _real_codex_home() == custom_home
+
+
+def test_create_shadow_codex_home_links_home_agents_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Home AGENTS.md is exposed when Codex-global files are absent."""
+    home_agents = tmp_path / "AGENTS.md"
+    home_agents.write_text("# Home Instructions\n", encoding="utf-8")
+    real_home = tmp_path / ".codex"
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    shadow_home = _create_shadow_codex_home(real_home)
+
+    shadow_agents = shadow_home / "AGENTS.md"
+    assert shadow_agents.is_symlink()
+    assert shadow_agents.resolve() == home_agents
+    assert shadow_agents.read_text(encoding="utf-8") == "# Home Instructions\n"
+    assert not real_home.exists()
+
+
+def test_create_shadow_codex_home_preserves_real_codex_agents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A native Codex AGENTS.md remains the shadow global instruction file."""
+    real_home = tmp_path / ".codex"
+    real_home.mkdir()
+    real_agents = real_home / "AGENTS.md"
+    real_agents.write_text("# Codex Instructions\n", encoding="utf-8")
+    home_agents = tmp_path / "AGENTS.md"
+    home_agents.write_text("# Home Instructions\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    shadow_home = _create_shadow_codex_home(real_home)
+
+    shadow_agents = shadow_home / "AGENTS.md"
+    assert shadow_agents.is_symlink()
+    assert shadow_agents.resolve() == real_agents
+    assert shadow_agents.read_text(encoding="utf-8") == "# Codex Instructions\n"
+
+
+def test_create_shadow_codex_home_preserves_real_codex_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A native Codex override suppresses the home AGENTS.md fallback."""
+    real_home = tmp_path / ".codex"
+    real_home.mkdir()
+    real_override = real_home / "AGENTS.override.md"
+    real_override.write_text("# Override Instructions\n", encoding="utf-8")
+    home_agents = tmp_path / "AGENTS.md"
+    home_agents.write_text("# Home Instructions\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    shadow_home = _create_shadow_codex_home(real_home)
+
+    shadow_override = shadow_home / "AGENTS.override.md"
+    shadow_agents = shadow_home / "AGENTS.md"
+    assert shadow_override.is_symlink()
+    assert shadow_override.resolve() == real_override
+    assert not shadow_agents.exists()
+    assert not shadow_agents.is_symlink()
 
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
