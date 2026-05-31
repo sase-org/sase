@@ -6,13 +6,15 @@ pin the filters that the previous direct-walk implementation enforced
 (parent-timestamp dedup, `appears_as_agent` skip, `outcome=="noop"`
 filter, per-project completed cap) on the snapshot adapter.
 
-Process liveness still lives in Python, so the tests stub
-``sase.ace.hooks.processes.is_process_running`` rather than mocking the
-snapshot.
+Process liveness still lives in Python, so the tests stub the process-running
+probe and the Linux ``/proc/<pid>/cmdline`` PID-reuse guard rather than mocking
+the snapshot.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -46,12 +48,35 @@ def _ts(info: RunningAgentInfo) -> str:
     return Path(info.artifacts_dir).name
 
 
-def _all_alive(_pid: int) -> bool:
-    return True
+def _is_proc_cmdline(path: Path) -> bool:
+    parts = path.parts
+    return (
+        len(parts) == 4
+        and parts[0] == "/"
+        and parts[1] == "proc"
+        and parts[2].isdigit()
+        and parts[3] == "cmdline"
+    )
 
 
-def _none_alive(_pid: int) -> bool:
-    return False
+@contextmanager
+def _fixture_processes(home: Path, *, alive: bool) -> Iterator[None]:
+    original_read_bytes = Path.read_bytes
+
+    def is_process_running(_pid: int) -> bool:
+        return alive
+
+    def read_bytes(path: Path) -> bytes:
+        if alive and _is_proc_cmdline(path):
+            return b"python\x00-m\x00sase\x00"
+        return original_read_bytes(path)
+
+    with (
+        patch("pathlib.Path.home", return_value=home),
+        patch("sase.ace.hooks.processes.is_process_running", is_process_running),
+        patch.object(Path, "read_bytes", read_bytes),
+    ):
+        yield
 
 
 def test_list_running_agents_filters_done_and_dead(
@@ -59,10 +84,7 @@ def test_list_running_agents_filters_done_and_dead(
 ) -> None:
     """Running listing only emits live ace-run agents without done.json."""
     build_fixture_tree(_projects_root_for(tmp_path))
-    with (
-        patch("pathlib.Path.home", return_value=tmp_path),
-        patch("sase.ace.hooks.processes.is_process_running", _all_alive),
-    ):
+    with _fixture_processes(tmp_path, alive=True):
         running = list_running_agents()
 
     by_ts = {_ts(info): info for info in running}
@@ -89,10 +111,7 @@ def test_list_running_agents_filters_done_and_dead(
 def test_list_running_agents_empty_when_processes_dead(tmp_path: Path) -> None:
     """When no PIDs are alive, the running list is empty even with markers present."""
     build_fixture_tree(_projects_root_for(tmp_path))
-    with (
-        patch("pathlib.Path.home", return_value=tmp_path),
-        patch("sase.ace.hooks.processes.is_process_running", _none_alive),
-    ):
+    with _fixture_processes(tmp_path, alive=False):
         running = list_running_agents()
     assert running == []
 
@@ -116,10 +135,7 @@ def test_list_running_agents_skips_appears_as_agent_false(tmp_path: Path) -> Non
         encoding="utf-8",
     )
 
-    with (
-        patch("pathlib.Path.home", return_value=tmp_path),
-        patch("sase.ace.hooks.processes.is_process_running", _all_alive),
-    ):
+    with _fixture_processes(tmp_path, alive=True):
         running = list_running_agents()
 
     assert TS_ACE_RUN_RUNNING not in {_ts(info) for info in running}
@@ -143,10 +159,7 @@ def test_list_running_agents_skips_parent_timestamp_followups(
     data["parent_timestamp"] = "20260101000000"
     meta_path.write_text(json.dumps(data), encoding="utf-8")
 
-    with (
-        patch("pathlib.Path.home", return_value=tmp_path),
-        patch("sase.ace.hooks.processes.is_process_running", _all_alive),
-    ):
+    with _fixture_processes(tmp_path, alive=True):
         running = list_running_agents()
 
     assert TS_ACE_RUN_RUNNING not in {_ts(info) for info in running}
@@ -164,10 +177,7 @@ def test_list_running_agents_reports_waiting_marker(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    with (
-        patch("pathlib.Path.home", return_value=tmp_path),
-        patch("sase.ace.hooks.processes.is_process_running", _all_alive),
-    ):
+    with _fixture_processes(tmp_path, alive=True):
         running = list_running_agents()
 
     by_ts = {_ts(info): info for info in running}
@@ -194,10 +204,7 @@ def test_active_status_for_record_reports_wait_completed_as_running() -> None:
 def test_list_all_agents_includes_done_and_failed(tmp_path: Path) -> None:
     """All-listing emits running + DONE/FAILED with running entries first."""
     build_fixture_tree(_projects_root_for(tmp_path))
-    with (
-        patch("pathlib.Path.home", return_value=tmp_path),
-        patch("sase.ace.hooks.processes.is_process_running", _all_alive),
-    ):
+    with _fixture_processes(tmp_path, alive=True):
         agents = list_all_agents()
 
     by_ts = {_ts(info): info for info in agents}
@@ -237,10 +244,7 @@ def test_list_all_agents_skips_noop_outcome(tmp_path: Path) -> None:
     data["outcome"] = "noop"
     done_path.write_text(json.dumps(data), encoding="utf-8")
 
-    with (
-        patch("pathlib.Path.home", return_value=tmp_path),
-        patch("sase.ace.hooks.processes.is_process_running", _all_alive),
-    ):
+    with _fixture_processes(tmp_path, alive=True):
         agents = list_all_agents()
 
     assert TS_ACE_RUN_DONE not in {_ts(info) for info in agents}
@@ -284,10 +288,7 @@ def test_list_all_agents_carries_done_metadata(tmp_path: Path) -> None:
         "Land the alpha feature\n", encoding="utf-8"
     )
 
-    with (
-        patch("pathlib.Path.home", return_value=tmp_path),
-        patch("sase.ace.hooks.processes.is_process_running", _none_alive),
-    ):
+    with _fixture_processes(tmp_path, alive=False):
         agents = list_all_agents()
 
     done_alpha = next(a for a in agents if _ts(a) == TS_ACE_RUN_DONE)
