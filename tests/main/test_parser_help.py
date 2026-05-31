@@ -166,6 +166,7 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "loaded @ references" in memory_list_help
     assert "referenced-only plain memory paths" in memory_list_help
     assert "memory/long markdown file" in memory_read_help
+    assert "falling back to ~/memory/long" in memory_read_help
     assert "--reason REASON" in memory_read_help
     assert "Need generated skill context" in memory_read_help
     assert "--evidence EVIDENCE" in memory_write_help

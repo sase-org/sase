@@ -95,6 +95,35 @@ def test_memory_read_prints_body_and_appends_log(
     assert events[0].frontmatter_stripped is True
 
 
+def test_memory_read_falls_back_to_home_memory_and_logs_resolved_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    project.mkdir()
+    home_memory = home / "memory" / "long" / "foo.md"
+    write(home_memory, "---\nkeywords: [foo]\n---\n# Home Body\n\n")
+    monkeypatch.chdir(project)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+
+    handle_memory_read_command(
+        argparse.Namespace(memory_path="long/foo.md", reason="Need home foo")
+    )
+
+    captured = capsys.readouterr()
+    assert captured.out == "# Home Body\n\n"
+    assert captured.err == ""
+    events = read_memory_read_events(log_path=memory_read_log_path(cwd=project))
+    assert len(events) == 1
+    assert events[0].canonical_path == "long/foo.md"
+    assert events[0].resolved_path == str(home_memory.resolve())
+    assert events[0].reason == "Need home foo"
+    assert events[0].frontmatter_stripped is True
+
+
 def test_memory_read_rejects_short_memory_without_logging(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

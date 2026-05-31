@@ -41,6 +41,57 @@ def test_validate_memory_read_path_allows_long_markdown(tmp_path: Path) -> None:
     assert result.resolved_path == (tmp_path / "memory" / "long" / "foo.md").resolve()
 
 
+def test_validate_memory_read_path_prefers_project_over_home(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    _write(project / "memory" / "long" / "foo.md", "# Project\n")
+    _write(home / "memory" / "long" / "foo.md", "# Home\n")
+
+    result = validate_memory_read_path(
+        "long/foo.md",
+        project_root=project,
+        home_root=home,
+    )
+
+    assert result.path == project / "memory" / "long" / "foo.md"
+    assert result.resolved_path == (project / "memory" / "long" / "foo.md").resolve()
+
+
+def test_validate_memory_read_path_falls_back_to_home(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    _write(home / "memory" / "long" / "foo.md", "# Home\n")
+
+    result = validate_memory_read_path(
+        "long/foo.md",
+        project_root=project,
+        home_root=home,
+    )
+
+    assert result.memory_root == home / "memory"
+    assert result.path == home / "memory" / "long" / "foo.md"
+    assert result.resolved_path == (home / "memory" / "long" / "foo.md").resolve()
+
+
+def test_validate_memory_read_path_dedupes_project_and_home_roots(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "memory" / "long" / "foo.md", "# Foo\n")
+
+    result = validate_memory_read_path(
+        "long/foo.md",
+        project_root=tmp_path,
+        home_root=tmp_path,
+    )
+
+    assert result.memory_root == tmp_path / "memory"
+    assert result.path == tmp_path / "memory" / "long" / "foo.md"
+
+
 def test_validate_memory_read_path_rejects_short_memory(tmp_path: Path) -> None:
     _write(tmp_path / "memory" / "short" / "foo.md", "# Foo\n")
 
@@ -80,6 +131,29 @@ def test_validate_memory_read_path_rejects_outside_symlink(tmp_path: Path) -> No
 
     with pytest.raises(MemoryReadPathError, match="outside"):
         validate_memory_read_path("long/linked.md", project_root=tmp_path)
+
+
+def test_validate_memory_read_path_rejects_project_symlink_before_home_fallback(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    outside = tmp_path / "outside.md"
+    outside.write_text("# Outside\n", encoding="utf-8")
+    link = project / "memory" / "long" / "linked.md"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    _write(home / "memory" / "long" / "linked.md", "# Home\n")
+    try:
+        link.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    with pytest.raises(MemoryReadPathError, match="outside"):
+        validate_memory_read_path(
+            "long/linked.md",
+            project_root=project,
+            home_root=home,
+        )
 
 
 def test_validate_memory_read_path_rejects_non_markdown(tmp_path: Path) -> None:

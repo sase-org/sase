@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-31 08:54:33
-status: wip
+status: done
 prompt: sdd/prompts/202605/memory_read_home_search.md
 ---
 # Plan: Search Project and Home Memory for `sase memory read`

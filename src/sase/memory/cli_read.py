@@ -22,7 +22,10 @@ def handle_memory_read_command(args: argparse.Namespace) -> None:
     try:
         reason = normalize_read_reason(args.reason)
         agent = require_agent_identity()
-        validated_path = validate_memory_read_path(args.memory_path)
+        validated_path = validate_memory_read_path(
+            args.memory_path,
+            home_root=Path.home(),
+        )
         content = read_memory_content(validated_path)
         event = build_memory_read_event(
             content,

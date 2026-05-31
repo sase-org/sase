@@ -77,8 +77,10 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Read and audit a long-term memory file",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Read a memory/long markdown file, strip leading YAML frontmatter, "
-            "and append an attributable audit log row."
+            "Read a project memory/long markdown file, falling back to "
+            "~/memory/long when the project file is absent. Leading YAML "
+            "frontmatter is stripped before printing, and each read appends "
+            "an attributable audit log row."
         ),
         epilog=(
             "example:\n"
@@ -89,7 +91,10 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     read_parser.add_argument(
         "memory_path",
         metavar="memory-relative-path",
-        help="Path relative to memory/, for example long/generated_skills.md",
+        help=(
+            "Path relative to project memory/ or ~/memory/, for example "
+            "long/generated_skills.md"
+        ),
     )
     read_parser.add_argument(
         "-r",

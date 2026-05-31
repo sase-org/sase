@@ -108,9 +108,10 @@ def validate_memory_read_path(
     memory_relative_path: str | Path,
     *,
     project_root: Path | None = None,
+    home_root: Path | None = None,
     allowed_subdirs: frozenset[str] = ALLOWED_READ_SUBDIRS,
 ) -> ValidatedMemoryPath:
-    """Validate and canonicalize a path relative to ``<project>/memory``."""
+    """Validate and canonicalize a path relative to an allowed memory root."""
     raw_path = Path(memory_relative_path)
     if raw_path.is_absolute():
         raise MemoryReadPathError("memory read path must be relative to memory/")
@@ -136,17 +137,54 @@ def validate_memory_read_path(
     if raw_path.suffix != ".md":
         raise MemoryReadPathError("memory read path must point to a .md file")
 
+    for memory_root in _memory_read_roots(project_root, home_root):
+        path = _validate_memory_read_candidate(
+            memory_root=memory_root,
+            parts=parts,
+            subdir=subdir,
+            raw_path=raw_path,
+        )
+        if path is not None:
+            return path
+
+    raise MemoryReadPathError(f"memory file does not exist: {raw_path.as_posix()}")
+
+
+def _memory_read_roots(
+    project_root: Path | None,
+    home_root: Path | None,
+) -> tuple[Path, ...]:
     root = (project_root or Path.cwd()).resolve(strict=False)
-    memory_root = root / "memory"
+    roots = [root / "memory"]
+    seen = {roots[0].resolve(strict=False)}
+
+    if home_root is not None:
+        home_memory_root = home_root.expanduser().resolve(strict=False) / "memory"
+        resolved_home_memory_root = home_memory_root.resolve(strict=False)
+        if resolved_home_memory_root not in seen:
+            roots.append(home_memory_root)
+
+    return tuple(roots)
+
+
+def _validate_memory_read_candidate(
+    *,
+    memory_root: Path,
+    parts: tuple[str, ...],
+    subdir: str,
+    raw_path: Path,
+) -> ValidatedMemoryPath | None:
     allowed_root = (memory_root / subdir).resolve(strict=False)
     candidate = memory_root.joinpath(*parts)
 
     try:
         resolved = candidate.resolve(strict=True)
     except FileNotFoundError as exc:
-        raise MemoryReadPathError(
-            f"memory file does not exist: {raw_path.as_posix()}"
-        ) from exc
+        if _has_broken_symlink_component(candidate, memory_root):
+            raise MemoryReadPathError(
+                f"memory file cannot be resolved: {raw_path.as_posix()}"
+            ) from exc
+        return None
     except OSError as exc:
         raise MemoryReadPathError(
             f"memory file cannot be resolved: {raw_path.as_posix()}"
@@ -167,6 +205,23 @@ def validate_memory_read_path(
         path=candidate,
         resolved_path=resolved,
     )
+
+
+def _has_broken_symlink_component(path: Path, root: Path) -> bool:
+    current = root
+    components = [current]
+    for part in path.relative_to(root).parts:
+        current = current / part
+        components.append(current)
+
+    for component in components:
+        if not component.is_symlink():
+            continue
+        try:
+            component.resolve(strict=True)
+        except (FileNotFoundError, OSError, RuntimeError):
+            return True
+    return False
 
 
 def read_memory_content(path: ValidatedMemoryPath) -> MemoryReadContent:
