@@ -274,7 +274,10 @@ STATUS: Submitted
         (sase_projects_dir / "myproj.sase").write_text(main_content)
         (sase_projects_dir / "myproj-archive.sase").write_text(archive_content)
 
-        with patch("pathlib.Path.home", return_value=Path(tmpdir)):
+        with (
+            patch.dict(os.environ, {"SASE_HOME": str(Path(tmpdir) / ".sase")}),
+            patch("pathlib.Path.home", return_value=Path(tmpdir)),
+        ):
             from sase.ace.changespec import find_all_changespecs
 
             result = find_all_changespecs()

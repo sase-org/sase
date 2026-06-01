@@ -1,9 +1,7 @@
 """ChangeSpec parsing utilities."""
 
-from pathlib import Path
+from collections.abc import Sequence
 from typing import Any
-
-from sase.core.paths import sase_projects_dir
 
 from .locking import (
     LockTimeoutError,
@@ -39,6 +37,7 @@ from .cache import (
     find_all_changespecs_cached,
     get_global_snapshot_cache,
 )
+from .discovery import iter_changespec_project_files
 from .parser import parse_project_file
 from .archive import (
     get_archive_file_path,
@@ -139,48 +138,19 @@ __all__ = [
 ]
 
 
-def find_all_changespecs() -> list[ChangeSpec]:
-    """Find all ChangeSpecs in all project files (including archive files).
+def find_all_changespecs(
+    include_states: Sequence[str] | str = ("active",),
+) -> list[ChangeSpec]:
+    """Find ChangeSpecs in lifecycle-selected project files.
 
     Returns:
-        List of all ChangeSpec objects from both main and archive project files.
+        ChangeSpecs from active and archive ProjectSpec files for projects whose
+        lifecycle state matches ``include_states``. Normal callers default to
+        active projects; history/agent views can pass ``"all"`` explicitly.
     """
-    projects_dir = sase_projects_dir()
-
-    if not projects_dir.exists():
-        return []
-
     all_changespecs: list[ChangeSpec] = []
-
-    # Iterate through project directories
-    for project_dir in sorted(projects_dir.iterdir()):
-        if not project_dir.is_dir():
-            continue
-
-        project_name = project_dir.name
-
-        # Read main project file (prefer canonical .sase; fall back to legacy .gp).
-        active_file = project_dir / active_project_spec_filename(project_name)
-        if not active_file.exists():
-            legacy_active = project_dir / legacy_active_project_spec_filename(
-                project_name
-            )
-            if legacy_active.exists():
-                active_file = legacy_active
-        if active_file.exists():
-            all_changespecs.extend(parse_project_file(str(active_file)))
-
-        # Read archive file (same canonical-first, legacy-fallback policy).
-        archive_file = project_dir / archive_project_spec_filename(project_name)
-        if not archive_file.exists():
-            legacy_archive = project_dir / legacy_archive_project_spec_filename(
-                project_name
-            )
-            if legacy_archive.exists():
-                archive_file = legacy_archive
-        if archive_file.exists():
-            all_changespecs.extend(parse_project_file(str(archive_file)))
-
+    for project_file in iter_changespec_project_files(include_states=include_states):
+        all_changespecs.extend(parse_project_file(str(project_file)))
     return all_changespecs
 
 

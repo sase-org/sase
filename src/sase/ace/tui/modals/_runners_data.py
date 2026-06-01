@@ -383,7 +383,7 @@ def _collect_runners_raw() -> tuple[
     processes: list[RunnerInfo] = []
     axe_agents: list[RunnerInfo] = []
 
-    for changespec in find_all_changespecs():
+    for changespec in find_all_changespecs(include_states="all"):
         # Collect from HOOKS
         if changespec.hooks:
             for hook in changespec.hooks:

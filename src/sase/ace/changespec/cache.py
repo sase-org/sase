@@ -9,19 +9,13 @@ the file's ``(mtime_ns, size)`` signature is unchanged.
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from threading import Lock
 
-from sase.core.paths import sase_projects_dir
-
+from .discovery import iter_changespec_project_files
 from .models import ChangeSpec
 from .parser import parse_project_file
-from .project_spec_path import (
-    active_project_spec_filename,
-    archive_project_spec_filename,
-    legacy_active_project_spec_filename,
-    legacy_archive_project_spec_filename,
-)
 
 
 class ChangeSpecSnapshotCache:
@@ -53,30 +47,16 @@ class ChangeSpecSnapshotCache:
             self._data[p] = (sig[0], sig[1], specs)
         return list(specs)
 
-    def find_all_changespecs_cached(self) -> list[ChangeSpec]:
-        """Find all ChangeSpecs across all project + archive files, cached."""
-        projects_dir = sase_projects_dir()
-        if not projects_dir.exists():
-            return []
-
+    def find_all_changespecs_cached(
+        self,
+        include_states: Sequence[str] | str = ("active",),
+    ) -> list[ChangeSpec]:
+        """Find ChangeSpecs across lifecycle-selected project + archive files."""
         seen: set[str] = set()
         all_specs: list[ChangeSpec] = []
-        for project_dir in sorted(projects_dir.iterdir()):
-            if not project_dir.is_dir():
-                continue
-
-            project_name = project_dir.name
-            candidates = (
-                active_project_spec_filename(project_name),
-                archive_project_spec_filename(project_name),
-                legacy_active_project_spec_filename(project_name),
-                legacy_archive_project_spec_filename(project_name),
-            )
-            for fname in candidates:
-                fpath = project_dir / fname
-                if fpath.exists():
-                    seen.add(os.fspath(fpath))
-                    all_specs.extend(self.get_file_specs(fpath))
+        for fpath in iter_changespec_project_files(include_states=include_states):
+            seen.add(os.fspath(fpath))
+            all_specs.extend(self.get_file_specs(fpath))
 
         with self._lock:
             for path in list(self._data.keys()):
@@ -97,9 +77,11 @@ class ChangeSpecSnapshotCache:
 _GLOBAL_CACHE = ChangeSpecSnapshotCache()
 
 
-def find_all_changespecs_cached() -> list[ChangeSpec]:
+def find_all_changespecs_cached(
+    include_states: Sequence[str] | str = ("active",),
+) -> list[ChangeSpec]:
     """Module-level cached variant of ``find_all_changespecs``."""
-    return _GLOBAL_CACHE.find_all_changespecs_cached()
+    return _GLOBAL_CACHE.find_all_changespecs_cached(include_states=include_states)
 
 
 def get_global_snapshot_cache() -> ChangeSpecSnapshotCache:

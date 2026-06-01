@@ -15,7 +15,11 @@ from sase.ace.tui.modals.project_select_modal import ProjectSelectModal
 
 
 def _write_project(
-    projects_dir: Path, project_name: str, workspace_dir: Path | None
+    projects_dir: Path,
+    project_name: str,
+    workspace_dir: Path | None,
+    *,
+    state: str | None = None,
 ) -> Path:
     project_dir = projects_dir / project_name
     project_dir.mkdir(parents=True)
@@ -23,8 +27,10 @@ def _write_project(
     if workspace_dir is None:
         project_file.write_text("", encoding="utf-8")
     else:
+        state_line = f"PROJECT_STATE: {state}\n" if state is not None else ""
         project_file.write_text(
-            f"WORKSPACE_DIR: {workspace_dir}\nNAME: {project_name}_change\n",
+            f"{state_line}WORKSPACE_DIR: {workspace_dir}\n"
+            f"NAME: {project_name}_change\n",
             encoding="utf-8",
         )
     return project_file
@@ -47,12 +53,19 @@ def test_list_launchable_projects_filters_invalid_entries(
 ) -> None:
     projects_dir = tmp_path / "projects"
     valid_workspace = tmp_path / "valid-workspace"
+    archived_workspace = tmp_path / "archived-workspace"
     no_provider_workspace = tmp_path / "no-provider-workspace"
     home_workspace = tmp_path / "home-workspace"
-    for workspace in (valid_workspace, no_provider_workspace, home_workspace):
+    for workspace in (
+        valid_workspace,
+        archived_workspace,
+        no_provider_workspace,
+        home_workspace,
+    ):
         workspace.mkdir()
 
     _write_project(projects_dir, "valid", valid_workspace)
+    _write_project(projects_dir, "archived", archived_workspace, state="archived")
     _write_project(projects_dir, "empty", None)
     _write_project(projects_dir, "stale", tmp_path / "missing-workspace")
     _write_project(projects_dir, "no_provider", no_provider_workspace)
@@ -72,6 +85,7 @@ def test_list_launchable_projects_filters_invalid_entries(
 
     assert projects == ["valid"]
     assert is_launchable_project("valid", projects_dir) is True
+    assert is_launchable_project("archived", projects_dir) is False
     assert is_launchable_project("stale", projects_dir) is False
     assert is_launchable_project("home", projects_dir) is False
 

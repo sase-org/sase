@@ -2,16 +2,33 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
-from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir
+from sase.core.project_lifecycle_facade import list_project_records
+from sase.core.project_lifecycle_wire import PROJECT_LIFECYCLE_STATES
 from sase.workspace_provider import detect_workflow_type
 from sase.workspace_provider.utils import parse_workspace_dir
+
+_ALL_STATES = tuple(PROJECT_LIFECYCLE_STATES)
+
+
+def _states_for_project_records(include_states: Sequence[str] | str) -> list[str]:
+    if include_states == "all":
+        return list(_ALL_STATES)
+    states = (
+        [include_states] if isinstance(include_states, str) else list(include_states)
+    )
+    invalid = [state for state in states if state not in _ALL_STATES]
+    if invalid:
+        raise ValueError(f"invalid project lifecycle state: {invalid[0]}")
+    return states
 
 
 def list_launchable_projects(
     projects_dir: Path | None = None,
+    include_states: Sequence[str] | str = ("active",),
 ) -> list[str]:
     """Return project entries that are valid project-scoped launch targets."""
     projects_base = projects_dir or sase_projects_dir()
@@ -19,20 +36,18 @@ def list_launchable_projects(
         return []
 
     projects: list[str] = []
-    for project_dir in sorted(projects_base.iterdir()):
-        if not project_dir.is_dir():
+    records = list_project_records(
+        projects_base,
+        _states_for_project_records(include_states),
+        include_home=False,
+    )
+    for record in records:
+        if record.state != "active":
             continue
-
-        project_name = project_dir.name
-        if project_name == "home":
+        if not record.project_file:
             continue
-
-        project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
-        if not project_file.is_file():
-            continue
-
-        if _is_launchable_project_file(project_file):
-            projects.append(project_name)
+        if _is_launchable_project_file(Path(record.project_file)):
+            projects.append(record.project_name)
 
     return projects
 
@@ -40,19 +55,25 @@ def list_launchable_projects(
 def is_launchable_project(
     project_name: str,
     projects_dir: Path | None = None,
+    include_states: Sequence[str] | str = ("active",),
 ) -> bool:
     """Return whether a project entry is a valid project-scoped launch target."""
     if not project_name or project_name == "home":
         return False
 
     projects_base = projects_dir or sase_projects_dir()
-    project_file = Path(
-        preferred_project_spec_path(str(projects_base / project_name), project_name)
+    records = list_project_records(
+        projects_base,
+        _states_for_project_records(include_states),
+        include_home=False,
     )
-    if not project_file.is_file():
-        return False
-
-    return _is_launchable_project_file(project_file)
+    for record in records:
+        if record.project_name != project_name or record.state != "active":
+            continue
+        if not record.project_file:
+            return False
+        return _is_launchable_project_file(Path(record.project_file))
+    return False
 
 
 def _is_launchable_project_file(project_file: Path) -> bool:

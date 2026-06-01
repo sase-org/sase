@@ -97,6 +97,7 @@ def test_find_all_changespecs_cached_uses_projects_dir(
 ) -> None:
     home = tmp_path / "home"
     monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_HOME", str(home / ".sase"))
 
     proj = home / ".sase" / "projects" / "demo"
     _write(proj / "demo.sase", _GP_TWO_SPECS)

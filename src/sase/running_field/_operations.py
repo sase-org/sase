@@ -2,6 +2,7 @@
 
 import os
 import time
+from pathlib import Path
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
 from sase.core.agent_launch_claims import (
@@ -11,6 +12,7 @@ from sase.core.agent_launch_claims import (
     plan_transfer_workspace_claim_from_content,
 )
 from sase.core.agent_launch_wire import WorkspaceClaimRequestWire
+from sase.core.project_lifecycle_facade import read_project_lifecycle_from_content
 from sase.running_field._formatting import (
     clean_orphaned_blank_lines,
     normalize_running_field_spacing,
@@ -25,6 +27,32 @@ from sase.telemetry.metrics import (
     WORKSPACE_ACTIVE,
     WORKSPACE_RELEASES,
 )
+
+_INACTIVE_PROJECT_STATES = {"archived", "closed"}
+
+
+def _project_name_from_file(project_file: str) -> str:
+    path = Path(project_file)
+    if path.name.endswith("-archive.sase"):
+        return path.name.removesuffix("-archive.sase")
+    if path.name.endswith("-archive.gp"):
+        return path.name.removesuffix("-archive.gp")
+    return path.stem
+
+
+def _inactive_project_claim_error(project_file: str, state: str) -> str:
+    project = _project_name_from_file(project_file)
+    return (
+        f"project '{project}' is {state}; run 'sase project activate {project}' "
+        "before launching work"
+    )
+
+
+def _new_work_lifecycle_error(project_file: str, content: str) -> str | None:
+    lifecycle = read_project_lifecycle_from_content(content)
+    if lifecycle.state in _INACTIVE_PROJECT_STATES:
+        return _inactive_project_claim_error(project_file, lifecycle.state)
+    return None
 
 
 def get_claimed_workspaces(project_file: str) -> list[WorkspaceClaim]:
@@ -89,6 +117,10 @@ def claim_workspace(
             with changespec_lock(project_file):
                 with open(project_file, encoding="utf-8") as f:
                     content = f.read()
+
+                lifecycle_error = _new_work_lifecycle_error(project_file, content)
+                if lifecycle_error is not None:
+                    return ClaimResult(success=False, error=lifecycle_error)
 
                 plan = plan_claim_workspace_from_content(
                     content,
@@ -432,6 +464,10 @@ def claim_next_axe_workspace(
             with changespec_lock(project_file):
                 with open(project_file, encoding="utf-8") as f:
                     content = f.read()
+
+                lifecycle_error = _new_work_lifecycle_error(project_file, content)
+                if lifecycle_error is not None:
+                    raise WorkspaceClaimError(lifecycle_error)
 
                 plan = allocate_and_claim_workspace_from_content(
                     content,

@@ -270,7 +270,7 @@ def _load_agents_from_all_sources(
     all_changespecs = (
         changespec_snapshot
         if changespec_snapshot is not None
-        else find_all_changespecs()
+        else find_all_changespecs(include_states="all")
     )
 
     # Build bug URL and CL number lookups by CL name (single pass)

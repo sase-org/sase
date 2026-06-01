@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.project_lifecycle_wire import (
+    PROJECT_LIFECYCLE_STATES,
     ProjectLifecycleWire,
     ProjectRecordWire,
     project_lifecycle_from_dict,
@@ -38,9 +39,14 @@ def list_project_records(
 ) -> list[ProjectRecordWire]:
     """List lifecycle records under a projects root via ``sase_core_rs``."""
 
-    states = (
-        [include_states] if isinstance(include_states, str) else list(include_states)
-    )
+    if include_states == "all":
+        states = list(PROJECT_LIFECYCLE_STATES)
+    else:
+        states = (
+            [include_states]
+            if isinstance(include_states, str)
+            else list(include_states)
+        )
     binding = require_rust_binding("list_project_records")
     payload: list[dict[str, Any]] = binding(str(projects_root), states, include_home)
     return [project_record_from_dict(dict(item)) for item in payload]

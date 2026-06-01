@@ -192,7 +192,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
 
         self._merge_external_dismissals()
         dismissed_snapshot = set(self._dismissed_agents)
-        changespec_snapshot = find_all_changespecs_cached()
+        changespec_snapshot = find_all_changespecs_cached(include_states="all")
         load_result = _resolve_load_agents_from_disk_with_state()(
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
@@ -240,7 +240,10 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         )
         self._apply_external_dismissal_merge(merge_result)
         dismissed_snapshot = set(self._dismissed_agents)
-        changespec_snapshot = await asyncio.to_thread(find_all_changespecs_cached)
+        changespec_snapshot = await asyncio.to_thread(
+            find_all_changespecs_cached,
+            include_states="all",
+        )
         disk_start = time.perf_counter()
         load_result = await asyncio.to_thread(
             _resolve_load_agents_from_disk_with_state(),
