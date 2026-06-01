@@ -32,9 +32,9 @@ from sase.llm_provider.temporary_override import (
 
 
 def test_leader_default_includes_temporary_llm_override() -> None:
-    """The new ``,P`` chord ships in the typed leader-mode defaults."""
+    """The ``,o`` chord ships in the typed leader-mode defaults."""
     leader = LeaderModeKeymaps()
-    assert leader.keys["temporary_llm_override"] == "P"
+    assert leader.keys["temporary_llm_override"] == "o"
 
 
 def test_leader_default_in_yaml() -> None:
@@ -50,7 +50,7 @@ def test_leader_default_in_yaml() -> None:
     )
     data = yaml.safe_load(text)
     leader = data["ace"]["keymaps"]["modes"]["leader_mode"]["keys"]
-    assert leader["temporary_llm_override"] == "P"
+    assert leader["temporary_llm_override"] == "o"
 
 
 # ---------------------------------------------------------------------------

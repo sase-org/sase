@@ -74,6 +74,10 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     "Activity dashboard",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'projects'))}",
+                    "Project management",
+                ),
+                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'temporary_llm_override'))}",
                     "Temporary model override",
                 ),

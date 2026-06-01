@@ -141,6 +141,12 @@ class BaseActionsMixin:
 
         self.push_screen(EpisodeExplorerModal(project=project))  # type: ignore[attr-defined]
 
+    def action_open_project_management_panel(self) -> None:
+        """Open the project lifecycle management panel."""
+        from ..modals import ProjectManagementModal
+
+        self.push_screen(ProjectManagementModal())  # type: ignore[attr-defined]
+
     def action_show_diff(self) -> None:
         """Show diff for the current ChangeSpec."""
         if not self.changespecs:

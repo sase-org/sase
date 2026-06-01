@@ -61,6 +61,11 @@ class _ProjectLifecycleBlockedError(_ProjectLifecycleError):
         )
 
 
+ProjectLifecycleError = _ProjectLifecycleError
+ProjectLifecycleNotFoundError = _ProjectLifecycleNotFoundError
+ProjectLifecycleBlockedError = _ProjectLifecycleBlockedError
+
+
 def _states_for_filter(state_filter: str) -> list[str]:
     if state_filter == "all":
         return list(_ALL_STATES)

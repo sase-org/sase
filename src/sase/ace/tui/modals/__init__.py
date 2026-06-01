@@ -31,6 +31,7 @@ from .jump_all_modal import JumpAllModal, JumpAllResult
 from .notification_modal import NotificationModal
 from .parent_select_modal import ParentSelectModal
 from .process_select_modal import ProcessSelection, ProcessSelectModal
+from .project_management_modal import ProjectManagementModal
 from .project_select_modal import ProjectSelectModal, ProjectSelectResult, SelectionItem
 from .prompt_history_modal import (
     PromptHistoryAction,
@@ -152,6 +153,7 @@ __all__ = [
     "PlanApprovalResult",
     "ProcessSelectModal",
     "ProcessSelection",
+    "ProjectManagementModal",
     "ProjectSelectModal",
     "ProjectSelectResult",
     "PromptHistoryAction",

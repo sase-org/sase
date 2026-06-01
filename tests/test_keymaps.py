@@ -474,6 +474,13 @@ def test_leader_mode_includes_agent_run_log() -> None:
     assert reg.leader_mode.keys["agent_run_log"] == "A"
 
 
+def test_leader_mode_includes_project_management() -> None:
+    """LeaderModeKeymaps default includes the ``,P`` project panel."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["projects"] == "P"
+    assert reg.leader_mode.keys["temporary_llm_override"] == "o"
+
+
 def test_leader_mode_includes_agent_panel_grouping_toggle() -> None:
     """LeaderModeKeymaps default includes the ``,g`` panel grouping toggle."""
     reg = load_keymap_registry({})
@@ -530,6 +537,17 @@ def test_merged_default_config_marks_all_unread_done_agents_read_with_u(
     }
     assert (",u", "Mark all unread done agents read") in agent_pairs
     assert (",U", "Mark all unread done agents read") not in agent_pairs
+
+
+def test_help_modal_displays_project_management_leader_key() -> None:
+    reg = load_keymap_registry({})
+    entries = [
+        entry
+        for build in (cls_bindings, agents_bindings, axe_bindings)
+        for _section_name, section_entries in build(reg)
+        for entry in section_entries
+    ]
+    assert (",P", "Project management") in entries
 
 
 def test_leader_mode_includes_prompt_history_edit_first() -> None:

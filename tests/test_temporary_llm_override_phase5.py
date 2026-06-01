@@ -120,21 +120,21 @@ def _flatten_help_keys(sections: list[tuple[str, list[tuple[str, str]]]]) -> set
 def test_help_modal_includes_temporary_override_on_main_tabs(
     build_sections,
 ) -> None:
-    """``,P`` "Temporary model override" appears in the changespecs and
+    """``,o`` "Temporary model override" appears in the changespecs and
     agents help-modal sections (the two tabs that show leader-mode
     bindings)."""
     reg = _full_registry()
     sections = build_sections(reg)
     flat = _flatten_help_keys(sections)
-    assert ",P|Temporary model override" in flat
+    assert ",o|Temporary model override" in flat
 
 
 def test_help_modal_axe_tab_includes_temporary_override() -> None:
-    """The axe tab also surfaces ``,P`` in its leader-mode block."""
+    """The axe tab also surfaces ``,o`` in its leader-mode block."""
     reg = _full_registry()
     sections = axe_bindings(reg)
     flat = _flatten_help_keys(sections)
-    assert ",P|Temporary model override" in flat
+    assert ",o|Temporary model override" in flat
 
 
 def test_help_modal_keybinding_uses_configured_leader_prefix() -> None:
@@ -144,7 +144,7 @@ def test_help_modal_keybinding_uses_configured_leader_prefix() -> None:
     )
     sections = cls_bindings(reg)
     flat = _flatten_help_keys(sections)
-    assert ";P|Temporary model override" in flat
+    assert ";o|Temporary model override" in flat
 
 
 def test_help_modal_keybinding_uses_configured_temporary_key() -> None:
@@ -164,7 +164,7 @@ def test_help_modal_keybinding_uses_configured_temporary_key() -> None:
 
 
 def test_footer_leader_bindings_include_temporary_override() -> None:
-    """``update_leader_bindings`` puts ``P temporary model`` in the footer."""
+    """``update_leader_bindings`` puts ``o temporary model`` in the footer."""
     footer = KeybindingFooter()
     captured: list[tuple[list[tuple[str, str]], str | None]] = []
     footer._update_display = MagicMock(  # type: ignore[method-assign]
@@ -613,7 +613,7 @@ def test_leader_handler_dispatches_temporary_llm_override() -> None:
 
     Guards against a future refactor where the dispatch table forgets
     to wire the chord; nothing else in the suite would catch that
-    silently — pressing ``,P`` would just be a no-op.
+    silently — pressing ``,o`` would just be a no-op.
     """
     from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
 
@@ -625,7 +625,7 @@ def test_leader_handler_dispatches_temporary_llm_override() -> None:
     mixin.marked_indices = []
     mixin._leader_mode_active = True
 
-    handled = LeaderModeMixin._handle_leader_key(cast(LeaderModeMixin, mixin), "P")
+    handled = LeaderModeMixin._handle_leader_key(cast(LeaderModeMixin, mixin), "o")
 
     assert handled is True
     mixin._open_temporary_llm_override_modal.assert_called_once()

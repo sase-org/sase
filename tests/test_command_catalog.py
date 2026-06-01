@@ -267,6 +267,17 @@ def test_agent_panel_grouping_leader_command_is_agents_only() -> None:
     assert spec.executor.subkey == "g"
 
 
+def test_project_management_leader_command_is_global() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.projects")
+
+    assert spec.label == "Open project management panel"
+    assert spec.key_display == ",P"
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "open_project_management_panel"
+
+
 def test_jump_to_next_unread_done_agent_leader_command_is_agents_only() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.jump_to_next_unread_done_agent")

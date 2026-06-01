@@ -239,6 +239,12 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["projects"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            self.action_open_project_management_panel()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["temporary_llm_override"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self._open_temporary_llm_override_modal()  # type: ignore[attr-defined]
@@ -250,7 +256,7 @@ class LeaderModeMixin:
         return True
 
     def _open_temporary_llm_override_modal(self) -> None:
-        """Open the Temporary LLM Override modal (leader ``,P`` by default)."""
+        """Open the Temporary LLM Override modal (leader ``,o`` by default)."""
         from ...modals import TemporaryLLMOverrideModal, TemporaryOverrideResult
         from ...widgets import LLMOverrideIndicator
 

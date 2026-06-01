@@ -1,6 +1,6 @@
 """Temporary default LLM provider/model override modal.
 
-A leader-mode (``,P`` by default) action that lets the user pick a
+A leader-mode (``,o`` by default) action that lets the user pick a
 provider/model and an expiry duration to temporarily override SASE's
 default for new agent launches.  Doesn't edit ``~/.config/sase/sase.yml``;
 state lives in ``~/.sase/llm_override.json`` (see

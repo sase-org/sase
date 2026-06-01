@@ -426,6 +426,16 @@ def test_footer_surfaces_repeat_last_on_all_tabs() -> None:
         assert "repeat" in _last_labels(captured)
 
 
+def test_footer_surfaces_project_management_on_all_tabs() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    for tab in ("changespecs", "agents", "axe"):
+        footer.update_leader_bindings(current_tab=tab)
+        assert "P" in _last_keys(captured)
+        assert "projects" in _last_labels(captured)
+
+
 def test_footer_surfaces_configured_repeat_last_key() -> None:
     footer = KeybindingFooter()
     footer.set_keymap_registry(

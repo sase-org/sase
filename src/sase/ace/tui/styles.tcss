@@ -542,6 +542,62 @@ TemporaryLLMOverrideModal {
     height: 1;
 }
 
+/* Project Management Modal styling */
+ProjectManagementModal {
+    align: center middle;
+}
+
+#project-management-container {
+    width: 96;
+    max-width: 96%;
+    height: auto;
+    max-height: 88%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#project-management-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#project-management-summary {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#project-management-filter {
+    height: 3;
+    margin-bottom: 1;
+}
+
+#project-management-list {
+    height: auto;
+    max-height: 18;
+    border: solid $secondary;
+}
+
+#project-management-detail {
+    height: auto;
+    min-height: 5;
+    max-height: 10;
+    border: solid $secondary;
+    padding: 1 2;
+    margin-top: 1;
+}
+
+#project-management-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid $secondary;
+    padding-top: 1;
+    margin-top: 1;
+}
+
 
 /* Shared Duration Choice Modal styling */
 SnoozeDurationModal,
