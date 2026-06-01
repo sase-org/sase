@@ -71,6 +71,20 @@ def test_lumberjack_row_selection_clears_chop_selection() -> None:
     assert app._axe_lumberjack_idx == 0
 
 
+def test_negative_selection_clears_chop_selection() -> None:
+    """A stale negative AXE index must not select Python's last list item."""
+    app = _Fake()
+    app._axe_chop_selection = ("hooks", "fast")
+    app._axe_lumberjack_idx = 0
+    app.current_idx = -1
+
+    app._derive_axe_view_from_selection()
+
+    assert app._axe_chop_selection is None
+    assert app._axe_current_view == "axe"
+    assert app._axe_lumberjack_idx is None
+
+
 def test_clear_output_on_chop_row_warns_and_leaves_history_intact() -> None:
     """``X`` on a chop row is a no-op against on-disk history (safer default).
 

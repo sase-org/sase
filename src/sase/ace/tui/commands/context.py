@@ -24,7 +24,7 @@ from sase.ace.tui.models.agent_status import (
     is_unread_completed_status,
 )
 from sase.ace.tui.commands.types import CommandContext, CommandTab
-from sase.ace.tui.widgets.bgcmd_list import BgCmdItem
+from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, ChopItem
 
 if TYPE_CHECKING:
     from sase.ace.tui.app import AceApp
@@ -144,6 +144,16 @@ def _selected_axe_slot_states(app: AceApp, item) -> tuple[bool, bool]:  # type: 
     return (not running, running)
 
 
+def _selected_axe_chop_run_total(app: AceApp, item) -> int:  # type: ignore[no-untyped-def]
+    if not isinstance(item, ChopItem):
+        return 0
+    snapshots = getattr(app, "_axe_chop_snapshots", {})
+    snap = snapshots.get((item.lumberjack_name, item.chop_name))
+    if snap is None:
+        return 0
+    return len(getattr(snap, "runs", []) or [])
+
+
 def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-untyped-def]
     """Build a :class:`CommandContext` snapshot from the live ``AceApp``.
 
@@ -179,8 +189,10 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
 
     if tab == "axe":
         done, running = _selected_axe_slot_states(app, axe_item)
+        chop_run_total = _selected_axe_chop_run_total(app, axe_item)
     else:
         done, running = (False, False)
+        chop_run_total = 0
 
     return CommandContext(
         tab=tab,
@@ -200,6 +212,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         axe_running=bool(getattr(app, "axe_running", False)),
         selected_axe_slot_done=done and isinstance(axe_item, BgCmdItem),
         selected_axe_slot_running=running and isinstance(axe_item, BgCmdItem),
+        selected_axe_chop_run_total=chop_run_total,
     )
 
 

@@ -104,7 +104,7 @@ _APP_COMMAND_META: tuple[
     ("reword", "Reword CL", "CL Actions", _CL_ONLY, ()),
     ("add_tag", "Add tag", "CL Actions", _CL_ONLY, ()),
     ("view_files", "View CL files", "CL Actions", _CL_ONLY, ()),
-    ("edit_spec", "Edit spec / chat", "CL Actions", _ALL_TABS, ()),
+    ("edit_spec", "Edit spec / chat / chop output", "CL Actions", _ALL_TABS, ()),
     ("rename_cl", "Rename CL / agent", "CL Actions", _CL_AGENTS, ()),
     # ChangeSpec edits
     (

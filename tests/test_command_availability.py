@@ -25,6 +25,7 @@ from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.bgcmd_list import (
     BgCmdItem,
+    ChopItem,
     LumberjackItem,
 )
 
@@ -410,6 +411,27 @@ def test_axe_run_workflow_only_on_done_bgcmd_row() -> None:
     assert not is_command_available(spec, lumberjack_ctx)
     assert not is_command_available(spec, bgcmd_running)
     assert is_command_available(spec, bgcmd_done)
+
+
+def test_axe_edit_spec_only_on_chop_row_with_recorded_run() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.edit_spec"]
+    lumberjack_ctx = CommandContext(tab="axe", axe_item=LumberjackItem(name="hooks"))
+    bgcmd_ctx = CommandContext(tab="axe", axe_item=BgCmdItem(slot=1))
+    chop_without_runs = CommandContext(
+        tab="axe",
+        axe_item=ChopItem(lumberjack_name="hooks", chop_name="fast"),
+        selected_axe_chop_run_total=0,
+    )
+    chop_with_runs = CommandContext(
+        tab="axe",
+        axe_item=ChopItem(lumberjack_name="hooks", chop_name="fast"),
+        selected_axe_chop_run_total=1,
+    )
+    assert not is_command_available(spec, lumberjack_ctx)
+    assert not is_command_available(spec, bgcmd_ctx)
+    assert not is_command_available(spec, chop_without_runs)
+    assert is_command_available(spec, chop_with_runs)
 
 
 def test_axe_kill_agent_always_meaningful() -> None:

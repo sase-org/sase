@@ -48,6 +48,8 @@ class AgentPanelDetailMixin:
         """Edit spec/chat - behavior depends on current tab."""
         if self.current_tab == "agents":
             self._open_agent_chat()
+        elif self.current_tab == "axe":
+            self._open_selected_chop_output()  # type: ignore[attr-defined]
         else:
             # Call parent implementation for ChangeSpecs
             super().action_edit_spec()  # type: ignore[misc]

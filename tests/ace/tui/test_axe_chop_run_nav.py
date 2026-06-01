@@ -268,6 +268,35 @@ def test_footer_surfaces_chop_run_keys_when_multiple_runs() -> None:
     )
 
 
+def test_footer_surfaces_edit_output_when_chop_has_run() -> None:
+    """The AXE footer shows ``e`` only on chop rows with recorded output."""
+    from sase.ace.tui.widgets import KeybindingFooter
+
+    footer = KeybindingFooter()
+    bindings = footer._compute_axe_bindings(
+        "axe",
+        chop_selected=True,
+        chop_run_total=1,
+    )
+    assert any("edit output" == label for _, label in bindings)
+    assert not any(
+        "edit output" == label
+        for _, label in footer._compute_axe_bindings(
+            "axe",
+            chop_selected=True,
+            chop_run_total=0,
+        )
+    )
+    assert not any(
+        "edit output" == label
+        for _, label in footer._compute_axe_bindings(
+            "axe",
+            chop_selected=False,
+            chop_run_total=1,
+        )
+    )
+
+
 def test_resolve_after_history_shrinks() -> None:
     """If a chop's history shrinks below the pinned offset, render clamps."""
     app = _Fake(_make_runs("r5", "r4", "r3", "r2", "r1"))

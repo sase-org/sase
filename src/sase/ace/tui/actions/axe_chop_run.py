@@ -13,6 +13,8 @@ run land at the head of history without losing their place.
 
 from __future__ import annotations
 
+import os
+import subprocess
 from typing import TYPE_CHECKING, Literal
 
 from sase.axe.chop_runner import (
@@ -23,10 +25,12 @@ from sase.axe.chop_runner import (
     run_configured_chop_once,
 )
 from sase.axe.config import load_axe_config
+from sase.axe.state import chop_run_log_path
 
 from ..widgets.bgcmd_list import ChopItem
 
 if TYPE_CHECKING:
+    from .axe_display import ChopSnapshot
     from ..widgets.bgcmd_list import AxeItem
 
 TabName = Literal["changespecs", "agents", "axe"]
@@ -38,6 +42,7 @@ class AxeChopRunMixin:
     current_tab: TabName
     current_idx: int
     _axe_items: list[AxeItem]
+    _axe_chop_snapshots: dict[tuple[str, str], ChopSnapshot]
 
     def _run_selected_chop(self) -> None:
         """Manually run the chop currently highlighted on the AXE tab.
@@ -67,6 +72,51 @@ class AxeChopRunMixin:
         self.call_later(  # type: ignore[attr-defined]
             self._launch_chop_run_async, lumberjack_name, chop_name
         )
+
+    def _open_selected_chop_output(self) -> None:
+        """Open the selected chop run's persisted output log in ``$EDITOR``."""
+        if self.current_tab != "axe":
+            return
+
+        self._derive_axe_view_from_selection()  # type: ignore[attr-defined]
+        items = self._axe_items
+        if not (0 <= self.current_idx < len(items)):
+            self.notify(  # type: ignore[attr-defined]
+                "No chop selected", severity="warning"
+            )
+            return
+
+        item = items[self.current_idx]
+        if not isinstance(item, ChopItem):
+            self.notify(  # type: ignore[attr-defined]
+                "No chop output selected", severity="warning"
+            )
+            return
+
+        chop_key = (item.lumberjack_name, item.chop_name)
+        snap = self._axe_chop_snapshots.get(chop_key)
+        if snap is None or not snap.runs:
+            self.notify(  # type: ignore[attr-defined]
+                f"No runs recorded for chop '{item.chop_name}'",
+                severity="warning",
+            )
+            return
+
+        run_offset = self._axe_resolve_chop_run_offset(  # type: ignore[attr-defined]
+            chop_key
+        )
+        run = snap.runs[run_offset].entry
+        log_path = chop_run_log_path(item.lumberjack_name, item.chop_name, run.run_id)
+        if not log_path.exists():
+            self.notify(  # type: ignore[attr-defined]
+                f"No output log found for chop '{item.chop_name}'",
+                severity="warning",
+            )
+            return
+
+        editor = os.environ.get("EDITOR") or "nvim"
+        with self.suspend():  # type: ignore[attr-defined]
+            subprocess.run([editor, str(log_path)], check=False)
 
     async def _launch_chop_run_async(
         self, lumberjack_name: str, chop_name: str

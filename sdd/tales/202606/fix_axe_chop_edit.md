@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-01 10:42:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_axe_chop_edit.md
 ---
 # Plan: Fix `sase ace` crash when pressing `e` on AXE chop output

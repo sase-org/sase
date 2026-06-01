@@ -582,7 +582,7 @@ class AxeDisplayLoadersMixin:
           ``_axe_chop_selection`` set to the (lumberjack, chop) identity.
         - Bgcmd row → ``_axe_current_view`` set to the slot number.
         """
-        if not self._axe_items or self.current_idx >= len(self._axe_items):
+        if not (0 <= self.current_idx < len(self._axe_items)):
             self._axe_current_view = "axe"
             self._axe_lumberjack_idx = None
             self._axe_chop_selection = None

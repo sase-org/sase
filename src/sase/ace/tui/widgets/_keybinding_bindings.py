@@ -56,6 +56,7 @@ class KeybindingBindingsMixin:
         background command, ``run chop`` on an idle chop row, or ``running``
         on a chop whose newest run is still active (the backend refuses an
         overlapping launch, so the affordance reflects that).
+        ``e`` is available on a chop row once that chop has recorded output.
         Ctrl+N / Ctrl+P surface only on chop rows with at least two recorded
         runs, since with zero or one run the keys cannot do anything useful.
         """
@@ -70,6 +71,8 @@ class KeybindingBindingsMixin:
         elif chop_selected:
             label = "running" if chop_selected_running else "run chop"
             bindings.append((self._kd("run_workflow"), label))
+        if chop_selected and chop_run_total >= 1:
+            bindings.append((self._kd("edit_spec"), "edit output"))
         if axe_current_view == "axe" and chop_run_total >= 2:
             bindings.append(
                 (

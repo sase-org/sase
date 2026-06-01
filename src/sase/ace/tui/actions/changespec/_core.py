@@ -69,7 +69,7 @@ class ChangeSpecMixin(
 
     def action_edit_spec(self) -> None:
         """Edit the current ChangeSpec in $EDITOR."""
-        if not self.changespecs:
+        if not (0 <= self.current_idx < len(self.changespecs)):
             return
         changespec = self.changespecs[self.current_idx]
         self._open_spec_in_editor(changespec)
