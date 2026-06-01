@@ -67,9 +67,12 @@ def resolve_known_project_vcs_launch_ref(
         extract_known_project_vcs_ref,
         resolve_known_project_ref,
     )
-    from sase.xprompt.loader import get_known_project_workspaces
+    from sase.xprompt.loader import (
+        get_known_project_workspaces,
+        inactive_project_message_for_ref,
+    )
 
-    known_ref = extract_known_project_vcs_ref(prompt)
+    known_ref = extract_known_project_vcs_ref(prompt, include_states="all")
     if known_ref is None:
         return None
 
@@ -77,6 +80,9 @@ def resolve_known_project_vcs_launch_ref(
     known_projects = get_known_project_workspaces()
     project_name = resolve_known_project_ref(ref, known_projects)
     if project_name is None:
+        message = inactive_project_message_for_ref(ref)
+        if message is not None:
+            raise RuntimeError(message)
         return None
     workspace_dir = known_projects.get(project_name)
     if workspace_dir is None:

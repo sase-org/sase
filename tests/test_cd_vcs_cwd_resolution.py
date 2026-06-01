@@ -80,6 +80,33 @@ def test_resolve_vcs_cwd_unknown_owner_repo_ref_leaves_cwd_unchanged(
     assert Path.cwd() == starting_cwd
 
 
+def test_resolve_vcs_cwd_inactive_known_project_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.main.query_handler._query import _resolve_vcs_cwd
+
+    workspace = tmp_path / "archived"
+    workspace.mkdir()
+    projects_dir = tmp_path / ".sase/projects/archived"
+    projects_dir.mkdir(parents=True)
+    (projects_dir / "archived.sase").write_text(
+        f"PROJECT_STATE: archived\nWORKSPACE_DIR: {workspace}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    with (
+        patch("os.chdir") as chdir,
+        patch("sase.xprompt.loader.detect_project"),
+        pytest.raises(ValueError, match="project 'archived' is archived"),
+    ):
+        _resolve_vcs_cwd("#gh:archived do something")
+
+    chdir.assert_not_called()
+
+
 def test_resolve_vcs_cwd_cd_changes_to_target(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -116,6 +116,27 @@ def test_beads_list_bridge_all_known_projects_ignores_orphan_bead_dirs(
     assert sibling_epic.id not in ids
 
 
+def test_beads_list_bridge_all_known_projects_ignores_inactive_projects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alpha_dir, alpha_epic, _, _ = seed_bead_project(tmp_path / "alpha")
+    beta_dir, beta_epic, _, _ = seed_bead_project(tmp_path / "beta")
+    seed_known_projects(
+        tmp_path,
+        {"alpha": alpha_dir, "beta": beta_dir},
+        states={"beta": "archived"},
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    code, data, stderr = run_bridge({"schema_version": 1}, "beads-list")
+
+    assert code == 0
+    assert stderr == ""
+    ids = {row["id"] for row in data["beads"]}  # type: ignore[index]
+    assert alpha_epic.id in ids
+    assert beta_epic.id not in ids
+
+
 def test_beads_list_bridge_uses_remembered_device_project_context(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -74,7 +74,16 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
         workflow_type = match.group(1)
         ref = match.group(2)
 
-    from sase.xprompt.loader import detect_project, get_known_project_workspaces
+    from sase.xprompt.loader import (
+        detect_project,
+        get_known_project_workspaces,
+        inactive_project_message_for_ref,
+    )
+
+    def _inactive_error_for_ref(value: str) -> None:
+        message = inactive_project_message_for_ref(value)
+        if message is not None:
+            raise ValueError(message)
 
     if workflow_type not in get_workflow_names():
         known_projects = get_known_project_workspaces()
@@ -83,6 +92,8 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
         if workspace_dir is not None:
             os.chdir(workspace_dir)
             detect_project.cache_clear()
+        elif project_name == ref:
+            _inactive_error_for_ref(ref)
         return project_name, ref
 
     try:
@@ -96,6 +107,8 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
         if workspace_dir is not None:
             os.chdir(workspace_dir)
             detect_project.cache_clear()
+        elif project_name == ref:
+            _inactive_error_for_ref(ref)
         return project_name, ref
 
     if resolved and resolved.primary_workspace_dir:

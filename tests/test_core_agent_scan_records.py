@@ -19,6 +19,7 @@ from sase.core.agent_scan_facade import (
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
+    AgentArtifactScanOptionsWire,
 )
 
 from .agent_scan_golden import (
@@ -132,6 +133,30 @@ def test_running_record_carries_commit_diff_path_through_scan_and_index(
     indexed_rec = record_by_timestamp(indexed, TS_ACE_RUN_RUNNING)
     assert indexed_rec.agent_meta is not None
     assert indexed_rec.agent_meta.commit_diff_path == "/tmp/running_commit.diff"
+
+
+def test_index_query_honors_project_filters(
+    fixture_root: Path,
+    tmp_path: Path,
+) -> None:
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(index_path, fixture_root)
+
+    indexed = query_agent_artifact_index(
+        index_path,
+        fixture_root,
+        AgentArtifactIndexQueryWire(
+            include_active=True,
+            include_recent_completed=True,
+            include_full_history=True,
+            active_limit=None,
+            recent_completed_limit=None,
+            include_hidden=True,
+        ),
+        options=AgentArtifactScanOptionsWire(only_projects=("home",)),
+    )
+
+    assert {record.project_name for record in indexed.records} == {"home"}
 
 
 def test_running_record_carries_wait_completed_at(fixture_root: Path) -> None:

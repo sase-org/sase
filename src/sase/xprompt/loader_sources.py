@@ -2,6 +2,7 @@
 
 import importlib.resources
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,8 @@ import yaml  # type: ignore[import-untyped]
 
 from sase.config import load_xprompts_by_source
 from sase.core.paths import sase_projects_dir
+from sase.core.project_lifecycle_facade import list_project_records
+from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
 from .loader_parsing import (
@@ -377,48 +380,67 @@ def load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
     return xprompts
 
 
-def get_known_project_workspaces() -> dict[str, Path]:
-    """Enumerate all known projects and their primary workspace directories.
+_INACTIVE_PROJECT_STATES = {"archived", "closed"}
 
-    Parses project spec files at ``~/.sase/projects/<name>/<name>.sase``
-    (preferring the canonical ``.sase`` extension; falling back to legacy
-    ``.gp``) for ``WORKSPACE_DIR:`` lines.
+
+def _project_ref_candidates(ref: str) -> tuple[str, ...]:
+    candidates = [ref]
+    if "/" in ref:
+        candidates.append(ref.rsplit("/", 1)[-1])
+    return tuple(dict.fromkeys(candidates))
+
+
+def get_project_lifecycle_record(project: str) -> ProjectRecordWire | None:
+    """Return the lifecycle record for *project*, including inactive projects."""
+    projects_dir = sase_projects_dir()
+    if not projects_dir.is_dir():
+        return None
+    for record in list_project_records(projects_dir, "all", include_home=False):
+        if record.project_name == project:
+            return record
+    return None
+
+
+def inactive_project_message_for_ref(ref: str) -> str | None:
+    """Return a launch-blocking message when *ref* points at an inactive project."""
+    for candidate in _project_ref_candidates(ref):
+        record = get_project_lifecycle_record(candidate)
+        if record is None or record.state not in _INACTIVE_PROJECT_STATES:
+            continue
+        return (
+            f"project '{record.project_name}' is {record.state}; run "
+            f"'sase project activate {record.project_name}' before launching work"
+        )
+    return None
+
+
+def get_known_project_workspaces(
+    include_states: Sequence[str] | str = ("active",),
+) -> dict[str, Path]:
+    """Enumerate lifecycle-selected projects and their primary workspaces.
+
+    Normal callers get active projects only. Management/history callers can
+    pass ``"all"`` or a concrete state list when inactive projects are
+    intentionally in scope.
 
     Returns:
         Mapping of project name to workspace directory path.
     """
-    from sase.ace.changespec.project_spec_path import (
-        project_spec_basename,
-        PROJECT_SPEC_EXTENSIONS,
-    )
-
     projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return {}
 
     result: dict[str, Path] = {}
-    # Prefer canonical .sase entries; only fall back to legacy .gp where the
-    # canonical sibling is absent so a single project does not get listed twice.
-    seen_projects: set[str] = set()
-    for ext in PROJECT_SPEC_EXTENSIONS:
-        for spec_file in sorted(projects_dir.glob(f"*/*{ext}")):
-            if spec_file.name.endswith(f"-archive{ext}"):
-                continue
-            project_name = project_spec_basename(str(spec_file))
-            if project_name in seen_projects:
-                continue
-            try:
-                text = spec_file.read_text(encoding="utf-8")
-            except OSError:
-                continue
-            for line in text.splitlines():
-                if line.startswith("WORKSPACE_DIR:"):
-                    ws_dir = line.removeprefix("WORKSPACE_DIR:").strip()
-                    ws_path = Path(ws_dir)
-                    if ws_path.is_dir():
-                        result[project_name] = ws_path
-                        seen_projects.add(project_name)
-                    break
+    for record in list_project_records(
+        projects_dir,
+        include_states,
+        include_home=False,
+    ):
+        if not record.workspace_dir:
+            continue
+        ws_path = Path(record.workspace_dir).expanduser()
+        if ws_path.is_dir():
+            result[record.project_name] = ws_path
 
     return result
 

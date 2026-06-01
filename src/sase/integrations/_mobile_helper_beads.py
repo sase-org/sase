@@ -196,17 +196,18 @@ def _known_project_names() -> list[str]:
     projects_dir = sase_home() / "projects"
     if not projects_dir.is_dir():
         return []
-    result: list[str] = []
-    for project_dir in sorted(projects_dir.iterdir()):
-        if not project_dir.is_dir():
-            continue
-        project_name = project_dir.name
-        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
-        project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
-        if project_file.is_file():
-            result.append(project_name)
-    return result
+    from sase.core.project_lifecycle_facade import list_project_records
+
+    return [
+        record.project_name
+        for record in list_project_records(
+            projects_dir,
+            ("active",),
+            include_home=False,
+        )
+        if Path(record.project_file).is_file()
+    ]
 
 
 def _canonical_beads_dir_for_project(project: str) -> Path | None:

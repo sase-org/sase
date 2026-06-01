@@ -80,9 +80,29 @@ def test_options_round_trip_through_snapshot(fixture_root: Path) -> None:
         include_workflow_state=False,
         include_waiting=False,
         only_projects=("myproj",),
+        include_project_states=("active",),
     )
     snapshot = scan_agent_artifacts(fixture_root, options=options)
     assert snapshot.options == options
+
+
+def test_include_project_states_filters_scanner_projects(fixture_root: Path) -> None:
+    (fixture_root / "myproj" / "myproj.sase").write_text(
+        "PROJECT_STATE: archived\nWORKSPACE_DIR: /tmp/myproj\n",
+        encoding="utf-8",
+    )
+
+    active_snapshot = scan_agent_artifacts(
+        fixture_root,
+        AgentArtifactScanOptionsWire(include_project_states=("active",)),
+    )
+    assert {record.project_name for record in active_snapshot.records} == {"home"}
+
+    all_snapshot = scan_agent_artifacts(
+        fixture_root,
+        AgentArtifactScanOptionsWire(include_project_states=("all",)),
+    )
+    assert "myproj" in {record.project_name for record in all_snapshot.records}
 
 
 def test_bounded_newest_first_limits_completed_without_hiding_incomplete(

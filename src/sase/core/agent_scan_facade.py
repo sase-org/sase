@@ -65,6 +65,7 @@ def _options_to_dict(options: AgentArtifactScanOptionsWire) -> dict[str, Any]:
         "include_workflow_state": options.include_workflow_state,
         "include_waiting": options.include_waiting,
         "only_projects": list(options.only_projects),
+        "include_project_states": list(options.include_project_states),
     }
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from sase.integrations.changespec_tags import list_changespec_xprompt_tags
+from sase.xprompt.loader import inactive_project_message_for_ref
 from sase.xprompt.catalog import build_structured_xprompts_catalog
 
 from ._mobile_helper_common import (
@@ -25,12 +26,19 @@ def changespec_tags_response(request: dict[str, Any]) -> dict[str, Any]:
         entries = entries[:limit]
 
     skipped = [_skipped_wire(row) for row in listing.skipped]
+    warnings: list[str] = []
+    inactive_message = (
+        inactive_project_message_for_ref(project) if project is not None else None
+    )
+    if inactive_message is not None:
+        warnings.append(inactive_message)
+        skipped.append({"target": project, "reason": inactive_message})
     return {
         "schema_version": GATEWAY_WIRE_SCHEMA_VERSION,
         "result": {
             "status": "partial_success" if skipped else "success",
             "message": _changespec_tags_message(len(entries), len(skipped)),
-            "warnings": [],
+            "warnings": warnings,
             "skipped": skipped,
             "partial_failure_count": len(skipped) if skipped else None,
         },
@@ -72,13 +80,20 @@ def xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
     skipped = [
         {"target": row.target, "reason": row.reason} for row in projection.skipped
     ]
+    warnings = list(projection.warnings)
+    inactive_message = (
+        inactive_project_message_for_ref(project) if project is not None else None
+    )
+    if inactive_message is not None:
+        warnings.append(inactive_message)
+        skipped.append({"target": project, "reason": inactive_message})
     status = "partial_success" if skipped else "success"
     return {
         "schema_version": GATEWAY_WIRE_SCHEMA_VERSION,
         "result": {
             "status": status,
             "message": _xprompt_catalog_message(len(projection.entries), len(skipped)),
-            "warnings": projection.warnings,
+            "warnings": warnings,
             "skipped": skipped,
             "partial_failure_count": len(skipped) if skipped else None,
         },

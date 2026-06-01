@@ -76,13 +76,21 @@ def seed_bead_project(root: Path) -> tuple[Path, Issue, Issue, Issue]:
     return root / "sdd/beads", epic, phase, closed
 
 
-def seed_known_projects(tmp_path: Path, project_dirs: dict[str, Path]) -> None:
+def seed_known_projects(
+    tmp_path: Path,
+    project_dirs: dict[str, Path],
+    *,
+    states: dict[str, str] | None = None,
+) -> None:
     projects_root = tmp_path / ".sase/projects"
     for project_name, beads_dir in project_dirs.items():
         project_dir = projects_root / project_name
         project_dir.mkdir(parents=True, exist_ok=True)
         workspace = beads_dir.parents[1]
+        state_line = ""
+        if states and states.get(project_name):
+            state_line = f"PROJECT_STATE: {states[project_name]}\n"
         (project_dir / f"{project_name}.sase").write_text(
-            f"WORKSPACE_DIR: {workspace}\n",
+            f"{state_line}WORKSPACE_DIR: {workspace}\n",
             encoding="utf-8",
         )

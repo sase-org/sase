@@ -150,6 +150,7 @@ def test_scan_agent_artifacts_calls_rust_binding(
     assert options_dict["include_workflow_state"] is True
     assert options_dict["include_waiting"] is True
     assert options_dict["only_projects"] == []
+    assert options_dict["include_project_states"] == []
 
 
 def test_snapshot_workflow_hidden_maps_to_agent_hidden(tmp_path: Path) -> None:

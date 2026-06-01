@@ -71,6 +71,17 @@ class WorkflowExecMixin:
         project = None
         if "/" in workflow_name:
             project = workflow_name.split("/")[0]
+            from sase.xprompt.loader import inactive_project_message_for_ref
+
+            inactive_message = inactive_project_message_for_ref(project)
+            if inactive_message is not None:
+                self.call_later(  # type: ignore[attr-defined]
+                    lambda: self.notify(  # type: ignore[attr-defined]
+                        inactive_message,
+                        severity="error",
+                    )
+                )
+                return True
 
         # Use get_all_prompts() to detect both workflows and simple xprompts
         prompts = get_all_prompts(project=project)

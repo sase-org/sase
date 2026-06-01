@@ -1,7 +1,7 @@
 """Argument parsing, text block processing, and shorthand syntax."""
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 from . import _parsing_args as _args
 from . import _parsing_shorthand as _shorthand
@@ -261,7 +261,10 @@ def resolve_known_project_ref(
     return None
 
 
-def extract_known_project_vcs_ref(prompt: str) -> tuple[str, str] | None:
+def extract_known_project_vcs_ref(
+    prompt: str,
+    include_states: Sequence[str] | str = ("active",),
+) -> tuple[str, str] | None:
     """Return ``(workflow_type, ref)`` for a generic known-project VCS ref.
 
     This recognizes project refs such as ``#gh:sase`` or ``#gh:sase-org/sase``
@@ -277,7 +280,12 @@ def extract_known_project_vcs_ref(prompt: str) -> tuple[str, str] | None:
 
     from sase.xprompt.loader import get_known_project_workspaces
 
-    known_projects = get_known_project_workspaces()
+    try:
+        known_projects = get_known_project_workspaces(include_states=include_states)
+    except TypeError as exc:
+        if "include_states" not in str(exc):
+            raise
+        known_projects = get_known_project_workspaces()
     if not known_projects:
         return None
 

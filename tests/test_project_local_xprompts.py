@@ -84,6 +84,28 @@ class TestGetKnownProjectWorkspaces:
             result = get_known_project_workspaces()
             assert "bad" not in result
 
+    def test_defaults_to_active_project_workspaces(self, tmp_path: Path) -> None:
+        active_ws = tmp_path / "active_ws"
+        archived_ws = tmp_path / "archived_ws"
+        active_ws.mkdir()
+        archived_ws.mkdir()
+        projects = tmp_path / ".sase" / "projects"
+        active_dir = projects / "active"
+        archived_dir = projects / "archived"
+        active_dir.mkdir(parents=True)
+        archived_dir.mkdir(parents=True)
+        (active_dir / "active.sase").write_text(f"WORKSPACE_DIR: {active_ws}\n")
+        (archived_dir / "archived.sase").write_text(
+            f"PROJECT_STATE: archived\nWORKSPACE_DIR: {archived_ws}\n"
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_known_project_workspaces() == {"active": active_ws}
+            assert get_known_project_workspaces(include_states="all") == {
+                "active": active_ws,
+                "archived": archived_ws,
+            }
+
     def test_empty_projects_dir(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             result = get_known_project_workspaces()

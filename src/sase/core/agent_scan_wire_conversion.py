@@ -63,6 +63,7 @@ def _options_from_dict(data: dict[str, Any]) -> AgentArtifactScanOptionsWire:
         include_workflow_state=bool(data.get("include_workflow_state", True)),
         include_waiting=bool(data.get("include_waiting", True)),
         only_projects=tuple(data.get("only_projects") or ()),
+        include_project_states=tuple(data.get("include_project_states") or ()),
     )
 
 
