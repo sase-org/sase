@@ -18,6 +18,7 @@ from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.main.project_handler import (
     ProjectLifecycleBlockedError,
+    delete_project_locked,
     set_project_state_locked,
 )
 
@@ -67,6 +68,7 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
         Binding("a", "activate_project", "Activate", priority=True),
         Binding("r", "archive_project", "Archive", priority=True),
         Binding("c", "close_project", "Close", priority=True),
+        Binding("ctrl+d", "delete_project", "Delete", priority=True),
         Binding("F", "force_current_state_change", "Force", priority=True),
         Binding("enter", "default_project_action", "Default", priority=True),
         Binding("R", "reload_projects", "Reload", priority=True),
@@ -196,7 +198,8 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
     def _footer_text(self) -> str:
         return (
             "j/k navigate  / filter  Tab state  Enter activate inactive  "
-            "a activate  r archive  c close  F force after block  R reload  q close"
+            "a activate  r archive  c close  Ctrl+D delete  "
+            "F force after block  R reload  q close"
         )
 
     def _refresh_options(self, *, preferred_project: str | None = None) -> None:
@@ -340,6 +343,39 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
     def action_close_project(self) -> None:
         self._set_project_state("closed")
 
+    def action_delete_project(self) -> None:
+        record = self._selected_record()
+        if record is None:
+            self._set_status("No project selected")
+            return
+        if record.project_name == "home" or record.system_managed:
+            message = f"Project '{record.project_name}' is system-managed"
+            self._set_status(message)
+            self.notify(message, severity="error")
+            return
+
+        project_dir = self._project_dir_for(record)
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            if not confirmed:
+                self._set_status("Delete cancelled")
+                return
+            self._delete_project_confirmed(record.project_name)
+
+        self.app.push_screen(
+            ConfirmActionModal(
+                title="Delete Project Directory",
+                message=(
+                    f"Delete SASE project directory for '{record.project_name}'?\n\n"
+                    f"{project_dir}\n\n"
+                    "This removes project specs, project-local config, artifacts, "
+                    "and other SASE state. It cannot be undone.\n\n"
+                    "The workspace checkout is not deleted."
+                ),
+            ),
+            _on_confirm,
+        )
+
     def action_default_project_action(self) -> None:
         record = self._selected_record()
         if record is None:
@@ -411,6 +447,39 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
         self._refresh_options(preferred_project=updated.project_name)
         self._notify_lifecycle_changed()
         self.notify(f"Project '{updated.project_name}' state is now {updated.state}")
+
+    def _project_dir_for(self, record: ProjectRecordWire) -> Path:
+        root = (
+            self._projects_root
+            if self._projects_root is not None
+            else sase_projects_dir()
+        )
+        return root.expanduser() / record.project_name
+
+    def _delete_project_confirmed(self, project: str) -> None:
+        try:
+            delete_project_locked(project, projects_root=self._projects_root)
+        except ProjectLifecycleBlockedError as exc:
+            self._pending_force = None
+            message = f"Blocked: {exc}"
+            self._set_status(message)
+            self.notify(message, severity="warning")
+            return
+        except Exception as exc:
+            self._pending_force = None
+            self._set_status(f"Delete failed: {exc}")
+            self.notify(f"Project deletion failed: {exc}", severity="error")
+            return
+
+        self._pending_force = None
+        self._status_message = f"Deleted {project}"
+        try:
+            self._load_records()
+        except Exception as exc:
+            self._set_status(f"Deleted, reload failed: {exc}")
+        self._refresh_options()
+        self._notify_lifecycle_changed()
+        self.notify(f"Deleted project '{project}'")
 
     def _notify_lifecycle_changed(self) -> None:
         app = self.app

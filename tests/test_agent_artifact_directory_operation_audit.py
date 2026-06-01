@@ -50,6 +50,13 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "Removes a workspace checkout directory, not an agent artifact directory."
         ),
     ),
+    "src/sase/main/project_handler.py:delete_project_locked": DirOpReview(
+        exemption=(
+            "Deletes the entire SASE project state directory only after blocking "
+            "live RUNNING claims and live artifact markers; project-local "
+            "artifacts and indexes are removed together with the project state."
+        ),
+    ),
     "src/sase/memory/episodes/_storage_files.py:gc_corrupt_episode_temp_dirs_unlocked": DirOpReview(
         exemption=(
             "Removes only hidden episode storage temp directories under "

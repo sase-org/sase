@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 from textual.app import App, ComposeResult
 
+from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.project_management_modal import ProjectManagementModal
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.main.project_handler import ProjectLifecycleBlockedError
@@ -188,6 +189,157 @@ async def test_project_management_modal_force_archive_after_block(
         ]
         assert modal._pending_force is None
         assert modal._filtered_records[0].state == "archived"
+
+
+async def test_project_management_modal_ctrl_d_opens_delete_confirmation(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        lambda *_args, **_kwargs: [_record("alpha")],
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ConfirmActionModal)
+        confirm = cast(ConfirmActionModal, pilot.app.screen)
+        assert "alpha" in confirm._message
+        assert str(tmp_path / "alpha") in confirm._message
+        assert "workspace checkout is not deleted" in confirm._message
+
+
+async def test_project_management_modal_delete_cancel_does_not_call_helper(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        lambda *_args, **_kwargs: [_record("alpha")],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.delete_project_locked",
+        lambda project, **_kwargs: calls.append(project),
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert calls == []
+        assert modal._status_message == "Delete cancelled"
+
+
+async def test_project_management_modal_delete_confirm_reloads_and_removes_row(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    records = {
+        "alpha": _record("alpha"),
+        "beta": _record("beta"),
+    }
+    calls: list[tuple[str, Path | None]] = []
+
+    def list_records(*_args, **_kwargs):
+        return list(records.values())
+
+    def delete_project(project: str, *, projects_root: Path | None = None) -> Path:
+        calls.append((project, projects_root))
+        del records[project]
+        return tmp_path / project
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.delete_project_locked",
+        delete_project,
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        pilot.app._schedule_changespecs_async_refresh = MagicMock()
+        pilot.app._refresh_current_tab = MagicMock()
+
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+
+        assert calls == [("alpha", tmp_path)]
+        assert [r.project_name for r in modal._filtered_records] == ["beta"]
+        assert modal._status_message == "Deleted alpha"
+        pilot.app._schedule_changespecs_async_refresh.assert_called_once_with()
+        pilot.app._refresh_current_tab.assert_called_once_with()
+
+
+async def test_project_management_modal_delete_blocked_keeps_row_visible(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        lambda *_args, **_kwargs: [_record("alpha")],
+    )
+
+    def delete_project(project: str, *, projects_root: Path | None = None) -> Path:
+        raise ProjectLifecycleBlockedError(
+            project,
+            "delete",
+            [],
+            [tmp_path / "running.json"],
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.delete_project_locked",
+        delete_project,
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert [r.project_name for r in modal._filtered_records] == ["alpha"]
+        assert "Blocked:" in modal._status_message
+        assert "live artifact marker" in modal._status_message
+
+
+def test_project_management_modal_footer_includes_delete_affordance(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        lambda *_args, **_kwargs: [],
+    )
+    modal = ProjectManagementModal(projects_root=tmp_path)
+
+    assert "Ctrl+D delete" in modal._footer_text()
 
 
 def test_leader_handler_dispatches_project_management_on_all_tabs() -> None:

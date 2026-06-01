@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -55,10 +56,11 @@ class _ProjectLifecycleBlockedError(_ProjectLifecycleError):
         if markers:
             pieces.append(f"{len(markers)} live artifact marker(s)")
         live_summary = ", ".join(pieces) if pieces else "live work"
-        super().__init__(
-            f"project '{project}' has {live_summary}; pass --force to set "
-            f"state to {state}"
-        )
+        if state == "delete":
+            action = "remove live work before deleting it"
+        else:
+            action = f"pass --force to set state to {state}"
+        super().__init__(f"project '{project}' has {live_summary}; {action}")
 
 
 ProjectLifecycleError = _ProjectLifecycleError
@@ -153,6 +155,46 @@ def _resolve_mutable_project_file(project: str) -> Path:
     return project_file
 
 
+def _resolve_deletable_project_dir(project: str, projects_root: Path) -> Path:
+    if project == "home":
+        raise _ProjectLifecycleError("project 'home' is system-managed")
+    if not project or Path(project).name != project:
+        raise _ProjectLifecycleError(f"invalid project name: {project!r}")
+
+    root = projects_root.expanduser()
+    root_resolved = root.resolve(strict=False)
+    project_dir = root / project
+    if project_dir.parent.resolve(strict=False) != root_resolved:
+        raise _ProjectLifecycleError(
+            f"project '{project}' is not a direct child of {root_resolved}"
+        )
+    if project_dir.is_symlink():
+        raise _ProjectLifecycleError(
+            f"project '{project}' is not an actual project directory"
+        )
+    if not project_dir.is_dir():
+        raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
+    if project_dir.resolve(strict=True).parent != root_resolved:
+        raise _ProjectLifecycleError(
+            f"project '{project}' is not a direct child of {root_resolved}"
+        )
+    return project_dir
+
+
+def _reject_system_managed_project(project: str, projects_root: Path) -> None:
+    if project == "home":
+        raise _ProjectLifecycleError("project 'home' is system-managed")
+
+    records = list_project_records(
+        projects_root,
+        list(_ALL_STATES),
+        include_home=True,
+    )
+    for record in records:
+        if record.project_name == project and record.system_managed:
+            raise _ProjectLifecycleError(f"project '{project}' is system-managed")
+
+
 def _live_artifact_marker_paths(project_dir: Path) -> list[Path]:
     artifacts_dir = project_dir / "artifacts"
     if not artifacts_dir.is_dir():
@@ -192,6 +234,39 @@ def set_project_state_locked(
         )
 
     return _get_project_record(project)
+
+
+def delete_project_locked(
+    project: str,
+    *,
+    projects_root: Path | None = None,
+) -> Path:
+    """Delete a SASE project state directory while holding the ProjectSpec lock."""
+    root = (
+        projects_root.expanduser() if projects_root is not None else sase_projects_dir()
+    )
+    project_dir = _resolve_deletable_project_dir(project, root)
+    _reject_system_managed_project(project, root)
+    project_file = Path(preferred_project_spec_path(str(project_dir), project))
+    if not project_file.is_file():
+        raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
+
+    with changespec_lock(str(project_file)):
+        project_dir = _resolve_deletable_project_dir(project, root)
+        _reject_system_managed_project(project, root)
+        project_file = Path(preferred_project_spec_path(str(project_dir), project))
+        if not project_file.is_file():
+            raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
+
+        content = project_file.read_text(encoding="utf-8")
+        claims = list_workspace_claims_from_content(content)
+        markers = _live_artifact_marker_paths(project_dir)
+        if claims or markers:
+            raise _ProjectLifecycleBlockedError(project, "delete", claims, markers)
+
+        shutil.rmtree(project_dir)
+
+    return project_dir
 
 
 def _handle_list(args: argparse.Namespace) -> int:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-01 16:05:30
-status: wip
+status: done
 prompt: sdd/prompts/202606/project_delete_keymap.md
 ---
 # Add Ctrl+D Project Deletion to Project Management Panel
