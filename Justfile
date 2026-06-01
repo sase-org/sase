@@ -138,10 +138,8 @@ _lint-pyscripts: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
-        --epic-symbol 'sase-49(apply_project_lifecycle_update)' \
-        --epic-symbol 'sase-49(list_project_records)' \
-        --epic-symbol 'sase-49(project_lifecycle_wire_to_json_dict)' \
-        --epic-symbol 'sase-49(read_project_lifecycle_from_content)'
+        --epic-symbol 'sase-49(read_project_lifecycle_from_content)' \
+        --epic-symbol 'sase-49(set_project_state_locked)'
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted

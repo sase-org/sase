@@ -21,6 +21,7 @@ stay before the first ChangeSpec.
 ```text
 BARE_REPO_DIR: ~/.sase/repos/my_project.git
 WORKSPACE_DIR: ~/projects/git/my_project/
+PROJECT_STATE: active
 RUNNING:
   #10 | 12345 | run | my_project_add_config_parser_1 | 260509_121314
 
@@ -66,10 +67,17 @@ Project metadata fields are optional and appear before the first `NAME:` line. S
   per-project workspace store rather than by appending `_<num>` to this path; see
   [`docs/workspace.md`](workspace.md#workspace-directory-layout) for the directory-layout reference and
   [`docs/configuration.md`](configuration.md#workspace) for the `workspace.root` knob.
+- **PROJECT_STATE**: Project lifecycle state. Valid values are `active`, `archived`, and `closed`. Missing
+  `PROJECT_STATE` means `active`, so existing projects do not need a migration.
 - **RUNNING**: Active workspace claims written and released by SASE while agents or workflows are running.
 
 `BARE_REPO_DIR` and `WORKSPACE_DIR` are created by `sase git init` or by first-use `#git:<project>` initialization. They
 are parsed only before the first ChangeSpec.
+
+`PROJECT_STATE` is managed by `sase project`. Daily launch and discovery views treat missing state as `active`; archived
+and closed projects are hidden from normal launch lists and should be reactivated with `sase project activate <project>`
+before new work is launched. If you edit this field by hand, keep it before `RUNNING:` or the first `NAME:` line and use
+one of the valid lowercase values.
 
 The `RUNNING` section is managed by SASE. Each entry has this shape:
 
@@ -104,6 +112,7 @@ Common optional fields include:
 
 ```text
 WORKSPACE_DIR: ~/projects/git/my_project/
+PROJECT_STATE: active
 
 
 NAME: my_project_add_config_parser_1
@@ -143,7 +152,8 @@ STATUS: WIP
 
 - **Project file path**: Use `~/.sase/projects/<project>/<project>.sase` for active ChangeSpecs and
   `~/.sase/projects/<project>/<project>-archive.sase` for terminal history.
-- **Project metadata**: Keep `BARE_REPO_DIR`, `WORKSPACE_DIR`, and `RUNNING` before the first `NAME:` line.
+- **Project metadata**: Keep `BARE_REPO_DIR`, `WORKSPACE_DIR`, `PROJECT_STATE`, and `RUNNING` before the first `NAME:`
+  line.
 - **Blank lines between ChangeSpecs**: Separate ChangeSpecs with exactly two blank lines.
 - **NAME field**: Prefer SASE-generated names, which use the project prefix and a numeric suffix.
 - **PARENT field**: Set it only to another ChangeSpec `NAME`; omit it when there is no dependency.

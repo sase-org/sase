@@ -1,0 +1,286 @@
+"""Handler implementation for the ``sase project`` CLI subcommand."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+from sase.running_field._model import WorkspaceClaim
+from sase.core.agent_launch_claims import list_workspace_claims_from_content
+from sase.core.paths import sase_projects_dir
+from sase.core.project_lifecycle_facade import (
+    apply_project_lifecycle_update,
+    list_project_records,
+)
+from sase.core.project_lifecycle_wire import (
+    PROJECT_LIFECYCLE_STATES,
+    ProjectRecordWire,
+    project_lifecycle_wire_to_json_dict,
+)
+
+_ALL_STATES = tuple(PROJECT_LIFECYCLE_STATES)
+_INACTIVE_STATES = {"archived", "closed"}
+_LIVE_ARTIFACT_MARKERS = ("running.json", "waiting.json", "pending_question.json")
+
+
+class _ProjectLifecycleError(RuntimeError):
+    """Base class for project lifecycle command failures."""
+
+
+class _ProjectLifecycleNotFoundError(_ProjectLifecycleError):
+    """Raised when a requested project cannot be resolved."""
+
+
+class _ProjectLifecycleBlockedError(_ProjectLifecycleError):
+    """Raised when a lifecycle mutation is blocked by live work."""
+
+    def __init__(
+        self,
+        project: str,
+        state: str,
+        claims: list[WorkspaceClaim],
+        markers: list[Path],
+    ) -> None:
+        self.project = project
+        self.state = state
+        self.claims = claims
+        self.markers = markers
+        pieces: list[str] = []
+        if claims:
+            pieces.append(f"{len(claims)} RUNNING claim(s)")
+        if markers:
+            pieces.append(f"{len(markers)} live artifact marker(s)")
+        live_summary = ", ".join(pieces) if pieces else "live work"
+        super().__init__(
+            f"project '{project}' has {live_summary}; pass --force to set "
+            f"state to {state}"
+        )
+
+
+def _states_for_filter(state_filter: str) -> list[str]:
+    if state_filter == "all":
+        return list(_ALL_STATES)
+    if state_filter not in _ALL_STATES:
+        raise ValueError(f"invalid project state: {state_filter}")
+    return [state_filter]
+
+
+def _record_to_json_dict(record: ProjectRecordWire) -> dict[str, object]:
+    data = project_lifecycle_wire_to_json_dict(record)
+    if isinstance(data, dict):
+        data["state_source"] = "explicit" if record.state_explicit else "defaulted"
+        return data
+    raise TypeError(f"unexpected project lifecycle record: {type(data)!r}")
+
+
+def _workspace_display(record: ProjectRecordWire) -> str:
+    return record.workspace_dir or "-"
+
+
+def _archive_display(record: ProjectRecordWire) -> str:
+    return record.archive_file or "-"
+
+
+def _print_records_table(records: list[ProjectRecordWire], state_filter: str) -> None:
+    if not records:
+        print(f"No {state_filter} projects.")
+        return
+
+    print(f"{'PROJECT':<24} {'STATE':<10} {'CLAIMS':>6} {'LAUNCH':<7} WORKSPACE")
+    for record in records:
+        state = record.state + ("*" if record.state_explicit else "")
+        launch = "yes" if record.launchable and record.state == "active" else "no"
+        print(
+            f"{record.project_name:<24} "
+            f"{state:<10} "
+            f"{record.active_claim_count:>6} "
+            f"{launch:<7} "
+            f"{_workspace_display(record)}"
+        )
+
+
+def _print_record_detail(record: ProjectRecordWire) -> None:
+    source = "explicit" if record.state_explicit else "defaulted"
+    launch = "yes" if record.launchable and record.state == "active" else "no"
+    print(f"Project: {record.project_name}")
+    print(f"State: {record.state} ({source})")
+    print(f"Project file: {record.project_file}")
+    print(f"Archive file: {_archive_display(record)}")
+    print(f"Workspace: {_workspace_display(record)}")
+    print(f"Active claims: {record.active_claim_count}")
+    print(f"Launchable: {launch}")
+    warnings = [*record.warnings, *record.parse_warnings]
+    if warnings:
+        print("Warnings:")
+        for warning in warnings:
+            print(f"  - {warning}")
+    if record.state in _INACTIVE_STATES:
+        print(
+            f"Hint: run 'sase project activate {record.project_name}' "
+            "before launching work."
+        )
+
+
+def _get_project_record(project: str) -> ProjectRecordWire:
+    records = list_project_records(
+        sase_projects_dir(),
+        list(_ALL_STATES),
+        include_home=True,
+    )
+    for record in records:
+        if record.project_name == project:
+            return record
+    raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
+
+
+def _resolve_mutable_project_file(project: str) -> Path:
+    if project == "home":
+        raise _ProjectLifecycleError("project 'home' is system-managed")
+
+    project_dir = sase_projects_dir() / project
+    project_file = Path(preferred_project_spec_path(str(project_dir), project))
+    if not project_file.is_file():
+        raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
+    return project_file
+
+
+def _live_artifact_marker_paths(project_dir: Path) -> list[Path]:
+    artifacts_dir = project_dir / "artifacts"
+    if not artifacts_dir.is_dir():
+        return []
+
+    markers: list[Path] = []
+    for marker_name in _LIVE_ARTIFACT_MARKERS:
+        markers.extend(
+            path for path in artifacts_dir.rglob(marker_name) if path.is_file()
+        )
+    return sorted(markers)
+
+
+def set_project_state_locked(
+    project: str,
+    state: str,
+    *,
+    force: bool = False,
+) -> ProjectRecordWire:
+    """Set lifecycle state for *project* while holding the ProjectSpec lock."""
+    if state not in _ALL_STATES:
+        raise _ProjectLifecycleError(f"invalid project state: {state}")
+
+    project_file = _resolve_mutable_project_file(project)
+    with changespec_lock(str(project_file)):
+        content = project_file.read_text(encoding="utf-8")
+        claims = list_workspace_claims_from_content(content)
+        markers = _live_artifact_marker_paths(project_file.parent)
+        if state in _INACTIVE_STATES and not force and (claims or markers):
+            raise _ProjectLifecycleBlockedError(project, state, claims, markers)
+
+        updated = apply_project_lifecycle_update(content, state)
+        write_changespec_atomic(
+            str(project_file),
+            updated,
+            f"Set PROJECT_STATE to {state}",
+        )
+
+    return _get_project_record(project)
+
+
+def _handle_list(args: argparse.Namespace) -> int:
+    state_filter = str(args.state)
+    try:
+        records = list_project_records(
+            sase_projects_dir(),
+            _states_for_filter(state_filter),
+            include_home=False,
+        )
+    except (_ProjectLifecycleError, ImportError, AttributeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if args.json:
+        print(
+            json.dumps(
+                [_record_to_json_dict(record) for record in records],
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    else:
+        _print_records_table(records, state_filter)
+    return 0
+
+
+def _handle_show(args: argparse.Namespace) -> int:
+    try:
+        record = _get_project_record(str(args.project))
+    except (_ProjectLifecycleError, ImportError, AttributeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(_record_to_json_dict(record), indent=2, sort_keys=True))
+    else:
+        _print_record_detail(record)
+    return 0
+
+
+def _set_and_print(args: argparse.Namespace, state: str) -> int:
+    try:
+        record = set_project_state_locked(
+            str(args.project),
+            state,
+            force=bool(args.force),
+        )
+    except (_ProjectLifecycleError, ImportError, AttributeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    print(f"Project '{record.project_name}' state is now {record.state}.")
+    if record.state in _INACTIVE_STATES:
+        print(
+            f"Run 'sase project activate {record.project_name}' before "
+            "launching new work."
+        )
+    return 0
+
+
+def _handle_set_state(args: argparse.Namespace) -> int:
+    return _set_and_print(args, str(args.state))
+
+
+def _handle_activate(args: argparse.Namespace) -> int:
+    return _set_and_print(args, "active")
+
+
+def _handle_archive(args: argparse.Namespace) -> int:
+    return _set_and_print(args, "archived")
+
+
+def _handle_close(args: argparse.Namespace) -> int:
+    return _set_and_print(args, "closed")
+
+
+_HANDLERS = {
+    "list": _handle_list,
+    "show": _handle_show,
+    "set-state": _handle_set_state,
+    "activate": _handle_activate,
+    "archive": _handle_archive,
+    "close": _handle_close,
+}
+
+
+def handle_project_command(args: argparse.Namespace) -> None:
+    """Dispatch a parsed ``sase project ...`` command to its handler."""
+    sub = getattr(args, "project_subcommand", None)
+    handler = _HANDLERS.get(sub) if isinstance(sub, str) else None
+    if handler is None:
+        print(
+            "Usage: sase project {list,show,set-state,activate,archive,close}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    sys.exit(handler(args))

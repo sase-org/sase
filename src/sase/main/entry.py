@@ -287,6 +287,12 @@ def main() -> NoReturn:
 
         handle_plugin_command(args)
 
+    # --- project ---
+    if args.command == "project":
+        from .project_handler import handle_project_command
+
+        handle_project_command(args)
+
     # --- questions ---
     if args.command == "questions":
         from .questions_command_handler import handle_questions_command
