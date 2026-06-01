@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
+from inspect import Parameter, signature
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.core.paths import sase_projects_dir, sase_subdir
 
 from ._debug_leaks import debug_leaks_enabled, log_leak_snapshot
 from ._event_base import EventHandlersBase
+from .agents._notification_utils import request_notification_agents_refresh
 
 if TYPE_CHECKING:
     from ..models import Agent
@@ -100,6 +103,14 @@ def _agent_has_live_file_panel(agent: Agent) -> bool:
     if agent.status not in _LIVE_FILE_REFRESH_STATUSES:
         return False
     return not (agent.is_workflow_child and agent.step_type in ("bash", "python"))
+
+
+def _callable_accepts_kwarg(callback: Callable[..., object], name: str) -> bool:
+    try:
+        params = signature(callback).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(p.kind == Parameter.VAR_KEYWORD or p.name == name for p in params)
 
 
 class EventRefreshMixin(EventHandlersBase):
@@ -325,12 +336,16 @@ class EventRefreshMixin(EventHandlersBase):
             return
 
         if new_agent_notification and self.current_tab == "agents" and not agents_due:
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+            request_notification_agents_refresh(self)
 
         if agents_due:
             self._agents_loading = True
             try:
-                await self._load_agents_async()  # type: ignore[attr-defined]
+                load_agents_async = self._load_agents_async  # type: ignore[attr-defined]
+                kwargs: dict[str, Any] = {}
+                if _callable_accepts_kwarg(load_agents_async, "source"):
+                    kwargs["source"] = "auto_refresh"
+                await load_agents_async(**kwargs)
             finally:
                 self._agents_loading = False
                 self._last_agents_load_mono = time.monotonic()

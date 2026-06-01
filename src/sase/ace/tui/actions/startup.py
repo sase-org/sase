@@ -253,6 +253,7 @@ class StartupMixin(StateInitMixin):
             return
         self._post_mount_background_loads_started = True
         try:
+            self._agents_refresh_scheduled_source = "startup"  # type: ignore[attr-defined]
             self.run_worker(  # type: ignore[attr-defined]
                 cast(Any, self._run_agents_async_refresh),  # type: ignore[attr-defined]
                 thread=False,

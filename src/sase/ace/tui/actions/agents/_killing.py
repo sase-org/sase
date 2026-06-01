@@ -499,7 +499,7 @@ class AgentKillingMixin(AgentDismissingMixin):
                 f"Bulk kill cleanup failed: {exc}",
                 severity="error",
             )
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+            self._schedule_agents_async_refresh(source="kill_error_recovery")  # type: ignore[attr-defined]
         finally:
             self._kill_persistence_inflight.difference_update(inflight)
             log.debug(
@@ -587,7 +587,7 @@ class AgentKillingMixin(AgentDismissingMixin):
                 f"Kill cleanup failed for {agent.display_name}: {exc}",
                 severity="error",
             )
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+            self._schedule_agents_async_refresh(source="kill_error_recovery")  # type: ignore[attr-defined]
         finally:
             self._kill_persistence_inflight.discard(identity)
             log.debug(

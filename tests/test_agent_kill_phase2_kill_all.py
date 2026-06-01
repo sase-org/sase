@@ -79,7 +79,8 @@ class _MockApp(AgentsMixin):
     ) -> None:
         self.refresh_calls.append((list_changed, defer_detail))
 
-    def _schedule_agents_async_refresh(self) -> None:
+    def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+        del source
         return
 
 

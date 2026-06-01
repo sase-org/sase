@@ -77,7 +77,8 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
     def _refresh_notification_count(self) -> None:
         return
 
-    def _schedule_agents_async_refresh(self) -> None:
+    def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+        del source
         return
 
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:

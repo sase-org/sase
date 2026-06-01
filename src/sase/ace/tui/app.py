@@ -375,7 +375,7 @@ class AceApp(
                     self, "_agents_loading", False
                 ):
                     if hasattr(self, "_schedule_agents_async_refresh"):
-                        self._schedule_agents_async_refresh()
+                        self._schedule_agents_async_refresh(source="tab_switch")
         else:  # axe
             changespecs_view.add_class("hidden")
             agents_view.add_class("hidden")

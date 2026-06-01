@@ -2,13 +2,40 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from collections.abc import Callable
+from inspect import Parameter, getattr_static, signature
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
 
 TabName = Literal["changespecs", "agents", "axe"]
+
+
+def _callable_accepts_kwarg(callback: Callable[..., object], name: str) -> bool:
+    try:
+        params = signature(callback).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(p.kind == Parameter.VAR_KEYWORD or p.name == name for p in params)
+
+
+def request_notification_agents_refresh(app: Any) -> None:
+    """Debounce notification/completion-triggered agent refreshes."""
+    if getattr_static(app, "request_agents_refresh", None) is not None:
+        request_refresh = getattr(app, "request_agents_refresh", None)
+        if callable(request_refresh):
+            request_refresh("notification", latest_only=True)
+            return
+
+    schedule_refresh = getattr(app, "_schedule_agents_async_refresh", None)
+    if not callable(schedule_refresh):
+        return
+    if _callable_accepts_kwarg(schedule_refresh, "source"):
+        schedule_refresh(source="notification")
+    else:
+        schedule_refresh()
 
 
 def active_completion_agent_keys(

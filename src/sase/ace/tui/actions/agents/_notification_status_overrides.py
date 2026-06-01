@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from ._notification_utils import request_notification_agents_refresh
+
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
@@ -132,7 +134,7 @@ class AgentNotificationStatusMixin:
                 else:
                     self._agent_status_overrides[agent.identity] = "RUNNING"  # type: ignore[attr-defined]
                 self._refilter_agents()  # type: ignore[attr-defined]
-                self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+                request_notification_agents_refresh(self)
 
             return True
 
@@ -144,7 +146,7 @@ class AgentNotificationStatusMixin:
                 self._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent)
                 self._refilter_agents()  # type: ignore[attr-defined]
-                self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+                request_notification_agents_refresh(self)
 
             return True
 
@@ -155,7 +157,7 @@ class AgentNotificationStatusMixin:
             if agent is not None:
                 self._agent_status_overrides.pop(agent.identity, None)  # type: ignore[attr-defined]
                 self._refilter_agents()  # type: ignore[attr-defined]
-                self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+                request_notification_agents_refresh(self)
 
             return True
 

@@ -51,7 +51,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         # leave ``_agents`` as-is (empty). Callers that draw the list rely on
         # the existing loading-row mechanism while the async refresh runs.
         if not getattr(self, "_agents_with_children", None):
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+            self._schedule_agents_async_refresh(source="refilter")  # type: ignore[attr-defined]
             return
 
         on_agents_tab = self.current_tab == "agents"

@@ -60,10 +60,11 @@ class FakeFullApp(AgentDismissingMixin, AgentRevivalMixin):
     def _schedule_agents_async_refresh(
         self,
         *,
+        source: str = "unknown",
         full_history: bool = False,
         on_complete: Callable[[], None] | None = None,
     ) -> None:
-        del full_history
+        del source, full_history
         self.async_refreshes += 1
         if on_complete is not None:
             on_complete()

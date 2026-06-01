@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from ._notification_utils import request_notification_agents_refresh
+
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
@@ -50,7 +52,7 @@ class AgentNotificationModalMixin:
             if agent is None:
                 self.hide_non_run_agents = True  # type: ignore[attr-defined]
                 self._refilter_agents()  # type: ignore[attr-defined]
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+            request_notification_agents_refresh(self)
 
         if agent is None:
             return

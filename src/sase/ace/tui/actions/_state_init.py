@@ -234,13 +234,17 @@ class StateInitMixin:
         self._agents: list[Agent] = []
         self._agents_loading: bool = False
         self._agents_refresh_pending: bool = False
+        self._agents_refresh_pending_source: str = "unknown"
         self._agents_refresh_pending_full_history: bool = False
         self._agents_refresh_pending_full_history_reason: str | None = None
         self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
         self._agents_refresh_scheduled: bool = False
+        self._agents_refresh_scheduled_source: str = "unknown"
         self._agents_refresh_scheduled_full_history: bool = False
         self._agents_refresh_scheduled_full_history_reason: str | None = None
+        self._agents_refresh_active_source: str = "unknown"
         self._agents_refresh_debounce_armed: bool = False
+        self._agents_refresh_debounce_source: str = "unknown"
         # Deferred Tier 2 reconcile: set when a load arrives with
         # incomplete history. The reconcile is then triggered lazily by an
         # idle tick or explicit full-history refresh action rather than

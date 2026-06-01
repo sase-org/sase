@@ -101,7 +101,8 @@ def _build_kill_app(panel_widget: AgentList | None) -> Any:
         def call_later(self, callback: object, *args: object) -> None:
             self._scheduled.append((callback, args))
 
-        def _schedule_agents_async_refresh(self) -> None:
+        def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+            del source
             return
 
         def _capture_focused_visible_pos(self) -> int | None:
@@ -253,7 +254,8 @@ def _build_dismiss_app(panel_widget: AgentList | None) -> Any:
         ) -> None:
             self.refresh_calls.append((list_changed, defer_detail))
 
-        def _schedule_agents_async_refresh(self) -> None:
+        def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+            del source
             return
 
         def call_later(self, callback: object, *args: object) -> None:

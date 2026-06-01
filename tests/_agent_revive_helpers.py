@@ -63,9 +63,11 @@ class FakeReviveApp(AgentRevivalMixin):
     def _schedule_agents_async_refresh(
         self,
         *,
+        source: str = "unknown",
         full_history: bool = False,
         on_complete: Callable[[], None] | None = None,
     ) -> None:
+        del source
         # Simulate the async load completing synchronously so existing test
         # assertions about post-load selection / refresh counts still hold.
         self._load_agents(full_history=full_history)

@@ -6,9 +6,12 @@ import logging
 import os
 import time
 from collections.abc import Callable
+from functools import partial
+from inspect import Parameter, signature
 from pathlib import Path
+from typing import Any
 
-from ...util.trace import tui_trace
+from ...util.trace import trace_event, tui_trace
 from ._loading_state import AgentLoadingStateMixin
 
 log = logging.getLogger(__name__)
@@ -31,6 +34,18 @@ def _marker_signature(path: Path) -> _StartingPollSignature:
     return (st.st_mtime_ns, st.st_size)
 
 
+def _normalize_refresh_source(source: str | None) -> str:
+    return source or "unknown"
+
+
+def _callable_accepts_kwarg(callback: Callable[..., object], name: str) -> bool:
+    try:
+        params = signature(callback).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(p.kind == Parameter.VAR_KEYWORD or p.name == name for p in params)
+
+
 class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
     """Methods that debounce and schedule asynchronous agent refreshes."""
 
@@ -51,7 +66,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         :meth:`_run_agents_async_refresh` remain in force.
 
         Args:
-            source: Tag for telemetry / debug only — currently advisory.
+            source: Tag for telemetry / debug only.
             debounce_ms: Window during which subsequent requests are
                 absorbed.
             latest_only: When True (default), an already-armed timer is
@@ -59,21 +74,30 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 latest on-disk state after the burst settles. When False,
                 each request restarts the debounce window.
         """
-        del source
+        source = _normalize_refresh_source(source)
         if self._agents_refresh_debounce_armed and latest_only:
             return
         self._agents_refresh_debounce_armed = True
+        self._agents_refresh_debounce_source = source
         delay = max(0.0, debounce_ms / 1000.0)
-        self.set_timer(delay, self._fire_debounced_agents_refresh)  # type: ignore[attr-defined]
+        self.set_timer(  # type: ignore[attr-defined]
+            delay,
+            partial(self._fire_debounced_agents_refresh, source),
+        )
 
-    def _fire_debounced_agents_refresh(self) -> None:
+    def _fire_debounced_agents_refresh(self, source: str | None = None) -> None:
         """Debounce-timer callback that posts the deferred refresh."""
+        source = _normalize_refresh_source(
+            source or getattr(self, "_agents_refresh_debounce_source", "unknown")
+        )
         self._agents_refresh_debounce_armed = False
-        self._schedule_agents_async_refresh()
+        self._agents_refresh_debounce_source = "unknown"
+        self._schedule_agents_async_refresh(source=source)
 
     def _schedule_agents_async_refresh(
         self,
         *,
+        source: str = "unknown",
         full_history: bool = False,
         full_history_reason: str | None = None,
         on_complete: Callable[[], None] | None = None,
@@ -91,10 +115,12 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         apply step of the next refresh that actually executes. Callbacks
         accumulate and fire in FIFO order; a callback only runs once.
         """
+        source = _normalize_refresh_source(source)
         if on_complete is not None:
             self._agents_refresh_pending_callbacks.append(on_complete)
         if self._agents_loading:
             self._agents_refresh_pending = True
+            self._agents_refresh_pending_source = source
             if full_history:
                 self._agents_refresh_pending_full_history = True
                 self._agents_refresh_pending_full_history_reason = (
@@ -103,6 +129,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             return
         if self._agents_refresh_scheduled:
             self._agents_refresh_pending = True
+            self._agents_refresh_pending_source = source
             if full_history:
                 self._agents_refresh_pending_full_history = True
                 self._agents_refresh_pending_full_history_reason = (
@@ -110,9 +137,16 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 )
             return
         self._agents_refresh_scheduled = True
+        self._agents_refresh_scheduled_source = source
         self._agents_refresh_scheduled_full_history = full_history
         self._agents_refresh_scheduled_full_history_reason = (
             full_history_reason if full_history else None
+        )
+        trace_event(
+            "agents.refresh_scheduled",
+            source=source,
+            full_history=full_history,
+            full_history_reason=full_history_reason,
         )
         self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
 
@@ -143,6 +177,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             return False
         self._agents_history_reconcile_pending = False
         self._schedule_agents_async_refresh(
+            source="idle_tier2_reconcile",
             full_history=True,
             full_history_reason="idle_tier2_reconcile",
         )
@@ -233,11 +268,16 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         full_history_reason = getattr(
             self, "_agents_refresh_scheduled_full_history_reason", None
         )
+        source = _normalize_refresh_source(
+            getattr(self, "_agents_refresh_scheduled_source", "unknown")
+        )
         self._agents_refresh_scheduled = False
+        self._agents_refresh_scheduled_source = "unknown"
         self._agents_refresh_scheduled_full_history = False
         self._agents_refresh_scheduled_full_history_reason = None
         if self._agents_loading:
             self._agents_refresh_pending = True
+            self._agents_refresh_pending_source = source
             if full_history:
                 self._agents_refresh_pending_full_history = True
                 self._agents_refresh_pending_full_history_reason = (
@@ -245,24 +285,30 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 )
             return
         self._agents_loading = True
+        self._agents_refresh_active_source = source
         callbacks = list(self._agents_refresh_pending_callbacks)
         self._agents_refresh_pending_callbacks.clear()
         try:
-            import inspect
-
             load_agents_async = self._load_agents_async
-            if "full_history" in inspect.signature(load_agents_async).parameters:
-                if full_history:
-                    reason = full_history_reason or "unspecified_full_history_refresh"
-                    log.info("agents full-history refresh requested: %s", reason)
-                    with tui_trace("agents.full_history_refresh", reason=reason):
-                        await load_agents_async(full_history=True)
-                else:
-                    await load_agents_async(full_history=False)
+            kwargs: dict[str, Any] = {}
+            if _callable_accepts_kwarg(load_agents_async, "full_history"):
+                kwargs["full_history"] = full_history
+            if _callable_accepts_kwarg(load_agents_async, "source"):
+                kwargs["source"] = source
+            if full_history and "full_history" in kwargs:
+                reason = full_history_reason or "unspecified_full_history_refresh"
+                log.info("agents full-history refresh requested: %s", reason)
+                with tui_trace(
+                    "agents.full_history_refresh",
+                    reason=reason,
+                    source=source,
+                ):
+                    await load_agents_async(**kwargs)
             else:
-                await load_agents_async()
+                await load_agents_async(**kwargs)
         finally:
             self._agents_loading = False
+            self._agents_refresh_active_source = "unknown"
             for cb in callbacks:
                 try:
                     cb()
@@ -278,9 +324,14 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 pending_full_history_reason = getattr(
                     self, "_agents_refresh_pending_full_history_reason", None
                 )
+                pending_source = _normalize_refresh_source(
+                    getattr(self, "_agents_refresh_pending_source", "unknown")
+                )
+                self._agents_refresh_pending_source = "unknown"
                 self._agents_refresh_pending_full_history = False
                 self._agents_refresh_pending_full_history_reason = None
                 self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+                    source=pending_source,
                     full_history=pending_full_history,
                     full_history_reason=pending_full_history_reason,
                 )

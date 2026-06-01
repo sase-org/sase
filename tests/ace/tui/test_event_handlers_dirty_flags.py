@@ -86,6 +86,7 @@ class _FakeApp(EventHandlersMixin):
         self._poll_agent_completions_result = False
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
+        self.refresh_requests: list[str] = []
         self.agent_detail = _FakeAgentDetail(self.refresh_calls)
 
     def query(self, selector: type[PromptInputBar]) -> list[PromptInputBar]:
@@ -119,8 +120,20 @@ class _FakeApp(EventHandlersMixin):
     async def _reload_and_reposition_async(self) -> None:
         self.refresh_calls.append("changespecs")
 
-    def _schedule_agents_async_refresh(self) -> None:
+    def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+        del source
         self.refresh_calls.append("schedule_agents")
+
+    def request_agents_refresh(
+        self,
+        source: str,
+        *,
+        debounce_ms: int = 150,
+        latest_only: bool = True,
+    ) -> None:
+        del debounce_ms, latest_only
+        self.refresh_calls.append(f"request_agents:{source}")
+        self.refresh_requests.append(source)
 
     def _schedule_changespecs_async_refresh(self) -> None:
         self.refresh_calls.append("schedule_changespecs")
@@ -260,14 +273,15 @@ async def test_watcher_active_dirty_notifications_polls_completions() -> None:
 
 @pytest.mark.asyncio
 async def test_new_notification_schedules_agents_refresh_on_agents_tab() -> None:
-    """Notification-triggered agent refreshes go through the async scheduler."""
+    """Notification-triggered agent refreshes go through the debounce entry point."""
     app = _FakeApp(watcher_active=True)
     app._dirty_notifications = True
     app._poll_agent_completions_result = True
 
     await app._on_auto_refresh()
 
-    assert app.refresh_calls == ["notifications", "schedule_agents"]
+    assert app.refresh_calls == ["notifications", "request_agents:notification"]
+    assert app.refresh_requests == ["notification"]
     assert app._dirty_notifications is False
     assert app._dirty_agents is False
 

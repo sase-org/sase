@@ -197,7 +197,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
                 f"{exc}. Refresh recommended.",
                 severity="error",
             )
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+            self._schedule_agents_async_refresh(source="dismiss_error_recovery")  # type: ignore[attr-defined]
         finally:
             self._dismiss_persistence_inflight.difference_update(identities)
             log.debug(
@@ -299,7 +299,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
                 await self._refresh_notification_count_async()  # type: ignore[attr-defined]
             else:
                 self._refresh_notification_count()  # type: ignore[attr-defined]
-                self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+                self._schedule_agents_async_refresh(source="dismiss_error_recovery")  # type: ignore[attr-defined]
 
 
 def _persist_single_dismiss_transaction(

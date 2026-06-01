@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ..agents._notification_utils import request_notification_agents_refresh
 from ._types import PromptContext
 
 if TYPE_CHECKING:
@@ -95,7 +96,7 @@ class PromptBarSubmitMixin:
         if ctx.agent_identity is not None:
             self._agent_status_overrides[ctx.agent_identity] = "RUNNING"  # type: ignore[attr-defined]
             self._refilter_agents()  # type: ignore[attr-defined]
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+            request_notification_agents_refresh(self)
 
         # Clean up
         self._plan_feedback_context = None

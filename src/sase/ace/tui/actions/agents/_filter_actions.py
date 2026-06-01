@@ -13,7 +13,7 @@ class AgentFilterActionsMixin:
         """Toggle visibility of non-run agents and refresh the display."""
         self.hide_non_run_agents = not self.hide_non_run_agents
         self._refilter_agents()  # type: ignore[attr-defined]
-        self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+        self._schedule_agents_async_refresh(source="filter")  # type: ignore[attr-defined]
 
     def _edit_agent_search_query(self) -> None:
         """Open modal to edit the agent search/filter query."""
@@ -25,7 +25,7 @@ class AgentFilterActionsMixin:
                 return
             self._agent_search_query = new_query
             self._refilter_agents()  # type: ignore[attr-defined]
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+            self._schedule_agents_async_refresh(source="filter")  # type: ignore[attr-defined]
 
         def _validator(value: str) -> None:
             if value:

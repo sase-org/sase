@@ -82,7 +82,8 @@ class _LaunchBodyApp(AgentLaunchMixin):
         del prompt, wf_name, skip_workspace
         return None
 
-    def _schedule_agents_async_refresh(self) -> None:
+    def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+        del source
         self.refresh_count += 1
 
     def _launch_background_agent(self, **kwargs: Any) -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-01 10:59:25
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_refresh_coalescing.md
 ---
 # Agent Refresh Coalescing Plan

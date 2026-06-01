@@ -539,12 +539,14 @@ def test_load_from_disk_span_carries_load_state_fields(
         ),
         patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
     ):
-        load_agents_from_disk_with_state(set())
+        load_agents_from_disk_with_state(set(), source="manual")
 
     rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
     span_rows = [r for r in rows if r.get("span") == "agents.load_from_disk"]
     assert len(span_rows) == 1
     row = span_rows[0]
+    assert row["source"] == "manual"
+    assert row["full_history"] is False
     assert row["tier"] == "tier1"
     assert row["artifact_source"] == "artifact_index"
     assert row["complete_history"] is False

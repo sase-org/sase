@@ -44,7 +44,8 @@ class _FakeApp(EventHandlersMixin):
     async def _reload_and_reposition_async(self) -> None:
         self.refresh_calls.append("changespecs")
 
-    def _schedule_agents_async_refresh(self) -> None:
+    def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+        del source
         self.refresh_calls.append("schedule_agents")
 
     def _schedule_changespecs_async_refresh(self) -> None:

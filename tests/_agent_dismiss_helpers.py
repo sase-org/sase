@@ -65,7 +65,8 @@ class FakeDismissApp(AgentDismissingMixin):
     async def _refresh_notification_count_async(self) -> None:
         self.notification_refreshes_async += 1
 
-    def _schedule_agents_async_refresh(self) -> None:
+    def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+        del source
         self.async_refreshes += 1
 
     def call_later(self, callback: object, *args: object) -> None:

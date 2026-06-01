@@ -101,12 +101,15 @@ class AgentLoadingStateMixin:
     # itself once it finishes so the final UI state reflects disk state
     # after the last trigger.
     _agents_refresh_pending: bool
+    _agents_refresh_pending_source: str
     _agents_refresh_pending_full_history: bool
     _agents_refresh_pending_full_history_reason: str | None
     _agents_refresh_pending_callbacks: list[Callable[[], None]]
     _agents_refresh_scheduled: bool
+    _agents_refresh_scheduled_source: str
     _agents_refresh_scheduled_full_history: bool
     _agents_refresh_scheduled_full_history_reason: str | None
+    _agents_refresh_active_source: str
     # Sticky deferred Tier 2 reconcile state. ``_pending`` is True while
     # the last load reported incomplete history and a full-history pass
     # has not yet been scheduled; ``_armed_mono`` is the monotonic time
@@ -117,6 +120,7 @@ class AgentLoadingStateMixin:
     # a debounce timer is armed so a burst of fan-out spawn callbacks
     # collapses into a single deferred ``_schedule_agents_async_refresh``.
     _agents_refresh_debounce_armed: bool
+    _agents_refresh_debounce_source: str
     # Per-STARTING-agent ``agent_meta.json`` and ``waiting.json`` (mtime_ns,
     # size) cache used by the countdown-tick STARTING-transition poll.
     # Each tuple slot is ``None`` when that marker was absent on the
@@ -160,10 +164,14 @@ class AgentLoadingStateMixin:
     ) -> PreparedApplySnapshot:
         raise NotImplementedError
 
-    async def _load_agents_async(self, *, full_history: bool = False) -> None:
+    async def _load_agents_async(
+        self, *, full_history: bool = False, source: str = "unknown"
+    ) -> None:
         raise NotImplementedError
 
-    def _load_agents(self, *, full_history: bool = False) -> None:
+    def _load_agents(
+        self, *, full_history: bool = False, source: str = "sync_load"
+    ) -> None:
         raise NotImplementedError
 
     def _finalize_agent_list(

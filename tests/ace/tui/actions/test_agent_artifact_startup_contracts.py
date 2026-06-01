@@ -59,10 +59,11 @@ class FakeReviveApp(AgentRevivalMixin):
     def _schedule_agents_async_refresh(
         self,
         *,
+        source: str = "unknown",
         full_history: bool = False,
         on_complete: object | None = None,
     ) -> None:
-        del on_complete
+        del source, on_complete
         self.scheduled_refreshes.append(full_history)
         self.load_count += 1
 

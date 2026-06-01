@@ -61,7 +61,8 @@ def test_kill_immediate_does_no_notification_io() -> None:
         def call_later(self, callback: object, *args: object) -> None:
             self._scheduled.append((callback, args))
 
-        def _schedule_agents_async_refresh(self) -> None:
+        def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+            del source
             return
 
     app = MockApp()
@@ -122,7 +123,8 @@ def test_kill_schedules_one_persistence_task() -> None:
         def call_later(self, callback: object, *args: object) -> None:
             self._scheduled.append((callback, args))
 
-        def _schedule_agents_async_refresh(self) -> None:
+        def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+            del source
             return
 
     app = MockApp()
@@ -159,7 +161,8 @@ def test_kill_persistence_refreshes_count_async() -> None:
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
 
-        def _schedule_agents_async_refresh(self) -> None:
+        def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+            del source
             self.refresh_schedules += 1
 
         def _refresh_notification_count(self) -> None:
@@ -200,7 +203,8 @@ def test_kill_persistence_uses_captured_dismissed_snapshot() -> None:
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
 
-        def _schedule_agents_async_refresh(self) -> None:
+        def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+            del source
             return
 
         async def _refresh_notification_count_async(self) -> None:
@@ -260,7 +264,8 @@ def test_bulk_kill_no_sync_count_refresh() -> None:
         def call_later(self, callback: object, *args: object) -> None:
             self._scheduled.append((callback, args))
 
-        def _schedule_agents_async_refresh(self) -> None:
+        def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+            del source
             return
 
     app = MockApp()
@@ -290,7 +295,8 @@ def test_bulk_kill_persistence_refreshes_count_async() -> None:
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
 
-        def _schedule_agents_async_refresh(self) -> None:
+        def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+            del source
             self.refresh_schedules += 1
 
         async def _refresh_notification_count_async(self) -> None:

@@ -99,10 +99,15 @@ def load_agents_from_disk_with_state(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
+    source: str = "unknown",
 ) -> _AgentDiskLoadResult:
     """Load agents from disk and include the tiered load state."""
 
-    with tui_trace("agents.load_from_disk") as counters:
+    with tui_trace(
+        "agents.load_from_disk",
+        source=source or "unknown",
+        full_history=full_history,
+    ) as counters:
         result = _load_agents_from_disk_impl(
             dismissed_agents,
             changespec_snapshot=changespec_snapshot,

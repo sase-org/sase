@@ -59,8 +59,13 @@ class _FakeBaseActionsApp:
         self.notifications: list[str] = []
 
     def _schedule_agents_async_refresh(
-        self, *, full_history: bool = False, full_history_reason: str | None = None
+        self,
+        *,
+        source: str = "unknown",
+        full_history: bool = False,
+        full_history_reason: str | None = None,
     ) -> None:
+        del source
         self.scheduled.append((full_history, full_history_reason))
 
     def notify(self, message: str, **_: Any) -> None:

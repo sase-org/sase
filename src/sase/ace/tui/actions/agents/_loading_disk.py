@@ -165,7 +165,9 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         result = self._external_dismissal_merge_result(set(self._dismissed_agents))
         self._apply_external_dismissal_merge(result)
 
-    def _load_agents(self, *, full_history: bool = False) -> None:
+    def _load_agents(
+        self, *, full_history: bool = False, source: str = "sync_load"
+    ) -> None:
         """Load agents from all sources.
 
         Args:
@@ -195,6 +197,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
+            source=source,
         )
         from ...repro.capture import record_agents_tab_loader_result
 
@@ -215,7 +218,9 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             load_state=load_result.load_state,
         )
 
-    async def _load_agents_async(self, *, full_history: bool = False) -> None:
+    async def _load_agents_async(
+        self, *, full_history: bool = False, source: str = "unknown"
+    ) -> None:
         """Load agents with disk IO and pure-data filtering off the UI thread.
 
         Phase 2 of the post-launch j/k lag fix: the dismissed-set filter,
@@ -242,6 +247,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
+            source=source,
         )
         all_agents = load_result.all_agents
         dismissed_from_loader = load_result.dismissed_from_loader

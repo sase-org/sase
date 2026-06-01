@@ -396,6 +396,7 @@ class BaseActionsMixin:
             # visible-inbox Tier 1 path; full-history scans are exposed
             # through ``action_refresh_agents_full_history`` instead.
             self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+                source="manual",
                 full_history=False,
             )
         elif self.current_tab == "changespecs":
@@ -414,6 +415,7 @@ class BaseActionsMixin:
             return
         self._agents_history_reconcile_pending = False
         self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+            source="manual_full_history",
             full_history=True,
             full_history_reason="manual_full_history_refresh",
         )

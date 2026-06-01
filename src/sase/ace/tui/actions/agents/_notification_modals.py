@@ -18,6 +18,7 @@ from ._notification_question_modal import (
     handle_user_question as handle_user_question,
     open_user_question_modal_from_marker as open_user_question_modal_from_marker,
 )
+from ._notification_utils import request_notification_agents_refresh
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -348,7 +349,7 @@ def _refresh_agents_from_cache(app: object) -> None:
 
     schedule_refresh = getattr(app, "_schedule_agents_async_refresh", None)
     if callable(schedule_refresh):
-        schedule_refresh()
+        request_notification_agents_refresh(app)
         return
 
     load_agents = getattr(app, "_load_agents", None)
@@ -456,6 +457,4 @@ def _finish_plan_approval_background_work(
     if callable(refresh_count):
         refresh_count()
 
-    schedule_refresh = getattr(app, "_schedule_agents_async_refresh", None)
-    if callable(schedule_refresh):
-        schedule_refresh()
+    request_notification_agents_refresh(app)
