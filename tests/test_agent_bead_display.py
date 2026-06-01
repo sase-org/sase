@@ -87,6 +87,74 @@ def test_agent_bead_display_finds_bead_in_another_known_project(
     )
 
 
+def test_agent_bead_display_uses_agent_workspace_before_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current = tmp_path / "sase"
+    agent_workspace = tmp_path / "bob-cli"
+    (current / "sdd/beads").mkdir(parents=True)
+    (agent_workspace / "sdd/beads").mkdir(parents=True)
+    _write_issues(
+        current / "sdd/beads",
+        [_issue("bob-cli-1.4", "Wrong current project title", "2026-06-01T00:00:00Z")],
+    )
+    _write_issues(
+        agent_workspace / "sdd/beads",
+        [
+            _issue(
+                "bob-cli-1.4",
+                "Fix bob CLI parsing",
+                "2026-06-01T00:00:01Z",
+                description="Use the agent workspace bead store",
+            )
+        ],
+    )
+    monkeypatch.chdir(current)
+
+    assert (
+        format_agent_bead_display_for_name(
+            "bob-cli-1.4",
+            workspace_dir=str(agent_workspace),
+        )
+        == "bob-cli-1.4 - Use the agent workspace bead store"
+    )
+
+
+def test_agent_bead_display_uses_managed_checkout_primary_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current = tmp_path / "sase"
+    primary = tmp_path / "bob-cli"
+    managed = tmp_path / "state" / "bob-cli" / "10"
+    (current / "sdd/beads").mkdir(parents=True)
+    (primary / "sdd/beads").mkdir(parents=True)
+    managed.mkdir(parents=True)
+    _write_issues(
+        current / "sdd/beads",
+        [_issue("bob-cli-1.4", "Wrong current project title", "2026-06-01T00:00:00Z")],
+    )
+    _write_issues(
+        primary / "sdd/beads",
+        [_issue("bob-cli-1.4", "Primary workspace title", "2026-06-01T00:00:01Z")],
+    )
+    _write_marker(
+        managed,
+        project_name="bob-cli",
+        project_key="bob-cli-key",
+        primary_workspace_dir=primary,
+        workspace_num=10,
+    )
+    monkeypatch.chdir(current)
+
+    assert (
+        format_agent_bead_display_for_name(
+            "bob-cli-1.4",
+            workspace_dir=str(managed),
+        )
+        == "bob-cli-1.4 - Primary workspace title"
+    )
+
+
 def test_agent_bead_display_uses_explicit_project_before_cwd(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -134,6 +202,27 @@ def _write_project(tmp_path: Path, project_name: str) -> Path:
 def _write_issues(beads_dir: Path, issues: list[dict[str, object]]) -> None:
     text = "".join(json.dumps(issue, separators=(",", ":")) + "\n" for issue in issues)
     (beads_dir / "issues.jsonl").write_text(text, encoding="utf-8")
+
+
+def _write_marker(
+    checkout_dir: Path,
+    *,
+    project_name: str,
+    project_key: str,
+    primary_workspace_dir: Path,
+    workspace_num: int,
+) -> None:
+    marker_dir = checkout_dir / ".sase"
+    marker_dir.mkdir(parents=True)
+    payload = {
+        "project_name": project_name,
+        "project_key": project_key,
+        "workspace_num": workspace_num,
+        "primary_workspace_dir": str(primary_workspace_dir),
+        "registry_path": "",
+        "schema_version": 1,
+    }
+    (marker_dir / "checkout.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _issue(

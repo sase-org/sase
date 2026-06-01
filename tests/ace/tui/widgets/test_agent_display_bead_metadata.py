@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from sase.ace.tui.models.agent_bead import derive_agent_bead_id
@@ -132,7 +135,13 @@ class TestAgentBeadMetadata:
         )
         seen_project_names: list[str | None] = []
 
-        def lookup(bead_id: str, *, project_name: str | None = None) -> Issue | None:
+        def lookup(
+            bead_id: str,
+            *,
+            project_name: str | None = None,
+            workspace_dir: str | None = None,
+        ) -> Issue | None:
+            del workspace_dir
             seen_project_names.append(project_name)
             return Issue(
                 id=bead_id,
@@ -152,6 +161,52 @@ class TestAgentBeadMetadata:
         assert (
             "Name: @zorg-4.3.6\n"
             "Bead: zorg-4.3.6 - Phase 6: count() MVP And Final Epic Hardening\n"
+        ) in header.plain
+
+    def test_full_header_uses_agent_workspace_before_project_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        current = tmp_path / "sase"
+        agent_workspace = tmp_path / "bob-cli"
+        project_dir = tmp_path / ".sase" / "projects" / "home"
+        (current / "sdd/beads").mkdir(parents=True)
+        (agent_workspace / "sdd/beads").mkdir(parents=True)
+        project_dir.mkdir(parents=True)
+        _write_issues(
+            current / "sdd/beads",
+            [
+                _issue(
+                    "bob-cli-1.4",
+                    "Wrong current project title",
+                    "2026-06-01T00:00:00Z",
+                )
+            ],
+        )
+        _write_issues(
+            agent_workspace / "sdd/beads",
+            [
+                _issue(
+                    "bob-cli-1.4",
+                    "Workspace phase title",
+                    "2026-06-01T00:00:01Z",
+                )
+            ],
+        )
+        monkeypatch.chdir(current)
+        agent = make_agent(
+            agent_name="bob-cli-1.4",
+            project_file=str(project_dir / "home.sase"),
+            workspace_dir=str(agent_workspace),
+        )
+
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
+
+        assert (
+            "Name: @bob-cli-1.4\nBead: bob-cli-1.4 - Workspace phase title\n"
         ) in header.plain
 
     def test_full_header_falls_back_for_empty_bead_description(
@@ -286,3 +341,32 @@ class TestAgentBeadMetadata:
         assert (
             "Name: @sase-x.land\nBead: sase-x - Use the explicit plan description\n"
         ) in header.plain
+
+
+def _write_issues(beads_dir: Path, issues: list[dict[str, object]]) -> None:
+    text = "".join(json.dumps(issue, separators=(",", ":")) + "\n" for issue in issues)
+    (beads_dir / "issues.jsonl").write_text(text, encoding="utf-8")
+
+
+def _issue(issue_id: str, title: str, updated_at: str) -> dict[str, object]:
+    return {
+        "id": issue_id,
+        "title": title,
+        "status": "open",
+        "issue_type": "plan",
+        "parent_id": None,
+        "owner": "",
+        "assignee": "",
+        "created_at": updated_at,
+        "created_by": "",
+        "updated_at": updated_at,
+        "closed_at": None,
+        "close_reason": None,
+        "description": "",
+        "notes": "",
+        "design": "",
+        "is_ready_to_work": False,
+        "changespec_name": "",
+        "changespec_bug_id": "",
+        "dependencies": [],
+    }

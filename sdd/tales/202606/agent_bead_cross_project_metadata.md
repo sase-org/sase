@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-01 10:53:09
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_bead_cross_project_metadata.md
 ---
 # Fix Cross-Project Bead Metadata in Agents Tab

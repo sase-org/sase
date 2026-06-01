@@ -25,6 +25,7 @@ def format_agent_bead_display(
         agent.agent_name,
         include_description=include_description,
         project_name=_agent_project_name(agent),
+        workspace_dir=agent.workspace_dir,
     )
 
 
