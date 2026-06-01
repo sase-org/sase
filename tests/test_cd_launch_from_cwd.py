@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -90,15 +91,16 @@ def test_launch_agent_from_cwd_no_ref_defaults_to_git_home(
                 checkout_target="main",
             ),
         ) as resolve_ref,
+        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+        patch("sase.workspace_provider.get_workspace_directory") as provider_ws_dir,
         patch(
-            "sase.running_field.get_first_available_axe_workspace",
+            "sase.running_field.claim_next_axe_workspace",
             return_value=101,
-        ) as first_ws,
+        ) as claim_ws,
         patch(
-            "sase.workspace_provider.get_workspace_directory",
-            return_value=str(allocated_workspace),
-        ) as provider_ws_dir,
-        patch("sase.running_field.get_workspace_directory_for_num") as ws_dir,
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=(str(allocated_workspace), None),
+        ) as ws_dir,
     ):
         result = launch_agent_from_cwd("do work")
 
@@ -111,15 +113,13 @@ def test_launch_agent_from_cwd_no_ref_defaults_to_git_home(
     assert kwargs["is_home_mode"] is False
     assert kwargs["update_target"] == VCS_DEFAULT_REVISION
     assert kwargs["vcs_ref"] == ("git", "home")
+    assert kwargs["retry_transfer_from_pid"] == os.getpid()
     resolve_ref.assert_called_once_with("home", "git")
-    first_ws.assert_called_once_with(project_file)
-    provider_ws_dir.assert_called_once_with(
-        "git",
-        101,
-        "home",
-        str(primary_workspace),
-    )
-    ws_dir.assert_not_called()
+    first_ws.assert_not_called()
+    provider_ws_dir.assert_not_called()
+    claim_ws.assert_called_once()
+    assert claim_ws.call_args.args[0] == project_file
+    ws_dir.assert_called_once_with(101, "home")
 
 
 def test_launch_agent_from_cwd_alt_fanout_uses_named_child_prompts(
@@ -387,6 +387,7 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
     assert kwargs["cl_name"] == "sase"
     assert kwargs["history_sort_key"] == "sase"
     assert kwargs["vcs_ref"] == ("gh", "sase")
+    assert kwargs["retry_transfer_from_pid"] == os.getpid()
     # Pre-claim under parent PID — atomic find+claim under the project lock.
     first_ws.assert_called_once()
     assert first_ws.call_args.args[0] == project_file
@@ -450,6 +451,7 @@ def test_launch_agent_from_cwd_owner_repo_ref_resolves_to_known_project(
     assert kwargs["update_target"] == VCS_DEFAULT_REVISION
     assert kwargs["cl_name"] == "sase"
     assert kwargs["vcs_ref"] == ("gh", "sase")
+    assert kwargs["retry_transfer_from_pid"] == os.getpid()
 
 
 def test_launch_agent_from_cwd_ignores_fenced_wait_snapshot_for_deferred_workspace(
@@ -507,6 +509,7 @@ def test_launch_agent_from_cwd_ignores_fenced_wait_snapshot_for_deferred_workspa
     assert kwargs["workspace_dir"] == str(allocated_workspace)
     assert kwargs["workspace_num"] == 101
     assert kwargs["deferred_workspace"] is False
+    assert kwargs["retry_transfer_from_pid"] == os.getpid()
 
 
 def test_launch_agent_from_cwd_wait_cd_stays_directory_mode(

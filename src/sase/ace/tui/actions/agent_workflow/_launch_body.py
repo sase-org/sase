@@ -201,17 +201,27 @@ class AgentLaunchBodyMixin:
             known_project_vcs_fallback = False
             if ctx.is_home_mode:
                 for wf_name in get_workflow_names():
+                    fixed_ref_workspace = has_wait or is_non_workspace_workflow(wf_name)
                     resolved = self._resolve_vcs_from_prompt(  # type: ignore[attr-defined]
-                        _vcs_prompt, wf_name, skip_workspace=has_wait
+                        _vcs_prompt,
+                        wf_name,
+                        skip_workspace=has_wait
+                        or not is_non_workspace_workflow(wf_name),
                     )
                     if resolved is not None:
                         (
                             ctx.project_file,
                             ctx.project_name,
-                            ctx.workspace_dir,
-                            ctx.workspace_num,
+                            resolved_workspace_dir,
+                            resolved_workspace_num,
                             ref_value,
                         ) = resolved
+                        if fixed_ref_workspace:
+                            ctx.workspace_dir = resolved_workspace_dir
+                            ctx.workspace_num = resolved_workspace_num
+                        else:
+                            ctx.workspace_dir = ""
+                            ctx.workspace_num = 0
                         vcs_ref = (wf_name, ref_value)
                         ctx.display_name = ref_value
                         ctx.history_sort_key = ref_value
@@ -441,15 +451,7 @@ class AgentLaunchBodyMixin:
                 )
                 from sase.core.agent_launch_facade import plan_fake_fanout
 
-                use_preallocated_workspace = (
-                    not ctx.is_home_mode
-                    and not has_wait
-                    and bool(ctx.workspace_dir)
-                    and vcs_ref is not None
-                )
-                fixed_workspace = (
-                    ctx.is_home_mode or has_wait or use_preallocated_workspace
-                )
+                fixed_workspace = ctx.is_home_mode or has_wait
 
                 def _spawn_from_tui(request: LaunchSpawnRequest) -> None:
                     self._launch_background_agent(  # type: ignore[attr-defined]
@@ -484,7 +486,7 @@ class AgentLaunchBodyMixin:
                         deferred_workspace=has_wait,
                         workspace_num=ctx.workspace_num if fixed_workspace else None,
                         workspace_dir=ctx.workspace_dir if fixed_workspace else None,
-                        use_preallocated_workspace=use_preallocated_workspace,
+                        use_preallocated_workspace=False,
                     ),
                     spawn=_spawn_from_tui,
                     base_timestamp=ctx.timestamp,

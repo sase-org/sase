@@ -284,7 +284,7 @@ def _spawn_segments_into(
                     deferred_workspace=has_wait,
                     workspace_num=segment_ctx.workspace_num,
                     workspace_dir=segment_ctx.workspace_dir,
-                    use_preallocated_workspace=segment_ctx.workspace_dir is not None,
+                    use_preallocated_workspace=False,
                 )
 
         with timer.stage(

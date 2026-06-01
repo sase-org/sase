@@ -167,6 +167,7 @@ def test_workspace_claim_failure_retries_with_new_allocation(
                 cl_name="change",
                 project_file="/project.sase",
                 project_name="project",
+                vcs_ref=("gh", "change"),
             ),
             spawn=_spawn,
             base_timestamp="ts",
@@ -174,6 +175,10 @@ def test_workspace_claim_failure_retries_with_new_allocation(
 
     assert execution.results[0].workspace_num == 101
     assert [request.workspace_num for request in requests] == [100, 101]
+    assert [request.transfer_from_pid for request in requests] == [
+        os.getpid(),
+        os.getpid(),
+    ]
     assert first_ws.call_count == 2
     assert ws_dir.call_count == 2
     # Workspace #100 must be released after the failed spawn attempt so the

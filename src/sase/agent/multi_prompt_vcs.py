@@ -43,9 +43,11 @@ def resolve_segment_vcs_context(
     """Resolve launch metadata for one multi-prompt segment.
 
     Multi-prompts can mix VCS refs across segments.  The launcher therefore
-    derives the display CL, workspace/project context, pre-allocation ref, and
-    history key from the segment's own VCS ref when present, falling back to the
-    caller's context for legacy prompts that rely on an already-selected CL.
+    derives the display CL, project context, VCS ref, and history key from the
+    segment's own VCS ref when present, falling back to the caller's context for
+    legacy prompts that rely on an already-selected CL. Normal VCS segments
+    leave workspace selection to the shared launch executor; fixed ``#cd`` and
+    deferred ``%wait`` segments keep their resolved workspace context.
     """
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
         is_non_workspace_workflow,
@@ -71,7 +73,12 @@ def resolve_segment_vcs_context(
         from sase.vcs_provider import VCS_DEFAULT_REVISION
 
         update_target = VCS_DEFAULT_REVISION
-    resolved = resolve_ref_from_prompt(prompt, wf_name, skip_workspace=has_wait)
+    fixed_ref_workspace = has_wait or is_non_workspace_workflow(wf_name)
+    resolved = resolve_ref_from_prompt(
+        prompt,
+        wf_name,
+        skip_workspace=has_wait or not is_non_workspace_workflow(wf_name),
+    )
     if resolved is None:
         return SegmentVcsContext(
             cl_name=ref_value,
@@ -92,6 +99,6 @@ def resolve_segment_vcs_context(
         vcs_ref=(wf_name, resolved_ref),
         history_sort_key=resolved_ref,
         update_target=update_target,
-        workspace_num=workspace_num,
-        workspace_dir=workspace_dir,
+        workspace_num=workspace_num if fixed_ref_workspace else None,
+        workspace_dir=workspace_dir if fixed_ref_workspace else None,
     )

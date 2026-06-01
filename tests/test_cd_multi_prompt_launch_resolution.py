@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -106,14 +107,16 @@ def test_launch_multi_prompt_agents_defaults_bare_segment_to_git_home(
             "sase.workspace_provider.resolve_ref",
             side_effect=resolve_ref,
         ) as resolve_ref_mock,
+        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+        patch("sase.workspace_provider.get_workspace_directory") as provider_ws_dir,
         patch(
-            "sase.running_field.get_first_available_axe_workspace",
+            "sase.running_field.claim_next_axe_workspace",
             return_value=101,
-        ) as first_ws,
+        ) as claim_ws,
         patch(
-            "sase.workspace_provider.get_workspace_directory",
-            return_value=str(allocated_workspace),
-        ) as provider_ws_dir,
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=(str(allocated_workspace), None),
+        ) as ws_dir,
     ):
         spawn.return_value = MagicMock(pid=1)
         launch_multi_prompt_agents(
@@ -142,15 +145,17 @@ def test_launch_multi_prompt_agents_defaults_bare_segment_to_git_home(
         ("cd", str(dir_a)),
         ("git", "home"),
     ]
+    assert [c.kwargs["retry_transfer_from_pid"] for c in calls] == [
+        None,
+        os.getpid(),
+    ]
     resolve_ref_mock.assert_any_call(str(dir_a), "cd")
     resolve_ref_mock.assert_any_call("home", "git")
-    first_ws.assert_called_once_with(project_file)
-    provider_ws_dir.assert_called_once_with(
-        "git",
-        101,
-        "home",
-        str(primary_workspace),
-    )
+    first_ws.assert_not_called()
+    provider_ws_dir.assert_not_called()
+    claim_ws.assert_called_once()
+    assert claim_ws.call_args.args[0] == project_file
+    ws_dir.assert_called_once_with(101, "home")
     create_artifacts.assert_not_called()
 
 
@@ -182,14 +187,16 @@ def test_launch_multi_prompt_bare_git_home_wait_uses_home_artifacts(
                 checkout_target="main",
             ),
         ),
+        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+        patch("sase.workspace_provider.get_workspace_directory") as provider_ws_dir,
         patch(
-            "sase.running_field.get_first_available_axe_workspace",
+            "sase.running_field.claim_next_axe_workspace",
             return_value=101,
-        ) as first_ws,
+        ) as claim_ws,
         patch(
-            "sase.workspace_provider.get_workspace_directory",
-            return_value=str(allocated_workspace),
-        ) as provider_ws_dir,
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=(str(allocated_workspace), None),
+        ) as ws_dir,
     ):
         spawn.return_value = MagicMock(pid=1)
         wait.return_value = "home-agent"
@@ -214,16 +221,18 @@ def test_launch_multi_prompt_bare_git_home_wait_uses_home_artifacts(
     ]
     assert [c.kwargs["workspace_num"] for c in spawn.call_args_list] == [101, 0]
     assert [c.kwargs["is_home_mode"] for c in spawn.call_args_list] == [False, False]
+    assert [c.kwargs["retry_transfer_from_pid"] for c in spawn.call_args_list] == [
+        os.getpid(),
+        None,
+    ]
     create_artifacts.assert_called_once_with(
         "ace-run",
         project_name="home",
         timestamp="260501_120000",
     )
     wait.assert_called_once_with("/artifacts/home")
-    first_ws.assert_called_once_with(project_file)
-    provider_ws_dir.assert_called_once_with(
-        "git",
-        101,
-        "home",
-        str(primary_workspace),
-    )
+    first_ws.assert_not_called()
+    provider_ws_dir.assert_not_called()
+    claim_ws.assert_called_once()
+    assert claim_ws.call_args.args[0] == project_file
+    ws_dir.assert_called_once_with(101, "home")

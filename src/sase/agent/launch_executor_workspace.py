@@ -180,7 +180,9 @@ def _resolve_slot_workspace(context: LaunchExecutionContext) -> tuple[int, str]:
             context.workspace_dir or os.path.expanduser("~"),
         )
     if context.deferred_workspace:
-        return 0, get_workspace_directory(context.project_name, 1)
+        return 0, context.workspace_dir or get_workspace_directory(
+            context.project_name, 1
+        )
 
     # Regular axe path is handled by ``_preclaim_axe_workspace``.
     raise AssertionError(

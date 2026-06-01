@@ -395,22 +395,27 @@ def launch_agents_from_cwd(
     has_wait = has_deferred_start_directive(query)
     vcs_ref: tuple[str, str] | None = None
     workspace_dir: str | None = None
-    use_preallocated_workspace = False
 
-    # Try full VCS ref resolution -- this updates project_file, workspace_dir,
-    # etc. when the prompt contains an explicit ref like #gh:sase.  Must run
-    # in both home and non-home mode so xprompt chops launched from CWDs that
-    # resolve to a different project still target the correct one.
-    # When %wait is detected, skip workspace allocation (deferred until
-    # dependencies resolve).
+    # Resolve VCS metadata without reserving a numbered workspace for normal
+    # VCS refs. The executor claims the final slot atomically just before
+    # spawn; only fixed #cd and deferred %wait launches carry a workspace here.
     for wf_name in get_workflow_names():
-        resolved = resolve_ref_from_prompt(query, wf_name, skip_workspace=has_wait)
+        fixed_ref_workspace = has_wait or is_non_workspace_workflow(wf_name)
+        resolved = resolve_ref_from_prompt(
+            query,
+            wf_name,
+            skip_workspace=has_wait or not is_non_workspace_workflow(wf_name),
+        )
         if resolved is not None:
-            project_file, project_name, workspace_dir, ws_num, ref_value = resolved
-            workspace_num = ws_num
+            project_file, project_name, resolved_dir, ws_num, ref_value = resolved
+            if fixed_ref_workspace:
+                workspace_dir = resolved_dir
+                workspace_num = ws_num
+            else:
+                workspace_dir = None
+                workspace_num = None
             vcs_ref = (wf_name, ref_value)
             is_home_mode = is_non_workspace_workflow(wf_name)
-            use_preallocated_workspace = not is_home_mode and not has_wait
             break
 
     if vcs_ref is None:
@@ -502,7 +507,7 @@ def launch_agents_from_cwd(
 
     extra_env = _plan_single_agent_name(query, extra_env)
 
-    fixed_workspace = is_home_mode or has_wait or use_preallocated_workspace
+    fixed_workspace = is_home_mode or has_wait
     execution = execute_launch_plan(
         plan_fake_fanout("single", [query]),
         LaunchExecutionContext(
@@ -516,7 +521,7 @@ def launch_agents_from_cwd(
             deferred_workspace=has_wait,
             workspace_num=workspace_num if fixed_workspace else None,
             workspace_dir=workspace_dir if fixed_workspace else None,
-            use_preallocated_workspace=use_preallocated_workspace,
+            use_preallocated_workspace=False,
         ),
         extra_env=extra_env,
         base_timestamp=timestamp,

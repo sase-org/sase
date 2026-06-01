@@ -1,5 +1,6 @@
 """Tests for multi-prompt wait rewriting and VCS metadata."""
 
+import os
 import re
 from unittest.mock import MagicMock, patch
 
@@ -90,9 +91,14 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_wait_predecessor(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/work/sase_100", None), ("/work/sase_101", None)],
+)
 def test_launch_multi_prompt_derives_vcs_metadata_per_segment(
-    mock_first_ws: MagicMock,
+    mock_ws_dir: MagicMock,
+    mock_claim_ws: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
     mock_wait: MagicMock,
@@ -110,16 +116,6 @@ def test_launch_multi_prompt_derives_vcs_metadata_per_segment(
             checkout_target=ref,
         )
 
-    def _workspace_dir(
-        workflow_type: str,
-        workspace_num: int,
-        project_name: str,
-        primary_workspace_dir: str,
-    ) -> str:
-        assert workflow_type == "git"
-        assert project_name == "sase"
-        return f"{primary_workspace_dir}_{workspace_num}"
-
     mock_spawn.return_value = MagicMock(pid=1)
     mock_wait.return_value = "alpha"
 
@@ -131,10 +127,7 @@ def test_launch_multi_prompt_derives_vcs_metadata_per_segment(
             },
         ),
         patch("sase.workspace_provider.resolve_ref", side_effect=_resolve_ref),
-        patch(
-            "sase.workspace_provider.get_workspace_directory",
-            side_effect=_workspace_dir,
-        ),
+        patch("sase.workspace_provider.get_workspace_directory") as provider_ws_dir,
     ):
         launch_multi_prompt_agents(
             segments=[
@@ -173,9 +166,19 @@ def test_launch_multi_prompt_derives_vcs_metadata_per_segment(
         "/work/sase",
     ]
     assert [c.kwargs["deferred_workspace"] for c in calls] == [False, False, True]
+    assert [c.kwargs["retry_transfer_from_pid"] for c in calls] == [
+        os.getpid(),
+        os.getpid(),
+        None,
+    ]
 
-    assert mock_first_ws.call_args_list[0].args == ("/projects/sase/sase.sase",)
-    assert mock_first_ws.call_args_list[1].args == ("/projects/sase/sase.sase",)
+    assert mock_claim_ws.call_args_list[0].args[0] == "/projects/sase/sase.sase"
+    assert mock_claim_ws.call_args_list[1].args[0] == "/projects/sase/sase.sase"
+    assert [c.args for c in mock_ws_dir.call_args_list] == [
+        (100, "sase"),
+        (101, "sase"),
+    ]
+    provider_ws_dir.assert_not_called()
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -185,9 +188,14 @@ def test_launch_multi_prompt_derives_vcs_metadata_per_segment(
     "sase.artifacts.create_artifacts_directory",
     side_effect=["/artifacts/alpha", "/artifacts/beta"],
 )
-@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[10, 20, 30])
+@patch("sase.running_field.claim_next_axe_workspace", return_value=10)
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    return_value=("/work/alpha_10", None),
+)
 def test_launch_multi_prompt_naming_wait_uses_previous_segment_project(
-    mock_first_ws: MagicMock,
+    mock_ws_dir: MagicMock,
+    mock_claim_ws: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
     mock_wait: MagicMock,
@@ -205,15 +213,6 @@ def test_launch_multi_prompt_naming_wait_uses_previous_segment_project(
             checkout_target=ref,
         )
 
-    def _workspace_dir(
-        workflow_type: str,
-        workspace_num: int,
-        project_name: str,
-        primary_workspace_dir: str,
-    ) -> str:
-        assert workflow_type == "git"
-        return f"{primary_workspace_dir}_{workspace_num}"
-
     mock_spawn.return_value = MagicMock(pid=1)
     mock_wait.side_effect = ["alpha-agent", "beta-agent"]
 
@@ -225,10 +224,7 @@ def test_launch_multi_prompt_naming_wait_uses_previous_segment_project(
             },
         ),
         patch("sase.workspace_provider.resolve_ref", side_effect=_resolve_ref),
-        patch(
-            "sase.workspace_provider.get_workspace_directory",
-            side_effect=_workspace_dir,
-        ),
+        patch("sase.workspace_provider.get_workspace_directory") as provider_ws_dir,
     ):
         launch_multi_prompt_agents(
             segments=[
@@ -259,6 +255,11 @@ def test_launch_multi_prompt_naming_wait_uses_previous_segment_project(
         0,
         0,
     ]
+    assert [c.kwargs["retry_transfer_from_pid"] for c in mock_spawn.call_args_list] == [
+        os.getpid(),
+        None,
+        None,
+    ]
     assert [c.kwargs for c in mock_create_artifacts.call_args_list] == [
         {"project_name": "alpha", "timestamp": "260501_120000"},
         {"project_name": "beta", "timestamp": "260501_120001"},
@@ -273,3 +274,7 @@ def test_launch_multi_prompt_naming_wait_uses_previous_segment_project(
     ]
     assert mock_spawn.call_args_list[1].kwargs["prompt"].startswith("%wait:alpha-agent")
     assert mock_spawn.call_args_list[2].kwargs["prompt"].startswith("%wait:beta-agent")
+    mock_claim_ws.assert_called_once()
+    assert mock_claim_ws.call_args.args[0] == "/projects/alpha/alpha.sase"
+    mock_ws_dir.assert_called_once_with(10, "alpha")
+    provider_ws_dir.assert_not_called()

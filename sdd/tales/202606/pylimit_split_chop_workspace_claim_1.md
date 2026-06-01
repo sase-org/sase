@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-01 10:48:30
-status: wip
+status: done
 prompt: sdd/prompts/202606/pylimit_split_chop_workspace_claim_1.md
 ---
 # Plan: Fix `sase_pylimit_split` Workspace Claim Races

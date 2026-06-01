@@ -135,15 +135,21 @@ def test_run_agent_launch_body_no_ref_defaults_home_mode_to_git_home(
             )
         )
         first_ws = stack.enter_context(
+            patch("sase.running_field.get_first_available_axe_workspace")
+        )
+        provider_ws_dir = stack.enter_context(
+            patch("sase.workspace_provider.get_workspace_directory")
+        )
+        claim_ws = stack.enter_context(
             patch(
-                "sase.running_field.get_first_available_axe_workspace",
+                "sase.running_field.claim_next_axe_workspace",
                 return_value=101,
             )
         )
-        provider_ws_dir = stack.enter_context(
+        ws_dir = stack.enter_context(
             patch(
-                "sase.workspace_provider.get_workspace_directory",
-                return_value=str(allocated_workspace),
+                "sase.running_field.get_workspace_directory_for_num",
+                return_value=(str(allocated_workspace), None),
             )
         )
         stack.enter_context(
@@ -170,13 +176,12 @@ def test_run_agent_launch_body_no_ref_defaults_home_mode_to_git_home(
     assert launch["is_home_mode"] is False
     assert launch["update_target"] == ""
     assert launch["vcs_ref"] == ("git", "home")
-    first_ws.assert_called_once_with(project_file)
-    provider_ws_dir.assert_called_once_with(
-        "git",
-        101,
-        "home",
-        str(primary_workspace),
-    )
+    assert launch["retry_transfer_from_pid"] == os.getpid()
+    first_ws.assert_not_called()
+    provider_ws_dir.assert_not_called()
+    claim_ws.assert_called_once()
+    assert claim_ws.call_args.args[0] == project_file
+    ws_dir.assert_called_once_with(101, "home")
 
 
 def test_run_agent_launch_body_known_project_ref_without_provider_targets_project(
@@ -250,6 +255,7 @@ def test_run_agent_launch_body_known_project_ref_without_provider_targets_projec
     assert launch["is_home_mode"] is False
     assert launch["update_target"] == VCS_DEFAULT_REVISION
     assert launch["vcs_ref"] == ("gh", "sase")
+    assert launch["retry_transfer_from_pid"] == os.getpid()
     first_ws.assert_called_once()
     assert first_ws.call_args.args[0] == project_file
     ws_dir.assert_called_once_with(101, "sase")
@@ -302,6 +308,18 @@ def test_run_agent_launch_body_does_not_save_non_launchable_resolved_vcs_ref() -
             patch(
                 "sase.ace.tui.modals.project_discovery.is_launchable_project",
                 return_value=False,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.running_field.claim_next_axe_workspace",
+                return_value=101,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                return_value=("/tmp/project_101", None),
             )
         )
         save = stack.enter_context(
@@ -364,6 +382,18 @@ def test_run_agent_launch_body_saves_launchable_resolved_vcs_ref() -> None:
             patch(
                 "sase.ace.tui.modals.project_discovery.is_launchable_project",
                 return_value=True,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.running_field.claim_next_axe_workspace",
+                return_value=101,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                return_value=("/tmp/sase_101", None),
             )
         )
         save = stack.enter_context(
