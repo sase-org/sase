@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-01 09:06:31
-status: wip
+status: done
 prompt: sdd/prompts/202606/bulk_kill_flake_1.md
 ---
 # Plan: Fix Bulk Kill Flake

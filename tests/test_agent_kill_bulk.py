@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import asyncio
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._kill_persistence import BulkKillItem
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.notification_store_wire import NotificationUpdateOutcomeWire
+
+
+def _user_kill_result(
+    *, success: bool = True, status: str = "killed", error: str | None = None
+) -> SimpleNamespace:
+    return SimpleNamespace(success=success, status=status, error=error)
 
 
 def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
@@ -74,10 +81,28 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
     app._agents_with_children = [a1, a2]
     app._marked_agents = {a1.identity, a2.identity}
 
-    with patch("sase.ace.tui.actions.agents._killing.os.killpg") as mock_killpg:
+    with patch(
+        "sase.ace.tui.actions.agents._killing.request_user_kill",
+        return_value=_user_kill_result(),
+    ) as mock_request_user_kill:
         app._do_bulk_kill_agents([a1, a2])
 
-    assert [call.args[0] for call in mock_killpg.call_args_list] == [111, 222]
+    assert [call.args[0] for call in mock_request_user_kill.call_args_list] == [
+        111,
+        222,
+    ]
+    assert [
+        (
+            call.kwargs["source"],
+            call.kwargs["wait"],
+            call.kwargs["background"],
+            call.kwargs["reason"],
+        )
+        for call in mock_request_user_kill.call_args_list
+    ] == [
+        ("ace_tui", False, True, a1.display_name),
+        ("ace_tui", False, True, a2.display_name),
+    ]
     assert app._agents == []
     assert app._agents_with_children == []
     assert app._marked_agents == set()
@@ -156,7 +181,10 @@ def test_do_bulk_kill_agents_removes_workflow_children_immediately() -> None:
     app._agents = [parent, child]
     app._agents_with_children = [parent, child]
 
-    with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
+    with patch(
+        "sase.ace.tui.actions.agents._killing.request_user_kill",
+        return_value=_user_kill_result(),
+    ):
         app._do_bulk_kill_agents([parent])
 
     assert app._agents == []
@@ -227,12 +255,18 @@ def test_do_bulk_kill_agents_failed_pid_stays_visible() -> None:
     app._agents = [failed, killed]
     app._agents_with_children = [failed, killed]
 
-    def fake_killpg(pid: int, sig: int) -> None:
+    def fake_request_user_kill(pid: int, **_kwargs: object) -> SimpleNamespace:
         if pid == 111:
-            raise PermissionError
+            return _user_kill_result(
+                success=False,
+                status="permission_denied",
+                error="permission denied",
+            )
+        return _user_kill_result()
 
     with patch(
-        "sase.ace.tui.actions.agents._killing.os.killpg", side_effect=fake_killpg
+        "sase.ace.tui.actions.agents._killing.request_user_kill",
+        side_effect=fake_request_user_kill,
     ):
         app._do_bulk_kill_agents([failed, killed])
 
