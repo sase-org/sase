@@ -26,6 +26,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.agent_scan_facade import rebuild_agent_artifact_index
 from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+from sase.running_field import ClaimResult, WorkspaceClaimError
 from sase.xprompt.workflow_executor import WorkflowExecutor
 from sase.xprompt.workflow_models import StepState, StepStatus, Workflow, WorkflowStep
 
@@ -461,3 +462,71 @@ def test_run_query_refreshes_index_for_inline_markers(tmp_path: Path) -> None:
     assert os.path.exists(os.path.join(artifacts_dir, "agent_meta.json"))
     assert os.path.exists(os.path.join(artifacts_dir, "workflow_state.json"))
     assert os.path.exists(os.path.join(artifacts_dir, "done.json"))
+
+
+def test_run_query_failed_claim_blocks_workflow_and_cleanup(tmp_path: Path) -> None:
+    """A rejected foreground run claim must stop before workflow execution."""
+    artifacts_dir = str(tmp_path / "20260329180000")
+    os.makedirs(artifacts_dir)
+
+    mock_multi = SimpleNamespace(
+        local_xprompts=None,
+        frontmatter=None,
+        segments=["hello"],
+    )
+    mock_directives = SimpleNamespace(model=None)
+
+    with (
+        patch(
+            "sase.main.query_handler._query._resolve_vcs_cwd",
+            return_value=None,
+        ),
+        patch(
+            "sase.main.query_handler._query.ensure_project_file_and_get_workspace_num",
+            return_value=("/tmp/proj/proj.sase", 1, "proj"),
+        ),
+        patch(
+            "sase.main.query_handler._query.create_artifacts_directory",
+            return_value=artifacts_dir,
+        ),
+        patch("sase.xprompt.resolve_xprompt_aliases", side_effect=lambda q: q),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch("sase.agent.multi_prompt.parse_multi_prompt", return_value=mock_multi),
+        patch(
+            "sase.agent.multi_agent_xprompt.expand_multi_agent_xprompts",
+            side_effect=lambda segments, _local: segments,
+        ),
+        patch("sase.core.time.generate_timestamp", return_value="260329_180000"),
+        patch(
+            "sase.xprompt.directives.extract_prompt_directives",
+            return_value=("hello", mock_directives),
+        ),
+        patch(
+            "sase.llm_provider.temporary_override.resolve_effective_default_provider_model",
+            return_value=("anthropic", "test-model"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch(
+            "sase.main.query_handler._query.claim_workspace",
+            return_value=ClaimResult(
+                success=False,
+                error="project is archived; new work is blocked",
+            ),
+        ),
+        patch("sase.main.query_handler._query.release_workspace") as release_workspace,
+        patch("sase.xprompt.models.create_anonymous_workflow") as create_workflow,
+        patch("sase.xprompt.workflow_runner.execute_workflow") as execute_workflow,
+        patch("sase.main.query_handler._query.save_chat_history") as save_chat_history,
+    ):
+        from sase.main.query_handler._query import run_query
+
+        with pytest.raises(
+            WorkspaceClaimError,
+            match="project is archived; new work is blocked",
+        ):
+            run_query("hello")
+
+    create_workflow.assert_not_called()
+    execute_workflow.assert_not_called()
+    save_chat_history.assert_not_called()
+    release_workspace.assert_not_called()

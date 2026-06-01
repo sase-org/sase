@@ -3,10 +3,12 @@
 import os
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.running_field import ClaimResult, WorkspaceClaimError
 from sase.workspace_provider.utils import (
     _ensure_git_clone_at,
     ensure_workspace_checkout,
@@ -255,6 +257,36 @@ class TestDirectCallersUseSharedHelper:
         assert hasattr(git_setup, "ensure_workspace_checkout")
         # And no longer imports the legacy compat wrapper
         assert not hasattr(git_setup, "ensure_git_clone")
+
+    def test_git_setup_failed_explicit_claim_blocks_launch(self) -> None:
+        from sase.scripts import git_setup
+
+        resolved = SimpleNamespace(
+            project_name="proj",
+            project_file="/tmp/proj/proj.sase",
+            primary_workspace_dir="/tmp/proj",
+            checkout_target="main",
+        )
+
+        with (
+            patch("sase.scripts.git_setup.resolve_git_ref", return_value=resolved),
+            patch(
+                "sase.scripts.git_setup.ensure_workspace_checkout",
+                return_value="/tmp/proj_12",
+            ),
+            patch(
+                "sase.scripts.git_setup.claim_workspace",
+                return_value=ClaimResult(
+                    success=False,
+                    error="project is closed; activate before launching work",
+                ),
+            ),
+        ):
+            with pytest.raises(
+                WorkspaceClaimError,
+                match="project is closed; activate before launching work",
+            ):
+                git_setup.main(git_ref="proj", n=12, release=True)
 
     def test_crs_starter_uses_ensure_workspace_checkout(self) -> None:
         import inspect

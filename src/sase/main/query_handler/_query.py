@@ -10,7 +10,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.history.chat import save_chat_history
-from sase.running_field import claim_workspace, release_workspace
+from sase.running_field import WorkspaceClaimError, claim_workspace, release_workspace
 
 from ..utils import ensure_project_file_and_get_workspace_num
 
@@ -214,6 +214,7 @@ def run_query(
     if multi.frontmatter is not None:
         query = "\n---\n".join(expanded_segments)
 
+    workspace_claimed = False
     try:
         # Build the full prompt
         if previous_history:
@@ -316,7 +317,7 @@ def run_query(
 
         # Claim workspace with artifacts timestamp for prompt lookup
         if project_file and workspace_num:
-            claim_workspace(
+            claim_result = claim_workspace(
                 project_file,
                 workspace_num,
                 "run",
@@ -324,6 +325,13 @@ def run_query(
                 cl_name,
                 artifacts_timestamp=artifacts_timestamp,
             )
+            if not claim_result.success:
+                raise WorkspaceClaimError(
+                    f"Failed to claim workspace #{workspace_num}: "
+                    f"{claim_result.error or 'unknown reason'}",
+                    workspace_num=workspace_num,
+                )
+            workspace_claimed = True
 
         # Create anonymous workflow and execute through WorkflowExecutor
         anon_workflow = create_anonymous_workflow(full_prompt)
@@ -411,5 +419,5 @@ def run_query(
         print(f"\nChat history saved to: {saved_path}")
     finally:
         # Release workspace when done
-        if project_file and workspace_num:
+        if workspace_claimed and project_file and workspace_num:
             release_workspace(project_file, workspace_num, "run", cl_name)
