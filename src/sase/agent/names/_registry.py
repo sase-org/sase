@@ -1,4 +1,9 @@
-"""Persistent reservation index for permanent agent names."""
+"""Persistent reservation index for permanent agent names.
+
+Registry rebuilds scan artifacts across every project lifecycle state so
+archiving or closing a project does not free names that still belong to stored
+agent history.
+"""
 
 from __future__ import annotations
 

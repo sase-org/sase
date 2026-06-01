@@ -97,6 +97,18 @@ project. The `archive`, `close`, and `set-state` forms update the ProjectSpec un
 Archiving or closing refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed.
 The system-managed `home` project cannot be archived or closed through this command.
 
+Common workflows:
+
+- Archive a dormant project: `sase project archive old-project`
+- List closed projects: `sase project list --state closed`
+- Inspect every lifecycle state as JSON: `sase project list --state all --json`
+- Reactivate from the CLI: `sase project activate old-project`
+- Reactivate from ACE: press `,P`, highlight the project, then press `a`
+
+Maintenance and agent-history scans intentionally keep reading all project directories. This keeps live `RUNNING`
+claims, stale-claim cleanup, dismissed-agent recovery, agent-name collision checks, and historical Agents-tab rows
+visible even after a project is archived or closed.
+
 The `RUNNING` section is managed by SASE. Each entry has this shape:
 
 ```text

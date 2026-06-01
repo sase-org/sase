@@ -208,7 +208,8 @@ The modal supports live filtering as you type in the search box and displays las
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,m`       | Review mentors (opens Mentor Review modal)                                                    |
 | `,M`       | Kill running mentors                                                                          |
-| `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
+| `,P`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
+| `,o`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r`       | Show runners info                                                                             |
 | `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))                             |
 | `,<space>` | Run agent from current CL (skips project selection)                                           |
@@ -623,7 +624,8 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,y`       | Refresh the Agents tab from full artifact history                                             |
 | `,u`       | Mark all loaded unread completed agents as read                                               |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
-| `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
+| `,P`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
+| `,o`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,R`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation             |
 | `,x`       | Kill agent & edit prompt                                                                      |
@@ -759,7 +761,8 @@ numerical identity.
 | ---- | --------------------------------------------------------------------------------------------- |
 | `,,` | Repeat the last leader command                                                                |
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home`                       |
-| `,P` | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
+| `,P` | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
+| `,o` | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r` | Show runners info                                                                             |
 
 ### Bang Mode (`!` prefix)
@@ -870,9 +873,31 @@ through the transient prefix mode. Custom modes defined in `sase.yml` are also r
 The `:` / `;` binding follows your configured keymap. To rebind it, set `ace.keymaps.app.open_command_palette` in
 `~/.config/sase/sase.yml`; comma-separated keys in that setting are treated as alternate bindings for the same action.
 
+## Project Management Panel
+
+Press `,P` from any tab to open the **Project Management** panel. It lists non-`home` projects across `active`,
+`archived`, and `closed` lifecycle states, including workspace path, active claim count, launchability, and lifecycle or
+workspace warnings.
+
+| Key       | Action                                      |
+| --------- | ------------------------------------------- |
+| `j` / `k` | Move selection                              |
+| `/`       | Filter projects by text                     |
+| `Tab`     | Cycle lifecycle filter                      |
+| `a`       | Activate highlighted project                |
+| `r`       | Archive highlighted project                 |
+| `c`       | Close highlighted project                   |
+| `F`       | Force the last blocked archive/close action |
+| `R`       | Reload project records                      |
+| `q`/`Esc` | Close the panel                             |
+
+Archiving and closing use the same locked mutation path as `sase project archive` and `sase project close`. If a project
+still has `RUNNING` claims or live artifact markers, ACE shows the blocked reason and lets you retry with `F` when the
+force action is intentional. Activating a project from this panel makes it available again in normal launch pickers.
+
 ## Temporary Model Override
 
-Press `,P` from any tab to open the **Temporary Model Override** modal. It sets a session-level default provider/model
+Press `,o` from any tab to open the **Temporary Model Override** modal. It sets a session-level default provider/model
 for new agent launches without editing `~/.config/sase/sase.yml`.
 
 **When no override is active**, the modal shows the current resolved default (e.g. `Default: CLAUDE(opus)`) and offers a
@@ -901,7 +926,7 @@ different ACE instance, an earlier session, or another sase process.
 - `codex/o3` for `1h` — switch to Codex `o3` for the next hour, then revert to the configured default.
 - `opencode/anthropic/claude-sonnet-4-5` for `1h` — switch to an OpenCode provider/model pair.
 - `sonnet` for `30m` — known bare model name; the provider is inferred from plugin metadata.
-- `Until cleared` — leave the override active across sessions; clear it later from the same `,P` modal.
+- `Until cleared` — leave the override active across sessions; clear it later from the same `,o` modal.
 
 See [docs/llms.md](llms.md#temporary-default-override) for the resolution order and state-file format.
 

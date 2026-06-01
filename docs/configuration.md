@@ -118,6 +118,8 @@ ace:
         prefix: "comma"
         keys:
           repeat_last: "comma" # press the leader prefix, then this key; defaults render as `,,`
+          projects: "P"
+          temporary_llm_override: "o"
           full_history_refresh: "y"
       fold_mode:
         prefix: "z"
@@ -249,7 +251,7 @@ that was the effective default _immediately before_ the override was set, rather
 `model_aliases.other` target. When no override is active, `other` falls back to the configured alias as usual.
 
 The TUI also supports a **temporary** session-level provider/model override that does **not** edit this config. The
-override is set/cleared from the ACE `,P` modal and persisted to `~/.sase/llm_override.json`; expired entries are
+override is set/cleared from the ACE `,o` modal and persisted to `~/.sase/llm_override.json`; expired entries are
 deleted on next read. See [docs/llms.md](llms.md#temporary-default-override) for the resolution order, state-file
 format, and precedence relative to `SASE_MODEL_TIER_OVERRIDE`.
 
@@ -1164,6 +1166,9 @@ Archiving or closing refuses projects with live `RUNNING` claims or live artifac
 `waiting.json`, or `pending_question.json`) unless `--force` is passed. The system-managed `home` project cannot be
 mutated through this command. Normal launch and discovery surfaces default to active projects; use `list --state all` or
 `show` for historical inspection, then `activate` before launching new work in an inactive project.
+
+ACE exposes the same lifecycle mutations through the Project Management panel at `,P`. The temporary model override uses
+`,o` by default.
 
 ### `sase revert`
 

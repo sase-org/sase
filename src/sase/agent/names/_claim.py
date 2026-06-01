@@ -1,4 +1,8 @@
-"""Record agent-name claims without mutating previous owners."""
+"""Record agent-name claims without mutating previous owners.
+
+Collision checks intentionally consider all project lifecycle states; inactive
+projects can still contain historical owners for explicit agent names.
+"""
 
 import json
 from pathlib import Path

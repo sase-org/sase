@@ -541,7 +541,7 @@ override's `pre_override_*` snapshot. When no override is active, `other` falls 
 under `llm_provider.model_aliases.other` (or the literal model name `other` if no alias is configured).
 
 This makes `%m(other, …)` always pair "the alternate model" with the current default, even when the user has temporarily
-switched their default via the ACE `,P` chord. Without the snapshot, `%m(other, …)` on an override-displaced default
+switched their default via the ACE `,o` chord. Without the snapshot, `%m(other, …)` on an override-displaced default
 could otherwise launch the override's model side-by-side with itself.
 
 ### Explicit Provider/Model Syntax
@@ -611,7 +611,7 @@ use the specified tier regardless of what the caller requests.
 ## Temporary Default Override
 
 In addition to the tier-based global override, sase supports a **concrete** provider/model override that acts as a
-temporary session-level default. This is the override the ACE `,P` chord writes (see
+temporary session-level default. This is the override the ACE `,o` chord writes (see
 [docs/ace.md](ace.md#temporary-model-override) for the TUI flow).
 
 The temporary override only changes the _default_ provider/model selection for new agent launches. It does **not**
@@ -696,12 +696,12 @@ The override primitives live in `src/sase/llm_provider/temporary_override.py`:
 
 ### Examples
 
-- ACE chord `,P`, pick `codex/o3`, duration `1h` → `~/.sase/llm_override.json` is written; new launches default to
+- ACE chord `,o`, pick `codex/o3`, duration `1h` → `~/.sase/llm_override.json` is written; new launches default to
   CODEX(o3) for the next hour.
-- ACE chord `,P`, pick `opencode/anthropic/claude-sonnet-4-5`, duration `1h` → new launches default to
+- ACE chord `,o`, pick `opencode/anthropic/claude-sonnet-4-5`, duration `1h` → new launches default to
   OPENCODE(anthropic/claude-sonnet-4-5).
-- ACE chord `,P`, pick `sonnet`, duration `30m` → known bare model; provider resolves to claude via plugin metadata.
-- ACE chord `,P`, choose **Clear override** → `~/.sase/llm_override.json` is removed; defaults revert to permanent
+- ACE chord `,o`, pick `sonnet`, duration `30m` → known bare model; provider resolves to claude via plugin metadata.
+- ACE chord `,o`, choose **Clear override** → `~/.sase/llm_override.json` is removed; defaults revert to permanent
   config / autodetect.
 
 ## Environment Variables

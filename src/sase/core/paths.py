@@ -13,7 +13,7 @@ Criteria for sharding a ``~/.sase/`` subdir:
 * The directory grows unboundedly over time (append-only workload).
 * Readers periodically list the entire directory (collectors, TUI).
 
-Excluded from sharding: ``projects/`` (bounded by active-project count),
+Excluded from sharding: ``projects/`` (bounded by registered-project count),
 ``comments/``, ``reverted/``, ``user_question/``, ``notifications/``,
 ``telegram/``, ``axe/``, ``commit_state/``, ``logs/``, ``home/``,
 ``repos/``, ``spec_writer/``, ``images/``, ``archived/``, and top-level

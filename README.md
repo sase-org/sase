@@ -90,7 +90,7 @@ sase init sdd             # enable version-controlled SDD and refresh generated 
 sase skills list          # inspect generated skill sources, targets, and drift
 sase skills init --dry-run  # preview provider skill files before deploying them
 sase plugin doctor        # diagnose installed plugin entry points and chop scripts
-sase ace                  # open the interactive control surface
+sase ace                  # open the interactive control surface; press ,P for project lifecycle management
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
 sase agents index status  # check ACE's fast Agents-tab artifact index
@@ -116,7 +116,7 @@ SASE keeps durable state outside any one chat session:
   `PROJECT_STATE` is treated as `active`; normal launch pickers, broad ChangeSpec discovery, project-local xprompt
   catalogs, mobile helper catalogs, and known-project VCS refs default to active projects. Use
   `sase project list --state all`, `sase project show <project>`, and `sase project activate <project>` when revisiting
-  archived or closed work.
+  archived or closed work. In ACE, press `,P` to manage lifecycle state from the Project Management panel.
 - **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
   `#1` through `#9` are reserved, and new claims allocate from `#10` upward.
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed

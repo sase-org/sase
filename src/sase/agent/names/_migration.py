@@ -1,4 +1,8 @@
-"""Historical auto-name migration for permanent agent names."""
+"""Historical auto-name migration for permanent agent names.
+
+The migration scans all project lifecycle states because it rewrites historical
+agent artifacts, not active launch candidates.
+"""
 
 from __future__ import annotations
 

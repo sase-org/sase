@@ -5,6 +5,10 @@ fallback), builds Agent records from active workspace claims, and
 surfaces home-mode ace agents from filesystem markers or
 :class:`AgentArtifactScanWire` snapshots.
 
+Project lifecycle filtering is intentionally not applied here. ``RUNNING``
+claims from archived or closed projects remain live work and must stay visible
+until they finish or are cleaned up.
+
 The ProjectSpec ``RUNNING`` field and home ``running.json`` marker are
 liveness claims, not display-status claims. Rows start as ``STARTING`` and
 metadata enrichment promotes them to ``RUNNING`` once ``run_started_at`` is
@@ -54,7 +58,7 @@ def _is_review_agent_workflow_claim(workflow: str | None) -> bool:
 
 
 def get_all_project_files() -> list[str]:
-    """Get all project file paths.
+    """Get all project file paths across every lifecycle state.
 
     Returns:
         List of paths to project spec files. Prefers the canonical ``.sase``

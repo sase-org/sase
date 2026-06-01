@@ -3,6 +3,10 @@
 Reads ``done.json`` markers from filesystem artifact directories or from a
 pre-walked :class:`AgentArtifactScanWire` snapshot. Both paths produce the
 same :class:`Agent` shape.
+
+Completed-agent history intentionally spans all project lifecycle states so
+archiving or closing a project does not hide prior agent rows from history
+views.
 """
 
 from pathlib import Path
@@ -184,7 +188,8 @@ def load_done_agents(
 ) -> list[Agent]:
     """Load completed agents from done.json marker files.
 
-    Scans ~/.sase/projects/*/artifacts/<workflow>/*/done.json for completed agents.
+    Scans ~/.sase/projects/*/artifacts/<workflow>/*/done.json for completed agents
+    across every project lifecycle state.
     Supported workflow directories: ace-run, fix-hook, crs, summarize-hook, mentor-*.
 
     Args:

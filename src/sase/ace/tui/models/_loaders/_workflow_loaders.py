@@ -32,7 +32,8 @@ def _iter_workflow_timestamp_dirs() -> Iterator[tuple[Path, Path]]:
 
     Scans ~/.sase/projects/*/artifacts/(workflow-*|ace-run|run)/*/ once.
     Both load_workflow_states() and load_workflow_agent_steps() use this
-    shared iterator to avoid redundant directory traversal.
+    shared iterator to avoid redundant directory traversal. Workflow history
+    intentionally includes archived and closed projects.
     """
     projects_dir = sase_projects_dir()
 
