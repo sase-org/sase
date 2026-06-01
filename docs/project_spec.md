@@ -74,10 +74,28 @@ Project metadata fields are optional and appear before the first `NAME:` line. S
 `BARE_REPO_DIR` and `WORKSPACE_DIR` are created by `sase git init` or by first-use `#git:<project>` initialization. They
 are parsed only before the first ChangeSpec.
 
-`PROJECT_STATE` is managed by `sase project`. Daily launch and discovery views treat missing state as `active`; archived
-and closed projects are hidden from normal launch lists and should be reactivated with `sase project activate <project>`
-before new work is launched. If you edit this field by hand, keep it before `RUNNING:` or the first `NAME:` line and use
-one of the valid lowercase values.
+`PROJECT_STATE` is managed by `sase project`. If you edit this field by hand, keep it before `RUNNING:` or the first
+`NAME:` line and use one of the valid lowercase values.
+
+### Project Lifecycle
+
+Project lifecycle state controls whether a project is part of daily launch and discovery surfaces:
+
+| State      | Meaning                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------- |
+| `active`   | Normal work state. Missing `PROJECT_STATE` also means `active`, so existing projects need no migration. |
+| `archived` | Historical or dormant project. Hidden from normal launch pickers and broad active-project scans.        |
+| `closed`   | Finished project. Also hidden from normal launch pickers and broad active-project scans.                |
+
+Normal project discovery is active-only. That includes ACE project selection, broad `find_all_changespecs()` callers
+such as `sase changespec search`, known-project workspace references, project-local xprompt catalogs, mobile helper
+catalogs, and all-known bead helper reads. Agent-history views that need old artifacts pass an explicit all-state scan.
+
+Use `sase project list --state all` to inspect inactive projects, `sase project show <project>` to see state, workspace,
+launchability, and warnings, and `sase project activate <project>` before launching new work in an archived or closed
+project. The `archive`, `close`, and `set-state` forms update the ProjectSpec under the normal ProjectSpec lock.
+Archiving or closing refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed.
+The system-managed `home` project cannot be archived or closed through this command.
 
 The `RUNNING` section is managed by SASE. Each entry has this shape:
 

@@ -12,7 +12,17 @@ Use xprompts when you want to:
 
 The resolution path is easiest to read as a pipeline from prompt references to final prompt text or workflow launches:
 
-![Diagram showing user prompt references flowing through xprompt resolution stages into inline prompt text, standalone workflows, workflow graphs, or multi-agent fan-out.](images/xprompt-resolution-infographic.png)
+```text
+workspace ref dispatch (#cd/#git/#gh/#hg, or implicit #git:home)
+  -> alias substitution
+  -> protected-region masking
+  -> iterative reference expansion (parse -> lookup -> args -> render -> substitute)
+  -> directive extraction
+  -> inline text, standalone workflow launch, or multi-agent fan-out
+```
+
+The checked-in infographic prompt in `docs/images/xprompt-resolution-infographic.prompt.md` tracks the intended visual
+version of this model; the text pipeline above is the authoritative current reference for resolver order.
 
 ## Table of Contents
 
@@ -307,6 +317,11 @@ workspace plugin is not loaded in the current process. Known projects come from 
 `~/.sase/projects/*/*.gp` accepted as a fallback). A launch such as `#gh:sase #!fix_just` therefore targets the
 registered `sase` project, allocates a numbered workspace for non-wait runs, and lets dispatch surfaces strip the
 wrapper ref when identifying an embedded workflow body.
+
+Known-project lookup defaults to active ProjectSpecs. Archived and closed projects are omitted from broad project-local
+xprompt catalogs and normal VCS workspace resolution; an explicit reference to an inactive known project fails with a
+hint to run `sase project activate <project>` before launching new work. Management and history code paths that need
+inactive projects opt into an all-state scan explicitly.
 
 The raw colon form stops at whitespace, so paths with spaces should use the parenthesized form when possible:
 `#cd(/tmp/my project)`. Backtick quoting is supported for ordinary xprompt arguments, but workspace-reference path

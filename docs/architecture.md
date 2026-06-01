@@ -33,7 +33,8 @@ Most agent work enters through `sase run`, ACE, axe agent chops, bead epic execu
 The launch path follows the same shape across those entry points:
 
 1. Parse prompt text, directives, and optional multi-prompt separators.
-2. Resolve workspace references such as `#cd:<path>`, `#git:<project>`, or plugin-provided forms.
+2. Resolve workspace references such as `#cd:<path>`, `#git:<project>`, or plugin-provided forms, rejecting inactive
+   known projects before new work is claimed.
 3. Allocate or prepare the target workspace through the workspace provider layer.
 4. Expand xprompt references and standalone workflow references.
 5. Invoke the selected LLM provider or workflow executor.
@@ -50,17 +51,17 @@ agents. Workflow launches persist step state so ACE and axe can inspect progress
 SASE avoids making a live chat session the source of truth. The durable state lives in files and stores that can be
 inspected by users, agents, and automation:
 
-| State            | Location / Owner                                                   | Use                                                                                         |
-| ---------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| ChangeSpecs      | Project `.sase` files under `~/.sase/projects/`                    | Review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps.          |
-| Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments. |
-| Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                    |
-| SDD artifacts    | `sdd/` or `.sase/sdd/`                                             | Prompt snapshots, plans, executable epics, legends, myths, and research notes.              |
-| Beads            | `sdd/beads/` or `.sase/sdd/beads/`                                 | Issue graph, JSONL export, SQLite query cache, epic/legend execution metadata.              |
-| Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, write proposals, and episodes.                           |
-| Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.   |
-| Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.            |
-| Workspace claims | Running-field state and provider metadata                          | Reservation and release of numbered workspaces for parallel agents.                         |
+| State            | Location / Owner                                                   | Use                                                                                                             |
+| ---------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| ChangeSpecs      | Project `.sase` files under `~/.sase/projects/`                    | Project lifecycle state plus review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps. |
+| Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments.                     |
+| Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                                        |
+| SDD artifacts    | `sdd/` or `.sase/sdd/`                                             | Prompt snapshots, plans, executable epics, legends, myths, and research notes.                                  |
+| Beads            | `sdd/beads/` or `.sase/sdd/beads/`                                 | Issue graph, JSONL export, SQLite query cache, epic/legend execution metadata.                                  |
+| Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, write proposals, and episodes.                                               |
+| Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                       |
+| Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.                                |
+| Workspace claims | Running-field state and provider metadata                          | Reservation and release of numbered workspaces for parallel agents.                                             |
 
 `~/.sase` is the default SASE state root. Set `SASE_HOME` to move that root for isolated tests, alternate profiles, or
 containerized runs.
@@ -90,6 +91,7 @@ The required `sase_core_rs` extension is the shared backend boundary for determi
 wire contract or from being reused by non-Python frontends. Current Rust-backed areas include:
 
 - ChangeSpec parsing and batch query operations.
+- Project lifecycle parsing, update planning, and lifecycle-filtered project listing.
 - Status transition planning.
 - Git command output parsing.
 - Notification JSONL reads and mutations.

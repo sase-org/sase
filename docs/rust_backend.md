@@ -9,6 +9,8 @@ wheel automatically — no Rust toolchain required, no env-var selection, no Pyt
 The shipped Rust-backed operations are grouped by the Python facade that calls them:
 
 - Project parsing: `parse_project_bytes`
+- Project lifecycle helpers: read effective `PROJECT_STATE`, apply a lifecycle update to ProjectSpec text, and list
+  lifecycle-filtered project records for CLI/TUI/launch discovery
 - Query parsing and evaluation: `tokenize_query`, `parse_query`, `canonicalize_query`, legacy one-shot
   `evaluate_query_many`, and the product persistent-corpus path (`compile_corpus`, `compile_query`, `evaluate_many`)
   used by `sase.core.query_corpus_facade`
@@ -41,6 +43,9 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
 - `transition_changespec_status` — the side-effecting status transition (acquires a file lock, rewrites the project
   file, performs archive moves and suffix renames). The pure decision step inside it routes through Rust via
   `plan_status_transition`.
+- Project lifecycle mutations stay on the Python host path: `sase project` resolves the mutable ProjectSpec file, holds
+  the ProjectSpec lock, checks live `RUNNING` claims and artifact markers, and delegates only the pure `PROJECT_STATE`
+  parse/update/list operations to Rust.
 - High-level subprocess orchestration, process liveness checks outside launch, filesystem mutation outside the prepared
   prompt/output path, TUI rendering, and plugin entry points stay on the host by design.
 - Agent launch host responsibilities stay in Python: provider/workspace plugin calls, VCS preallocation env mapping,
@@ -99,6 +104,8 @@ The facade lives at `src/sase/core/`:
 | `rust.py`                      | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)                                    |
 | `health.py`                    | `sase core health` Rust-extension probe + report                                                                   |
 | `parser_facade.py`             | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                                                |
+| `project_lifecycle_facade.py`  | Rust-backed ProjectSpec lifecycle parse/update/list helpers                                                        |
+| `project_lifecycle_wire.py`    | Project lifecycle and project-record wire dataclasses                                                              |
 | `wire.py`                      | Stable wire record types that cross the Python ↔ Rust boundary                                                     |
 | `wire_conversion.py`           | Python `ChangeSpec` ↔ wire record serialization                                                                    |
 | `query_facade.py`              | `parse_query` (Rust); per-row query context/eval (Python host logic); batch compatibility wrapper over Rust corpus |

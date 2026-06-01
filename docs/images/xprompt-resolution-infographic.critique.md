@@ -1,6 +1,6 @@
 ---
 diagram: docs/images/xprompt-resolution-infographic.png
-embedded_in: docs/xprompt.md
+embedded_in: none
 phase: critique
 pdf: false
 ---
@@ -9,11 +9,11 @@ pdf: false
 
 ## Summary
 
-The infographic gets the high-level shape right — three swimlanes (inputs → resolution pipeline → outputs), with a side
-"Discovery stack" annotation off the resolution column. The four output cards on the right are all real artifacts of the
-pipeline and read clearly. The input column gathers the right surface-level concepts (`#name`, `#!workflow`,
-`%directives`, workspace refs) and the bottom-left "Fences + disabled regions" callout names the right two protective
-constructs.
+This infographic was formerly embedded in `docs/xprompt.md`. It gets the high-level shape right — three swimlanes
+(inputs → resolution pipeline → outputs), with a side "Discovery stack" annotation off the resolution column. The four
+output cards on the right are all real artifacts of the pipeline and read clearly. The input column gathers the right
+surface-level concepts (`#name`, `#!workflow`, `%directives`, workspace refs) and the bottom-left "Fences + disabled
+regions" callout names the right two protective constructs.
 
 The substantive problems are in the **middle column**: the pipeline stages are listed in the wrong order, the
 "directives" stage is fused into Jinja2 rendering even though directives are extracted in a separate, later step, and

@@ -86,7 +86,7 @@ sase memory episodes auto -p <project> -l 50  # one checkpointed maintenance pas
 sase memory episodes build -s 2026-05-01 -u 2026-05-26 --split  # backfill connected components
 sase memory episodes recall -q "retry feedback"  # search stored episode evidence by topic
 sase memory episodes export -s 2026-05-01 -u 2026-05-26 -b high -j  # read-only event-readiness summaries
-sase init sdd             # create/refresh generated SDD guides and directory map
+sase init sdd             # enable version-controlled SDD and refresh generated guides
 sase skills list          # inspect generated skill sources, targets, and drift
 sase skills init --dry-run  # preview provider skill files before deploying them
 sase plugin doctor        # diagnose installed plugin entry points and chop scripts
@@ -94,6 +94,8 @@ sase ace                  # open the interactive control surface
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
 sase agents index status  # check ACE's fast Agents-tab artifact index
+sase project list         # inspect active projects visible to daily launch/discovery
+sase project archive <project>  # hide a dormant project from normal launch views
 sase bead onboard         # see the bead issue-tracking quick start
 sase workspace list       # inspect the current project's numbered workspace view
 sase workspace path 10    # preview where managed workspace #10 would live
@@ -110,6 +112,11 @@ SASE keeps durable state outside any one chat session:
 
 - **Rust core** - Ported parsing, launch, notification, agent-scan, cleanup, and bead operations are served by the
   required `sase_core_rs` extension. Run `sase core health` before first use and after dependency changes.
+- **Project lifecycle** - ProjectSpec metadata can mark a project `active`, `archived`, or `closed`. Missing
+  `PROJECT_STATE` is treated as `active`; normal launch pickers, broad ChangeSpec discovery, project-local xprompt
+  catalogs, mobile helper catalogs, and known-project VCS refs default to active projects. Use
+  `sase project list --state all`, `sase project show <project>`, and `sase project activate <project>` when revisiting
+  archived or closed work.
 - **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
   `#1` through `#9` are reserved, and new claims allocate from `#10` upward.
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed
@@ -154,6 +161,7 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [Spec-Driven Development](https://sase.sh/sdd/) ([local](docs/sdd.md))
 - [XPrompts](https://sase.sh/xprompt/) ([local](docs/xprompt.md))
 - [ChangeSpecs](https://sase.sh/change_spec/) ([local](docs/change_spec.md))
+- [ProjectSpec and project lifecycle](https://sase.sh/project_spec/) ([local](docs/project_spec.md))
 - [Beads](https://sase.sh/beads/) ([local](docs/beads.md))
 - [Workflows](https://sase.sh/workflow_spec/) ([local](docs/workflow_spec.md))
 - [Workspaces](https://sase.sh/workspace/) ([local](docs/workspace.md))

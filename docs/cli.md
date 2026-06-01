@@ -77,9 +77,9 @@ explicit, for example `sase notify list -j`, `sase memory episodes list -p <proj
 | `sase bead sync`                             | Export the bead database to git-tracked JSONL and stage it.                                   | [Beads](beads.md#sync-mechanism)                       |
 | `sase bead stats` / `doctor`                 | Inspect project statistics or bead-store health.                                              | [Beads](beads.md#rust-backend)                         |
 | `sase bead work`                             | Launch phase agents for an epic, or epic-planning agents for a legend.                        | [Beads](beads.md#sase-bead-work-id)                    |
-| `sase project list`                          | List active projects by default, or include archived/closed projects with `--state`.          | [ProjectSpec](project_spec.md#project-metadata-fields) |
-| `sase project show`                          | Show lifecycle, workspace, launchability, and warning details for one project.                | [ProjectSpec](project_spec.md#project-metadata-fields) |
-| `sase project set-state` / aliases           | Activate, archive, or close a project by updating `PROJECT_STATE` under the ProjectSpec lock. | [ProjectSpec](project_spec.md#project-metadata-fields) |
+| `sase project list`                          | List active projects by default, or include archived/closed projects with `--state`.          | [Project lifecycle](project_spec.md#project-lifecycle) |
+| `sase project show`                          | Show lifecycle, workspace, launchability, and warning details for one project.                | [Project lifecycle](project_spec.md#project-lifecycle) |
+| `sase project set-state` / aliases           | Activate, archive, or close a project by updating `PROJECT_STATE` under the ProjectSpec lock. | [Project lifecycle](project_spec.md#project-lifecycle) |
 | `sase plan`                                  | Submit a plan for approval from the plan skill path.                                          | [XPrompt directives](xprompt.md#plan-directive)        |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                  | [XPrompt directives](xprompt.md#directives)            |
 
@@ -90,6 +90,10 @@ dependency tracking and executable epics on top of those artifacts.
 closed projects, `sase project archive <project>` to hide a dormant project from daily launch views, and
 `sase project activate <project>` to make it launchable again. Archiving or closing refuses projects with live `RUNNING`
 claims or active artifact markers unless `--force` is passed.
+
+Active-only project discovery is also the default for launch pickers, broad ChangeSpec searches, project-local xprompt
+catalogs, mobile helper catalogs, and all-known bead helper reads. Agent-history views that need older artifacts opt
+into all project states explicitly.
 
 ## Automation
 

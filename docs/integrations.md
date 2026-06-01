@@ -31,6 +31,10 @@ The optional `project` argument is an exact project-name filter. Terminal Change
 workspace/status suffixes, so `Submitted`, `Archived`, and `Reverted` entries are not returned. Results are sorted
 deterministically by project, ChangeSpec name, and normalized status.
 
+The helper uses the same active-project default as normal ChangeSpec discovery. Archived and closed projects are omitted
+from the broad list. The mobile helper bridge wraps explicit inactive-project requests with a partial-success warning
+telling the caller to reactivate the project before launching new work.
+
 Each returned `ChangeSpecTagEntry` has:
 
 | Field           | Description                                                    |
@@ -138,6 +142,11 @@ where `events/**` is canonical and `issues.jsonl` is a compatibility projection;
 workspaces or legacy bead stores. The structured xprompt catalog includes `definition_path` when the source can be
 resolved to a real file, so mobile and editor clients can offer jump-to-definition without reverse-engineering display
 paths.
+
+All-known helper reads are lifecycle-aware and enumerate active projects by default. Archived and closed projects are
+left out of broad ChangeSpec tag, xprompt catalog, and bead lists. Explicit project-scoped helper requests report
+inactive-project warnings in the structured `result.warnings` / `result.skipped` fields where the bridge can still
+return a partial result.
 
 Bridge commands read a JSON object from stdin and write a compact JSON object to stdout:
 

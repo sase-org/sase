@@ -7,8 +7,10 @@ pdf: false
 ## Target
 
 - Document: `docs/xprompt.md`
-- Insertion point: after the introductory "Use xprompts when you want to" list and before `## Table of Contents`.
-- Final asset: `docs/images/xprompt-resolution-infographic.png`
+- Intended insertion point: after the introductory "Use xprompts when you want to" list and before
+  `## Table of Contents`.
+- Final asset path: `docs/images/xprompt-resolution-infographic.png`
+- Current status: prompt is updated, but the committed PNG is stale and is not embedded in `docs/xprompt.md`.
 
 ## Intended Alt Text
 
@@ -56,10 +58,10 @@ dark theme, and no gradients that reduce label contrast.
 
 ## Audit Notes
 
-- Verified on 2026-05-10 that `docs/xprompt.md` embeds `docs/images/xprompt-resolution-infographic.png` at the target
-  insertion point with the intended alt text.
-- Verified the committed image is a 1672x941 PNG and that its labels address the prior critique: aliases run first,
-  masking precedes expansion, expansion is iterative, directives are extracted after expansion, and multi-agent fan-out
-  is depth-capped rather than one-level-only.
-- Checked the depicted behaviors against `docs/xprompt.md`, `docs/images/xprompt-resolution-infographic.critique.md`,
-  and nearby xprompt/multi-agent implementation references.
+- As of the current docs review, `docs/xprompt.md` uses an inline text pipeline as the authoritative resolver-order
+  reference.
+- Before re-embedding `docs/images/xprompt-resolution-infographic.png`, regenerate or relabel the PNG so it removes the
+  obsolete keyword-trigger row, shows aliases before masking, shows iterative expansion, separates directive extraction
+  from rendering, and describes multi-agent fan-out as depth-capped rather than one-level-only.
+- Check the regenerated asset against `docs/xprompt.md`, `docs/images/xprompt-resolution-infographic.critique.md`, and
+  the nearby xprompt/multi-agent implementation references before embedding it again.

@@ -146,7 +146,7 @@ title: Structured Agentic Software Engineering
 
   <div class="sase-primitive-list">
   <ul>
-    <li><strong>ChangeSpecs</strong> track CL/PR-sized work, commits, review state, comments, mentors, and lifecycle transitions.</li>
+    <li><strong>ProjectSpecs and ChangeSpecs</strong> track project lifecycle, CL/PR-sized work, commits, review state, comments, mentors, and lifecycle transitions.</li>
     <li><strong>Beads</strong> provide git-native issue tracking for plans, executable epics, phase dependencies, and agent handoff.</li>
     <li><strong>XPrompts</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
     <li><strong>ACE</strong> is the interactive control surface for daily work.</li>

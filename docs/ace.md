@@ -215,6 +215,10 @@ The modal supports live filtering as you type in the search box and displays las
 | `,.`       | Open prompt history modal for the last CL                                                     |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
 
+Project selection and repeat-launch helpers use lifecycle-aware discovery: home mode is always available, while project
+and CL choices come from active ProjectSpecs. Archived and closed projects do not appear in normal launch pickers until
+they are reactivated with `sase project activate <project>`.
+
 The repeat binding is the leader prefix followed by the configured `repeat_last` key. With the defaults both are comma,
 so the sequence is `,,`; if the leader prefix is changed but `repeat_last` is not, the second key remains comma. Repeat
 re-dispatches the last recognized leader subkey against the current tab and selection. If no leader command has been run

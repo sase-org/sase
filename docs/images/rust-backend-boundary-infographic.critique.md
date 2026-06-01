@@ -71,13 +71,14 @@ Markdown width.
 These are checked against `docs/rust_backend.md` (the current state) and the Rust-backed binding categories the doc
 enumerates.
 
-1. **Bottom layer omits roughly half the Rust-owned categories.** The doc enumerates nine groups of Rust-backed
-   operations (project parsing; query parsing/evaluation including the persistent query corpus; agent artifact
-   scan/index; status helpers + planner; git query parsers; notification JSONL store; agent cleanup planning +
-   mutations; agent launch preparation/spawn/fan-out/RUNNING-field claims; bead data operations). The bottom layer's
-   three boxes ("parse + notifications", "status/launch + launch fanout + work DAG", "git parsers") fold those nine into
-   three blended labels. **Query corpus**, **agent artifact scan/index**, and **agent cleanup** are not surfaced as
-   their own boxes — the side "Rust owns" panel partially recovers them, but the layered visual itself is wrong.
+1. **Bottom layer omits roughly half the Rust-owned categories.** The doc enumerates current Rust-backed operation
+   groups (project parsing; project lifecycle helpers; query parsing/evaluation including the persistent query corpus;
+   agent artifact scan/index; status helpers + planner; git query parsers; notification JSONL store; agent cleanup
+   planning + mutations; agent launch preparation/spawn/fan-out/RUNNING-field claims; bead data operations). The bottom
+   layer's three boxes ("parse + notifications", "status/launch + launch fanout + work DAG", "git parsers") fold those
+   groups into three blended labels. **Project lifecycle**, **query corpus**, **agent artifact scan/index**, and **agent
+   cleanup** are not surfaced as their own boxes — the side "Rust owns" panel partially recovers some of them, but the
+   layered visual itself is wrong.
 2. **Bead data operations are massively underweighted.** Beads are the most recently migrated and one of the largest
    surfaces (read queries, merged-workspace reads, mutations, JSONL codecs, sync-clean checks, deterministic epic/legend
    work planning, and the early `sase bead` CLI fast path; tracked as its own epic
@@ -128,10 +129,11 @@ enumerates.
 These are change requests the regen agent should pass into its GPT image prompt and/or its post-processing label script,
 scoped to the diagram only.
 
-1. **Re-bin the bottom layer to one box per Rust-owned category, with consistent grain.** Use the doc's nine groups
-   directly: `parse_project_bytes`, query parse + corpus, agent artifact scan/index, status helpers + planner, git query
-   parsers, notification JSONL store, agent cleanup, agent launch + RUNNING claims, **bead data ops** (reads, mutations,
-   work-plan DAG, CLI fast path). Three rows of three boxes fits the 16:9 frame at 1600×900 with adequate padding.
+1. **Re-bin the bottom layer to one box per Rust-owned category, with consistent grain.** Use the doc's current groups
+   directly: project parsing, project lifecycle helpers, query parse + corpus, agent artifact scan/index, status
+   helpers/planner, git query parsers, notification JSONL store, agent cleanup, agent launch + RUNNING claims, and
+   **bead data ops** (reads, mutations, work-plan DAG, CLI fast path). Use a grid or grouped chips with enough padding
+   at 1600×900.
 2. **Promote "required Rust boundary — no Python fallback" to a heavyweight horizontal divider** between facade and
    extension layers, not a thin centered pill. Use the amber accent and a noticeably larger type weight than any other
    annotation, so it reads as the load-bearing claim of the diagram.

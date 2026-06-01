@@ -53,8 +53,8 @@ The regenerated diagram addresses the 2026-05-10 critique by:
 - replacing the left annotation column with the four Python host responsibilities from `docs/rust_backend.md`;
 - naming Python-owned facade examples: `parse_project_file`, `evaluate_query*`, and `transition_status`;
 - naming concrete `sase core health` probes: `parse_query`, launch schema/fanout, and `bead_cli_execute`;
-- expanding the Rust workspace layer into nine categories: project parsing, query parse/corpus, agent artifact
-  scan/index, status helpers/planner, git query parsers, notification JSONL store, agent cleanup, agent launch/RUNNING
-  claims, and bead data operations;
+- expanding the Rust workspace layer into current operation categories: project parsing, project lifecycle helpers,
+  query parse/corpus, agent artifact scan/index, status helpers/planner, git query parsers, notification JSONL store,
+  agent cleanup, agent launch/RUNNING claims, and bead data operations;
 - adding the PyPI wheel badge `sase-core-rs >=0.1.1,<0.2.0`;
 - adding a companion `crates/sase_gateway` box so the `../sase-core` workspace framing stays honest.
