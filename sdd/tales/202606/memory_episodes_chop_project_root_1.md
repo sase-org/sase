@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-01 08:28:22
-status: wip
+status: done
 prompt: sdd/prompts/202606/memory_episodes_chop_project_root_1.md
 ---
 # Fix memory_episodes Chop Project Targeting
