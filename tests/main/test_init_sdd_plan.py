@@ -19,11 +19,20 @@ def _args(path: Path) -> argparse.Namespace:
     return argparse.Namespace(path=str(path))
 
 
+def _write_enabled_config(path: Path) -> None:
+    (path / "sase.yml").write_text(
+        "sdd:\n  version_controlled: true\n",
+        encoding="utf-8",
+    )
+
+
 def _rel_actions(path: Path) -> set[tuple[str, Path]]:
     plan = plan_sdd_init(_args(path))
     sdd_root = path / "sdd"
     return {
-        (action.operation, action.path.relative_to(sdd_root)) for action in plan.actions
+        (action.operation, action.path.relative_to(sdd_root))
+        for action in plan.actions
+        if action.path.is_relative_to(sdd_root)
     }
 
 
@@ -33,8 +42,10 @@ def test_sdd_plan_missing_tree_reports_create_actions_without_writing(
     plan = plan_sdd_init(_args(tmp_path))
 
     assert not (tmp_path / "sdd").exists()
+    assert not (tmp_path / "sase.yml").exists()
     assert {action.operation for action in plan.actions} == {"create"}
-    assert len(plan.actions) == len(expected_sdd_directory_readmes(str(tmp_path))) + 2
+    assert len(plan.actions) == len(expected_sdd_directory_readmes(str(tmp_path))) + 3
+    assert tmp_path / "sase.yml" in {action.path for action in plan.actions}
     assert expected_sdd_readme(str(tmp_path)).path in {
         action.path for action in plan.actions
     }
@@ -46,6 +57,7 @@ def test_sdd_plan_missing_tree_reports_create_actions_without_writing(
 
 def test_sdd_plan_stale_readmes_report_update_actions(tmp_path: Path) -> None:
     write_sdd_readme(str(tmp_path))
+    _write_enabled_config(tmp_path)
     top_readme = expected_sdd_readme(str(tmp_path)).path
     tales_readme = next(
         file
@@ -63,6 +75,7 @@ def test_sdd_plan_stale_readmes_report_update_actions(tmp_path: Path) -> None:
 
 def test_sdd_plan_corrupt_directory_map_reports_update_action(tmp_path: Path) -> None:
     write_sdd_readme(str(tmp_path))
+    _write_enabled_config(tmp_path)
     directory_map = expected_sdd_directory_map(str(tmp_path)).path
     directory_map.write_bytes(b"not a png\n")
 
@@ -73,12 +86,37 @@ def test_sdd_plan_corrupt_directory_map_reports_update_action(tmp_path: Path) ->
 
 def test_sdd_plan_identical_outputs_is_empty(tmp_path: Path) -> None:
     write_sdd_readme(str(tmp_path))
+    _write_enabled_config(tmp_path)
 
     plan = plan_sdd_init(_args(tmp_path))
 
     assert plan.actions == ()
     assert plan.has_changes is False
     assert "current" in plan.summary
+
+
+def test_sdd_plan_current_outputs_without_config_reports_config_action(
+    tmp_path: Path,
+) -> None:
+    write_sdd_readme(str(tmp_path))
+
+    plan = plan_sdd_init(_args(tmp_path))
+
+    assert len(plan.actions) == 1
+    action = plan.actions[0]
+    assert action.path == tmp_path / "sase.yml"
+    assert action.operation == "create"
+    assert "version-controlled" in plan.summary
+
+
+def test_sdd_plan_existing_enabled_config_reports_no_config_action(
+    tmp_path: Path,
+) -> None:
+    _write_enabled_config(tmp_path)
+
+    plan = plan_sdd_init(_args(tmp_path))
+
+    assert tmp_path / "sase.yml" not in {action.path for action in plan.actions}
 
 
 def test_sdd_init_registry_includes_sdd_planner() -> None:

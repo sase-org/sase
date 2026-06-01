@@ -823,6 +823,10 @@ Built-in bare-git projects also auto-create or refresh generated SDD guide files
 repo registration, `#git`/workspace materialization, and the first version-controlled SDD write. Setup/materialization
 flows commit and push only those generated init paths with an `Initialize SDD` init commit when needed.
 
+Running `sase sdd init` or its `sase init sdd` alias is an explicit non-bare-git opt-in: it creates or updates the
+project-local `sase.yml` so `sdd.version_controlled` is true, then refreshes generated SDD guide files and the directory
+map.
+
 Source: `src/sase/default_config.yml`
 
 ### bead
@@ -1314,14 +1318,15 @@ numbered workspace resolution.
 
 ### `sase init sdd`
 
-`sase init sdd` is an alias for `sase sdd init`. It creates or refreshes generated SDD README files and the directory
-map asset. Bare-git projects run this same generated-file refresh automatically during repository setup and first SDD
-writes, but the explicit command remains available for manual refresh and `--check` audits.
+`sase init sdd` is an alias for `sase sdd init`. It enables version-controlled SDD in the project-local `sase.yml`, then
+creates or refreshes generated SDD README files and the directory map asset. Bare-git projects run the generated-file
+refresh automatically during repository setup and first SDD writes, but the explicit command remains available for
+manual opt-in, refresh, and `--check` audits.
 
-| Flag          | Values | Default                  | Description                                            |
-| ------------- | ------ | ------------------------ | ------------------------------------------------------ |
-| `-c, --check` | flag   | -                        | Report SDD initialization drift without writing files. |
-| `-p, --path`  | path   | `./sdd` or `./.sase/sdd` | SDD root or project root path.                         |
+| Flag          | Values | Default                  | Description                                                       |
+| ------------- | ------ | ------------------------ | ----------------------------------------------------------------- |
+| `-c, --check` | flag   | -                        | Report SDD config and generated-file drift without writing files. |
+| `-p, --path`  | path   | `./sdd` or `./.sase/sdd` | SDD root or project root path.                                    |
 
 ### `sase skills`
 

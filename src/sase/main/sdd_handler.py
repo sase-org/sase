@@ -32,7 +32,7 @@ def _handle_init(args: argparse.Namespace) -> None:
 
 
 def run_sdd_init(args: argparse.Namespace) -> int:
-    """Create or refresh SDD generated files and return an exit code."""
+    """Enable project-local SDD config, refresh generated files, and return code."""
     if getattr(args, "check", False):
         from .init_onboarding import run_init_check
         from .init_registry import InitCommandSpec
@@ -50,8 +50,15 @@ def run_sdd_init(args: argparse.Namespace) -> int:
         )
 
     from sase.sdd.files import ensure_sdd_initialized, expected_sdd_readme
+    from .sdd_init_config import SddInitConfigError, write_sdd_init_config
 
     path = getattr(args, "path", None)
+    try:
+        write_sdd_init_config(path)
+    except SddInitConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
     ensure_sdd_initialized(path)
     readme_path = expected_sdd_readme(path).path
     print(readme_path)
@@ -59,30 +66,50 @@ def run_sdd_init(args: argparse.Namespace) -> int:
 
 
 def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
-    """Return a read-only plan for SDD generated files."""
+    """Return a read-only plan for SDD config and generated files."""
     from sase.sdd.files import plan_sdd_init_actions
+    from .sdd_init_config import plan_sdd_init_config
 
     path = getattr(args, "path", None)
-    actions = [
+    config_plan = plan_sdd_init_config(path)
+    actions = []
+    if config_plan.action is not None:
+        actions.append(config_plan.action)
+    actions.extend(
         InitAction(
             path=action.path,
             operation=action.operation,
             detail=action.detail,
         )
         for action in plan_sdd_init_actions(path)
-    ]
+    )
 
     return InitPlan(
         command="sdd",
         label="SDD",
         summary=_summarize_sdd_actions(actions),
         actions=tuple(actions),
+        blockers=config_plan.blockers,
     )
 
 
 def _summarize_sdd_actions(actions: list[InitAction]) -> str:
     if not actions:
-        return "SDD README files and directory map are current"
+        return "SDD config, README files, and directory map are current"
+
+    config_actions = [action for action in actions if action.path.name == "sase.yml"]
+    generated_actions = [action for action in actions if action.path.name != "sase.yml"]
+    if config_actions and generated_actions:
+        return (
+            "enable version-controlled SDD and "
+            f"{_summarize_generated_sdd_actions(generated_actions)}"
+        )
+    if config_actions:
+        return "enable version-controlled SDD config"
+    return _summarize_generated_sdd_actions(generated_actions)
+
+
+def _summarize_generated_sdd_actions(actions: list[InitAction]) -> str:
     operations = {action.operation for action in actions}
     if operations == {"create"}:
         return "create SDD README files and directory map"

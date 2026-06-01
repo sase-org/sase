@@ -46,7 +46,8 @@ inside the primary workspace at `.sase/sdd/`, so SDD history stays separate from
 mode that matches how you want the audit trail reviewed.
 
 `sase sdd list -k epics` lists every epic; `sase sdd validate` checks the prompt/plan link graph; `sase sdd init`
-refreshes the generated READMEs and the directory-map asset. The reference is in [`sdd.md`](../../sdd.md).
+enables version-controlled SDD and refreshes the generated READMEs and directory-map asset. The reference is in
+[`sdd.md`](../../sdd.md).
 
 ## Beads Are the Work Unit
 

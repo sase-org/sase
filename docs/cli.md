@@ -59,7 +59,7 @@ explicit, for example `sase notify list -j`, `sase memory episodes list -p <proj
 | `sase memory episodes`                       | Build, inspect, maintain, verify, export, and recall source-linked evidence records.         | [Episodes](episodes.md)                            |
 | `sase memory init`                           | Create or refresh project/home memory files and AGENTS memory references.                    | [Initialization](init.md#memory-initialization)    |
 | `sase init memory`                           | Alias for `sase memory init`.                                                                | [Initialization](init.md#memory-initialization)    |
-| `sase sdd init`                              | Create or refresh SDD README files and directory map assets.                                 | [SDD](sdd.md)                                      |
+| `sase sdd init`                              | Enable version-controlled SDD and refresh generated guide files.                             | [SDD](sdd.md)                                      |
 | `sase init sdd`                              | Alias for `sase sdd init`.                                                                   | [SDD](sdd.md)                                      |
 | `sase sdd list`                              | List SDD prompt, tale, epic, legend, or all Markdown artifacts.                              | [SDD](sdd.md)                                      |
 | `sase sdd links`                             | Inspect prompt/artifact frontmatter links.                                                   | [SDD](sdd.md)                                      |

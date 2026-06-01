@@ -208,7 +208,7 @@ when passing list flags such as `--kind` or `--json`.
 
 | Command                 | Purpose                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| `sase sdd init`         | Create or refresh `sdd/README.md`, tier READMEs, and `sdd/assets/sdd-directory-map.png`                 |
+| `sase sdd init`         | Enable `sdd.version_controlled`, then refresh `sdd/README.md`, tier READMEs, and the directory map      |
 | `sase init sdd`         | Alias for `sase sdd init`; accepts the same `-p/--path` option                                          |
 | `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all`        |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
@@ -224,10 +224,11 @@ warning count and appends `(use --show-warnings to display)` so they remain disc
 on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict` to promote warnings to errors before
 filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
-The `sase sdd init` output is intentionally short project-local documentation. It refreshes `sdd/README.md`, the
-directory map asset, and generated `README.md` files in `tales/`, `epics/`, `legends/`, `myths/`, and `research/`. Keep
-conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides. The generated guides
-are safe to overwrite, so do not put hand-maintained conceptual prose in those README files.
+The `sase sdd init` command enables version-controlled SDD in the project-local `sase.yml`, then refreshes
+`sdd/README.md`, the directory map asset, and generated `README.md` files in `tales/`, `epics/`, `legends/`, `myths/`,
+and `research/`. Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to opt into project-local SDD and
+refresh generated project guides. The generated guides are safe to overwrite, so do not put hand-maintained conceptual
+prose in those README files.
 
 Bare-git projects normally do not need a manual `sase sdd init`: SASE runs the same generated-file refresh during
 repository setup, workspace materialization, and the first version-controlled SDD write. The explicit command remains

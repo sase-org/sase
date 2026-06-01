@@ -15,13 +15,13 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
 
     init_parser = sdd_sub.add_parser(
         "init",
-        help="Create or refresh sdd/README.md",
+        help="Enable version-controlled SDD and refresh generated guides",
     )
     init_parser.add_argument(
         "-c",
         "--check",
         action="store_true",
-        help="Report SDD initialization drift without writing files",
+        help="Report SDD config and generated-file drift without writing files",
     )
     add_sdd_path_arg(init_parser)
 
