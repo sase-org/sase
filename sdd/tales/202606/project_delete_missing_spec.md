@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-01 17:25:14
-status: wip
+status: done
 prompt: sdd/prompts/202606/project_delete_missing_spec.md
 ---
 # Plan: Fix Project Management Delete for Missing Active ProjectSpec

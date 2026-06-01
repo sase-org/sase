@@ -393,6 +393,46 @@ class TestDeletion:
         assert deleted_dir == project_dir
         assert not project_dir.exists()
 
+    def test_delete_removes_project_directory_with_missing_active_spec(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+    ) -> None:
+        lifecycle_stubs()
+        project_dir = projects_root / "alpha"
+        project_dir.mkdir()
+        (project_dir / "alpha-archive.sase").write_text("NAME: old\n", encoding="utf-8")
+        (project_dir / "sase.yml").write_text("xprompts: []\n", encoding="utf-8")
+        artifact = project_dir / "artifacts" / "run" / "260601120000" / "done.json"
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text("{}", encoding="utf-8")
+
+        deleted_dir = project_handler.delete_project_locked("alpha")
+
+        assert deleted_dir == project_dir
+        assert not project_dir.exists()
+
+    def test_delete_missing_active_spec_rejects_live_artifact_marker(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+    ) -> None:
+        lifecycle_stubs()
+        project_dir = projects_root / "alpha"
+        project_dir.mkdir()
+        marker = project_dir / "artifacts" / "run" / "260601120000"
+        marker.mkdir(parents=True)
+        (marker / "running.json").write_text("{}", encoding="utf-8")
+
+        with pytest.raises(
+            project_handler.ProjectLifecycleBlockedError,
+            match="live artifact marker",
+        ):
+            project_handler.delete_project_locked("alpha")
+
+        assert project_dir.is_dir()
+        assert marker.is_dir()
+
     def test_delete_rejects_home_project(
         self,
         projects_root: Path,

@@ -248,19 +248,16 @@ def delete_project_locked(
     project_dir = _resolve_deletable_project_dir(project, root)
     _reject_system_managed_project(project, root)
     project_file = Path(preferred_project_spec_path(str(project_dir), project))
-    if not project_file.is_file():
-        raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
 
     with changespec_lock(str(project_file)):
         project_dir = _resolve_deletable_project_dir(project, root)
         _reject_system_managed_project(project, root)
         project_file = Path(preferred_project_spec_path(str(project_dir), project))
-        if not project_file.is_file():
-            raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
-
-        content = project_file.read_text(encoding="utf-8")
-        claims = list_workspace_claims_from_content(content)
         markers = _live_artifact_marker_paths(project_dir)
+        claims: list[WorkspaceClaim] = []
+        if project_file.is_file():
+            content = project_file.read_text(encoding="utf-8")
+            claims = list_workspace_claims_from_content(content)
         if claims or markers:
             raise _ProjectLifecycleBlockedError(project, "delete", claims, markers)
 

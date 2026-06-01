@@ -30,12 +30,16 @@ def _record(
     launchable: bool = True,
     warnings: list[str] | None = None,
     system_managed: bool = False,
+    project_dir: str | None = None,
+    project_file: str | None = None,
 ) -> ProjectRecordWire:
+    project_dir_text = project_dir or f"/tmp/projects/{name}"
+    project_file_text = project_file or f"{project_dir_text}/{name}.sase"
     return ProjectRecordWire(
         schema_version=1,
         project_name=name,
-        project_dir=f"/tmp/projects/{name}",
-        project_file=f"/tmp/projects/{name}/{name}.sase",
+        project_dir=project_dir_text,
+        project_file=project_file_text,
         archive_file=None,
         workspace_dir=f"/tmp/workspaces/{name}",
         state=state,
@@ -289,6 +293,50 @@ async def test_project_management_modal_delete_confirm_reloads_and_removes_row(
         assert modal._status_message == "Deleted alpha"
         pilot.app._schedule_changespecs_async_refresh.assert_called_once_with()
         pilot.app._refresh_current_tab.assert_called_once_with()
+
+
+async def test_project_management_modal_deletes_defaulted_missing_spec_record(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "alpha"
+    project_dir.mkdir()
+    (project_dir / "sase.yml").write_text("xprompts: []\n", encoding="utf-8")
+    record = _record(
+        "alpha",
+        explicit=False,
+        launchable=False,
+        warnings=[f"active ProjectSpec file not found: {project_dir / 'alpha.sase'}"],
+        project_dir=str(project_dir),
+        project_file=str(project_dir / "alpha.sase"),
+    )
+
+    def list_records(*_args, **_kwargs):
+        return [record] if project_dir.exists() else []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+    monkeypatch.setattr(
+        "sase.main.project_handler.list_project_records",
+        list_records,
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+
+        assert not project_dir.exists()
+        assert modal._filtered_records == []
+        assert modal._status_message == "Deleted alpha"
+        assert "was not found" not in modal._status_message
 
 
 async def test_project_management_modal_delete_blocked_keeps_row_visible(
