@@ -79,23 +79,29 @@ are parsed only before the first ChangeSpec.
 
 ### Project Lifecycle
 
-Project lifecycle state controls whether a project is part of daily launch and discovery surfaces:
+Project lifecycle state controls whether a project appears in the default lists used to start new work or browse current
+work. It is project-level metadata; it does not delete project files and is separate from a ChangeSpec whose `STATUS` is
+`Archived`.
 
-| State      | Meaning                                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------------------- |
-| `active`   | Normal work state. Missing `PROJECT_STATE` also means `active`, so existing projects need no migration. |
-| `archived` | Historical or dormant project. Hidden from normal launch pickers and broad active-project scans.        |
-| `closed`   | Finished project. Also hidden from normal launch pickers and broad active-project scans.                |
+| State      | Meaning                                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------------------------- |
+| `active`   | Normal work state. Missing `PROJECT_STATE` also means `active`, so existing projects need no migration.   |
+| `archived` | Dormant or historical project. Hidden from default launch pickers and discovery lists.                    |
+| `closed`   | Finished project. Operationally hidden from the same default launch and discovery surfaces as `archived`. |
 
-Normal project discovery is active-only. That includes ACE project selection, broad `find_all_changespecs()` callers
-such as `sase changespec search`, known-project workspace references, project-local xprompt catalogs, mobile helper
-catalogs, and all-known bead helper reads. Agent-history views that need old artifacts pass an explicit all-state scan.
+Default project discovery is active-only. That includes ACE project selection, `sase changespec search`, known-project
+workspace references such as `#gh:sase`, project-local xprompt catalogs, broad mobile helper catalogs, and all-known
+bead helper reads. Agent-history views that need old artifacts pass an explicit all-state scan.
 
 Use `sase project list --state all` to inspect inactive projects, `sase project show <project>` to see state, workspace,
 launchability, and warnings, and `sase project activate <project>` before launching new work in an archived or closed
 project. The `archive`, `close`, and `set-state` forms update the ProjectSpec under the normal ProjectSpec lock.
 Archiving or closing refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed.
-The system-managed `home` project cannot be archived or closed through this command.
+The system-managed `home` project cannot be mutated through this command.
+
+ACE exposes the same lifecycle operations through the `,P` project management panel. The panel lists non-system projects
+across all states by default, offers text and state filters, and uses the same blocked-operation checks before archiving
+or closing a project.
 
 Common workflows:
 

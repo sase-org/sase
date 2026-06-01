@@ -5,7 +5,8 @@ filters, and operational shorthands. It is used by the CLs tab in `sase ace [que
 such as `sase axe start --query`.
 
 Normal query surfaces use active-project ChangeSpec discovery. Archived and closed projects are omitted from CLI search
-and day-to-day ACE/axe scans unless a history-oriented caller explicitly asks for all project lifecycle states.
+and day-to-day ACE/axe scans. Views that are specifically about agent history or old artifacts opt into all project
+lifecycle states explicitly.
 
 This page documents ChangeSpec queries. The Agents tab in ACE has a separate agent query language with agent-specific
 property keys.

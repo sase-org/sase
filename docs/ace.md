@@ -875,21 +875,22 @@ The `:` / `;` binding follows your configured keymap. To rebind it, set `ace.key
 
 ## Project Management Panel
 
-Press `,P` from any tab to open the **Project Management** panel. It lists non-`home` projects across `active`,
-`archived`, and `closed` lifecycle states, including workspace path, active claim count, launchability, and lifecycle or
-workspace warnings.
+Press `,P` from any tab to open the **Project Management** panel. It lists non-system projects across `active`,
+`archived`, and `closed` lifecycle states, so inactive projects remain reachable even though normal launch and discovery
+views hide them. Rows include workspace path, active claim count, launchability, and lifecycle or workspace warnings.
 
-| Key       | Action                                      |
-| --------- | ------------------------------------------- |
-| `j` / `k` | Move selection                              |
-| `/`       | Filter projects by text                     |
-| `Tab`     | Cycle lifecycle filter                      |
-| `a`       | Activate highlighted project                |
-| `r`       | Archive highlighted project                 |
-| `c`       | Close highlighted project                   |
-| `F`       | Force the last blocked archive/close action |
-| `R`       | Reload project records                      |
-| `q`/`Esc` | Close the panel                             |
+| Key         | Action                                                                 |
+| ----------- | ---------------------------------------------------------------------- |
+| `j` / `k`   | Move selection                                                         |
+| `/`         | Filter projects by text                                                |
+| `Tab`       | Cycle lifecycle filter: all, active, archived, closed                  |
+| `Enter`     | Activate the highlighted project when it is archived or closed         |
+| `a`         | Activate highlighted project                                           |
+| `r`         | Archive highlighted project                                            |
+| `c`         | Close highlighted project                                              |
+| `F`         | Force the last blocked archive/close after confirming live-work checks |
+| `R`         | Reload project records                                                 |
+| `q` / `Esc` | Close the panel                                                        |
 
 Archiving and closing use the same locked mutation path as `sase project archive` and `sase project close`. If a project
 still has `RUNNING` claims or live artifact markers, ACE shows the blocked reason and lets you retry with `F` when the

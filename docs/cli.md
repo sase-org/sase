@@ -86,14 +86,14 @@ explicit, for example `sase notify list -j`, `sase memory episodes list -p <proj
 ChangeSpecs are CL/PR-sized review records. SDD stores durable prompt and planning artifacts. Beads add git-portable
 dependency tracking and executable epics on top of those artifacts.
 
-`sase project list` defaults to active projects. Use `sase project list --state all --json` to inspect archived and
-closed projects, `sase project archive <project>` to hide a dormant project from daily launch views, and
-`sase project activate <project>` to make it launchable again. Archiving or closing refuses projects with live `RUNNING`
-claims or active artifact markers unless `--force` is passed.
+`sase project` defaults to `sase project list`, and `sase project list` defaults to active projects. Use
+`sase project list --state all --json` to inspect archived and closed projects, `sase project archive <project>` to hide
+a dormant project from default launch views, and `sase project activate <project>` to make it launchable again.
+Archiving or closing refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed.
 
-Active-only project discovery is also the default for launch pickers, broad ChangeSpec searches, project-local xprompt
-catalogs, mobile helper catalogs, and all-known bead helper reads. Agent-history views that need older artifacts opt
-into all project states explicitly.
+Active-only project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
+catalogs, broad mobile helper catalogs, and all-known bead helper reads. Agent-history views that need older artifacts
+opt into all project states explicitly.
 
 ## Automation
 

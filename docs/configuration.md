@@ -121,6 +121,8 @@ ace:
           projects: "P"
           temporary_llm_override: "o"
           full_history_refresh: "y"
+          projects: "P"
+          temporary_llm_override: "o"
       fold_mode:
         prefix: "z"
         keys:
@@ -1129,9 +1131,9 @@ full flow, payload, checkpoint, and resume semantics.
 | `query`        | string                      | (required) | Query string for filtering ChangeSpecs.               |
 | `-f, --format` | `plain`, `rich`, `markdown` | `rich`     | Output format (`markdown` for agent-friendly output). |
 
-Search uses the normal active-project discovery scope. Archived and closed projects are omitted unless a caller uses a
-lower-level all-state API; reactivate the project with `sase project activate <project>` before using normal search and
-launch surfaces for new work.
+Search uses the normal active-project discovery scope. Archived and closed projects are omitted from this CLI path; run
+`sase project list --state all` or `sase project show <project>` to inspect inactive projects, then reactivate the
+project with `sase project activate <project>` before using normal search and launch surfaces for new work.
 
 ### `sase changespec migrate-extension`
 
@@ -1158,7 +1160,7 @@ metadata in the ProjectSpec header; missing state means `active`.
 | `sase project list`                        | `-j, --json`                                | Emit machine-readable lifecycle records.                                       |
 | `sase project show <project>`              | `-j, --json`                                | Show state, source, project/archive files, workspace, launchability, warnings. |
 | `sase project set-state <project> <state>` | `-f, --force`                               | Set `active`, `archived`, or `closed`.                                         |
-| `sase project activate <project>`          | -                                           | Alias for `set-state <project> active`.                                        |
+| `sase project activate <project>`          | `-f, --force`                               | Alias for `set-state <project> active`; `--force` has no effect for `active`.  |
 | `sase project archive <project>`           | `-f, --force`                               | Alias for `set-state <project> archived`.                                      |
 | `sase project close <project>`             | `-f, --force`                               | Alias for `set-state <project> closed`.                                        |
 

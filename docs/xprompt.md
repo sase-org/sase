@@ -10,19 +10,24 @@ Use xprompts when you want to:
 - Parameterize prompts with typed, validated arguments.
 - Compose prompts from smaller building blocks using `#name(args)` syntax.
 
-The resolution path is easiest to read as a pipeline from prompt references to final prompt text or workflow launches:
+There are two related paths to keep separate:
 
 ```text
-workspace ref dispatch (#cd/#git/#gh/#hg, or implicit #git:home)
-  -> alias substitution
-  -> protected-region masking
+launch setup:
+  multi-agent xprompt fan-out check
+  -> default workspace ref insertion when needed (#git:home)
+  -> workspace ref resolution (#cd/#git/#gh/#hg and known-project fallbacks)
+  -> prompt/workflow execution
+
+xprompt expansion inside a prompt or prompt_part:
+  alias substitution
+  -> fenced-block and disabled-region protection
   -> iterative reference expansion (parse -> lookup -> args -> render -> substitute)
-  -> directive extraction
-  -> inline text, standalone workflow launch, or multi-agent fan-out
+  -> directive extraction at the launch or workflow-step boundary
 ```
 
 The checked-in infographic prompt in `docs/images/xprompt-resolution-infographic.prompt.md` tracks the intended visual
-version of this model; the text pipeline above is the authoritative current reference for resolver order.
+version of this model; the text model above is the authoritative current reference for resolver order.
 
 ## Table of Contents
 

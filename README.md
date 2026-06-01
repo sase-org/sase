@@ -94,8 +94,8 @@ sase ace                  # open the interactive control surface; press ,P for p
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
 sase agents index status  # check ACE's fast Agents-tab artifact index
-sase project list         # inspect active projects visible to daily launch/discovery
-sase project archive <project>  # hide a dormant project from normal launch views
+sase project list         # inspect projects shown by default launch and discovery lists
+sase project archive <project>  # hide a dormant project from default launch lists
 sase bead onboard         # see the bead issue-tracking quick start
 sase workspace list       # inspect the current project's numbered workspace view
 sase workspace path 10    # preview where managed workspace #10 would live
@@ -113,8 +113,8 @@ SASE keeps durable state outside any one chat session:
 - **Rust core** - Ported parsing, launch, notification, agent-scan, cleanup, and bead operations are served by the
   required `sase_core_rs` extension. Run `sase core health` before first use and after dependency changes.
 - **Project lifecycle** - ProjectSpec metadata can mark a project `active`, `archived`, or `closed`. Missing
-  `PROJECT_STATE` is treated as `active`; normal launch pickers, broad ChangeSpec discovery, project-local xprompt
-  catalogs, mobile helper catalogs, and known-project VCS refs default to active projects. Use
+  `PROJECT_STATE` is treated as `active`. Default launch pickers, ChangeSpec searches, project-local xprompt catalogs,
+  broad mobile helper catalogs, and known-project VCS refs such as `#gh:sase` only use active projects. Use
   `sase project list --state all`, `sase project show <project>`, and `sase project activate <project>` when revisiting
   archived or closed work. In ACE, press `,P` to manage lifecycle state from the Project Management panel.
 - **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
