@@ -180,7 +180,8 @@ def test_apply_status_overrides_done_tale_with_completed_epic_followup_still_yie
     agents = [parent, epic_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "DONE"
+    assert parent.status == "EPIC CREATED"
+    assert epic_child.status == "EPIC CREATED"
 
 
 def test_apply_status_overrides_done_without_tale_plan_action_still_yields_plan_done() -> (

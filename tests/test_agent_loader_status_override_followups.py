@@ -431,7 +431,8 @@ def test_apply_status_overrides_completed_epic_child_sets_epic_created() -> None
     agents = [parent, epic_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "DONE"
+    assert parent.status == "EPIC CREATED"
+    assert epic_child.status == "EPIC CREATED"
 
 
 def test_apply_status_overrides_failed_epic_child_stays_plan_done() -> None:

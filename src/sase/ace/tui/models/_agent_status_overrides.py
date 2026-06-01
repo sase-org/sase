@@ -127,6 +127,14 @@ def _is_completed_plan_handoff_child(agent: Agent) -> bool:
     return False
 
 
+def _is_completed_epic_followup_child(agent: Agent) -> bool:
+    """Return True for completed epic creation follow-up rows."""
+    return (
+        agent.status == "DONE"
+        and canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_EPIC_SUFFIX
+    )
+
+
 def _agent_family_name(agent: Agent) -> str | None:
     """Return the stable family name for a root or child row."""
     if agent.agent_family:
@@ -456,18 +464,18 @@ def apply_status_overrides(
             if handoff_status:
                 agent.status = handoff_status
 
-    # Completed family handoff rows are terminal plan/tale states rather than
+    # Completed family handoff rows are semantic terminal states rather than
     # plain DONE. Do this after QUESTION normalization so unanswered rows keep
     # their blocked status, and before root mirroring so the root sees it.
     for agent in all_agents:
         if not (agent.parent_timestamp and not agent.parent_workflow):
             continue
         parent = parent_by_suffix.get(agent.parent_timestamp)
-        if (
-            parent
-            and is_root_plan_workflow(parent)
-            and _is_completed_plan_handoff_child(agent)
-        ):
+        if not (parent and is_root_plan_workflow(parent)):
+            continue
+        if _is_completed_epic_followup_child(agent):
+            agent.status = "EPIC CREATED"
+        elif _is_completed_plan_handoff_child(agent):
             agent.status = _done_handoff_status(parent, agent)
 
     # Attach all follow-up agents to their parent's followup_agents list.

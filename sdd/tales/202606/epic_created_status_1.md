@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-01 10:26:29
-status: wip
+status: done
 prompt: sdd/prompts/202606/epic_created_status_1.md
 ---
 # Fix Epic Follow-Up Terminal Statuses
