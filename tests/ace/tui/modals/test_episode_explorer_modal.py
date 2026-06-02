@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import replace
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -74,6 +75,7 @@ async def test_episode_explorer_filters_cached_inventory_and_switches_views(
             "proj",
             projects_root=projects_root,
             initial_items=items,
+            today=date(2026, 5, 27),
             auto_load=False,
         )
         pilot.app.push_screen(modal)
@@ -153,6 +155,7 @@ async def test_episode_explorer_alias_jump_copy_open_and_verify(
             "proj",
             projects_root=projects_root,
             initial_items=items,
+            today=date(2026, 5, 27),
             auto_load=False,
         )
         pilot.app.push_screen(modal)

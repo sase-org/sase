@@ -272,7 +272,7 @@ def test_project_management_leader_command_is_global() -> None:
     spec = next(c for c in catalog if c.id == "leader.projects")
 
     assert spec.label == "Open project management panel"
-    assert spec.key_display == ",P"
+    assert spec.key_display == ",p"
     assert spec.tabs == ("changespecs", "agents", "axe")
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "open_project_management_panel"

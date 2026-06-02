@@ -475,9 +475,9 @@ def test_leader_mode_includes_agent_run_log() -> None:
 
 
 def test_leader_mode_includes_project_management() -> None:
-    """LeaderModeKeymaps default includes the ``,P`` project panel."""
+    """LeaderModeKeymaps default includes the ``,p`` project panel."""
     reg = load_keymap_registry({})
-    assert reg.leader_mode.keys["projects"] == "P"
+    assert reg.leader_mode.keys["projects"] == "p"
     assert reg.leader_mode.keys["temporary_llm_override"] == "o"
 
 
@@ -547,7 +547,7 @@ def test_help_modal_displays_project_management_leader_key() -> None:
         for _section_name, section_entries in build(reg)
         for entry in section_entries
     ]
-    assert (",P", "Project management") in entries
+    assert (",p", "Project management") in entries
 
 
 def test_leader_mode_includes_prompt_history_edit_first() -> None:

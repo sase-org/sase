@@ -432,7 +432,7 @@ def test_footer_surfaces_project_management_on_all_tabs() -> None:
 
     for tab in ("changespecs", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
-        assert "P" in _last_keys(captured)
+        assert "p" in _last_keys(captured)
         assert "projects" in _last_labels(captured)
 
 

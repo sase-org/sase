@@ -401,7 +401,7 @@ def test_leader_handler_dispatches_project_management_on_all_tabs() -> None:
         mixin.marked_indices = set()
         mixin._leader_mode_active = True
 
-        handled = LeaderModeMixin._handle_leader_key(cast(LeaderModeMixin, mixin), "P")
+        handled = LeaderModeMixin._handle_leader_key(cast(LeaderModeMixin, mixin), "p")
 
         assert handled is True
         mixin.action_open_project_management_panel.assert_called_once()

@@ -118,11 +118,9 @@ ace:
         prefix: "comma"
         keys:
           repeat_last: "comma" # press the leader prefix, then this key; defaults render as `,,`
-          projects: "P"
+          projects: "p"
           temporary_llm_override: "o"
           full_history_refresh: "y"
-          projects: "P"
-          temporary_llm_override: "o"
       fold_mode:
         prefix: "z"
         keys:
@@ -1169,7 +1167,7 @@ Archiving or closing refuses projects with live `RUNNING` claims or live artifac
 mutated through this command. Normal launch and discovery surfaces default to active projects; use `list --state all` or
 `show` for historical inspection, then `activate` before launching new work in an inactive project.
 
-ACE exposes the same lifecycle mutations through the Project Management panel at `,P`. The temporary model override uses
+ACE exposes the same lifecycle mutations through the Project Management panel at `,p`. The temporary model override uses
 `,o` by default.
 
 ### `sase revert`

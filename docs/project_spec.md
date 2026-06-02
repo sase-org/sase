@@ -99,7 +99,7 @@ project. The `archive`, `close`, and `set-state` forms update the ProjectSpec un
 Archiving or closing refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed.
 The system-managed `home` project cannot be mutated through this command.
 
-ACE exposes the same lifecycle operations through the `,P` project management panel. The panel lists non-system projects
+ACE exposes the same lifecycle operations through the `,p` project management panel. The panel lists non-system projects
 across all states by default, offers text and state filters, and uses the same blocked-operation checks before archiving
 or closing a project.
 
@@ -109,7 +109,7 @@ Common workflows:
 - List closed projects: `sase project list --state closed`
 - Inspect every lifecycle state as JSON: `sase project list --state all --json`
 - Reactivate from the CLI: `sase project activate old-project`
-- Reactivate from ACE: press `,P`, highlight the project, then press `a`
+- Reactivate from ACE: press `,p`, highlight the project, then press `a`
 
 Maintenance and agent-history scans intentionally keep reading all project directories. This keeps live `RUNNING`
 claims, stale-claim cleanup, dismissed-agent recovery, agent-name collision checks, and historical Agents-tab rows

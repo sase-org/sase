@@ -208,7 +208,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,m`       | Review mentors (opens Mentor Review modal)                                                    |
 | `,M`       | Kill running mentors                                                                          |
-| `,P`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
+| `,p`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
 | `,o`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r`       | Show runners info                                                                             |
 | `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))                             |
@@ -624,7 +624,7 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,y`       | Refresh the Agents tab from full artifact history                                             |
 | `,u`       | Mark all loaded unread completed agents as read                                               |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
-| `,P`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
+| `,p`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
 | `,o`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,R`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation             |
@@ -761,7 +761,7 @@ numerical identity.
 | ---- | --------------------------------------------------------------------------------------------- |
 | `,,` | Repeat the last leader command                                                                |
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home`                       |
-| `,P` | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
+| `,p` | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
 | `,o` | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r` | Show runners info                                                                             |
 
@@ -875,7 +875,7 @@ The `:` / `;` binding follows your configured keymap. To rebind it, set `ace.key
 
 ## Project Management Panel
 
-Press `,P` from any tab to open the **Project Management** panel. It lists non-system projects across `active`,
+Press `,p` from any tab to open the **Project Management** panel. It lists non-system projects across `active`,
 `archived`, and `closed` lifecycle states, so inactive projects remain reachable even though normal launch and discovery
 views hide them. Rows include workspace path, active claim count, launchability, and lifecycle or workspace warnings.
 
