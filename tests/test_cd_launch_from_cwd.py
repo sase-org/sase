@@ -394,6 +394,94 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
     ws_dir.assert_called_once_with(101, "sase")
 
 
+def test_resolve_known_project_vcs_launch_ref_activates_inactive_owner_repo_ref(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import resolve_known_project_vcs_launch_ref
+
+    workspace = tmp_path / "sase"
+    workspace.mkdir()
+    projects_dir = tmp_path / ".sase" / "projects" / "sase"
+    projects_dir.mkdir(parents=True)
+    project_file = projects_dir / "sase.sase"
+    project_file.write_text(
+        f"PROJECT_STATE: inactive\nWORKSPACE_DIR: {workspace}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    known_ref = resolve_known_project_vcs_launch_ref("#gh:sase-org/sase do work")
+
+    assert known_ref is not None
+    assert known_ref.workflow_type == "gh"
+    assert known_ref.ref == "sase"
+    assert known_ref.workspace_dir == str(workspace)
+    assert known_ref.project_file == str(project_file)
+    assert "PROJECT_STATE: active" in project_file.read_text(encoding="utf-8")
+
+
+def test_launch_agent_from_cwd_inactive_known_project_ref_activates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agent_from_cwd
+    from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+    workspace = tmp_path / "sase"
+    workspace.mkdir()
+    allocated_workspace = tmp_path / "sase_101"
+    allocated_workspace.mkdir()
+    projects_dir = tmp_path / ".sase" / "projects" / "sase"
+    projects_dir.mkdir(parents=True)
+    project_file = projects_dir / "sase.sase"
+    project_file.write_text(
+        f"PROJECT_STATE: inactive\nWORKSPACE_DIR: {workspace}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    spawn_result = MagicMock(
+        pid=123, workspace_dir=str(allocated_workspace), workspace_num=101
+    )
+
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
+        patch(
+            "sase.agent.launcher.spawn_agent_subprocess",
+            return_value=spawn_result,
+        ) as spawn,
+        patch(
+            "sase.running_field.claim_next_axe_workspace",
+            return_value=101,
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=(str(allocated_workspace), None),
+        ),
+    ):
+        result = launch_agent_from_cwd("#gh:sase #!sase/fix_just")
+
+    assert result is spawn_result
+    kwargs = spawn.call_args.kwargs
+    assert kwargs["project_name"] == "sase"
+    assert kwargs["project_file"] == str(project_file)
+    assert kwargs["workspace_dir"] == str(allocated_workspace)
+    assert kwargs["is_home_mode"] is False
+    assert kwargs["update_target"] == VCS_DEFAULT_REVISION
+    assert kwargs["vcs_ref"] == ("gh", "sase")
+    assert "PROJECT_STATE: active" in project_file.read_text(encoding="utf-8")
+
+
 def test_launch_agent_from_cwd_explicit_known_ref_ignores_invalid_inferred_project(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -132,6 +132,43 @@ def test_explicit_standalone_workflow_executes_with_hitl_override() -> None:
     )
 
 
+def test_project_local_standalone_workflow_activates_inactive_project(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    app = _FakeApp()
+    workspace = tmp_path / "sase"
+    workspace.mkdir()
+    projects_dir = tmp_path / ".sase" / "projects" / "sase"
+    projects_dir.mkdir(parents=True)
+    project_file = projects_dir / "sase.sase"
+    project_file.write_text(
+        f"PROJECT_STATE: inactive\nWORKSPACE_DIR: {workspace}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    workflow = Workflow(
+        name="sase/sync",
+        steps=[WorkflowStep(name="run", bash="echo sync")],
+    )
+
+    with (
+        patch("sase.xprompt.get_all_prompts", return_value={"sase/sync": workflow}),
+        patch.object(app, "_execute_workflow_in_thread", return_value=True) as execute,
+    ):
+        result = app._try_execute_workflow("#!sase/sync")
+
+    assert result is True
+    execute.assert_called_once_with(
+        "sase/sync",
+        [],
+        {},
+        hitl_override=None,
+    )
+    assert app.notifications == []
+    assert "PROJECT_STATE: active" in project_file.read_text(encoding="utf-8")
+
+
 def test_legacy_standalone_workflow_notifies_warning() -> None:
     """Bare #standalone still runs but warns in the TUI."""
     app = _FakeApp()

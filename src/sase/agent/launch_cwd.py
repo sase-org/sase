@@ -63,26 +63,22 @@ def resolve_known_project_vcs_launch_ref(
     """Resolve a generic VCS ref that points at a known project checkout."""
     from pathlib import Path
 
-    from sase.xprompt._parsing import (
-        extract_known_project_vcs_ref,
-        resolve_known_project_ref,
+    from sase.agent.launch_projects import (
+        activate_known_project_for_launch_ref,
+        extract_known_project_vcs_launch_ref,
     )
-    from sase.xprompt.loader import (
-        get_known_project_workspaces,
-        inactive_project_message_for_ref,
-    )
+    from sase.xprompt._parsing import resolve_known_project_ref
+    from sase.xprompt.loader import get_known_project_workspaces
 
-    known_ref = extract_known_project_vcs_ref(prompt, include_states="all")
+    known_ref = extract_known_project_vcs_launch_ref(prompt)
     if known_ref is None:
         return None
 
     workflow_type, ref = known_ref
+    activate_known_project_for_launch_ref(ref)
     known_projects = get_known_project_workspaces()
     project_name = resolve_known_project_ref(ref, known_projects)
     if project_name is None:
-        message = inactive_project_message_for_ref(ref)
-        if message is not None:
-            raise RuntimeError(message)
         return None
     workspace_dir = known_projects.get(project_name)
     if workspace_dir is None:
@@ -163,6 +159,11 @@ def launch_agents_from_cwd(
     )
 
     multi = parse_multi_prompt(query)
+    from sase.agent.launch_projects import (
+        activate_known_project_vcs_refs_for_launch_prompt,
+    )
+
+    activate_known_project_vcs_refs_for_launch_prompt("\n---\n".join(multi.segments))
     expanded_segment_extra_env: list[dict[str, str] | None] | None = None
     if segment_extra_env is not None:
         if len(segment_extra_env) != len(multi.segments):
@@ -193,6 +194,7 @@ def launch_agents_from_cwd(
             for segment in expanded_segments
         ]
         normalized_query = "\n---\n".join(expanded_segments)
+        activate_known_project_vcs_refs_for_launch_prompt(normalized_query)
 
         # Determine cl_name from VCS refs (lightweight pattern check).
         from sase.workspace_provider import get_ref_patterns
@@ -264,6 +266,7 @@ def launch_agents_from_cwd(
         return results
 
     query = normalize_default_vcs_workflow(expanded_segments[0])
+    activate_known_project_vcs_refs_for_launch_prompt(query)
     if expanded_segment_extra_env:
         segment_env = expanded_segment_extra_env[0] or {}
         extra_env = {**(extra_env or {}), **segment_env}
@@ -345,6 +348,9 @@ def launch_agents_from_cwd(
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
         from sase.workspace_provider import get_ref_patterns
 
+        activate_known_project_vcs_refs_for_launch_prompt(
+            "\n---\n".join(slot.prompt for slot in alt_plan.slots)
+        )
         alt_cl_name = project_name
         alt_vcs_ref: tuple[str, str] | None = None
         for wf_name, pattern in get_ref_patterns().items():

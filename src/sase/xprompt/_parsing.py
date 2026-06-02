@@ -289,15 +289,41 @@ def extract_known_project_vcs_ref(
     if not known_projects:
         return None
 
+    refs = iter_known_project_vcs_refs(prompt, known_projects)
+    if refs:
+        return refs[0]
+    return None
+
+
+def iter_known_project_vcs_refs(
+    prompt: str,
+    known_projects: Mapping[str, object],
+) -> list[tuple[str, str]]:
+    """Return all generic VCS refs that resolve to known projects.
+
+    The returned refs preserve the user-written ref value, so owner/repo forms
+    like ``sase-org/sase`` remain available to callers that need history or
+    display context while still checking the registered project basename.
+    """
+    if not known_projects or "#" not in prompt:
+        return []
+
+    refs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
     normalized = normalize_vcs_underscore_refs(prompt)
     for match in _GENERIC_PROJECT_VCS_REF_PATTERN.finditer(normalized):
         workflow_type = match.group("workflow")
         if workflow_type not in _KNOWN_FALLBACK_VCS_PREFIXES:
             continue
         ref = match.group("colon") or match.group("paren")
-        if resolve_known_project_ref(ref, known_projects) is not None:
-            return workflow_type, ref
-    return None
+        if resolve_known_project_ref(ref, known_projects) is None:
+            continue
+        key = (workflow_type, ref)
+        if key in seen:
+            continue
+        seen.add(key)
+        refs.append(key)
+    return refs
 
 
 def strip_known_project_vcs_refs(prompt: str) -> str:
@@ -619,6 +645,7 @@ __all__ = [
     "find_shorthand_text_end",
     "find_vcs_workflow_tag",
     "inherit_vcs_workflow_tag",
+    "iter_known_project_vcs_refs",
     "iter_xprompt_references",
     "normalize_launch_xprompt_at_refs",
     "normalize_vcs_underscore_refs",

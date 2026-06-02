@@ -80,7 +80,7 @@ def test_resolve_vcs_cwd_unknown_owner_repo_ref_leaves_cwd_unchanged(
     assert Path.cwd() == starting_cwd
 
 
-def test_resolve_vcs_cwd_inactive_known_project_errors(
+def test_resolve_vcs_cwd_inactive_known_project_activates(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -99,12 +99,16 @@ def test_resolve_vcs_cwd_inactive_known_project_errors(
 
     with (
         patch("os.chdir") as chdir,
-        patch("sase.xprompt.loader.detect_project"),
-        pytest.raises(ValueError, match="project 'archived' is inactive"),
+        patch("sase.xprompt.loader.detect_project") as detect_project,
     ):
-        _resolve_vcs_cwd("#gh:archived do something")
+        result = _resolve_vcs_cwd("#gh:archived do something")
 
-    chdir.assert_not_called()
+    assert result == ("archived", "archived")
+    chdir.assert_called_once_with(workspace)
+    detect_project.cache_clear.assert_called_once_with()
+    assert "PROJECT_STATE: active" in (projects_dir / "archived.sase").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_resolve_vcs_cwd_cd_changes_to_target(

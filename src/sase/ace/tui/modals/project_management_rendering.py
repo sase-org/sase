@@ -70,8 +70,12 @@ def column_header_text() -> Text:
 
 def record_label(record: ProjectRecordWire, marked_projects: set[str]) -> Text:
     text = Text()
+    inactive = record.state == "inactive"
     if record.project_name in marked_projects:
-        text.append("[✓] ", style="bold #00D700")
+        text.append("[✓]", style="bold #00D700")
+        text.append("!" if inactive else " ", style="bold #FFD700")
+    elif inactive:
+        text.append("!   ", style="bold #FFD700")
     else:
         text.append(" " * _MARK_WIDTH)
     text.append(f"{record.project_name:<{_NAME_WIDTH}.{_NAME_WIDTH}}", style="bold")
@@ -117,6 +121,7 @@ def summary_text(
     text_filter: str,
     status_message: str,
     marked_projects: set[str],
+    show_inactive_projects: bool,
 ) -> Text:
     counts: dict[str, int] = {"active": 0, "inactive": 0, "sibling": 0}
     for record in records:
@@ -142,15 +147,21 @@ def summary_text(
     )
     if text_filter:
         text.append(f"  ·  search:{text_filter}", style="dim")
+    text.append("  ·  inactive rows:", style="dim")
+    text.append(
+        "visible" if show_inactive_projects else "hidden",
+        style="#FFD700" if show_inactive_projects else "dim",
+    )
     if status_message:
         text.append(f"  ·  {status_message}", style="#87D7FF")
     return text
 
 
-def footer_text(marked_projects: set[str]) -> str:
+def footer_text(marked_projects: set[str], show_inactive_projects: bool) -> str:
+    inactive_action = "hide inactive" if show_inactive_projects else "show inactive"
     base = (
         "j/k navigate  / filter  Tab/Shift+Tab state  Enter highlighted  "
-        "m mark  u unmark all  e edit  a activate  d deactivate  "
+        f"Ctrl+X {inactive_action}  m mark  u unmark all  e edit  a activate  d deactivate  "
         "Ctrl+D delete  F force after block  R reload  q close"
     )
     mark_count = len(marked_projects)

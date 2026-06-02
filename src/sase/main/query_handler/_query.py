@@ -77,23 +77,32 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
     from sase.xprompt.loader import (
         detect_project,
         get_known_project_workspaces,
-        inactive_project_message_for_ref,
     )
 
-    def _inactive_error_for_ref(value: str) -> None:
-        message = inactive_project_message_for_ref(value)
-        if message is not None:
-            raise ValueError(message)
+    def _activate_known_ref(value: str) -> str | None:
+        from sase.agent.launch_projects import activate_known_project_for_launch_ref
+
+        try:
+            record = activate_known_project_for_launch_ref(value)
+        except RuntimeError as exc:
+            raise ValueError(str(exc)) from exc
+        return None if record is None else record.project_name
+
+    activated_project = (
+        _activate_known_ref(ref)
+        if workflow_type in {"gh", "git", "hg", "jj", "p4"}
+        else None
+    )
 
     if workflow_type not in get_workflow_names():
         known_projects = get_known_project_workspaces()
-        project_name = resolve_known_project_ref(ref, known_projects) or ref
+        project_name = (
+            resolve_known_project_ref(ref, known_projects) or activated_project or ref
+        )
         workspace_dir = known_projects.get(project_name)
         if workspace_dir is not None:
             os.chdir(workspace_dir)
             detect_project.cache_clear()
-        elif project_name == ref:
-            _inactive_error_for_ref(ref)
         return project_name, ref
 
     try:
@@ -102,13 +111,13 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
         if is_non_workspace_workflow(workflow_type):
             raise
         known_projects = get_known_project_workspaces()
-        project_name = resolve_known_project_ref(ref, known_projects) or ref
+        project_name = (
+            resolve_known_project_ref(ref, known_projects) or activated_project or ref
+        )
         workspace_dir = known_projects.get(project_name)
         if workspace_dir is not None:
             os.chdir(workspace_dir)
             detect_project.cache_clear()
-        elif project_name == ref:
-            _inactive_error_for_ref(ref)
         return project_name, ref
 
     if resolved and resolved.primary_workspace_dir:
@@ -142,8 +151,14 @@ def run_query(
     # top-level reference in its segment.
     from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
     from sase.agent.multi_prompt import parse_multi_prompt
+    from sase.agent.launch_projects import (
+        activate_known_project_vcs_refs_for_launch_prompt,
+    )
 
     multi_for_dispatch = parse_multi_prompt(query)
+    activate_known_project_vcs_refs_for_launch_prompt(
+        "\n---\n".join(multi_for_dispatch.segments)
+    )
     expanded_for_dispatch = expand_multi_agent_xprompts(
         multi_for_dispatch.segments,
         multi_for_dispatch.local_xprompts,

@@ -9,11 +9,17 @@ from sase.agent.launch_cwd import (
     launch_agents_from_cwd,
     resolve_known_project_vcs_launch_ref,
 )
+from sase.agent.launch_projects import (
+    activate_known_project_for_launch_ref,
+    activate_known_project_vcs_refs_for_launch_prompt,
+)
 from sase.agent.launch_spawn import spawn_agent_subprocess
 from sase.agent.launch_types import AgentLaunchResult
 
 __all__ = [
     "AgentLaunchResult",
+    "activate_known_project_for_launch_ref",
+    "activate_known_project_vcs_refs_for_launch_prompt",
     "launch_agent_from_cwd",
     "launch_agents_from_cwd",
     "resolve_known_project_vcs_launch_ref",

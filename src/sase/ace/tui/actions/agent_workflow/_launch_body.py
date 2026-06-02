@@ -105,6 +105,13 @@ class AgentLaunchBodyMixin:
 
         with timer.stage("prompt_parse"):
             multi = parse_multi_prompt(prompt)
+            from sase.agent.launch_projects import (
+                activate_known_project_vcs_refs_for_launch_prompt,
+            )
+
+            activate_known_project_vcs_refs_for_launch_prompt(
+                "\n---\n".join(multi.segments)
+            )
         with timer.stage(
             "multi_agent_xprompt_expand", segment_count=len(multi.segments)
         ):

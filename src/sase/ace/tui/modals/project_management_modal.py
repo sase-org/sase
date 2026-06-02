@@ -66,6 +66,7 @@ class ProjectManagementModal(
             "Cycle State Back",
             priority=True,
         ),
+        Binding("ctrl+x", "toggle_inactive_projects", "Inactive", priority=True),
         Binding("m", "toggle_project_mark", "Mark", priority=True),
         Binding("u", "clear_project_marks", "Unmark All", priority=True),
         Binding("e", "edit_project_spec", "Edit", priority=True),
@@ -83,6 +84,7 @@ class ProjectManagementModal(
         self._records: list[ProjectRecordWire] = []
         self._filtered_records: list[ProjectRecordWire] = []
         self._state_filter: ProjectStateFilter = _DEFAULT_STATE_FILTER
+        self._show_inactive_projects = False
         self._text_filter = ""
         self._status_message = ""
         self._marked_projects: set[str] = set()
@@ -142,7 +144,17 @@ class ProjectManagementModal(
         text_filter = self._text_filter.lower().strip()
         rows: list[ProjectRecordWire] = []
         for record in self._records:
-            if self._state_filter != "all" and record.state != self._state_filter:
+            state_matches = (
+                True
+                if self._state_filter == "all"
+                else record.state == self._state_filter
+                or (
+                    self._state_filter == "active"
+                    and self._show_inactive_projects
+                    and record.state == "inactive"
+                )
+            )
+            if not state_matches:
                 continue
             if text_filter:
                 haystack = " ".join(
@@ -181,13 +193,14 @@ class ProjectManagementModal(
             self._text_filter,
             self._status_message,
             self._marked_projects,
+            self._show_inactive_projects,
         )
 
     def _state_tabs_text(self) -> Text:
         return state_tabs_text(self._state_filter)
 
     def _footer_text(self) -> str:
-        return footer_text(self._marked_projects)
+        return footer_text(self._marked_projects, self._show_inactive_projects)
 
     def _refresh_options(self, *, preferred_project: str | None = None) -> None:
         try:
@@ -399,6 +412,19 @@ class ProjectManagementModal(
 
     def action_cycle_state_filter_reverse(self) -> None:
         self._cycle_state_filter(-1)
+
+    def action_toggle_inactive_projects(self) -> None:
+        self._show_inactive_projects = not self._show_inactive_projects
+        self._pending_force = None
+        self._apply_filters()
+        message = (
+            "Inactive projects visible"
+            if self._show_inactive_projects
+            else "Inactive projects hidden"
+        )
+        self._set_status(message)
+        self._refresh_options()
+        self.notify(message)
 
     def action_reload_projects(self) -> None:
         selected = self._selected_project_name()

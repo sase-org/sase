@@ -46,13 +46,33 @@ async def test_project_management_modal_filters_states(
 
         assert list_calls == [(tmp_path, "all", False)]
         assert modal._state_filter == _DEFAULT_STATE_FILTER
+        assert modal._show_inactive_projects is False
         assert [r.project_name for r in modal._filtered_records] == ["alpha"]
         summary = modal._summary_text().plain
         assert "all:4 active:1 sibling:1 inactive:2" in summary
+        assert "inactive rows:hidden" in summary
         tabs = modal._state_tabs_text().plain
         assert "ACTIVE" in tabs
         assert "sibling" in tabs
         assert "inactive" in tabs
+        assert modal._record_label(records[2]).plain.startswith("!")
+
+        await pilot.press("ctrl+x")
+        await pilot.pause()
+        assert modal._show_inactive_projects is True
+        assert [r.project_name for r in modal._filtered_records] == [
+            "alpha",
+            "beta",
+            "gamma",
+        ]
+        assert "inactive rows:visible" in modal._summary_text().plain
+        assert "Ctrl+X hide inactive" in modal._footer_text()
+
+        await pilot.press("ctrl+x")
+        await pilot.pause()
+        assert modal._show_inactive_projects is False
+        assert [r.project_name for r in modal._filtered_records] == ["alpha"]
+        assert "inactive rows:hidden" in modal._summary_text().plain
 
         modal._text_filter = "beta"
         modal._apply_filters()
@@ -162,6 +182,7 @@ def test_project_management_modal_footer_includes_delete_affordance(
     assert "e edit" in modal._footer_text()
     assert "d deactivate" in modal._footer_text()
     assert "Ctrl+D delete" in modal._footer_text()
+    assert "Ctrl+X show inactive" in modal._footer_text()
     assert "Tab/Shift+Tab state" in modal._footer_text()
 
 
