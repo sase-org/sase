@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -26,6 +27,7 @@ from .base import FilterInput, OptionListNavigationMixin
 from .confirm_action_modal import ConfirmActionModal
 
 ProjectStateFilter = Literal["all", "active", "archived", "closed"]
+_PendingForce = tuple[tuple[str, ...], str]
 _STATE_FILTERS: tuple[ProjectStateFilter, ...] = (
     "all",
     "active",
@@ -65,6 +67,8 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         Binding("/", "focus_filter", "Filter", priority=True),
         Binding("tab", "cycle_state_filter", "Cycle State", priority=True),
+        Binding("m", "toggle_project_mark", "Mark", priority=True),
+        Binding("u", "clear_project_marks", "Unmark All", priority=True),
         Binding("a", "activate_project", "Activate", priority=True),
         Binding("r", "archive_project", "Archive", priority=True),
         Binding("c", "close_project", "Close", priority=True),
@@ -82,7 +86,8 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
         self._state_filter: ProjectStateFilter = "all"
         self._text_filter = ""
         self._status_message = ""
-        self._pending_force: tuple[str, str] | None = None
+        self._marked_projects: set[str] = set()
+        self._pending_force: _PendingForce | None = None
         self._load_records()
 
     def compose(self) -> ComposeResult:
@@ -122,6 +127,7 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
             for record in records
             if record.project_name != "home" and not record.system_managed
         ]
+        self._prune_stale_marked_projects()
         self._apply_filters()
 
     def _apply_filters(self) -> None:
@@ -160,6 +166,10 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
 
     def _record_label(self, record: ProjectRecordWire) -> Text:
         text = Text()
+        if record.project_name in self._marked_projects:
+            text.append("[✓] ", style="bold #00D700")
+        else:
+            text.append("    ", style="dim")
         text.append(f"{record.project_name:<24.24}", style="bold")
         text.append("  ")
         text.append(f"{record.state:<8}", style=_state_style(record.state))
@@ -189,6 +199,12 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
             f"archived:{counts['archived']} closed:{counts['closed']}",
             style="dim",
         )
+        mark_count = len(self._marked_projects)
+        text.append("  marked:", style="dim")
+        text.append(
+            str(mark_count),
+            style="bold #00D700" if mark_count else "dim",
+        )
         if self._text_filter:
             text.append(f"  search:{self._text_filter}", style="dim")
         if self._status_message:
@@ -196,11 +212,15 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
         return text
 
     def _footer_text(self) -> str:
-        return (
-            "j/k navigate  / filter  Tab state  Enter activate inactive  "
-            "a activate  r archive  c close  Ctrl+D delete  "
-            "F force after block  R reload  q close"
+        base = (
+            "j/k navigate  / filter  Tab state  Enter highlighted  "
+            "m mark  u unmark all  a activate  r archive  c close  "
+            "Ctrl+D delete  F force after block  R reload  q close"
         )
+        mark_count = len(self._marked_projects)
+        if not mark_count:
+            return base
+        return f"{base}  marked:{mark_count} (a/r/c/Ctrl+D target marked set)"
 
     def _refresh_options(self, *, preferred_project: str | None = None) -> None:
         try:
@@ -223,11 +243,20 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
             option_list.highlighted = None
         self._update_summary()
         self._update_detail()
+        self._refresh_footer()
 
     def _update_summary(self) -> None:
         try:
             self.query_one("#project-management-summary", Static).update(
                 self._summary_text()
+            )
+        except Exception:
+            pass
+
+    def _refresh_footer(self) -> None:
+        try:
+            self.query_one("#project-management-footer", Static).update(
+                self._footer_text()
             )
         except Exception:
             pass
@@ -252,6 +281,56 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
             return None
         return self._filtered_records[highlighted]
 
+    def _marked_records(self) -> list[ProjectRecordWire]:
+        return [
+            record
+            for record in self._records
+            if record.project_name in self._marked_projects
+        ]
+
+    def _records_for_names(
+        self, project_names: Sequence[str]
+    ) -> list[ProjectRecordWire]:
+        requested = set(project_names)
+        return [record for record in self._records if record.project_name in requested]
+
+    def _target_records(self) -> list[ProjectRecordWire]:
+        if self._marked_projects:
+            records = self._marked_records()
+            if records:
+                return records
+            self._marked_projects.clear()
+            self._pending_force = None
+            self._set_status("No marked projects remain")
+            self._refresh_options()
+            return []
+
+        record = self._selected_record()
+        if record is None:
+            self._set_status("No project selected")
+            return []
+        return [record]
+
+    def _prune_stale_marked_projects(self) -> None:
+        if not self._marked_projects:
+            return
+        live_projects = {record.project_name for record in self._records}
+        stale = self._marked_projects - live_projects
+        if stale:
+            self._marked_projects -= stale
+            if self._pending_force is not None:
+                project_names, state = self._pending_force
+                live_pending = tuple(
+                    project for project in project_names if project in live_projects
+                )
+                self._pending_force = (live_pending, state) if live_pending else None
+
+    def _advance_mark_selection(self, highlighted: int) -> str | None:
+        if not self._filtered_records:
+            return None
+        next_index = (highlighted + 1) % len(self._filtered_records)
+        return self._filtered_records[next_index].project_name
+
     def _detail_text(self, record: ProjectRecordWire | None) -> Text:
         text = Text()
         if record is None:
@@ -269,6 +348,19 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
         text.append(
             f"\nActive claims: {record.active_claim_count}    Launchable: {launch}"
         )
+        if self._marked_projects:
+            row_state = (
+                "marked"
+                if record.project_name in self._marked_projects
+                else "not marked"
+            )
+            text.append(
+                "\nMarked set: "
+                f"{len(self._marked_projects)} project(s); "
+                "a/r/c/Ctrl+D target marked projects; "
+                f"this row is {row_state}.",
+                style="#87D7FF",
+            )
         warnings = [*record.warnings, *record.parse_warnings]
         if warnings:
             text.append("\nWarnings:", style="bold red")
@@ -315,6 +407,43 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
     def action_focus_filter(self) -> None:
         self.query_one("#project-management-filter", FilterInput).focus()
 
+    def action_toggle_project_mark(self) -> None:
+        record = self._selected_record()
+        if record is None:
+            self._set_status("No project selected")
+            return
+
+        if record.project_name in self._marked_projects:
+            self._marked_projects.remove(record.project_name)
+        else:
+            self._marked_projects.add(record.project_name)
+
+        try:
+            option_list = self.query_one(f"#{self._option_list_id}", OptionList)
+            highlighted = option_list.highlighted
+        except Exception:
+            highlighted = None
+        preferred = (
+            self._advance_mark_selection(highlighted)
+            if highlighted is not None
+            else record.project_name
+        )
+        self._set_status(f"Marked {len(self._marked_projects)} project(s)")
+        self._refresh_options(preferred_project=preferred)
+
+    def action_clear_project_marks(self) -> None:
+        if not self._marked_projects:
+            self._set_status("No marks to clear")
+            self.notify("No marks to clear", severity="warning")
+            return
+
+        count = len(self._marked_projects)
+        self._marked_projects.clear()
+        self._pending_force = None
+        self._set_status(f"Cleared {count} mark(s)")
+        self._refresh_options()
+        self.notify(f"Cleared {count} mark(s)")
+
     def action_cycle_state_filter(self) -> None:
         idx = _STATE_FILTERS.index(self._state_filter)
         self._state_filter = _STATE_FILTERS[(idx + 1) % len(_STATE_FILTERS)]
@@ -344,6 +473,32 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
         self._set_project_state("closed")
 
     def action_delete_project(self) -> None:
+        if self._marked_projects:
+            records = self._marked_records()
+            if not records:
+                self._marked_projects.clear()
+                self._pending_force = None
+                self._set_status("No marked projects remain")
+                self._refresh_options()
+                return
+
+            project_names = tuple(record.project_name for record in records)
+
+            def _on_bulk_delete_confirm(confirmed: bool | None) -> None:
+                if not confirmed:
+                    self._set_status("Delete cancelled")
+                    return
+                self._delete_marked_projects_confirmed(project_names)
+
+            self.app.push_screen(
+                ConfirmActionModal(
+                    title="Delete Marked Project Directories",
+                    message=self._bulk_delete_message(records),
+                ),
+                _on_bulk_delete_confirm,
+            )
+            return
+
         record = self._selected_record()
         if record is None:
             self._set_status("No project selected")
@@ -356,7 +511,7 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
 
         project_dir = self._project_dir_for(record)
 
-        def _on_confirm(confirmed: bool | None) -> None:
+        def _on_single_delete_confirm(confirmed: bool | None) -> None:
             if not confirmed:
                 self._set_status("Delete cancelled")
                 return
@@ -373,7 +528,7 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
                     "The workspace checkout is not deleted."
                 ),
             ),
-            _on_confirm,
+            _on_single_delete_confirm,
         )
 
     def action_default_project_action(self) -> None:
@@ -381,7 +536,7 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
         if record is None:
             return
         if record.state != "active":
-            self._set_project_state("active")
+            self._set_project_state_for_records([record], "active")
         else:
             self._set_status(f"{record.project_name} is already active")
 
@@ -389,64 +544,180 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
         if self._pending_force is None:
             self._set_status("No blocked archive/close to force")
             return
-        project, state = self._pending_force
-        record = self._selected_record()
-        if record is None or record.project_name != project:
-            self._set_status(f"Select {project} before forcing")
-            return
+        projects, state = self._pending_force
+        if len(projects) == 1 and projects[0] not in self._marked_projects:
+            record = self._selected_record()
+            if record is None or record.project_name != projects[0]:
+                self._set_status(f"Select {projects[0]} before forcing")
+                return
 
         def _on_confirm(confirmed: bool | None) -> None:
             if not confirmed:
                 self._set_status("Force cancelled")
                 return
-            self._set_project_state(state, force=True)
+            records = self._records_for_names(projects)
+            if not records:
+                self._pending_force = None
+                self._set_status("No blocked projects remain")
+                self._refresh_options()
+                return
+            self._set_project_state_for_records(records, state, force=True)
 
         self.app.push_screen(
             ConfirmActionModal(
                 title="Force Project State Change",
-                message=(
-                    f"Force {project} to {state} even though live work was found?"
-                ),
+                message=self._force_state_change_message(projects, state),
             ),
             _on_confirm,
         )
 
     def _set_project_state(self, state: str, *, force: bool = False) -> None:
-        record = self._selected_record()
-        if record is None:
+        records = self._target_records()
+        if not records:
+            return
+        self._set_project_state_for_records(records, state, force=force)
+
+    def _set_project_state_for_records(
+        self,
+        records: Sequence[ProjectRecordWire],
+        state: str,
+        *,
+        force: bool = False,
+    ) -> None:
+        if not records:
             self._set_status("No project selected")
             return
-        if record.state == state:
-            self._pending_force = None
-            self._set_status(f"{record.project_name} is already {state}")
-            return
 
-        try:
-            updated = set_project_state_locked(
-                record.project_name,
+        bulk = len(records) > 1 or any(
+            record.project_name in self._marked_projects for record in records
+        )
+        skipped: list[str] = []
+        successes: list[ProjectRecordWire] = []
+        blocked: list[tuple[str, ProjectLifecycleBlockedError]] = []
+        failed: list[tuple[str, Exception]] = []
+
+        for record in records:
+            if record.state == state:
+                skipped.append(record.project_name)
+                continue
+            try:
+                updated = set_project_state_locked(
+                    record.project_name,
+                    state,
+                    force=force,
+                )
+            except ProjectLifecycleBlockedError as exc:
+                blocked.append((record.project_name, exc))
+            except Exception as exc:
+                failed.append((record.project_name, exc))
+            else:
+                successes.append(updated)
+
+        cleared = set(skipped)
+        cleared.update(updated.project_name for updated in successes)
+        if cleared:
+            self._marked_projects -= cleared
+
+        if blocked:
+            self._pending_force = (
+                tuple(project for project, _exc in blocked),
                 state,
-                force=force,
             )
-        except ProjectLifecycleBlockedError as exc:
-            self._pending_force = (record.project_name, state)
-            message = f"Blocked: {exc}. Press F to force."
-            self._set_status(message)
-            self.notify(message, severity="warning")
-            return
-        except Exception as exc:
-            self._set_status(f"Failed: {exc}")
-            self.notify(f"Project state change failed: {exc}", severity="error")
-            return
+        else:
+            self._pending_force = None
 
-        self._pending_force = None
-        self._status_message = f"{updated.project_name} -> {updated.state}"
-        try:
+        status = self._state_change_status(
+            records,
+            state,
+            bulk=bulk,
+            skipped=skipped,
+            successes=successes,
+            blocked=blocked,
+            failed=failed,
+        )
+        preferred_project = (
+            successes[-1].project_name if successes else records[0].project_name
+        )
+        self._status_message = status
+
+        if successes or bulk:
             self._load_records()
-        except Exception as exc:
-            self._set_status(f"Updated, reload failed: {exc}")
-        self._refresh_options(preferred_project=updated.project_name)
-        self._notify_lifecycle_changed()
-        self.notify(f"Project '{updated.project_name}' state is now {updated.state}")
+        self._refresh_options(preferred_project=preferred_project)
+
+        if successes:
+            self._notify_lifecycle_changed()
+            if bulk:
+                self.notify(f"Updated {len(successes)} marked project(s) to {state}")
+            else:
+                updated = successes[0]
+                self.notify(
+                    f"Project '{updated.project_name}' state is now {updated.state}"
+                )
+        if blocked:
+            self.notify(status, severity="warning")
+        if failed:
+            self.notify(status, severity="error")
+
+    def _state_change_status(
+        self,
+        records: Sequence[ProjectRecordWire],
+        state: str,
+        *,
+        bulk: bool,
+        skipped: Sequence[str],
+        successes: Sequence[ProjectRecordWire],
+        blocked: Sequence[tuple[str, ProjectLifecycleBlockedError]],
+        failed: Sequence[tuple[str, Exception]],
+    ) -> str:
+        if not bulk:
+            if successes:
+                updated = successes[0]
+                return f"{updated.project_name} -> {updated.state}"
+            if skipped:
+                return f"{records[0].project_name} is already {state}"
+            if blocked:
+                return f"Blocked: {blocked[0][1]}. Press F to force."
+            if failed:
+                return f"Failed: {failed[0][1]}"
+            return "No project selected"
+
+        parts: list[str] = []
+        if successes:
+            parts.append(f"{len(successes)} changed to {state}")
+        if skipped:
+            parts.append(f"{len(skipped)} already {state}")
+        if blocked:
+            parts.append(f"{len(blocked)} blocked")
+        if failed:
+            parts.append(f"{len(failed)} failed")
+        if not parts:
+            return "No marked projects changed"
+
+        status = "Marked projects: " + ", ".join(parts)
+        if blocked:
+            blocked_names = ", ".join(project for project, _exc in blocked[:3])
+            if len(blocked) > 3:
+                blocked_names += f", ... +{len(blocked) - 3}"
+            status += f". Press F to force blocked: {blocked_names}"
+        if failed:
+            project, exc = failed[0]
+            status += f". First failure: {project}: {exc}"
+        return status
+
+    def _force_state_change_message(
+        self,
+        projects: Sequence[str],
+        state: str,
+    ) -> str:
+        if len(projects) == 1:
+            return f"Force {projects[0]} to {state} even though live work was found?"
+        lines = [
+            f"Force {len(projects)} projects to {state} "
+            "even though live work was found?",
+            "",
+        ]
+        lines.extend(self._truncated_project_lines(projects))
+        return "\n".join(lines)
 
     def _project_dir_for(self, record: ProjectRecordWire) -> Path:
         root = (
@@ -455,6 +726,37 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
             else sase_projects_dir()
         )
         return root.expanduser() / record.project_name
+
+    def _truncated_project_lines(self, projects: Sequence[str]) -> list[str]:
+        limit = 8
+        lines = [f"  - {project}" for project in projects[:limit]]
+        remaining = len(projects) - limit
+        if remaining > 0:
+            lines.append(f"  ... and {remaining} more")
+        return lines
+
+    def _bulk_delete_message(self, records: Sequence[ProjectRecordWire]) -> str:
+        lines = [
+            f"Delete SASE project directories for {len(records)} marked projects?",
+            "",
+            "Projects:",
+        ]
+        limit = 8
+        for record in records[:limit]:
+            lines.append(f"  - {record.project_name}: {self._project_dir_for(record)}")
+        remaining = len(records) - limit
+        if remaining > 0:
+            lines.append(f"  ... and {remaining} more")
+        lines.extend(
+            [
+                "",
+                "This removes project specs, project-local config, artifacts, "
+                "and other SASE state. It cannot be undone.",
+                "",
+                "Workspace checkouts are not deleted.",
+            ]
+        )
+        return "\n".join(lines)
 
     def _delete_project_confirmed(self, project: str) -> None:
         try:
@@ -472,6 +774,7 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
             return
 
         self._pending_force = None
+        self._marked_projects.discard(project)
         self._status_message = f"Deleted {project}"
         try:
             self._load_records()
@@ -480,6 +783,73 @@ class ProjectManagementModal(OptionListNavigationMixin, ModalScreen[None]):
         self._refresh_options()
         self._notify_lifecycle_changed()
         self.notify(f"Deleted project '{project}'")
+
+    def _delete_marked_projects_confirmed(self, project_names: Sequence[str]) -> None:
+        records = self._records_for_names(project_names)
+        if not records:
+            self._marked_projects.clear()
+            self._pending_force = None
+            self._set_status("No marked projects remain")
+            self._refresh_options()
+            return
+
+        deleted: list[str] = []
+        blocked: list[tuple[str, ProjectLifecycleBlockedError]] = []
+        failed: list[tuple[str, Exception]] = []
+        for record in records:
+            try:
+                delete_project_locked(
+                    record.project_name,
+                    projects_root=self._projects_root,
+                )
+            except ProjectLifecycleBlockedError as exc:
+                blocked.append((record.project_name, exc))
+            except Exception as exc:
+                failed.append((record.project_name, exc))
+            else:
+                deleted.append(record.project_name)
+
+        self._pending_force = None
+        if deleted:
+            self._marked_projects -= set(deleted)
+        self._status_message = self._bulk_delete_status(deleted, blocked, failed)
+        self._load_records()
+        self._refresh_options()
+
+        if deleted:
+            self._notify_lifecycle_changed()
+            self.notify(f"Deleted {len(deleted)} marked project(s)")
+        if blocked:
+            self.notify(self._status_message, severity="warning")
+        if failed:
+            self.notify(self._status_message, severity="error")
+
+    def _bulk_delete_status(
+        self,
+        deleted: Sequence[str],
+        blocked: Sequence[tuple[str, ProjectLifecycleBlockedError]],
+        failed: Sequence[tuple[str, Exception]],
+    ) -> str:
+        if deleted and not blocked and not failed:
+            return f"Deleted {len(deleted)} project(s)"
+
+        parts: list[str] = []
+        if deleted:
+            parts.append(f"{len(deleted)} deleted")
+        if blocked:
+            parts.append(f"{len(blocked)} blocked")
+        if failed:
+            parts.append(f"{len(failed)} failed")
+        if not parts:
+            return "No marked projects deleted"
+
+        status = "Delete marked projects: " + ", ".join(parts)
+        if blocked:
+            status += f". Blocked: {blocked[0][1]}"
+        if failed:
+            project, exc = failed[0]
+            status += f". First failure: {project}: {exc}"
+        return status
 
     def _notify_lifecycle_changed(self) -> None:
         app = self.app

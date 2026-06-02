@@ -7,6 +7,7 @@ from typing import cast
 from unittest.mock import MagicMock
 
 from textual.app import App, ComposeResult
+from textual.widgets import OptionList
 
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.project_management_modal import ProjectManagementModal
@@ -179,7 +180,7 @@ async def test_project_management_modal_force_archive_after_block(
 
         await pilot.press("r")
         await pilot.pause()
-        assert modal._pending_force == ("alpha", "archived")
+        assert modal._pending_force == (("alpha",), "archived")
         assert "Blocked:" in modal._status_message
 
         await pilot.press("F")
@@ -193,6 +194,243 @@ async def test_project_management_modal_force_archive_after_block(
         ]
         assert modal._pending_force is None
         assert modal._filtered_records[0].state == "archived"
+
+
+async def test_project_management_modal_mark_toggles_advances_and_updates_text(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        lambda *_args, **_kwargs: [
+            _record("alpha"),
+            _record("beta"),
+            _record("gamma"),
+        ],
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("m")
+        await pilot.pause()
+
+        option_list = modal.query_one("#project-management-list", OptionList)
+        assert modal._marked_projects == {"alpha"}
+        assert option_list.highlighted == 1
+        assert "[✓] alpha" in option_list.get_option_at_index(0).prompt.plain
+        assert "marked:1" in modal._summary_text().plain
+        assert "marked:1" in modal._footer_text()
+
+
+async def test_project_management_modal_clear_marks_restores_row_labels(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        lambda *_args, **_kwargs: [_record("alpha"), _record("beta")],
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("m")
+        await pilot.pause()
+        await pilot.press("u")
+        await pilot.pause()
+
+        option_list = modal.query_one("#project-management-list", OptionList)
+        assert modal._marked_projects == set()
+        assert "[✓]" not in option_list.get_option_at_index(0).prompt.plain
+        assert "[✓]" not in option_list.get_option_at_index(1).prompt.plain
+        assert modal._status_message == "Cleared 1 mark(s)"
+
+
+async def test_project_management_modal_marks_survive_filters_and_prune_on_reload(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    records = {
+        "alpha": _record("alpha"),
+        "beta": _record("beta", state="archived", launchable=False),
+        "gamma": _record("gamma", state="closed", launchable=False),
+    }
+
+    def list_records(*_args, **_kwargs):
+        return list(records.values())
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#project-management-list", OptionList)
+        option_list.highlighted = 1
+        await pilot.press("m")
+        await pilot.pause()
+
+        assert modal._marked_projects == {"beta"}
+
+        modal._text_filter = "alpha"
+        modal._apply_filters()
+        modal._refresh_options()
+        assert [record.project_name for record in modal._filtered_records] == ["alpha"]
+        assert modal._marked_projects == {"beta"}
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._state_filter == "active"
+        assert modal._marked_projects == {"beta"}
+
+        del records["beta"]
+        await pilot.press("R")
+        await pilot.pause()
+
+        assert modal._marked_projects == set()
+        assert "marked:0" in modal._summary_text().plain
+
+
+async def test_project_management_modal_bulk_state_targets_marked_projects(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    states = {"alpha": "active", "beta": "active", "gamma": "active"}
+    calls: list[tuple[str, str, bool]] = []
+
+    def list_records(*_args, **_kwargs):
+        return [
+            _record(name, state=state, launchable=state == "active")
+            for name, state in states.items()
+        ]
+
+    def set_state(
+        project: str, state: str, *, force: bool = False
+    ) -> ProjectRecordWire:
+        calls.append((project, state, force))
+        states[project] = state
+        return _record(project, state=state, launchable=state == "active")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.set_project_state_locked",
+        set_state,
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#project-management-list", OptionList)
+        option_list.highlighted = 1
+        await pilot.press("m")
+        await pilot.pause()
+        await pilot.press("m")
+        await pilot.pause()
+
+        assert option_list.highlighted == 0
+        assert modal._marked_projects == {"beta", "gamma"}
+
+        await pilot.press("r")
+        await pilot.pause()
+
+        assert calls == [
+            ("beta", "archived", False),
+            ("gamma", "archived", False),
+        ]
+        assert modal._marked_projects == set()
+        assert states == {
+            "alpha": "active",
+            "beta": "archived",
+            "gamma": "archived",
+        }
+
+
+async def test_project_management_modal_bulk_state_preserves_blocked_and_failed_marks_then_forces(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    states = {"alpha": "active", "beta": "active", "gamma": "active"}
+    calls: list[tuple[str, str, bool]] = []
+
+    def list_records(*_args, **_kwargs):
+        return [
+            _record(name, state=state, launchable=state == "active")
+            for name, state in states.items()
+        ]
+
+    def set_state(
+        project: str, state: str, *, force: bool = False
+    ) -> ProjectRecordWire:
+        calls.append((project, state, force))
+        if project == "beta" and not force:
+            raise ProjectLifecycleBlockedError(
+                project,
+                state,
+                [],
+                [tmp_path / "running.json"],
+            )
+        if project == "gamma":
+            raise RuntimeError("boom")
+        states[project] = state
+        return _record(project, state=state, launchable=state == "active")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.set_project_state_locked",
+        set_state,
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("m")
+        await pilot.pause()
+        await pilot.press("m")
+        await pilot.pause()
+        await pilot.press("m")
+        await pilot.pause()
+
+        await pilot.press("r")
+        await pilot.pause()
+
+        assert calls == [
+            ("alpha", "archived", False),
+            ("beta", "archived", False),
+            ("gamma", "archived", False),
+        ]
+        assert modal._marked_projects == {"beta", "gamma"}
+        assert modal._pending_force == (("beta",), "archived")
+        assert states["alpha"] == "archived"
+        assert states["beta"] == "active"
+
+        await pilot.press("F")
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+
+        assert calls[-1] == ("beta", "archived", True)
+        assert modal._marked_projects == {"gamma"}
+        assert modal._pending_force is None
+        assert states["beta"] == "archived"
 
 
 async def test_project_management_modal_ctrl_d_opens_delete_confirmation(
@@ -375,6 +613,122 @@ async def test_project_management_modal_delete_blocked_keeps_row_visible(
         assert [r.project_name for r in modal._filtered_records] == ["alpha"]
         assert "Blocked:" in modal._status_message
         assert "live artifact marker" in modal._status_message
+
+
+async def test_project_management_modal_bulk_delete_cancel_preserves_marks(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        lambda *_args, **_kwargs: [_record("alpha"), _record("beta")],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.delete_project_locked",
+        lambda project, **_kwargs: calls.append(project),
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("m")
+        await pilot.pause()
+        await pilot.press("m")
+        await pilot.pause()
+
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ConfirmActionModal)
+        confirm = cast(ConfirmActionModal, pilot.app.screen)
+        assert "2 marked projects" in confirm._message
+        assert "alpha" in confirm._message
+        assert "beta" in confirm._message
+
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert calls == []
+        assert modal._marked_projects == {"alpha", "beta"}
+        assert modal._status_message == "Delete cancelled"
+
+
+async def test_project_management_modal_bulk_delete_deletes_once_and_preserves_failed_marks(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    records = {
+        "alpha": _record("alpha"),
+        "beta": _record("beta"),
+        "gamma": _record("gamma"),
+    }
+    calls: list[tuple[str, Path | None]] = []
+
+    def list_records(*_args, **_kwargs):
+        return list(records.values())
+
+    def delete_project(project: str, *, projects_root: Path | None = None) -> Path:
+        calls.append((project, projects_root))
+        if project == "beta":
+            raise ProjectLifecycleBlockedError(
+                project,
+                "delete",
+                [],
+                [tmp_path / "running.json"],
+            )
+        if project == "gamma":
+            raise RuntimeError("boom")
+        del records[project]
+        return tmp_path / project
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.delete_project_locked",
+        delete_project,
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        pilot.app._schedule_changespecs_async_refresh = MagicMock()
+        pilot.app._refresh_current_tab = MagicMock()
+
+        await pilot.press("m")
+        await pilot.pause()
+        await pilot.press("m")
+        await pilot.pause()
+        await pilot.press("m")
+        await pilot.pause()
+
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+
+        assert calls == [
+            ("alpha", tmp_path),
+            ("beta", tmp_path),
+            ("gamma", tmp_path),
+        ]
+        assert [record.project_name for record in modal._filtered_records] == [
+            "beta",
+            "gamma",
+        ]
+        assert modal._marked_projects == {"beta", "gamma"}
+        assert "1 deleted" in modal._status_message
+        assert "1 blocked" in modal._status_message
+        assert "1 failed" in modal._status_message
+        pilot.app._schedule_changespecs_async_refresh.assert_called_once_with()
+        pilot.app._refresh_current_tab.assert_called_once_with()
 
 
 def test_project_management_modal_footer_includes_delete_affordance(

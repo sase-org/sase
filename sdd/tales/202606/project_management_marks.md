@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 06:18:39
-status: wip
+status: done
 prompt: sdd/prompts/202606/project_management_marks.md
 ---
 # Project Management Marks Plan
