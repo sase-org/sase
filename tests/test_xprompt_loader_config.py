@@ -286,6 +286,22 @@ def testload_xprompts_from_internal_includes_packaged_skills() -> None:
     assert "xprompts/skills/sase_plan.md" in plan.source_path
 
 
+def testload_xprompts_from_internal_includes_split_file() -> None:
+    """Package xprompts include the built-in split_file markdown prompt."""
+    result = load_xprompts_from_internal()
+
+    assert "split_file" in result
+    xprompt = result["split_file"]
+    assert xprompt.name == "split_file"
+    assert (
+        xprompt.description
+        == "Split a large Python source file into smaller import-safe files."
+    )
+    assert "xprompts/split_file.md" in xprompt.source_path
+    assert [arg.name for arg in xprompt.inputs] == ["file_path"]
+    assert xprompt.inputs[0].type == InputType.PATH
+
+
 def test_default_file_xprompt_not_project_namespaced(
     tmp_path: Path, monkeypatch
 ) -> None:

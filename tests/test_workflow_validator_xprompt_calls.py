@@ -74,11 +74,11 @@ def testextract_xprompt_calls_preserves_bang_marker() -> None:
 def testvalidate_xprompt_call_fstring_placeholder_satisfies_required_arg() -> None:
     """An f-string-style colon arg satisfies a required positional input."""
     xprompt = XPrompt(
-        name="pysplit",
-        content="{{ path }}",
-        inputs=[InputArg(name="path", type=InputType.LINE)],
+        name="split_file",
+        content="{{ file_path }}",
+        inputs=[InputArg(name="file_path", type=InputType.LINE)],
     )
-    source = 'f"#pysplit:{path}"'
+    source = 'f"#split_file:{path}"'
     calls = extract_xprompt_calls(source)
     assert len(calls) == 1
     errors = validate_xprompt_call(calls[0], xprompt, "step1")

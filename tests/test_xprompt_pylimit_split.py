@@ -41,7 +41,7 @@ def test_workflow_has_single_hidden_python_step(pylimit_workflow_path: Path) -> 
 
 
 def test_workflow_passes_compile_time_validation(pylimit_workflow_path: Path) -> None:
-    """The static validator must accept the generated pysplit call shape."""
+    """The static validator must accept the generated split_file call shape."""
     wf = _load_workflow_from_file(pylimit_workflow_path)
     assert wf is not None
 
@@ -113,10 +113,10 @@ def test_step_two_files_launches_chained_multi_prompt(
     assert "%wait" not in parsed.segments[0]
     assert parsed.segments[1].startswith("%wait")
 
-    assert "%name:pysplit.foo" in parsed.segments[0]
-    assert "%name:pysplit.bar" in parsed.segments[1]
-    assert "#sase/pysplit:src/foo.py" in parsed.segments[0]
-    assert "#sase/pysplit:src/bar.py" in parsed.segments[1]
+    assert "%name:split_file.foo" in parsed.segments[0]
+    assert "%name:split_file.bar" in parsed.segments[1]
+    assert "#split_file:src/foo.py" in parsed.segments[0]
+    assert "#split_file:src/bar.py" in parsed.segments[1]
     for seg in parsed.segments:
         assert "#gh:sase" in seg
         assert "%approve" in seg
@@ -141,10 +141,10 @@ def test_step_dedups_files_across_trees(
     assert len(captured) == 1
     parsed = parse_multi_prompt(captured[0])
     assert len(parsed.segments) == 2
-    assert "%name:pysplit.dup" in parsed.segments[0]
-    assert "%name:pysplit.only" in parsed.segments[1]
-    assert "#sase/pysplit:src/dup.py" in parsed.segments[0]
-    assert "#sase/pysplit:tests/only.py" in parsed.segments[1]
+    assert "%name:split_file.dup" in parsed.segments[0]
+    assert "%name:split_file.only" in parsed.segments[1]
+    assert "#split_file:src/dup.py" in parsed.segments[0]
+    assert "#split_file:tests/only.py" in parsed.segments[1]
 
 
 def test_step_names_same_stem_with_collision_suffix(
@@ -166,7 +166,7 @@ def test_step_names_same_stem_with_collision_suffix(
     assert len(captured) == 1
     parsed = parse_multi_prompt(captured[0])
     assert len(parsed.segments) == 2
-    assert "%name:pysplit.foo" in parsed.segments[0]
-    assert "%name:pysplit.foo_2" in parsed.segments[1]
-    assert "#sase/pysplit:src/foo.py" in parsed.segments[0]
-    assert "#sase/pysplit:tests/foo.py" in parsed.segments[1]
+    assert "%name:split_file.foo" in parsed.segments[0]
+    assert "%name:split_file.foo_2" in parsed.segments[1]
+    assert "#split_file:src/foo.py" in parsed.segments[0]
+    assert "#split_file:tests/foo.py" in parsed.segments[1]

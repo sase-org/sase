@@ -302,7 +302,7 @@ Main repo write scope:
 Required main repo files found during planning:
 
 - `xprompts/pick_plan.md`
-- `xprompts/pysplit.md`
+- `src/sase/xprompts/split_file.md`
 - `xprompts/sync.md`
 
 Also audit these workflow YAML files in the same directory, because workflow descriptions are part of the feature

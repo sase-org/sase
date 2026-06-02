@@ -524,7 +524,7 @@ def test_agent_chop_live_durable_child_record_blocks_relaunch(
         workflow_name="ace(run)-260101_120100",
         cl_name="proj",
         timestamp="260101_120100",
-        prompt="#sase/pysplit:src/sase/large_file.py",
+        prompt="#split_file:src/sase/large_file.py",
         prompt_hash_value=prompt_hash("#!sase/pylimit_split %approve"),
     )
 

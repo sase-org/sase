@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 16:40:35
-status: wip
+status: done
 prompt: sdd/prompts/202606/builtin_split_file.md
 ---
 # Plan: Make `split_file` a Built-In XPrompt

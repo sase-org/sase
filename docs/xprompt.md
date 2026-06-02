@@ -768,6 +768,7 @@ defaults. Common entries include:
 | `#fork`                | Resume context from a prior agent conversation by name                                              |
 | `#fork_by_chat`        | Resume context from a specific chat transcript path                                                 |
 | `#mentor`              | Run a structured mentor review against a CL                                                         |
+| `#split_file`          | Ask an agent to split one large Python file into import-safe smaller files                          |
 | `#summarize`           | Summarize a file in a short phrase for a specified use                                              |
 | `#json`                | Require the agent response to satisfy a JSON schema                                                 |
 | `#!sync`               | Sync the current workspace and launch conflict-resolution help if needed                            |

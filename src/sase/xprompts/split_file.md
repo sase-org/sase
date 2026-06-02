@@ -1,5 +1,5 @@
 ---
-name: pysplit
+name: split_file
 description: Split a large Python source file into smaller import-safe files.
 input:
   file_path:
