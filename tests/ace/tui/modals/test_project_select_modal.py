@@ -5,13 +5,37 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from textual.app import App
+from textual.widgets import OptionList, Static
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.modals.project_discovery import (
     is_launchable_project,
     list_launchable_projects,
 )
-from sase.ace.tui.modals.project_select_modal import ProjectSelectModal
+from sase.ace.tui.modals.project_select_modal import (
+    ProjectSelectModal,
+    ProjectSelectResult,
+)
+
+
+class _TestApp(App[ProjectSelectResult | None]):
+    pass
+
+
+def _static_text(modal: ProjectSelectModal, selector: str) -> str:
+    return str(modal.query_one(selector, Static).render())
+
+
+def _patch_loaders(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_select_modal.list_launchable_projects",
+        lambda: ["home", "valid"],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_select_modal.find_all_changespecs",
+        lambda: [_changespec("valid_active", "Ready")],
+    )
 
 
 def _write_project(
@@ -142,3 +166,56 @@ def test_project_select_modal_loads_launchable_projects_and_active_changespecs(
         "[P] valid",
         "[C] valid_active [Ready]",
     ]
+
+
+async def test_filter_updates_match_count_and_highlights_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    modal = ProjectSelectModal()
+
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#selection-list", OptionList)
+
+        # Unfiltered: title reflects the full item count.
+        assert "3 matches" in _static_text(modal, "#project-select-title")
+
+        modal._apply_filter("valid")
+        await pilot.pause()
+
+        # "valid" matches the project and its CL.
+        assert "2 matches" in _static_text(modal, "#project-select-title")
+        assert option_list.option_count == 2
+        assert option_list.highlighted == 0
+
+
+async def test_empty_state_toggles_with_no_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    modal = ProjectSelectModal()
+
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#selection-list", OptionList)
+        empty = modal.query_one("#project-select-empty", Static)
+
+        # With matches, the list is shown and the empty-state is hidden.
+        assert option_list.display is True
+        assert empty.display is False
+
+        modal._apply_filter("zzz-no-such-thing")
+        await pilot.pause()
+
+        # No matches: empty-state visible, list hidden, query echoed back.
+        assert option_list.display is False
+        assert empty.display is True
+        assert "0 matches" in _static_text(modal, "#project-select-title")
+        empty_text = _static_text(modal, "#project-select-empty")
+        assert "zzz-no-such-thing" in empty_text
+        assert "custom name" in empty_text

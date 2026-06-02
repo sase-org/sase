@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 13:39:53
-status: wip
+status: done
 prompt: sdd/prompts/202606/project_select_filter_popup.md
 ---
 # Plan: Beautiful filterable pop-up for the `@` project picker

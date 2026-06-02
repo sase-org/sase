@@ -7,11 +7,12 @@ from typing import Literal
 
 from rich.text import Text
 from sase.status_state_machine import remove_workspace_suffix
+from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, OptionList
+from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.core.paths import sase_projects_dir
@@ -105,12 +106,30 @@ class ProjectSelectModal(
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
-        with Container():
-            yield Label("Select Project or CL", id="modal-title")
-            yield FilterInput(placeholder="Type to filter...", id="filter-input")
+        with Container(id="project-select-container"):
+            yield Static(
+                self._build_title(len(self.all_items)),
+                id="project-select-title",
+            )
+            yield FilterInput(
+                placeholder="Type to filter projects & CLs…",
+                id="filter-input",
+            )
+            yield Static(
+                "Enter launch · ↑/↓ move · type a name to create a CL",
+                id="project-select-hint",
+            )
             yield OptionList(
                 *self._create_options(self.all_items),
                 id="selection-list",
+            )
+            yield Static(
+                self._build_empty_state(""),
+                id="project-select-empty",
+            )
+            yield Static(
+                "Enter launch · ^G edit · ^D delete · Esc close",
+                id="project-select-footer",
             )
 
     def _create_styled_label(self, display_name: str) -> Text:
@@ -139,6 +158,28 @@ class ProjectSelectModal(
             for i, item in enumerate(items)
         ]
 
+    def _build_title(self, count: int) -> Text:
+        """Build the icon'd title with a live match count."""
+        text = Text()
+        text.append("✦ ", style="bold #FFD700")
+        text.append("Select Project or CL", style="bold white")
+        text.append("  ·  ", style="dim")
+        plural = "match" if count == 1 else "matches"
+        text.append(f"{count} {plural}", style="dim #87D7FF")
+        return text
+
+    def _build_empty_state(self, query: str) -> Text:
+        """Build the empty-state hint shown when nothing matches."""
+        text = Text()
+        text.append("No matching projects", style="dim italic")
+        if query:
+            text.append(" — press ", style="dim italic")
+            text.append("Enter", style="bold #FFD700")
+            text.append(" to use ", style="dim italic")
+            text.append(f"“{query}”", style="italic #00D7AF")
+            text.append(" as a custom name", style="dim italic")
+        return text
+
     def _get_filtered_items(self, filter_text: str) -> list[SelectionItem]:
         """Get items that match the filter text."""
         if not filter_text:
@@ -152,16 +193,51 @@ class ProjectSelectModal(
         """Focus the input on mount."""
         filter_input = self.query_one("#filter-input", FilterInput)
         filter_input.focus()
+        self._refresh_empty_visibility()
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        """Handle input change - update the option list."""
-        filtered_items = self._get_filtered_items(event.value)
+    def _apply_filter(self, query: str) -> None:
+        """Rebuild the option list and chrome for the current filter query."""
+        filtered_items = self._get_filtered_items(query)
         option_list = self.query_one("#selection-list", OptionList)
         option_list.clear_options()
         for i, item in enumerate(filtered_items):
             option_list.add_option(
                 Option(self._create_styled_label(item.display_name), id=str(i))
             )
+        if filtered_items:
+            option_list.highlighted = 0
+        self.query_one("#project-select-title", Static).update(
+            self._build_title(len(filtered_items))
+        )
+        self.query_one("#project-select-empty", Static).update(
+            self._build_empty_state(query.strip())
+        )
+        self._refresh_empty_visibility()
+
+    def _refresh_empty_visibility(self) -> None:
+        """Toggle the option list and empty-state against each other."""
+        option_list = self.query_one("#selection-list", OptionList)
+        empty = self.query_one("#project-select-empty", Static)
+        is_empty = option_list.option_count == 0
+        empty.display = is_empty
+        option_list.display = not is_empty
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Handle input change - update the option list."""
+        if event.input.id != "filter-input":
+            return
+        self._apply_filter(event.value)
+
+    def on_key(self, event: events.Key) -> None:
+        """Forward list navigation keys while the filter input has focus."""
+        if event.key in ("down", "ctrl+n"):
+            event.prevent_default()
+            event.stop()
+            self.action_next_option()
+        elif event.key in ("up", "ctrl+p"):
+            event.prevent_default()
+            event.stop()
+            self.action_prev_option()
 
     def _dismiss_selection(
         self, item: SelectionItem | str, *, open_in_editor: bool = False
@@ -288,13 +364,7 @@ class ProjectSelectModal(
             # Remove from all_items and refresh display
             self.all_items.remove(item)
             filter_input = self.query_one("#filter-input", FilterInput)
-            filtered_items = self._get_filtered_items(filter_input.value)
-            option_list = self.query_one("#selection-list", OptionList)
-            option_list.clear_options()
-            for i, fi in enumerate(filtered_items):
-                option_list.add_option(
-                    Option(self._create_styled_label(fi.display_name), id=str(i))
-                )
+            self._apply_filter(filter_input.value)
             self.notify(
                 f"Deleted project '{item.project_name}'", severity="information"
             )
