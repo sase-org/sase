@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 06:25:00
-status: wip
+status: done
 prompt: sdd/prompts/202606/at_project_picker_home.md
 ---
 # Plan: Show Real Projects In The @ Picker

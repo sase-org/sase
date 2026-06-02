@@ -193,6 +193,32 @@ def test_load_launchable_filters_known_stale_projects(
     assert json.loads(fake.read_text()) == {"entries": ["#gh:branch", "#gh:valid"]}
 
 
+def test_load_launchable_keeps_launchable_home_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    fake.write_text(json.dumps({"entries": ["#gh:home"]}))
+    projects_dir = tmp_path / "projects"
+    home_workspace = tmp_path / "home-workspace"
+    home_workspace.mkdir()
+    _write_project(projects_dir, "home", home_workspace)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+
+    with patch.object(
+        __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+        "_MRU_FILE",
+        fake,
+    ):
+        result = load_launchable_vcs_xprompt_mru(projects_dir)
+
+    assert result == ["#gh:home"]
+    assert json.loads(fake.read_text()) == {"entries": ["#gh:home"]}
+
+
 def test_record_prunes_known_stale_project_prefix(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

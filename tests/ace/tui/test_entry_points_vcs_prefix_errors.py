@@ -105,6 +105,34 @@ def test_repeat_last_selection_reports_vcs_detection_error_without_launching(
     assert app.editor_launches == []
 
 
+def test_home_project_selection_launches_with_vcs_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#git:{name} "
+    )
+    app = _App()
+
+    app._start_custom_agent_from_selection(
+        SelectionItem(
+            display_name="[P] home",
+            item_type="project",
+            project_name="home",
+            cl_name=None,
+        )
+    )
+
+    assert app.prompt_launches == [
+        {
+            "initial_text": "#git:home ",
+            "display_name": "home",
+            "history_sort_key": "home",
+        }
+    ]
+    assert app.editor_launches == []
+
+
 def test_start_last_vcs_xprompt_editor_opens_mru_prefix_and_launches_edit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

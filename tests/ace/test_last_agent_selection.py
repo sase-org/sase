@@ -99,6 +99,37 @@ def test_save_if_launchable_accepts_home_regardless_of_project(
     assert data["item_type"] == "home"
 
 
+def test_save_if_launchable_validates_home_project_selection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    selection_file = tmp_path / "last_agent_selection.json"
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.last_agent_selection._LAST_SELECTION_FILE", selection_file
+    )
+
+    def _is_launchable_project(name: str, projects_dir=None) -> bool:
+        calls.append(name)
+        return name == "home"
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.is_launchable_project",
+        _is_launchable_project,
+    )
+
+    selection = SelectionItem(
+        display_name="[P] home",
+        item_type="project",
+        project_name="home",
+        cl_name=None,
+    )
+    assert save_last_agent_selection_if_launchable(selection) is True
+    assert calls == ["home"]
+    data = json.loads(selection_file.read_text(encoding="utf-8"))
+    assert data["item_type"] == "project"
+    assert data["project_name"] == "home"
+
+
 def test_save_if_launchable_accepts_launchable_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

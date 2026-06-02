@@ -39,7 +39,7 @@ def list_launchable_projects(
     records = list_project_records(
         projects_base,
         _states_for_project_records(include_states),
-        include_home=False,
+        include_home=True,
     )
     for record in records:
         if record.state != "active":
@@ -58,14 +58,14 @@ def is_launchable_project(
     include_states: Sequence[str] | str = ("active",),
 ) -> bool:
     """Return whether a project entry is a valid project-scoped launch target."""
-    if not project_name or project_name == "home":
+    if not project_name:
         return False
 
     projects_base = projects_dir or sase_projects_dir()
     records = list_project_records(
         projects_base,
         _states_for_project_records(include_states),
-        include_home=False,
+        include_home=True,
     )
     for record in records:
         if record.project_name != project_name or record.state != "active":

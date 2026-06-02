@@ -80,16 +80,6 @@ class ProjectSelectModal(
                 )
             )
 
-        # Add home directory option
-        self.all_items.append(
-            SelectionItem(
-                display_name="[H] ~ (home directory)",
-                item_type="home",
-                project_name="home",
-                cl_name=None,
-            )
-        )
-
         for project_name in list_launchable_projects():
             self.all_items.append(
                 SelectionItem(

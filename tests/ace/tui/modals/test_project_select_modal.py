@@ -83,10 +83,39 @@ def test_list_launchable_projects_filters_invalid_entries(
 
     projects = list_launchable_projects(projects_dir)
 
-    assert projects == ["valid"]
+    assert projects == ["home", "valid"]
     assert is_launchable_project("valid", projects_dir) is True
     assert is_launchable_project("archived", projects_dir) is False
     assert is_launchable_project("stale", projects_dir) is False
+    assert is_launchable_project("home", projects_dir) is True
+
+
+def test_home_project_must_be_real_active_and_launchable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    projects_dir = tmp_path / "projects"
+    projects_dir.mkdir()
+    home_workspace = tmp_path / "home-workspace"
+    inactive_home_workspace = tmp_path / "inactive-home-workspace"
+    home_workspace.mkdir()
+    inactive_home_workspace.mkdir()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+
+    assert is_launchable_project("home", projects_dir) is False
+
+    home_project_file = _write_project(projects_dir, "home", home_workspace)
+    assert is_launchable_project("home", projects_dir) is True
+
+    home_project_file.write_text(
+        "PROJECT_STATE: archived\n"
+        f"WORKSPACE_DIR: {inactive_home_workspace}\n"
+        "NAME: archived_home_change\n",
+        encoding="utf-8",
+    )
     assert is_launchable_project("home", projects_dir) is False
 
 
@@ -95,7 +124,7 @@ def test_project_select_modal_loads_launchable_projects_and_active_changespecs(
 ) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.modals.project_select_modal.list_launchable_projects",
-        lambda: ["valid"],
+        lambda: ["home", "valid"],
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.project_select_modal.find_all_changespecs",
@@ -109,7 +138,7 @@ def test_project_select_modal_loads_launchable_projects_and_active_changespecs(
 
     assert [item.display_name for item in modal.all_items] == [
         "[*] ALL",
-        "[H] ~ (home directory)",
+        "[P] home",
         "[P] valid",
         "[C] valid_active [Ready]",
     ]
