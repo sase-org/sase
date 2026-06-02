@@ -356,6 +356,25 @@ class TestMutation:
         assert "live artifact marker" in capsys.readouterr().err
         assert "PROJECT_STATE" not in project_file.read_text(encoding="utf-8")
 
+    def test_set_state_rejects_hidden_project_name(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        lifecycle_stubs()
+        hidden_dir = projects_root / ".sase"
+        hidden_dir.mkdir()
+        (hidden_dir / ".sase.sase").write_text("", encoding="utf-8")
+
+        args = make_args(project_subcommand="archive", project=".sase", force=False)
+        with pytest.raises(SystemExit) as exc:
+            handle_project_command(args)
+
+        assert exc.value.code == 1
+        assert "invalid project name" in capsys.readouterr().err
+        assert hidden_dir.is_dir()
+
     def test_home_project_mutation_is_rejected(
         self,
         projects_root: Path,
@@ -507,3 +526,18 @@ class TestDeletion:
             project_handler.delete_project_locked("../alpha")
 
         assert (projects_root / "alpha").is_dir()
+
+    def test_delete_rejects_hidden_project_name_and_leaves_directory_intact(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+    ) -> None:
+        lifecycle_stubs()
+        hidden_dir = projects_root / ".sase"
+        hidden_dir.mkdir()
+        (hidden_dir / ".sase.sase").write_text("", encoding="utf-8")
+
+        with pytest.raises(project_handler.ProjectLifecycleError, match="invalid"):
+            project_handler.delete_project_locked(".sase")
+
+        assert hidden_dir.is_dir()

@@ -150,6 +150,26 @@ def test_lifecycle_facade_calls_rust_bindings(
     ]
 
 
+def test_lifecycle_facade_filters_invalid_project_records(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_list(
+        projects_root: str, include_states: list[str], include_home: bool
+    ) -> list[dict[str, Any]]:
+        return [
+            _record_payload(project_name=".sase"),
+            _record_payload(project_name="alpha"),
+        ]
+
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    fake.list_project_records = fake_list  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+
+    records = project_lifecycle_facade.list_project_records("/tmp/projects")
+
+    assert [record.project_name for record in records] == ["alpha"]
+
+
 def test_lifecycle_facade_real_extension_content_helpers() -> None:
     rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     if not hasattr(rust_module, "read_project_lifecycle_from_content"):
@@ -181,6 +201,9 @@ def test_lifecycle_facade_real_extension_project_records(tmp_path: Path) -> None
         f"WORKSPACE_DIR: {workspace}\nRUNNING:\n  #1 | 123 | run | demo\n\nNAME: demo\n",
         encoding="utf-8",
     )
+    hidden_dir = projects / ".sase"
+    hidden_dir.mkdir()
+    (hidden_dir / ".sase.sase").write_text("", encoding="utf-8")
 
     records = project_lifecycle_facade.list_project_records(projects, ["active"])
 

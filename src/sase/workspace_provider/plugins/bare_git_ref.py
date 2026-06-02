@@ -14,7 +14,11 @@ from sase.ace.changespec import (
     find_all_changespecs,
     write_changespec_atomic,
 )
-from sase.core.paths import sase_projects_dir
+from sase.core.paths import (
+    is_valid_sase_project_name,
+    sase_projects_dir,
+    validate_sase_project_name,
+)
 from sase.workspace_provider.utils import (
     get_default_branch,
     parse_bare_repo_dir,
@@ -92,6 +96,7 @@ def _init_missing_project_ref(project_name: str) -> ResolvedGitRef:
     """Initialize and resolve a missing project-name ``#git`` reference."""
     if not project_name:
         raise ValueError("Cannot initialize git project from empty ref")
+    validate_sase_project_name(project_name)
 
     # Lazy import avoids a top-level cycle: bare_git_init imports
     # set_bare_repo_dir from this module.
@@ -150,25 +155,28 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
 
     # --- Mode 1: project shorthand (no /) ---
     if "/" not in git_ref:
-        project_dir = projects_base / git_ref
-        project_file_path = Path(preferred_project_spec_path(str(project_dir), git_ref))
-        if project_dir.is_dir() and project_file_path.exists():
-            bare_repo_dir = parse_bare_repo_dir(str(project_file_path))
-            if bare_repo_dir:
-                workspace_dir = parse_workspace_dir(str(project_file_path))
-                if not workspace_dir:
-                    raise ValueError(
-                        f"Project '{git_ref}' has BARE_REPO_DIR but "
-                        "WORKSPACE_DIR is not set"
+        if is_valid_sase_project_name(git_ref):
+            project_dir = projects_base / git_ref
+            project_file_path = Path(
+                preferred_project_spec_path(str(project_dir), git_ref)
+            )
+            if project_dir.is_dir() and project_file_path.exists():
+                bare_repo_dir = parse_bare_repo_dir(str(project_file_path))
+                if bare_repo_dir:
+                    workspace_dir = parse_workspace_dir(str(project_file_path))
+                    if not workspace_dir:
+                        raise ValueError(
+                            f"Project '{git_ref}' has BARE_REPO_DIR but "
+                            "WORKSPACE_DIR is not set"
+                        )
+                    checkout_target = get_default_branch(workspace_dir)
+                    return ResolvedGitRef(
+                        project_file=str(project_file_path),
+                        project_name=git_ref,
+                        primary_workspace_dir=workspace_dir,
+                        bare_repo_dir=bare_repo_dir,
+                        checkout_target=checkout_target,
                     )
-                checkout_target = get_default_branch(workspace_dir)
-                return ResolvedGitRef(
-                    project_file=str(project_file_path),
-                    project_name=git_ref,
-                    primary_workspace_dir=workspace_dir,
-                    bare_repo_dir=bare_repo_dir,
-                    checkout_target=checkout_target,
-                )
 
         # --- Mode 2: ChangeSpec name ---
         for cs in find_all_changespecs():
@@ -201,6 +209,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     project_name = basename[:-4] if basename.endswith(".git") else basename
     if not project_name:
         raise ValueError(f"Cannot derive project name from path '{git_ref}'")
+    validate_sase_project_name(project_name)
 
     project_file = str(
         projects_base / project_name / active_project_spec_filename(project_name)

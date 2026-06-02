@@ -394,6 +394,61 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
     ws_dir.assert_called_once_with(101, "sase")
 
 
+def test_launch_agent_from_cwd_explicit_known_ref_ignores_invalid_inferred_project(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agent_from_cwd
+    from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    workspace = tmp_path / "sase"
+    workspace.mkdir()
+    allocated_workspace = tmp_path / "sase_101"
+    allocated_workspace.mkdir()
+    project_file = str(tmp_path / ".sase" / "projects" / "sase" / "sase.sase")
+    spawn_result = MagicMock(
+        pid=123, workspace_dir=str(allocated_workspace), workspace_num=101
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda *_args, **_kwargs: {"sase": workspace},
+    )
+
+    with (
+        patch("sase.main.utils.get_workspace_name", return_value=".sase"),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
+        patch(
+            "sase.agent.launcher.spawn_agent_subprocess",
+            return_value=spawn_result,
+        ) as spawn,
+        patch(
+            "sase.running_field.claim_next_axe_workspace",
+            return_value=101,
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=(str(allocated_workspace), None),
+        ),
+    ):
+        result = launch_agent_from_cwd("#gh:sase #!sase/fix_just")
+
+    assert result is spawn_result
+    kwargs = spawn.call_args.kwargs
+    assert kwargs["project_name"] == "sase"
+    assert kwargs["project_file"] == project_file
+    assert kwargs["workspace_dir"] == str(allocated_workspace)
+    assert kwargs["is_home_mode"] is False
+    assert kwargs["update_target"] == VCS_DEFAULT_REVISION
+    assert kwargs["vcs_ref"] == ("gh", "sase")
+    assert not (tmp_path / ".sase" / "projects" / ".sase").exists()
+
+
 def test_launch_agent_from_cwd_owner_repo_ref_resolves_to_known_project(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

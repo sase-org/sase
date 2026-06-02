@@ -57,6 +57,34 @@ def sase_projects_dir() -> Path:
     return sase_subdir("projects")
 
 
+_PROJECT_NAME_PATH_SEPARATORS = ("/", "\\")
+
+
+def is_valid_sase_project_name(project_name: str) -> bool:
+    """Return True if *project_name* is safe as one SASE projects child."""
+    if not project_name or project_name in {".", ".."}:
+        return False
+    if project_name.startswith(".") or "\x00" in project_name:
+        return False
+    if any(separator in project_name for separator in _PROJECT_NAME_PATH_SEPARATORS):
+        return False
+
+    projects_root = sase_projects_dir()
+    project_dir = projects_root / project_name
+    try:
+        root_resolved = projects_root.expanduser().resolve(strict=False)
+        parent_resolved = project_dir.parent.expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return project_dir.name == project_name and parent_resolved == root_resolved
+
+
+def validate_sase_project_name(project_name: str) -> None:
+    """Raise ``ValueError`` if *project_name* is not a valid SASE project name."""
+    if not is_valid_sase_project_name(project_name):
+        raise ValueError(f"invalid SASE project name: {project_name!r}")
+
+
 def get_sase_directory(subdir: str) -> str:
     """Get the path to a subdirectory under the SASE state root.
 

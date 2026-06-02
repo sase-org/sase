@@ -3,6 +3,7 @@
 import os
 
 from sase.ace.changespec import write_changespec_atomic
+from sase.core.paths import is_valid_sase_project_name
 from sase.output import print_status
 from sase.workflows.utils import get_project_file_path
 
@@ -18,6 +19,10 @@ def create_project_file(project: str) -> bool:
     Returns:
         True if the file was created or already exists, False on error.
     """
+    if not is_valid_sase_project_name(project):
+        print_status(f"Invalid project name: {project!r}", "warning")
+        return False
+
     project_file = get_project_file_path(project)
     project_dir = os.path.dirname(project_file)
 

@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 
+from sase.core.paths import is_valid_sase_project_name
 from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata, hookimpl
 from sase.workspace_provider.plugins.bare_git_ref import (
     ResolvedGitRef,
@@ -33,6 +34,13 @@ __all__ = [
     "resolve_git_ref",
     "set_bare_repo_dir",
 ]
+
+
+def _valid_project_name_from_git_name(name: str) -> str | None:
+    project_name = re.sub(r"_\d+$", "", name)
+    if not is_valid_sase_project_name(project_name):
+        return None
+    return project_name
 
 
 class BareGitWorkspacePlugin:
@@ -185,7 +193,9 @@ class BareGitWorkspacePlugin:
                     if name.endswith(".git"):
                         name = name[:-4]
                     if name:
-                        return re.sub(r"_\d+$", "", name)
+                        project_name = _valid_project_name_from_git_name(name)
+                        if project_name is not None:
+                            return project_name
         except Exception:
             pass
 
@@ -201,7 +211,7 @@ class BareGitWorkspacePlugin:
             if result.returncode == 0:
                 name = os.path.basename(result.stdout.strip())
                 if name:
-                    return re.sub(r"_\d+$", "", name)
+                    return _valid_project_name_from_git_name(name)
         except Exception:
             pass
 

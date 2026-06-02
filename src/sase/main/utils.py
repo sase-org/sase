@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
+from sase.core.paths import is_valid_sase_project_name
 from sase.workspace_provider import get_workspace_name
 
 # Type alias for project info return type
@@ -22,9 +23,12 @@ def _get_project_name() -> str | None:
         The project name, or None if not in a recognized workspace.
     """
     try:
-        return get_workspace_name(os.getcwd()) or None
+        project_name = get_workspace_name(os.getcwd()) or None
     except Exception:
         return None
+    if project_name is not None and not is_valid_sase_project_name(project_name):
+        return None
+    return project_name
 
 
 def _get_workspace_num(project_name: str) -> int:

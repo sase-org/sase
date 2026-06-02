@@ -134,6 +134,26 @@ class TestResolveGitRef:
             with pytest.raises(ValueError, match="empty ref"):
                 resolve_git_ref("")
 
+    @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
+    def test_hidden_project_name_not_auto_initialized(
+        self,
+        mock_init: MagicMock,
+        mock_find: MagicMock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            hidden_dir = home / ".sase" / "projects" / ".sase"
+            hidden_dir.mkdir(parents=True)
+            (hidden_dir / ".sase.sase").write_text("", encoding="utf-8")
+
+            with patch(f"{_REF_MOD}.Path.home", return_value=home):
+                with pytest.raises(ValueError, match="invalid SASE project name"):
+                    resolve_git_ref(".sase")
+
+        mock_find.assert_called_once()
+        mock_init.assert_not_called()
+
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
     @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
     @patch(f"{_INIT_MOD}.init_bare_git_project")
@@ -307,6 +327,21 @@ class TestResolveGitRef:
                 with pytest.raises(ValueError, match="Cannot derive project name"):
                     resolve_git_ref("/.git")
 
+    @patch(f"{_REF_MOD}.set_workspace_dir", return_value=True)
+    @patch(f"{_REF_MOD}.set_bare_repo_dir", return_value=True)
+    def test_bare_repo_path_hidden_basename_is_rejected(
+        self,
+        mock_set_bare: MagicMock,
+        mock_set_ws: MagicMock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            with patch(f"{_REF_MOD}.Path.home", return_value=Path(d)):
+                with pytest.raises(ValueError, match="invalid SASE project name"):
+                    resolve_git_ref("/repos/.sase.git")
+
+        mock_set_bare.assert_not_called()
+        mock_set_ws.assert_not_called()
+
 
 # ── init_bare_git_project ────────────────────────────────────────────
 
@@ -393,6 +428,21 @@ class TestInitBareGitProject:
                         existing_bare="/some/dir",
                     )
 
+    @patch(f"{_INIT_MOD}.subprocess.run")
+    def test_hidden_project_name_is_rejected_before_git_commands(
+        self, mock_run: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            with patch(f"{_INIT_MOD}.Path.home", return_value=Path(d)):
+                with pytest.raises(ValueError, match="invalid SASE project name"):
+                    init_bare_git_project(
+                        ".sase",
+                        bare_dir=os.path.join(d, ".sase.git"),
+                        clone_dir=os.path.join(d, ".sase") + "/",
+                    )
+
+        mock_run.assert_not_called()
+
 
 # ── ws_get_workspace_name ─────────────────────────────────────────
 
@@ -455,6 +505,16 @@ class TestWsGetWorkspaceName:
             MagicMock(returncode=128, stdout="", stderr=""),  # not a repo
         ]
         result = self._make_plugin().ws_get_workspace_name(cwd="/tmp")
+        assert result is None
+
+    @patch(f"{_WS_MOD}.subprocess.run")
+    def test_hidden_git_root_name_is_not_returned(self, mock_run: MagicMock) -> None:
+        """Treats a hidden git root basename as no recognized SASE project."""
+        mock_run.side_effect = [
+            MagicMock(returncode=1, stdout="", stderr=""),  # remote fails
+            MagicMock(returncode=0, stdout="/home/user/.sase\n"),  # toplevel
+        ]
+        result = self._make_plugin().ws_get_workspace_name(cwd="/home/user/.sase")
         assert result is None
 
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 07:23:12
-status: wip
+status: done
 prompt: sdd/prompts/202606/invalid_sase_project.md
 ---
 # Stop Hidden `.sase` Project Records

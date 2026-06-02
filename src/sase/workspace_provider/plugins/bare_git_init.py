@@ -9,7 +9,7 @@ import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 
-from sase.core.paths import sase_projects_dir, sase_subdir
+from sase.core.paths import sase_projects_dir, sase_subdir, validate_sase_project_name
 from sase.workspace_provider.plugins.bare_git_ref import set_bare_repo_dir
 from sase.workspace_provider.utils import set_workspace_dir
 
@@ -38,6 +38,8 @@ def init_bare_git_project(
     Raises:
         RuntimeError: If git commands fail or existing_bare is not a bare repo.
     """
+    validate_sase_project_name(project_name)
+
     if bare_dir is None:
         bare_dir = str(sase_subdir("repos") / f"{project_name}.git")
     if clone_dir is None:

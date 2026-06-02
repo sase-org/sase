@@ -12,7 +12,7 @@ from sase.ace.changespec import changespec_lock, write_changespec_atomic
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.running_field._model import WorkspaceClaim
 from sase.core.agent_launch_claims import list_workspace_claims_from_content
-from sase.core.paths import sase_projects_dir
+from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 from sase.core.project_lifecycle_facade import (
     apply_project_lifecycle_update,
     list_project_records,
@@ -133,6 +133,9 @@ def _print_record_detail(record: ProjectRecordWire) -> None:
 
 
 def _get_project_record(project: str) -> ProjectRecordWire:
+    if not is_valid_sase_project_name(project):
+        raise _ProjectLifecycleError(f"invalid project name: {project!r}")
+
     records = list_project_records(
         sase_projects_dir(),
         list(_ALL_STATES),
@@ -147,6 +150,8 @@ def _get_project_record(project: str) -> ProjectRecordWire:
 def _resolve_mutable_project_file(project: str) -> Path:
     if project == "home":
         raise _ProjectLifecycleError("project 'home' is system-managed")
+    if not is_valid_sase_project_name(project):
+        raise _ProjectLifecycleError(f"invalid project name: {project!r}")
 
     project_dir = sase_projects_dir() / project
     project_file = Path(preferred_project_spec_path(str(project_dir), project))
@@ -158,7 +163,7 @@ def _resolve_mutable_project_file(project: str) -> Path:
 def _resolve_deletable_project_dir(project: str, projects_root: Path) -> Path:
     if project == "home":
         raise _ProjectLifecycleError("project 'home' is system-managed")
-    if not project or Path(project).name != project:
+    if not is_valid_sase_project_name(project):
         raise _ProjectLifecycleError(f"invalid project name: {project!r}")
 
     root = projects_root.expanduser()

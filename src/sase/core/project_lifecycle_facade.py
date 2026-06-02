@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from sase.core.paths import is_valid_sase_project_name
 from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_STATES,
     ProjectLifecycleWire,
@@ -49,7 +50,11 @@ def list_project_records(
         )
     binding = require_rust_binding("list_project_records")
     payload: list[dict[str, Any]] = binding(str(projects_root), states, include_home)
-    return [project_record_from_dict(dict(item)) for item in payload]
+    return [
+        project_record_from_dict(dict(item))
+        for item in payload
+        if is_valid_sase_project_name(str(item.get("project_name", "")))
+    ]
 
 
 __all__ = [
