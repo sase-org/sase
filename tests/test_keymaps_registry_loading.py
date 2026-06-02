@@ -1,0 +1,213 @@
+"""Tests for loading ace TUI keymap registries."""
+
+from sase.ace.tui.keymaps import (
+    BangModeKeymaps,
+    CopyModeKeymaps,
+    FoldModeKeymaps,
+    LeaderModeKeymaps,
+    ModeKeymaps,
+    load_keymap_registry,
+)
+
+
+def test_empty_config_uses_builtin_defaults() -> None:
+    """Empty config uses defaults from default_config.yml."""
+    reg = load_keymap_registry({})
+    assert reg.app.next_changespec == "j"
+    assert reg.app.quit == "q"
+    assert reg.app.next_tab == "tab"
+    assert reg.app.jump_to_entry_fast == "ctrl+o"
+    assert reg.app.jump_to_entry_forward == "ctrl+k"
+    assert isinstance(reg.fold_mode, FoldModeKeymaps)
+    assert isinstance(reg.copy_mode, CopyModeKeymaps)
+    assert isinstance(reg.leader_mode, LeaderModeKeymaps)
+    assert isinstance(reg.bang_mode, BangModeKeymaps)
+
+
+def test_leader_repeat_last_default_binding() -> None:
+    """Typed defaults and YAML defaults both bind leader repeat to comma."""
+    reg = load_keymap_registry({})
+    assert LeaderModeKeymaps().keys["repeat_last"] == "comma"
+    assert reg.leader_mode.keys["repeat_last"] == "comma"
+
+
+def test_agent_launch_defaults_use_distinct_space_keys() -> None:
+    """Agent launch defaults keep bare Space and Ctrl+Space distinct."""
+    reg = load_keymap_registry({})
+
+    assert reg.app.start_agent_home == "space"
+    assert reg.app.start_agent_from_changespec == "ctrl+@"
+    assert reg.app.start_agent_from_changespec != "space"
+    assert reg.app.start_agent_from_changespec != reg.app.start_agent_home
+    assert LeaderModeKeymaps().keys["agent_home"] == "h"
+    assert reg.leader_mode.keys["agent_home"] == "h"
+    assert reg.leader_mode.keys["agent_home"] != "space"
+    assert LeaderModeKeymaps().keys["agent_from_cl"] == "space"
+    assert reg.leader_mode.keys["agent_from_cl"] == "space"
+    assert reg.leader_mode.keys["agent_from_cl"] != "ctrl+@"
+
+
+def test_ctrl_space_user_config_canonicalizes_to_ctrl_at() -> None:
+    """User-facing Ctrl+Space spelling canonicalizes for Textual dispatch."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {"start_agent_from_changespec": "ctrl+space"},
+                "modes": {"leader_mode": {"keys": {"agent_from_cl": "ctrl+space"}}},
+            }
+        }
+    )
+
+    assert reg.app.start_agent_from_changespec == "ctrl+@"
+    assert reg.leader_mode.keys["agent_from_cl"] == "ctrl+@"
+
+
+def test_edit_hooks_default_binding() -> None:
+    """Guard: ``f`` is bound to ``edit_hooks`` (restored after d7b96606)."""
+    reg = load_keymap_registry({})
+    assert reg.app.edit_hooks == "f"
+    assert reg.app.run_workflow == "r"
+
+
+def test_g_and_o_default_bindings_do_not_collide() -> None:
+    """Guard: ``g`` is scroll_to_top everywhere; ``o`` is the grouping cycle.
+
+    Re-introducing the old ``cycle_grouping_mode: g`` binding would steal the
+    universal scroll-to-top mnemonic on the Agents tab; see
+    sdd/tales/202604/g_keymap_restore.md.
+    """
+    reg = load_keymap_registry({})
+    assert reg.app.scroll_to_top == "g"
+    assert reg.app.cycle_grouping_mode == "o"
+    assert reg.app.cycle_grouping_mode_reverse == "O"
+
+
+def test_partial_app_override() -> None:
+    """Overriding one app key preserves all other defaults."""
+    reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "B"}}})
+    assert reg.app.next_changespec == "B"
+    assert reg.app.prev_changespec == "k"  # unchanged
+    assert reg.app.quit == "q"  # unchanged
+
+
+def test_partial_mode_override() -> None:
+    """Overriding one mode key preserves other mode defaults."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "fold_mode": {
+                        "keys": {"cycle_commits": "x"},
+                    },
+                },
+            },
+        }
+    )
+    assert reg.fold_mode.keys["cycle_commits"] == "x"
+    assert reg.fold_mode.keys["cycle_hooks"] == "h"  # unchanged
+    assert reg.fold_mode.prefix == "z"  # unchanged
+
+
+def test_mode_prefix_override() -> None:
+    """Overriding a mode prefix also updates the app action key."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "fold_mode": {"prefix": "Z"},
+                },
+            },
+        }
+    )
+    assert reg.fold_mode.prefix == "Z"
+    assert reg.app.start_fold_mode == "Z"  # synced
+
+
+def test_prefix_sync_mode_wins() -> None:
+    """When app action and mode prefix differ, mode prefix wins."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {"start_fold_mode": "F"},
+                "modes": {"fold_mode": {"prefix": "Z"}},
+            },
+        }
+    )
+    # Mode prefix wins
+    assert reg.app.start_fold_mode == "Z"
+    assert reg.fold_mode.prefix == "Z"
+
+
+def test_copy_mode_nested_defaults() -> None:
+    """Copy mode preserves nested per-tab key structure."""
+    reg = load_keymap_registry({})
+    keys = reg.copy_mode.keys
+    assert isinstance(keys["changespecs"], dict)
+    assert keys["changespecs"]["raw"] == "percent_sign"
+    assert keys["changespecs"]["bug"] == "b"
+    assert isinstance(keys["agents"], dict)
+    assert keys["agents"]["chat"] == "c"
+    assert keys["agents"]["name"] == "n"
+    assert isinstance(keys["axe"], dict)
+    assert keys["axe"]["visible"] == "o"
+
+
+def test_copy_mode_nested_override() -> None:
+    """Partial override of nested copy mode keys merges correctly."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "copy_mode": {
+                        "keys": {
+                            "changespecs": {"bug": "B"},
+                        },
+                    },
+                },
+            },
+        }
+    )
+    cs_keys = reg.copy_mode.keys["changespecs"]
+    assert isinstance(cs_keys, dict)
+    assert cs_keys["bug"] == "B"  # overridden
+    assert cs_keys["raw"] == "percent_sign"  # unchanged
+
+
+def test_unknown_mode_becomes_generic() -> None:
+    """User-defined modes produce generic ModeKeymaps instances."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "my_mode": {
+                        "prefix": "semicolon",
+                        "keys": {
+                            "do_thing": {
+                                "key": "t",
+                                "shell": "echo hi",
+                                "description": "Do thing",
+                            },
+                            "do_other": {
+                                "key": "o",
+                                "action": "refresh",
+                                "description": "Do other",
+                            },
+                        },
+                    },
+                },
+            },
+        }
+    )
+    m = reg.modes["my_mode"]
+    assert isinstance(m, ModeKeymaps)
+    assert not isinstance(m, FoldModeKeymaps)
+    assert m.prefix == "semicolon"
+    assert isinstance(m.keys["do_thing"], dict)
+    assert m.keys["do_thing"]["key"] == "t"
+
+
+def test_non_dict_keymaps_config() -> None:
+    """Non-dict keymaps config falls back to builtin defaults."""
+    reg = load_keymap_registry({"keymaps": "invalid"})
+    assert reg.app.next_changespec == "j"
+    assert isinstance(reg.fold_mode, FoldModeKeymaps)
