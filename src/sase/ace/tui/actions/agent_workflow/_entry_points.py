@@ -115,6 +115,10 @@ class EntryPointsMixin:
             return
         self._start_custom_agent_from_selection(last)
 
+    def action_start_agent_home(self) -> None:
+        """Start a home-mode agent prompt."""
+        self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
+
     def action_start_last_vcs_xprompt_in_editor(self) -> None:
         """Open editor with the most recently used launchable VCS xprompt."""
         from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru

@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 
 def _patch_config(overrides: dict | None = None):
@@ -38,26 +39,33 @@ async def test_remapped_navigation_key() -> None:
             await page.expect_state("idx", 0)
 
 
-async def test_ctrl_at_dispatches_repeat_agent_binding_not_bare_space() -> None:
-    """Ctrl+Space's runtime key dispatches the repeat-agent action."""
+async def test_ctrl_at_dispatches_repeat_agent_binding_not_home_space() -> None:
+    """Ctrl+Space dispatches repeat-last while Space dispatches home mode."""
     with _patch_config():
         async with AcePage() as page:
-            calls: list[bool] = []
+            repeat_calls: list[bool] = []
+            home_calls: list[bool] = []
 
             def _record_repeat_agent() -> None:
-                calls.append(True)
+                repeat_calls.append(True)
+
+            def _record_home_agent() -> None:
+                home_calls.append(True)
 
             page.app.action_start_agent_from_changespec = _record_repeat_agent  # type: ignore[method-assign]
+            page.app.action_start_agent_home = _record_home_agent  # type: ignore[method-assign]
 
             await page.press("space")
-            assert calls == []
+            assert home_calls == [True]
+            assert repeat_calls == []
 
             await page.press("ctrl+@")
-            assert calls == [True]
+            assert repeat_calls == [True]
+            assert home_calls == [True]
 
 
-async def test_leader_space_dispatches_agent_home_not_bare_space() -> None:
-    """Bare Space launches home-mode agents only after leader mode is active."""
+async def test_leader_space_dispatches_agent_home_alias() -> None:
+    """Leader Space remains a home-mode agent alias."""
     with _patch_config():
         async with AcePage() as page:
             calls: list[bool] = []
@@ -68,7 +76,21 @@ async def test_leader_space_dispatches_agent_home_not_bare_space() -> None:
             page.app._show_prompt_input_bar_for_home = _record_agent_home  # type: ignore[method-assign]
 
             await page.press("space")
-            assert calls == []
+            assert calls == [True]
 
             await page.press("comma", "space")
-            assert calls == [True]
+            assert calls == [True, True]
+
+
+async def test_prompt_input_space_is_text_after_home_prompt_opens() -> None:
+    """Space typed inside the prompt bar remains local text input."""
+    with _patch_config():
+        async with AcePage() as page:
+            await page.press("space")
+            await page.pause()
+
+            text_area = page.query_one_widget("#prompt-input", PromptTextArea)
+            await page.press("a", "space", "b")
+            await page.pause()
+
+            assert text_area.text == "a b"

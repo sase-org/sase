@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
 from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
 from sase.ace.tui.actions.changespec._core import ChangeSpecMixin
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
@@ -105,6 +106,16 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.marked_agent_run_count += 1
 
 
+class _FakeEntryPoints(EntryPointsMixin):
+    """Minimal app stand-in for direct entry-point actions."""
+
+    def __init__(self) -> None:
+        self.home_agent_count = 0
+
+    def _show_prompt_input_bar_for_home(self) -> None:
+        self.home_agent_count += 1
+
+
 def _make_cs(name: str) -> MagicMock:
     cs = MagicMock()
     cs.name = name
@@ -116,6 +127,7 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
 
     assert registry.app.show_agent_run_log == "V"
     assert registry.app.open_agent_artifacts == "A"
+    assert registry.app.start_agent_home == "space"
     assert registry.app.start_agent_from_changespec == "ctrl+@"
     assert registry.leader_mode.keys["agent_run_log"] == "A"
     assert registry.leader_mode.keys["agent_home"] == "space"
@@ -130,8 +142,16 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert by_key["A"] == "open_agent_artifacts"
     assert by_key["V"] == "show_agent_run_log"
     assert by_key["J"] == "focus_next_agent_panel"
+    assert by_key["space"] == "start_agent_home"
     assert by_key["ctrl+@"] == "start_agent_from_changespec"
-    assert "space" not in by_key
+
+
+def test_action_start_agent_home_opens_home_prompt() -> None:
+    app = _FakeEntryPoints()
+
+    app.action_start_agent_home()
+
+    assert app.home_agent_count == 1
 
 
 def test_leader_a_opens_agent_run_log_for_selected_cl() -> None:

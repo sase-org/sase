@@ -61,8 +61,10 @@ def test_agent_launch_defaults_use_distinct_space_keys() -> None:
     """Agent launch defaults keep bare Space and Ctrl+Space distinct."""
     reg = load_keymap_registry({})
 
+    assert reg.app.start_agent_home == "space"
     assert reg.app.start_agent_from_changespec == "ctrl+@"
     assert reg.app.start_agent_from_changespec != "space"
+    assert reg.app.start_agent_from_changespec != reg.app.start_agent_home
     assert LeaderModeKeymaps().keys["agent_home"] == "space"
     assert reg.leader_mode.keys["agent_home"] == "space"
     assert reg.leader_mode.keys["agent_home"] != "h"
@@ -344,9 +346,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 85 configurable + 10 digit = 95 bindings."""
+    """build_app_bindings produces 86 configurable + 10 digit = 96 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 95
+    assert len(bindings) == 96
 
 
 def test_build_app_bindings_priority() -> None:
@@ -369,11 +371,14 @@ def test_build_app_bindings_uses_config_keys() -> None:
 
 
 def test_build_app_bindings_uses_ctrl_space_agent_binding() -> None:
-    """The default app binding no longer binds bare Space for repeat-last."""
+    """Agent home uses Space while repeat-last keeps Ctrl+Space."""
     bindings = build_app_bindings(_default_app_keymaps())
     by_action = {b.action: b for b in bindings}
+    by_key = {b.key: b.action for b in bindings}
 
+    assert by_action["start_agent_home"].key == "space"
     assert by_action["start_agent_from_changespec"].key == "ctrl+@"
+    assert by_key["space"] == "start_agent_home"
     assert not any(
         b.action == "start_agent_from_changespec" and b.key == "space" for b in bindings
     )
@@ -494,7 +499,7 @@ def test_help_modal_displays_command_palette_alternatives() -> None:
 
 
 def test_help_modal_displays_ctrl_space_agent_shortcuts() -> None:
-    """Help exposes Ctrl+Space and not the old bare-Space agent wording."""
+    """Help exposes Ctrl+Space for repeat-last, not the old Space wording."""
     reg = load_keymap_registry({})
     cls_pairs = {
         (key, label)
@@ -518,6 +523,18 @@ def test_help_modal_displays_ctrl_space_agent_shortcuts() -> None:
 
     assert (", Ctrl+Space", "Run agent from current CL") in cls_pairs
     assert (", Ctrl+Space", "Run agent from selected agent") in agent_pairs
+
+
+def test_help_modal_displays_bare_space_agent_home_app_key() -> None:
+    """Help exposes bare Space as the primary home-agent shortcut."""
+    reg = load_keymap_registry({})
+    sections_by_tab = (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg))
+
+    for sections in sections_by_tab:
+        pairs = {
+            (key, label) for _section, bindings in sections for key, label in bindings
+        }
+        assert ("Space", "Run agent (home)") in pairs
 
 
 def test_help_modal_displays_space_agent_home_leader_key() -> None:

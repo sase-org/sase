@@ -70,6 +70,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("open_agent_cleanup_panel", "Agent Cleanup", False),
     ("stop_axe_and_quit", "Stop & Quit", False),
     ("start_custom_agent", "Run Agent", False),
+    ("start_agent_home", "Run Agent (Home)", False),
     ("start_agent_from_changespec", "Run Agent (CL)", False),
     ("start_last_vcs_xprompt_in_editor", "Edit Last VCS XPrompt", False),
     ("start_bang_mode", "Bang Mode", False),
@@ -299,6 +300,7 @@ class AppKeymaps:
     open_agent_cleanup_panel: str
     stop_axe_and_quit: str
     start_custom_agent: str
+    start_agent_home: str
     start_agent_from_changespec: str
     start_last_vcs_xprompt_in_editor: str
     jump_to_agent_changespec: str

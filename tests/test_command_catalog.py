@@ -98,6 +98,20 @@ def test_start_agent_from_changespec_command_uses_ctrl_space() -> None:
     assert spec.key_display == "Ctrl+Space"
 
 
+def test_start_agent_home_command_uses_bare_space() -> None:
+    """The home-agent app command exposes bare Space."""
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.start_agent_home"]
+
+    assert spec.label == "Run agent (home mode)"
+    assert spec.category == "Agents"
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.key_sequence == ("space",)
+    assert spec.key_display == "Space"
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "start_agent_home"
+
+
 def test_episode_explorer_command_is_global_display_command() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.open_episode_explorer"]

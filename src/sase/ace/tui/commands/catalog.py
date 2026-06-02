@@ -174,6 +174,13 @@ _APP_COMMAND_META: tuple[
     ("stop_axe_and_quit", "Stop AXE and quit", "Axe", _ALL_TABS, ()),
     ("start_custom_agent", "Run custom agent", "Agents", _ALL_TABS, ("@",)),
     (
+        "start_agent_home",
+        "Run agent (home mode)",
+        "Agents",
+        _ALL_TABS,
+        ("home", "home mode", "~"),
+    ),
+    (
         "start_agent_from_changespec",
         "Run agent from CL",
         "Agents",

@@ -60,6 +60,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("Q", "stop_axe_and_quit", "Stop & Quit", show=False),
     # Agent workflow (all tabs) - shows project/CL selection modals
     Binding("at", "start_custom_agent", "Run Agent", show=False),
+    Binding("space", "start_agent_home", "Run Agent (Home)", show=False),
     # Run agent from ChangeSpec (CLs tab only)
     Binding("ctrl+@", "start_agent_from_changespec", "Run Agent (CL)", show=False),
     Binding(

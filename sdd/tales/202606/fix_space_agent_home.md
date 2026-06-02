@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 14:43:33
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_space_agent_home.md
 ---
 # Plan: Restore Bare Space Agent-Home Shortcut
