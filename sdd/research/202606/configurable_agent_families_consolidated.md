@@ -135,6 +135,15 @@ transports such as mobile and Telegram integrations. A configurable family desig
 therefore has to define gates once while preserving the existing IPC shapes and
 notification action names until every client can understand the new payloads.
 
+The notification wire itself does not need redesign for new gate kinds. The Rust
+core already carries a generic envelope —
+`NotificationWire { action: Option<String>, action_data: BTreeMap<String, _>, … }`
+in `../sase-core/crates/sase_core/src/notifications/wire.rs`. Plan and question
+notifications already fit it by setting `action` to `"PlanApproval"` /
+`"UserQuestion"` and stashing `response_dir`/`session_id` in `action_data`, so
+adding user-defined gate kinds costs nothing at the wire layer; the IPC concern
+is at the *sender/payload-shape* and modal-renderer layers above it.
+
 ### Existing extensibility assets are useful but incomplete
 
 SASE already has useful primitives:
@@ -150,6 +159,24 @@ However, the plan chain does not run as a declared workflow. Workflow HITL today
 an accept/reject/edit review of a completed step output, while plan approval needs
 multi-choice routing, feedback loops, SDD side effects, role suffixes, follow-up
 artifact creation, and artifact-compatible status reconstruction.
+
+Two more existing knobs that a family schema must subsume rather than rediscover:
+
+- `SASE_CODER_INHERIT_PLANNER_CHAT=1` (`run_agent_exec_plan.py:548`) prepends
+  `#fork:<base>-plan ` to the coder prompt so the coder reuses the planner's
+  chat transcript rather than starting cold from the plan file alone. Off by
+  default. A configurable family should expose this as a per-role flag (e.g.
+  `inherits_chat_from: plan`); reviewer/test roles often want planner context
+  for the same reason coders sometimes do.
+- The headless auto-approve path returns the closed literal
+  `PlanAutoApprovalAction` (`"approve"` | `"epic"`) and consults
+  `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`, `SASE_AGENT_AUTO_PLAN_ACTION`,
+  `agent_meta.auto_approve_plan_action`, then
+  (`SASE_AGENT_AUTO_APPROVE` or `agent_meta.approve`) → `"approve"`
+  (`plan_approve_handler.py:43-61`). Today's auto-pilot therefore knows only
+  two terminal targets; the configurable `auto_pilot` block in §"Requirements"
+  must widen the return type to whatever choices a family declares, and must
+  preserve this precedence so CI/batch flows do not regress.
 
 ## Requirements For Configurable Families
 
