@@ -496,6 +496,46 @@ async def test_artifact_modal_Y_recovers_workspace_from_agent_meta_json(
     assert copied == ["sdd/tales/202605/plan.md"]
 
 
+async def test_artifact_modal_y_recovers_workspace_from_agent_meta_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    workspace = tmp_path / "workspace"
+    source = workspace / "sdd" / "tales" / "202605" / "plan.md"
+    artifacts_dir.mkdir()
+    source.parent.mkdir(parents=True)
+    source.write_text("# Plan\n", encoding="utf-8")
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"workspace_dir": str(workspace)}),
+        encoding="utf-8",
+    )
+    artifact = _artifact(
+        1,
+        label="plan.md",
+        path="sdd/tales/202605/plan.md",
+        agent_artifacts_dir=str(artifacts_dir),
+    )
+    copied: list[str] = []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.agent_artifacts_modal.copy_to_system_clipboard",
+        lambda content: copied.append(content) or True,
+    )
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentArtifactSelectionModal([artifact])
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("y")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+
+    assert copied == ["# Plan\n"]
+
+
 async def test_artifact_modal_y_warns_for_non_markdown_artifact_without_copying(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
