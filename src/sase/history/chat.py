@@ -238,14 +238,14 @@ def _format_transcript_metadata_blocks(
     metadata_llm_provider: str | None,
     metadata_agent: str | None,
 ) -> str:
-    blocks = [f"**Timestamp** {display_timestamp}"]
+    rows = [f"- **TIMESTAMP:** {display_timestamp}"]
     model = _format_metadata_model(metadata_llm_provider, metadata_model)
     agent = _clean_metadata_field(metadata_agent)
     if model:
-        blocks.append(f"**MODEL** {model}")
+        rows.append(f"- **MODEL:** {model}")
     if agent:
-        blocks.append(f"**AGENT** {agent}")
-    return "\n\n".join(blocks)
+        rows.append(f"- **AGENT:** {agent}")
+    return "\n".join(rows)
 
 
 def save_chat_history(

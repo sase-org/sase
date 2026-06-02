@@ -7,7 +7,12 @@ intermediate steps.
 
 import re
 
-_NEW_METADATA_BLOCK_RE = re.compile(
+_BULLET_METADATA_LIST_RE = re.compile(
+    r"^- \*\*TIMESTAMP:\*\*[^\n]*\n"
+    r"(?:- \*\*(?:MODEL|AGENT):\*\*[^\n]*\n)*\n?",
+    re.MULTILINE,
+)
+_BLOCK_METADATA_RE = re.compile(
     r"^\*\*Timestamp\*\*[^\n]*\n(?:\n\*\*(?:MODEL|AGENT)\*\*[^\n]*\n)*\n?",
     re.MULTILINE,
 )
@@ -39,10 +44,10 @@ def build_linked_chats_section(
 def append_links_to_chat(chat_path: str, links_section: str) -> None:
     """Insert or replace a ``## Linked Chats`` section in *chat_path*.
 
-    The section is placed immediately after the transcript metadata blocks,
-    before the remaining content. Legacy ``**Timestamp:**`` line headers are
-    still supported. If a ``## Linked Chats`` section already exists it is
-    replaced.
+    The section is placed immediately after the transcript metadata list,
+    before the remaining content. Historical ``**Timestamp**`` metadata blocks
+    and legacy ``**Timestamp:**`` line headers are still supported. If a
+    ``## Linked Chats`` section already exists it is replaced.
     """
     try:
         with open(chat_path, encoding="utf-8") as f:
@@ -57,10 +62,12 @@ def append_links_to_chat(chat_path: str, links_section: str) -> None:
         content,
     )
 
-    # Find the insertion point after current metadata blocks, or after a
-    # legacy single timestamp line for older transcripts.
-    m = _NEW_METADATA_BLOCK_RE.search(content) or _LEGACY_TIMESTAMP_LINE_RE.search(
-        content
+    # Find the insertion point after current metadata, falling back to
+    # historical block formats for older transcripts.
+    m = (
+        _BULLET_METADATA_LIST_RE.search(content)
+        or _BLOCK_METADATA_RE.search(content)
+        or _LEGACY_TIMESTAMP_LINE_RE.search(content)
     )
     if m:
         insert_at = m.end()

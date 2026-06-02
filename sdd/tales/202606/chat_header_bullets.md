@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 16:49:18
-status: wip
+status: done
 prompt: sdd/prompts/202606/chat_header_bullets.md
 ---
 # Plan: Bullet-Style SASE Chat Transcript Metadata

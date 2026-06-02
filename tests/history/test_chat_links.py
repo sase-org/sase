@@ -34,7 +34,40 @@ class TestBuildLinkedChatsSection:
 
 
 class TestAppendLinksToChat:
-    def test_inserts_after_metadata_blocks(self, tmp_path: object) -> None:
+    def test_inserts_after_metadata_bullet_list(self, tmp_path: object) -> None:
+        chat_file = os.path.join(str(tmp_path), "chat.md")
+        original = textwrap.dedent("""\
+            # Chat History - ace-run
+
+            - **TIMESTAMP:** 2026-03-27 15:22:07 UTC
+            - **MODEL:** claude/claude-sonnet
+            - **AGENT:** alpha
+
+            ## Prompt
+
+            Do the thing.
+
+            ## Response
+
+            Done.
+        """)
+        with open(chat_file, "w") as f:
+            f.write(original)
+
+        links_section = build_linked_chats_section(SAMPLE_LINKS)
+        append_links_to_chat(chat_file, links_section)
+
+        with open(chat_file) as f:
+            content = f.read()
+
+        # Links section should appear after all metadata and before the prompt.
+        agent_pos = content.index("- **AGENT:**")
+        assert content.index("- **MODEL:**") < agent_pos
+        links_pos = content.index("## Linked Chats")
+        prompt_pos = content.index("## Prompt")
+        assert agent_pos < links_pos < prompt_pos
+
+    def test_inserts_after_historical_metadata_blocks(self, tmp_path: object) -> None:
         chat_file = os.path.join(str(tmp_path), "chat.md")
         original = textwrap.dedent("""\
             # Chat History - ace-run
@@ -62,7 +95,6 @@ class TestAppendLinksToChat:
         with open(chat_file) as f:
             content = f.read()
 
-        # Links section should appear after all metadata and before the prompt.
         agent_pos = content.index("**AGENT**")
         links_pos = content.index("## Linked Chats")
         prompt_pos = content.index("## Prompt")
