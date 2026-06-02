@@ -122,6 +122,88 @@ The **schema** of questions (list of `{question, options?, multiSelect?}`), the
 **markdown rendering**, the **modal keybindings**, and the **way answers are
 folded back into the prompt** are all hardcoded.
 
+**Precise field map** (not captured in §1.3):
+
+- `PlanApprovalResult.action` is wider than the four product choices imply. Its
+  declared values (`plan_approval_modal.py:95`) are
+  `approve | reject | epic | legend | feedback_requested | approve_prompt_edit`.
+  `feedback_requested` is the runner-facing form of the `f` choice;
+  `approve_prompt_edit` re-opens the modal after the user edited the coder prompt
+  in-place. The product-level `tale` choice is *not* a distinct `action` — it
+  collapses to `approve` with `commit_plan=True`. Any configurable schema must
+  preserve this two-layer mapping (product choice → action + flags), not just the
+  action enum.
+- `coder_prompt` and `coder_model` on `PlanApprovalResult` are *override knobs*
+  on the same approval result, not a separate phase. A configurable engine that
+  splits "decide" from "prompt-assemble" needs to preserve the modal's ability to
+  set these in the same gesture as choosing `approve`/`tale`.
+- The question response carries `selected: [option_label, ...]` plus an optional
+  `custom_feedback`/`global_note` (`questions_command_handler.py:15-39`,
+  `user_question_modal.py`). The request/response live under
+  `~/.sase/user_question/<session_id>/`, *not* `~/.sase/sase_plan/` — the two
+  flows have separate root directories and that separation should be retained.
+
+### 1.4.1 The workflow engine has its *own* HITL decision vocabulary
+
+`src/sase/xprompt/workflow_hitl.py` ships a `TUIHITLHandler` whose
+`HITLResult.action` is `accept | reject | edit | feedback | rerun`
+(`workflow_hitl.py:123-237`). This is a **second, parallel decision system** with
+its own file-based IPC (`hitl_request.json` / `hitl_response.json` in the
+workflow artifacts dir) and its own notification sender
+(`sender="hitl"`, action `HITL`).
+
+So today SASE actually has *three* human-gate vocabularies — plan approval, user
+questions, and workflow HITL — each with its own request/response shape, its own
+notification sender, and its own modal. Any configurability proposal must
+explicitly choose between (a) unifying them under one decision/IPC abstraction or
+(b) keeping them separate and giving family configs a way to *select* which
+gate-kind to open at each role boundary. The recommendation in §4 picks (a) at
+the schema level and (b) at the IPC level (preserve the existing JSON shapes for
+backward compatibility, but generate them from a single declared gate).
+
+### 1.4.2 Family discovery and the reserved-hyphen contract
+
+`src/sase/agent/names/_lookup.py:195-242` discovers families by joining sibling
+artifact directories whose `agent_meta.json` shares an `agent_family` base name
+and tracing `parent_timestamp` lineage to a `plan_chain_root`. "Completeness"
+(used by TUI status mirroring and notification gating) requires every member to
+report `outcome == "completed"`. Two consequences for configurability:
+
+1. **Suffixes are not free-form.** `src/sase/agent/launch_validation.py:67-85`
+   reserves the hyphen for family suffixes — user-launched agent names cannot
+   contain `-`. A user-defined family that introduces `-review` therefore
+   implicitly carves out a new reserved suffix; the loader must validate
+   uniqueness against built-in suffixes (`-plan`, `-q`, `-code`, `-epic`,
+   `-legend`, `-commit`, numeric feedback rounds) and against the workspace's
+   active families to avoid collisions.
+2. **Lineage, not enumeration, defines the family.** The family is rebuilt by
+   walking `parent_timestamp` pointers, so adding a phase in the middle of the
+   chain works as long as each new member writes a correct `parent_timestamp` to
+   its predecessor's artifact dir. The configurable engine does not need a
+   separate registry file; `agent_meta.json` remains the source of truth.
+
+### 1.4.3 `agent_meta.json` fields already in use
+
+Beyond the four family fields in §1.2, `agent_meta.json` also carries decision
+state that today's auto-pilot consults
+(`plan_approve_handler.py:43-61`,
+`core/agent_scan_wire_markers.py`):
+
+| Field | Meaning |
+|---|---|
+| `approve` | bool — short-circuit the modal, treat as `approve` choice |
+| `auto_approve_plan_action` | one of `approve`/`epic`/`legend` (normalized lowercase) |
+| `sdd_plan_path` | path to the committed plan file (set by `commit_sdd_files_for_exec_plan`) |
+| `plan_committed` | bool — was SDD commit run |
+| `parent_timestamp` | string — links the member to its predecessor's artifact dir |
+
+There is **no `SASE_PLAN` environment variable** set by the runner today; the
+original draft of this note incorrectly named one. Plan path persistence is via
+the metadata field above. A configurable engine should preserve these field
+names so already-running agents in older workspaces continue to scan correctly,
+and should add new fields under a `family_state:` sub-object rather than
+flattening more keys into the top level.
+
 ### 1.5 Existing extensibility primitives (what we can build on)
 
 - **xprompt workflow YAML** (`workflow.schema.json`): already a rich, declarative,
@@ -134,15 +216,29 @@ folded back into the prompt** are all hardcoded.
   `xprompt_aliases`.
 - **`default_config.yml`** — layered config (`ace:`, `axe:`, `llm_provider:`,
   `sdd:`, `xprompts:`, …) overridable in `~/.config/sase/sase.yml`.
-- **Auto-approval hooks** — env vars `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`,
-  `SASE_AGENT_AUTO_PLAN_ACTION`, `SASE_AGENT_AUTO_APPROVE` and
-  `agent_meta.json` fields already let CI/batch flows skip the human gate.
+- **Auto-approval hooks** — env vars `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` and
+  `SASE_AGENT_AUTO_PLAN_ACTION` (both accept `approve`/`epic`/`legend`,
+  case-insensitive) and `SASE_AGENT_AUTO_APPROVE` (any truthy value collapses to
+  `approve`), plus `SASE_CODER_INHERIT_PLANNER_CHAT=1` (prepends
+  `#fork:<base>-plan` to the coder prompt, `run_agent_exec_plan.py:548`). Workflow
+  HITL has its own switch via the `hitl_override` parameter on
+  `execute_workflow`. A configurable `auto_pilot` block must generalize *both*
+  vocabularies, not just the plan-chain env vars.
+- **Notification transports** — `src/sase/notifications/senders.py` writes plan,
+  question, and HITL notifications to `notifications.jsonl`; the same payload is
+  mirrored into `pending_actions.json` for external transports
+  (`pending_actions.py:45-48`, used by sase-telegram and any future mobile/web
+  consumer). The transports key off `sender` (`plan`/`question`/`hitl`) and the
+  `action_data.response_dir`/`session_id` fields; any new gate kind a family
+  introduces must round-trip through this layer if it is to be answerable
+  off-host. This makes the *gate schema* — not just the modal — a shared backend
+  concern.
 
 ### 1.6 Where the logic lives (Python vs Rust core)
 
 | Concern | Today | Boundary verdict |
 |---|---|---|
-| Family role enum, suffix mapping | Python `plan_chain.py` + mirrored in Rust `wire.rs` | **Core** — every frontend (web, CLI, editor) must agree on role identity |
+| Family role enum, suffix mapping | Python `plan_chain.py`; Rust `wire.rs` only carries the *fields* (`agent_family`, `agent_family_role`, `plan_chain_root`) as opaque strings/bools — no enum, no transition logic | **Core** — every frontend (web, CLI, editor) must agree on role identity, and today only the wire shape is shared |
 | Transition state machine | Python `run_agent_exec_plan.py` | **Core-ish** — the *rules* are backend; the *execution* (subprocess spawning) is host-specific |
 | Plan/question request/response IPC | Python + markers; notification store in Rust | Mixed — IPC mechanics are host glue; notification persistence already in core |
 | Approval modal, question modal | Python/Textual TUI | **Presentation** — stays in this repo |
@@ -423,6 +519,90 @@ chosen `goto`/`loop` target" rather than a closed enum.
 
 ---
 
+## 4a. Worked example — inserting a plan-review phase
+
+The motivating use case ("a reviewer between planner and coder") under the
+recommended schema is a single inserted role plus one extra `goto`:
+
+```yaml
+# ~/.config/sase/families/plan_review_coder.yml
+extends: default
+roles:
+  review:
+    suffix: "-review"
+    model: "claude-opus-4-7"
+    prompt: |
+      @{{ plan_file }}
+
+      Critically review the approved plan above. Tighten scope, surface risks
+      and missing edge cases, and rewrite it in place via `sase plan` if you can
+      materially improve it. Otherwise call `sase plan` with the file unchanged
+      to signal "no rewrite needed".
+    gate: plan_review    # reuse the same gate — calling `sase plan` re-enters it
+gates:
+  plan_review:
+    choices:
+      - { key: a, label: Approve,  goto: review }   # was: goto: code
+      - { key: t, label: Tale,     goto: review, side_effects: [commit_sdd] }
+      - { key: A, label: Skip review (approve direct), goto: code }
+      # epic/legend/feedback/commit/reject unchanged
+```
+
+End-to-end flow with the above:
+
+1. Planner emits a plan, hits `plan_review` gate. User picks `a` (Approve).
+2. Engine resolves `goto: review` → spawns `<base>-review` with the rendered
+   prompt. The role's prompt calls `sase plan` again when finished.
+3. `sase plan` re-fires the same marker → runner re-opens `plan_review`. Choosing
+   `a` this time goes to `review` *again* — to avoid an infinite loop, either
+   (a) the engine tracks which roles have already run in this lineage and skips
+   them on re-entry, or (b) the schema declares `once: true` on the `review`
+   role. Recommendation: track *visited roles per lineage* in the family-state
+   sub-object on `agent_meta.json` (`family_state.visited_roles[]`) and have the
+   engine prefer the first `goto` whose target hasn't run yet, falling through
+   to `code`. This keeps the schema simple and the loop-detection behavior
+   inspectable in artifacts.
+
+Critically, this whole change is **a YAML file** — no Python edits, no new
+suffix added to `plan_chain.py`, no modal change. The validator does need to
+accept `-review` as a reserved suffix for the duration the family is active
+(see §5).
+
+## 4b. Testing strategy
+
+The risk profile of this work is "we silently regress the default plan chain
+for thousands of existing users." A configurable engine should land with:
+
+1. **Golden-equivalence harness.** For the default family, replay representative
+   transcripts (planner → feedback → planner → approve → coder; planner →
+   epic; planner → question round → approve) through *both* the legacy
+   `handle_plan_marker` path and the new engine and assert byte-identical
+   `plan_response.json`/`question_response.json` payloads, prompt strings,
+   suffix sequences, and `agent_meta.json` writes. The existing test files
+   (`tests/test_axe_run_agent_exec_retry.py`,
+   `tests/test_agent_loader_status_override_questions.py`) already encode the
+   artifact-mutation contract — extend them rather than replacing them.
+2. **Schema-level unit tests.** Pure-function tests of
+   `advance(family_def, state, decision)` covering every built-in choice
+   (approve/tale/epic/legend/feedback/commit/reject), feedback-round
+   accumulation, prompt assembly with and without Q&A rounds, auto-pilot
+   resolution from env vars + `agent_meta.json`, and rejection of malformed
+   families (dangling `goto`, missing entry, suffix collision with reserved
+   list).
+3. **Custom-family integration test.** Ship the `plan_review_coder.yml` example
+   above as a test fixture and assert (a) the `-review` suffix is accepted by
+   `launch_validation`, (b) family discovery in `_lookup.py` correctly groups
+   the four members (`plan` / `q?` / `review` / `code`), (c) the `visited_roles`
+   loop-detection prevents an infinite `review → review` cycle.
+4. **PNG snapshot coverage.** The approval modal becomes a generic decision
+   renderer; the existing TUI snapshot suite (`just test-visual`) must be
+   extended with goldens for at least one custom-choice set so layout
+   regressions are caught.
+5. **Notification round-trip.** A dedicated test that, given a custom gate,
+   verifies `notifications.jsonl` + `pending_actions.json` carry the
+   `choices[]` payload so out-of-band transports (sase-telegram, future mobile)
+   can render it without a TUI in the loop.
+
 ## 5. Risks & open questions
 
 - **Schema vs workflow DSL overlap.** Two declarative systems (workflow YAML and
@@ -442,6 +622,33 @@ chosen `goto`/`loop` target" rather than a closed enum.
   role) must fail loudly at load with a clear message, and fall back to `default`.
 - **Discoverability.** Need `sase` CLI/skill support to list/validate families,
   and TUI affordance to show which family an agent belongs to.
+- **Three decision systems vs. one.** Plan approval, user questions, and workflow
+  HITL each have their own IPC shape, notification sender, and modal (§1.4.1).
+  Unifying their declaration in the family schema while keeping their wire
+  payloads stable is necessary for back-compat with sase-telegram and any
+  external transport already keyed off `sender="plan"`/`"question"`/`"hitl"`.
+  Open: do we deprecate `sender="hitl"` in favor of family-named senders, or
+  keep it and route family gates through it?
+- **Suffix-collision validation.** Reserved-hyphen enforcement
+  (`launch_validation.py:67-85`) currently treats *all* hyphens as family-only.
+  When a user-defined family declares `-review`, the loader must (a) register
+  the suffix globally so `validate_user_agent_name` does not reject internal
+  `-review` spawns, and (b) reject the family if `-review` collides with a
+  built-in suffix or another active family. Multi-family workspaces complicate
+  this — two families both wanting `-test` need a per-family namespace or
+  unambiguous prefixing.
+- **Loop-detection on multi-role chains.** As shown in §4a, naively re-entering
+  the same gate from a non-planner role can loop. The `family_state.visited_roles`
+  approach must survive workspace restarts (it lives in `agent_meta.json`) and
+  not lock users out of legitimate re-runs (e.g. an explicit "re-review" choice).
+- **Skill contract is CLI-shaped, not metadata-shaped.** `sase plan` and
+  `sase questions` are CLI subcommands consumed by `/sase_plan` / `/sase_questions`
+  skills; the skill files are generated against the CLI surface, not against the
+  family schema. Adding family-defined gate kinds therefore does not auto-create
+  new skills — either the schema declares which existing CLI command its gate
+  uses (`gate.cli: sase plan`) or we keep gate-kind to one of a curated set
+  (`plan_approval`, `user_question`, `generic_decision`) backed by existing CLIs.
+  Curated set is simpler and matches the side-effect catalog approach.
 
 ### Key code references
 
