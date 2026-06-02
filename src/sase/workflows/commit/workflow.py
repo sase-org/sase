@@ -133,7 +133,9 @@ class CommitWorkflow(BaseWorkflow):
 
                 project_name = get_project_from_workspace()
                 if project_name:
-                    suffixed = compute_suffixed_cl_name(project_name, base_name)
+                    suffixed = compute_suffixed_cl_name(
+                        project_name, base_name, cwd=cwd
+                    )
                     if suffixed:
                         self._payload["name"] = suffixed
                         self._reserved_name = suffixed
@@ -216,6 +218,13 @@ class CommitWorkflow(BaseWorkflow):
             checkpoint_delete()
             return RunResult.FAILED
 
+        # If dispatch had to re-suffix the branch to dodge a remote-branch
+        # collision, re-point the ChangeSpec reservation at the branch that was
+        # actually pushed so the recorded NAME matches the PR branch.
+        if self._method == "create_pull_request" and self._payload.get("_resuffixed"):
+            self._repoint_reservation_after_resuffix()
+            cp.reserved_name = self._reserved_name
+
         cp.dispatch_result = result
         cp.completed_steps.append("dispatch")
         checkpoint_save(cp)
@@ -228,6 +237,28 @@ class CommitWorkflow(BaseWorkflow):
 
         checkpoint_delete()
         return RunResult.OK
+
+    def _repoint_reservation_after_resuffix(self) -> None:
+        """Move the ChangeSpec reservation to a re-suffixed PR branch name.
+
+        When the VCS dispatch renames the branch to escape a remote collision
+        it records the new name in ``payload["name"]``.  Drop the now-stale
+        reservation stub and adopt the new name as ``_reserved_name`` so the
+        ChangeSpec is created under the branch that was actually pushed.
+        """
+        new_name = self._payload.get("name")
+        if not new_name or new_name == self._reserved_name:
+            return
+        try:
+            from sase.workflows.commit.changespec_operations import remove_reservation
+            from sase.workflows.utils import get_project_from_workspace
+
+            project_name = get_project_from_workspace()
+            if project_name and self._reserved_name:
+                remove_reservation(project_name, self._reserved_name)
+        except Exception:
+            pass  # Best-effort cleanup; the ChangeSpec still uses the new name.
+        self._reserved_name = new_name
 
     def _run_tracking_steps(
         self, cp: CommitCheckpoint, result: str | None

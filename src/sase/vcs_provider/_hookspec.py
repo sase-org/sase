@@ -84,6 +84,9 @@ class VCSHookSpec:
     def vcs_can_rename_branch(self, cwd: str) -> bool: ...
 
     @hookspec(firstresult=True)
+    def vcs_existing_branch_suffixes(self, base_name: str, cwd: str) -> set[int]: ...
+
+    @hookspec(firstresult=True)
     def vcs_resolve_revision(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str: ...

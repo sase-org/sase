@@ -129,7 +129,27 @@ def remove_reservation(project: str, reserved_name: str) -> None:
         print_status(f"Failed to remove reservation {reserved_name}: {e}", "warning")
 
 
-def compute_suffixed_cl_name(project: str, cl_name: str) -> str | None:
+def _remote_taken_suffix_names(base_name: str, cwd: str) -> set[str]:
+    """Return ``<base_name>_<N>`` names whose branch already exists on the remote.
+
+    Consulted so the reserved ChangeSpec name stays consistent with the remote
+    branch namespace.  Best-effort: any failure (no provider, no remote,
+    network error) yields an empty set so suffix allocation degrades to the
+    ChangeSpec-only behaviour.
+    """
+    try:
+        from sase.vcs_provider import get_vcs_provider
+
+        provider = get_vcs_provider(cwd)
+        suffixes = provider.existing_branch_suffixes(base_name, cwd)
+        return {f"{base_name}_{n}" for n in suffixes}
+    except Exception:
+        return set()
+
+
+def compute_suffixed_cl_name(
+    project: str, cl_name: str, cwd: str | None = None
+) -> str | None:
     """Compute the suffixed CL name and write a reservation to the project file.
 
     Reads existing ChangeSpec names from the project file and archive to find
@@ -137,9 +157,19 @@ def compute_suffixed_cl_name(project: str, cl_name: str) -> str | None:
     ChangeSpec entry **within the same lock** to prevent concurrent agents from
     picking the same suffix (TOCTOU race).
 
+    When *cwd* is provided, the remote branch namespace is also consulted (via
+    the VCS provider) and any ``_<N>`` whose branch already exists on the remote
+    is excluded.  This keeps the reserved ChangeSpec name consistent with the
+    branch that will be pushed, preventing the orphaned-PR bug where a low
+    suffix is reserved in the (nearly empty) ChangeSpec namespace but collides
+    with a long-lived remote branch at push time.
+
     Args:
         project: Project name.
         cl_name: Base CL name to suffix.
+        cwd: Working directory of the repo. When given, remote branch suffixes
+            are unioned into the taken-name set. When None, only the ChangeSpec
+            namespace is consulted.
 
     Returns:
         The suffixed name, or None if the project file doesn't exist and can't
@@ -175,6 +205,11 @@ def compute_suffixed_cl_name(project: str, cl_name: str) -> str | None:
                     for line in f.readlines():
                         if line.startswith("NAME: "):
                             existing_names.add(line[6:].strip())
+
+            # Union in remote branch suffixes so the reserved name never
+            # collides with an already-pushed branch (orphaned-PR root cause).
+            if cwd is not None:
+                existing_names |= _remote_taken_suffix_names(cl_name, cwd)
 
             from sase.core.changespec import get_next_suffix_number
 

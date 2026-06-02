@@ -245,12 +245,16 @@ def test_vcs_create_pull_request_creates_branch(
 def test_vcs_create_pull_request_push_fails(
     mock_run: MagicMock, bare_git_provider: VCSPluginManager
 ) -> None:
-    """Returns error when push fails during pull request creation."""
+    """Returns error when push fails for a reason other than a branch collision."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),  # checkout -b
         MagicMock(returncode=0, stdout="", stderr=""),  # add
         MagicMock(returncode=0, stdout="", stderr=""),  # commit
+        MagicMock(returncode=0, stdout="", stderr=""),  # remote get-url (push retry)
         MagicMock(returncode=1, stdout="", stderr="push failed"),  # push
+        MagicMock(returncode=1, stdout="", stderr=""),  # pull --no-edit
+        MagicMock(returncode=0, stdout="", stderr=""),  # merge --abort
+        MagicMock(returncode=0, stdout="", stderr=""),  # ls-remote: branch absent
     ]
     ok, err = bare_git_provider.create_pull_request(
         {"name": "feat-x", "message": "test", "files": []}, "/ws"
@@ -258,6 +262,66 @@ def test_vcs_create_pull_request_push_fails(
 
     assert ok is False
     assert isinstance(err, str)
+
+
+@patch(_MOCK_TARGET)
+def test_vcs_create_pull_request_resuffixes_on_branch_collision(
+    mock_run: MagicMock, bare_git_provider: VCSPluginManager
+) -> None:
+    """A branch already on the remote triggers a rename to the next free suffix.
+
+    Regression for the orphaned-PR bug: when the reserved branch ``feat_2``
+    races with a concurrent push, the dispatch must re-suffix to ``feat_3`` and
+    push successfully (so the workflow still records a ChangeSpec) rather than
+    failing and leaving the agent to hand-roll an orphaned PR.
+    """
+    from typing import Any
+
+    def handler(*args: Any, **kwargs: Any) -> MagicMock:
+        cmd: list[str] = args[0] if args else kwargs.get("cmd", [])
+        if "diff" in cmd and "--cached" in cmd and "--quiet" in cmd:
+            return MagicMock(returncode=1, stdout="", stderr="")  # staged changes
+        if cmd[:2] == ["git", "push"]:
+            # The original reserved branch collides; the re-suffixed one wins.
+            if "feat_2" in cmd:
+                return MagicMock(returncode=1, stdout="", stderr="rejected")
+            return MagicMock(returncode=0, stdout="", stderr="")
+        if cmd[:2] == ["git", "pull"]:
+            return MagicMock(returncode=1, stdout="", stderr="unrelated histories")
+        if cmd[:2] == ["git", "ls-remote"]:
+            # _remote_branch_exists("feat_2") -> exists (collision confirmed).
+            if "feat_2" in cmd:
+                return MagicMock(
+                    returncode=0,
+                    stdout="sha\trefs/heads/feat_2\n",
+                    stderr="",
+                )
+            # Suffix scan over feat_* -> remote namespace is dense {1, 2},
+            # so the next free suffix is 3.
+            if "feat_*" in cmd:
+                return MagicMock(
+                    returncode=0,
+                    stdout="sha1\trefs/heads/feat_1\nsha2\trefs/heads/feat_2\n",
+                    stderr="",
+                )
+            return MagicMock(returncode=0, stdout="", stderr="")
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    mock_run.side_effect = handler
+
+    payload = {"name": "feat_2", "message": "test", "files": []}
+    ok, err = bare_git_provider.create_pull_request(payload, "/ws")
+
+    assert ok is True
+    assert payload["name"] == "feat_3"
+    assert payload["_resuffixed"] is True
+    # The rename targeted the next free suffix.
+    rename_calls = [
+        c[0][0]
+        for c in mock_run.call_args_list
+        if c[0][0][:3] == ["git", "branch", "-m"]
+    ]
+    assert rename_calls == [["git", "branch", "-m", "feat_3"]]
 
 
 # === Test registry integration ===

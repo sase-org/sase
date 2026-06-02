@@ -54,6 +54,47 @@ def test_git_get_description_failure(mock_run: MagicMock) -> None:
     assert "unknown revision" in error
 
 
+# === Tests for existing_branch_suffixes ===
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_git_existing_branch_suffixes_parses_numeric_suffixes(
+    mock_run: MagicMock,
+) -> None:
+    """Only exact ``<base>_<N>`` heads contribute suffix numbers."""
+    ls_remote_stdout = (
+        "aaa\trefs/heads/sase_fix_just_linters_1\n"
+        "bbb\trefs/heads/sase_fix_just_linters_2\n"
+        "ccc\trefs/heads/sase_fix_just_linters_31\n"
+        # Non-numeric / nested suffixes must be ignored:
+        "ddd\trefs/heads/sase_fix_just_linters_18_1\n"
+        "eee\trefs/heads/sase_fix_just_linters_followup_1\n"
+    )
+
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[:3] == ["git", "remote", "get-url"]:
+            return MagicMock(returncode=0, stdout="git@github:org/repo\n", stderr="")
+        if cmd[:2] == ["git", "ls-remote"]:
+            return MagicMock(returncode=0, stdout=ls_remote_stdout, stderr="")
+        return MagicMock(returncode=1, stdout="", stderr="unexpected")
+
+    mock_run.side_effect = fake_run
+
+    plugin = BareGitPlugin()
+    suffixes = plugin.vcs_existing_branch_suffixes("sase_fix_just_linters", "/ws")
+
+    assert suffixes == {1, 2, 31}
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_git_existing_branch_suffixes_no_remote(mock_run: MagicMock) -> None:
+    """Returns an empty set when there is no origin remote."""
+    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="no remote")
+
+    plugin = BareGitPlugin()
+    assert plugin.vcs_existing_branch_suffixes("sase_fix_just_linters", "/ws") == set()
+
+
 # === Tests for has_local_changes ===
 
 

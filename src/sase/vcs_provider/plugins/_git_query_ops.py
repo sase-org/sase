@@ -102,6 +102,42 @@ class GitQueryOpsMixin(CommandRunner):
     def vcs_can_rename_branch(self, cwd: str) -> bool:
         return True
 
+    @hookimpl
+    def vcs_existing_branch_suffixes(self, base_name: str, cwd: str) -> set[int]:
+        """Return ``_<N>`` suffix numbers already taken by remote branches.
+
+        Queries the remote for branches named ``<base_name>_<N>`` (exact
+        numeric suffix only) so PR-branch suffix allocation can avoid names
+        whose branch already exists on the remote.  Returns an empty set when
+        there is no ``origin`` remote or the query fails.
+        """
+        import re
+
+        remote_check = self._run(["git", "remote", "get-url", "origin"], cwd)
+        if not remote_check.success:
+            return set()
+
+        out = self._run(
+            ["git", "ls-remote", "--heads", "origin", f"{base_name}_*"],
+            cwd,
+            timeout=60,
+        )
+        if not out.success:
+            return set()
+
+        suffix_re = re.compile(re.escape(base_name) + r"_(\d+)$")
+        suffixes: set[int] = set()
+        for line in out.stdout.splitlines():
+            # Each line is "<sha>\trefs/heads/<branch>".
+            parts = line.split("\t")
+            if len(parts) != 2:
+                continue
+            branch = parts[1].strip().removeprefix("refs/heads/")
+            match = suffix_re.match(branch)
+            if match:
+                suffixes.add(int(match.group(1)))
+        return suffixes
+
     # --- Revision resolution ---
 
     @hookimpl

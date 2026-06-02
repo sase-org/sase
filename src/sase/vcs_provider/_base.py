@@ -121,6 +121,19 @@ class VCSProvider(ABC):
         """
         return True
 
+    def existing_branch_suffixes(self, base_name: str, cwd: str) -> set[int]:
+        """Return the ``_<N>`` suffix numbers already taken on the remote.
+
+        Returns the set of integers ``N`` for which a remote branch named
+        ``<base_name>_<N>`` exists.  The commit workflow unions this with the
+        ChangeSpec namespace when picking the next PR-branch suffix so the
+        reserved ChangeSpec name never collides with an already-pushed branch.
+
+        The default implementation returns an empty set (no remote namespace
+        to consult).
+        """
+        return set()
+
     def resolve_revision(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:

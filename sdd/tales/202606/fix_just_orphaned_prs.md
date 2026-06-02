@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 16:37:31
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_just_orphaned_prs.md
 ---
 # Fix: `sase_fix_just` chop creates PRs not associated with any ChangeSpec

@@ -120,6 +120,14 @@ class VCSPluginManager(VCSProvider):
             return True
         return result  # type: ignore[return-value]
 
+    def existing_branch_suffixes(self, base_name: str, cwd: str) -> set[int]:
+        result = self._pm.hook.vcs_existing_branch_suffixes(
+            base_name=base_name, cwd=cwd
+        )
+        if result is None:
+            return set()
+        return result  # type: ignore[return-value]
+
     def resolve_revision(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:

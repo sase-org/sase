@@ -23,6 +23,11 @@ class GitCommitDispatchMixin(CommandRunner):
         # Provided by GitCoreOpsMixin in the composed class.
         def _get_default_branch(self, cwd: str) -> str: ...
 
+        # Provided by GitQueryOpsMixin in the composed class.
+        def vcs_existing_branch_suffixes(
+            self, base_name: str, cwd: str
+        ) -> set[int]: ...
+
     # --- Helpers ---
 
     def _changed_bead_files(self, cwd: str) -> list[str]:
@@ -139,6 +144,62 @@ class GitCommitDispatchMixin(CommandRunner):
             err = push2.stderr.strip() or push2.stdout.strip()
             return (False, f"git push failed after pull: {err}")
         return (True, None)
+
+    def _remote_branch_exists(self, name: str, cwd: str) -> bool:
+        """Return True when ``name`` already exists as a remote head on origin."""
+        out = self._run(
+            ["git", "ls-remote", "--heads", "origin", name], cwd, timeout=60
+        )
+        return out.success and bool(out.stdout.strip())
+
+    def _resuffix_and_push(
+        self, payload: dict, cwd: str, name: str
+    ) -> tuple[bool, str | None]:
+        """Rename the local branch to the next free remote suffix and push.
+
+        Handles the residual race where another agent pushes ``<base>_<N>``
+        between suffix reservation and this push.  On success the new name is
+        written back into ``payload["name"]`` and ``payload["_resuffixed"]`` is
+        set so the commit workflow re-points the ChangeSpec reservation to the
+        branch that was actually pushed (keeping NAME and branch consistent).
+
+        Returns ``(True, None)`` once a free branch is pushed, or
+        ``(False, err)`` if no suffixed name can be derived or all attempts
+        collide.
+        """
+        import re
+
+        match = re.match(r"^(.*)_(\d+)$", name)
+        if not match:
+            # Not a ``_<N>`` name — nothing to re-suffix.
+            return (False, f"branch '{name}' already exists on the remote")
+        base = match.group(1)
+
+        last_err: str | None = None
+        for _ in range(10):
+            taken = self.vcs_existing_branch_suffixes(base, cwd)
+            next_n = 1
+            while next_n in taken:
+                next_n += 1
+            new_name = f"{base}_{next_n}"
+
+            rename = self._run(["git", "branch", "-m", new_name], cwd)
+            if not rename.success:
+                return self._to_result(rename, "git branch -m")
+
+            ok, err = self._push_with_retry(cwd, ["-u", "origin", new_name])
+            if ok:
+                payload["name"] = new_name
+                payload["_resuffixed"] = True
+                return (True, None)
+
+            last_err = err
+            if not self._remote_branch_exists(new_name, cwd):
+                # Failure was not a branch collision — stop retrying.
+                break
+            name = new_name
+
+        return (False, last_err or "exhausted branch re-suffix attempts")
 
     def _post_commit_bead_amend(self, payload: dict, cwd: str) -> None:
         """Add a COMMIT note to the bead and amend bead changes into the commit."""
@@ -260,7 +321,16 @@ class GitCommitDispatchMixin(CommandRunner):
 
         ok, err = self._push_with_retry(cwd, ["-u", "origin", name])
         if not ok:
-            return (False, err)
+            # A concurrent agent may have pushed this branch between suffix
+            # reservation and now (a namespace race that remote-aware
+            # reservation narrows but cannot fully close). Recover by renaming
+            # to the next free remote suffix and retrying, so the workflow
+            # still records a ChangeSpec instead of leaving the agent to
+            # hand-roll an orphaned PR.
+            if self._remote_branch_exists(name, cwd):
+                ok, err = self._resuffix_and_push(payload, cwd, name)
+            if not ok:
+                return (False, err)
         return (True, None)
 
     @hookimpl

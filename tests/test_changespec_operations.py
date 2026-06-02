@@ -2,7 +2,7 @@
 
 import os
 import tempfile
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from sase.ace.changespec.parser import parse_project_file
 from sase.workflows.commit.changespec_operations import (
@@ -146,6 +146,71 @@ def test_compute_suffixed_cl_name_no_existing() -> None:
         ):
             result = compute_suffixed_cl_name("test_project", "test_project_eval_bar")
         assert result == "test_project_eval_bar_1"
+    finally:
+        os.unlink(project_file)
+
+
+def test_compute_suffixed_cl_name_skips_remote_branch_suffixes() -> None:
+    """Suffix allocation excludes _<N> whose branch already exists on the remote.
+
+    Regression for the orphaned-PR bug: the ChangeSpec namespace is nearly
+    empty (only _1) but the remote branch namespace is dense (_1.._4), so the
+    reserved name must skip every taken remote branch instead of colliding.
+    """
+    content = "NAME: test_project_eval_foo_1\nSTATUS: Draft\n"
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+        f.write(content)
+        project_file = f.name
+
+    provider = MagicMock()
+    provider.existing_branch_suffixes.return_value = {1, 2, 3, 4}
+
+    try:
+        with (
+            patch(
+                "sase.workflows.commit.changespec_operations.get_project_file_path",
+                return_value=project_file,
+            ),
+            patch(
+                "sase.vcs_provider.get_vcs_provider",
+                return_value=provider,
+            ),
+        ):
+            result = compute_suffixed_cl_name(
+                "test_project", "test_project_eval_foo", cwd="/repo"
+            )
+        # ChangeSpec _1 + remote _1.._4 are taken, so the next free is _5.
+        assert result == "test_project_eval_foo_5"
+        provider.existing_branch_suffixes.assert_called_once_with(
+            "test_project_eval_foo", "/repo"
+        )
+    finally:
+        os.unlink(project_file)
+
+
+def test_compute_suffixed_cl_name_skips_remote_query_without_cwd() -> None:
+    """Without cwd the remote namespace is not consulted (no network call)."""
+    content = "NAME: test_project_eval_foo_1\nSTATUS: Draft\n"
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+        f.write(content)
+        project_file = f.name
+
+    provider = MagicMock()
+
+    try:
+        with (
+            patch(
+                "sase.workflows.commit.changespec_operations.get_project_file_path",
+                return_value=project_file,
+            ),
+            patch(
+                "sase.vcs_provider.get_vcs_provider",
+                return_value=provider,
+            ),
+        ):
+            result = compute_suffixed_cl_name("test_project", "test_project_eval_foo")
+        assert result == "test_project_eval_foo_2"
+        provider.existing_branch_suffixes.assert_not_called()
     finally:
         os.unlink(project_file)
 
