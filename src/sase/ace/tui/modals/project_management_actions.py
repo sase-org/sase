@@ -49,7 +49,7 @@ class ProjectManagementActionsMixin:
         def _marked_records(self) -> list[ProjectRecordWire]: ...
         def _set_status(self, message: str) -> None: ...
         def _refresh_options(self, *, preferred_project: str | None = None) -> None: ...
-        def _load_records(self) -> None: ...
+        def _load_records(self) -> bool: ...
         def notify(self, message: str, **kwargs: Any) -> None: ...
         def _set_project_state_locked(
             self, project: str, state: str, *, force: bool = False
@@ -104,10 +104,13 @@ class ProjectManagementActionsMixin:
             return
 
         self._pending_force = None
-        self._load_records()
-        self._set_status(f"Editor closed for {record.project_name}")
+        loaded = self._load_records()
+        if loaded:
+            self._set_status(f"Editor closed for {record.project_name}")
         self._refresh_options(preferred_project=record.project_name)
         self._notify_lifecycle_changed()
+        if not loaded:
+            self.notify(self._status_message, severity="error")
 
     def action_delete_project(self) -> None:
         if self._marked_projects:
@@ -355,10 +358,8 @@ class ProjectManagementActionsMixin:
         self._pending_force = None
         self._marked_projects.discard(project)
         self._status_message = f"Deleted {project}"
-        try:
-            self._load_records()
-        except Exception as exc:
-            self._set_status(f"Deleted, reload failed: {exc}")
+        if not self._load_records():
+            self._status_message = f"Deleted {project}; {self._status_message}"
         self._refresh_options()
         self._notify_lifecycle_changed()
         self.notify(f"Deleted project '{project}'")
@@ -389,7 +390,9 @@ class ProjectManagementActionsMixin:
         if deleted:
             self._marked_projects -= set(deleted)
         self._status_message = self._bulk_delete_status(deleted, blocked, failed)
-        self._load_records()
+        status = self._status_message
+        if not self._load_records():
+            self._status_message = f"{status}; {self._status_message}"
         self._refresh_options()
 
         if deleted:

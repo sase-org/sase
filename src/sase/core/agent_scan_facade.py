@@ -49,6 +49,7 @@ from sase.core.agent_scan_wire import (
     agent_scan_wire_from_dict,
 )
 from sase.core.paths import sase_home as _sase_home
+from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.rust import require_rust_binding
 
 
@@ -69,6 +70,43 @@ def _options_to_dict(options: AgentArtifactScanOptionsWire) -> dict[str, Any]:
     }
 
 
+def _lifecycle_filter_disabled(include_project_states: tuple[str, ...]) -> bool:
+    return not include_project_states or "all" in include_project_states
+
+
+def _filter_snapshot_by_options(
+    snapshot: AgentArtifactScanWire,
+    projects_root: Path | str,
+    options: AgentArtifactScanOptionsWire,
+) -> AgentArtifactScanWire:
+    allowed_projects: set[str] | None = None
+    if options.only_projects:
+        allowed_projects = set(options.only_projects)
+
+    if not _lifecycle_filter_disabled(options.include_project_states):
+        records = list_project_records(
+            projects_root,
+            options.include_project_states,
+            include_home=True,
+        )
+        lifecycle_projects = {record.project_name for record in records}
+        allowed_projects = (
+            lifecycle_projects
+            if allowed_projects is None
+            else allowed_projects & lifecycle_projects
+        )
+
+    snapshot = replace(snapshot, options=options)
+    if allowed_projects is None:
+        return snapshot
+    filtered = [
+        record for record in snapshot.records if record.project_name in allowed_projects
+    ]
+    if len(filtered) == len(snapshot.records):
+        return snapshot
+    return replace(snapshot, records=filtered)
+
+
 def scan_agent_artifacts(
     projects_root: Path | str,
     options: AgentArtifactScanOptionsWire | None = None,
@@ -84,7 +122,8 @@ def scan_agent_artifacts(
     opts = options or AgentArtifactScanOptionsWire()
     rust_scan = require_rust_binding("scan_agent_artifacts")
     payload: dict[str, Any] = rust_scan(str(projects_root), _options_to_dict(opts))
-    return agent_scan_wire_from_dict(payload)
+    snapshot = agent_scan_wire_from_dict(payload)
+    return _filter_snapshot_by_options(snapshot, projects_root, opts)
 
 
 def default_agent_artifact_index_path(sase_home: Path | str | None = None) -> Path:
@@ -164,7 +203,8 @@ def query_agent_artifact_index(
         agent_artifact_index_query_to_dict(query_wire),
         _options_to_dict(opts),
     )
-    return agent_scan_wire_from_dict(payload)
+    snapshot = agent_scan_wire_from_dict(payload)
+    return _filter_snapshot_by_options(snapshot, projects_root, opts)
 
 
 def verify_agent_artifact_index(

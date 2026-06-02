@@ -138,6 +138,57 @@ async def test_project_management_modal_edit_no_selection_warns(
         run_editor.assert_not_called()
 
 
+async def test_project_management_modal_edit_preserves_reload_failure_status(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "alpha"
+    project_dir.mkdir()
+    project_file = project_dir / "alpha.sase"
+    project_file.write_text("NAME: alpha\n", encoding="utf-8")
+    record = make_project_record(
+        "alpha",
+        project_dir=str(project_dir),
+        project_file=str(project_file),
+    )
+    list_calls = 0
+
+    def list_records(*_args, **_kwargs):
+        nonlocal list_calls
+        list_calls += 1
+        if list_calls > 1:
+            raise RuntimeError("reload boom")
+        return [record]
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_actions.subprocess.run",
+        lambda _args, *, check: None,
+    )
+    monkeypatch.setenv("EDITOR", "test-editor")
+
+    async with ProjectManagementTestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        monkeypatch.setattr(pilot.app, "suspend", lambda: _SuspendRecorder())
+        monkeypatch.setattr(modal, "notify", MagicMock())
+
+        await pilot.press("e")
+        await pilot.pause()
+
+        assert modal._records == []
+        assert modal._filtered_records == []
+        assert modal._status_message == "Load failed: reload boom"
+        modal.notify.assert_called_once_with(
+            "Load failed: reload boom",
+            severity="error",
+        )
+
+
 async def test_project_management_modal_edit_allows_missing_spec_file(
     monkeypatch,
     tmp_path: Path,

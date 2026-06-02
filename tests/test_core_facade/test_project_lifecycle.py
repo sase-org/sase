@@ -91,18 +91,40 @@ def test_lifecycle_facade_missing_extension_raises(
         project_lifecycle_facade.list_project_records("/tmp/projects")
 
 
-def test_lifecycle_facade_stale_binding_raises(
+def test_lifecycle_facade_uses_header_fallback_for_stale_bindings(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
 
-    with pytest.raises(AttributeError, match="read_project_lifecycle_from_content"):
-        project_lifecycle_facade.read_project_lifecycle_from_content("")
-    with pytest.raises(AttributeError, match="apply_project_lifecycle_update"):
-        project_lifecycle_facade.apply_project_lifecycle_update("", "active")
-    with pytest.raises(AttributeError, match="list_project_records"):
-        project_lifecycle_facade.list_project_records("/tmp/projects")
+    lifecycle = project_lifecycle_facade.read_project_lifecycle_from_content(
+        "PROJECT_STATE: archived\nNAME: demo\n"
+    )
+    updated = project_lifecycle_facade.apply_project_lifecycle_update(
+        "WORKSPACE_DIR: /tmp/demo\nNAME: demo\n", "closed"
+    )
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    projects = tmp_path / "projects"
+    project_dir = projects / "alpha"
+    project_dir.mkdir(parents=True)
+    (project_dir / "alpha.sase").write_text(
+        f"WORKSPACE_DIR: {workspace}\nNAME: alpha\n",
+        encoding="utf-8",
+    )
+    hidden_dir = projects / ".sase"
+    hidden_dir.mkdir()
+    (hidden_dir / ".sase.sase").write_text("", encoding="utf-8")
+
+    records = project_lifecycle_facade.list_project_records(projects)
+
+    assert lifecycle.state == "archived"
+    assert lifecycle.explicit is True
+    assert updated == "WORKSPACE_DIR: /tmp/demo\nPROJECT_STATE: closed\nNAME: demo\n"
+    assert [record.project_name for record in records] == ["alpha"]
+    assert records[0].workspace_dir == str(workspace)
 
 
 def test_lifecycle_facade_calls_rust_bindings(
