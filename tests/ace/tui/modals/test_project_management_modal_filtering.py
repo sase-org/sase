@@ -61,6 +61,7 @@ def test_project_management_modal_footer_includes_delete_affordance(
     )
     modal = ProjectManagementModal(projects_root=tmp_path)
 
+    assert "e edit" in modal._footer_text()
     assert "Ctrl+D delete" in modal._footer_text()
 
 

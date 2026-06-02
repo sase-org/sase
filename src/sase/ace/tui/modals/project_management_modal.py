@@ -59,6 +59,7 @@ class ProjectManagementModal(
         Binding("tab", "cycle_state_filter", "Cycle State", priority=True),
         Binding("m", "toggle_project_mark", "Mark", priority=True),
         Binding("u", "clear_project_marks", "Unmark All", priority=True),
+        Binding("e", "edit_project_spec", "Edit", priority=True),
         Binding("a", "activate_project", "Activate", priority=True),
         Binding("r", "archive_project", "Archive", priority=True),
         Binding("c", "close_project", "Close", priority=True),

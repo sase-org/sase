@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from textual.app import SuspendNotSupported
+
+from sase.ace.changespec.locking import acquire_edit_lock, release_edit_lock
+from sase.ace.hints import build_editor_args
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.main.project_handler import ProjectLifecycleBlockedError
@@ -58,6 +64,50 @@ class ProjectManagementActionsMixin:
 
     def action_close_project(self) -> None:
         self._set_project_state("closed")
+
+    def action_edit_project_spec(self) -> None:
+        record = self._selected_record()
+        if record is None:
+            self._set_status("No project selected")
+            self.notify("No project selected", severity="warning")
+            return
+
+        project_file_text = (record.project_file or "").strip()
+        if not project_file_text:
+            message = f"ProjectSpec path missing for {record.project_name}"
+            self._set_status(message)
+            self.notify(message, severity="error")
+            return
+
+        project_file = Path(project_file_text).expanduser()
+        project_parent = project_file.parent
+        if not project_parent.is_dir():
+            message = f"ProjectSpec directory missing: {project_parent}"
+            self._set_status(message)
+            self.notify(message, severity="error")
+            return
+
+        editor = os.environ.get("EDITOR") or "nvim"
+        editor_args = build_editor_args(editor, [str(project_file)])
+
+        try:
+            acquire_edit_lock(str(project_file))
+            try:
+                with self.app.suspend():  # type: ignore[attr-defined]
+                    subprocess.run(editor_args, check=False)
+            finally:
+                release_edit_lock(str(project_file))
+        except (OSError, SuspendNotSupported) as exc:
+            message = f"Editor failed for {record.project_name}: {exc}"
+            self._set_status(message)
+            self.notify(message, severity="error")
+            return
+
+        self._pending_force = None
+        self._load_records()
+        self._set_status(f"Editor closed for {record.project_name}")
+        self._refresh_options(preferred_project=record.project_name)
+        self._notify_lifecycle_changed()
 
     def action_delete_project(self) -> None:
         if self._marked_projects:

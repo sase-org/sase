@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 06:59:55
-status: wip
+status: done
 prompt: sdd/prompts/202606/project_management_edit_keymap_1.md
 ---
 # Plan: Project Management `e` Edit Keymap
