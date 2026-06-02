@@ -39,13 +39,13 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
     "src/sase/llm_provider/codex.py:_codex_subprocess_env": DirOpReview(
         exemption="Shadow CODEX_HOME cache, not an agent artifact directory.",
     ),
-    "src/sase/main/workspace_handler.py:_handle_migrate": DirOpReview(
+    "src/sase/main/workspace_handler_migration.py:handle_migrate": DirOpReview(
         exemption=(
             "Moves a workspace checkout directory under a managed root, not an "
             "agent artifact directory."
         ),
     ),
-    "src/sase/main/workspace_handler.py:_remove_checkout": DirOpReview(
+    "src/sase/main/workspace_handler_maintenance.py:remove_checkout": DirOpReview(
         exemption=(
             "Removes a workspace checkout directory, not an agent artifact directory."
         ),
