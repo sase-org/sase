@@ -53,19 +53,19 @@ def test_list_launchable_projects_filters_invalid_entries(
 ) -> None:
     projects_dir = tmp_path / "projects"
     valid_workspace = tmp_path / "valid-workspace"
-    archived_workspace = tmp_path / "archived-workspace"
+    inactive_workspace = tmp_path / "inactive-workspace"
     no_provider_workspace = tmp_path / "no-provider-workspace"
     home_workspace = tmp_path / "home-workspace"
     for workspace in (
         valid_workspace,
-        archived_workspace,
+        inactive_workspace,
         no_provider_workspace,
         home_workspace,
     ):
         workspace.mkdir()
 
     _write_project(projects_dir, "valid", valid_workspace)
-    _write_project(projects_dir, "archived", archived_workspace, state="archived")
+    _write_project(projects_dir, "inactive", inactive_workspace, state="inactive")
     _write_project(projects_dir, "empty", None)
     _write_project(projects_dir, "stale", tmp_path / "missing-workspace")
     _write_project(projects_dir, "no_provider", no_provider_workspace)
@@ -85,7 +85,7 @@ def test_list_launchable_projects_filters_invalid_entries(
 
     assert projects == ["home", "valid"]
     assert is_launchable_project("valid", projects_dir) is True
-    assert is_launchable_project("archived", projects_dir) is False
+    assert is_launchable_project("inactive", projects_dir) is False
     assert is_launchable_project("stale", projects_dir) is False
     assert is_launchable_project("home", projects_dir) is True
 
@@ -111,9 +111,9 @@ def test_home_project_must_be_real_active_and_launchable(
     assert is_launchable_project("home", projects_dir) is True
 
     home_project_file.write_text(
-        "PROJECT_STATE: archived\n"
+        "PROJECT_STATE: inactive\n"
         f"WORKSPACE_DIR: {inactive_home_workspace}\n"
-        "NAME: archived_home_change\n",
+        "NAME: inactive_home_change\n",
         encoding="utf-8",
     )
     assert is_launchable_project("home", projects_dir) is False

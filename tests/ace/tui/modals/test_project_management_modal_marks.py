@@ -78,8 +78,8 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
 ) -> None:
     records = {
         "alpha": make_project_record("alpha"),
-        "beta": make_project_record("beta", state="archived", launchable=False),
-        "gamma": make_project_record("gamma", state="closed", launchable=False),
+        "beta": make_project_record("beta", state="inactive", launchable=False),
+        "gamma": make_project_record("gamma", state="inactive", launchable=False),
     }
 
     def list_records(*_args, **_kwargs):
@@ -99,18 +99,15 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
 
         await pilot.press("tab")
         await pilot.pause()
-        assert modal._state_filter == "archived"
-        assert [record.project_name for record in modal._filtered_records] == ["beta"]
+        assert modal._state_filter == "inactive"
+        assert [record.project_name for record in modal._filtered_records] == [
+            "beta",
+            "gamma",
+        ]
 
         await pilot.press("m")
         await pilot.pause()
 
-        assert modal._marked_projects == {"beta"}
-
-        await pilot.press("tab")
-        await pilot.pause()
-        assert modal._state_filter == "closed"
-        assert [record.project_name for record in modal._filtered_records] == ["gamma"]
         assert modal._marked_projects == {"beta"}
 
         await pilot.press("tab")

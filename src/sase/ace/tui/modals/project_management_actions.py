@@ -59,11 +59,14 @@ class ProjectManagementActionsMixin:
     def action_activate_project(self) -> None:
         self._set_project_state("active")
 
+    def action_deactivate_project(self) -> None:
+        self._set_project_state("inactive")
+
     def action_archive_project(self) -> None:
-        self._set_project_state("archived")
+        self.action_deactivate_project()
 
     def action_close_project(self) -> None:
-        self._set_project_state("closed")
+        self.action_deactivate_project()
 
     def action_edit_project_spec(self) -> None:
         record = self._selected_record()
@@ -179,7 +182,7 @@ class ProjectManagementActionsMixin:
 
     def action_force_current_state_change(self) -> None:
         if self._pending_force is None:
-            self._set_status("No blocked archive/close to force")
+            self._set_status("No blocked deactivate to force")
             return
         projects, state = self._pending_force
         if len(projects) == 1 and projects[0] not in self._marked_projects:

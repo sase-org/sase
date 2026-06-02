@@ -218,8 +218,8 @@ The modal supports live filtering as you type in the search box and displays las
 
 The `,h` shortcut opens a home-context prompt directly. Project and CL launch pickers use lifecycle-aware discovery:
 project entries, including `home` when it appears in picker lists, must have active and launchable ProjectSpecs; CL
-choices come from active ProjectSpecs. Archived and closed projects do not appear in normal launch pickers until they
-are reactivated with `sase project activate <project>`.
+choices come from active ProjectSpecs. Inactive projects do not appear in normal launch pickers until they are
+reactivated with `sase project activate <project>`.
 
 Project launch pickers also support `Ctrl+D` for cleanup of empty project entries. This deletes only the highlighted
 project's active/archive ProjectSpec files, refuses entries whose ProjectSpec files still contain ChangeSpecs, and does
@@ -881,34 +881,33 @@ The `:` / `;` binding follows your configured keymap. To rebind it, set `ace.key
 
 ## Project Management Panel
 
-Press `,p` from any tab to open the **Project Management** panel. It lists non-system projects across `active`,
-`archived`, and `closed` lifecycle states, so inactive projects remain reachable even though normal launch and discovery
-views hide them. Rows include workspace path, active claim count, launchability, and lifecycle or workspace warnings.
+Press `,p` from any tab to open the **Project Management** panel. It lists non-system projects across `active` and
+`inactive` lifecycle states, so inactive projects remain reachable even though normal launch and discovery views hide
+them. Rows include workspace path, active claim count, launchability, and lifecycle or workspace warnings.
 
-| Key         | Action                                                                 |
-| ----------- | ---------------------------------------------------------------------- |
-| `j` / `k`   | Move selection                                                         |
-| `/`         | Filter projects by text                                                |
-| `Tab`       | Cycle lifecycle filter: all, active, archived, closed                  |
-| `Enter`     | Activate the highlighted project when it is archived or closed         |
-| `m`         | Mark or unmark the highlighted project                                 |
-| `u`         | Clear all project marks                                                |
-| `e`         | Open the highlighted ProjectSpec in `$EDITOR`                          |
-| `a`         | Activate highlighted project, or all marked projects                   |
-| `r`         | Archive highlighted project, or all marked projects                    |
-| `c`         | Close highlighted project, or all marked projects                      |
-| `Ctrl+D`    | Delete highlighted SASE project directory, or all marked directories   |
-| `F`         | Force the last blocked archive/close after confirming live-work checks |
-| `R`         | Reload project records                                                 |
-| `q` / `Esc` | Close the panel                                                        |
+| Key         | Action                                                               |
+| ----------- | -------------------------------------------------------------------- |
+| `j` / `k`   | Move selection                                                       |
+| `/`         | Filter projects by text                                              |
+| `Tab`       | Cycle lifecycle filter: active, inactive, all                        |
+| `Enter`     | Activate the highlighted project when it is inactive                 |
+| `m`         | Mark or unmark the highlighted project                               |
+| `u`         | Clear all project marks                                              |
+| `e`         | Open the highlighted ProjectSpec in `$EDITOR`                        |
+| `a`         | Activate highlighted project, or all marked projects                 |
+| `d`         | Deactivate highlighted project, or all marked projects               |
+| `Ctrl+D`    | Delete highlighted SASE project directory, or all marked directories |
+| `F`         | Force the last blocked deactivate after confirming live-work checks  |
+| `R`         | Reload project records                                               |
+| `q` / `Esc` | Close the panel                                                      |
 
-When one or more projects are marked, `a`, `r`, `c`, and `Ctrl+D` target the marked set instead of only the highlighted
-row. Successful lifecycle changes clear the affected marks; blocked or failed rows stay marked so you can inspect or
-retry them. Marks survive filtering and are pruned on reload when their project records disappear.
+When one or more projects are marked, `a`, `d`, and `Ctrl+D` target the marked set instead of only the highlighted row.
+Successful lifecycle changes clear the affected marks; blocked or failed rows stay marked so you can inspect or retry
+them. Marks survive filtering and are pruned on reload when their project records disappear.
 
-Archiving and closing use the same locked mutation path as `sase project archive` and `sase project close`. If a project
-still has `RUNNING` claims or live artifact markers, ACE shows the blocked reason and lets you retry with `F` when the
-force action is intentional. Activating a project from this panel makes it available again in normal launch pickers.
+Deactivating uses the same locked mutation path as `sase project deactivate`. If a project still has `RUNNING` claims or
+live artifact markers, ACE shows the blocked reason and lets you retry with `F` when the force action is intentional.
+Activating a project from this panel makes it available again in normal launch pickers.
 
 `e` suspends ACE, opens the selected ProjectSpec in `$EDITOR` (falling back to `nvim`), holds the ProjectSpec edit lock
 for the editor session, then reloads project records. In this panel, `Ctrl+D` asks for confirmation before deleting the

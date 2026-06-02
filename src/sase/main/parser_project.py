@@ -6,7 +6,7 @@ import argparse
 
 from sase.core.project_lifecycle_wire import PROJECT_LIFECYCLE_STATES
 
-_STATE_CHOICES = (*PROJECT_LIFECYCLE_STATES, "all")
+_STATE_METAVAR = "{" + ",".join(PROJECT_LIFECYCLE_STATES) + "}"
 
 
 def _add_force(parser: argparse.ArgumentParser) -> None:
@@ -14,7 +14,7 @@ def _add_force(parser: argparse.ArgumentParser) -> None:
         "-f",
         "--force",
         action="store_true",
-        help="Allow archiving or closing a project that still has live work",
+        help="Allow deactivating a project that still has live work",
     )
 
 
@@ -27,6 +27,7 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     project_sub = project_parser.add_subparsers(
         dest="project_subcommand",
         help="Project subcommands",
+        metavar="{activate,deactivate,list,set-state,show}",
     )
 
     list_parser = project_sub.add_parser(
@@ -36,8 +37,8 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     list_parser.add_argument(
         "-s",
         "--state",
-        choices=_STATE_CHOICES,
         default="active",
+        metavar="{active,inactive,all}",
         help="Lifecycle state to include (default: active)",
     )
     list_parser.add_argument(
@@ -66,19 +67,20 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     set_state_parser.add_argument("project", help="Project name")
     set_state_parser.add_argument(
         "state",
-        choices=PROJECT_LIFECYCLE_STATES,
+        metavar=_STATE_METAVAR,
         help="Target lifecycle state",
     )
     _add_force(set_state_parser)
 
-    for command, state in (
-        ("activate", "active"),
-        ("archive", "archived"),
-        ("close", "closed"),
+    for command, help_text in (
+        ("activate", "Set a project's lifecycle state to active"),
+        ("deactivate", "Set a project's lifecycle state to inactive"),
+        ("archive", argparse.SUPPRESS),
+        ("close", argparse.SUPPRESS),
     ):
         alias_parser = project_sub.add_parser(
             command,
-            help=f"Set a project's lifecycle state to {state}",
+            help=help_text,
         )
         alias_parser.add_argument("project", help="Project name")
         _add_force(alias_parser)

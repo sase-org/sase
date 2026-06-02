@@ -7,11 +7,60 @@ raw cross-language dicts.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION = 1
-PROJECT_LIFECYCLE_STATES = ("active", "archived", "closed")
+PROJECT_LIFECYCLE_STATES = ("active", "inactive")
+PROJECT_LIFECYCLE_LEGACY_INACTIVE_STATES = ("archived", "closed")
+PROJECT_LIFECYCLE_COMPAT_STATES = (
+    *PROJECT_LIFECYCLE_STATES,
+    *PROJECT_LIFECYCLE_LEGACY_INACTIVE_STATES,
+)
+
+
+def normalize_project_lifecycle_state(state: str) -> str:
+    """Return the canonical lifecycle state for *state*.
+
+    Legacy ``archived`` and ``closed`` values are accepted for compatibility
+    and normalize to ``inactive``.
+    """
+
+    value = state.strip()
+    if value in PROJECT_LIFECYCLE_LEGACY_INACTIVE_STATES:
+        return "inactive"
+    if value in PROJECT_LIFECYCLE_STATES:
+        return value
+    raise ValueError(f"invalid project lifecycle state: {state}")
+
+
+def is_inactive_project_lifecycle_state(state: str) -> bool:
+    """Return whether *state* represents the canonical inactive state."""
+
+    return normalize_project_lifecycle_state(state) == "inactive"
+
+
+def normalize_project_lifecycle_state_filter(
+    include_states: Sequence[str] | str,
+) -> list[str]:
+    """Return canonical states for a lifecycle filter.
+
+    ``"all"`` expands to the canonical state set. Legacy state filters are
+    accepted and mapped to ``inactive``.
+    """
+
+    states = (
+        [include_states] if isinstance(include_states, str) else list(include_states)
+    )
+    if any(state == "all" for state in states):
+        return list(PROJECT_LIFECYCLE_STATES)
+    normalized: list[str] = []
+    for state in states:
+        canonical = normalize_project_lifecycle_state(state)
+        if canonical not in normalized:
+            normalized.append(canonical)
+    return normalized
 
 
 @dataclass(frozen=True)
@@ -61,7 +110,7 @@ def project_lifecycle_from_dict(data: dict[str, Any]) -> ProjectLifecycleWire:
 
     return ProjectLifecycleWire(
         schema_version=int(data["schema_version"]),
-        state=str(data["state"]),
+        state=normalize_project_lifecycle_state(str(data["state"])),
         explicit=bool(data["explicit"]),
         warnings=_str_list(data.get("warnings")),
     )
@@ -77,7 +126,7 @@ def project_record_from_dict(data: dict[str, Any]) -> ProjectRecordWire:
         project_file=str(data["project_file"]),
         archive_file=_optional_str(data.get("archive_file")),
         workspace_dir=_optional_str(data.get("workspace_dir")),
-        state=str(data["state"]),
+        state=normalize_project_lifecycle_state(str(data["state"])),
         state_explicit=bool(data["state_explicit"]),
         system_managed=bool(data["system_managed"]),
         active_claim_count=int(data["active_claim_count"]),
@@ -103,10 +152,15 @@ def project_lifecycle_wire_to_json_dict(record: Any) -> Any:
 
 
 __all__ = [
+    "PROJECT_LIFECYCLE_COMPAT_STATES",
+    "PROJECT_LIFECYCLE_LEGACY_INACTIVE_STATES",
     "PROJECT_LIFECYCLE_STATES",
     "PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION",
     "ProjectLifecycleWire",
     "ProjectRecordWire",
+    "is_inactive_project_lifecycle_state",
+    "normalize_project_lifecycle_state",
+    "normalize_project_lifecycle_state_filter",
     "project_lifecycle_from_dict",
     "project_lifecycle_wire_to_json_dict",
     "project_record_from_dict",

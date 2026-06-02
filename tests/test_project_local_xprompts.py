@@ -86,24 +86,24 @@ class TestGetKnownProjectWorkspaces:
 
     def test_defaults_to_active_project_workspaces(self, tmp_path: Path) -> None:
         active_ws = tmp_path / "active_ws"
-        archived_ws = tmp_path / "archived_ws"
+        inactive_ws = tmp_path / "inactive_ws"
         active_ws.mkdir()
-        archived_ws.mkdir()
+        inactive_ws.mkdir()
         projects = tmp_path / ".sase" / "projects"
         active_dir = projects / "active"
-        archived_dir = projects / "archived"
+        inactive_dir = projects / "inactive"
         active_dir.mkdir(parents=True)
-        archived_dir.mkdir(parents=True)
+        inactive_dir.mkdir(parents=True)
         (active_dir / "active.sase").write_text(f"WORKSPACE_DIR: {active_ws}\n")
-        (archived_dir / "archived.sase").write_text(
-            f"PROJECT_STATE: archived\nWORKSPACE_DIR: {archived_ws}\n"
+        (inactive_dir / "inactive.sase").write_text(
+            f"PROJECT_STATE: inactive\nWORKSPACE_DIR: {inactive_ws}\n"
         )
 
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_known_project_workspaces() == {"active": active_ws}
             assert get_known_project_workspaces(include_states="all") == {
                 "active": active_ws,
-                "archived": archived_ws,
+                "inactive": inactive_ws,
             }
 
     def test_empty_projects_dir(self, tmp_path: Path) -> None:

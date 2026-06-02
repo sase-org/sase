@@ -98,6 +98,12 @@ def test_include_project_states_filters_scanner_projects(fixture_root: Path) -> 
     )
     assert {record.project_name for record in active_snapshot.records} == {"home"}
 
+    inactive_snapshot = scan_agent_artifacts(
+        fixture_root,
+        AgentArtifactScanOptionsWire(include_project_states=("inactive",)),
+    )
+    assert {record.project_name for record in inactive_snapshot.records} == {"myproj"}
+
     all_snapshot = scan_agent_artifacts(
         fixture_root,
         AgentArtifactScanOptionsWire(include_project_states=("all",)),

@@ -8,9 +8,9 @@ from typing import Any
 
 from sase.core.paths import is_valid_sase_project_name
 from sase.core.project_lifecycle_wire import (
-    PROJECT_LIFECYCLE_STATES,
     ProjectLifecycleWire,
     ProjectRecordWire,
+    normalize_project_lifecycle_state_filter,
     project_lifecycle_from_dict,
     project_record_from_dict,
 )
@@ -40,14 +40,7 @@ def list_project_records(
 ) -> list[ProjectRecordWire]:
     """List lifecycle records under a projects root via ``sase_core_rs``."""
 
-    if include_states == "all":
-        states = list(PROJECT_LIFECYCLE_STATES)
-    else:
-        states = (
-            [include_states]
-            if isinstance(include_states, str)
-            else list(include_states)
-        )
+    states = normalize_project_lifecycle_state_filter(include_states)
     binding = require_rust_binding("list_project_records")
     payload: list[dict[str, Any]] = binding(str(projects_root), states, include_home)
     return [

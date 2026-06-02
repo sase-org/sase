@@ -21,7 +21,7 @@ _LAUNCH_WIDTH = 9
 _WARN_WIDTH = 7
 _WORKSPACE_WIDTH = 50
 
-_STATE_TABS: tuple[str, ...] = ("active", "archived", "closed", "all")
+_STATE_TABS: tuple[str, ...] = ("active", "inactive", "all")
 
 
 def warning_count(record: ProjectRecordWire) -> int:
@@ -40,10 +40,8 @@ def short_path(path: str | None, *, max_len: int = 46) -> str:
 def state_style(state: str) -> str:
     if state == "active":
         return "bold #00D7AF"
-    if state == "archived":
+    if state == "inactive":
         return "bold #FFD700"
-    if state == "closed":
-        return "bold #FF8C00"
     return "bold"
 
 
@@ -95,7 +93,7 @@ def record_label(record: ProjectRecordWire, marked_projects: set[str]) -> Text:
 
 
 def state_tabs_text(state_filter: str) -> Text:
-    """Segmented ``active / archived / closed / all`` filter tabs.
+    """Segmented ``active / inactive / all`` filter tabs.
 
     The active filter is uppercased and reverse-highlighted; the rest are dim.
     Mirrors the header tabs used by the notification modal so the current
@@ -118,14 +116,13 @@ def summary_text(
     status_message: str,
     marked_projects: set[str],
 ) -> Text:
-    counts: dict[str, int] = {"active": 0, "archived": 0, "closed": 0}
+    counts: dict[str, int] = {"active": 0, "inactive": 0}
     for record in records:
         if record.state in counts:
             counts[record.state] += 1
     text = Text()
     text.append(
-        f"all:{len(records)} active:{counts['active']} "
-        f"archived:{counts['archived']} closed:{counts['closed']}",
+        f"all:{len(records)} active:{counts['active']} inactive:{counts['inactive']}",
         style="dim",
     )
     mark_count = len(marked_projects)
@@ -144,13 +141,13 @@ def summary_text(
 def footer_text(marked_projects: set[str]) -> str:
     base = (
         "j/k navigate  / filter  Tab/Shift+Tab state  Enter highlighted  "
-        "m mark  u unmark all  e edit  a activate  r archive  c close  "
+        "m mark  u unmark all  e edit  a activate  d deactivate  "
         "Ctrl+D delete  F force after block  R reload  q close"
     )
     mark_count = len(marked_projects)
     if not mark_count:
         return base
-    return f"{base}  marked:{mark_count} (a/r/c/Ctrl+D target marked set)"
+    return f"{base}  marked:{mark_count} (a/d/Ctrl+D target marked set)"
 
 
 def detail_text(
@@ -182,7 +179,7 @@ def detail_text(
         text.append(
             "\nMarked set: "
             f"{len(marked_projects)} project(s); "
-            "a/r/c/Ctrl+D target marked projects; "
+            "a/d/Ctrl+D target marked projects; "
             f"this row is {row_state}.",
             style="#87D7FF",
         )

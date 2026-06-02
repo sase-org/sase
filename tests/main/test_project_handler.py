@@ -11,6 +11,7 @@ import pytest
 from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
+    normalize_project_lifecycle_state,
 )
 from sase.main import project_handler
 from sase.main.project_handler import handle_project_command
@@ -28,7 +29,7 @@ def _write_project(projects_root: Path, name: str, content: str) -> Path:
 
 def _fake_apply_project_lifecycle_update(content: str, state: str) -> str:
     lines = content.splitlines(keepends=True)
-    state_line = f"PROJECT_STATE: {state}\n"
+    state_line = f"PROJECT_STATE: {normalize_project_lifecycle_state(state)}\n"
     for index, line in enumerate(lines):
         if line.startswith("PROJECT_STATE:"):
             lines[index] = state_line
@@ -66,7 +67,8 @@ def _parse_header(content: str) -> tuple[str, bool, str | None, int]:
         if not before_changespec:
             continue
         if line.startswith("PROJECT_STATE:"):
-            state = line.split(":", 1)[1].strip() or "active"
+            raw_state = line.split(":", 1)[1].strip() or "active"
+            state = normalize_project_lifecycle_state(raw_state)
             explicit = True
         elif line.startswith("WORKSPACE_DIR:"):
             workspace_dir = line.split(":", 1)[1].strip() or None
@@ -167,7 +169,7 @@ class TestListAndShow:
         _write_project(
             projects_root,
             "beta",
-            "PROJECT_STATE: archived\nWORKSPACE_DIR: /tmp/beta\nNAME: b\n",
+            "PROJECT_STATE: inactive\nWORKSPACE_DIR: /tmp/beta\nNAME: b\n",
         )
 
         args = make_args(project_subcommand="list", state="all", json=True)
@@ -179,7 +181,7 @@ class TestListAndShow:
         assert [item["project_name"] for item in payload] == ["alpha", "beta"]
         assert payload[0]["state"] == "active"
         assert payload[0]["state_source"] == "defaulted"
-        assert payload[1]["state"] == "archived"
+        assert payload[1]["state"] == "inactive"
         assert payload[1]["state_source"] == "explicit"
 
     def test_list_defaults_to_active_projects(
@@ -236,6 +238,21 @@ class TestListAndShow:
         assert exc.value.code == 1
         assert "ghost" in capsys.readouterr().err
 
+    def test_list_invalid_state_exits_one(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        lifecycle_stubs()
+
+        args = make_args(project_subcommand="list", state="paused", json=False)
+        with pytest.raises(SystemExit) as exc:
+            handle_project_command(args)
+
+        assert exc.value.code == 1
+        assert "invalid project state" in capsys.readouterr().err
+
 
 class TestMutation:
     def test_set_state_inserts_before_running(
@@ -251,16 +268,47 @@ class TestMutation:
             "WORKSPACE_DIR: /tmp/alpha\nRUNNING:\n\nNAME: a\n",
         )
 
-        args = make_args(project_subcommand="archive", project="alpha", force=False)
+        args = make_args(project_subcommand="deactivate", project="alpha", force=False)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 
         assert exc.value.code == 0
         assert (
-            "WORKSPACE_DIR: /tmp/alpha\nPROJECT_STATE: archived\nRUNNING:\n"
+            "WORKSPACE_DIR: /tmp/alpha\nPROJECT_STATE: inactive\nRUNNING:\n"
             in project_file.read_text(encoding="utf-8")
         )
-        assert "state is now archived" in capsys.readouterr().out
+        assert "state is now inactive" in capsys.readouterr().out
+
+    def test_legacy_aliases_normalize_to_inactive(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+    ) -> None:
+        lifecycle_stubs()
+        project_file = _write_project(
+            projects_root,
+            "alpha",
+            "WORKSPACE_DIR: /tmp/alpha\nNAME: a\n",
+        )
+
+        args = make_args(project_subcommand="archive", project="alpha", force=False)
+        with pytest.raises(SystemExit) as exc:
+            handle_project_command(args)
+
+        assert exc.value.code == 0
+        assert "PROJECT_STATE: inactive\n" in project_file.read_text(encoding="utf-8")
+
+        args = make_args(
+            project_subcommand="set-state",
+            project="alpha",
+            state="closed",
+            force=True,
+        )
+        with pytest.raises(SystemExit) as exc:
+            handle_project_command(args)
+
+        assert exc.value.code == 0
+        assert "PROJECT_STATE: inactive\n" in project_file.read_text(encoding="utf-8")
 
     def test_set_state_replaces_existing_state(
         self,
@@ -303,7 +351,7 @@ class TestMutation:
             "\nNAME: a\n",
         )
 
-        args = make_args(project_subcommand="archive", project="alpha", force=False)
+        args = make_args(project_subcommand="deactivate", project="alpha", force=False)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 
@@ -325,12 +373,12 @@ class TestMutation:
             "\nNAME: a\n",
         )
 
-        args = make_args(project_subcommand="close", project="alpha", force=True)
+        args = make_args(project_subcommand="deactivate", project="alpha", force=True)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 
         assert exc.value.code == 0
-        assert "PROJECT_STATE: closed\n" in project_file.read_text(encoding="utf-8")
+        assert "PROJECT_STATE: inactive\n" in project_file.read_text(encoding="utf-8")
 
     def test_rejects_live_artifact_marker_without_force(
         self,
@@ -348,7 +396,7 @@ class TestMutation:
         marker.mkdir(parents=True)
         (marker / "waiting.json").write_text("{}", encoding="utf-8")
 
-        args = make_args(project_subcommand="close", project="alpha", force=False)
+        args = make_args(project_subcommand="deactivate", project="alpha", force=False)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 
@@ -367,7 +415,7 @@ class TestMutation:
         hidden_dir.mkdir()
         (hidden_dir / ".sase.sase").write_text("", encoding="utf-8")
 
-        args = make_args(project_subcommand="archive", project=".sase", force=False)
+        args = make_args(project_subcommand="deactivate", project=".sase", force=False)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 
@@ -384,7 +432,7 @@ class TestMutation:
         lifecycle_stubs()
         _write_project(projects_root, "home", "WORKSPACE_DIR: /tmp/home\nNAME: h\n")
 
-        args = make_args(project_subcommand="archive", project="home", force=True)
+        args = make_args(project_subcommand="deactivate", project="home", force=True)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 

@@ -100,7 +100,7 @@ def test_resolve_vcs_cwd_inactive_known_project_errors(
     with (
         patch("os.chdir") as chdir,
         patch("sase.xprompt.loader.detect_project"),
-        pytest.raises(ValueError, match="project 'archived' is archived"),
+        pytest.raises(ValueError, match="project 'archived' is inactive"),
     ):
         _resolve_vcs_cwd("#gh:archived do something")
 

@@ -20,7 +20,7 @@ async def test_project_management_modal_activate_mutates_and_reloads(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    states = {"alpha": "archived"}
+    states = {"alpha": "inactive"}
     calls: list[tuple[str, str, bool]] = []
 
     def list_records(*_args, **_kwargs):
@@ -53,7 +53,7 @@ async def test_project_management_modal_activate_mutates_and_reloads(
 
         await pilot.press("tab")
         await pilot.pause()
-        assert modal._state_filter == "archived"
+        assert modal._state_filter == "inactive"
         assert [record.project_name for record in modal._filtered_records] == ["alpha"]
 
         await pilot.press("enter")
@@ -65,7 +65,7 @@ async def test_project_management_modal_activate_mutates_and_reloads(
         assert modal._status_message == "alpha -> active"
 
 
-async def test_project_management_modal_force_archive_after_block(
+async def test_project_management_modal_force_deactivate_after_block(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -110,9 +110,9 @@ async def test_project_management_modal_force_archive_after_block(
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        await pilot.press("r")
+        await pilot.press("d")
         await pilot.pause()
-        assert modal._pending_force == (("alpha",), "archived")
+        assert modal._pending_force == (("alpha",), "inactive")
         assert "Blocked:" in modal._status_message
 
         await pilot.press("F")
@@ -121,11 +121,11 @@ async def test_project_management_modal_force_archive_after_block(
         await pilot.pause()
 
         assert calls == [
-            ("alpha", "archived", False),
-            ("alpha", "archived", True),
+            ("alpha", "inactive", False),
+            ("alpha", "inactive", True),
         ]
         assert modal._pending_force is None
-        assert modal._records[0].state == "archived"
+        assert modal._records[0].state == "inactive"
         assert modal._filtered_records == []
 
 
@@ -173,18 +173,18 @@ async def test_project_management_modal_bulk_state_targets_marked_projects(
         assert option_list.highlighted == 0
         assert modal._marked_projects == {"beta", "gamma"}
 
-        await pilot.press("r")
+        await pilot.press("d")
         await pilot.pause()
 
         assert calls == [
-            ("beta", "archived", False),
-            ("gamma", "archived", False),
+            ("beta", "inactive", False),
+            ("gamma", "inactive", False),
         ]
         assert modal._marked_projects == set()
         assert states == {
             "alpha": "active",
-            "beta": "archived",
-            "gamma": "archived",
+            "beta": "inactive",
+            "gamma": "inactive",
         }
 
 
@@ -238,17 +238,17 @@ async def test_project_management_modal_bulk_state_preserves_blocked_and_failed_
         await pilot.press("m")
         await pilot.pause()
 
-        await pilot.press("r")
+        await pilot.press("d")
         await pilot.pause()
 
         assert calls == [
-            ("alpha", "archived", False),
-            ("beta", "archived", False),
-            ("gamma", "archived", False),
+            ("alpha", "inactive", False),
+            ("beta", "inactive", False),
+            ("gamma", "inactive", False),
         ]
         assert modal._marked_projects == {"beta", "gamma"}
-        assert modal._pending_force == (("beta",), "archived")
-        assert states["alpha"] == "archived"
+        assert modal._pending_force == (("beta",), "inactive")
+        assert states["alpha"] == "inactive"
         assert states["beta"] == "active"
 
         await pilot.press("F")
@@ -256,7 +256,7 @@ async def test_project_management_modal_bulk_state_preserves_blocked_and_failed_
         await pilot.press("y")
         await pilot.pause()
 
-        assert calls[-1] == ("beta", "archived", True)
+        assert calls[-1] == ("beta", "inactive", True)
         assert modal._marked_projects == {"gamma"}
         assert modal._pending_force is None
-        assert states["beta"] == "archived"
+        assert states["beta"] == "inactive"

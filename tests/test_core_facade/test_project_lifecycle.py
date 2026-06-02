@@ -54,13 +54,13 @@ def _record_payload(**overrides: Any) -> dict[str, Any]:
 
 def test_project_lifecycle_wire_dict_conversion() -> None:
     wire = project_lifecycle_from_dict(
-        _lifecycle_payload(state="archived", explicit=True, warnings=["manual"])
+        _lifecycle_payload(state="inactive", explicit=True, warnings=["manual"])
     )
 
-    assert wire.state == "archived"
+    assert wire.state == "inactive"
     assert wire.explicit is True
     assert wire.warnings == ["manual"]
-    assert project_lifecycle_wire_to_json_dict(wire)["state"] == "archived"
+    assert project_lifecycle_wire_to_json_dict(wire)["state"] == "inactive"
 
 
 def test_project_record_wire_dict_conversion() -> None:
@@ -112,7 +112,7 @@ def test_lifecycle_facade_calls_rust_bindings(
 
     def fake_read(content: str) -> dict[str, Any]:
         calls.append(("read", (content,)))
-        return _lifecycle_payload(state="closed", explicit=True)
+        return _lifecycle_payload(state="inactive", explicit=True)
 
     def fake_apply(content: str, state: str) -> str:
         calls.append(("apply", (content, state)))
@@ -134,18 +134,18 @@ def test_lifecycle_facade_calls_rust_bindings(
         "NAME: x\n"
     )
     updated = project_lifecycle_facade.apply_project_lifecycle_update(
-        "NAME: x\n", "archived"
+        "NAME: x\n", "inactive"
     )
     records = project_lifecycle_facade.list_project_records(
         "/tmp/projects", "active", include_home=True
     )
 
-    assert lifecycle.state == "closed"
-    assert updated.endswith("PROJECT_STATE: archived\n")
+    assert lifecycle.state == "inactive"
+    assert updated.endswith("PROJECT_STATE: inactive\n")
     assert records[0].project_name == "beta"
     assert calls == [
         ("read", ("NAME: x\n",)),
-        ("apply", ("NAME: x\n", "archived")),
+        ("apply", ("NAME: x\n", "inactive")),
         ("list", ("/tmp/projects", ["active"], True)),
     ]
 
@@ -182,9 +182,10 @@ def test_lifecycle_facade_real_extension_content_helpers() -> None:
         "WORKSPACE_DIR: /tmp\nNAME: demo\n", "closed"
     )
 
-    assert lifecycle.state == "archived"
+    assert lifecycle.state == "inactive"
     assert lifecycle.explicit is True
-    assert updated == "WORKSPACE_DIR: /tmp\nPROJECT_STATE: closed\nNAME: demo\n"
+    assert lifecycle.warnings
+    assert updated == "WORKSPACE_DIR: /tmp\nPROJECT_STATE: inactive\nNAME: demo\n"
 
 
 def test_lifecycle_facade_real_extension_project_records(tmp_path: Path) -> None:

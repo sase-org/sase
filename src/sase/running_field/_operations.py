@@ -13,6 +13,7 @@ from sase.core.agent_launch_claims import (
 )
 from sase.core.agent_launch_wire import WorkspaceClaimRequestWire
 from sase.core.project_lifecycle_facade import read_project_lifecycle_from_content
+from sase.core.project_lifecycle_wire import is_inactive_project_lifecycle_state
 from sase.running_field._formatting import (
     clean_orphaned_blank_lines,
     normalize_running_field_spacing,
@@ -27,8 +28,6 @@ from sase.telemetry.metrics import (
     WORKSPACE_ACTIVE,
     WORKSPACE_RELEASES,
 )
-
-_INACTIVE_PROJECT_STATES = {"archived", "closed"}
 
 
 def _project_name_from_file(project_file: str) -> str:
@@ -50,7 +49,7 @@ def _inactive_project_claim_error(project_file: str, state: str) -> str:
 
 def _new_work_lifecycle_error(project_file: str, content: str) -> str | None:
     lifecycle = read_project_lifecycle_from_content(content)
-    if lifecycle.state in _INACTIVE_PROJECT_STATES:
+    if is_inactive_project_lifecycle_state(lifecycle.state):
         return _inactive_project_claim_error(project_file, lifecycle.state)
     return None
 

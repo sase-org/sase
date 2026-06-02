@@ -23,8 +23,8 @@ async def test_project_management_modal_filters_states(
 ) -> None:
     records = [
         make_project_record("alpha", state="active"),
-        make_project_record("beta", state="archived", launchable=False),
-        make_project_record("gamma", state="closed", launchable=False),
+        make_project_record("beta", state="inactive", launchable=False),
+        make_project_record("gamma", state="inactive", launchable=False),
         make_project_record("home", state="active", system_managed=True),
     ]
     list_calls: list[tuple[Path, str, bool]] = []
@@ -47,10 +47,10 @@ async def test_project_management_modal_filters_states(
         assert modal._state_filter == _DEFAULT_STATE_FILTER
         assert [r.project_name for r in modal._filtered_records] == ["alpha"]
         summary = modal._summary_text().plain
-        assert "all:3 active:1 archived:1 closed:1" in summary
+        assert "all:3 active:1 inactive:2" in summary
         tabs = modal._state_tabs_text().plain
         assert "ACTIVE" in tabs
-        assert "archived" in tabs
+        assert "inactive" in tabs
 
         modal._text_filter = "beta"
         modal._apply_filters()
@@ -61,13 +61,11 @@ async def test_project_management_modal_filters_states(
 
         await pilot.press("tab")
         await pilot.pause()
-        assert modal._state_filter == "archived"
-        assert [r.project_name for r in modal._filtered_records] == ["beta"]
-
-        await pilot.press("tab")
-        await pilot.pause()
-        assert modal._state_filter == "closed"
-        assert [r.project_name for r in modal._filtered_records] == ["gamma"]
+        assert modal._state_filter == "inactive"
+        assert [r.project_name for r in modal._filtered_records] == [
+            "beta",
+            "gamma",
+        ]
 
         await pilot.press("tab")
         await pilot.pause()
@@ -94,8 +92,11 @@ async def test_project_management_modal_filters_states(
 
         await pilot.press("shift+tab")
         await pilot.pause()
-        assert modal._state_filter == "closed"
-        assert [r.project_name for r in modal._filtered_records] == ["gamma"]
+        assert modal._state_filter == "inactive"
+        assert [r.project_name for r in modal._filtered_records] == [
+            "beta",
+            "gamma",
+        ]
 
 
 def test_project_management_modal_footer_includes_delete_affordance(
@@ -109,6 +110,7 @@ def test_project_management_modal_footer_includes_delete_affordance(
     modal = ProjectManagementModal(projects_root=tmp_path)
 
     assert "e edit" in modal._footer_text()
+    assert "d deactivate" in modal._footer_text()
     assert "Ctrl+D delete" in modal._footer_text()
     assert "Tab/Shift+Tab state" in modal._footer_text()
 

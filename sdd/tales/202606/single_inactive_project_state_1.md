@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 12:52:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/single_inactive_project_state_1.md
 ---
 # Plan: Single Inactive Project State

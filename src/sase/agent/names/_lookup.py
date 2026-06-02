@@ -17,9 +17,9 @@ Process liveness, dismissed-bundle fallback, and dismissal-prefix
 semantics stay in Python.
 
 Name lookup and completion checks intentionally scan agent artifacts across
-all project lifecycle states. A closed project's historical artifacts can still
-own names or complete workflows referenced by prompts, repeat launches, and
-diagnostics.
+all project lifecycle states. An inactive project's historical artifacts can
+still own names or complete workflows referenced by prompts, repeat launches,
+and diagnostics.
 """
 
 from __future__ import annotations

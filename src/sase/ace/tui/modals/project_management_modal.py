@@ -37,13 +37,12 @@ from .project_management_rendering import (
     warning_count as _warning_count,
 )
 
-ProjectStateFilter = Literal["all", "active", "archived", "closed"]
+ProjectStateFilter = Literal["all", "active", "inactive"]
 _DEFAULT_STATE_FILTER: ProjectStateFilter = "active"
 _PendingForce = tuple[tuple[str, ...], str]
 _STATE_FILTERS: tuple[ProjectStateFilter, ...] = (
     _DEFAULT_STATE_FILTER,
-    "archived",
-    "closed",
+    "inactive",
     "all",
 )
 
@@ -70,8 +69,7 @@ class ProjectManagementModal(
         Binding("u", "clear_project_marks", "Unmark All", priority=True),
         Binding("e", "edit_project_spec", "Edit", priority=True),
         Binding("a", "activate_project", "Activate", priority=True),
-        Binding("r", "archive_project", "Archive", priority=True),
-        Binding("c", "close_project", "Close", priority=True),
+        Binding("d", "deactivate_project", "Deactivate", priority=True),
         Binding("ctrl+d", "delete_project", "Delete", priority=True),
         Binding("F", "force_current_state_change", "Force", priority=True),
         Binding("enter", "default_project_action", "Default", priority=True),

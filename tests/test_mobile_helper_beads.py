@@ -124,7 +124,7 @@ def test_beads_list_bridge_all_known_projects_ignores_inactive_projects(
     seed_known_projects(
         tmp_path,
         {"alpha": alpha_dir, "beta": beta_dir},
-        states={"beta": "archived"},
+        states={"beta": "inactive"},
     )
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
 

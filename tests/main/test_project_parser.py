@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from sase.main.parser import create_parser
 
 
@@ -32,28 +30,27 @@ class TestProjectParser:
 
     def test_set_state_force_option(self) -> None:
         ns = create_parser().parse_args(
-            ["project", "set-state", "demo", "archived", "-f"]
+            ["project", "set-state", "demo", "inactive", "-f"]
         )
 
         assert ns.project_subcommand == "set-state"
         assert ns.project == "demo"
-        assert ns.state == "archived"
+        assert ns.state == "inactive"
         assert ns.force is True
 
     def test_alias_force_option(self) -> None:
-        ns = create_parser().parse_args(["project", "close", "demo", "--force"])
+        ns = create_parser().parse_args(["project", "deactivate", "demo", "--force"])
 
-        assert ns.project_subcommand == "close"
+        assert ns.project_subcommand == "deactivate"
         assert ns.project == "demo"
         assert ns.force is True
 
-    @pytest.mark.parametrize(
-        "argv",
-        [
-            ["project", "list", "--state", "paused"],
-            ["project", "set-state", "demo", "paused"],
-        ],
-    )
-    def test_invalid_states_exit(self, argv: list[str]) -> None:
-        with pytest.raises(SystemExit):
-            create_parser().parse_args(argv)
+    def test_legacy_aliases_still_parse(self) -> None:
+        set_state = create_parser().parse_args(
+            ["project", "set-state", "demo", "archived"]
+        )
+        close = create_parser().parse_args(["project", "close", "demo"])
+
+        assert set_state.project_subcommand == "set-state"
+        assert set_state.state == "archived"
+        assert close.project_subcommand == "close"

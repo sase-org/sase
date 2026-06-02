@@ -8,24 +8,14 @@ from pathlib import Path
 
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
-from sase.core.project_lifecycle_wire import PROJECT_LIFECYCLE_STATES
-
-_ALL_STATES = tuple(PROJECT_LIFECYCLE_STATES)
+from sase.core.project_lifecycle_wire import normalize_project_lifecycle_state_filter
 
 
 def _normalize_project_lifecycle_states(
     include_states: Sequence[str] | str,
 ) -> list[str]:
     """Return concrete lifecycle states for a ChangeSpec project scan."""
-    if include_states == "all":
-        return list(_ALL_STATES)
-    states = (
-        [include_states] if isinstance(include_states, str) else list(include_states)
-    )
-    invalid = [state for state in states if state not in _ALL_STATES]
-    if invalid:
-        raise ValueError(f"invalid project lifecycle state: {invalid[0]}")
-    return states
+    return normalize_project_lifecycle_state_filter(include_states)
 
 
 def iter_changespec_project_files(

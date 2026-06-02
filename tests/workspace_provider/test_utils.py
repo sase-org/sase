@@ -278,13 +278,13 @@ class TestDirectCallersUseSharedHelper:
                 "sase.scripts.git_setup.claim_workspace",
                 return_value=ClaimResult(
                     success=False,
-                    error="project is closed; activate before launching work",
+                    error="project is inactive; activate before launching work",
                 ),
             ),
         ):
             with pytest.raises(
                 WorkspaceClaimError,
-                match="project is closed; activate before launching work",
+                match="project is inactive; activate before launching work",
             ):
                 git_setup.main(git_ref="proj", n=12, release=True)
 

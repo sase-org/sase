@@ -11,7 +11,10 @@ import yaml  # type: ignore[import-untyped]
 from sase.config import load_xprompts_by_source
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
-from sase.core.project_lifecycle_wire import ProjectRecordWire
+from sase.core.project_lifecycle_wire import (
+    ProjectRecordWire,
+    is_inactive_project_lifecycle_state,
+)
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
 from .loader_parsing import (
@@ -380,9 +383,6 @@ def load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
     return xprompts
 
 
-_INACTIVE_PROJECT_STATES = {"archived", "closed"}
-
-
 def _project_ref_candidates(ref: str) -> tuple[str, ...]:
     candidates = [ref]
     if "/" in ref:
@@ -405,7 +405,7 @@ def inactive_project_message_for_ref(ref: str) -> str | None:
     """Return a launch-blocking message when *ref* points at an inactive project."""
     for candidate in _project_ref_candidates(ref):
         record = get_project_lifecycle_record(candidate)
-        if record is None or record.state not in _INACTIVE_PROJECT_STATES:
+        if record is None or not is_inactive_project_lifecycle_state(record.state):
             continue
         return (
             f"project '{record.project_name}' is {record.state}; run "

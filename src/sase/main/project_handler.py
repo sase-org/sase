@@ -20,11 +20,13 @@ from sase.core.project_lifecycle_facade import (
 from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_STATES,
     ProjectRecordWire,
+    is_inactive_project_lifecycle_state,
+    normalize_project_lifecycle_state,
+    normalize_project_lifecycle_state_filter,
     project_lifecycle_wire_to_json_dict,
 )
 
 _ALL_STATES = tuple(PROJECT_LIFECYCLE_STATES)
-_INACTIVE_STATES = {"archived", "closed"}
 _LIVE_ARTIFACT_MARKERS = ("running.json", "waiting.json", "pending_question.json")
 
 
@@ -69,11 +71,10 @@ ProjectLifecycleBlockedError = _ProjectLifecycleBlockedError
 
 
 def _states_for_filter(state_filter: str) -> list[str]:
-    if state_filter == "all":
-        return list(_ALL_STATES)
-    if state_filter not in _ALL_STATES:
-        raise ValueError(f"invalid project state: {state_filter}")
-    return [state_filter]
+    try:
+        return normalize_project_lifecycle_state_filter(state_filter)
+    except ValueError as exc:
+        raise ValueError(f"invalid project state: {state_filter}") from exc
 
 
 def _record_to_json_dict(record: ProjectRecordWire) -> dict[str, object]:
@@ -125,7 +126,7 @@ def _print_record_detail(record: ProjectRecordWire) -> None:
         print("Warnings:")
         for warning in warnings:
             print(f"  - {warning}")
-    if record.state in _INACTIVE_STATES:
+    if is_inactive_project_lifecycle_state(record.state):
         print(
             f"Hint: run 'sase project activate {record.project_name}' "
             "before launching work."
@@ -220,15 +221,21 @@ def set_project_state_locked(
     force: bool = False,
 ) -> ProjectRecordWire:
     """Set lifecycle state for *project* while holding the ProjectSpec lock."""
-    if state not in _ALL_STATES:
-        raise _ProjectLifecycleError(f"invalid project state: {state}")
+    try:
+        state = normalize_project_lifecycle_state(state)
+    except ValueError as exc:
+        raise _ProjectLifecycleError(f"invalid project state: {state}") from exc
 
     project_file = _resolve_mutable_project_file(project)
     with changespec_lock(str(project_file)):
         content = project_file.read_text(encoding="utf-8")
         claims = list_workspace_claims_from_content(content)
         markers = _live_artifact_marker_paths(project_file.parent)
-        if state in _INACTIVE_STATES and not force and (claims or markers):
+        if (
+            is_inactive_project_lifecycle_state(state)
+            and not force
+            and (claims or markers)
+        ):
             raise _ProjectLifecycleBlockedError(project, state, claims, markers)
 
         updated = apply_project_lifecycle_update(content, state)
@@ -279,7 +286,7 @@ def _handle_list(args: argparse.Namespace) -> int:
             _states_for_filter(state_filter),
             include_home=False,
         )
-    except (_ProjectLifecycleError, ImportError, AttributeError) as exc:
+    except (ValueError, _ProjectLifecycleError, ImportError, AttributeError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
     if args.json:
@@ -321,7 +328,7 @@ def _set_and_print(args: argparse.Namespace, state: str) -> int:
         return 1
 
     print(f"Project '{record.project_name}' state is now {record.state}.")
-    if record.state in _INACTIVE_STATES:
+    if is_inactive_project_lifecycle_state(record.state):
         print(
             f"Run 'sase project activate {record.project_name}' before "
             "launching new work."
@@ -337,12 +344,16 @@ def _handle_activate(args: argparse.Namespace) -> int:
     return _set_and_print(args, "active")
 
 
+def _handle_deactivate(args: argparse.Namespace) -> int:
+    return _set_and_print(args, "inactive")
+
+
 def _handle_archive(args: argparse.Namespace) -> int:
-    return _set_and_print(args, "archived")
+    return _set_and_print(args, "inactive")
 
 
 def _handle_close(args: argparse.Namespace) -> int:
-    return _set_and_print(args, "closed")
+    return _set_and_print(args, "inactive")
 
 
 _HANDLERS = {
@@ -350,6 +361,7 @@ _HANDLERS = {
     "show": _handle_show,
     "set-state": _handle_set_state,
     "activate": _handle_activate,
+    "deactivate": _handle_deactivate,
     "archive": _handle_archive,
     "close": _handle_close,
 }
@@ -361,7 +373,7 @@ def handle_project_command(args: argparse.Namespace) -> None:
     handler = _HANDLERS.get(sub) if isinstance(sub, str) else None
     if handler is None:
         print(
-            "Usage: sase project {list,show,set-state,activate,archive,close}",
+            "Usage: sase project {list,show,set-state,activate,deactivate}",
             file=sys.stderr,
         )
         sys.exit(2)

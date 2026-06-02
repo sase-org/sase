@@ -147,14 +147,14 @@ def project_records() -> list[ProjectRecordWire]:
         ),
         _record(
             "legacy-telemetry",
-            state="archived",
+            state="inactive",
             launchable=False,
             warnings=["workspace checkout is missing"],
         ),
-        _record("scratch-spike", state="archived", launchable=False),
+        _record("scratch-spike", state="inactive", launchable=False),
         _record(
             "old-prototype",
-            state="closed",
+            state="inactive",
             launchable=False,
             warnings=["spec parse error", "orphaned lock"],
         ),

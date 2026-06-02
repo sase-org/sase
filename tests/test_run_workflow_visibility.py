@@ -510,7 +510,7 @@ def test_run_query_failed_claim_blocks_workflow_and_cleanup(tmp_path: Path) -> N
             "sase.main.query_handler._query.claim_workspace",
             return_value=ClaimResult(
                 success=False,
-                error="project is archived; new work is blocked",
+                error="project is inactive; new work is blocked",
             ),
         ),
         patch("sase.main.query_handler._query.release_workspace") as release_workspace,
@@ -522,7 +522,7 @@ def test_run_query_failed_claim_blocks_workflow_and_cleanup(tmp_path: Path) -> N
 
         with pytest.raises(
             WorkspaceClaimError,
-            match="project is archived; new work is blocked",
+            match="project is inactive; new work is blocked",
         ):
             run_query("hello")
 

@@ -67,8 +67,8 @@ Project metadata fields are optional and appear before the first `NAME:` line. S
   per-project workspace store rather than by appending `_<num>` to this path; see
   [`docs/workspace.md`](workspace.md#workspace-directory-layout) for the directory-layout reference and
   [`docs/configuration.md`](configuration.md#workspace) for the `workspace.root` knob.
-- **PROJECT_STATE**: Project lifecycle state. Valid values are `active`, `archived`, and `closed`. Missing
-  `PROJECT_STATE` means `active`, so existing projects do not need a migration.
+- **PROJECT_STATE**: Project lifecycle state. Valid values are `active` and `inactive`. Missing `PROJECT_STATE` means
+  `active`, so existing projects do not need a migration. Legacy `archived` and `closed` values are read as `inactive`.
 - **RUNNING**: Active workspace claims written and released by SASE while agents or workflows are running.
 
 `BARE_REPO_DIR` and `WORKSPACE_DIR` are created by `sase git init` or by first-use `#git:<project>` initialization. They
@@ -83,42 +83,45 @@ Project lifecycle state controls whether a project appears in the default lists 
 work. It is project-level metadata; it does not delete project files and is separate from a ChangeSpec whose `STATUS` is
 `Archived`.
 
-| State      | Meaning                                                                                                   |
-| ---------- | --------------------------------------------------------------------------------------------------------- |
-| `active`   | Normal work state. Missing `PROJECT_STATE` also means `active`, so existing projects need no migration.   |
-| `archived` | Dormant or historical project. Hidden from default launch pickers and discovery lists.                    |
-| `closed`   | Finished project. Operationally hidden from the same default launch and discovery surfaces as `archived`. |
+| State      | Meaning                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------- |
+| `active`   | Normal work state. Missing `PROJECT_STATE` also means `active`, so existing projects need no migration. |
+| `inactive` | Dormant, historical, or finished project. Hidden from default launch pickers and discovery lists.       |
+
+Legacy `PROJECT_STATE: archived` and `PROJECT_STATE: closed` files remain readable and are normalized to `inactive`. New
+writes use only `active` or `inactive`.
 
 Default project discovery is active-only. That includes ACE project selection, `sase changespec search`, known-project
 workspace references such as `#gh:sase`, project-local xprompt catalogs, broad mobile helper catalogs, and all-known
 bead helper reads. Agent-history views that need old artifacts pass an explicit all-state scan.
 
 Use `sase project list --state all` to inspect inactive projects, `sase project show <project>` to see state, workspace,
-launchability, and warnings, and `sase project activate <project>` before launching new work in an archived or closed
-project. The `archive`, `close`, and `set-state` forms update the ProjectSpec under the normal ProjectSpec lock.
-Archiving or closing refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed.
-The system-managed `home` project cannot be mutated through this command.
+launchability, and warnings, and `sase project activate <project>` before launching new work in an inactive project. The
+`deactivate`, `activate`, and `set-state` forms update the ProjectSpec under the normal ProjectSpec lock. Deprecated
+`archive` and `close` aliases still set `inactive` for compatibility. Deactivating refuses projects with live `RUNNING`
+claims or active artifact markers unless `--force` is passed. The system-managed `home` project cannot be mutated
+through this command.
 
 ACE exposes the same lifecycle operations through the `,p` project management panel. The panel lists non-system projects
-across all states by default, offers text and state filters, supports marks for bulk activate/archive/close operations
-and bulk full-directory deletion, and uses the same blocked-operation checks before archiving or closing a project. It
-can also open the selected ProjectSpec in `$EDITOR`. Its delete action removes the whole SASE project directory under
+across all states by default, offers text and state filters, supports marks for bulk activate/deactivate operations and
+bulk full-directory deletion, and uses the same blocked-operation checks before deactivating a project. It can also open
+the selected ProjectSpec in `$EDITOR`. Its delete action removes the whole SASE project directory under
 `~/.sase/projects/` after confirmation, including ProjectSpecs, project-local config, and artifacts; it does not remove
 workspace checkouts. This is broader than `Ctrl+D` in project launch pickers, which only removes an empty project's
 ProjectSpec files.
 
 Common workflows:
 
-- Archive a dormant project: `sase project archive old-project`
-- List closed projects: `sase project list --state closed`
+- Deactivate a dormant project: `sase project deactivate old-project`
+- List inactive projects: `sase project list --state inactive`
 - Inspect every lifecycle state as JSON: `sase project list --state all --json`
 - Reactivate from the CLI: `sase project activate old-project`
 - Reactivate from ACE: press `,p`, highlight the project, then press `a`
-- Bulk-archive from ACE: press `,p`, mark projects with `m`, then press `r`
+- Bulk-deactivate from ACE: press `,p`, mark projects with `m`, then press `d`
 
 Maintenance and agent-history scans intentionally keep reading all project directories. This keeps live `RUNNING`
 claims, stale-claim cleanup, dismissed-agent recovery, agent-name collision checks, and historical Agents-tab rows
-visible even after a project is archived or closed.
+visible even after a project is inactive.
 
 The `RUNNING` section is managed by SASE. Each entry has this shape:
 

@@ -359,13 +359,13 @@ def test_claim_workspace_allows_workspace_zero_duplicates() -> None:
         Path(project_file).unlink()
 
 
-def test_claim_workspace_rejects_archived_project_before_running_write(
+def test_claim_workspace_rejects_inactive_project_before_running_write(
     tmp_path: Path,
 ) -> None:
     """Inactive projects cannot receive even deferred workspace claims."""
     project_file = tmp_path / "foo.sase"
     project_file.write_text(
-        "PROJECT_STATE: archived\nNAME: Test Feature\nSTATUS: Ready\n",
+        "PROJECT_STATE: inactive\nNAME: Test Feature\nSTATUS: Ready\n",
         encoding="utf-8",
     )
 
@@ -374,25 +374,27 @@ def test_claim_workspace_rejects_archived_project_before_running_write(
     assert result.success is False
     assert result.error is not None
     assert result.error == (
-        "project 'foo' is archived; run 'sase project activate foo' "
+        "project 'foo' is inactive; run 'sase project activate foo' "
         "before launching work"
     )
     assert "RUNNING:" not in project_file.read_text(encoding="utf-8")
 
 
-def test_claim_next_axe_workspace_rejects_closed_project_before_running_write(
+@pytest.mark.parametrize("legacy_state", ["archived", "closed"])
+def test_claim_next_axe_workspace_rejects_legacy_inactive_project_before_running_write(
+    legacy_state: str,
     tmp_path: Path,
 ) -> None:
     """Atomic allocation uses the same lifecycle gate as direct claims."""
     project_file = tmp_path / "foo.sase"
     project_file.write_text(
-        "PROJECT_STATE: closed\nNAME: Test Feature\nSTATUS: Ready\n",
+        f"PROJECT_STATE: {legacy_state}\nNAME: Test Feature\nSTATUS: Ready\n",
         encoding="utf-8",
     )
 
     with pytest.raises(
         WorkspaceClaimError,
-        match="project 'foo' is closed; run 'sase project activate foo'",
+        match="project 'foo' is inactive; run 'sase project activate foo'",
     ):
         claim_next_axe_workspace(str(project_file), "hg-foo", 12345, cl_name="foo")
 

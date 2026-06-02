@@ -95,8 +95,8 @@ sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
 sase agents index status  # check ACE's fast Agents-tab artifact index
 sase project list         # inspect projects shown by default launch and discovery lists
-sase project archive <project>  # hide a dormant project from default launch lists
-sase project activate <project>  # make archived or closed work launchable again
+sase project deactivate <project>  # hide a dormant project from default launch lists
+sase project activate <project>  # make inactive work launchable again
 sase bead onboard         # see the bead issue-tracking quick start
 sase workspace list       # inspect the current project's numbered workspace view
 sase workspace path 10    # preview where managed workspace #10 would live
@@ -113,13 +113,13 @@ SASE keeps durable state outside any one chat session:
 
 - **Rust core** - Ported parsing, launch, notification, agent-scan, cleanup, and bead operations are served by the
   required `sase_core_rs` extension. Run `sase core health` before first use and after dependency changes.
-- **Project lifecycle** - ProjectSpec metadata can mark a project `active`, `archived`, or `closed`. Missing
-  `PROJECT_STATE` is treated as `active`. Default launch pickers, ChangeSpec searches, project-local xprompt catalogs,
-  broad mobile helper catalogs, and known-project VCS refs such as `#gh:sase` only use active projects. Use
-  `sase project list --state all`, `sase project show <project>`, and `sase project activate <project>` when revisiting
-  archived or closed work. In ACE, press `,p` to manage lifecycle state, edit ProjectSpecs, mark projects for bulk
-  lifecycle actions, or delete an obsolete SASE project directory. Deleting from that panel removes
-  `~/.sase/projects/<project>/`, not the workspace checkout.
+- **Project lifecycle** - ProjectSpec metadata can mark a project `active` or `inactive`. Missing `PROJECT_STATE` is
+  treated as `active`. Default launch pickers, ChangeSpec searches, project-local xprompt catalogs, broad mobile helper
+  catalogs, and known-project VCS refs such as `#gh:sase` only use active projects. Use `sase project list --state all`,
+  `sase project show <project>`, and `sase project activate <project>` when revisiting inactive work. Legacy on-disk
+  `archived` and `closed` ProjectSpecs are read as inactive. In ACE, press `,p` to manage lifecycle state, edit
+  ProjectSpecs, mark projects for bulk lifecycle actions, or delete an obsolete SASE project directory. Deleting from
+  that panel removes `~/.sase/projects/<project>/`, not the workspace checkout.
 - **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
   `#1` through `#9` are reserved, and new claims allocate from `#10` upward.
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed
