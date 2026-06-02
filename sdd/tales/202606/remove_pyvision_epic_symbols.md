@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 06:41:50
-status: wip
+status: done
 prompt: sdd/prompts/202606/remove_pyvision_epic_symbols.md
 ---
 # Plan: Remove Closed Pyvision Epic Symbol Overrides

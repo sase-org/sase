@@ -287,11 +287,7 @@ all: fix lint pylimit test
 
 # Find unused Python function/class definitions
 pyvision *args: _setup (_header "pyvision")
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase \
-        --epic-symbol 'sase-49(apply_project_lifecycle_update)' \
-        --epic-symbol 'sase-49(list_project_records)' \
-        --epic-symbol 'sase-49(project_lifecycle_wire_to_json_dict)' \
-        {{ args }}
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase {{ args }}
 
 # Check Python file line counts
 pylimit *args: (_header "pylimit")
