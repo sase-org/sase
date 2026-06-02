@@ -324,28 +324,28 @@ def test_repeat_last_leader_command_is_global() -> None:
     assert spec.executor.subkey == "comma"
 
 
-def test_agent_from_cl_leader_command_uses_ctrl_space() -> None:
+def test_agent_from_cl_leader_command_uses_space() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.agent_from_cl")
 
     assert spec.label == "Agent from CL (quick)"
-    assert spec.key_sequence == ("comma", "ctrl+@")
-    assert spec.key_display == ", Ctrl+Space"
+    assert spec.key_sequence == ("comma", "space")
+    assert spec.key_display == ", Space"
     assert spec.tabs == ("changespecs", "agents")
     assert spec.executor.kind == "leader_mode_key"
-    assert spec.executor.subkey == "ctrl+@"
+    assert spec.executor.subkey == "space"
 
 
-def test_agent_home_leader_command_uses_bare_space() -> None:
+def test_agent_home_leader_command_uses_h() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.agent_home")
 
     assert spec.label == "Agent (home mode)"
-    assert spec.key_sequence == ("comma", "space")
-    assert spec.key_display == ", Space"
+    assert spec.key_sequence == ("comma", "h")
+    assert spec.key_display == ",h"
     assert spec.tabs == ("changespecs", "agents", "axe")
     assert spec.executor.kind == "leader_mode_key"
-    assert spec.executor.subkey == "space"
+    assert spec.executor.subkey == "h"
 
 
 def test_repeat_last_leader_command_respects_repeat_key_and_prefix_overrides() -> None:

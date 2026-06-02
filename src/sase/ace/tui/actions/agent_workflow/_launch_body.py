@@ -253,11 +253,11 @@ class AgentLaunchBodyMixin:
                         vcs_ref = (known_ref.workflow_type, known_ref.ref)
                         known_project_vcs_fallback = True
 
-            # Update `,Ctrl+Space` saved selection to reflect the resolved VCS
+            # Update the replayable saved selection to reflect the resolved VCS
             # ref from the actual submitted prompt. Without this, editing
             # ``#gh:sase-telegram`` to ``#gh:sase`` before submitting
             # would still replay as ``#gh:sase-telegram`` on the next
-            # `,Ctrl+Space`.
+            # Ctrl+Space.
             if vcs_ref is not None and not is_non_workspace_workflow(vcs_ref[0]):
                 save_replayable_vcs_selection(self, ctx, vcs_ref)
 

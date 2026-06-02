@@ -64,22 +64,35 @@ async def test_ctrl_at_dispatches_repeat_agent_binding_not_home_space() -> None:
             assert home_calls == [True]
 
 
-async def test_leader_space_dispatches_agent_home_alias() -> None:
-    """Leader Space remains a home-mode agent alias."""
+async def test_leader_space_dispatches_current_selection_and_h_dispatches_home() -> (
+    None
+):
+    """Leader Space uses current selection while leader h remains a home alias."""
     with _patch_config():
         async with AcePage() as page:
-            calls: list[bool] = []
+            home_calls: list[bool] = []
+            quick_calls: list[bool] = []
 
             def _record_agent_home() -> None:
-                calls.append(True)
+                home_calls.append(True)
+
+            def _record_quick_agent() -> None:
+                quick_calls.append(True)
 
             page.app._show_prompt_input_bar_for_home = _record_agent_home  # type: ignore[method-assign]
+            page.app._start_agent_from_changespec_quick = _record_quick_agent  # type: ignore[method-assign]
 
             await page.press("space")
-            assert calls == [True]
+            assert home_calls == [True]
+            assert quick_calls == []
 
             await page.press("comma", "space")
-            assert calls == [True, True]
+            assert home_calls == [True]
+            assert quick_calls == [True]
+
+            await page.press("comma", "h")
+            assert home_calls == [True, True]
+            assert quick_calls == [True]
 
 
 async def test_prompt_input_space_is_text_after_home_prompt_opens() -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 15:06:05
-status: wip
+status: done
 prompt: sdd/prompts/202606/restore_leader_space_agent_prefix.md
 ---
 # Plan: Restore `, Space` Agent Prefix Launch

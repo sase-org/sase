@@ -282,7 +282,7 @@ class EntryPointsMixin:
         if prefix is None:
             return
 
-        # Save for Ctrl+Space repeat (so ,Ctrl+Space selections are also available)
+        # Save for Ctrl+Space repeat (so leader-Space selections are also available)
         selection = SelectionItem(
             display_name=cl_name,
             item_type="cl",
@@ -306,7 +306,7 @@ class EntryPointsMixin:
         """Start agent using the selected agent's project/CL name.
 
         Uses the currently selected agent on the agents tab to derive
-        the VCS prefix, similar to how ,Ctrl+Space works on the CLs tab.
+        the VCS prefix, similar to how leader-Space works on the CLs tab.
         """
         from pathlib import Path
 
@@ -375,7 +375,7 @@ class EntryPointsMixin:
                     self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
                 return
 
-            # Save for ,Ctrl+Space repeat
+            # Save for Ctrl+Space repeat
             from sase.ace.last_agent_selection import (
                 save_last_agent_selection_if_launchable,
             )
@@ -589,7 +589,7 @@ class EntryPointsMixin:
         # Remove any existing prompt bar before mounting a new one.
         self._unmount_prompt_bar()  # type: ignore[attr-defined]
 
-        # Set up prompt context (home mode, same as ,Ctrl+Space)
+        # Set up prompt context for home mode.
         self._prompt_context = PromptContext(
             project_name="home",
             cl_name=None,

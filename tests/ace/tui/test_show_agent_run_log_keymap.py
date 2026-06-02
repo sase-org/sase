@@ -130,8 +130,8 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert registry.app.start_agent_home == "space"
     assert registry.app.start_agent_from_changespec == "ctrl+@"
     assert registry.leader_mode.keys["agent_run_log"] == "A"
-    assert registry.leader_mode.keys["agent_home"] == "space"
-    assert registry.leader_mode.keys["agent_from_cl"] == "ctrl+@"
+    assert registry.leader_mode.keys["agent_home"] == "h"
+    assert registry.leader_mode.keys["agent_from_cl"] == "space"
     assert registry.app.focus_next_agent_panel == "J"
     assert registry.leader_mode.keys["jump_to_next_stopped_agent"] == "J"
     assert registry.leader_mode.keys["full_history_refresh"] == "y"
@@ -173,47 +173,47 @@ def test_leader_a_opens_agent_run_log_for_selected_cl() -> None:
     assert modal._cl_name == "beta"
 
 
-def test_leader_ctrl_space_runs_agent_from_current_cl() -> None:
+def test_leader_space_runs_agent_from_current_cl() -> None:
     app = _FakeApp(changespecs=[_make_cs("alpha")])
 
-    handled = app._handle_leader_key("ctrl+@")
+    handled = app._handle_leader_key("space")
 
     assert handled is True
     assert app._leader_mode_active is False
     assert app.quick_changespec_agent_count == 1
     assert app.quick_selected_agent_count == 0
     assert app.marked_agent_run_count == 0
-    assert app._last_leader_key == "ctrl+@"
+    assert app._last_leader_key == "space"
     assert app.refresh_count == 1
 
 
-def test_leader_ctrl_space_runs_agent_from_selected_agent_on_agents_tab() -> None:
+def test_leader_space_runs_agent_from_selected_agent_on_agents_tab() -> None:
     app = _FakeApp(current_tab="agents")
 
-    handled = app._handle_leader_key("ctrl+@")
+    handled = app._handle_leader_key("space")
 
     assert handled is True
     assert app.quick_selected_agent_count == 1
     assert app.quick_changespec_agent_count == 0
-    assert app._last_leader_key == "ctrl+@"
+    assert app._last_leader_key == "space"
 
 
-def test_leader_ctrl_space_runs_agents_from_marked_cls() -> None:
+def test_leader_space_runs_agents_from_marked_cls() -> None:
     app = _FakeApp(changespecs=[_make_cs("alpha")])
     app.marked_indices = {0}
 
-    handled = app._handle_leader_key("ctrl+@")
+    handled = app._handle_leader_key("space")
 
     assert handled is True
     assert app.marked_agent_run_count == 1
     assert app.quick_changespec_agent_count == 0
-    assert app._last_leader_key == "ctrl+@"
+    assert app._last_leader_key == "space"
 
 
-def test_leader_space_runs_agent_home() -> None:
+def test_leader_h_runs_agent_home() -> None:
     app = _FakeApp(changespecs=[_make_cs("alpha")])
 
-    handled = app._handle_leader_key("space")
+    handled = app._handle_leader_key("h")
 
     assert handled is True
     assert app._leader_mode_active is False
@@ -221,18 +221,19 @@ def test_leader_space_runs_agent_home() -> None:
     assert app.quick_changespec_agent_count == 0
     assert app.quick_selected_agent_count == 0
     assert app.marked_agent_run_count == 0
-    assert app._last_leader_key == "space"
+    assert app._last_leader_key == "h"
     assert app.refresh_count == 1
 
 
-def test_leader_h_no_longer_runs_agent_home() -> None:
+def test_leader_ctrl_space_no_longer_runs_agent_from_current_cl() -> None:
     app = _FakeApp(changespecs=[_make_cs("alpha")])
 
-    handled = app._handle_leader_key("h")
+    handled = app._handle_leader_key("ctrl+@")
 
     assert handled is True
     assert app._leader_mode_active is False
     assert app.home_agent_count == 0
+    assert app.quick_changespec_agent_count == 0
     assert app._last_leader_key is None
     assert app.refresh_count == 1
 
@@ -531,14 +532,14 @@ def test_footer_surfaces_repeat_last_on_all_tabs() -> None:
         assert "repeat" in _last_labels(captured)
 
 
-def test_footer_surfaces_agent_home_as_space_on_all_tabs() -> None:
+def test_footer_surfaces_agent_home_as_h_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
     for tab in ("changespecs", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
-        assert ("<space>", "agent (home)") in captured[-1][0]
-        assert ("h", "agent (home)") not in captured[-1][0]
+        assert ("h", "agent (home)") in captured[-1][0]
+        assert ("<space>", "agent (home)") not in captured[-1][0]
 
 
 def test_footer_surfaces_project_management_on_all_tabs() -> None:
@@ -551,13 +552,13 @@ def test_footer_surfaces_project_management_on_all_tabs() -> None:
         assert "projects" in _last_labels(captured)
 
 
-def test_footer_surfaces_ctrl_space_run_agent_on_cl_and_agents_tabs() -> None:
+def test_footer_surfaces_space_run_agent_on_cl_and_agents_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
     for tab in ("changespecs", "agents"):
         footer.update_leader_bindings(current_tab=tab)
-        assert "Ctrl+Space" in _last_keys(captured)
+        assert "<space>" in _last_keys(captured)
         assert "run agent (CL)" in _last_labels(captured)
 
     footer.update_leader_bindings(current_tab="axe")
