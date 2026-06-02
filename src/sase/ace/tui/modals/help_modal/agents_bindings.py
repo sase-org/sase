@@ -1,7 +1,7 @@
 """Agents tab keybinding sections for the help modal."""
 
 from ...keymaps import KeymapRegistry, key_display_name
-from .binding_common import Sections, custom_mode_sections, sk
+from .binding_common import Sections, custom_mode_sections, key_sequence_display, sk
 
 
 def agents_bindings(km: KeymapRegistry) -> Sections:
@@ -107,6 +107,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Repeat last leader command",
                 ),
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
+                (
+                    key_sequence_display(lm.prefix, sk(lm.keys, "agent_from_cl")),
+                    "Run agent from selected agent",
+                ),
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'toggle_agent_panel_grouping'))}",
@@ -263,7 +267,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Toggle idle (any key clears)",
                 ),
                 (d(a.mark_inactive_pinned), "Toggle pinned idle (sticky)"),
-                (d(a.start_agent_from_changespec), "Repeat last @/Space selection"),
+                (
+                    d(a.start_agent_from_changespec),
+                    "Repeat last @/Ctrl+Space selection",
+                ),
                 (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
                 (d(a.browse_xprompts), "Browse xprompts"),
                 (d(a.open_episode_explorer), "Open Episode Explorer"),

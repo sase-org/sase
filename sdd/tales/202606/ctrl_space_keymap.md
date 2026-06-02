@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 12:55:33
-status: wip
+status: done
 prompt: sdd/prompts/202606/ctrl_space_keymap.md
 ---
 # Plan: Migrate Ace TUI Space Keymap to Ctrl+Space

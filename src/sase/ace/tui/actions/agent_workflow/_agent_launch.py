@@ -39,5 +39,5 @@ class AgentLaunchMixin(
     _bulk_changespecs: list[ChangeSpec] | None = None
     # State for prompt input (from AgentWorkflowMixin)
     _prompt_context: PromptContext | None = None
-    # State for repeat-last-@/<space> selection (from EntryPointsMixin)
+    # State for repeat-last-@/Ctrl+Space selection (from EntryPointsMixin)
     _last_custom_agent_selection: SelectionItem | None = None

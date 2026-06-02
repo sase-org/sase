@@ -1,4 +1,4 @@
-"""Persist the last `,<space>` agent selection across TUI restarts."""
+"""Persist the last `,Ctrl+Space` agent selection across TUI restarts."""
 
 from __future__ import annotations
 
@@ -91,7 +91,7 @@ def save_last_agent_selection_if_launchable(selection: SelectionItem) -> bool:
     ``cl`` selections are skipped when ``selection.project_name`` does not
     refer to a currently launchable project on disk; this prevents stale
     or bogus project names (e.g. an auto-created ``.gp`` for a non-cloned
-    GitHub repo) from being saved as the next ``,<space>`` replay target.
+    GitHub repo) from being saved as the next ``,Ctrl+Space`` replay target.
     """
     if selection.item_type in ("home", "all"):
         return _save_last_agent_selection(selection)

@@ -1,7 +1,7 @@
 """ChangeSpec tab keybinding sections for the help modal."""
 
 from ...keymaps import KeymapRegistry, key_display_name
-from .binding_common import Sections, custom_mode_sections, sk
+from .binding_common import Sections, custom_mode_sections, key_sequence_display, sk
 
 
 def cls_bindings(km: KeymapRegistry) -> Sections:
@@ -130,7 +130,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             [
                 (d(a.run_workflow), "Run workflow"),
                 (d(a.start_custom_agent), "Run an agent"),
-                (d(a.start_agent_from_changespec), "Repeat last @/Space selection"),
+                (
+                    d(a.start_agent_from_changespec),
+                    "Repeat last @/Ctrl+Space selection",
+                ),
                 (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS xprompt"),
             ],
         ),
@@ -173,7 +176,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
                 (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_from_cl'))}",
+                    key_sequence_display(lm.prefix, sk(lm.keys, "agent_from_cl")),
                     "Run agent from current CL",
                 ),
                 (

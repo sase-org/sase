@@ -156,21 +156,48 @@ _KEY_DISPLAY: dict[str, str] = {
     "colon": ":",
 }
 
+_CTRL_SPACE_KEY = "ctrl+@"
+_KEY_ALIASES: dict[str, str] = {
+    "ctrl+space": _CTRL_SPACE_KEY,
+    "ctrl+at": _CTRL_SPACE_KEY,
+}
+
 
 def split_key_alternatives(key: str) -> tuple[str, ...]:
     """Split a Textual binding string into its comma-separated alternatives."""
     return tuple(part.strip() for part in key.split(","))
 
 
+def canonicalize_single_key(key: str) -> str:
+    """Return the internal Textual key spelling for one configured key."""
+    key = key.strip()
+    return _KEY_ALIASES.get(key.lower(), key)
+
+
+def canonicalize_key_binding(key: str) -> str:
+    """Canonicalize every alternative in a Textual key binding string."""
+    return ",".join(
+        canonicalize_single_key(alternative)
+        for alternative in split_key_alternatives(key)
+    )
+
+
 def normalize_key_binding(key: str) -> str:
-    """Normalize whitespace around comma-separated key alternatives."""
-    return ",".join(split_key_alternatives(key))
+    """Normalize whitespace and aliases around comma-separated key alternatives."""
+    return canonicalize_key_binding(key)
+
+
+def _canonical_key_alternatives(key: str) -> tuple[str, ...]:
+    """Split and canonicalize a Textual binding string."""
+    return tuple(canonicalize_single_key(part) for part in split_key_alternatives(key))
 
 
 def _is_valid_single_key(key: str) -> bool:
     """Check whether *key* is a recognised single Textual key name."""
     if not key:
         return False
+    if key == _CTRL_SPACE_KEY:
+        return True
     # Single alphanumeric character.
     if len(key) == 1 and key.isalnum():
         return True
@@ -194,7 +221,7 @@ def is_valid_key(key: str) -> bool:
     ``"colon,semicolon"``. Treat those as a single configurable binding
     whose individual alternatives must each be valid Textual keys.
     """
-    alternatives = split_key_alternatives(key)
+    alternatives = _canonical_key_alternatives(key)
     return (
         bool(alternatives)
         and len(set(alternatives)) == len(alternatives)
@@ -397,7 +424,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "kill_mentors": "M",
             "review_mentors": "m",
             "agent_home": "h",
-            "agent_from_cl": "space",
+            "agent_from_cl": "ctrl+@",
             "toggle_agent_panel_grouping": "g",
             "jump_to_next_unread_done_agent": "j",
             "jump_to_next_stopped_agent": "J",

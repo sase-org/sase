@@ -61,7 +61,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Agent workflow (all tabs) - shows project/CL selection modals
     Binding("at", "start_custom_agent", "Run Agent", show=False),
     # Run agent from ChangeSpec (CLs tab only)
-    Binding("space", "start_agent_from_changespec", "Run Agent (CL)", show=False),
+    Binding("ctrl+@", "start_agent_from_changespec", "Run Agent (CL)", show=False),
     Binding(
         "ctrl+g",
         "start_last_vcs_xprompt_in_editor",

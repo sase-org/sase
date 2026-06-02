@@ -4,7 +4,11 @@ import logging
 
 import pytest
 
-from sase.ace.tui.keymaps import is_valid_key, load_keymap_registry
+from sase.ace.tui.keymaps import (
+    canonicalize_key_binding,
+    is_valid_key,
+    load_keymap_registry,
+)
 
 
 # --- is_valid_key ---
@@ -21,6 +25,9 @@ def test_valid_named_keys_accepted() -> None:
     """Named Textual keys and modifier combos are valid."""
     assert is_valid_key("full_stop")
     assert is_valid_key("ctrl+d")
+    assert is_valid_key("ctrl+@")
+    assert is_valid_key("ctrl+space")
+    assert is_valid_key("ctrl+at")
     assert is_valid_key("escape")
     assert is_valid_key("shift+tab")
     assert is_valid_key("enter")
@@ -38,6 +45,14 @@ def test_compound_key_with_invalid_alternative_rejected() -> None:
     assert not is_valid_key("colon,not_a_real_key")
     assert not is_valid_key("colon,")
     assert not is_valid_key("colon,colon")
+    assert not is_valid_key("ctrl+space,ctrl+@")
+
+
+def test_ctrl_space_aliases_canonicalize_to_ctrl_at() -> None:
+    """Readable Ctrl+Space spellings normalize to Textual's runtime key."""
+    assert canonicalize_key_binding("ctrl+space") == "ctrl+@"
+    assert canonicalize_key_binding("ctrl+at") == "ctrl+@"
+    assert canonicalize_key_binding("colon, ctrl+space") == "colon,ctrl+@"
 
 
 def test_empty_string_key_invalid() -> None:

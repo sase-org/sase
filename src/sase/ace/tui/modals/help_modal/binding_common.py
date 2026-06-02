@@ -25,6 +25,16 @@ def sk(keys: dict[str, str | dict[str, str]], name: str) -> str:
 _sk = sk
 
 
+def key_sequence_display(*keys: str) -> str:
+    """Format a prefix-mode sequence for readable help display."""
+    parts = [key_display_name(key) for key in keys]
+    if all(len(part) == 1 for part in parts):
+        return "".join(parts)
+    if len(parts) == 2 and len(parts[1]) == 1 and not parts[1].isalnum():
+        return "".join(parts)
+    return " ".join(parts)
+
+
 def custom_mode_sections(km: KeymapRegistry) -> Sections:
     """Build help sections for user-defined (non-builtin) custom modes."""
     d = key_display_name
@@ -39,7 +49,7 @@ def custom_mode_sections(km: KeymapRegistry) -> Sections:
                 continue
             key = spec.get("key", "")
             desc = spec.get("description", action_name)
-            bindings.append((f"{d(mode.prefix)}{d(key)}", desc))
+            bindings.append((key_sequence_display(mode.prefix, key), desc))
         if bindings:
             sections.append((f"{display_name} ({d(mode.prefix)})", bindings))
     return sections

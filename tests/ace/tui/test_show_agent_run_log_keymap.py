@@ -43,6 +43,9 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.mark_all_unread_count = 0
         self.mark_all_unread_result = 2
         self.prompt_history_calls: list[dict[str, bool]] = []
+        self.quick_changespec_agent_count = 0
+        self.quick_selected_agent_count = 0
+        self.marked_agent_run_count = 0
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         del callback
@@ -88,6 +91,15 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
             {"show_cancelled": show_cancelled, "edit_first": edit_first}
         )
 
+    def _start_agent_from_changespec_quick(self) -> None:
+        self.quick_changespec_agent_count += 1
+
+    def _start_agent_from_agent_quick(self) -> None:
+        self.quick_selected_agent_count += 1
+
+    def _start_agents_from_marked(self) -> None:
+        self.marked_agent_run_count += 1
+
 
 def _make_cs(name: str) -> MagicMock:
     cs = MagicMock()
@@ -100,7 +112,9 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
 
     assert registry.app.show_agent_run_log == "V"
     assert registry.app.open_agent_artifacts == "A"
+    assert registry.app.start_agent_from_changespec == "ctrl+@"
     assert registry.leader_mode.keys["agent_run_log"] == "A"
+    assert registry.leader_mode.keys["agent_from_cl"] == "ctrl+@"
     assert registry.app.focus_next_agent_panel == "J"
     assert registry.leader_mode.keys["jump_to_next_stopped_agent"] == "J"
     assert registry.leader_mode.keys["full_history_refresh"] == "y"
@@ -111,6 +125,7 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert by_key["A"] == "open_agent_artifacts"
     assert by_key["V"] == "show_agent_run_log"
     assert by_key["J"] == "focus_next_agent_panel"
+    assert by_key["ctrl+@"] == "start_agent_from_changespec"
 
 
 def test_leader_a_opens_agent_run_log_for_selected_cl() -> None:
@@ -130,6 +145,43 @@ def test_leader_a_opens_agent_run_log_for_selected_cl() -> None:
     modal = app.pushed_modals[0]
     assert isinstance(modal, AgentRunLogModal)
     assert modal._cl_name == "beta"
+
+
+def test_leader_ctrl_space_runs_agent_from_current_cl() -> None:
+    app = _FakeApp(changespecs=[_make_cs("alpha")])
+
+    handled = app._handle_leader_key("ctrl+@")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app.quick_changespec_agent_count == 1
+    assert app.quick_selected_agent_count == 0
+    assert app.marked_agent_run_count == 0
+    assert app._last_leader_key == "ctrl+@"
+    assert app.refresh_count == 1
+
+
+def test_leader_ctrl_space_runs_agent_from_selected_agent_on_agents_tab() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    handled = app._handle_leader_key("ctrl+@")
+
+    assert handled is True
+    assert app.quick_selected_agent_count == 1
+    assert app.quick_changespec_agent_count == 0
+    assert app._last_leader_key == "ctrl+@"
+
+
+def test_leader_ctrl_space_runs_agents_from_marked_cls() -> None:
+    app = _FakeApp(changespecs=[_make_cs("alpha")])
+    app.marked_indices = {0}
+
+    handled = app._handle_leader_key("ctrl+@")
+
+    assert handled is True
+    assert app.marked_agent_run_count == 1
+    assert app.quick_changespec_agent_count == 0
+    assert app._last_leader_key == "ctrl+@"
 
 
 def test_leader_a_noops_on_non_cls_tabs() -> None:
@@ -434,6 +486,19 @@ def test_footer_surfaces_project_management_on_all_tabs() -> None:
         footer.update_leader_bindings(current_tab=tab)
         assert "p" in _last_keys(captured)
         assert "projects" in _last_labels(captured)
+
+
+def test_footer_surfaces_ctrl_space_run_agent_on_cl_and_agents_tabs() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    for tab in ("changespecs", "agents"):
+        footer.update_leader_bindings(current_tab=tab)
+        assert "Ctrl+Space" in _last_keys(captured)
+        assert "run agent (CL)" in _last_labels(captured)
+
+    footer.update_leader_bindings(current_tab="axe")
+    assert "run agent (CL)" not in _last_labels(captured)
 
 
 def test_footer_surfaces_configured_repeat_last_key() -> None:

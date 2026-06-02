@@ -22,6 +22,8 @@ from sase.ace.tui.keymaps.types import (
     AppKeymaps,
     KeymapRegistry,
     ModeKeymaps,
+    canonicalize_key_binding,
+    canonicalize_single_key,
     is_valid_key,
     normalize_key_binding,
     split_key_alternatives,
@@ -56,7 +58,9 @@ def _builtin_app_defaults() -> Mapping[str, str]:
     if not isinstance(app, dict):
         msg = "default_config.yml missing ace.keymaps.app section"
         raise RuntimeError(msg)
-    return MappingProxyType({k: str(v) for k, v in app.items()})
+    return MappingProxyType(
+        {k: canonicalize_key_binding(str(v)) for k, v in app.items()}
+    )
 
 
 def load_builtin_app_defaults() -> dict[str, str]:
@@ -86,6 +90,22 @@ def _deep_merge_keys(
             result[k] = {**existing, **v}
         else:
             result[k] = v
+    return result
+
+
+def _canonicalize_mode_keys(
+    keys: dict[str, str | dict[str, str]],
+) -> dict[str, str | dict[str, str]]:
+    """Canonicalize built-in mode key strings, including nested per-tab keys."""
+    result: dict[str, str | dict[str, str]] = {}
+    for name, value in keys.items():
+        if isinstance(value, dict):
+            result[name] = {
+                sub_name: canonicalize_key_binding(sub_value)
+                for sub_name, sub_value in value.items()
+            }
+        else:
+            result[name] = canonicalize_key_binding(value)
     return result
 
 
@@ -137,7 +157,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
     app_kwargs: dict[str, str] = {}
     for fname in app_field_names:
         if fname in app_overrides and isinstance(app_overrides[fname], str):
-            app_kwargs[fname] = app_overrides[fname]
+            app_kwargs[fname] = canonicalize_key_binding(app_overrides[fname])
         else:
             app_kwargs[fname] = builtin_defaults[fname]
 
@@ -207,12 +227,14 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         prefix = mode_overrides.get("prefix", mode_defaults.prefix)
         if not isinstance(prefix, str):
             prefix = mode_defaults.prefix
+        prefix = canonicalize_key_binding(prefix)
 
         keys_overrides = mode_overrides.get("keys", {})
         if not isinstance(keys_overrides, dict):
             keys_overrides = {}
 
         merged_keys = _deep_merge_keys(mode_defaults.keys, keys_overrides)
+        merged_keys = _canonicalize_mode_keys(merged_keys)
         modes[mode_name] = cls(prefix=prefix, keys=merged_keys)
 
     # Process any additional (user-defined) modes.
@@ -224,6 +246,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         prefix = mode_data.get("prefix", "")
         if not isinstance(prefix, str):
             continue
+        prefix = canonicalize_key_binding(prefix)
         raw_keys = mode_data.get("keys", {})
         keys: dict[str, str | dict[str, str]] = {}
         if isinstance(raw_keys, dict):
@@ -244,6 +267,16 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
                         k,
                     )
                     continue
+                key_value = v.get("key")
+                if not isinstance(key_value, str):
+                    log.warning(
+                        "Custom mode %r sub-key %r: expected string 'key', got %s; "
+                        "skipping",
+                        mode_name,
+                        k,
+                        type(key_value).__name__,
+                    )
+                    continue
                 if "shell" not in v and "action" not in v:
                     log.warning(
                         "Custom mode %r sub-key %r: missing 'shell' or 'action'; "
@@ -252,7 +285,9 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
                         k,
                     )
                     continue
-                keys[k] = {sk: sv for sk, sv in v.items() if isinstance(sv, str)}
+                spec = {sk: sv for sk, sv in v.items() if isinstance(sv, str)}
+                spec["key"] = canonicalize_key_binding(key_value)
+                keys[k] = spec
         modes[mode_name] = ModeKeymaps(prefix=prefix, keys=keys)
 
     registry = KeymapRegistry(app=app_km, modes=modes)
@@ -341,6 +376,9 @@ def key_display_name(textual_key: str) -> str:
     if len(alternatives) > 1:
         return " / ".join(key_display_name(alternative) for alternative in alternatives)
     textual_key = alternatives[0]
+    textual_key = canonicalize_single_key(textual_key)
+    if textual_key == "ctrl+@":
+        return "Ctrl+Space"
     if textual_key in _KEY_DISPLAY:
         return _KEY_DISPLAY[textual_key]
     if textual_key.startswith("ctrl+"):

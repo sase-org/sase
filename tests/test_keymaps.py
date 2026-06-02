@@ -57,6 +57,32 @@ def test_leader_repeat_last_default_binding() -> None:
     assert reg.leader_mode.keys["repeat_last"] == "comma"
 
 
+def test_agent_launch_defaults_use_ctrl_space() -> None:
+    """The repeat-last agent defaults use Textual's Ctrl+Space event key."""
+    reg = load_keymap_registry({})
+
+    assert reg.app.start_agent_from_changespec == "ctrl+@"
+    assert reg.app.start_agent_from_changespec != "space"
+    assert LeaderModeKeymaps().keys["agent_from_cl"] == "ctrl+@"
+    assert reg.leader_mode.keys["agent_from_cl"] == "ctrl+@"
+    assert reg.leader_mode.keys["agent_from_cl"] != "space"
+
+
+def test_ctrl_space_user_config_canonicalizes_to_ctrl_at() -> None:
+    """User-facing Ctrl+Space spelling canonicalizes for Textual dispatch."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {"start_agent_from_changespec": "ctrl+space"},
+                "modes": {"leader_mode": {"keys": {"agent_from_cl": "ctrl+space"}}},
+            }
+        }
+    )
+
+    assert reg.app.start_agent_from_changespec == "ctrl+@"
+    assert reg.leader_mode.keys["agent_from_cl"] == "ctrl+@"
+
+
 def test_leader_repeat_last_override_updates_help_display() -> None:
     """User overrides for repeat_last flow through help-display surfaces."""
     reg = load_keymap_registry(
@@ -339,6 +365,17 @@ def test_build_app_bindings_uses_config_keys() -> None:
     assert by_action["quit"].key == "Q"
 
 
+def test_build_app_bindings_uses_ctrl_space_agent_binding() -> None:
+    """The default app binding no longer binds bare Space for repeat-last."""
+    bindings = build_app_bindings(_default_app_keymaps())
+    by_action = {b.action: b for b in bindings}
+
+    assert by_action["start_agent_from_changespec"].key == "ctrl+@"
+    assert not any(
+        b.action == "start_agent_from_changespec" and b.key == "space" for b in bindings
+    )
+
+
 def test_default_lowercase_s_bindings_are_tab_scoped_and_ordered() -> None:
     """Default ``s`` is intentionally shared by CL status and Agents save."""
     bindings = build_app_bindings(_default_app_keymaps())
@@ -419,6 +456,8 @@ def test_key_display_ctrl_keys() -> None:
     assert key_display_name("ctrl+d") == "Ctrl+D"
     assert key_display_name("ctrl+u") == "Ctrl+U"
     assert key_display_name("ctrl+f") == "Ctrl+F"
+    assert key_display_name("ctrl+@") == "Ctrl+Space"
+    assert key_display_name("ctrl+space") == "Ctrl+Space"
 
 
 def test_key_display_passthrough() -> None:
@@ -437,6 +476,7 @@ def test_key_display_compound_alternatives() -> None:
 def test_footer_key_display_compound_alternatives() -> None:
     """Compound app bindings keep footer formatting per alternative."""
     assert footer_key_display("colon,space") == ": / <space>"
+    assert footer_key_display("ctrl+@") == "Ctrl+Space"
 
 
 def test_help_modal_displays_command_palette_alternatives() -> None:
@@ -448,6 +488,33 @@ def test_help_modal_displays_command_palette_alternatives() -> None:
         for entry in section_entries
     ]
     assert (": / ;", "Open command palette") in entries
+
+
+def test_help_modal_displays_ctrl_space_agent_shortcuts() -> None:
+    """Help exposes Ctrl+Space and not the old bare-Space agent wording."""
+    reg = load_keymap_registry({})
+    cls_pairs = {
+        (key, label)
+        for _section, bindings in cls_bindings(reg)
+        for key, label in bindings
+    }
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+    axe_pairs = {
+        (key, label)
+        for _section, bindings in axe_bindings(reg)
+        for key, label in bindings
+    }
+
+    for pairs in (cls_pairs, agent_pairs, axe_pairs):
+        assert ("Ctrl+Space", "Repeat last @/Ctrl+Space selection") in pairs
+        assert not any("@/Space" in label for _key, label in pairs)
+
+    assert (", Ctrl+Space", "Run agent from current CL") in cls_pairs
+    assert (", Ctrl+Space", "Run agent from selected agent") in agent_pairs
 
 
 # --- KeymapRegistry defaults ---

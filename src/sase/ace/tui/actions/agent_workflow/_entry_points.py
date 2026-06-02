@@ -60,7 +60,7 @@ class EntryPointsMixin:
     _prompt_context: PromptContext | None = None
     # State for bulk agent runs
     _bulk_changespecs: list[ChangeSpec] | None = None
-    # State for repeat-last-@/<space> selection
+    # State for repeat-last-@/Ctrl+Space selection
     _last_custom_agent_selection: SelectionItem | None = None
 
     def _vcs_prompt_prefix_or_notify(self, project_file: str, name: str) -> str | None:
@@ -79,7 +79,7 @@ class EntryPointsMixin:
         self._last_custom_agent_selection = None
         clear_last_agent_selection()
         self.notify(  # type: ignore[attr-defined]
-            "Saved @/<space> selection is stale: "
+            "Saved @/Ctrl+Space selection is stale: "
             f"project {project_name!r} is not launchable; cleared saved selection",
             severity="warning",
         )
@@ -107,11 +107,11 @@ class EntryPointsMixin:
         return last, False
 
     def action_start_agent_from_changespec(self) -> None:
-        """Repeat last @/<space> agent selection (bound to space)."""
+        """Repeat last @/Ctrl+Space agent selection."""
         last, stale_cleared = self._load_last_custom_agent_selection()
         if last is None:
             if not stale_cleared:
-                self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
+                self.notify("No previous @/Ctrl+Space selection", severity="warning")  # type: ignore[attr-defined]
             return
         self._start_custom_agent_from_selection(last)
 
@@ -151,11 +151,11 @@ class EntryPointsMixin:
             PromptHistoryResult,
         )
 
-        # Load last selection (same as <space>)
+        # Load last selection (same as Ctrl+Space)
         last, stale_cleared = self._load_last_custom_agent_selection()
         if last is None:
             if not stale_cleared:
-                self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
+                self.notify("No previous @/Ctrl+Space selection", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Resolve VCS prefix
@@ -278,7 +278,7 @@ class EntryPointsMixin:
         if prefix is None:
             return
 
-        # Save for <space> repeat (so ,<space> selections are also available)
+        # Save for Ctrl+Space repeat (so ,Ctrl+Space selections are also available)
         selection = SelectionItem(
             display_name=cl_name,
             item_type="cl",
@@ -302,7 +302,7 @@ class EntryPointsMixin:
         """Start agent using the selected agent's project/CL name.
 
         Uses the currently selected agent on the agents tab to derive
-        the VCS prefix, similar to how ,<space> works on the CLs tab.
+        the VCS prefix, similar to how ,Ctrl+Space works on the CLs tab.
         """
         from pathlib import Path
 
@@ -318,7 +318,7 @@ class EntryPointsMixin:
         if prefix is None:
             return
 
-        # Save for <space> repeat
+        # Save for Ctrl+Space repeat
         selection = SelectionItem(
             display_name=cl_name,
             item_type="project" if agent.is_project_agent else "cl",
@@ -371,7 +371,7 @@ class EntryPointsMixin:
                     self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
                 return
 
-            # Save for ,<space> repeat
+            # Save for ,Ctrl+Space repeat
             from sase.ace.last_agent_selection import (
                 save_last_agent_selection_if_launchable,
             )
@@ -568,7 +568,7 @@ class EntryPointsMixin:
         timestamp = generate_timestamp()
         workflow_name = f"ace(run)-{timestamp}"
 
-        # Save for <space> repeat
+        # Save for Ctrl+Space repeat
         selection = SelectionItem(
             display_name=cl_name,
             item_type="project" if is_project_agent else "cl",
@@ -585,7 +585,7 @@ class EntryPointsMixin:
         # Remove any existing prompt bar before mounting a new one.
         self._unmount_prompt_bar()  # type: ignore[attr-defined]
 
-        # Set up prompt context (home mode, same as ,<space>)
+        # Set up prompt context (home mode, same as ,Ctrl+Space)
         self._prompt_context = PromptContext(
             project_name="home",
             cl_name=None,

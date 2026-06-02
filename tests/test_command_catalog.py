@@ -88,6 +88,16 @@ def test_last_vcs_xprompt_editor_command_is_all_tab_agent_command() -> None:
     assert spec.key_display == "Ctrl+G"
 
 
+def test_start_agent_from_changespec_command_uses_ctrl_space() -> None:
+    """The repeat-last agent command exposes Ctrl+Space, not bare Space."""
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.start_agent_from_changespec"]
+
+    assert spec.label == "Run agent from CL"
+    assert spec.key_sequence == ("ctrl+@",)
+    assert spec.key_display == "Ctrl+Space"
+
+
 def test_episode_explorer_command_is_global_display_command() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.open_episode_explorer"]
@@ -300,6 +310,18 @@ def test_repeat_last_leader_command_is_global() -> None:
     assert spec.executor.subkey == "comma"
 
 
+def test_agent_from_cl_leader_command_uses_ctrl_space() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.agent_from_cl")
+
+    assert spec.label == "Agent from CL (quick)"
+    assert spec.key_sequence == ("comma", "ctrl+@")
+    assert spec.key_display == ", Ctrl+Space"
+    assert spec.tabs == ("changespecs", "agents")
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "ctrl+@"
+
+
 def test_repeat_last_leader_command_respects_repeat_key_and_prefix_overrides() -> None:
     reg = load_keymap_registry(
         {
@@ -378,6 +400,7 @@ def test_format_key_sequence_special_keys_concat() -> None:
 def test_format_key_sequence_multichar_space_joined() -> None:
     """Multi-char keys (e.g. ``ctrl+d``) get space-joined for readability."""
     assert _format_key_sequence(("ctrl+d", "x")) == "Ctrl+D x"
+    assert _format_key_sequence(("comma", "ctrl+@")) == ", Ctrl+Space"
 
 
 def test_format_key_sequence_compound_binding_displays_alternatives() -> None:

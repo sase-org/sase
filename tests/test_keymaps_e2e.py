@@ -36,3 +36,21 @@ async def test_remapped_navigation_key() -> None:
         async with AcePage() as page:
             await page.press("j")
             await page.expect_state("idx", 0)
+
+
+async def test_ctrl_at_dispatches_repeat_agent_binding_not_bare_space() -> None:
+    """Ctrl+Space's runtime key dispatches the repeat-agent action."""
+    with _patch_config():
+        async with AcePage() as page:
+            calls: list[bool] = []
+
+            def _record_repeat_agent() -> None:
+                calls.append(True)
+
+            page.app.action_start_agent_from_changespec = _record_repeat_agent  # type: ignore[method-assign]
+
+            await page.press("space")
+            assert calls == []
+
+            await page.press("ctrl+@")
+            assert calls == [True]
