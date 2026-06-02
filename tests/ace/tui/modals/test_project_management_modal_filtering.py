@@ -47,8 +47,10 @@ async def test_project_management_modal_filters_states(
         assert modal._state_filter == _DEFAULT_STATE_FILTER
         assert [r.project_name for r in modal._filtered_records] == ["alpha"]
         summary = modal._summary_text().plain
-        assert "Filter: active" in summary
         assert "all:3 active:1 archived:1 closed:1" in summary
+        tabs = modal._state_tabs_text().plain
+        assert "ACTIVE" in tabs
+        assert "archived" in tabs
 
         modal._text_filter = "beta"
         modal._apply_filters()

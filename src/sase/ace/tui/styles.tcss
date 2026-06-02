@@ -548,10 +548,8 @@ ProjectManagementModal {
 }
 
 #project-management-container {
-    width: 96;
-    max-width: 96%;
-    height: auto;
-    max-height: 88%;
+    width: 95%;
+    height: 90%;
     border: double $primary;
     background: $surface;
     padding: 1 2;
@@ -561,12 +559,22 @@ ProjectManagementModal {
     text-align: center;
     text-style: bold;
     height: auto;
-    margin-bottom: 1;
+}
+
+#project-management-state-tabs {
+    height: 1;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: clip;
+    margin-top: 1;
 }
 
 #project-management-summary {
     height: auto;
-    margin-bottom: 1;
+    color: $text-muted;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 #project-management-filter {
@@ -574,25 +582,47 @@ ProjectManagementModal {
     margin-bottom: 1;
 }
 
-#project-management-list {
-    height: auto;
-    max-height: 18;
+#project-management-projects-box {
+    height: 1fr;
+    min-height: 7;
     border: solid $secondary;
+    padding: 0 1;
+}
+
+#project-management-columns {
+    height: 1;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+#project-management-list {
+    height: 1fr;
+    border: none;
+    padding: 0;
+    background: $surface;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+#project-management-detail-scroll {
+    height: 30%;
+    min-height: 5;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+    padding: 0 1;
+    margin-top: 1;
 }
 
 #project-management-detail {
     height: auto;
-    min-height: 5;
-    max-height: 10;
-    border: solid $secondary;
-    padding: 1 2;
-    margin-top: 1;
 }
 
 #project-management-footer {
     text-align: center;
     color: $text-muted;
     height: auto;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
     border-top: solid $secondary;
     padding-top: 1;
     margin-top: 1;

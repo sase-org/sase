@@ -9,7 +9,7 @@ from typing import Literal
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container
+from textual.containers import Container, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
@@ -26,11 +26,13 @@ from sase.main.project_handler import (
 from .base import FilterInput, OptionListNavigationMixin
 from .project_management_actions import ProjectManagementActionsMixin
 from .project_management_rendering import (
+    column_header_text,
     detail_text,
     footer_text,
     record_label,
     short_path as _short_path,
     state_style as _state_style,
+    state_tabs_text,
     summary_text,
     warning_count as _warning_count,
 )
@@ -91,15 +93,23 @@ class ProjectManagementModal(
     def compose(self) -> ComposeResult:
         with Container(id="project-management-container"):
             yield Label("Project Management", id="project-management-title")
+            yield Static(self._state_tabs_text(), id="project-management-state-tabs")
             yield Static(self._summary_text(), id="project-management-summary")
             yield FilterInput(
                 placeholder="Type to filter projects...", id="project-management-filter"
             )
-            yield OptionList(
-                *self._create_options(self._filtered_records),
-                id=self._option_list_id,
-            )
-            yield Static("", id="project-management-detail")
+            projects_box = Vertical(id="project-management-projects-box")
+            projects_box.border_title = "Projects"
+            with projects_box:
+                yield Static(column_header_text(), id="project-management-columns")
+                yield OptionList(
+                    *self._create_options(self._filtered_records),
+                    id=self._option_list_id,
+                )
+            detail_box = VerticalScroll(id="project-management-detail-scroll")
+            detail_box.border_title = "Details"
+            with detail_box:
+                yield Static("", id="project-management-detail")
             yield Static(self._footer_text(), id="project-management-footer")
 
     def on_mount(self) -> None:
@@ -168,11 +178,13 @@ class ProjectManagementModal(
     def _summary_text(self) -> Text:
         return summary_text(
             self._records,
-            self._state_filter,
             self._text_filter,
             self._status_message,
             self._marked_projects,
         )
+
+    def _state_tabs_text(self) -> Text:
+        return state_tabs_text(self._state_filter)
 
     def _footer_text(self) -> str:
         return footer_text(self._marked_projects)
@@ -196,9 +208,18 @@ class ProjectManagementModal(
             option_list.highlighted = index
         else:
             option_list.highlighted = None
+        self._update_state_tabs()
         self._update_summary()
         self._update_detail()
         self._refresh_footer()
+
+    def _update_state_tabs(self) -> None:
+        try:
+            self.query_one("#project-management-state-tabs", Static).update(
+                self._state_tabs_text()
+            )
+        except Exception:
+            pass
 
     def _update_summary(self) -> None:
         try:

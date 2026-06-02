@@ -14,6 +14,7 @@ import pytest
 
 from sase.ace.testing import AcePage, make_changespec
 from sase.ace.tui import AceApp
+from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.ace.tui.actions.axe_display._data import (
     AxeCollectedData,
     BgCmdSnapshot,
@@ -92,6 +93,70 @@ def agents() -> list[Agent]:
             raw_suffix="20260509-101000-review",
             agent_name="reviewer",
             tag="visual",
+        ),
+    ]
+
+
+def project_records() -> list[ProjectRecordWire]:
+    """Deterministic project lifecycle records for the management modal.
+
+    A spread across states, claim counts, launchability, warnings, explicit vs
+    defaulted state, and name/path lengths so the full-screen layout, column
+    alignment, state badges, and warning styling are all exercised.
+    """
+
+    def _record(
+        name: str,
+        *,
+        state: str,
+        explicit: bool = True,
+        claims: int = 0,
+        launchable: bool = True,
+        warnings: list[str] | None = None,
+        workspace_dir: str | None = None,
+    ) -> ProjectRecordWire:
+        project_dir = f"/home/visual/.sase/projects/{name}"
+        return ProjectRecordWire(
+            schema_version=1,
+            project_name=name,
+            project_dir=project_dir,
+            project_file=f"{project_dir}/{name}.sase",
+            archive_file=None,
+            workspace_dir=(
+                workspace_dir
+                if workspace_dir is not None
+                else f"/home/visual/work/{name}"
+            ),
+            state=state,
+            state_explicit=explicit,
+            system_managed=False,
+            active_claim_count=claims,
+            launchable=launchable,
+            warnings=warnings or [],
+            parse_warnings=[],
+        )
+
+    return [
+        _record("sase", state="active", claims=2),
+        _record("sase-core", state="active", claims=1, explicit=False),
+        _record(
+            "project-management-fullscreen",
+            state="active",
+            claims=0,
+            workspace_dir="/home/visual/work/project-management-fullscreen",
+        ),
+        _record(
+            "legacy-telemetry",
+            state="archived",
+            launchable=False,
+            warnings=["workspace checkout is missing"],
+        ),
+        _record("scratch-spike", state="archived", launchable=False),
+        _record(
+            "old-prototype",
+            state="closed",
+            launchable=False,
+            warnings=["spec parse error", "orphaned lock"],
         ),
     ]
 

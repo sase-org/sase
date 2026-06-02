@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 12:13:10
-status: wip
+status: done
 prompt: sdd/prompts/202606/project_management_fullscreen.md
 ---
 # Plan: Beautiful Near-Full-Screen Project Management Panel

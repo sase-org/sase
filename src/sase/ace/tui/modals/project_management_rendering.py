@@ -10,6 +10,19 @@ from rich.text import Text
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.main.project_handler import ProjectLifecycleBlockedError
 
+# Shared column widths so the column header and every row stay perfectly
+# aligned. This is the single source of truth feeding both ``column_header_text``
+# and ``record_label`` — change a width here and both move together.
+_MARK_WIDTH = 4
+_NAME_WIDTH = 28
+_STATE_WIDTH = 12
+_CLAIMS_WIDTH = 9
+_LAUNCH_WIDTH = 9
+_WARN_WIDTH = 7
+_WORKSPACE_WIDTH = 50
+
+_STATE_TABS: tuple[str, ...] = ("active", "archived", "closed", "all")
+
 
 def warning_count(record: ProjectRecordWire) -> int:
     return len(record.warnings) + len(record.parse_warnings)
@@ -34,32 +47,73 @@ def state_style(state: str) -> str:
     return "bold"
 
 
+def _launch_label(record: ProjectRecordWire) -> str:
+    return "yes" if record.launchable and record.state == "active" else "no"
+
+
+def column_header_text() -> Text:
+    """Dim/bold header row labeling the project columns.
+
+    Padded with the same shared width constants as :func:`record_label` so the
+    header sits directly above and aligned with each row.
+    """
+    text = Text(style="bold dim")
+    text.append(" " * _MARK_WIDTH)
+    text.append(f"{'NAME':<{_NAME_WIDTH}}")
+    text.append(f"{'STATE':<{_STATE_WIDTH}}")
+    text.append(f"{'CLAIMS':<{_CLAIMS_WIDTH}}")
+    text.append(f"{'LAUNCH':<{_LAUNCH_WIDTH}}")
+    text.append(f"{'WARN':<{_WARN_WIDTH}}")
+    text.append("WORKSPACE")
+    return text
+
+
 def record_label(record: ProjectRecordWire, marked_projects: set[str]) -> Text:
     text = Text()
     if record.project_name in marked_projects:
         text.append("[✓] ", style="bold #00D700")
     else:
-        text.append("    ", style="dim")
-    text.append(f"{record.project_name:<24.24}", style="bold")
-    text.append("  ")
-    text.append(f"{record.state:<8}", style=state_style(record.state))
-    if not record.state_explicit:
-        text.append(" default", style="dim")
+        text.append(" " * _MARK_WIDTH)
+    text.append(f"{record.project_name:<{_NAME_WIDTH}.{_NAME_WIDTH}}", style="bold")
+    badge = f"● {record.state}"
+    text.append(
+        f"{badge:<{_STATE_WIDTH}.{_STATE_WIDTH}}",
+        style=state_style(record.state),
+    )
+    text.append(f"{record.active_claim_count:<{_CLAIMS_WIDTH}}")
+    text.append(f"{_launch_label(record):<{_LAUNCH_WIDTH}}")
+    warnings = warning_count(record)
+    if warnings:
+        text.append(f"{warnings:<{_WARN_WIDTH}}", style="bold red")
     else:
-        text.append("        ")
-    text.append(f"  claims:{record.active_claim_count:<2}")
-    launch = "yes" if record.launchable and record.state == "active" else "no"
-    text.append(f"  launch:{launch:<3}")
-    if warning_count(record):
-        text.append(f"  warnings:{warning_count(record)}", style="bold red")
-    text.append("  ")
-    text.append(short_path(record.workspace_dir), style="dim")
+        text.append(f"{'-':<{_WARN_WIDTH}}", style="dim")
+    text.append(
+        short_path(record.workspace_dir, max_len=_WORKSPACE_WIDTH),
+        style="dim",
+    )
+    return text
+
+
+def state_tabs_text(state_filter: str) -> Text:
+    """Segmented ``active / archived / closed / all`` filter tabs.
+
+    The active filter is uppercased and reverse-highlighted; the rest are dim.
+    Mirrors the header tabs used by the notification modal so the current
+    filter is obvious at a glance instead of buried in a text summary.
+    """
+    text = Text()
+    for index, name in enumerate(_STATE_TABS):
+        if index:
+            text.append("   ", style="dim")
+        if name == state_filter:
+            text.append(f" {name.upper()} ", style="bold reverse")
+        else:
+            text.append(name, style="dim")
     return text
 
 
 def summary_text(
     records: Sequence[ProjectRecordWire],
-    state_filter: str,
     text_filter: str,
     status_message: str,
     marked_projects: set[str],
@@ -69,23 +123,21 @@ def summary_text(
         if record.state in counts:
             counts[record.state] += 1
     text = Text()
-    text.append("Filter: ", style="dim")
-    text.append(state_filter, style="bold")
     text.append(
-        f"  all:{len(records)} active:{counts['active']} "
+        f"all:{len(records)} active:{counts['active']} "
         f"archived:{counts['archived']} closed:{counts['closed']}",
         style="dim",
     )
     mark_count = len(marked_projects)
-    text.append("  marked:", style="dim")
+    text.append("  ·  marked:", style="dim")
     text.append(
         str(mark_count),
         style="bold #00D700" if mark_count else "dim",
     )
     if text_filter:
-        text.append(f"  search:{text_filter}", style="dim")
+        text.append(f"  ·  search:{text_filter}", style="dim")
     if status_message:
-        text.append(f"  {status_message}", style="#87D7FF")
+        text.append(f"  ·  {status_message}", style="#87D7FF")
     return text
 
 
@@ -113,12 +165,18 @@ def detail_text(
     source = "explicit" if record.state_explicit else "defaulted"
     launch = "yes" if record.launchable and record.state == "active" else "no"
     text.append(record.project_name, style="bold")
-    text.append("  ")
-    text.append(record.state, style=state_style(record.state))
-    text.append(f" ({source})")
-    text.append(f"\nProject file: {record.project_file}", style="dim")
-    text.append(f"\nWorkspace: {short_path(record.workspace_dir, max_len=72)}")
-    text.append(f"\nActive claims: {record.active_claim_count}    Launchable: {launch}")
+    text.append("   ")
+    text.append(f"● {record.state}", style=state_style(record.state))
+    text.append(f" ({source})", style="dim")
+    text.append("\n\n")
+    text.append("Project file:  ", style="dim")
+    text.append(str(record.project_file))
+    text.append("\nWorkspace:     ", style="dim")
+    text.append(short_path(record.workspace_dir, max_len=72))
+    text.append("\nActive claims: ", style="dim")
+    text.append(str(record.active_claim_count))
+    text.append("    Launchable: ", style="dim")
+    text.append(launch)
     if marked_projects:
         row_state = "marked" if record.project_name in marked_projects else "not marked"
         text.append(
