@@ -110,7 +110,7 @@ _setup-terminal-smoke: _setup
         uv pip install --no-sources -e ".[dev,terminal-smoke]"; \
     fi
 
-# Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted + SASE validation)
+# Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted + SDD validation)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     @just _lint-ruff
@@ -120,8 +120,8 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just _lint-pyscripts
     @printf "\n---------- Checking for unused Python definitions... ----------\n"
     @just _lint-pyvision
-    @printf "\n---------- Running SASE validation... ----------\n"
-    @just validate
+    @printf "\n---------- Running SDD validation... ----------\n"
+    @just _lint-sdd
 
 # Run ruff linter on Python files (private, extracted for per-stage wrapping)
 _lint-ruff: _setup
@@ -138,6 +138,10 @@ _lint-pyscripts: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase
+
+# Validate repository-local SDD frontmatter links (private, extracted for per-stage wrapping)
+_lint-sdd: _setup
+    {{ venv_bin }}/sase sdd validate
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
@@ -232,7 +236,7 @@ check: _setup
     @tools/run_silent "lint (mypy)"        just _lint-mypy
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
     @tools/run_silent "lint (pyvision)"    just _lint-pyvision
-    @tools/run_silent "SASE validation"     just validate
+    @tools/run_silent "SDD validation"      just _lint-sdd
     @tools/run_silent "test"               just test
 
 # Build the MkDocs Material site with strict warnings-as-errors behavior.

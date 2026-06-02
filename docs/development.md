@@ -203,8 +203,8 @@ Run the strict site build after changing docs navigation, links, images, or Mark
 just docs-check
 ```
 
-Run SASE validation when a change can affect generated initialization files or SDD frontmatter links. This is the same
-validation lane used by `just lint`, so it can report user/home initialization drift as well as repository-local issues:
+Run SASE validation when a change can affect generated initialization files or user/home deployment surfaces. This is
+separate from `just lint`, which runs repository-local SDD validation without checking home initialization drift:
 
 ```bash
 sase validate

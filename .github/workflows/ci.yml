@@ -43,6 +43,8 @@ jobs:
         run: |
           ./.venv/bin/sase init memory --no-commit
           ./.venv/bin/sase skills init --force
+      - name: Validate SASE initialization
+        run: ./.venv/bin/sase validate
       - uses: actions/setup-go@v5
         with:
           go-version: 'stable'

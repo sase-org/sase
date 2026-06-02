@@ -12,7 +12,7 @@ def _load_ci_workflow() -> dict[str, Any]:
     return yaml.safe_load(workflow_path.read_text())
 
 
-def test_lint_job_initializes_sase_home_before_lint() -> None:
+def test_lint_job_validates_sase_initialization_before_lint() -> None:
     workflow = _load_ci_workflow()
     steps = workflow["jobs"]["lint"]["steps"]
 
@@ -26,12 +26,18 @@ def test_lint_job_initializes_sase_home_before_lint() -> None:
         for index, step in enumerate(steps)
         if step.get("name") == "Initialize SASE home"
     )
+    validate_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Validate SASE initialization"
+    )
     lint_index = next(
         index for index, step in enumerate(steps) if step.get("name") == "Lint"
     )
 
-    assert install_index < init_index < lint_index
+    assert install_index < init_index < validate_index < lint_index
     assert steps[init_index]["run"] == (
         "./.venv/bin/sase init memory --no-commit\n"
         "./.venv/bin/sase skills init --force\n"
     )
+    assert steps[validate_index]["run"] == "./.venv/bin/sase validate"
