@@ -58,6 +58,12 @@ class ProjectManagementModal(
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         Binding("/", "focus_filter", "Filter", priority=True),
         Binding("tab", "cycle_state_filter", "Cycle State", priority=True),
+        Binding(
+            "shift+tab",
+            "cycle_state_filter_reverse",
+            "Cycle State Back",
+            priority=True,
+        ),
         Binding("m", "toggle_project_mark", "Mark", priority=True),
         Binding("u", "clear_project_marks", "Unmark All", priority=True),
         Binding("e", "edit_project_spec", "Edit", priority=True),
@@ -360,12 +366,18 @@ class ProjectManagementModal(
         self._refresh_options()
         self.notify(f"Cleared {count} mark(s)")
 
-    def action_cycle_state_filter(self) -> None:
+    def _cycle_state_filter(self, step: int) -> None:
         idx = _STATE_FILTERS.index(self._state_filter)
-        self._state_filter = _STATE_FILTERS[(idx + 1) % len(_STATE_FILTERS)]
+        self._state_filter = _STATE_FILTERS[(idx + step) % len(_STATE_FILTERS)]
         self._pending_force = None
         self._apply_filters()
         self._refresh_options()
+
+    def action_cycle_state_filter(self) -> None:
+        self._cycle_state_filter(1)
+
+    def action_cycle_state_filter_reverse(self) -> None:
+        self._cycle_state_filter(-1)
 
     def action_reload_projects(self) -> None:
         selected = self._selected_project_name()

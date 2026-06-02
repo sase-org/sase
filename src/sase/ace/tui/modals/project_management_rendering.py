@@ -91,7 +91,7 @@ def summary_text(
 
 def footer_text(marked_projects: set[str]) -> str:
     base = (
-        "j/k navigate  / filter  Tab state  Enter highlighted  "
+        "j/k navigate  / filter  Tab/Shift+Tab state  Enter highlighted  "
         "m mark  u unmark all  e edit  a activate  r archive  c close  "
         "Ctrl+D delete  F force after block  R reload  q close"
     )

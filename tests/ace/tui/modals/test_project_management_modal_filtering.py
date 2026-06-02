@@ -81,6 +81,20 @@ async def test_project_management_modal_filters_states(
         assert modal._state_filter == "active"
         assert [r.project_name for r in modal._filtered_records] == ["alpha"]
 
+        await pilot.press("shift+tab")
+        await pilot.pause()
+        assert modal._state_filter == "all"
+        assert [r.project_name for r in modal._filtered_records] == [
+            "alpha",
+            "beta",
+            "gamma",
+        ]
+
+        await pilot.press("shift+tab")
+        await pilot.pause()
+        assert modal._state_filter == "closed"
+        assert [r.project_name for r in modal._filtered_records] == ["gamma"]
+
 
 def test_project_management_modal_footer_includes_delete_affordance(
     monkeypatch,
@@ -94,6 +108,7 @@ def test_project_management_modal_footer_includes_delete_affordance(
 
     assert "e edit" in modal._footer_text()
     assert "Ctrl+D delete" in modal._footer_text()
+    assert "Tab/Shift+Tab state" in modal._footer_text()
 
 
 def test_leader_handler_dispatches_project_management_on_all_tabs() -> None:

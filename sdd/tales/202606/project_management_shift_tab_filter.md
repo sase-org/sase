@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 12:00:55
-status: wip
+status: done
 prompt: sdd/prompts/202606/project_management_shift_tab_filter.md
 ---
 # Add Shift+Tab Reverse Filter Cycling To Project Management
