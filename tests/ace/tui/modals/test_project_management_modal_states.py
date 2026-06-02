@@ -51,11 +51,17 @@ async def test_project_management_modal_activate_mutates_and_reloads(
         pilot.app.push_screen(modal)
         await pilot.pause()
 
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._state_filter == "archived"
+        assert [record.project_name for record in modal._filtered_records] == ["alpha"]
+
         await pilot.press("enter")
         await pilot.pause()
 
         assert calls == [("alpha", "active", False)]
-        assert modal._filtered_records[0].state == "active"
+        assert modal._records[0].state == "active"
+        assert modal._filtered_records == []
         assert modal._status_message == "alpha -> active"
 
 
@@ -119,7 +125,8 @@ async def test_project_management_modal_force_archive_after_block(
             ("alpha", "archived", True),
         ]
         assert modal._pending_force is None
-        assert modal._filtered_records[0].state == "archived"
+        assert modal._records[0].state == "archived"
+        assert modal._filtered_records == []
 
 
 async def test_project_management_modal_bulk_state_targets_marked_projects(

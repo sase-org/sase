@@ -95,22 +95,43 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        option_list = modal.query_one("#project-management-list", OptionList)
-        option_list.highlighted = 1
+        assert [record.project_name for record in modal._filtered_records] == ["alpha"]
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._state_filter == "archived"
+        assert [record.project_name for record in modal._filtered_records] == ["beta"]
+
         await pilot.press("m")
         await pilot.pause()
 
+        assert modal._marked_projects == {"beta"}
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._state_filter == "closed"
+        assert [record.project_name for record in modal._filtered_records] == ["gamma"]
+        assert modal._marked_projects == {"beta"}
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._state_filter == "all"
+        assert [record.project_name for record in modal._filtered_records] == [
+            "alpha",
+            "beta",
+            "gamma",
+        ]
+        assert modal._marked_projects == {"beta"}
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._state_filter == "active"
         assert modal._marked_projects == {"beta"}
 
         modal._text_filter = "alpha"
         modal._apply_filters()
         modal._refresh_options()
         assert [record.project_name for record in modal._filtered_records] == ["alpha"]
-        assert modal._marked_projects == {"beta"}
-
-        await pilot.press("tab")
-        await pilot.pause()
-        assert modal._state_filter == "active"
         assert modal._marked_projects == {"beta"}
 
         del records["beta"]

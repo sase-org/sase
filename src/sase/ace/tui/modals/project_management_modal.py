@@ -36,12 +36,13 @@ from .project_management_rendering import (
 )
 
 ProjectStateFilter = Literal["all", "active", "archived", "closed"]
+_DEFAULT_STATE_FILTER: ProjectStateFilter = "active"
 _PendingForce = tuple[tuple[str, ...], str]
 _STATE_FILTERS: tuple[ProjectStateFilter, ...] = (
-    "all",
-    "active",
+    _DEFAULT_STATE_FILTER,
     "archived",
     "closed",
+    "all",
 )
 
 
@@ -74,7 +75,7 @@ class ProjectManagementModal(
         self._projects_root = projects_root
         self._records: list[ProjectRecordWire] = []
         self._filtered_records: list[ProjectRecordWire] = []
-        self._state_filter: ProjectStateFilter = "all"
+        self._state_filter: ProjectStateFilter = _DEFAULT_STATE_FILTER
         self._text_filter = ""
         self._status_message = ""
         self._marked_projects: set[str] = set()

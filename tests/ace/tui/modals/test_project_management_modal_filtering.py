@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock
 
-from sase.ace.tui.modals.project_management_modal import ProjectManagementModal
+from sase.ace.tui.modals.project_management_modal import (
+    _DEFAULT_STATE_FILTER,
+    ProjectManagementModal,
+)
 
 from .project_management_modal_test_helpers import (
     ProjectManagementTestApp,
@@ -24,9 +27,15 @@ async def test_project_management_modal_filters_states(
         make_project_record("gamma", state="closed", launchable=False),
         make_project_record("home", state="active", system_managed=True),
     ]
+    list_calls: list[tuple[Path, str, bool]] = []
+
+    def list_records(root: Path, state_filter: str, *, include_home: bool):
+        list_calls.append((root, state_filter, include_home))
+        return records
+
     monkeypatch.setattr(
         "sase.ace.tui.modals.project_management_modal.list_project_records",
-        lambda *_args, **_kwargs: records,
+        list_records,
     )
 
     async with ProjectManagementTestApp().run_test() as pilot:
@@ -34,6 +43,33 @@ async def test_project_management_modal_filters_states(
         pilot.app.push_screen(modal)
         await pilot.pause()
 
+        assert list_calls == [(tmp_path, "all", False)]
+        assert modal._state_filter == _DEFAULT_STATE_FILTER
+        assert [r.project_name for r in modal._filtered_records] == ["alpha"]
+        summary = modal._summary_text().plain
+        assert "Filter: active" in summary
+        assert "all:3 active:1 archived:1 closed:1" in summary
+
+        modal._text_filter = "beta"
+        modal._apply_filters()
+        assert modal._filtered_records == []
+
+        modal._text_filter = ""
+        modal._apply_filters()
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._state_filter == "archived"
+        assert [r.project_name for r in modal._filtered_records] == ["beta"]
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._state_filter == "closed"
+        assert [r.project_name for r in modal._filtered_records] == ["gamma"]
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._state_filter == "all"
         assert [r.project_name for r in modal._filtered_records] == [
             "alpha",
             "beta",
@@ -44,11 +80,6 @@ async def test_project_management_modal_filters_states(
         await pilot.pause()
         assert modal._state_filter == "active"
         assert [r.project_name for r in modal._filtered_records] == ["alpha"]
-
-        await pilot.press("tab")
-        await pilot.pause()
-        assert modal._state_filter == "archived"
-        assert [r.project_name for r in modal._filtered_records] == ["beta"]
 
 
 def test_project_management_modal_footer_includes_delete_affordance(

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 11:51:16
-status: wip
+status: done
 prompt: sdd/prompts/202606/project_management_active_filter_1.md
 ---
 # Default Project Management Panel To Active Projects
