@@ -96,6 +96,7 @@ sase agents status        # inspect running agents
 sase agents index status  # check ACE's fast Agents-tab artifact index
 sase project list         # inspect projects shown by default launch and discovery lists
 sase project archive <project>  # hide a dormant project from default launch lists
+sase project activate <project>  # make archived or closed work launchable again
 sase bead onboard         # see the bead issue-tracking quick start
 sase workspace list       # inspect the current project's numbered workspace view
 sase workspace path 10    # preview where managed workspace #10 would live
@@ -116,7 +117,8 @@ SASE keeps durable state outside any one chat session:
   `PROJECT_STATE` is treated as `active`. Default launch pickers, ChangeSpec searches, project-local xprompt catalogs,
   broad mobile helper catalogs, and known-project VCS refs such as `#gh:sase` only use active projects. Use
   `sase project list --state all`, `sase project show <project>`, and `sase project activate <project>` when revisiting
-  archived or closed work. In ACE, press `,p` to manage lifecycle state from the Project Management panel.
+  archived or closed work. In ACE, press `,p` to manage lifecycle state, edit ProjectSpecs, mark projects for bulk
+  lifecycle actions, or delete obsolete SASE project state from the Project Management panel.
 - **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
   `#1` through `#9` are reserved, and new claims allocate from `#10` upward.
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed

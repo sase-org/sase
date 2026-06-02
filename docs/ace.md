@@ -220,6 +220,11 @@ Project selection and repeat-launch helpers use lifecycle-aware discovery: home 
 and CL choices come from active ProjectSpecs. Archived and closed projects do not appear in normal launch pickers until
 they are reactivated with `sase project activate <project>`.
 
+Project launch pickers also support `Ctrl+D` for cleanup of empty project records. This deletes only a highlighted
+project's ProjectSpec files, refuses records that still contain ChangeSpecs, and does not delete workspace checkouts.
+For lifecycle changes, bulk operations, ProjectSpec editing, or full SASE project-state deletion, use the `,p` Project
+Management panel.
+
 The repeat binding is the leader prefix followed by the configured `repeat_last` key. With the defaults both are comma,
 so the sequence is `,,`; if the leader prefix is changed but `repeat_last` is not, the second key remains comma. Repeat
 re-dispatches the last recognized leader subkey against the current tab and selection. If no leader command has been run
@@ -885,16 +890,29 @@ views hide them. Rows include workspace path, active claim count, launchability,
 | `/`         | Filter projects by text                                                |
 | `Tab`       | Cycle lifecycle filter: all, active, archived, closed                  |
 | `Enter`     | Activate the highlighted project when it is archived or closed         |
+| `m`         | Mark or unmark the highlighted project                                 |
+| `u`         | Clear all project marks                                                |
+| `e`         | Open the highlighted ProjectSpec in `$EDITOR`                          |
 | `a`         | Activate highlighted project                                           |
 | `r`         | Archive highlighted project                                            |
 | `c`         | Close highlighted project                                              |
+| `Ctrl+D`    | Delete highlighted project state, or all marked project state          |
 | `F`         | Force the last blocked archive/close after confirming live-work checks |
 | `R`         | Reload project records                                                 |
 | `q` / `Esc` | Close the panel                                                        |
 
+When one or more projects are marked, `a`, `r`, `c`, and `Ctrl+D` target the marked set instead of only the highlighted
+row. Successful lifecycle changes clear the affected marks; blocked or failed rows stay marked so you can inspect or
+retry them. Marks survive filtering and are pruned on reload when their project records disappear.
+
 Archiving and closing use the same locked mutation path as `sase project archive` and `sase project close`. If a project
 still has `RUNNING` claims or live artifact markers, ACE shows the blocked reason and lets you retry with `F` when the
 force action is intentional. Activating a project from this panel makes it available again in normal launch pickers.
+
+`e` suspends ACE, opens the selected ProjectSpec in `$EDITOR` (falling back to `nvim`), holds the ProjectSpec edit lock
+for the editor session, then reloads project records. `Ctrl+D` asks for confirmation before deleting SASE project state:
+ProjectSpecs, project-local config, artifacts, and related state under `~/.sase/projects/<project>/`. It does not delete
+workspace checkouts, and system-managed projects such as `home` are excluded from the panel.
 
 ## Temporary Model Override
 
@@ -1146,10 +1164,10 @@ guardrails, and current preview behavior.
 
 ## Agent Auto-Naming
 
-All agents are automatically assigned a short name (`a`, `b`, ..., `z`, `aa`, ..., `az`, `a0`, ...) when launched
-without an explicit `%name` directive. Names are permanent IDs: a name used by any existing agent state remains reserved
-until that agent is explicitly wiped or deleted. This enables the fork-by-name workflow: press `f` on a running named
-agent to queue a follow-up that waits for it to finish and then loads its conversation history.
+All agents are automatically assigned a short name (`1`, `2`, ..., `9`, `0`, `a`, ..., `z`, `11`, `12`, ...) when
+launched without an explicit `%name` directive. Names are permanent IDs: a name used by any existing agent state remains
+reserved until that agent is explicitly wiped or deleted. This enables the fork-by-name workflow: press `f` on a running
+named agent to queue a follow-up that waits for it to finish and then loads its conversation history.
 
 ### Provider/Model Suffixes
 

@@ -90,6 +90,9 @@ dependency tracking and executable epics on top of those artifacts.
 `sase project list --state all --json` to inspect archived and closed projects, `sase project archive <project>` to hide
 a dormant project from default launch views, and `sase project activate <project>` to make it launchable again.
 Archiving or closing refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed.
+ACE's `,p` Project Management panel provides the interactive counterpart, including marking multiple projects, editing a
+ProjectSpec in `$EDITOR`, and deleting obsolete SASE project state after confirmation. Deletion is an ACE-only operation
+for project state under `~/.sase/projects/`; it does not delete workspace checkouts.
 
 Active-only project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
 catalogs, broad mobile helper catalogs, and all-known bead helper reads. Agent-history views that need older artifacts

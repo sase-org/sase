@@ -100,8 +100,10 @@ Archiving or closing refuses projects with live `RUNNING` claims or active artif
 The system-managed `home` project cannot be mutated through this command.
 
 ACE exposes the same lifecycle operations through the `,p` project management panel. The panel lists non-system projects
-across all states by default, offers text and state filters, and uses the same blocked-operation checks before archiving
-or closing a project.
+across all states by default, offers text and state filters, supports marks for bulk activate/archive/close/delete
+operations, and uses the same blocked-operation checks before archiving or closing a project. It can also open the
+selected ProjectSpec in `$EDITOR` and delete obsolete SASE project state after confirmation. Deletion removes the
+project directory under `~/.sase/projects/`; it does not remove workspace checkouts.
 
 Common workflows:
 
@@ -110,6 +112,7 @@ Common workflows:
 - Inspect every lifecycle state as JSON: `sase project list --state all --json`
 - Reactivate from the CLI: `sase project activate old-project`
 - Reactivate from ACE: press `,p`, highlight the project, then press `a`
+- Bulk-archive from ACE: press `,p`, mark projects with `m`, then press `r`
 
 Maintenance and agent-history scans intentionally keep reading all project directories. This keeps live `RUNNING`
 claims, stale-claim cleanup, dismissed-agent recovery, agent-name collision checks, and historical Agents-tab rows
