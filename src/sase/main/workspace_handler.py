@@ -11,44 +11,31 @@ from sase.core.project_lifecycle_facade import (
     read_project_lifecycle_from_content,
 )
 from sase.running_field._operations import get_claimed_workspaces
-from sase.workflows.utils import get_project_file_path
-from sase.workspace_provider.registry import (
-    WorkspaceEntry,
-    WorkspaceRegistry,
-    load_or_init_registry,
-    save_registry,
-)
 from sase.workspace_provider.store import (
-    PRIMARY_WORKSPACE_NUM,
     WorkspaceStore,
 )
-from sase.workspace_provider.utils import (
-    ensure_workspace_checkout,
-    parse_bare_repo_dir,
-    parse_workspace_dir,
-)
 
+from .workspace_handler_commands import (
+    handle_cleanup_command,
+    handle_list_command,
+    handle_migrate_command,
+    handle_migrate_finalize_command,
+    handle_open_command,
+    handle_path_command,
+    handle_repair_command,
+)
 from .workspace_handler_context import (
     ProjectContext,
     resolve_project_context as context_resolve_project_context,
 )
-from .workspace_handler_list import (
-    handle_list as list_handle_list,
-    handle_open_clean as list_handle_open_clean,
-    handle_path as list_handle_path,
-    resolve_checkout_path as list_resolve_checkout_path,
-)
+from .workspace_handler_list import resolve_checkout_path as list_resolve_checkout_path
 from .workspace_handler_maintenance import (
     claimed_nums as maintenance_claimed_nums,
-    handle_cleanup as maintenance_handle_cleanup,
-    handle_repair as maintenance_handle_repair,
     remove_checkout as maintenance_remove_checkout,
     remove_transition_symlink as maintenance_remove_transition_symlink,
 )
 from .workspace_handler_migration import (
     build_store_with_policy as migration_build_store_with_policy,
-    handle_migrate as migration_handle_migrate,
-    handle_migrate_finalize as migration_handle_migrate_finalize,
 )
 
 _ProjectContext = ProjectContext
@@ -108,11 +95,11 @@ def _build_store_with_policy(
 
 
 def _handle_list(args: argparse.Namespace) -> int:
-    return list_handle_list(args, resolve_project_context=_resolve_project_context)
+    return handle_list_command(args, resolve_project_context=_resolve_project_context)
 
 
 def _handle_path(args: argparse.Namespace) -> int:
-    return list_handle_path(
+    return handle_path_command(
         args,
         resolve_project_context=_resolve_project_context,
         resolve_checkout=_resolve_checkout_path,
@@ -124,7 +111,7 @@ def _handle_open(args: argparse.Namespace) -> int:
 
 
 def _handle_open_clean(args: argparse.Namespace) -> int:
-    return list_handle_open_clean(
+    return handle_open_command(
         args,
         resolve_project_context=_resolve_project_context,
         resolve_checkout=_resolve_checkout_path,
@@ -132,7 +119,7 @@ def _handle_open_clean(args: argparse.Namespace) -> int:
 
 
 def _handle_cleanup(args: argparse.Namespace) -> int:
-    return maintenance_handle_cleanup(
+    return handle_cleanup_command(
         args,
         resolve_project_context=_resolve_project_context,
         get_claimed_nums=_claimed_nums,
@@ -142,7 +129,7 @@ def _handle_cleanup(args: argparse.Namespace) -> int:
 
 
 def _handle_repair(args: argparse.Namespace) -> int:
-    return maintenance_handle_repair(
+    return handle_repair_command(
         args,
         resolve_project_context=_resolve_project_context,
         get_claimed_nums=_claimed_nums,
@@ -153,7 +140,7 @@ def _handle_repair(args: argparse.Namespace) -> int:
 def _handle_migrate(args: argparse.Namespace) -> int:
     if args.finalize:
         return _handle_migrate_finalize(args)
-    return migration_handle_migrate(
+    return handle_migrate_command(
         args,
         resolve_project_context=_resolve_project_context,
         build_store=_build_store_with_policy,
@@ -161,7 +148,7 @@ def _handle_migrate(args: argparse.Namespace) -> int:
 
 
 def _handle_migrate_finalize(args: argparse.Namespace) -> int:
-    return migration_handle_migrate_finalize(
+    return handle_migrate_finalize_command(
         args,
         resolve_project_context=_resolve_project_context,
         build_store=_build_store_with_policy,
