@@ -323,7 +323,49 @@ auto_pilot:                      # generalizes SASE_AGENT_AUTO_APPROVE_*
 A user wanting plan→**review**→code→**test** simply adds `review` and `test`
 roles and points the relevant `goto`s at them — no Python change.
 
-### 4.2 Core engine (sase-core)
+### 4.2 Event model and metadata
+
+The most stable insertion point is the existing marker restart boundary, not the
+initial prompt launch. `sase plan` and `sase questions` are already
+runtime-neutral: every supported provider can call those tools, the command
+writes a durable marker, and the runner resumes from `_handle_killed_iteration()`.
+A configurable family engine should normalize that restart into typed events and
+then ask the family definition what to do next.
+
+Minimum event vocabulary:
+
+- `plan_submitted` — a role produced a plan and needs review.
+- `plan_feedback_received` — the user supplied feedback and the family should
+  choose the next revision role/prompt.
+- `plan_approved` — the user selected an approval-style choice.
+- `questions_submitted` — a role asked the user for structured answers.
+- `questions_answered` — answers are available and should be folded into the
+  next prompt.
+
+The current response JSON can remain backward-compatible while this rolls out.
+For plan review, keep writing `action`, `feedback`, `commit_plan`, `run_coder`,
+`coder_prompt`, and `coder_model`; add optional `family_id`, `gate_id`, and
+`choice_id` fields once ACE, mobile, and external clients understand them. The
+runner can prefer `choice_id` and fall back to today's `action` plus flags.
+
+Do not overload the existing `agent_family` field, which is the stable runtime
+family/root name. Add metadata that identifies the configured policy and the
+event that launched each phase:
+
+- `agent_family_config`: configured family id, e.g. `default` or
+  `security_review_chain`.
+- `agent_family_role_kind`: normalized kind such as `planner`, `question`,
+  `feedback`, `implementer`, `container_creator`, or `terminal`.
+- `agent_family_round`: repeat index for feedback/revision roles.
+- `agent_family_event`: event that launched the phase, e.g.
+  `plan_feedback_received`.
+
+This preserves today's grouping model (`agent_family`, `agent_family_role`,
+`role_suffix`, `plan_chain_root`) while giving status projection, notifications,
+and future frontends enough information to classify user-defined roles without
+parsing hardcoded suffixes.
+
+### 4.3 Core engine (sase-core)
 
 Add a `agent_family` module to `crates/sase_core` exposing a pure function:
 
@@ -342,7 +384,7 @@ Python keeps: subprocess spawning, the marker/IPC mechanics, the Textual modals
 (now *rendering choices the engine provided* rather than a hardcoded dict), and
 executing `side_effects` like `commit_sdd`.
 
-### 4.3 Decisions, not just `hitl`
+### 4.4 Decisions, not just `hitl`
 
 The approval modal becomes a **generic decision renderer**: given the gate's
 `choices[]` (label, key, whether it needs feedback text / edit / model picker), it
@@ -353,7 +395,7 @@ IPC payloads stay the same shape (`action`, `feedback`, `commit_plan`,
 `run_coder`, …) so the wire is backward-compatible — `action` just becomes "the
 chosen `goto`/`loop` target" rather than a closed enum.
 
-### 4.4 Backwards compatibility
+### 4.5 Backwards compatibility
 
 - Ship `families/default.yml` reproducing the current chain; if no user families
   exist, behavior is identical. `_LEGACY_SUFFIX_MAP` handling in `plan_chain.py`
@@ -363,7 +405,7 @@ chosen `goto`/`loop` target" rather than a closed enum.
   def instead of the hardcoded mapping.
 - Existing env-var auto-approve maps onto `auto_pilot`.
 
-### 4.5 Phased delivery
+### 4.6 Phased delivery
 
 1. **Phase 1 (Option A foothold, in this repo):** Extract the hardcoded constants
    into a `agent_family:` config block — coder xprompt path, coder model, suffix
@@ -424,9 +466,11 @@ chosen `goto`/`loop` target" rather than a closed enum.
 Treat the planner/coder/feedback/Q&A lifecycle as a **declarative, human-gated
 agent-family state machine** (Option C), not as frozen Python and not as a linear
 workflow. Define a dedicated `agent_family` schema whose built-in `default`
-reproduces today's plan chain exactly; evaluate it in `sase-core` so all frontends
-agree on roles, transitions, and prompt assembly; and keep the Textual modals and
-subprocess mechanics in this repo as the host/presentation layer. Ship it in
-phases, beginning with a config-extraction down payment (Option A) that already
-unlocks custom coder prompts/models and additional approval choices, then growing
-that config into the full schema and core engine.
+reproduces today's plan chain exactly; normalize `sase plan` / `sase questions`
+marker restarts into typed handoff events; evaluate the configured transition in
+`sase-core` so all frontends agree on roles, transitions, and prompt assembly; and
+keep the Textual modals and subprocess mechanics in this repo as the
+host/presentation layer. Ship it in phases, beginning with a config-extraction
+down payment (Option A) that already unlocks custom coder prompts/models and
+additional approval choices, then growing that config into the full schema and
+core engine.
