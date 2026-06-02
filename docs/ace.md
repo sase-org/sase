@@ -216,14 +216,15 @@ The modal supports live filtering as you type in the search box and displays las
 | `,.`       | Open prompt history modal for the last CL                                                     |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
 
-Project selection and repeat-launch helpers use lifecycle-aware discovery: home mode is always available, while project
-and CL choices come from active ProjectSpecs. Archived and closed projects do not appear in normal launch pickers until
-they are reactivated with `sase project activate <project>`.
+The `,h` shortcut opens a home-context prompt directly. Project and CL launch pickers use lifecycle-aware discovery:
+project entries, including `home` when it appears in picker lists, must have active and launchable ProjectSpecs; CL
+choices come from active ProjectSpecs. Archived and closed projects do not appear in normal launch pickers until they
+are reactivated with `sase project activate <project>`.
 
-Project launch pickers also support `Ctrl+D` for cleanup of empty project records. This deletes only a highlighted
-project's ProjectSpec files, refuses records that still contain ChangeSpecs, and does not delete workspace checkouts.
-For lifecycle changes, bulk operations, ProjectSpec editing, or full SASE project-state deletion, use the `,p` Project
-Management panel.
+Project launch pickers also support `Ctrl+D` for cleanup of empty project entries. This deletes only the highlighted
+project's active/archive ProjectSpec files, refuses entries whose ProjectSpec files still contain ChangeSpecs, and does
+not delete workspace checkouts or other SASE state. For lifecycle changes, bulk operations, ProjectSpec editing, or
+deleting the whole SASE project directory, use the `,p` Project Management panel.
 
 The repeat binding is the leader prefix followed by the configured `repeat_last` key. With the defaults both are comma,
 so the sequence is `,,`; if the leader prefix is changed but `repeat_last` is not, the second key remains comma. Repeat
@@ -893,10 +894,10 @@ views hide them. Rows include workspace path, active claim count, launchability,
 | `m`         | Mark or unmark the highlighted project                                 |
 | `u`         | Clear all project marks                                                |
 | `e`         | Open the highlighted ProjectSpec in `$EDITOR`                          |
-| `a`         | Activate highlighted project                                           |
-| `r`         | Archive highlighted project                                            |
-| `c`         | Close highlighted project                                              |
-| `Ctrl+D`    | Delete highlighted project state, or all marked project state          |
+| `a`         | Activate highlighted project, or all marked projects                   |
+| `r`         | Archive highlighted project, or all marked projects                    |
+| `c`         | Close highlighted project, or all marked projects                      |
+| `Ctrl+D`    | Delete highlighted SASE project directory, or all marked directories   |
 | `F`         | Force the last blocked archive/close after confirming live-work checks |
 | `R`         | Reload project records                                                 |
 | `q` / `Esc` | Close the panel                                                        |
@@ -910,9 +911,10 @@ still has `RUNNING` claims or live artifact markers, ACE shows the blocked reaso
 force action is intentional. Activating a project from this panel makes it available again in normal launch pickers.
 
 `e` suspends ACE, opens the selected ProjectSpec in `$EDITOR` (falling back to `nvim`), holds the ProjectSpec edit lock
-for the editor session, then reloads project records. `Ctrl+D` asks for confirmation before deleting SASE project state:
-ProjectSpecs, project-local config, artifacts, and related state under `~/.sase/projects/<project>/`. It does not delete
-workspace checkouts, and system-managed projects such as `home` are excluded from the panel.
+for the editor session, then reloads project records. In this panel, `Ctrl+D` asks for confirmation before deleting the
+entire SASE project directory: ProjectSpecs, project-local config, artifacts, and related state under
+`~/.sase/projects/<project>/`. Deletion is refused while the project still has `RUNNING` claims or live artifact
+markers. It does not delete workspace checkouts, and system-managed projects such as `home` are excluded from the panel.
 
 ## Temporary Model Override
 

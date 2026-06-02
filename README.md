@@ -118,7 +118,8 @@ SASE keeps durable state outside any one chat session:
   broad mobile helper catalogs, and known-project VCS refs such as `#gh:sase` only use active projects. Use
   `sase project list --state all`, `sase project show <project>`, and `sase project activate <project>` when revisiting
   archived or closed work. In ACE, press `,p` to manage lifecycle state, edit ProjectSpecs, mark projects for bulk
-  lifecycle actions, or delete obsolete SASE project state from the Project Management panel.
+  lifecycle actions, or delete an obsolete SASE project directory. Deleting from that panel removes
+  `~/.sase/projects/<project>/`, not the workspace checkout.
 - **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
   `#1` through `#9` are reserved, and new claims allocate from `#10` upward.
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed

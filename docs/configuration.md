@@ -1168,8 +1168,9 @@ mutated through this command. Normal launch and discovery surfaces default to ac
 `show` for historical inspection, then `activate` before launching new work in an inactive project.
 
 ACE exposes the same lifecycle mutations through the Project Management panel at `,p`. That panel also supports marks
-for bulk lifecycle operations, ProjectSpec editing through `$EDITOR`, and confirmed deletion of SASE project state
-without deleting workspace checkouts. The temporary model override uses `,o` by default.
+for bulk lifecycle operations, ProjectSpec editing through `$EDITOR`, and confirmed deletion of whole SASE project
+directories under `~/.sase/projects/` without deleting workspace checkouts. The temporary model override uses `,o` by
+default.
 
 ### `sase revert`
 

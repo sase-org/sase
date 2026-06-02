@@ -100,10 +100,12 @@ Archiving or closing refuses projects with live `RUNNING` claims or active artif
 The system-managed `home` project cannot be mutated through this command.
 
 ACE exposes the same lifecycle operations through the `,p` project management panel. The panel lists non-system projects
-across all states by default, offers text and state filters, supports marks for bulk activate/archive/close/delete
-operations, and uses the same blocked-operation checks before archiving or closing a project. It can also open the
-selected ProjectSpec in `$EDITOR` and delete obsolete SASE project state after confirmation. Deletion removes the
-project directory under `~/.sase/projects/`; it does not remove workspace checkouts.
+across all states by default, offers text and state filters, supports marks for bulk activate/archive/close operations
+and bulk full-directory deletion, and uses the same blocked-operation checks before archiving or closing a project. It
+can also open the selected ProjectSpec in `$EDITOR`. Its delete action removes the whole SASE project directory under
+`~/.sase/projects/` after confirmation, including ProjectSpecs, project-local config, and artifacts; it does not remove
+workspace checkouts. This is broader than `Ctrl+D` in project launch pickers, which only removes an empty project's
+ProjectSpec files.
 
 Common workflows:
 
