@@ -85,9 +85,9 @@ class AgentArtifactScanOptionsWire:
             names that exactly match an entry.
         include_project_states: When non-empty, restrict the scan to projects
             whose ProjectSpec lifecycle state matches one of these values
-            (``active`` or ``inactive``; legacy ``archived`` / ``closed``
-            aliases normalize to ``inactive``). ``"all"`` or an empty tuple
-            disables lifecycle filtering.
+            (``active``, ``inactive``, or ``sibling``; legacy ``archived`` /
+            ``closed`` aliases normalize to ``inactive``). ``"all"`` or an
+            empty tuple disables lifecycle filtering.
     """
 
     include_prompt_step_markers: bool = True

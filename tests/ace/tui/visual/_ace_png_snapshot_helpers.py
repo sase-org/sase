@@ -151,6 +151,7 @@ def project_records() -> list[ProjectRecordWire]:
             launchable=False,
             warnings=["workspace checkout is missing"],
         ),
+        _record("sase-core-sibling", state="sibling", launchable=False),
         _record("scratch-spike", state="inactive", launchable=False),
         _record(
             "old-prototype",

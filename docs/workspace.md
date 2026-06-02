@@ -176,11 +176,11 @@ the `sase` project is registered, `#gh:sase #!some/workflow` and the underscore 
 treated as VCS workspace launches rather than ordinary xprompt references.
 
 Known-project fallback is lifecycle-aware. Normal launch and xprompt/catalog discovery paths only include active
-projects; a registered project with `PROJECT_STATE: inactive` is hidden from launch pickers and broad known-project
-lookup. Legacy `archived` and `closed` values are read as inactive. If a prompt explicitly names an inactive known
-project, launch resolution fails with an activation hint instead of silently allocating work. Use
-`sase project list --state all` to inspect inactive projects and `sase project activate <project>` before launching new
-work there.
+projects; a registered project with `PROJECT_STATE: inactive` or `PROJECT_STATE: sibling` is hidden from launch pickers
+and broad known-project lookup. Legacy `archived` and `closed` values are read as inactive. If a prompt explicitly names
+an inactive known project, launch resolution fails with an activation hint instead of silently allocating work. Use
+`sase project list --state all` to inspect hidden projects and `sase project activate <project>` before launching normal
+work there. Configured sibling records are intended for `sase workspace open -p <sibling> <workspace_num>`.
 
 Non-wait launches allocate the next available numbered workspace for the project and set the VCS update target to the
 provider default revision. When registered workspace metadata provides an env prefix, SASE passes the matching

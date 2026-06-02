@@ -6,12 +6,20 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+from sase.ace.changespec import changespec_lock, write_changespec_atomic
 from sase.config.core import load_merged_config
+from sase.core.paths import is_valid_sase_project_name
+from sase.core.project_lifecycle_facade import (
+    apply_project_lifecycle_update,
+    read_project_lifecycle_from_content,
+)
 from sase.running_field._operations import get_claimed_workspaces
 from sase.workflows.utils import get_project_file_path
 from sase.workspace_provider.registry import (
@@ -26,6 +34,7 @@ from sase.workspace_provider.store import (
 )
 from sase.workspace_provider.utils import (
     ensure_workspace_checkout,
+    parse_bare_repo_dir,
     parse_workspace_dir,
 )
 
@@ -63,6 +72,16 @@ def _resolve_project_context(project: str | None) -> _ProjectContext:
     project_file = get_project_file_path(project_name)
     primary = parse_workspace_dir(project_file) or ""
     if not primary:
+        try:
+            sibling_ctx = _materialize_sibling_project_context(
+                project_name,
+                project_file,
+            )
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(2) from exc
+        if sibling_ctx is not None:
+            return sibling_ctx
         print(
             f"Project '{project_name}' has no WORKSPACE_DIR in {project_file}.",
             file=sys.stderr,
@@ -76,6 +95,229 @@ def _resolve_project_context(project: str | None) -> _ProjectContext:
         primary_workspace_dir=primary,
         store=store,
     )
+
+
+def _materialize_sibling_project_context(
+    project_name: str,
+    project_file: str,
+) -> _ProjectContext | None:
+    """Create missing ProjectSpec metadata for a configured sibling repo."""
+    if not is_valid_sase_project_name(project_name):
+        return None
+
+    current = _current_project_context()
+    if current is None or current.project_name == project_name:
+        return None
+
+    from sase.sibling_repos import resolve_sibling_repos_for_project
+
+    resolution = resolve_sibling_repos_for_project(
+        project_file=current.project_file,
+        workspace_dir=current.primary_workspace_dir,
+        workspace_num=0,
+        materialize=False,
+    )
+    for warning in resolution.warnings:
+        if f"{project_name!r}" in warning:
+            raise RuntimeError(warning)
+
+    sibling = next(
+        (repo for repo in resolution.repos if repo.name == project_name),
+        None,
+    )
+    if sibling is None:
+        return None
+
+    primary = sibling.primary_dir.rstrip("/") or sibling.primary_dir
+    if not Path(primary).is_dir():
+        raise RuntimeError(
+            f"Configured sibling repo '{project_name}' primary path does not exist: "
+            f"{primary}"
+        )
+    if _is_git_repo(current.primary_workspace_dir) and not _is_git_repo(primary):
+        raise RuntimeError(
+            f"Configured sibling repo '{project_name}' is not a Git checkout: {primary}"
+        )
+
+    metadata = _sibling_project_metadata(
+        project_name=project_name,
+        project_file=project_file,
+        primary_workspace_dir=primary,
+        current_project_file=current.project_file,
+    )
+    _ensure_sibling_project_spec(project_file, metadata)
+
+    store = WorkspaceStore(primary, config=load_merged_config())
+    return _ProjectContext(
+        project_name=project_name,
+        project_file=project_file,
+        primary_workspace_dir=primary,
+        store=store,
+    )
+
+
+def _current_project_context() -> _ProjectContext | None:
+    from sase.bead.project_name import infer_project_name_from_cwd
+
+    current_project = infer_project_name_from_cwd()
+    if not current_project or not is_valid_sase_project_name(current_project):
+        return None
+
+    project_file = get_project_file_path(current_project)
+    primary = parse_workspace_dir(project_file) or ""
+    if not primary:
+        return None
+
+    return _ProjectContext(
+        project_name=current_project,
+        project_file=project_file,
+        primary_workspace_dir=primary,
+        store=WorkspaceStore(primary, config=load_merged_config()),
+    )
+
+
+def _sibling_project_metadata(
+    *,
+    project_name: str,
+    project_file: str,
+    primary_workspace_dir: str,
+    current_project_file: str,
+) -> dict[str, str]:
+    metadata = {
+        "WORKSPACE_DIR": primary_workspace_dir,
+    }
+
+    existing_bare_repo_dir = parse_bare_repo_dir(project_file)
+    if existing_bare_repo_dir:
+        metadata["BARE_REPO_DIR"] = existing_bare_repo_dir
+        return metadata
+
+    current_bare_repo_dir = parse_bare_repo_dir(current_project_file)
+    if not current_bare_repo_dir:
+        return metadata
+
+    origin = _git_origin_url(primary_workspace_dir)
+    if origin and _is_local_git_url(origin):
+        metadata["BARE_REPO_DIR"] = str(Path(origin).expanduser())
+
+    return metadata
+
+
+def _ensure_sibling_project_spec(project_file: str, metadata: dict[str, str]) -> None:
+    path = Path(project_file).expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with changespec_lock(str(path)):
+        try:
+            content = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            content = ""
+
+        lifecycle = read_project_lifecycle_from_content(content)
+        if lifecycle.explicit and lifecycle.state != "sibling":
+            raise RuntimeError(
+                f"ProjectSpec {path} has explicit PROJECT_STATE {lifecycle.state!r}; "
+                "refusing to overwrite it with sibling"
+            )
+
+        updated = content
+        if lifecycle.state != "sibling" or not lifecycle.explicit:
+            updated = apply_project_lifecycle_update(updated, "sibling")
+        for key, value in metadata.items():
+            updated = _ensure_header_metadata(updated, key, value)
+
+        write_changespec_atomic(
+            str(path),
+            updated,
+            "Materialize sibling ProjectSpec metadata",
+        )
+
+
+def _ensure_header_metadata(content: str, key: str, value: str) -> str:
+    prefix = f"{key}:"
+    lines = content.splitlines(keepends=True)
+    newline = _preferred_newline(lines, content)
+    replacement = f"{prefix} {value}"
+    header_end = _first_header_end(lines)
+
+    for index, line in enumerate(lines[:header_end]):
+        if not line.startswith(prefix):
+            continue
+        current = line.split(":", 1)[1].strip()
+        if current:
+            return content
+        lines[index] = replacement + _line_ending(line, newline)
+        return "".join(lines)
+
+    insert_idx = _metadata_insert_index(lines)
+    if insert_idx == len(lines) and lines and not lines[-1].endswith(("\n", "\r")):
+        lines[-1] = lines[-1] + newline
+    lines.insert(insert_idx, replacement + newline)
+    return "".join(lines)
+
+
+def _first_header_end(lines: list[str]) -> int:
+    for index, line in enumerate(lines):
+        if line.startswith("NAME:"):
+            return index
+    return len(lines)
+
+
+def _metadata_insert_index(lines: list[str]) -> int:
+    for index, line in enumerate(lines):
+        if line.startswith(("RUNNING:", "NAME:")):
+            return index
+    return len(lines)
+
+
+def _preferred_newline(lines: list[str], content: str) -> str:
+    for line in lines:
+        if line.endswith("\r\n"):
+            return "\r\n"
+        if line.endswith("\n"):
+            return "\n"
+    return "\r\n" if "\r\n" in content else "\n"
+
+
+def _line_ending(line: str, default: str) -> str:
+    if line.endswith("\r\n"):
+        return "\r\n"
+    if line.endswith("\n"):
+        return "\n"
+    return default
+
+
+def _is_git_repo(path: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return False
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+def _git_origin_url(path: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def _is_local_git_url(url: str) -> bool:
+    return not url.startswith(("http://", "https://", "git@", "ssh://"))
 
 
 def _entry_row(num: int, entry: WorkspaceEntry) -> dict[str, Any]:

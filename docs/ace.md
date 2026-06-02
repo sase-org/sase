@@ -881,16 +881,16 @@ The `:` / `;` binding follows your configured keymap. To rebind it, set `ace.key
 
 ## Project Management Panel
 
-Press `,p` from any tab to open the **Project Management** panel. It lists non-system projects across `active` and
-`inactive` lifecycle states, so inactive projects remain reachable even though normal launch and discovery views hide
-them. Rows include workspace path, active claim count, launchability, and lifecycle or workspace warnings.
+Press `,p` from any tab to open the **Project Management** panel. It lists non-system projects across `active`,
+`sibling`, and `inactive` lifecycle states, so hidden projects remain reachable even though normal launch and discovery
+views omit them. Rows include workspace path, active claim count, launchability, and lifecycle or workspace warnings.
 
 | Key         | Action                                                               |
 | ----------- | -------------------------------------------------------------------- |
 | `j` / `k`   | Move selection                                                       |
 | `/`         | Filter projects by text                                              |
-| `Tab`       | Cycle lifecycle filter: active, inactive, all                        |
-| `Enter`     | Activate the highlighted project when it is inactive                 |
+| `Tab`       | Cycle lifecycle filter: active, sibling, inactive, all               |
+| `Enter`     | Activate the highlighted project when it is not active               |
 | `m`         | Mark or unmark the highlighted project                               |
 | `u`         | Clear all project marks                                              |
 | `e`         | Open the highlighted ProjectSpec in `$EDITOR`                        |

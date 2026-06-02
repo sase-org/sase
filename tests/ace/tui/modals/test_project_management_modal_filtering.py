@@ -23,6 +23,7 @@ async def test_project_management_modal_filters_states(
 ) -> None:
     records = [
         make_project_record("alpha", state="active"),
+        make_project_record("core", state="sibling", launchable=False),
         make_project_record("beta", state="inactive", launchable=False),
         make_project_record("gamma", state="inactive", launchable=False),
         make_project_record("home", state="active", system_managed=True),
@@ -47,9 +48,10 @@ async def test_project_management_modal_filters_states(
         assert modal._state_filter == _DEFAULT_STATE_FILTER
         assert [r.project_name for r in modal._filtered_records] == ["alpha"]
         summary = modal._summary_text().plain
-        assert "all:3 active:1 inactive:2" in summary
+        assert "all:4 active:1 sibling:1 inactive:2" in summary
         tabs = modal._state_tabs_text().plain
         assert "ACTIVE" in tabs
+        assert "sibling" in tabs
         assert "inactive" in tabs
 
         modal._text_filter = "beta"
@@ -58,6 +60,11 @@ async def test_project_management_modal_filters_states(
 
         modal._text_filter = ""
         modal._apply_filters()
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._state_filter == "sibling"
+        assert [r.project_name for r in modal._filtered_records] == ["core"]
 
         await pilot.press("tab")
         await pilot.pause()
@@ -72,6 +79,7 @@ async def test_project_management_modal_filters_states(
         assert modal._state_filter == "all"
         assert [r.project_name for r in modal._filtered_records] == [
             "alpha",
+            "core",
             "beta",
             "gamma",
         ]
@@ -86,6 +94,7 @@ async def test_project_management_modal_filters_states(
         assert modal._state_filter == "all"
         assert [r.project_name for r in modal._filtered_records] == [
             "alpha",
+            "core",
             "beta",
             "gamma",
         ]
@@ -97,6 +106,11 @@ async def test_project_management_modal_filters_states(
             "beta",
             "gamma",
         ]
+
+        await pilot.press("shift+tab")
+        await pilot.pause()
+        assert modal._state_filter == "sibling"
+        assert [r.project_name for r in modal._filtered_records] == ["core"]
 
 
 def test_project_management_modal_footer_includes_delete_affordance(

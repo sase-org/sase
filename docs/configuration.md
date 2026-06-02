@@ -1129,9 +1129,9 @@ full flow, payload, checkpoint, and resume semantics.
 | `query`        | string                      | (required) | Query string for filtering ChangeSpecs.               |
 | `-f, --format` | `plain`, `rich`, `markdown` | `rich`     | Output format (`markdown` for agent-friendly output). |
 
-Search uses the normal active-project discovery scope. Inactive projects are omitted from this CLI path; run
-`sase project list --state all` or `sase project show <project>` to inspect inactive projects, then reactivate the
-project with `sase project activate <project>` before using normal search and launch surfaces for new work.
+Search uses the normal active-project discovery scope. Inactive and sibling projects are omitted from this CLI path; run
+`sase project list --state all` or `sase project show <project>` to inspect hidden projects, then reactivate the project
+with `sase project activate <project>` before using normal search and launch surfaces for new work.
 
 ### `sase changespec migrate-extension`
 
@@ -1152,21 +1152,22 @@ differs, the command reports a conflict and preserves both files unless `--force
 With no subcommand, `sase project` defaults to `sase project list`. Project lifecycle state is stored as `PROJECT_STATE`
 metadata in the ProjectSpec header; missing state means `active`.
 
-| Form                                       | Flags                               | Description                                                                    |
-| ------------------------------------------ | ----------------------------------- | ------------------------------------------------------------------------------ |
-| `sase project list`                        | `-s, --state active\|inactive\|all` | List projects in one lifecycle state; default is `active`.                     |
-| `sase project list`                        | `-j, --json`                        | Emit machine-readable lifecycle records.                                       |
-| `sase project show <project>`              | `-j, --json`                        | Show state, source, project/archive files, workspace, launchability, warnings. |
-| `sase project set-state <project> <state>` | `-f, --force`                       | Set `active` or `inactive`.                                                    |
-| `sase project activate <project>`          | `-f, --force`                       | Alias for `set-state <project> active`; `--force` has no effect for `active`.  |
-| `sase project deactivate <project>`        | `-f, --force`                       | Alias for `set-state <project> inactive`.                                      |
+| Form                                       | Flags                                        | Description                                                                    |
+| ------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------ |
+| `sase project list`                        | `-s, --state active\|inactive\|sibling\|all` | List projects in one lifecycle state; default is `active`.                     |
+| `sase project list`                        | `-j, --json`                                 | Emit machine-readable lifecycle records.                                       |
+| `sase project show <project>`              | `-j, --json`                                 | Show state, source, project/archive files, workspace, launchability, warnings. |
+| `sase project set-state <project> <state>` | `-f, --force`                                | Set `active`, `inactive`, or `sibling`.                                        |
+| `sase project activate <project>`          | `-f, --force`                                | Alias for `set-state <project> active`; `--force` has no effect for `active`.  |
+| `sase project deactivate <project>`        | `-f, --force`                                | Alias for `set-state <project> inactive`.                                      |
 
 Deactivating refuses projects with live `RUNNING` claims or live artifact markers (`running.json`, `waiting.json`, or
 `pending_question.json`) unless `--force` is passed. Legacy `archive` and `close` aliases still set `inactive`, and
 legacy `PROJECT_STATE: archived` / `PROJECT_STATE: closed` files are read as inactive. The system-managed `home` project
 cannot be mutated through this command. Normal launch and discovery surfaces default to active projects; use
-`list --state all` or `show` for historical inspection, then `activate` before launching new work in an inactive
-project.
+`list --state all` or `show` for historical or sibling inspection, then `activate` before launching normal work in a
+hidden project. The `sibling` state is intended for configured sibling repository records used by
+`sase workspace open -p <sibling> <workspace_num>`.
 
 ACE exposes the same lifecycle mutations through the Project Management panel at `,p`. That panel also supports marks
 for bulk lifecycle operations, ProjectSpec editing through `$EDITOR`, and confirmed deletion of whole SASE project

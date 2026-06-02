@@ -99,6 +99,10 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
 
         await pilot.press("tab")
         await pilot.pause()
+        assert modal._state_filter == "sibling"
+
+        await pilot.press("tab")
+        await pilot.pause()
         assert modal._state_filter == "inactive"
         assert [record.project_name for record in modal._filtered_records] == [
             "beta",

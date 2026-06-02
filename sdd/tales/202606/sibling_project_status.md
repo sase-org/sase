@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 13:27:25
-status: wip
+status: done
 prompt: sdd/prompts/202606/sibling_project_status.md
 ---
 # Plan: Sibling Project Lifecycle State

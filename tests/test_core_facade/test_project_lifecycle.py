@@ -12,6 +12,8 @@ import pytest
 from sase.core import project_lifecycle_facade
 from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
+    normalize_project_lifecycle_state,
+    normalize_project_lifecycle_state_filter,
     project_lifecycle_from_dict,
     project_lifecycle_wire_to_json_dict,
     project_record_from_dict,
@@ -76,6 +78,24 @@ def test_project_record_wire_dict_conversion() -> None:
     assert record.archive_file == "/tmp/projects/alpha/alpha-archive.sase"
     assert record.active_claim_count == 2
     assert record.parse_warnings == ["invalid state"]
+
+
+def test_project_lifecycle_wire_accepts_sibling_state() -> None:
+    lifecycle = project_lifecycle_from_dict(
+        _lifecycle_payload(state="sibling", explicit=True)
+    )
+    record = project_record_from_dict(
+        _record_payload(state="sibling", launchable=False)
+    )
+
+    assert lifecycle.state == "sibling"
+    assert record.state == "sibling"
+    assert normalize_project_lifecycle_state("sibling") == "sibling"
+    assert normalize_project_lifecycle_state_filter("all") == [
+        "active",
+        "inactive",
+        "sibling",
+    ]
 
 
 def test_lifecycle_facade_missing_extension_raises(
@@ -178,14 +198,25 @@ def test_lifecycle_facade_real_extension_content_helpers() -> None:
     lifecycle = project_lifecycle_facade.read_project_lifecycle_from_content(
         "PROJECT_STATE: archived\nNAME: demo\n"
     )
+    sibling = project_lifecycle_facade.read_project_lifecycle_from_content(
+        "PROJECT_STATE: sibling\nNAME: demo\n"
+    )
     updated = project_lifecycle_facade.apply_project_lifecycle_update(
         "WORKSPACE_DIR: /tmp\nNAME: demo\n", "closed"
+    )
+    sibling_updated = project_lifecycle_facade.apply_project_lifecycle_update(
+        "WORKSPACE_DIR: /tmp\nNAME: demo\n", "sibling"
     )
 
     assert lifecycle.state == "inactive"
     assert lifecycle.explicit is True
     assert lifecycle.warnings
+    assert sibling.state == "sibling"
+    assert sibling.explicit is True
     assert updated == "WORKSPACE_DIR: /tmp\nPROJECT_STATE: inactive\nNAME: demo\n"
+    assert (
+        sibling_updated == "WORKSPACE_DIR: /tmp\nPROJECT_STATE: sibling\nNAME: demo\n"
+    )
 
 
 def test_lifecycle_facade_real_extension_project_records(tmp_path: Path) -> None:
@@ -202,6 +233,12 @@ def test_lifecycle_facade_real_extension_project_records(tmp_path: Path) -> None
         f"WORKSPACE_DIR: {workspace}\nRUNNING:\n  #1 | 123 | run | demo\n\nNAME: demo\n",
         encoding="utf-8",
     )
+    sibling_dir = projects / "sibling"
+    sibling_dir.mkdir()
+    (sibling_dir / "sibling.sase").write_text(
+        f"PROJECT_STATE: sibling\nWORKSPACE_DIR: {workspace}\nNAME: sibling\n",
+        encoding="utf-8",
+    )
     hidden_dir = projects / ".sase"
     hidden_dir.mkdir()
     (hidden_dir / ".sase.sase").write_text("", encoding="utf-8")
@@ -213,3 +250,9 @@ def test_lifecycle_facade_real_extension_project_records(tmp_path: Path) -> None
     assert records[0].state == "active"
     assert records[0].active_claim_count == 1
     assert records[0].launchable is True
+
+    siblings = project_lifecycle_facade.list_project_records(projects, ["sibling"])
+    assert len(siblings) == 1
+    assert siblings[0].project_name == "sibling"
+    assert siblings[0].state == "sibling"
+    assert siblings[0].launchable is False

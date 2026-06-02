@@ -21,7 +21,7 @@ _LAUNCH_WIDTH = 9
 _WARN_WIDTH = 7
 _WORKSPACE_WIDTH = 50
 
-_STATE_TABS: tuple[str, ...] = ("active", "inactive", "all")
+_STATE_TABS: tuple[str, ...] = ("active", "sibling", "inactive", "all")
 
 
 def warning_count(record: ProjectRecordWire) -> int:
@@ -42,6 +42,8 @@ def state_style(state: str) -> str:
         return "bold #00D7AF"
     if state == "inactive":
         return "bold #FFD700"
+    if state == "sibling":
+        return "bold #87D7FF"
     return "bold"
 
 
@@ -93,7 +95,7 @@ def record_label(record: ProjectRecordWire, marked_projects: set[str]) -> Text:
 
 
 def state_tabs_text(state_filter: str) -> Text:
-    """Segmented ``active / inactive / all`` filter tabs.
+    """Segmented ``active / sibling / inactive / all`` filter tabs.
 
     The active filter is uppercased and reverse-highlighted; the rest are dim.
     Mirrors the header tabs used by the notification modal so the current
@@ -116,13 +118,20 @@ def summary_text(
     status_message: str,
     marked_projects: set[str],
 ) -> Text:
-    counts: dict[str, int] = {"active": 0, "inactive": 0}
+    counts: dict[str, int] = {"active": 0, "inactive": 0, "sibling": 0}
     for record in records:
         if record.state in counts:
             counts[record.state] += 1
     text = Text()
     text.append(
-        f"all:{len(records)} active:{counts['active']} inactive:{counts['inactive']}",
+        " ".join(
+            (
+                f"all:{len(records)}",
+                f"active:{counts['active']}",
+                f"sibling:{counts['sibling']}",
+                f"inactive:{counts['inactive']}",
+            )
+        ),
         style="dim",
     )
     mark_count = len(marked_projects)

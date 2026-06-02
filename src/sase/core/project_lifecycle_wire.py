@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION = 1
-PROJECT_LIFECYCLE_STATES = ("active", "inactive")
+PROJECT_LIFECYCLE_STATES = ("active", "inactive", "sibling")
 PROJECT_LIFECYCLE_LEGACY_INACTIVE_STATES = ("archived", "closed")
 PROJECT_LIFECYCLE_COMPAT_STATES = (
     *PROJECT_LIFECYCLE_STATES,

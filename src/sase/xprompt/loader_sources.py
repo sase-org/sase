@@ -391,7 +391,7 @@ def _project_ref_candidates(ref: str) -> tuple[str, ...]:
 
 
 def get_project_lifecycle_record(project: str) -> ProjectRecordWire | None:
-    """Return the lifecycle record for *project*, including inactive projects."""
+    """Return the lifecycle record for *project*, including hidden projects."""
     projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return None
@@ -420,7 +420,7 @@ def get_known_project_workspaces(
     """Enumerate lifecycle-selected projects and their primary workspaces.
 
     Normal callers get active projects only. Management/history callers can
-    pass ``"all"`` or a concrete state list when inactive projects are
+    pass ``"all"`` or a concrete state list when hidden projects are
     intentionally in scope.
 
     Returns:

@@ -77,9 +77,9 @@ explicit, for example `sase notify list -j`, `sase memory episodes list -p <proj
 | `sase bead sync`                             | Export the bead database to git-tracked JSONL and stage it.                                  | [Beads](beads.md#sync-mechanism)                       |
 | `sase bead stats` / `doctor`                 | Inspect project statistics or bead-store health.                                             | [Beads](beads.md#rust-backend)                         |
 | `sase bead work`                             | Launch phase agents for an epic, or epic-planning agents for a legend.                       | [Beads](beads.md#sase-bead-work-id)                    |
-| `sase project list`                          | List active projects by default, or include inactive projects with `--state`.                | [Project lifecycle](project_spec.md#project-lifecycle) |
+| `sase project list`                          | List active projects by default, or include hidden lifecycle states with `--state`.          | [Project lifecycle](project_spec.md#project-lifecycle) |
 | `sase project show`                          | Show lifecycle, workspace, launchability, and warning details for one project.               | [Project lifecycle](project_spec.md#project-lifecycle) |
-| `sase project set-state` / aliases           | Activate or deactivate a project by updating `PROJECT_STATE` under the ProjectSpec lock.     | [Project lifecycle](project_spec.md#project-lifecycle) |
+| `sase project set-state` / aliases           | Update `PROJECT_STATE` under the ProjectSpec lock.                                           | [Project lifecycle](project_spec.md#project-lifecycle) |
 | `sase plan`                                  | Submit a plan for approval from the plan skill path.                                         | [XPrompt directives](xprompt.md#plan-directive)        |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                 | [XPrompt directives](xprompt.md#directives)            |
 
@@ -87,16 +87,18 @@ ChangeSpecs are CL/PR-sized review records. SDD stores durable prompt and planni
 dependency tracking and executable epics on top of those artifacts.
 
 `sase project` defaults to `sase project list`, and `sase project list` defaults to active projects. Use
-`sase project list --state all --json` to inspect inactive projects, `sase project deactivate <project>` to hide a
-dormant project from default launch views, and `sase project activate <project>` to make it launchable again.
-Deactivating refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed.
-Deprecated `archive` and `close` aliases still set `inactive` for compatibility. ACE's `,p` Project Management panel
-provides the interactive counterpart, including marking multiple projects, editing a ProjectSpec in `$EDITOR`, and
-deleting obsolete SASE project directories after confirmation. There is no CLI delete subcommand; full project-directory
-deletion is only available from ACE's `,p` panel and removes state under `~/.sase/projects/`, not workspace checkouts.
+`sase project list --state all --json` to inspect inactive and sibling projects, `sase project deactivate <project>` to
+hide a dormant project from default launch views, and `sase project activate <project>` to make a hidden project
+launchable again. Deactivating refuses projects with live `RUNNING` claims or active artifact markers unless `--force`
+is passed. Deprecated `archive` and `close` aliases still set `inactive` for compatibility. ACE's `,p` Project
+Management panel provides the interactive counterpart, including marking multiple projects, editing a ProjectSpec in
+`$EDITOR`, and deleting obsolete SASE project directories after confirmation. There is no CLI delete subcommand; full
+project-directory deletion is only available from ACE's `,p` panel and removes state under `~/.sase/projects/`, not
+workspace checkouts.
 
 Active-only project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
-catalogs, broad mobile helper catalogs, and all-known bead helper reads. Agent-history views that need older artifacts
+catalogs, broad mobile helper catalogs, and all-known bead helper reads. Sibling records are hidden from those surfaces
+and are intended for `sase workspace open -p <sibling> <workspace_num>`. Agent-history views that need older artifacts
 opt into all project states explicitly.
 
 ## Automation

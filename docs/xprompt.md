@@ -323,10 +323,10 @@ workspace plugin is not loaded in the current process. Known projects come from 
 registered `sase` project, allocates a numbered workspace for non-wait runs, and lets dispatch surfaces strip the
 wrapper ref when identifying an embedded workflow body.
 
-Known-project lookup defaults to active ProjectSpecs. Inactive projects are omitted from broad project-local xprompt
-catalogs and normal VCS workspace resolution; an explicit reference to an inactive known project fails with a hint to
-run `sase project activate <project>` before launching new work. Management and history code paths that need inactive
-projects opt into an all-state scan explicitly.
+Known-project lookup defaults to active ProjectSpecs. Inactive and sibling projects are omitted from broad project-local
+xprompt catalogs and normal VCS workspace resolution; an explicit reference to an inactive known project fails with a
+hint to run `sase project activate <project>` before launching new work. Management and history code paths that need
+hidden projects opt into an all-state scan explicitly.
 
 The raw colon form stops at whitespace, so paths with spaces should use the parenthesized form when possible:
 `#cd(/tmp/my project)`. Backtick quoting is supported for ordinary xprompt arguments, but workspace-reference path

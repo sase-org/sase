@@ -38,7 +38,7 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
         "-s",
         "--state",
         default="active",
-        metavar="{active,inactive,all}",
+        metavar="{active,inactive,sibling,all}",
         help="Lifecycle state to include (default: active)",
     )
     list_parser.add_argument(

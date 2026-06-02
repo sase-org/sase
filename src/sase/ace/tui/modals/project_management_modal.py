@@ -37,11 +37,12 @@ from .project_management_rendering import (
     warning_count as _warning_count,
 )
 
-ProjectStateFilter = Literal["all", "active", "inactive"]
+ProjectStateFilter = Literal["all", "active", "inactive", "sibling"]
 _DEFAULT_STATE_FILTER: ProjectStateFilter = "active"
 _PendingForce = tuple[tuple[str, ...], str]
 _STATE_FILTERS: tuple[ProjectStateFilter, ...] = (
     _DEFAULT_STATE_FILTER,
+    "sibling",
     "inactive",
     "all",
 )

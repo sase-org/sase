@@ -78,11 +78,13 @@ def test_list_launchable_projects_filters_invalid_entries(
     projects_dir = tmp_path / "projects"
     valid_workspace = tmp_path / "valid-workspace"
     inactive_workspace = tmp_path / "inactive-workspace"
+    sibling_workspace = tmp_path / "sibling-workspace"
     no_provider_workspace = tmp_path / "no-provider-workspace"
     home_workspace = tmp_path / "home-workspace"
     for workspace in (
         valid_workspace,
         inactive_workspace,
+        sibling_workspace,
         no_provider_workspace,
         home_workspace,
     ):
@@ -90,6 +92,7 @@ def test_list_launchable_projects_filters_invalid_entries(
 
     _write_project(projects_dir, "valid", valid_workspace)
     _write_project(projects_dir, "inactive", inactive_workspace, state="inactive")
+    _write_project(projects_dir, "sibling", sibling_workspace, state="sibling")
     _write_project(projects_dir, "empty", None)
     _write_project(projects_dir, "stale", tmp_path / "missing-workspace")
     _write_project(projects_dir, "no_provider", no_provider_workspace)
@@ -110,6 +113,7 @@ def test_list_launchable_projects_filters_invalid_entries(
     assert projects == ["home", "valid"]
     assert is_launchable_project("valid", projects_dir) is True
     assert is_launchable_project("inactive", projects_dir) is False
+    assert is_launchable_project("sibling", projects_dir) is False
     assert is_launchable_project("stale", projects_dir) is False
     assert is_launchable_project("home", projects_dir) is True
 

@@ -55,6 +55,7 @@ async def test_project_management_modal_wide_png_snapshot(
         # snapshot exercises every state badge and warning style at once.
         await page.press("tab")
         await page.press("tab")
+        await page.press("tab")
         await wait_for_visual_idle(page)
         assert modal._state_filter == "all"
 

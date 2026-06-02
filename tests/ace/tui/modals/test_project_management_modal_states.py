@@ -53,6 +53,10 @@ async def test_project_management_modal_activate_mutates_and_reloads(
 
         await pilot.press("tab")
         await pilot.pause()
+        assert modal._state_filter == "sibling"
+
+        await pilot.press("tab")
+        await pilot.pause()
         assert modal._state_filter == "inactive"
         assert [record.project_name for record in modal._filtered_records] == ["alpha"]
 
@@ -63,6 +67,55 @@ async def test_project_management_modal_activate_mutates_and_reloads(
         assert modal._records[0].state == "active"
         assert modal._filtered_records == []
         assert modal._status_message == "alpha -> active"
+
+
+async def test_project_management_modal_enter_activates_sibling(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    states = {"core": "sibling"}
+    calls: list[tuple[str, str, bool]] = []
+
+    def list_records(*_args, **_kwargs):
+        return [
+            make_project_record(
+                "core", state=states["core"], launchable=states["core"] == "active"
+            )
+        ]
+
+    def set_state(
+        project: str, state: str, *, force: bool = False
+    ) -> ProjectRecordWire:
+        calls.append((project, state, force))
+        states[project] = state
+        return make_project_record(project, state=state, launchable=state == "active")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.set_project_state_locked",
+        set_state,
+    )
+
+    async with ProjectManagementTestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._state_filter == "sibling"
+        assert [record.project_name for record in modal._filtered_records] == ["core"]
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert calls == [("core", "active", False)]
+        assert modal._records[0].state == "active"
+        assert modal._filtered_records == []
+        assert modal._status_message == "core -> active"
 
 
 async def test_project_management_modal_force_deactivate_after_block(

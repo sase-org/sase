@@ -171,6 +171,11 @@ class TestListAndShow:
             "beta",
             "PROJECT_STATE: inactive\nWORKSPACE_DIR: /tmp/beta\nNAME: b\n",
         )
+        _write_project(
+            projects_root,
+            "core",
+            "PROJECT_STATE: sibling\nWORKSPACE_DIR: /tmp/core\nNAME: c\n",
+        )
 
         args = make_args(project_subcommand="list", state="all", json=True)
         with pytest.raises(SystemExit) as exc:
@@ -178,11 +183,41 @@ class TestListAndShow:
 
         assert exc.value.code == 0
         payload = json.loads(capsys.readouterr().out)
-        assert [item["project_name"] for item in payload] == ["alpha", "beta"]
+        assert [item["project_name"] for item in payload] == [
+            "alpha",
+            "beta",
+            "core",
+        ]
         assert payload[0]["state"] == "active"
         assert payload[0]["state_source"] == "defaulted"
         assert payload[1]["state"] == "inactive"
         assert payload[1]["state_source"] == "explicit"
+        assert payload[2]["state"] == "sibling"
+        assert payload[2]["launchable"] is False
+
+    def test_list_can_filter_sibling_projects(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        lifecycle_stubs()
+        _write_project(projects_root, "alpha", "WORKSPACE_DIR: /tmp/alpha\nNAME: a\n")
+        _write_project(
+            projects_root,
+            "core",
+            "PROJECT_STATE: sibling\nWORKSPACE_DIR: /tmp/core\nNAME: c\n",
+        )
+
+        args = make_args(project_subcommand="list", state="sibling", json=False)
+        with pytest.raises(SystemExit) as exc:
+            handle_project_command(args)
+
+        assert exc.value.code == 0
+        out = capsys.readouterr().out
+        assert "core" in out
+        assert "sibling*" in out
+        assert "alpha" not in out
 
     def test_list_defaults_to_active_projects(
         self,
@@ -335,6 +370,32 @@ class TestMutation:
         assert project_file.read_text(encoding="utf-8").startswith(
             "PROJECT_STATE: active\n"
         )
+
+    def test_set_state_accepts_sibling(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        lifecycle_stubs()
+        project_file = _write_project(
+            projects_root,
+            "core",
+            "WORKSPACE_DIR: /tmp/core\nNAME: c\n",
+        )
+
+        args = make_args(
+            project_subcommand="set-state",
+            project="core",
+            state="sibling",
+            force=False,
+        )
+        with pytest.raises(SystemExit) as exc:
+            handle_project_command(args)
+
+        assert exc.value.code == 0
+        assert "PROJECT_STATE: sibling\n" in project_file.read_text(encoding="utf-8")
+        assert "state is now sibling" in capsys.readouterr().out
 
     def test_rejects_live_running_claim_without_force(
         self,
