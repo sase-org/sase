@@ -119,7 +119,7 @@ def test_launch_multi_prompt_allocates_unique_timestamps_without_sleep(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp")
 @patch("sase.artifacts.create_artifacts_directory")
-@patch("sase.agent.names.get_active_agent_names", return_value=set())
+@patch("sase.agent.names.get_reserved_agent_names", return_value=set())
 @patch("sase.running_field.get_workspace_directory")
 def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
     mock_wait_ws_dir: MagicMock,
@@ -161,11 +161,11 @@ def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
     assert [c.kwargs["deferred_workspace"] for c in calls] == [True, True, True]
     assert mock_create_artifacts.call_count == 0
     assert mock_wait.call_count == 0
-    assert calls[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "1"
-    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "1.w1"
-    assert calls[2].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "1.w1.w1"
-    assert calls[1].kwargs["prompt"].startswith("%wait:1")
-    assert calls[2].kwargs["prompt"].startswith("%wait:1.w1")
+    assert calls[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "0"
+    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "0.w1"
+    assert calls[2].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "0.w1.w1"
+    assert calls[1].kwargs["prompt"].startswith("%wait:0")
+    assert calls[2].kwargs["prompt"].startswith("%wait:0.w1")
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -477,7 +477,7 @@ def test_launch_multi_prompt_each_gets_own_timestamp(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.agent.names.get_active_agent_names", return_value=set())
+@patch("sase.agent.names.get_reserved_agent_names", return_value=set())
 @patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
@@ -517,15 +517,15 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
     assert call0_env["SASE_CHOP_NAME"] == "split"
     assert call1_env["SASE_CHOP_LUMBERJACK"] == "hooks"
     assert call1_env["SASE_CHOP_NAME"] == "split"
-    assert call0_env["SASE_AGENT_PLANNED_NAME"] == "1"
-    assert call1_env["SASE_AGENT_PLANNED_NAME"] == "2"
+    assert call0_env["SASE_AGENT_PLANNED_NAME"] == "0"
+    assert call1_env["SASE_AGENT_PLANNED_NAME"] == "1"
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.agent.names.get_active_agent_names", return_value=set())
+@patch("sase.agent.names.get_reserved_agent_names", return_value=set())
 @patch("sase.running_field.claim_next_axe_workspace", return_value=100)
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/1")
 @patch(
@@ -579,7 +579,7 @@ def test_launch_multi_prompt_merges_segment_extra_env(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.agent.names.get_active_agent_names", return_value=set())
+@patch("sase.agent.names.get_reserved_agent_names", return_value=set())
 @patch("sase.running_field.claim_next_axe_workspace", return_value=100)
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
@@ -611,5 +611,5 @@ def test_launch_multi_prompt_does_not_infer_bead_env_from_tag(
     # SASE_AGENT_PLANNED_NAME is now always set when the name is knowable;
     # nothing else (no bead env) should be inferred from a display tag.
     assert mock_spawn.call_args_list[0].kwargs["extra_env"] == {
-        "SASE_AGENT_PLANNED_NAME": "1",
+        "SASE_AGENT_PLANNED_NAME": "0",
     }

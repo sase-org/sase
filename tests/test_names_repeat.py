@@ -91,29 +91,29 @@ class TestReserveRepeatNameBase:
 
 class TestAutoNameChildAware:
     def test_done_child_reserves_numeric_root(self, tmp_path: Path) -> None:
-        # Undismissed orphan from an old %r:3 batch: name="1.2", done.
+        # Undismissed orphan from an old %r:3 batch: name="0.2", done.
         # Done agents reserve their slot and prefix until dismissed.
-        _write_meta(tmp_path, "ts1", "1.2", done=True)
+        _write_meta(tmp_path, "ts1", "0.2", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
             active = get_active_agent_names()
             auto = get_next_auto_name()
-        assert "1" in active
-        assert "1.2" in active
-        assert auto == "2"
+        assert "0" in active
+        assert "0.2" in active
+        assert auto == "1"
 
     def test_skips_numeric_root_with_live_child(self, tmp_path: Path) -> None:
-        _write_meta(tmp_path, "ts1", "2.1", pid=os.getpid())
+        _write_meta(tmp_path, "ts1", "0.1", pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
             active = get_active_agent_names()
-        assert "2" in active
+        assert "0" in active
 
     def test_repeat_launch_after_orphan_picks_safe_base(self, tmp_path: Path) -> None:
-        # Reproduces the Telegram bug: orphan "1.2" must prevent
-        # reserve_repeat_name_base(None, 3) from returning "1".
-        _write_meta(tmp_path, "ts1", "1.2", done=True)
+        # Reproduces the Telegram bug: orphan "0.2" must prevent
+        # reserve_repeat_name_base(None, 3) from returning "0".
+        _write_meta(tmp_path, "ts1", "0.2", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
             base = reserve_repeat_name_base(None, 3)
-        assert base == "2"
+        assert base == "1"
 
     def test_non_child_name_not_treated_as_prefix(self, tmp_path: Path) -> None:
         # Multi-segment names like "sase-z.2" must NOT reserve "sase-z"

@@ -48,7 +48,7 @@ def test_launch_multi_prompt_rewrites_bare_wait_to_explicit_previous_name(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
-@patch("sase.agent.names.get_active_agent_names", return_value=set())
+@patch("sase.agent.names.get_reserved_agent_names", return_value=set())
 @patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
 @patch(
@@ -59,7 +59,7 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_wait_predecessor(
     mock_ws_dir: MagicMock,
     mock_wait_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
-    mock_active_names: MagicMock,
+    mock_reserved_names: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
     mock_wait: MagicMock,
@@ -82,9 +82,9 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_wait_predecessor(
     assert mock_create_artifacts.call_count == 0
     assert (
         mock_spawn.call_args_list[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
-        == "1"
+        == "0"
     )
-    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "%wait:1\nReview"
+    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "%wait:0\nReview"
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")

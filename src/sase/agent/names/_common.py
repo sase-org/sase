@@ -24,7 +24,7 @@ class NameCollisionError(ValueError):
 # Auto-name prefix: the lowercase letter/digit segment before the first ``.``
 # in an agent name or workflow name. The base is intentionally restricted to
 # names reachable by the auto-name sequence
-# (``1``, ``2``, ..., ``z``, ``11``, ``12``, ...) so they are extracted by
+# (``0``, ``1``, ..., ``z``, ``00``, ``01``, ...) so they are extracted by
 # ``_get_active_agent_names``. Multi-segment user bases like ``sase-z``
 # are already reserved via the ``workflow_name`` path.
 _AUTO_NAME_PREFIX_RE = re.compile(r"^([a-z0-9]+)\.")

@@ -1,6 +1,6 @@
 """Auto-naming sequence and active-agent reservation logic.
 
-The auto sequence (``1, 2, ..., 9, 0, a, ..., z, 11, 12, ...``) plus
+The auto sequence (``0, 1, ..., 9, a, ..., z, 00, 01, ...``) plus
 child-name reservation that backs ``%r:N`` repeat batches.
 """
 
@@ -17,7 +17,7 @@ from sase.agent.names._common import (
 from sase.agent.names._registry import get_reserved_agent_names
 from sase.core.paths import sase_projects_dir
 
-_AUTO_NAME_ALPHABET = "1234567890" + string.ascii_lowercase
+_AUTO_NAME_ALPHABET = "0123456789" + string.ascii_lowercase
 
 
 def get_next_auto_name() -> str:
@@ -319,7 +319,7 @@ def _load_dismissed_suffixes() -> set[str]:
 
 
 def _name_sequence() -> Iterator[str]:
-    """Yield auto names in shortlex order: 1, ..., z, 11, 12, ..."""
+    """Yield auto names in shortlex order: 0, ..., z, 00, 01, ..."""
     length = 1
     while True:
         for chars in itertools.product(_AUTO_NAME_ALPHABET, repeat=length):

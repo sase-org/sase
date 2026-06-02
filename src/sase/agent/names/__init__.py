@@ -150,7 +150,7 @@ def reserve_repeat_name_base(explicit_base: str | None, count: int) -> str:
     agent and raise :class:`NameCollisionError` otherwise.
 
     When *explicit_base* is ``None``, delegate to :func:`get_next_auto_name`.
-    The auto sequence (``1, 2, ..., z, 11, ...``) never collides with an
+    The auto sequence (``0, 1, ..., z, 00, ...``) never collides with an
     existing batch because active agents' ``workflow_name`` reserves the
     base (see :func:`get_active_agent_names`).
     """

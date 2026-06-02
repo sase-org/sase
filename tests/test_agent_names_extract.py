@@ -210,8 +210,8 @@ class TestExtractDirectivesAutoDismiss:
                 env_auto_dismiss=False,
                 prompt="%wait:foo\n%wait:bar\ndo stuff",
             )
-        assert result["info"].name == "1"
-        assert result["meta"].get("name") == "1"
+        assert result["info"].name == "0"
+        assert result["meta"].get("name") == "0"
 
     def test_auto_dismiss_suppresses_wait_derived_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -429,7 +429,7 @@ def test_concurrent_auto_extract_assigns_unique_names(tmp_path: Path) -> None:
     ):
         names = list(pool.map(run, range(2)))
 
-    assert sorted(names) == ["1", "2"]
+    assert sorted(names) == ["0", "1"]
 
 
 def test_concurrent_explicit_extract_rejects_collision(tmp_path: Path) -> None:

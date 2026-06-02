@@ -59,7 +59,7 @@ def test_single_prompt_launch_result_carries_auto_planned_name(
             "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
             return_value=["260501_120000"],
         ),
-        patch("sase.agent.names.get_active_agent_names", return_value=set()),
+        patch("sase.agent.names.get_reserved_agent_names", return_value=set()),
         patch("sase.agent.launcher.spawn_agent_subprocess", spawn),
         patch("sase.running_field.get_first_available_axe_workspace"),
         patch("sase.running_field.get_workspace_directory_for_num"),
@@ -68,9 +68,42 @@ def test_single_prompt_launch_result_carries_auto_planned_name(
         results = launch_agents_from_cwd("do work")
 
     assert len(results) == 1
-    assert results[0].agent_name == "1"
+    assert results[0].agent_name == "0"
     kwargs = spawn.call_args.kwargs
-    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "1"
+    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "0"
+
+
+def test_single_prompt_launch_result_uses_durable_reserved_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Parent-side auto planning skips historical reserved names."""
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agents_from_cwd
+
+    spawn = _make_spawn_capture()
+    reserved = set("0123456789abcdefghijklmnopqrstuvwxyz")
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
+        patch("sase.agent.names.get_active_agent_names", return_value=set()),
+        patch("sase.agent.names.get_reserved_agent_names", return_value=reserved),
+        patch("sase.agent.launcher.spawn_agent_subprocess", spawn),
+        patch("sase.running_field.get_first_available_axe_workspace"),
+        patch("sase.running_field.get_workspace_directory_for_num"),
+    ):
+        results = launch_agents_from_cwd("do work")
+
+    assert len(results) == 1
+    assert results[0].agent_name == "00"
+    kwargs = spawn.call_args.kwargs
+    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "00"
 
 
 def test_single_prompt_launch_result_carries_explicit_name(
@@ -92,7 +125,7 @@ def test_single_prompt_launch_result_carries_explicit_name(
             "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
             return_value=["260501_120000"],
         ),
-        patch("sase.agent.names.get_active_agent_names", return_value=set()),
+        patch("sase.agent.names.get_reserved_agent_names", return_value=set()),
         patch("sase.agent.launcher.spawn_agent_subprocess", spawn),
         patch("sase.running_field.get_first_available_axe_workspace"),
         patch("sase.running_field.get_workspace_directory_for_num"),

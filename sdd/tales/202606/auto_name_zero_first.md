@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 13:53:30
-status: wip
+status: done
 prompt: sdd/prompts/202606/auto_name_zero_first.md
 ---
 # Auto Name Zero-First Plan

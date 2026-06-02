@@ -293,9 +293,9 @@ class PlannedNameAllocator:
         from sase.agent.names import allocate_auto_names
 
         if self._auto_reserved is None:
-            from sase.agent.names import get_active_agent_names
+            from sase.agent.names import get_reserved_agent_names
 
-            self._auto_reserved = get_active_agent_names()
+            self._auto_reserved = get_reserved_agent_names()
         name = allocate_auto_names(1, reserved=self._auto_reserved)[0]
         return name, name
 
