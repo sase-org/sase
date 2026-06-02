@@ -1,7 +1,7 @@
 """Axe tab keybinding sections for the help modal."""
 
 from ...keymaps import KeymapRegistry, key_display_name
-from .binding_common import Sections, custom_mode_sections, sk
+from .binding_common import Sections, custom_mode_sections, key_sequence_display, sk
 
 
 def axe_bindings(km: KeymapRegistry) -> Sections:
@@ -55,7 +55,10 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'repeat_last'))}",
                     "Repeat last leader command",
                 ),
-                (f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
+                (
+                    key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
+                    "Run agent (home)",
+                ),
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",

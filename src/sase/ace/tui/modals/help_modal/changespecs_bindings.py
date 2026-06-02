@@ -165,7 +165,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'run_cmd'))}",
                     "Run command (use current CL)",
                 ),
-                (f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
+                (
+                    key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
+                    "Run agent (home)",
+                ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'kill_mentors'))}",
                     "Kill running mentors",

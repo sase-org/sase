@@ -322,6 +322,18 @@ def test_agent_from_cl_leader_command_uses_ctrl_space() -> None:
     assert spec.executor.subkey == "ctrl+@"
 
 
+def test_agent_home_leader_command_uses_bare_space() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.agent_home")
+
+    assert spec.label == "Agent (home mode)"
+    assert spec.key_sequence == ("comma", "space")
+    assert spec.key_display == ", Space"
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "space"
+
+
 def test_repeat_last_leader_command_respects_repeat_key_and_prefix_overrides() -> None:
     reg = load_keymap_registry(
         {

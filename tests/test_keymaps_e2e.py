@@ -54,3 +54,21 @@ async def test_ctrl_at_dispatches_repeat_agent_binding_not_bare_space() -> None:
 
             await page.press("ctrl+@")
             assert calls == [True]
+
+
+async def test_leader_space_dispatches_agent_home_not_bare_space() -> None:
+    """Bare Space launches home-mode agents only after leader mode is active."""
+    with _patch_config():
+        async with AcePage() as page:
+            calls: list[bool] = []
+
+            def _record_agent_home() -> None:
+                calls.append(True)
+
+            page.app._show_prompt_input_bar_for_home = _record_agent_home  # type: ignore[method-assign]
+
+            await page.press("space")
+            assert calls == []
+
+            await page.press("comma", "space")
+            assert calls == [True]

@@ -106,7 +106,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'repeat_last'))}",
                     "Repeat last leader command",
                 ),
-                (f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
+                (
+                    key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
+                    "Run agent (home)",
+                ),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_from_cl")),
                     "Run agent from selected agent",

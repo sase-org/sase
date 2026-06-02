@@ -423,7 +423,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "runners": "r",
             "kill_mentors": "M",
             "review_mentors": "m",
-            "agent_home": "h",
+            "agent_home": "space",
             "agent_from_cl": "ctrl+@",
             "toggle_agent_panel_grouping": "g",
             "jump_to_next_unread_done_agent": "j",

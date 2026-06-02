@@ -57,12 +57,15 @@ def test_leader_repeat_last_default_binding() -> None:
     assert reg.leader_mode.keys["repeat_last"] == "comma"
 
 
-def test_agent_launch_defaults_use_ctrl_space() -> None:
-    """The repeat-last agent defaults use Textual's Ctrl+Space event key."""
+def test_agent_launch_defaults_use_distinct_space_keys() -> None:
+    """Agent launch defaults keep bare Space and Ctrl+Space distinct."""
     reg = load_keymap_registry({})
 
     assert reg.app.start_agent_from_changespec == "ctrl+@"
     assert reg.app.start_agent_from_changespec != "space"
+    assert LeaderModeKeymaps().keys["agent_home"] == "space"
+    assert reg.leader_mode.keys["agent_home"] == "space"
+    assert reg.leader_mode.keys["agent_home"] != "h"
     assert LeaderModeKeymaps().keys["agent_from_cl"] == "ctrl+@"
     assert reg.leader_mode.keys["agent_from_cl"] == "ctrl+@"
     assert reg.leader_mode.keys["agent_from_cl"] != "space"
@@ -515,6 +518,20 @@ def test_help_modal_displays_ctrl_space_agent_shortcuts() -> None:
 
     assert (", Ctrl+Space", "Run agent from current CL") in cls_pairs
     assert (", Ctrl+Space", "Run agent from selected agent") in agent_pairs
+
+
+def test_help_modal_displays_space_agent_home_leader_key() -> None:
+    """Help renders leader Space as a readable key sequence."""
+    reg = load_keymap_registry({})
+    sections_by_tab = (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg))
+
+    for sections in sections_by_tab:
+        pairs = {
+            (key, label) for _section, bindings in sections for key, label in bindings
+        }
+        assert (", Space", "Run agent (home)") in pairs
+        assert (",h", "Run agent (home)") not in pairs
+        assert (",Space", "Run agent (home)") not in pairs
 
 
 # --- KeymapRegistry defaults ---

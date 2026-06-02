@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 13:17:02
-status: wip
+status: done
 prompt: sdd/prompts/202606/leader_space_agent_home.md
 ---
 # Plan: Move `,h` Agent-Home Leader Key To `,<space>`

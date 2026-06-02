@@ -43,6 +43,7 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.mark_all_unread_count = 0
         self.mark_all_unread_result = 2
         self.prompt_history_calls: list[dict[str, bool]] = []
+        self.home_agent_count = 0
         self.quick_changespec_agent_count = 0
         self.quick_selected_agent_count = 0
         self.marked_agent_run_count = 0
@@ -91,6 +92,9 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
             {"show_cancelled": show_cancelled, "edit_first": edit_first}
         )
 
+    def _show_prompt_input_bar_for_home(self) -> None:
+        self.home_agent_count += 1
+
     def _start_agent_from_changespec_quick(self) -> None:
         self.quick_changespec_agent_count += 1
 
@@ -114,6 +118,7 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert registry.app.open_agent_artifacts == "A"
     assert registry.app.start_agent_from_changespec == "ctrl+@"
     assert registry.leader_mode.keys["agent_run_log"] == "A"
+    assert registry.leader_mode.keys["agent_home"] == "space"
     assert registry.leader_mode.keys["agent_from_cl"] == "ctrl+@"
     assert registry.app.focus_next_agent_panel == "J"
     assert registry.leader_mode.keys["jump_to_next_stopped_agent"] == "J"
@@ -126,6 +131,7 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert by_key["V"] == "show_agent_run_log"
     assert by_key["J"] == "focus_next_agent_panel"
     assert by_key["ctrl+@"] == "start_agent_from_changespec"
+    assert "space" not in by_key
 
 
 def test_leader_a_opens_agent_run_log_for_selected_cl() -> None:
@@ -182,6 +188,33 @@ def test_leader_ctrl_space_runs_agents_from_marked_cls() -> None:
     assert app.marked_agent_run_count == 1
     assert app.quick_changespec_agent_count == 0
     assert app._last_leader_key == "ctrl+@"
+
+
+def test_leader_space_runs_agent_home() -> None:
+    app = _FakeApp(changespecs=[_make_cs("alpha")])
+
+    handled = app._handle_leader_key("space")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app.home_agent_count == 1
+    assert app.quick_changespec_agent_count == 0
+    assert app.quick_selected_agent_count == 0
+    assert app.marked_agent_run_count == 0
+    assert app._last_leader_key == "space"
+    assert app.refresh_count == 1
+
+
+def test_leader_h_no_longer_runs_agent_home() -> None:
+    app = _FakeApp(changespecs=[_make_cs("alpha")])
+
+    handled = app._handle_leader_key("h")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app.home_agent_count == 0
+    assert app._last_leader_key is None
+    assert app.refresh_count == 1
 
 
 def test_leader_a_noops_on_non_cls_tabs() -> None:
@@ -476,6 +509,16 @@ def test_footer_surfaces_repeat_last_on_all_tabs() -> None:
         footer.update_leader_bindings(current_tab=tab)
         assert "," in _last_keys(captured)
         assert "repeat" in _last_labels(captured)
+
+
+def test_footer_surfaces_agent_home_as_space_on_all_tabs() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    for tab in ("changespecs", "agents", "axe"):
+        footer.update_leader_bindings(current_tab=tab)
+        assert ("<space>", "agent (home)") in captured[-1][0]
+        assert ("h", "agent (home)") not in captured[-1][0]
 
 
 def test_footer_surfaces_project_management_on_all_tabs() -> None:
