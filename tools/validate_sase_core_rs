@@ -36,6 +36,9 @@ REQUIRED_BINDINGS = (
     "derive_git_workspace_name",
     "parse_git_conflicted_files",
     "parse_git_local_changes",
+    "read_project_lifecycle_from_content",
+    "apply_project_lifecycle_update",
+    "list_project_records",
     "bead_build_legend_work_plan",
     "bead_build_legend_work_plan_from_issues",
 )
@@ -204,6 +207,73 @@ def _validate_saved_group_wire_fields(module: ModuleType) -> bool:
     return True
 
 
+def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
+    lifecycle = module.read_project_lifecycle_from_content(
+        "PROJECT_STATE: inactive\nNAME: demo\n"
+    )
+    if not isinstance(lifecycle, dict):
+        _error("project lifecycle probe returned a non-dict payload")
+        return False
+    if lifecycle.get("state") != "inactive" or lifecycle.get("explicit") is not True:
+        _error(
+            "project lifecycle probe did not accept canonical inactive state: "
+            f"got {lifecycle!r}"
+        )
+        return False
+
+    updated = module.apply_project_lifecycle_update(
+        "WORKSPACE_DIR: /tmp\nNAME: demo\n",
+        "inactive",
+    )
+    if updated != "WORKSPACE_DIR: /tmp\nPROJECT_STATE: inactive\nNAME: demo\n":
+        _error(
+            "project lifecycle update probe did not write canonical inactive "
+            f"state: got {updated!r}"
+        )
+        return False
+
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-lifecycle-probe-") as tmp:
+        root = Path(tmp)
+        projects_root = root / "projects"
+        active_workspace = root / "active-workspace"
+        inactive_workspace = root / "inactive-workspace"
+        active_workspace.mkdir()
+        inactive_workspace.mkdir()
+
+        active_dir = projects_root / "active"
+        inactive_dir = projects_root / "inactive"
+        active_dir.mkdir(parents=True)
+        inactive_dir.mkdir(parents=True)
+        (active_dir / "active.sase").write_text(
+            f"WORKSPACE_DIR: {active_workspace}\nNAME: active\n",
+            encoding="utf-8",
+        )
+        (inactive_dir / "inactive.sase").write_text(
+            f"PROJECT_STATE: inactive\nWORKSPACE_DIR: {inactive_workspace}\n"
+            "NAME: inactive\n",
+            encoding="utf-8",
+        )
+
+        records = module.list_project_records(str(projects_root), ["active"], False)
+
+    if not isinstance(records, list):
+        _error("project lifecycle record probe returned a non-list payload")
+        return False
+    project_names = [
+        record.get("project_name")
+        for record in records
+        if isinstance(record, dict)
+    ]
+    if project_names != ["active"]:
+        _error(
+            "project lifecycle record probe did not filter inactive projects: "
+            f"got {project_names!r}"
+        )
+        return False
+
+    return True
+
+
 def main() -> int:
     module = _load_extension()
     if module is None:
@@ -213,6 +283,8 @@ def main() -> int:
     if not _validate_scalar_plan_timestamp(module):
         return 1
     if not _validate_saved_group_wire_fields(module):
+        return 1
+    if not _validate_project_lifecycle_contract(module):
         return 1
     return 0
 
