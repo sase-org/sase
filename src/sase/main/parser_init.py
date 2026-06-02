@@ -150,7 +150,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         "-C",
         "--no-commit",
         action="store_true",
-        help="Skip the project git commit/push sequence",
+        help="Skip git commit/push/apply deploy sequences",
     )
 
     sdd_parser = init_subparsers.add_parser(

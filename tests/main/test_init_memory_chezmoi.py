@@ -56,7 +56,8 @@ sibling_repos:
 
     deployed: list[Path] = []
 
-    def fake_deploy(paths: Iterable[Path]) -> int:
+    def fake_deploy(paths: Iterable[Path], *, no_commit: bool = False) -> int:
+        assert no_commit is True
         deployed.extend(paths)
         return 0
 
@@ -106,3 +107,34 @@ def test_init_memory_deferred_chezmoi_collects_paths_without_deploy(
     deploy_mock.assert_not_called()
     assert chezmoi_home / "memory" / "short" / "sase.md" in deferred.paths
     assert deferred.apply_force is True
+
+
+def test_init_memory_no_commit_passes_through_to_chezmoi_deploy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        use_chezmoi=True,
+    )
+    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+
+    deploy_mock = MagicMock(return_value=0)
+    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", deploy_mock)
+
+    assert run_handler(no_commit=True) == 0
+
+    deploy_mock.assert_called_once()
+    deployed_paths, deploy_kwargs = deploy_mock.call_args
+    assert deploy_kwargs == {"no_commit": True}
+    assert chezmoi_home / "memory" / "short" / "sase.md" in deployed_paths[0]
+    assert (chezmoi_home / "memory" / "short" / "sase.md").exists()

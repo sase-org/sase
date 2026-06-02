@@ -231,7 +231,9 @@ def _deploy_to_project_repo(
     return 0
 
 
-def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
+def _deploy_to_chezmoi(
+    written_paths: Iterable[Path], *, no_commit: bool = False
+) -> int:
     return deploy_to_chezmoi(
         written_paths,
         ChezmoiDeployBehavior(
@@ -239,6 +241,7 @@ def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
             commit_message="chore: initialize sase memory",
             auto_commit_type="memory",
             chezmoi_home=CHEZMOI_HOME,
+            no_commit=no_commit,
             pull_push=False,
             apply_force=True,
             apply_when_nothing_staged=True,
@@ -400,7 +403,10 @@ def run_init_memory(args: argparse.Namespace) -> int:
         ):
             chezmoi_exit_code = 0
         else:
-            chezmoi_exit_code = _deploy_to_chezmoi(home_result.written_paths)
+            chezmoi_exit_code = _deploy_to_chezmoi(
+                home_result.written_paths,
+                no_commit=inputs.no_commit,
+            )
         if chezmoi_exit_code != 0:
             exit_code = chezmoi_exit_code
     return exit_code
