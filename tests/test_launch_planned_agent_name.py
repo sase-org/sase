@@ -68,9 +68,9 @@ def test_single_prompt_launch_result_carries_auto_planned_name(
         results = launch_agents_from_cwd("do work")
 
     assert len(results) == 1
-    assert results[0].agent_name == "a"
+    assert results[0].agent_name == "1"
     kwargs = spawn.call_args.kwargs
-    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "a"
+    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "1"
 
 
 def test_single_prompt_launch_result_carries_explicit_name(

@@ -535,14 +535,14 @@ def test_split_prompt_for_models_pure_alt_auto_base_skips_active_names(
     tmp_path: Path,
 ) -> None:
     """Auto base allocation skips occupied visible agents for pure %alt."""
-    _make_agent(tmp_path, "proj", "run-a", "a", done=True)
+    _make_agent(tmp_path, "proj", "run-1", "1", done=True)
 
     with patch.object(Path, "home", return_value=tmp_path):
         result = split_prompt_for_models("%alt(x,y)\nDo work")
 
     assert result is not None
-    assert result[0] == "%name:b.1\nx\nDo work"
-    assert result[1] == "%name:b.2\ny\nDo work"
+    assert result[0] == "%name:2.1\nx\nDo work"
+    assert result[1] == "%name:2.2\ny\nDo work"
 
 
 def test_split_prompt_for_models_pure_alt_resume_base(tmp_path: Path) -> None:

@@ -82,9 +82,9 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_wait_predecessor(
     assert mock_create_artifacts.call_count == 0
     assert (
         mock_spawn.call_args_list[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
-        == "a"
+        == "1"
     )
-    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "%wait:a\nReview"
+    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "%wait:1\nReview"
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")

@@ -38,6 +38,15 @@ def test_registry_rebuild_collects_active_agent(tmp_path: Path) -> None:
         assert lookup_registered_name("foo")["state"] == "active"
 
 
+def test_registry_rebuild_collects_numeric_auto_prefix(tmp_path: Path) -> None:
+    _make_agent(tmp_path, "proj", "run1", "1.plan")
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        reserved = get_reserved_agent_names()
+        assert {"1", "1.plan"} <= reserved
+        assert lookup_registered_name("1")["reservation_kind"] == "auto_prefix"
+
+
 def test_registry_rebuild_stays_under_sase_home(monkeypatch, tmp_path: Path) -> None:
     real_home = tmp_path / "real-home"
     isolated_home = tmp_path / "isolated-home"

@@ -1,7 +1,7 @@
 """Auto-naming sequence and active-agent reservation logic.
 
-The auto sequence (``a, b, ..., z, aa, ab, ...``) plus child-name reservation
-that backs ``%r:N`` repeat batches.
+The auto sequence (``1, 2, ..., 9, 0, a, ..., z, 11, 12, ...``) plus
+child-name reservation that backs ``%r:N`` repeat batches.
 """
 
 import itertools
@@ -16,6 +16,8 @@ from sase.agent.names._common import (
 )
 from sase.agent.names._registry import get_reserved_agent_names
 from sase.core.paths import sase_projects_dir
+
+_AUTO_NAME_ALPHABET = "1234567890" + string.ascii_lowercase
 
 
 def get_next_auto_name() -> str:
@@ -317,21 +319,16 @@ def _load_dismissed_suffixes() -> set[str]:
 
 
 def _name_sequence() -> Iterator[str]:
-    """Yield auto names: a, b, ..., z, aa, ..., az, a0, ..., a9, ba, ..."""
-    tail_chars = string.ascii_lowercase + string.digits
+    """Yield auto names in shortlex order: 1, ..., z, 11, 12, ..."""
     length = 1
     while True:
-        if length == 1:
-            yield from string.ascii_lowercase
-        else:
-            for first in string.ascii_lowercase:
-                for tail in itertools.product(tail_chars, repeat=length - 1):
-                    yield first + "".join(tail)
+        for chars in itertools.product(_AUTO_NAME_ALPHABET, repeat=length):
+            yield "".join(chars)
         length += 1
 
 
 def _next_available_name(used: set[str]) -> str:
-    """Return the first name from the alphabetic sequence not in *used*."""
+    """Return the first name from the shortlex auto sequence not in *used*."""
     for name in _name_sequence():
         if name not in used:
             return name

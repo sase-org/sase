@@ -116,7 +116,7 @@ def test_migrates_current_process_artifact_and_resets_auto_namespace(
 
     with patch.object(Path, "home", return_value=tmp_path):
         run_historical_auto_name_migration()
-        assert get_next_auto_name() == "a"
+        assert get_next_auto_name() == "1"
 
     assert _read_json(artifacts_dir / "agent_meta.json")["name"] == "260508.aoa"
 

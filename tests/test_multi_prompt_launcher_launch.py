@@ -161,11 +161,11 @@ def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
     assert [c.kwargs["deferred_workspace"] for c in calls] == [True, True, True]
     assert mock_create_artifacts.call_count == 0
     assert mock_wait.call_count == 0
-    assert calls[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "a"
-    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "a.w1"
-    assert calls[2].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "a.w1.w1"
-    assert calls[1].kwargs["prompt"].startswith("%wait:a")
-    assert calls[2].kwargs["prompt"].startswith("%wait:a.w1")
+    assert calls[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "1"
+    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "1.w1"
+    assert calls[2].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "1.w1.w1"
+    assert calls[1].kwargs["prompt"].startswith("%wait:1")
+    assert calls[2].kwargs["prompt"].startswith("%wait:1.w1")
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -517,8 +517,8 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
     assert call0_env["SASE_CHOP_NAME"] == "split"
     assert call1_env["SASE_CHOP_LUMBERJACK"] == "hooks"
     assert call1_env["SASE_CHOP_NAME"] == "split"
-    assert call0_env["SASE_AGENT_PLANNED_NAME"] == "a"
-    assert call1_env["SASE_AGENT_PLANNED_NAME"] == "b"
+    assert call0_env["SASE_AGENT_PLANNED_NAME"] == "1"
+    assert call1_env["SASE_AGENT_PLANNED_NAME"] == "2"
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -611,5 +611,5 @@ def test_launch_multi_prompt_does_not_infer_bead_env_from_tag(
     # SASE_AGENT_PLANNED_NAME is now always set when the name is knowable;
     # nothing else (no bead env) should be inferred from a display tag.
     assert mock_spawn.call_args_list[0].kwargs["extra_env"] == {
-        "SASE_AGENT_PLANNED_NAME": "a",
+        "SASE_AGENT_PLANNED_NAME": "1",
     }

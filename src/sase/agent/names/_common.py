@@ -21,13 +21,13 @@ class NameCollisionError(ValueError):
     """Raised when an explicit repeat-name base conflicts with existing agents."""
 
 
-# Auto-name prefix: the ``[a-z][a-z0-9]*`` segment before the first ``.`` in an
-# agent name or workflow name. The base is intentionally restricted to
+# Auto-name prefix: the lowercase letter/digit segment before the first ``.``
+# in an agent name or workflow name. The base is intentionally restricted to
 # names reachable by the auto-name sequence
-# (``a``, ``b``, ..., ``z``, ``aa``, ..., ``a0``, ...) so they are extracted by
+# (``1``, ``2``, ..., ``z``, ``11``, ``12``, ...) so they are extracted by
 # ``_get_active_agent_names``. Multi-segment user bases like ``sase-z``
 # are already reserved via the ``workflow_name`` path.
-_AUTO_NAME_PREFIX_RE = re.compile(r"^([a-z][a-z0-9]*)\.")
+_AUTO_NAME_PREFIX_RE = re.compile(r"^([a-z0-9]+)\.")
 
 DISMISSED_NAME_PREFIX_RE = re.compile(r"^(\d{6})\.")
 
