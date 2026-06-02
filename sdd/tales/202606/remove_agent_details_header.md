@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 18:42:17
-status: wip
+status: done
 prompt: sdd/prompts/202606/remove_agent_details_header.md
 ---
 # Remove Agents Metadata Panel Header

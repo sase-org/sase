@@ -238,7 +238,7 @@ def build_header_text(
     hint_state: HeaderHintState | None = None,
     summary: _DetailHeaderSummary | None = None,
 ) -> tuple[Text, Syntax | None]:
-    """Build the AGENT DETAILS header section with trailing separator.
+    """Build the agent metadata section with trailing separator.
 
     Contains agent metadata (name, workspace, model, timestamps, etc.),
     error information, and a trailing separator line.
@@ -260,11 +260,7 @@ def build_header_text(
     """
     header_text = Text()
 
-    # Header - AGENT DETAILS
-    header_text.append("AGENT DETAILS\n", style="bold #D7AF5F underline")
-    header_text.append("\n")
-
-    # Agent name is always the first metadata row in the details header.
+    # Agent name is always the first metadata row in the details panel.
     header_text.append("Name: ", style="bold #87D7FF")
     if agent.agent_name:
         header_text.append(f"@{agent.agent_name}\n", style="#FF87D7")

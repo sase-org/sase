@@ -1,4 +1,4 @@
-"""Tests for meta_changespec vs meta_project priority in AGENT DETAILS header."""
+"""Tests for meta_changespec vs meta_project priority in agent metadata."""
 
 from datetime import datetime
 

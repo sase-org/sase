@@ -8,11 +8,7 @@ MAJOR_SECTION_RULE = "\u2500" * 50
 
 
 def assert_metadata_prefix(text: Text, *expected_lines: str) -> None:
-    assert text.plain.splitlines()[: 2 + len(expected_lines)] == [
-        "AGENT DETAILS",
-        "",
-        *expected_lines,
-    ]
+    assert text.plain.splitlines()[: len(expected_lines)] == list(expected_lines)
 
 
 def assert_span_covers(text: Text, needle: str, style: str) -> None:
