@@ -172,6 +172,34 @@ def test_project_select_modal_loads_launchable_projects_and_active_changespecs(
     ]
 
 
+def test_project_select_modal_excludes_named_project_rows_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_select_modal.list_launchable_projects",
+        lambda: ["home", "valid"],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_select_modal.find_all_changespecs",
+        lambda: [
+            _changespec("home_active", "WIP", project_name="home"),
+            _changespec("valid_active", "Ready"),
+        ],
+    )
+
+    modal = ProjectSelectModal(
+        include_all=True,
+        exclude_project_names={"home"},
+    )
+
+    assert [item.display_name for item in modal.all_items] == [
+        "[*] ALL",
+        "[P] valid",
+        "[C] home_active [WIP]",
+        "[C] valid_active [Ready]",
+    ]
+
+
 async def test_filter_updates_match_count_and_highlights_first(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -1,6 +1,7 @@
 """Project/CL selection modal with filtering for the ace TUI."""
 
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -57,15 +58,22 @@ class ProjectSelectModal(
         Binding("ctrl+g", "select_and_edit", "Select & Edit", priority=True),
     ]
 
-    def __init__(self, *, include_all: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        include_all: bool = False,
+        exclude_project_names: Iterable[str] = (),
+    ) -> None:
         """Initialize the project selection modal.
 
         Args:
             include_all: If True, insert an "ALL" item at position 0.
+            exclude_project_names: Exact project names to omit from project rows.
         """
         super().__init__()
         self.all_items: list[SelectionItem] = []
         self._include_all = include_all
+        self._exclude_project_names = frozenset(exclude_project_names)
         self._load_items()
 
     def _load_items(self) -> None:
@@ -82,6 +90,8 @@ class ProjectSelectModal(
             )
 
         for project_name in list_launchable_projects():
+            if project_name in self._exclude_project_names:
+                continue
             self.all_items.append(
                 SelectionItem(
                     display_name=f"[P] {project_name}",

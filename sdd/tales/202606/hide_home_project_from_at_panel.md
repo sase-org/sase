@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 16:53:12
-status: wip
+status: done
 prompt: sdd/prompts/202606/hide_home_project_from_at_panel.md
 ---
 # Hide `home` Project From `@` Agent Selector

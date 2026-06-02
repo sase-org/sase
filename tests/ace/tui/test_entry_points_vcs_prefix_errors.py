@@ -10,8 +10,8 @@ import pytest
 from sase.ace.tui.actions.agent_workflow import _entry_points
 from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
 from sase.ace.tui.actions.agent_workflow._prompt_bar_mount import PromptBarMountMixin
+from sase.ace.tui.modals import ProjectSelectModal, SelectionItem
 from sase.history.prompt import PromptEntry
-from sase.ace.tui.modals import SelectionItem
 
 
 class _App(EntryPointsMixin):
@@ -25,6 +25,7 @@ class _App(EntryPointsMixin):
         self.current_idx = 0
         self._last_custom_agent_selection = None
         self._prompt_context = None
+        self.pushed_screens: list[tuple[Any, Any]] = []
 
     def notify(self, message: str, *, severity: str | None = None) -> None:
         self.notifications.append((message, severity))
@@ -41,6 +42,9 @@ class _App(EntryPointsMixin):
 
     def _finish_agent_launch(self, prompt: str) -> None:
         self.finished_prompts.append(prompt)
+
+    def push_screen(self, screen: Any, callback: Any = None) -> None:
+        self.pushed_screens.append((screen, callback))
 
 
 class _EditorApp(EntryPointsMixin, PromptBarMountMixin):
@@ -131,6 +135,28 @@ def test_home_project_selection_launches_with_vcs_prefix(
         }
     ]
     assert app.editor_launches == []
+
+
+def test_start_custom_agent_selector_hides_home_project_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_select_modal.list_launchable_projects",
+        lambda: ["home", "sase"],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_select_modal.find_all_changespecs",
+        lambda: [],
+    )
+    app = _App()
+
+    app.action_start_custom_agent()
+
+    assert len(app.pushed_screens) == 1
+    modal, callback = app.pushed_screens[0]
+    assert isinstance(modal, ProjectSelectModal)
+    assert callback is not None
+    assert [item.display_name for item in modal.all_items] == ["[P] sase"]
 
 
 def test_start_last_vcs_xprompt_editor_opens_mru_prefix_and_launches_edit(

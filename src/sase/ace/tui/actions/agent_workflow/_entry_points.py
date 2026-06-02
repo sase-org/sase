@@ -386,7 +386,9 @@ class EntryPointsMixin:
                 selection, open_in_editor=open_in_editor
             )
 
-        self.push_screen(ProjectSelectModal(), on_project_select)  # type: ignore[attr-defined]
+        self.push_screen(  # type: ignore[attr-defined]
+            ProjectSelectModal(exclude_project_names={"home"}), on_project_select
+        )
 
     def _start_custom_agent_from_selection(
         self,
