@@ -401,20 +401,6 @@ chosen `goto`/`loop` target" rather than a closed enum.
 - **Discoverability.** Need `sase` CLI/skill support to list/validate families,
   and TUI affordance to show which family an agent belongs to.
 
----
-
-## 6. Summary recommendation
-
-Treat the planner/coder/feedback/Q&A lifecycle as a **declarative, human-gated
-agent-family state machine** (Option C), not as frozen Python and not as a linear
-workflow. Define a dedicated `agent_family` schema whose built-in `default`
-reproduces today's plan chain exactly; evaluate it in `sase-core` so all frontends
-agree on roles, transitions, and prompt assembly; and keep the Textual modals and
-subprocess mechanics in this repo as the host/presentation layer. Ship it in
-phases, beginning with a config-extraction down payment (Option A) that already
-unlocks custom coder prompts/models and additional approval choices, then growing
-that config into the full schema and core engine.
-
 ### Key code references
 
 - `src/sase/plan_chain.py` — suffix constants, role mapping (the closed enum).
@@ -430,3 +416,17 @@ that config into the full schema and core engine.
   question IPC + Q&A merge.
 - `src/sase/xprompts/workflow.schema.json` — the existing workflow DSL to reuse.
 - `../sase-core/crates/sase_core/src/.../wire.rs` — mirrored family metadata fields.
+
+---
+
+## 6. Summary recommendation
+
+Treat the planner/coder/feedback/Q&A lifecycle as a **declarative, human-gated
+agent-family state machine** (Option C), not as frozen Python and not as a linear
+workflow. Define a dedicated `agent_family` schema whose built-in `default`
+reproduces today's plan chain exactly; evaluate it in `sase-core` so all frontends
+agree on roles, transitions, and prompt assembly; and keep the Textual modals and
+subprocess mechanics in this repo as the host/presentation layer. Ship it in
+phases, beginning with a config-extraction down payment (Option A) that already
+unlocks custom coder prompts/models and additional approval choices, then growing
+that config into the full schema and core engine.
