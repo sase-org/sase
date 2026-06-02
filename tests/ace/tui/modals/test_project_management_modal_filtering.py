@@ -113,6 +113,42 @@ async def test_project_management_modal_filters_states(
         assert [r.project_name for r in modal._filtered_records] == ["core"]
 
 
+async def test_project_management_reload_preserves_load_failure_status(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    calls = 0
+
+    def list_records(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return [make_project_record("alpha")]
+        raise RuntimeError("disk unavailable")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+
+    async with ProjectManagementTestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        monkeypatch.setattr(modal, "notify", MagicMock())
+
+        await pilot.press("R")
+        await pilot.pause()
+
+        assert modal._status_message == "Load failed: disk unavailable"
+        assert modal._records == []
+        assert modal._filtered_records == []
+        modal.notify.assert_called_once_with(
+            "Load failed: disk unavailable",
+            severity="error",
+        )
+
+
 def test_project_management_modal_footer_includes_delete_affordance(
     monkeypatch,
     tmp_path: Path,

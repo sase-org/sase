@@ -116,7 +116,7 @@ class ProjectManagementModal(
         self.query_one(f"#{self._option_list_id}", OptionList).focus()
         self._update_detail()
 
-    def _load_records(self) -> None:
+    def _load_records(self) -> bool:
         root = (
             self._projects_root
             if self._projects_root is not None
@@ -128,7 +128,7 @@ class ProjectManagementModal(
             self._records = []
             self._filtered_records = []
             self._status_message = f"Load failed: {exc}"
-            return
+            return False
         self._records = [
             record
             for record in records
@@ -136,6 +136,7 @@ class ProjectManagementModal(
         ]
         self._prune_stale_marked_projects()
         self._apply_filters()
+        return True
 
     def _apply_filters(self) -> None:
         text_filter = self._text_filter.lower().strip()
@@ -401,11 +402,10 @@ class ProjectManagementModal(
 
     def action_reload_projects(self) -> None:
         selected = self._selected_project_name()
-        try:
-            self._load_records()
-        except Exception as exc:
-            self._set_status(f"Reload failed: {exc}")
-            self.notify(f"Project reload failed: {exc}", severity="error")
+        if not self._load_records():
+            self._pending_force = None
+            self._refresh_options(preferred_project=selected)
+            self.notify(self._status_message, severity="error")
             return
         self._pending_force = None
         self._set_status("Reloaded")
