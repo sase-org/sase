@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 21:18:27
-status: wip
+status: done
 prompt: sdd/prompts/202606/jump_all_scroll.md
 ---
 # Plan: Fix Jump to Entry Ctrl+D/U Scrolling

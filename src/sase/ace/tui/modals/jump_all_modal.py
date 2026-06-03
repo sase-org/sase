@@ -279,10 +279,22 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
             self.dismiss(self._last_position)
             return
 
+        if key in ("ctrl+d", "ctrl+u"):
+            event.prevent_default()
+            event.stop()
+            self._scroll_entries(direction=1 if key == "ctrl+d" else -1)
+            return
+
         # Any other key dismisses without action
         event.prevent_default()
         event.stop()
         self.dismiss(None)
+
+    def _scroll_entries(self, *, direction: int) -> None:
+        """Scroll the entry list by half a page."""
+        scroll = self.query_one("#jump-all-scroll", VerticalScroll)
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=direction * (height // 2), animate=False)
 
     def action_close(self) -> None:
         self.dismiss(None)

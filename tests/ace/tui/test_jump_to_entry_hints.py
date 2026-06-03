@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from textual.app import App, ComposeResult
+from textual.containers import VerticalScroll
+
 from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
 from sase.ace.tui.actions.changespec._grouping_nav import (
@@ -118,6 +121,13 @@ class _KeyEvent:
 
     def stop(self) -> None:
         self.stopped = True
+
+
+class _JumpAllTestApp(App[object | None]):
+    ENABLE_COMMAND_PALETTE = False
+
+    def compose(self) -> ComposeResult:
+        yield from ()
 
 
 def test_build_jump_hint_maps_uses_expected_order() -> None:
@@ -461,6 +471,67 @@ def test_jump_all_modal_on_key_uses_uppercase_event_character(
     assert dismissed == [JumpAllResult(tab="changespecs", index=36)]
     assert event.prevented is True
     assert event.stopped is True
+
+
+async def test_jump_all_modal_ctrl_d_scrolls_without_dismissing() -> None:
+    result: object | None = "pending"
+
+    async with _JumpAllTestApp().run_test(size=(120, 24)) as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = JumpAllModal(
+            changespecs=[_make_changespec(f"feature_{i:02d}") for i in range(62)],
+            agents=[],
+            axe_items=[],
+        )
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        scroll = modal.query_one("#jump-all-scroll", VerticalScroll)
+        visible_height = scroll.scrollable_content_region.height
+        assert visible_height > 0
+        assert scroll.max_scroll_y > 0
+
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+
+        assert scroll.scroll_y == visible_height // 2
+        assert result == "pending"
+
+
+async def test_jump_all_modal_ctrl_u_scrolls_up_without_dismissing() -> None:
+    result: object | None = "pending"
+
+    async with _JumpAllTestApp().run_test(size=(120, 24)) as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = JumpAllModal(
+            changespecs=[_make_changespec(f"feature_{i:02d}") for i in range(62)],
+            agents=[],
+            axe_items=[],
+        )
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        scroll = modal.query_one("#jump-all-scroll", VerticalScroll)
+        visible_height = scroll.scrollable_content_region.height
+        assert visible_height > 0
+        assert scroll.max_scroll_y > visible_height
+        scroll.scroll_relative(y=visible_height, animate=False)
+        await pilot.pause()
+        assert scroll.scroll_y == visible_height
+
+        await pilot.press("ctrl+u")
+        await pilot.pause()
+
+        assert scroll.scroll_y == visible_height - (visible_height // 2)
+        assert result == "pending"
 
 
 def test_jump_all_modal_bgcmd_entry_includes_command(tmp_path: Path) -> None:
