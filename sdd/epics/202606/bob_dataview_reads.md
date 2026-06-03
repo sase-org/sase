@@ -2,6 +2,8 @@
 create_time: 2026-06-03 15:55:36
 status: wip
 prompt: sdd/prompts/202606/bob_dataview_reads.md
+bead_id: sase-4b
+tier: epic
 ---
 # Plan: Dataview-Backed `#!sase/reads`
 
