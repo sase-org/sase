@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-03 01:40:34
-status: wip
+status: done
 prompt: sdd/prompts/202606/codex_transient_retry.md
 ---
 # Plan: Give the Codex Provider Built-In Transient-Failure Retry Coverage

@@ -818,7 +818,7 @@ llm_provider:
 
 Retry defaults can come from two places: configured policy under `llm_provider.retry` and provider-supplied defaults
 from the `llm_default_retry_config()` hook. The bundled `default_config.yml` already provides configured policy for
-Gemini and Claude; user config can replace or extend it through the normal config merge.
+Gemini, Claude, and Codex; user config can replace or extend it through the normal config merge.
 
 **Gemini:**
 
@@ -834,10 +834,21 @@ Gemini and Claude; user config can replace or extend it through the normal confi
 - **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
 - **fallback_model**: `"sonnet"`
 
+**Codex:**
+
+- **max_retries**: 3
+- **error_patterns**:
+  `["exceeded retry limit", "429 Too Many Requests", "Too Many Requests", "rate limit", "failed to connect to websocket"]`
+  — the Codex CLI's own give-up message, the terminal rate-limit status, and the transient websocket transport error. A
+  bare `403 Forbidden` is deliberately excluded so a persistent auth failure is not retried forever.
+- **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min) — rate limits need a real cool-down
+
 ### Provider-Supplied Retry Defaults
 
-Providers can also declare retry defaults through the `llm_default_retry_config()` hook. Claude declares a recovery
-entry that is merged with the configured Claude policy:
+Providers can also declare retry defaults through the `llm_default_retry_config()` hook. Both Claude and Codex declare a
+recovery entry that is merged with their configured policy.
+
+Claude:
 
 - **error patterns**: `"Prompt is too long"`, `"socket connection was closed unexpectedly"`, and `"API Error"`
 - **max_retries**: 3
@@ -845,6 +856,16 @@ entry that is merged with the configured Claude policy:
   `[60, 300, 1800]`, so that is the out-of-the-box backoff
 - **continuation_prompt**: A short nudge that tells the coder to inspect `git status` / `git diff` before resuming,
   since prior edits are preserved on disk after a context-limit, socket-close, or API-error retry
+- **preserve_workspace**: `true`
+
+Codex:
+
+- **error patterns**: `"exceeded retry limit"`, `"429 Too Many Requests"`, `"Too Many Requests"`, `"rate limit"`, and
+  `"failed to connect to websocket"` — the transient transport / rate-limit failure mode where the Codex CLI exhausts
+  its own internal reconnects and exits non-zero
+- **max_retries**: 3
+- **wait_times**: `[60, 300, 1800]` — the bundled Codex policy supplies the same backoff
+- **continuation_prompt**: The same `git status` / `git diff` resume nudge as Claude
 - **preserve_workspace**: `true`
 
 Configured `llm_provider.retry.<provider>` values are merged on top of provider-supplied defaults: explicit falsy values

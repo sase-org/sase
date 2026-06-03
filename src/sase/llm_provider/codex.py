@@ -1,5 +1,7 @@
 """Codex (OpenAI CLI agent) LLM provider implementation."""
 
+from __future__ import annotations
+
 import os
 import shutil
 import subprocess
@@ -7,6 +9,7 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
 from sase.output import gemini_timer
@@ -15,6 +18,9 @@ from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_codex_json_output
 from .base import LLMProvider
 from .types import InvokeResult, ModelTier
+
+if TYPE_CHECKING:
+    from .retry_config import ProviderRetryConfig
 
 # Map model tiers to Codex model names
 _TIER_TO_MODEL: dict[ModelTier, str] = {
@@ -249,6 +255,27 @@ class CodexProvider(LLMProvider):
         return "codex"
 
     @hookimpl
+    def llm_default_retry_config(self) -> ProviderRetryConfig:
+        from .retry_config import (
+            _RETRY_CONTINUATION_NUDGE,
+            ProviderRetryConfig,
+        )
+
+        return ProviderRetryConfig(
+            max_retries=3,
+            error_patterns=[
+                "exceeded retry limit",
+                "429 Too Many Requests",
+                "Too Many Requests",
+                "rate limit",
+                "failed to connect to websocket",
+            ],
+            wait_times=[60, 300, 1800],
+            continuation_prompt=_RETRY_CONTINUATION_NUDGE,
+            preserve_workspace=True,
+        )
+
+    @hookimpl
     def llm_invoke(
         self,
         prompt: str,
@@ -285,6 +312,10 @@ class CodexProvider(LLMProvider):
 
         Raises:
             subprocess.CalledProcessError: If the Codex CLI process fails.
+                Transient transport/rate-limit failures (e.g. ``429 Too Many
+                Requests`` or websocket connection errors) are matched by the
+                built-in ``llm_default_retry_config`` so the workflow retry
+                subsystem can recover instead of terminating.
         """
         model = model_override if model_override else _TIER_TO_MODEL[model_tier]
 

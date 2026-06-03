@@ -21,9 +21,13 @@ from tests._axe_run_agent_runner_retry_helpers import (
 
 class TestRetryLoop:
     def test_no_retry_when_config_is_none(self, tmp_path: Path) -> None:
-        """When get_retry_config returns None, errors propagate normally."""
+        """When get_retry_config returns None, errors propagate normally.
+
+        Uses an error string that matches no provider's built-in patterns so
+        the ``find_retry_config_for_error`` fallback also returns None.
+        """
         patches = base_patches(str(tmp_path / "artifacts"))
-        execute_mock = MagicMock(side_effect=RuntimeError("rate limit exceeded"))
+        execute_mock = MagicMock(side_effect=RuntimeError("authentication failed"))
         patches[f"{EXEC}.get_retry_config"] = MagicMock(return_value=None)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
 

@@ -24,6 +24,22 @@ _CLAUDE_SOCKET_CLOSE_ERROR = (
     "information, pass verbose: true in the second argument to fetch()"
 )
 
+# The literal terminal output observed for Codex agent `0s`: a websocket 403
+# storm that exhausts the CLI's own reconnects and ends in a 429.
+_CODEX_TRANSIENT_FAILURE = (
+    "ERROR codex_api::endpoint::responses_websocket: failed to connect to "
+    "websocket: HTTP error: 403 Forbidden, "
+    "url: wss://chatgpt.com/backend-api/codex/responses Reconnecting 5/5\n"
+    "[error] exceeded retry limit, last status: 429 Too Many Requests\n"
+    "[turn.failed] exceeded retry limit, last status: 429 Too Many Requests"
+)
+
+# A persistent credential/authorization failure with no rate-limit wording —
+# must NOT be retried (guards against over-matching a bare 403).
+_CODEX_PERSISTENT_AUTH_FAILURE = (
+    "ERROR: authentication failed: 403 Forbidden — invalid API credentials"
+)
+
 
 # --- ProviderRetryConfig tests ---
 
@@ -437,6 +453,106 @@ class TestBuiltInDefaults:
         assert config is not None
         assert config.max_retries == 3
         assert "Prompt is too long" in config.error_patterns
+
+
+class TestCodexBuiltInDefaults:
+    """Built-in retry defaults for the Codex provider (agent `0s` failure)."""
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_codex_built_in_returned_without_user_config(
+        self, mock_config: object
+    ) -> None:
+        """codex ships a built-in transient-failure recovery config."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_retry_config("codex")
+        assert config is not None
+        assert config.max_retries == 3
+        assert "exceeded retry limit" in config.error_patterns
+        assert "429 Too Many Requests" in config.error_patterns
+        assert "failed to connect to websocket" in config.error_patterns
+        # Rate limits need a real cool-down, unlike Claude's [0] context-limit
+        # cadence.
+        assert config.wait_times == [60, 300, 1800]
+        assert config.continuation_prompt is not None
+        assert "git status" in config.continuation_prompt
+        assert config.preserve_workspace is True
+        # A bare "403 Forbidden" must not be a pattern, so persistent auth
+        # failures aren't retried forever.
+        assert "403 Forbidden" not in config.error_patterns
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_codex_built_in_matches_observed_failure(self, mock_config: object) -> None:
+        """The literal `0s` transient failure text is retried by default."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_retry_config("codex")
+        assert config is not None
+        assert is_retryable_error(_CODEX_TRANSIENT_FAILURE, config) is True
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_codex_observed_failure_discovered_by_finder(
+        self, mock_config: object
+    ) -> None:
+        """find_retry_config_for_error picks up the codex built-in."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = find_retry_config_for_error(_CODEX_TRANSIENT_FAILURE)
+        assert config is not None
+        assert config.max_retries == 3
+        assert "exceeded retry limit" in config.error_patterns
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_codex_persistent_auth_failure_not_retried(
+        self, mock_config: object
+    ) -> None:
+        """A persistent 403 auth failure without rate-limit wording is terminal."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_retry_config("codex")
+        assert config is not None
+        assert is_retryable_error(_CODEX_PERSISTENT_AUTH_FAILURE, config) is False
+        assert find_retry_config_for_error(_CODEX_PERSISTENT_AUTH_FAILURE) is None
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_codex_user_config_merges_with_built_in(self, mock_config: object) -> None:
+        """User codex patterns union with the built-in set, deduplicated."""
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "codex": {
+                        "error_patterns": [
+                            "my custom codex pattern",
+                            "exceeded retry limit",
+                        ],
+                    }
+                }
+            }
+        }
+        config = get_retry_config("codex")
+        assert config is not None
+        # Built-in patterns come first (deduped), then new user patterns.
+        assert config.error_patterns == [
+            "exceeded retry limit",
+            "429 Too Many Requests",
+            "Too Many Requests",
+            "rate limit",
+            "failed to connect to websocket",
+            "my custom codex pattern",
+        ]
+        assert config.max_retries == 3  # inherited from built-in
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_codex_user_explicit_max_retries_zero_disables(
+        self, mock_config: object
+    ) -> None:
+        """User max_retries=0 disables even the codex built-in retries."""
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "codex": {"max_retries": 0},
+                }
+            }
+        }
+        config = get_retry_config("codex")
+        assert config is not None
+        assert config.max_retries == 0
 
 
 # --- is_retryable_error tests ---

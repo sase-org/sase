@@ -282,6 +282,15 @@ llm_provider:
         - "overloaded_error"
       wait_times: [60, 300, 1800]
       fallback_model: "sonnet"
+    codex:
+      max_retries: 3
+      error_patterns:
+        - "exceeded retry limit"
+        - "429 Too Many Requests"
+        - "Too Many Requests"
+        - "rate limit"
+        - "failed to connect to websocket"
+      wait_times: [60, 300, 1800]
 
 commit:
   finalizer:
