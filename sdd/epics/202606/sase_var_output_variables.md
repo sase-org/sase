@@ -2,6 +2,8 @@
 create_time: 2026-06-02 20:18:46
 status: wip
 prompt: sdd/prompts/202606/sase_var_output_variables.md
+bead_id: sase-4a
+tier: epic
 ---
 # Plan: `sase var` Output Variables and `/sase_var`
 
