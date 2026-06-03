@@ -1353,6 +1353,9 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
+- **OUTPUT VARIABLES**: Small string values written by the agent with `sase var set KEY=VALUE`. Keys are sorted for
+  stable display, multi-line values are indented, and the section is omitted when the agent has not published variables.
+  These values are stored in `agent_meta.json`, so they are visible metadata rather than secret storage.
 - **AGENT REPLY**: The agent's live or completed reply content, streamed from `live_reply.md` during execution and read
   from the artifacts directory after completion. When per-turn reply timestamps are available (recorded in
   `live_reply_timestamps.jsonl`), the reply is displayed with timestamp dividers between each agent turn. For agents

@@ -1541,6 +1541,7 @@ SDD validation passes.
 
 `sase var set` attaches small named string values to the current SASE agent run by merging them into
 `agent_meta.json["output_variables"]`. The command is agent-scoped and requires `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR`.
+The variables appear in ACE's Agents-tab metadata panel and can be rendered by later waited agents as Jinja namespaces.
 
 | Form                           | Flags / arguments      | Description                                               |
 | ------------------------------ | ---------------------- | --------------------------------------------------------- |

@@ -18,6 +18,8 @@ from sase.agent.output_variable_context import (
 )
 from sase.axe.run_agent_exec import _build_named_args
 from sase.axe.run_agent_exec_types import AgentExecContext
+from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.xprompt.workflow_runner import execute_workflow
 from tests._agent_names_fixtures import make_agent
 
 
@@ -156,6 +158,94 @@ def test_build_named_args_includes_output_variable_namespaces() -> None:
     assert named_args["build"] == {"report_path": "reports/build.md"}
     assert named_args["cl_name"] == "cl"
     assert named_args["workspace_num"] == 3
+
+
+def test_waited_producer_variables_render_in_later_workflow_prompt(
+    tmp_path: Path,
+) -> None:
+    agent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260501120000",
+        "build-1",
+        done=True,
+        outcome="completed",
+    )
+    meta_path = agent_dir / "agent_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["agent_name_template"] = "build-@"
+    meta["output_variables"] = {
+        "report_path": "reports/build.md",
+        "status": "ok",
+    }
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        upstream = build_agent_var_upstream_record(
+            agent_name="build-1",
+            agent_name_template="build-@",
+            project_name="proj",
+            workflow_timestamp="260501_120000",
+        )
+        output_variable_namespaces = build_agent_output_variable_context(
+            upstreams_json=encode_agent_var_upstreams([upstream]),
+            wait_names=["build-1"],
+        )
+
+    ctx = AgentExecContext(
+        cl_name="cl",
+        project_file="/tmp/project.sase",
+        workspace_dir="/tmp/ws",
+        output_path="/tmp/out.txt",
+        workspace_num=3,
+        timestamp="260501_120001",
+        update_target="",
+        project_name="proj",
+        is_home_mode=False,
+        artifacts_dir=str(tmp_path / "consumer_artifacts"),
+        artifacts_timestamp="20260501120001",
+        vcs_tag=None,
+        agent_name="consumer",
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_vcs_provider=None,
+        agent_hidden=False,
+        agent_meta={},
+        local_xprompts={},
+        wait_chats=[],
+        output_variable_namespaces=output_variable_namespaces,
+    )
+    workflow = Workflow(
+        name="consumer",
+        steps=[
+            WorkflowStep(
+                name="main",
+                prompt_part=(
+                    "Read {{ build.report_path }} after producer status "
+                    "{{ build.status }}."
+                ),
+            )
+        ],
+    )
+
+    with patch("sase.xprompt.workflow_executor.WorkflowExecutor") as executor_cls:
+        executor = executor_cls.return_value
+        executor.execute.return_value = True
+        executor.state.steps = []
+
+        execute_workflow(
+            name=workflow.name,
+            positional_args=[],
+            named_args=_build_named_args(ctx),
+            artifacts_dir=str(tmp_path / "consumer_workflow"),
+            workflow_obj=workflow,
+            silent=True,
+        )
+
+    rendered_workflow = executor_cls.call_args.kwargs["workflow"]
+    assert rendered_workflow.steps[0].agent == (
+        "Read reports/build.md after producer status ok."
+    )
 
 
 def test_spawn_env_scrubber_removes_inherited_upstream_context() -> None:

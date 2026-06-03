@@ -1380,6 +1380,26 @@ Write tests for the new feature.
 This launches two agents: `step1` runs first, then `step2` starts after `step1` succeeds (via `%wait`). Both agents
 share the `_common` local xprompt.
 
+### Cross-Agent Output Variables
+
+Agents can publish small string values for later segments with `sase var set KEY=VALUE`. In a multi-agent prompt, name
+the producer and make the consumer wait before referencing the producer namespace:
+
+```
+%name:build-@
+Build the report, then run:
+sase var set report_path=dist/report.md status=ok
+---
+%name:review
+%wait:build-@
+Review {{ build.report_path }} after the build status is {{ build.status }}.
+```
+
+Indexed names expose the indexed base as the namespace, so `%name:build-@` becomes `{{ build.report_path }}` rather than
+`{{ build_1.report_path }}`. Dotted templates create nested namespaces such as `%name:research.final-@` →
+`{{ research.final.report_path }}`; hyphens in plain names become underscores. Output variables are persisted in the
+producer's `agent_meta.json` and also appear in the ACE Agents-tab metadata panel.
+
 ### Rules
 
 - The first `---` pair at the start of the document is treated as YAML frontmatter.
