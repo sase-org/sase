@@ -11,6 +11,17 @@ from sase.xprompt.processor import process_xprompt_references_with_catalog
 
 from tests._multi_agent_xprompt_helpers import patch_catalog, xp
 
+DEFAULT_READS_REFERENCE_QUERY = """TABLE WITHOUT ID title AS Title, url AS URL
+FROM #ai/reference
+WHERE url
+SORT title ASC"""
+
+OLD_READS_NOTE_DEFAULT = """- ~/bob/agent_ref.md
+- ~/bob/ai_ref.md
+- ~/bob/claude_code_ref.md
+- ~/bob/gemini_cli_ref.md
+- ~/bob/xprompt_ref.md"""
+
 
 def test_expand_local_xprompts_resolve() -> None:
     """Locally-defined xprompts (frontmatter) participate in expansion."""
@@ -85,6 +96,10 @@ def test_checked_in_reads_xprompt_uses_direct_local_helper() -> None:
     reads = load_xprompt_from_file(reads_path)
     assert reads is not None
     assert "_article_search_agent" in reads.local_xprompts
+    assert reads.get_input_by_name("notes") is None
+    reference_query = reads.get_input_by_name("reference_query")
+    assert reference_query is not None
+    assert reference_query.default.rstrip() == DEFAULT_READS_REFERENCE_QUERY
 
     with patch_catalog({"reads": reads}):
         out = expand_multi_agent_xprompts(["#reads(episodic agent memory)"])
@@ -96,11 +111,20 @@ def test_checked_in_reads_xprompt_uses_direct_local_helper() -> None:
         "Can you recommend recent, medium-to-long articles" in segment
         for segment in research_segments
     )
-    assert all(
+    assert not any(
         "Treat every URL and title already present" in segment
         for segment in research_segments
     )
+    assert all("/bob_dataview" in segment for segment in research_segments)
+    assert all(
+        DEFAULT_READS_REFERENCE_QUERY in segment for segment in research_segments
+    )
+    assert all(OLD_READS_NOTE_DEFAULT not in segment for segment in out)
     assert all("episodic agent memory" in segment for segment in out)
+    final_segment = out[3]
+    assert "reference Dataview query" in final_segment
+    assert "reference notes" not in final_segment
+    assert "reference table" in final_segment
 
 
 def test_multi_agent_local_helper_separators_split_with_owner() -> None:

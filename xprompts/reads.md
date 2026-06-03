@@ -4,15 +4,14 @@ input:
   topic:
     type: text
     description: Reading request or topic to search for.
-  notes:
+  reference_query:
     type: text
     default: |
-      - ~/bob/agent_ref.md
-      - ~/bob/ai_ref.md
-      - ~/bob/claude_code_ref.md
-      - ~/bob/gemini_cli_ref.md
-      - ~/bob/xprompt_ref.md
-    description: Reference note files whose existing URLs and titles should be excluded.
+      TABLE WITHOUT ID title AS Title, url AS URL
+      FROM #ai/reference
+      WHERE url
+      SORT title ASC
+    description: Obsidian Dataview query whose title and URL rows should be excluded.
 xprompts:
   _article_search_agent:
     content: |
@@ -20,12 +19,15 @@ xprompts:
 
       {{ topic }}
 
-      Read the reference note files below first:
+      Use the `/bob_dataview` skill to run this Obsidian Dataview query against Bryan's Bob vault before searching:
 
-      {{ notes }}
+      {{ "```dataview" }}
+      {{ reference_query }}
+      {{ "```" }}
 
-      Treat every URL and title already present in those notes as off-limits, including entries marked unread. Search the
-      current web for fresh, high-quality articles that match the request and are not already in those notes.
+      Treat every Title and URL returned in the result table as off-limits, including entries marked unread. Search the
+      current web only after building that exclusion set. Do not manually read the old aggregate reference notes unless
+      the Dataview command fails.
 
       Return a ranked list of recommendations. For each item, include the title, link, publication date when available,
       publisher or author when useful, and a short relevance rationale. Prefer substantive essays, engineering writeups,
@@ -67,14 +69,17 @@ Read those transcripts first, then consolidate their recommendations for this re
 
 {{ topic }}
 
-The reference notes that were used as the exclusion list were:
+The reference Dataview query that was used as the exclusion source was:
 
-{{ notes }}
+{{ "```dataview" }}
+{{ reference_query }}
+{{ "```" }}
 
 Deduplicate recommendations by URL and by title. Rank the final list using both consensus across the three agents and
 your own judgement about fit, freshness, depth, and usefulness. It is fine to favor a strong single-agent find over a
 weaker consensus item.
 
 Return a final ranked reading list. For each item, include the title, link, publication date when available, which
-agents recommended it, and a concise reason it is worth reading. Call out any near-duplicates or candidates you exclude
-because they appear to already be in the reference notes.
+agents recommended it, and a concise reason it is worth reading. Resolve duplicate uncertainty against the transcripts
+and Dataview table data, rerunning `/bob_dataview` only if needed. Call out any near-duplicates or candidates you
+exclude because they appear to already be in the reference table.
