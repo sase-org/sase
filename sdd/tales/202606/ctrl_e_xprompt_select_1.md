@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-03 04:48:03
-status: wip
+status: done
 prompt: sdd/prompts/202606/ctrl_e_xprompt_select_1.md
 ---
 # Plan: Ctrl+E Editor Action in Select XPrompt

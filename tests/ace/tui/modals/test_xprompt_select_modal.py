@@ -2,11 +2,49 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
+
+from textual.app import App
+from textual.widgets import OptionList
 
 from sase.ace.tui.modals.xprompt_select_modal import XPromptSelectModal
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
+
+
+class _SuspendRecorder:
+    def __init__(self) -> None:
+        self.entered_count = 0
+        self.active = False
+
+    def __enter__(self) -> None:
+        self.entered_count += 1
+        self.active = True
+
+    def __exit__(self, *_args: object) -> None:
+        self.active = False
+
+
+class _TestApp(App[object | None]):
+    ENABLE_COMMAND_PALETTE = False
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.suspend_recorder = _SuspendRecorder()
+        self.notifications: list[tuple[str, str]] = []
+
+    def suspend(self) -> _SuspendRecorder:
+        return self.suspend_recorder
+
+    def notify(
+        self,
+        message: str,
+        *,
+        severity: str = "information",
+        **_: object,
+    ) -> None:
+        self.notifications.append((message, severity))
 
 
 def _simple_workflow(name: str) -> Workflow:
@@ -22,6 +60,14 @@ def _multi_agent_xprompt_workflow(name: str) -> Workflow:
 
 def _standalone_workflow(name: str) -> Workflow:
     return Workflow(name=name, steps=[WorkflowStep(name="run", agent="do it")])
+
+
+def _source_workflow(name: str, source_path: str | None) -> Workflow:
+    return Workflow(
+        name=name,
+        source_path=source_path,
+        steps=[WorkflowStep(name="prompt", prompt_part="body")],
+    )
 
 
 def test_xprompt_select_returns_suffix_for_existing_hash_trigger() -> None:
@@ -99,3 +145,111 @@ def test_xprompt_select_filters_and_previews_descriptions() -> None:
     preview = modal._all_items["review"][0]
     assert "Review a selected diff." in preview
     assert "Diff file to inspect." in preview
+
+
+async def test_xprompt_select_action_opens_selected_source_path(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "review.md"
+    prompts = {
+        "build": _source_workflow("build", str(tmp_path / "build.md")),
+        "review": _source_workflow("review", str(source_path)),
+    }
+    run_calls: list[tuple[list[str], bool, bool]] = []
+
+    def fake_run(args: list[str], *, check: bool) -> None:
+        app = modal.app
+        run_calls.append((args, check, app.suspend_recorder.active))
+
+    with (
+        patch(
+            "sase.ace.tui.modals.xprompt_select_modal.get_all_prompts",
+            return_value=prompts,
+        ),
+        patch.dict("os.environ", {"EDITOR": "test-editor"}, clear=False),
+        patch(
+            "sase.ace.tui.modals.xprompt_select_modal.subprocess.run",
+            side_effect=fake_run,
+        ),
+    ):
+        modal = XPromptSelectModal()
+        async with _TestApp().run_test() as pilot:
+            pilot.app.push_screen(modal)
+            await pilot.pause()
+            option_list = modal.query_one("#xprompt-list", OptionList)
+            option_list.highlighted = 1
+
+            modal.action_open_selected_in_editor()
+            await pilot.pause()
+
+            assert pilot.app.screen is modal
+            assert pilot.app.suspend_recorder.entered_count == 1
+
+    assert run_calls == [(["test-editor", str(source_path)], False, True)]
+
+
+async def test_xprompt_select_ctrl_e_from_filter_opens_without_dismissing(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "review.md"
+    prompts = {"review": _source_workflow("review", str(source_path))}
+    dismissed: list[object | None] = []
+    run_calls: list[tuple[list[str], bool, bool]] = []
+
+    def fake_run(args: list[str], *, check: bool) -> None:
+        app = modal.app
+        run_calls.append((args, check, app.suspend_recorder.active))
+
+    with (
+        patch(
+            "sase.ace.tui.modals.xprompt_select_modal.get_all_prompts",
+            return_value=prompts,
+        ),
+        patch.dict("os.environ", {"EDITOR": "test-editor"}, clear=False),
+        patch(
+            "sase.ace.tui.modals.xprompt_select_modal.subprocess.run",
+            side_effect=fake_run,
+        ),
+    ):
+        modal = XPromptSelectModal()
+        async with _TestApp().run_test() as pilot:
+            pilot.app.push_screen(modal, callback=dismissed.append)
+            await pilot.pause()
+
+            await pilot.press("ctrl+e")
+            await pilot.pause()
+
+            assert pilot.app.screen is modal
+            assert dismissed == []
+            assert modal._selected_name() == "review"
+            assert pilot.app.suspend_recorder.entered_count == 1
+
+    assert run_calls == [(["test-editor", str(source_path)], False, True)]
+
+
+async def test_xprompt_select_ctrl_e_warns_for_missing_source_path() -> None:
+    prompts = {"review": _source_workflow("review", None)}
+
+    with (
+        patch(
+            "sase.ace.tui.modals.xprompt_select_modal.get_all_prompts",
+            return_value=prompts,
+        ),
+        patch(
+            "sase.ace.tui.modals.xprompt_select_modal.subprocess.run",
+        ) as mock_run,
+    ):
+        modal = XPromptSelectModal()
+        async with _TestApp().run_test() as pilot:
+            pilot.app.push_screen(modal)
+            await pilot.pause()
+
+            await pilot.press("ctrl+e")
+            await pilot.pause()
+
+            assert pilot.app.screen is modal
+            assert pilot.app.notifications == [
+                ("Could not resolve source file path", "error")
+            ]
+
+    mock_run.assert_not_called()

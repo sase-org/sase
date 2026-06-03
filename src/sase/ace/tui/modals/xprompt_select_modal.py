@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 from dataclasses import dataclass
 
 from rich.syntax import Syntax
@@ -11,6 +13,8 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
+
+from sase.ace.hints import build_editor_args
 from sase.xprompt import get_all_prompts
 from sase.xprompt.models import UNSET, InputArg
 from sase.xprompt.reference_display import (
@@ -21,7 +25,7 @@ from sase.xprompt.reference_display import (
 from sase.xprompt.workflow_models import Workflow
 
 from .base import OptionListNavigationMixin
-from .xprompt_browser_helpers import append_input_args
+from .xprompt_browser_helpers import append_input_args, resolve_source_to_file_path
 from ..widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     xprompt_assist_entry_from_workflow,
@@ -44,7 +48,14 @@ class _XPromptFilterInput(Input):
         ("ctrl+b", "cursor_left", "Backward"),
         ("ctrl+d", "scroll_preview_down", "Scroll Down"),
         ("ctrl+u", "scroll_preview_up_or_clear", "Scroll Up/Clear"),
+        ("ctrl+e", "forward('open_selected_in_editor')", "Open Definition"),
     ]
+
+    def action_forward(self, action_name: str) -> None:
+        """Forward an action to the parent modal."""
+        modal = self.screen
+        if isinstance(modal, XPromptSelectModal):
+            getattr(modal, f"action_{action_name}")()
 
     def action_scroll_preview_down(self) -> None:
         """Scroll the preview panel down."""
@@ -71,7 +82,10 @@ class XPromptSelectModal(
     """Modal for selecting an xprompt with filtering and preview."""
 
     _option_list_id = "xprompt-list"
-    BINDINGS = [*OptionListNavigationMixin.NAVIGATION_BINDINGS]
+    BINDINGS = [
+        *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        ("ctrl+e", "open_selected_in_editor", "Open Definition"),
+    ]
 
     def __init__(
         self,
@@ -86,14 +100,25 @@ class XPromptSelectModal(
                 xprompts detected from a VCS tag in the prompt text).
         """
         super().__init__()
+        self._project = project
+        self._extra_prompts = extra_prompts or {}
+        self._prompts: dict[str, Workflow] = {}
+        self._all_items: dict[str, tuple[str, str]] = {}
+        self._filtered_names: list[str] = []
+        self._load_prompts()
+
+    def _load_prompts(self) -> None:
+        """Load xprompts and rebuild the preview catalog."""
         # Use unified loader - all items are Workflow objects now
-        self._prompts = get_all_prompts(project=project)
-        if extra_prompts:
+        prompts = get_all_prompts(project=self._project)
+        if self._extra_prompts:
             # Merge extra prompts; they take precedence on collision
-            self._prompts = {**self._prompts, **extra_prompts}
+            prompts = {**prompts, **self._extra_prompts}
+        self._prompts = prompts
+
         # Build unified items dict: name -> (content/preview, kind)
         # Simple xprompts show raw content, complex workflows show step preview
-        self._all_items: dict[str, tuple[str, str]] = {}
+        self._all_items = {}
         for name, workflow in self._prompts.items():
             kind = workflow_kind_value(workflow)
             if workflow.is_simple_xprompt():
@@ -103,7 +128,7 @@ class XPromptSelectModal(
                 # Complex workflow - show structured preview
                 preview = self._create_workflow_preview(workflow)
                 self._all_items[name] = (preview, kind)
-        self._filtered_names: list[str] = sorted(self._all_items.keys())
+        self._filtered_names = sorted(self._all_items.keys())
 
     def _create_simple_preview(self, workflow: Workflow) -> str:
         """Create a preview for a simple xprompt, adding rich metadata when present."""
@@ -191,7 +216,7 @@ class XPromptSelectModal(
                         with VerticalScroll(id="xprompt-preview-scroll"):
                             yield Static("", id="xprompt-preview")
                 yield Static(
-                    "j/k ↑/↓: navigate • ^d/^u: scroll preview • Enter: select • Esc/q: cancel",
+                    "j/k ↑/↓: navigate • ^d/^u: scroll preview • ^e: open definition • Enter: select • Esc/q: cancel",
                     id="xprompt-hints",
                 )
 
@@ -259,9 +284,7 @@ class XPromptSelectModal(
         """Handle input change - update the option list."""
         self._filtered_names = self._get_filtered_names(event.value)
         option_list = self.query_one("#xprompt-list", OptionList)
-        option_list.clear_options()
-        for option in self._create_options(self._filtered_names):
-            option_list.add_option(option)
+        self._replace_options(option_list)
         # Update preview for first filtered item
         if self._filtered_names:
             self._update_preview_for_name(self._filtered_names[0])
@@ -292,6 +315,83 @@ class XPromptSelectModal(
         """Handle option selection."""
         if event.option and event.option.id:
             self.dismiss(self._selection_for_name(str(event.option.id)))
+
+    def _selected_name(self) -> str | None:
+        """Return the highlighted xprompt name, falling back to the first match."""
+        if not self._filtered_names:
+            return None
+
+        try:
+            option_list = self.query_one("#xprompt-list", OptionList)
+            highlighted = option_list.highlighted
+        except Exception:
+            highlighted = None
+
+        if highlighted is not None and 0 <= highlighted < len(self._filtered_names):
+            return self._filtered_names[highlighted]
+        return self._filtered_names[0]
+
+    def action_open_selected_in_editor(self) -> None:
+        """Open the selected xprompt or workflow definition in ``$EDITOR``."""
+        selected_name = self._selected_name()
+        if selected_name is None:
+            self.notify("No xprompt selected", severity="warning")
+            return
+
+        workflow = self._prompts.get(selected_name)
+        if workflow is None:
+            self.notify("Could not find selected xprompt", severity="warning")
+            return
+
+        file_path = resolve_source_to_file_path(workflow.source_path)
+        if file_path is None:
+            self.notify("Could not resolve source file path", severity="error")
+            return
+
+        editor = os.environ.get("EDITOR") or "nvim"
+        editor_args = build_editor_args(editor, [file_path])
+
+        try:
+            with self.app.suspend():
+                subprocess.run(editor_args, check=False)
+        except OSError as exc:
+            self.notify(f"Could not launch editor: {exc}", severity="error")
+            return
+
+        self._reload_prompts(selected_name=selected_name)
+
+    def _reload_prompts(self, *, selected_name: str | None = None) -> None:
+        """Reload prompt definitions and preserve filter and selection state."""
+        filter_text = ""
+        try:
+            filter_input = self.query_one("#xprompt-filter-input", _XPromptFilterInput)
+            filter_text = filter_input.value
+        except Exception:
+            pass
+
+        selected_name = selected_name or self._selected_name()
+        self._load_prompts()
+        self._filtered_names = self._get_filtered_names(filter_text)
+
+        option_list = self.query_one("#xprompt-list", OptionList)
+        self._replace_options(option_list)
+        if not self._filtered_names:
+            option_list.highlighted = None
+            self._clear_preview()
+            return
+
+        try:
+            highlighted = self._filtered_names.index(selected_name or "")
+        except ValueError:
+            highlighted = 0
+        option_list.highlighted = highlighted
+        self._update_preview_for_name(self._filtered_names[highlighted])
+
+    def _replace_options(self, option_list: OptionList) -> None:
+        """Replace the visible option list with the current filtered names."""
+        option_list.clear_options()
+        for option in self._create_options(self._filtered_names):
+            option_list.add_option(option)
 
     def _selection_for_name(self, name: str) -> XPromptSelection:
         """Return the insertion payload for a selected xprompt name."""
