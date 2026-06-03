@@ -247,20 +247,20 @@ def testload_xprompts_from_default_files_includes_research_swarm() -> None:
     assert xprompt.name == "research_swarm"
     assert "default_xprompts/research_swarm.md" in xprompt.source_path
     assert "{{ prompt }} #research" in xprompt.content
-    assert "%name:research_swarm.cdx-@" in xprompt.content
+    assert "%name:research.cdx-@" in xprompt.content
     assert "%model:codex/gpt-5.5" in xprompt.content
-    assert "%name:research_swarm.cld-@" in xprompt.content
+    assert "%name:research.cld-@" in xprompt.content
     assert "%model:claude/opus" in xprompt.content
-    assert "%name:research_swarm.final-@" in xprompt.content
-    assert "%wait:research_swarm.cdx-@" in xprompt.content
-    assert "%wait:research_swarm.cld-@" in xprompt.content
+    assert "%name:research.final-@" in xprompt.content
+    assert "%wait:research.cdx-@" in xprompt.content
+    assert "%wait:research.cld-@" in xprompt.content
     assert "{% raw %}{{ wait_chats }}{% endraw %}" in xprompt.content
     assert "delete the two intermediate `sdd/research/` markdown files" in (
         xprompt.content
     )
-    assert "%name:research_swarm.image-@" in xprompt.content
-    assert "%wait:research_swarm.final-@" in xprompt.content
-    assert "#fork:research_swarm.final-@" in xprompt.content
+    assert "%name:research.image-@" in xprompt.content
+    assert "%wait:research.final-@" in xprompt.content
+    assert "#fork:research.final-@" in xprompt.content
     assert "#research/image" in xprompt.content
     assert "%m:gpt-5.5" in xprompt.content
 
