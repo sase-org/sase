@@ -13,10 +13,12 @@ from sase.ace.tui.graphics.viewer import (
     _format_artifact_header_path,
     artifact_image_area,
     artifact_markdown_pdf_profile_for_image_area,
+    artifact_text_viewer_command,
     artifact_view_mode,
     convert_pdf_to_png_pages,
     kitten_icat_command,
     render_artifact_pages,
+    run_artifact_text_viewer,
     validate_artifact_viewer_dependencies,
     view_artifact_file,
 )
@@ -312,14 +314,83 @@ def test_render_markdown_artifact_passes_pane_aware_profile(
     assert profiles[0].margin == "0.18in"
 
 
-def test_render_artifact_pages_reports_unsupported_kind(tmp_path: Path) -> None:
+def test_unknown_file_artifact_uses_text_mode_without_render_warnings(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     artifact = tmp_path / "data.json"
     artifact.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", lambda _tool: None)
 
     result = render_artifact_pages(artifact, kind="file", cache_dir=tmp_path / "cache")
 
     assert result.pages == ()
-    assert result.warnings[0].code == "unsupported_artifact_kind"
+    assert result.warnings == ()
+    assert artifact_view_mode(artifact, kind="file") == "text"
+    assert artifact_view_mode(artifact, kind="json") == "text"
+    assert validate_artifact_viewer_dependencies("text") == ()
+
+
+def test_artifact_text_viewer_command_prefers_bat(tmp_path: Path, monkeypatch) -> None:
+    artifact = tmp_path / "data.json"
+    artifact.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "bat" else None,
+    )
+
+    assert artifact_text_viewer_command(artifact) == [
+        "bat",
+        "--paging=always",
+        "--color=always",
+        "--decorations=always",
+        "--",
+        str(artifact.resolve(strict=False)),
+    ]
+
+
+def test_artifact_text_viewer_command_falls_back_to_cat(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    artifact = tmp_path / "data.json"
+    artifact.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", lambda _tool: None)
+
+    assert artifact_text_viewer_command(artifact) == [
+        "cat",
+        str(artifact.resolve(strict=False)),
+    ]
+
+
+def test_artifact_text_viewer_cat_waits_for_quit_key(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    artifact = tmp_path / "data.json"
+    artifact.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", lambda _tool: None)
+    commands: list[list[str]] = []
+    keys = iter(["x", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    result = run_artifact_text_viewer(
+        ArtifactViewSpec(artifact, "file"),
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+    )
+
+    assert result.returncode == 0
+    assert commands == [
+        ["clear"],
+        ["cat", str(artifact.resolve(strict=False))],
+        ["clear"],
+    ]
+    assert "q: quit" in capsys.readouterr().out
 
 
 def test_view_artifact_file_returns_first_structured_warning(

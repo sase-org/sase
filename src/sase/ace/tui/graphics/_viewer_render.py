@@ -70,6 +70,18 @@ def render_artifact_pages(
                 ),
             ),
         )
+    if mode == "text":
+        if not expanded.is_file():
+            return ArtifactRenderResult(
+                (),
+                (
+                    ArtifactViewerWarning(
+                        "artifact_not_file",
+                        "Artifact path is not a file",
+                    ),
+                ),
+            )
+        return ArtifactRenderResult(())
 
     warnings = validate_artifact_viewer_dependencies(mode)
     if warnings:
@@ -108,7 +120,7 @@ def artifact_view_mode(
         return "markdown"
     if normalized in {"chat", "plan", "file"} and suffix in _MARKDOWN_SUFFIXES:
         return "markdown"
-    return None
+    return "text"
 
 
 def validate_artifact_viewer_dependencies(
@@ -117,7 +129,7 @@ def validate_artifact_viewer_dependencies(
     """Return missing terminal/rendering dependencies for *mode*."""
 
     warnings: list[ArtifactViewerWarning] = []
-    if shutil.which("kitten") is None:
+    if mode != "text" and shutil.which("kitten") is None:
         warnings.append(
             ArtifactViewerWarning(
                 "missing_kitten",

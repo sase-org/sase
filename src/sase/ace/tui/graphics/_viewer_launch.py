@@ -9,7 +9,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from ._viewer_artifacts import agent_artifact_view_spec
-from ._viewer_loop import run_artifact_sequence_loop
+from ._viewer_loop import run_artifact_sequence_loop, run_artifact_text_viewer
+from ._viewer_render import artifact_view_mode
 from ._viewer_tmux import (
     TmuxPaneDecorationResult,
     TmuxPaneDecorationState,
@@ -157,7 +158,7 @@ def view_artifact_file(
     *,
     kind: str | None = None,
 ) -> ArtifactViewerResult:
-    """Render and display an artifact with ``kitten icat`` pages."""
+    """Display an artifact in the terminal viewer."""
 
     return view_artifact_files((ArtifactViewSpec(path, kind),))
 
@@ -165,7 +166,7 @@ def view_artifact_file(
 def view_artifact_files(
     artifacts: Sequence[ArtifactViewSpec],
 ) -> ArtifactViewerResult:
-    """Render and display one or more artifacts with ``kitten icat`` pages."""
+    """Display one or more artifacts in the terminal viewer."""
 
     specs = tuple(artifacts)
     if not specs:
@@ -175,11 +176,20 @@ def view_artifact_files(
     try:
         return_pane_id = os.environ.get(_ARTIFACT_RETURN_PANE_ID_ENV) or None
         with tempfile.TemporaryDirectory(prefix="sase-artifact-viewer-") as tmp:
-            loop_result = run_artifact_sequence_loop(
-                specs,
-                cache_root=tmp,
-                return_pane_id=return_pane_id,
-            )
+            if (
+                len(specs) == 1
+                and artifact_view_mode(specs[0].path, kind=specs[0].kind) == "text"
+            ):
+                loop_result = run_artifact_text_viewer(
+                    specs[0],
+                    return_pane_id=return_pane_id,
+                )
+            else:
+                loop_result = run_artifact_sequence_loop(
+                    specs,
+                    cache_root=tmp,
+                    return_pane_id=return_pane_id,
+                )
             if loop_result.warnings:
                 return viewer_result_from_warnings(loop_result.warnings)
             if loop_result.returncode != 0:

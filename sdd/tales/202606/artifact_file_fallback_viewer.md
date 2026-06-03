@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-03 08:31:33
-status: wip
+status: done
 prompt: sdd/prompts/202606/artifact_file_fallback_viewer.md
 ---
 # Plan: Artifact File Fallback Viewer

@@ -19,7 +19,7 @@ from .base import OptionListNavigationMixin
 
 
 _SELECTOR_KEYS = "1234567890abcdefghijklmnopqrstuvwxyz"
-_RESERVED_KEYS = {"j", "k", "m", "q", "y"}
+_RESERVED_KEYS = {"j", "k", "m", "q", "y", "Y"}
 _MARKDOWN_SUFFIXES = {".md", ".markdown", ".mdown", ".mkd"}
 _MAX_LABEL_LEN = 54
 _MAX_AGENT_LABEL_LEN = 28

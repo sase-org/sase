@@ -34,10 +34,13 @@ from ._viewer_launch import (
 )
 from ._viewer_loop import (
     artifact_image_area,
+    artifact_text_viewer_command,
     kitten_icat_command,
     page_index_after_key,
+    print_text_prompt,
     run_artifact_page_loop,
     run_artifact_sequence_loop,
+    run_artifact_text_viewer,
 )
 from ._viewer_render import (
     artifact_markdown_pdf_profile_for_image_area,
@@ -67,6 +70,7 @@ __all__ = [
     "ImageViewerResult",
     "artifact_image_area",
     "artifact_markdown_pdf_profile_for_image_area",
+    "artifact_text_viewer_command",
     "artifact_tmux_pane_exists",
     "MAX_CELL_IMAGE_FILE_BYTES",
     "MAX_CELL_IMAGE_PIXELS",
@@ -86,10 +90,12 @@ __all__ = [
     "is_tmux_session",
     "kitten_icat_command",
     "page_index_after_key",
+    "print_text_prompt",
     "render_artifact_pages",
     "restore_artifact_tmux_pane_decoration",
     "run_artifact_sequence_loop",
     "run_artifact_page_loop",
+    "run_artifact_text_viewer",
     "select_tmux_pane",
     "toggle_artifact_tmux_pane_zoom",
     "TmuxPaneDecorationResult",

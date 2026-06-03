@@ -57,6 +57,7 @@ async def test_artifact_modal_letter_selector_skips_navigation_and_quit_keys() -
     assert "m" not in _artifact_selector_keys(25)
     assert "q" not in _artifact_selector_keys(16)
     assert "y" not in _artifact_selector_keys(35)
+    assert "Y" not in _artifact_selector_keys(35)
     assert result is artifacts[15]
 
 

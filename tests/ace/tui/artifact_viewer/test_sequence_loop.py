@@ -130,6 +130,58 @@ def test_run_artifact_sequence_loop_tab_focuses_return_pane_and_stays_open(
     ]
 
 
+def test_run_artifact_sequence_loop_routes_raw_file_through_text_viewer(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    raw = tmp_path / "data.json"
+    raw.write_text("{}", encoding="utf-8")
+    image = tmp_path / "image.png"
+    image.write_bytes(b"png")
+    page = tmp_path / "page-1.png"
+    page.write_bytes(b"png")
+    specs = (
+        ArtifactViewSpec(raw, "file"),
+        ArtifactViewSpec(image, "image"),
+    )
+    render_calls: list[Path] = []
+
+    def fake_render_result(path, *, kind=None, cache_dir=None, image_area=None):
+        del kind, cache_dir, image_area
+        render_calls.append(Path(path))
+        return ArtifactRenderResult((page,))
+
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.render_artifact_pages",
+        fake_render_result,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", lambda _tool: None)
+    commands: list[list[str]] = []
+    keys = iter(["n", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    result = run_artifact_sequence_loop(
+        specs,
+        cache_root=tmp_path / "cache",
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+    )
+
+    assert result.returncode == 0
+    assert render_calls == [image]
+    assert commands == [
+        ["clear"],
+        ["cat", str(raw.resolve(strict=False))],
+        ["clear"],
+        _test_icat_command(page),
+        ["clear"],
+    ]
+
+
 def test_run_artifact_sequence_loop_tab_then_navigation_renders_next_page(
     tmp_path: Path,
     monkeypatch,
