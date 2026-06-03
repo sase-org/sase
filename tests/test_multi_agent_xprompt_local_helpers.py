@@ -11,10 +11,17 @@ from sase.xprompt.processor import process_xprompt_references_with_catalog
 
 from tests._multi_agent_xprompt_helpers import patch_catalog, xp
 
-DEFAULT_READS_REFERENCE_QUERY = """TABLE WITHOUT ID title AS Title, url AS URL
-FROM #ai/reference
-WHERE url
-SORT title ASC"""
+DEFAULT_READS_REFERENCE_QUERY = """LIST WITHOUT ID title + " (" + url + ")"
+FROM "ref"
+WHERE
+  source_path AND url AND (
+    parent = [[ai_ref]]
+    OR parent.parent = [[ai_ref]]
+    OR parent.parent.parent = [[ai_ref]]
+    OR parent.parent.parent.parent = [[ai_ref]]
+    OR parent.parent.parent.parent.parent = [[ai_ref]]
+  )
+SORT title"""
 
 OLD_READS_NOTE_DEFAULT = """- ~/bob/agent_ref.md
 - ~/bob/ai_ref.md

@@ -184,15 +184,22 @@ Useful visible entries include:
 Dataview query to the research agents:
 
 ```dataview
-TABLE WITHOUT ID title AS Title, url AS URL
-FROM #ai/reference
-WHERE url
-SORT title ASC
+LIST WITHOUT ID title + " (" + url + ")"
+FROM "ref"
+WHERE
+  source_path AND url AND (
+    parent = [[ai_ref]]
+    OR parent.parent = [[ai_ref]]
+    OR parent.parent.parent = [[ai_ref]]
+    OR parent.parent.parent.parent = [[ai_ref]]
+    OR parent.parent.parent.parent.parent = [[ai_ref]]
+  )
+SORT title
 ```
 
 Each research agent is expected to use `/bob_dataview` to run that query against Bryan's Bob vault, treat every returned
-Title and URL row as already-known, and only then search for new reading candidates. A normal invocation can rely on the
-default query:
+title and URL entry as already-known, and only then search for new reading candidates. A normal invocation can rely on
+the default query:
 
 ```text
 #!sase/reads(agent memory systems)
