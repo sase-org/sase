@@ -160,6 +160,34 @@ def test_build_named_args_includes_output_variable_namespaces() -> None:
     assert named_args["workspace_num"] == 3
 
 
+def test_build_named_args_rejects_builtin_output_variable_collision() -> None:
+    ctx = AgentExecContext(
+        cl_name="cl",
+        project_file="/tmp/project.sase",
+        workspace_dir="/tmp/ws",
+        output_path="/tmp/out.txt",
+        workspace_num=3,
+        timestamp="260501_120000",
+        update_target="",
+        project_name="proj",
+        is_home_mode=False,
+        artifacts_dir="/tmp/artifacts",
+        artifacts_timestamp="20260501120000",
+        vcs_tag=None,
+        agent_name="consumer",
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_vcs_provider=None,
+        agent_hidden=False,
+        agent_meta={},
+        local_xprompts={},
+        output_variable_namespaces={"cl_name": {"status": "bad"}},
+    )
+
+    with pytest.raises(ValueError, match="collides with a built-in workflow argument"):
+        _build_named_args(ctx)
+
+
 def test_waited_producer_variables_render_in_later_workflow_prompt(
     tmp_path: Path,
 ) -> None:
