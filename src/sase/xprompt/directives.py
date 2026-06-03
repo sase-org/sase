@@ -64,7 +64,48 @@ __all__ = [
     "plan_prompt_fanout_variants",
     "split_prompt_for_alternatives",
     "split_prompt_for_models",
+    "strip_known_directives",
 ]
+
+
+def strip_known_directives(prompt: str) -> str:
+    """Remove known ``%name`` directive spans from *prompt* without side effects.
+
+    Side-effect-free counterpart to :func:`extract_prompt_directives`: it
+    strips the same known-directive spans (colon, paren, backtick, and plus
+    argument forms, plus short aliases) but never allocates auto-names,
+    resolves ``%wait``/``%time`` arguments, or raises :class:`DirectiveError`
+    on duplicate or bare directives. Unknown ``%name`` tokens and directives
+    inside fenced code blocks are left untouched.
+
+    Intended for cleaning historical prompt text (e.g. ``#fork`` resume
+    history) where directives carry no runtime meaning and should simply be
+    removed.
+    """
+    if "%" not in prompt:
+        return prompt
+
+    # Protect fenced code blocks so directives inside example code survive.
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced_blocks)
+
+    regions_to_remove: list[tuple[int, int]] = []
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name not in _KNOWN_DIRECTIVES:
+            continue
+        match_end = match.end()
+        if match.group(2) is not None:  # paren argument form: consume to ')'
+            paren_end = find_matching_paren_for_args(protected, match.end() - 1)
+            if paren_end is not None:
+                match_end = paren_end + 1
+        regions_to_remove.append((match.start(), match_end))
+
+    cleaned = protected
+    for start, end in reversed(regions_to_remove):
+        cleaned = cleaned[:start] + cleaned[end:]
+
+    return unprotect_fenced_blocks(cleaned, fenced_blocks)
 
 
 def _has_wait_directive(prompt: str) -> bool:

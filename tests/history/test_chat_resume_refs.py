@@ -279,7 +279,7 @@ def test_fork_by_chat_expansion() -> None:
 
 
 def test_prompt_text_cleanup() -> None:
-    """Test that #fork ref is stripped but surrounding text preserved."""
+    """The #fork ref and other sase lingo are stripped; prose is preserved."""
     with tempfile.TemporaryDirectory() as tmpdir:
         older = _write_chat_file(
             tmpdir,
@@ -297,6 +297,7 @@ def test_prompt_text_cleanup() -> None:
 
     turns = _parse_flat_turns(result)
     last_prompt = turns[-1][0]
+    # All sase references are sanitized away, leaving only the natural prose.
     assert "#fork_by_chat" not in last_prompt
-    assert "#gh:sase" in last_prompt
+    assert "#gh:sase" not in last_prompt
     assert "Let's continue." in last_prompt

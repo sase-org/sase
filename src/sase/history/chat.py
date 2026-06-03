@@ -33,6 +33,71 @@ _RESUME_REF_RE = re.compile(
 )
 
 
+# Unrendered Jinja2 markers left literal in stored prompt text (e.g. a source
+# xprompt wrapped them in ``{% raw %}``): expression, statement, and comment.
+_JINJA_MARKER_RE = re.compile(r"\{\{.*?\}\}|\{%.*?%\}|\{#.*?#\}", re.DOTALL)
+
+
+def _sanitize_resume_prompt(prompt: str) -> str:
+    """Strip sase-specific lingo from a stored user prompt for resume display.
+
+    A forked agent has no way to interpret sase control syntax, so the
+    ``# Previous Conversation`` block should read as a clean natural-language
+    transcript. This removes, in order (fenced code blocks protected
+    throughout so ``%``/``#``/``{{ }}`` inside examples survive):
+
+    1. ``%name`` directives (``%name``, ``%wait``, ``%group``/``%g``, ...) and
+       ``%xprompts_enabled:false/true`` region markers.
+    2. ``#``/``#!`` xprompt & workspace references (``#git:home``, ``#research``,
+       ``#fork:...``, ...). Real markdown headings (``# Heading``) are not
+       reference matches and are preserved.
+    3. Unrendered Jinja2 markers (``{{ }}``, ``{% %}``, ``{# #}``).
+    4. Whitespace left behind by the removals.
+
+    Idempotent: sanitizing already-clean text is a no-op. Assistant responses
+    are intentionally left untouched by callers (they are model output).
+    """
+    if not prompt:
+        return prompt
+
+    # Lazy imports mirror the existing lazy import of resolve_resume_agent_name
+    # and avoid any import-cycle risk with sase.xprompt.
+    from sase.xprompt._disabled_regions import strip_disabled_region_markers
+    from sase.xprompt._fenced_blocks import (
+        protect_fenced_blocks,
+        unprotect_fenced_blocks,
+    )
+    from sase.xprompt._parsing_references import iter_xprompt_references
+    from sase.xprompt.directives import strip_known_directives
+
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced_blocks)
+
+    # 1. Strip %-directives and disabled-region markers.
+    protected = strip_known_directives(protected)
+    protected = strip_disabled_region_markers(protected)
+
+    # 2. Strip #/#! references (remove by offset, last-to-first).
+    refs = sorted(
+        iter_xprompt_references(protected), key=lambda r: r.start, reverse=True
+    )
+    for ref in refs:
+        protected = protected[: ref.start] + protected[ref.end :]
+
+    # 3. Strip unrendered Jinja2 markers.
+    protected = _JINJA_MARKER_RE.sub("", protected)
+
+    # 4. Tidy whitespace left by the removals. Done before restoring fenced
+    #    blocks so code-block indentation (carried inside the placeholders) is
+    #    never touched.
+    protected = re.sub(r"[ \t]+\n", "\n", protected)  # trailing spaces
+    protected = re.sub(r"(?m)^[ \t]+", "", protected)  # orphaned leading spaces
+    protected = re.sub(r"\n{3,}", "\n\n", protected)  # collapse blank runs
+
+    protected = unprotect_fenced_blocks(protected, fenced_blocks)
+    return protected.strip()
+
+
 def _find_resume_refs(text: str) -> list[tuple[str, str, str]]:
     """Find all current or legacy fork references in text.
 
@@ -495,7 +560,8 @@ def load_chat_for_resume(
 
     parts = []
     for prompt, response in expanded_turns:
-        parts.append(f"**User:**\n\n{prompt}\n\n**Assistant:**\n\n{response}")
+        clean_prompt = _sanitize_resume_prompt(prompt)
+        parts.append(f"**User:**\n\n{clean_prompt}\n\n**Assistant:**\n\n{response}")
 
     return "\n\n---\n\n".join(parts)
 

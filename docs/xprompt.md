@@ -795,6 +795,13 @@ defaults. Common entries include:
 | `#bd/review/plan`      | Plan-review helper for an epic plan                                                                 |
 | `#bd/review/prompt`    | Prompt-review helper for an epic plan                                                               |
 
+When `#fork` / `#fork_by_chat` injects a `# Previous Conversation` block, the prior **user prompts** in that block are
+sanitized first: sase directives (`%name`, `%wait`, `%group`, ...), `#`/`#!` xprompt and workspace references, and any
+unrendered Jinja2 markers (`{{ }}`, `{% %}`, `{# #}`) are stripped so the forked agent sees clean natural-language text.
+Fenced code blocks and real markdown headings are preserved, and assistant responses are left untouched. Raw transcripts
+on disk are unchanged — the cleanup happens only when building resume history (so `sase chats show` still shows the
+original prompts).
+
 `#bd/new_epic` accepts optional ChangeSpec metadata for the plan bead it creates:
 
 ```text
