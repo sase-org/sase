@@ -1364,9 +1364,9 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   canonical plan-family `role_suffix` values: `--plan` renders as `PLANNER`, `--code` as `CODER`, `--q` as `QUESTIONS`,
   `--epic` as `EPIC`, `--legend` as `LEGEND`, `--commit` as `COMMIT`, and numeric feedback suffixes such as `--2` as
   `PLANNER (round 2)`. Legacy dotted and single-dash suffixes render the same way.
-- **STEP METADATA**: workflow step outputs with additional `meta_*` keys are grouped under a dedicated header. The
-  special routing keys `meta_project`, `meta_changespec`, and `meta_workspace` are promoted into the normal header
-  fields; other metadata keys are title-cased and shown in this section.
+- **WORKFLOW VARIABLES**: xprompt workflow output variables from step outputs with additional `meta_*` keys are grouped
+  under a dedicated header. The special routing keys `meta_project`, `meta_changespec`, and `meta_workspace` are still
+  promoted into the normal header fields; other metadata keys are title-cased and shown in this section.
 
 When the file or tools panel is empty, the `g`/`G` keys automatically fall back to scrolling the metadata panel.
 

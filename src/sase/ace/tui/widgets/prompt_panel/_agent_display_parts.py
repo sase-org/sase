@@ -27,6 +27,7 @@ from ...models.agent_bead import format_agent_bead_display
 from ...util.lazy_syntax import lazy_renderable
 from ._agent_artifacts import AgentArtifactPath
 from ._helpers import (
+    WORKFLOW_VARIABLES_SECTION_LABEL,
     append_model_field,
     extract_meta_fields,
     format_embedded_workflows,
@@ -509,7 +510,10 @@ def build_header_text(
     # Meta fields from step output
     if meta_fields:
         _append_major_section_divider(header_text)
-        header_text.append("STEP METADATA\n", style="bold #D7AF5F underline")
+        header_text.append(
+            f"{WORKFLOW_VARIABLES_SECTION_LABEL}\n",
+            style="bold #D7AF5F underline",
+        )
         header_text.append("\n")
         for name, value in meta_fields:
             header_text.append(f"{name}: ", style="bold #87D7FF")

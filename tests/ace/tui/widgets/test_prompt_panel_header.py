@@ -109,7 +109,7 @@ def _event(
     )
 
 
-def test_header_renders_step_metadata_before_memory_reads(
+def test_header_renders_workflow_variables_before_memory_reads(
     tmp_path: Path,
 ) -> None:
     artifacts_dir = tmp_path / "artifacts"
@@ -134,12 +134,12 @@ def test_header_renders_step_metadata_before_memory_reads(
     plain = header.plain
 
     assert "MEMORY READS\n" in plain
-    assert "STEP METADATA\n" in plain
+    assert "WORKFLOW VARIABLES\n" in plain
     assert "long/generated_skills.md" in plain
     assert "↳ needed commit hook contract for runtime parity refactor" in plain
     _assert_dim_divider_before(header, "MEMORY READS\n")
-    _assert_dim_divider_before(header, "STEP METADATA\n")
-    assert plain.index("STEP METADATA\n") < plain.index("MEMORY READS\n")
+    _assert_dim_divider_before(header, "WORKFLOW VARIABLES\n")
+    assert plain.index("WORKFLOW VARIABLES\n") < plain.index("MEMORY READS\n")
 
 
 def test_cheap_header_omits_memory_reads(tmp_path: Path) -> None:

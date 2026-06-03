@@ -75,6 +75,7 @@ def format_meta_key(key: str) -> str:
 
 
 SPECIAL_META_KEYS = frozenset({"meta_project", "meta_changespec", "meta_workspace"})
+WORKFLOW_VARIABLES_SECTION_LABEL = "WORKFLOW VARIABLES"
 
 
 def extract_meta_fields(output: dict[str, Any]) -> list[tuple[str, str]]:

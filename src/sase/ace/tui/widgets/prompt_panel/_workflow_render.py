@@ -6,7 +6,7 @@ from rich.text import Text
 
 from ...models.agent import Agent
 from ...util.lazy_syntax import lazy_renderable
-from ._helpers import append_model_field
+from ._helpers import WORKFLOW_VARIABLES_SECTION_LABEL, append_model_field
 from ._workflow_steps import format_workflow_steps_rich
 from ._workflow_types import WorkflowDetailSnapshot
 
@@ -112,7 +112,10 @@ def build_workflow_detail_renderable(
     meta_fields = snapshot.meta_fields
     if meta_fields:
         header_text.append("\n")
-        header_text.append("STEP METADATA\n", style="bold #D7AF5F underline")
+        header_text.append(
+            f"{WORKFLOW_VARIABLES_SECTION_LABEL}\n",
+            style="bold #D7AF5F underline",
+        )
         header_text.append("\n")
         for name, value in meta_fields:
             header_text.append(f"{name}: ", style="bold #87D7FF")

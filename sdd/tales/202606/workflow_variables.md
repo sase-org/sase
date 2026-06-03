@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 23:12:59
-status: wip
+status: done
 prompt: sdd/prompts/202606/workflow_variables.md
 ---
 # Rename Step Metadata to Workflow Variables

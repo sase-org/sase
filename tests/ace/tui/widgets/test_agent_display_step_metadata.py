@@ -1,4 +1,4 @@
-"""Tests for agent display step metadata."""
+"""Tests for agent display workflow variables."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
 )
 
 
-class TestStepMetadataHeader:
+class TestWorkflowVariablesHeader:
     def test_header_present_when_meta_fields_exist(self) -> None:
         agent = make_agent(
             step_output={
@@ -21,10 +21,10 @@ class TestStepMetadataHeader:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "STEP METADATA\n" in header.plain
+        assert "WORKFLOW VARIABLES\n" in header.plain
         assert "Commit Message: fix: align\n" in header.plain
         assert "New Commit: 96a895335\n" in header.plain
-        assert_dim_divider_before(header, "STEP METADATA\n")
+        assert_dim_divider_before(header, "WORKFLOW VARIABLES\n")
         assert header.plain.count(MAJOR_SECTION_RULE) == 2
 
     def test_header_absent_when_no_meta_fields(self) -> None:
@@ -32,7 +32,7 @@ class TestStepMetadataHeader:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "STEP METADATA" not in header.plain
+        assert "WORKFLOW VARIABLES" not in header.plain
         assert header.plain.count(MAJOR_SECTION_RULE) == 1
 
     def test_header_absent_when_no_step_output(self) -> None:
@@ -40,5 +40,5 @@ class TestStepMetadataHeader:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "STEP METADATA" not in header.plain
+        assert "WORKFLOW VARIABLES" not in header.plain
         assert header.plain.count(MAJOR_SECTION_RULE) == 1

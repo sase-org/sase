@@ -29,7 +29,9 @@ def test_output_variables_section_absent_when_empty() -> None:
     assert "OUTPUT VARIABLES" not in header.plain
 
 
-def test_output_variables_section_orders_before_artifacts_and_step_metadata() -> None:
+def test_output_variables_section_orders_before_artifacts_and_workflow_variables() -> (
+    None
+):
     agent = make_agent(
         output_variables={
             "z_status": "ok",
@@ -54,7 +56,7 @@ def test_output_variables_section_orders_before_artifacts_and_step_metadata() ->
     assert "z_status: ok\n" in plain
     assert plain.index("a_notes:") < plain.index("z_status:")
     assert plain.index("OUTPUT VARIABLES\n") < plain.index("Artifacts:\n")
-    assert plain.index("OUTPUT VARIABLES\n") < plain.index("STEP METADATA\n")
+    assert plain.index("OUTPUT VARIABLES\n") < plain.index("WORKFLOW VARIABLES\n")
     assert_dim_divider_before(header, "OUTPUT VARIABLES\n")
 
 
