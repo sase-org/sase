@@ -21,6 +21,18 @@ from tests.main.init_skills_handler_helpers import make_args
 @pytest.mark.parametrize(
     ("skill_name", "expected_phrases"),
     [
+        (
+            "bob_dataview",
+            (
+                "bob dataview",
+                "--query-file",
+                "--format markdown",
+                "--format paths",
+                "--bob-dir",
+                "Do not modify Bob vault files.",
+                "TABLE WITHOUT ID title AS Title, url AS URL",
+            ),
+        ),
         ("sase_artifact", ("sase artifact create -p", "--kind")),
         (
             "sase_agents_status",
