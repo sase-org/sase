@@ -92,6 +92,11 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
                     "name": "probe",
                     "plan": True,
                     "plan_submitted_at": timestamp,
+                    "output_variables": {
+                        "report_path": "/tmp/report.md",
+                        "status": "ok",
+                        "attempts": 2,
+                    },
                 }
             ),
             encoding="utf-8",
@@ -137,6 +142,19 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
         _error(
             "scan_agent_artifacts probe did not normalize scalar "
             f"plan_submitted_at to a list: got {actual!r}"
+        )
+        return False
+
+    output_variables = agent_meta.get("output_variables")
+    expected_output_variables = {
+        "report_path": "/tmp/report.md",
+        "status": "ok",
+    }
+    if output_variables != expected_output_variables:
+        _error(
+            "scan_agent_artifacts probe did not preserve string "
+            "output_variables from agent_meta.json: "
+            f"got {output_variables!r}"
         )
         return False
 
