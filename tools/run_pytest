@@ -18,6 +18,9 @@ PYTEST_ENV_UNSET_KEYS = (
 )
 VISUAL_PNG_MAX_DIFF_RATIO_ENV = "SASE_VISUAL_PNG_MAX_DIFF_RATIO"
 BROAD_TEST_VISUAL_PNG_MAX_DIFF_RATIO = "0.001"
+FAST_MARKER_EXPRESSION = "not slow"
+SLOW_MARKER_EXPRESSION = "slow"
+VISUAL_MARKER_EXPRESSION = "visual"
 NON_PATH_VALUE_OPTIONS = frozenset(
     {
         "-k",
@@ -123,16 +126,16 @@ def _pytest_command(mode: str, args: list[str]) -> list[str]:
         "--dist=loadfile",
     ]
     if mode == "slow":
-        command.extend(["-m", "slow"])
+        command.extend(["-m", SLOW_MARKER_EXPRESSION])
     elif mode == "visual":
-        command.extend(["-m", "visual"])
+        command.extend(["-m", VISUAL_MARKER_EXPRESSION])
     elif mode == "fast":
-        command.extend(["-m", "not slow"])
+        command.extend(["-m", FAST_MARKER_EXPRESSION])
     elif mode == "cov":
         command.extend(
             [
                 "-m",
-                "not slow",
+                FAST_MARKER_EXPRESSION,
                 "--cov=src/sase",
                 "--cov-branch",
                 "--cov-report=term-missing:skip-covered",
