@@ -74,6 +74,29 @@ def _append_major_section_divider(text: Text) -> None:
     text.append("\n")
 
 
+def _append_output_variables_section(
+    text: Text,
+    output_variables: dict[str, str],
+) -> None:
+    if not output_variables:
+        return
+
+    _append_major_section_divider(text)
+    text.append("OUTPUT VARIABLES\n", style="bold #D7AF5F underline")
+    text.append("\n")
+    for key in sorted(output_variables):
+        value = output_variables[key]
+        if "\n" not in value:
+            text.append(f"{key}: ", style="bold #87D7FF")
+            text.append(f"{value}\n", style="#5FD75F")
+            continue
+
+        text.append(f"{key}:\n", style="bold #87D7FF")
+        for line in value.splitlines() or [""]:
+            text.append("  ")
+            text.append(f"{line}\n", style="#5FD75F")
+
+
 def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
     """Build expensive header enrichments outside hot selection rendering."""
     embedded_workflows = None
@@ -463,6 +486,8 @@ def build_header_text(
             hint_state.workspace_dir,
             style="#D7D7FF",
         )
+
+    _append_output_variables_section(header_text, agent.output_variables)
 
     if not cheap and summary is not None:
         from ._agent_artifacts import append_agent_artifacts_section

@@ -87,6 +87,16 @@ def _valid_meta_tag(raw_value: object) -> str | None:
         return None
 
 
+def _string_output_variables(raw_value: object) -> dict[str, str]:
+    if not isinstance(raw_value, dict):
+        return {}
+    return {
+        key: value
+        for key, value in raw_value.items()
+        if isinstance(key, str) and isinstance(value, str)
+    }
+
+
 def _meta_has_wait_directive(data: dict[str, object]) -> bool:
     return (
         bool(data.get("wait_for"))
@@ -203,6 +213,8 @@ def enrich_agent_from_meta(
     meta_tag = _valid_meta_tag(data.get("tag"))
     if meta_tag:
         agent.tag = meta_tag
+    if "output_variables" in data:
+        agent.output_variables = _string_output_variables(data.get("output_variables"))
     if data.get("wait_for"):
         agent.waiting_for = data["wait_for"]
     raw_auto_action = data.get("auto_approve_plan_action")
@@ -471,6 +483,7 @@ def enrich_agent_from_meta_wire(
         agent.agent_name = meta.name
     if meta.tag:
         agent.tag = meta.tag
+    agent.output_variables = dict(meta.output_variables)
     if meta.wait_for:
         agent.waiting_for = list(meta.wait_for)
     if meta.auto_approve_plan_action:

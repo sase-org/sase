@@ -116,6 +116,7 @@ class AgentMetaWire:
     agent_family_role: str | None = None
     plan_chain_root: bool = False
     tag: str | None = None
+    output_variables: dict[str, str] = field(default_factory=dict)
     pid: int | None = None
     model: str | None = None
     llm_provider: str | None = None

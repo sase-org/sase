@@ -7,6 +7,8 @@ from sase.core.agent_scan_wire import (
     AgentArtifactIndexUpdateWire,
     agent_artifact_index_query_to_dict,
     agent_artifact_index_update_from_dict,
+    agent_scan_wire_from_dict,
+    agent_scan_wire_to_json_dict,
 )
 
 from .agent_scan_golden import (
@@ -61,6 +63,55 @@ def test_artifact_index_wire_helpers() -> None:
         rows_deleted=1,
         rows_skipped=3,
     )
+
+
+def test_agent_meta_output_variables_round_trip() -> None:
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "options": {},
+            "stats": {},
+            "records": [
+                {
+                    "project_name": "myproj",
+                    "project_dir": "/tmp/projects/myproj",
+                    "project_file": "/tmp/projects/myproj/myproj.sase",
+                    "workflow_dir_name": "ace-run",
+                    "artifact_dir": "/tmp/projects/myproj/artifacts/ace-run/20260601010101",
+                    "timestamp": "20260601010101",
+                    "agent_meta": {
+                        "name": "producer",
+                        "output_variables": {
+                            "report_path": "/tmp/report.md",
+                            "status": "ok",
+                        },
+                    },
+                    "done": None,
+                    "running": None,
+                    "waiting": None,
+                    "pending_question": None,
+                    "workflow_state": None,
+                    "plan_path": None,
+                    "prompt_steps": [],
+                    "raw_prompt_snippet": None,
+                    "has_done_marker": False,
+                }
+            ],
+        }
+    )
+
+    record = snapshot.records[0]
+    assert record.agent_meta is not None
+    assert record.agent_meta.output_variables == {
+        "report_path": "/tmp/report.md",
+        "status": "ok",
+    }
+    payload = agent_scan_wire_to_json_dict(snapshot)
+    assert payload["records"][0]["agent_meta"]["output_variables"] == {
+        "report_path": "/tmp/report.md",
+        "status": "ok",
+    }
 
 
 def test_fixture_summary_matches_expectations() -> None:

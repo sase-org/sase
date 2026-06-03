@@ -135,6 +135,56 @@ def test_running_record_carries_commit_diff_path_through_scan_and_index(
     assert indexed_rec.agent_meta.commit_diff_path == "/tmp/running_commit.diff"
 
 
+def test_running_record_carries_output_variables_through_scan_and_index(
+    fixture_root: Path,
+    tmp_path: Path,
+) -> None:
+    meta_path = (
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "ace-run"
+        / TS_ACE_RUN_RUNNING
+        / "agent_meta.json"
+    )
+    data = json.loads(meta_path.read_text(encoding="utf-8"))
+    data["output_variables"] = {
+        "report_path": "/tmp/report.md",
+        "status": "ok",
+        "attempts": 2,
+    }
+    meta_path.write_text(json.dumps(data), encoding="utf-8")
+
+    snapshot = scan_agent_artifacts(fixture_root)
+    rec = record_by_timestamp(snapshot, TS_ACE_RUN_RUNNING)
+    assert rec.agent_meta is not None
+    assert rec.agent_meta.output_variables == {
+        "report_path": "/tmp/report.md",
+        "status": "ok",
+    }
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(index_path, fixture_root)
+    indexed = query_agent_artifact_index(
+        index_path,
+        fixture_root,
+        AgentArtifactIndexQueryWire(
+            include_active=True,
+            include_recent_completed=False,
+            include_full_history=False,
+            active_limit=None,
+            recent_completed_limit=None,
+            include_hidden=True,
+        ),
+    )
+    indexed_rec = record_by_timestamp(indexed, TS_ACE_RUN_RUNNING)
+    assert indexed_rec.agent_meta is not None
+    assert indexed_rec.agent_meta.output_variables == {
+        "report_path": "/tmp/report.md",
+        "status": "ok",
+    }
+
+
 def test_index_query_honors_project_filters(
     fixture_root: Path,
     tmp_path: Path,

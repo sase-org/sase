@@ -215,6 +215,9 @@ class Agent:
     # Populated from ``~/.sase/agent_tags.json`` after agents are loaded.
     tag: str | None = None
 
+    # Agent-scoped output variables written by ``sase var set``.
+    output_variables: dict[str, str] = field(default_factory=dict)
+
     # Follow-up agents linked to this parent (populated at load time, not serialized)
     followup_agents: list["Agent"] = field(default_factory=list)
 

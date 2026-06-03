@@ -339,6 +339,8 @@ class ArtifactRestorationMixin:
             data["name"] = agent.agent_name
         if agent.tag:
             data["tag"] = agent.tag
+        if agent.output_variables:
+            data["output_variables"] = dict(agent.output_variables)
         if agent.waiting_for:
             data["wait_for"] = agent.waiting_for
         if agent.wait_duration is not None:
