@@ -7,10 +7,17 @@ input:
   reference_query:
     type: text
     default: |
-      TABLE WITHOUT ID title AS Title, url AS URL
-      FROM #ai/reference
-      WHERE url
-      SORT title ASC
+      LIST WITHOUT ID title + " (" + url + ")"
+      FROM "ref"
+      WHERE
+        source_path AND url AND (
+          parent = [[ai_ref]]
+          OR parent.parent = [[ai_ref]]
+          OR parent.parent.parent = [[ai_ref]]
+          OR parent.parent.parent.parent = [[ai_ref]]
+          OR parent.parent.parent.parent.parent = [[ai_ref]]
+        )
+      SORT title
     description: Obsidian Dataview query whose title and URL rows should be excluded.
 xprompts:
   _article_search_agent:
@@ -19,7 +26,7 @@ xprompts:
 
       {{ topic }}
 
-      Use the `/bob_dataview` skill to run this Obsidian Dataview query against Bryan's Bob vault before searching:
+      Use the `/bob_dataview` skill to run this Obsidian Dataview query against my Obsidian vault before searching:
 
       {{ "```dataview" }}
       {{ reference_query }}
