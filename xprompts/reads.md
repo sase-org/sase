@@ -7,11 +7,11 @@ input:
   notes:
     type: text
     default: |
-      - ~/org/agent_ref.zo
-      - ~/org/ai_ref.zo
-      - ~/org/claude_code_ref.zo
-      - ~/org/gemini_cli_ref.zo
-      - ~/org/xprompt_ref.zo
+      - ~/bob/agent_ref.md
+      - ~/bob/ai_ref.md
+      - ~/bob/claude_code_ref.md
+      - ~/bob/gemini_cli_ref.md
+      - ~/bob/xprompt_ref.md
     description: Reference note files whose existing URLs and titles should be excluded.
 xprompts:
   _article_search_agent:
