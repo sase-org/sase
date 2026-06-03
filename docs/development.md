@@ -180,6 +180,24 @@ Useful visible entries include:
 | `#!sase/reads` | Fan out a reading-recommendation request across Gemini, Claude, and Codex, then consolidate the final list. |
 | `#sase/sync`   | Sync the primary SASE workspace and restart axe.                                                            |
 
+`#!sase/reads` accepts a required `topic` and an optional `reference_query`. By default, the workflow passes this
+Dataview query to the research agents:
+
+```dataview
+TABLE WITHOUT ID title AS Title, url AS URL
+FROM #ai/reference
+WHERE url
+SORT title ASC
+```
+
+Each research agent is expected to use `/bob_dataview` to run that query against Bryan's Bob vault, treat every returned
+Title and URL row as already-known, and only then search for new reading candidates. A normal invocation can rely on the
+default query:
+
+```text
+#!sase/reads(agent memory systems)
+```
+
 Some repository workflows are marked `hidden: true` because they are automation helpers, such as docs refresh, recent
 bug/improvement audits, and Python line-limit splitting. That flag hides workflow run rows in ACE; it does not mean the
 workflow is unavailable. Use `sase xprompt list` or the ACE xprompt browser from a source checkout when you need the
