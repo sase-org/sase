@@ -750,6 +750,7 @@ local skill files. Coding agents invoke them as `/sase_<name>`. Runtime config o
 | `sase_notify`        | Inspect SASE notification inbox entries via `sase notify list` and `sase notify show`                         |
 | `sase_plan`          | Submit a plan file for approval (used in lieu of disabled `EnterPlanMode`)                                    |
 | `sase_questions`     | Ask the user structured questions (used in lieu of disabled `AskUserQuestion`)                                |
+| `sase_var`           | Attach named output variables to the current SASE agent run                                                   |
 
 ## Built-in XPrompts
 

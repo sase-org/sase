@@ -341,6 +341,12 @@ def main() -> NoReturn:
 
         handle_validate_command(args)
 
+    # --- var ---
+    if args.command == "var":
+        from .var_handler import handle_var_command
+
+        handle_var_command(args)
+
     # --- workspace ---
     if args.command == "workspace":
         from .workspace_handler import handle_workspace_command

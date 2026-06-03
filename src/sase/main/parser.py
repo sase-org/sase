@@ -40,6 +40,7 @@ from sase.main.parser_sdd import register_sdd_parser
 from sase.main.parser_skills import register_skills_parser
 from sase.main.parser_telemetry import register_telemetry_parser
 from sase.main.parser_validate import register_validate_parser
+from sase.main.parser_var import register_var_parser
 from sase.main.parser_workspace import register_workspace_parser
 from sase.main.parser_xprompt import register_xprompt_parser
 
@@ -158,6 +159,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_skills_parser(top_level_subparsers)
     register_telemetry_parser(top_level_subparsers)
     register_validate_parser(top_level_subparsers)
+    register_var_parser(top_level_subparsers)
     register_workspace_parser(top_level_subparsers)
     register_xprompt_parser(top_level_subparsers)
 

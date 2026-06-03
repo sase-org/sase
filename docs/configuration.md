@@ -1537,6 +1537,19 @@ prints one status line per check, and exits non-zero if any check fails. Because
 memory and skill deployment surfaces, this command can fail on user/home initialization drift even when repository-local
 SDD validation passes.
 
+### `sase var`
+
+`sase var set` attaches small named string values to the current SASE agent run by merging them into
+`agent_meta.json["output_variables"]`. The command is agent-scoped and requires `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR`.
+
+| Form                           | Flags / arguments      | Description                                               |
+| ------------------------------ | ---------------------- | --------------------------------------------------------- |
+| `sase var set KEY=VALUE [...]` | positional assignments | Store one or more output variables for the current agent. |
+
+Keys must be valid Jinja attribute identifiers (`[A-Za-z_][A-Za-z0-9_]*`). Values are strings split on the first `=`, so
+values may contain additional equals signs. Multiple calls merge into the same variable map; later writes for the same
+key replace earlier values.
+
 ### `sase telemetry`
 
 With no subcommand, `sase telemetry` defaults to `sase telemetry list`.

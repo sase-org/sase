@@ -48,6 +48,14 @@ from tests.main.init_skills_handler_helpers import make_args
             ),
         ),
         ("sase_notify", ("sase notify list -j", "sase notify show --id")),
+        (
+            "sase_var",
+            (
+                "sase var set KEY=VALUE",
+                "%name:build-@",
+                "{{ build.result_path }}",
+            ),
+        ),
     ],
 )
 def test_shipped_skill_source_is_discoverable_for_all_providers(

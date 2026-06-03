@@ -171,6 +171,7 @@ GitHub pull requests, and other provider plugins.
 | `sase logs`                    | Collect and package agent run logs for a date range.                                                    | [Configuration CLI flags](configuration.md#sase-logs)       |
 | `sase revive-log`              | Inspect the agent-revival audit log (start / success / failure events).                                 | [Agent revival audit log](troubleshooting/agent-revival.md) |
 | `sase artifact create`         | Move an explicit file into persistent agent artifact storage.                                           | [Agent attachments](agent_images.md)                        |
+| `sase var set`                 | Attach named output variables to the current SASE agent run.                                            | [Configuration CLI flags](configuration.md#sase-var)        |
 | `sase plugin` / `list`         | Inventory installed SASE plugin entry points and configured/available chop scripts.                     | [Plugins](plugins.md#cli-diagnostics)                       |
 | `sase plugin doctor`           | Diagnose plugin resource loading, configured chops, and optional integration prerequisites.             | [Plugins](plugins.md#cli-diagnostics)                       |
 | `sase path`                    | Print well-known paths such as schemas and xprompt directories.                                         | [Configuration CLI flags](configuration.md#sase-path)       |
