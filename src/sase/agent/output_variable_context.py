@@ -24,8 +24,10 @@ def _namespace_path_for_agent_output_variables(
 ) -> tuple[str, ...]:
     """Return the nested Jinja namespace path for an agent's output variables."""
     source = _namespace_source(agent_name=agent_name, template=agent_name_template)
-    normalized = source.replace("-", "_")
-    components = tuple(normalized.split("."))
+    components = tuple(
+        _normalize_agent_namespace_component(component)
+        for component in source.split(".")
+    )
     if not components or any(not component for component in components):
         raise _AgentOutputVariableNamespaceError(
             f"Invalid output-variable namespace {source!r}: empty component"
@@ -41,6 +43,13 @@ def _namespace_path_for_agent_output_variables(
             f"{source!r}: {invalid[0]!r} is not a valid Jinja identifier"
         )
     return components
+
+
+def _normalize_agent_namespace_component(component: str) -> str:
+    normalized = component.replace("-", "_")
+    if normalized and normalized[0].isdigit():
+        return f"_{normalized}"
+    return normalized
 
 
 def _namespace_source(*, agent_name: str | None, template: str | None) -> str:

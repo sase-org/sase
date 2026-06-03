@@ -338,6 +338,68 @@ def test_launch_multi_prompt_passes_scoped_output_variable_upstreams(
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],
 )
+def test_launch_multi_prompt_passes_digit_leading_fanout_output_variable_upstreams(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Fan-out planned names can produce scoped output-variable namespaces."""
+    mock_spawn.side_effect = _spawn_result_with_planned_name
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        launch_multi_prompt_agents(
+            segments=["%name:0n.cld\nClaude work", "%name:0n.cdx\nCodex work"],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    second_env = mock_spawn.call_args_list[1].kwargs["extra_env"]
+    upstreams = json.loads(second_env[SASE_AGENT_VAR_UPSTREAMS_ENV])
+    assert upstreams == [
+        {
+            "agent_name_template": None,
+            "artifacts_dir": str(
+                tmp_path
+                / ".sase"
+                / "projects"
+                / "test"
+                / "artifacts"
+                / "ace-run"
+                / "20260501120000"
+            ),
+            "name": "0n.cld",
+            "namespace": "_0n.cld",
+            "project_name": "test",
+            "workflow_timestamp": "260501_120000",
+        }
+    ]
+    assert second_env["SASE_AGENT_PLANNED_NAME"] == "0n.cdx"
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.claim_next_axe_workspace",
+    side_effect=[100, 101],
+)
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
 def test_launch_multi_prompt_resolves_indexed_resume_to_planned_predecessor(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,

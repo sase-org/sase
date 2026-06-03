@@ -28,7 +28,8 @@ you want the value to appear in the Agents-tab metadata for this run.
 
 Indexed templates expose the template base as the namespace, so `%name:build-@` exposes `build`, not `build_1`. Dotted
 templates become nested namespaces such as `%name:research.final-@` →
-`{% raw %}{{ research.final.report_path }}{% endraw %}`. Hyphens in plain names become underscores.
+`{% raw %}{{ research.final.report_path }}{% endraw %}`. Hyphens in plain names become underscores. Components that
+start with a digit are prefixed with `_`, so `%name:0n.cld` exposes `{% raw %}{{ _0n.cld.report_path }}{% endraw %}`.
 
 ## Rules
 

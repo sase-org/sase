@@ -1397,8 +1397,9 @@ Review {{ build.report_path }} after the build status is {{ build.status }}.
 
 Indexed names expose the indexed base as the namespace, so `%name:build-@` becomes `{{ build.report_path }}` rather than
 `{{ build_1.report_path }}`. Dotted templates create nested namespaces such as `%name:research.final-@` →
-`{{ research.final.report_path }}`; hyphens in plain names become underscores. Output variables are persisted in the
-producer's `agent_meta.json` and also appear in the ACE Agents-tab metadata panel.
+`{{ research.final.report_path }}`; hyphens in plain names become underscores. If a namespace component starts with a
+digit, SASE prefixes it with `_`, so `%name:0n.cld` exposes `{{ _0n.cld.report_path }}`. Output variables are persisted
+in the producer's `agent_meta.json` and also appear in the ACE Agents-tab metadata panel.
 
 ### Rules
 

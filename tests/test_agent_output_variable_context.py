@@ -43,9 +43,56 @@ def test_plain_hyphenated_agent_name_exposes_underscore_namespace() -> None:
     ) == ("build_agent",)
 
 
+def test_digit_leading_agent_name_exposes_prefixed_namespace() -> None:
+    assert _namespace_path_for_agent_output_variables(
+        agent_name="0n",
+    ) == ("_0n",)
+
+
+def test_dotted_digit_leading_agent_name_exposes_nested_prefixed_namespace() -> None:
+    assert _namespace_path_for_agent_output_variables(
+        agent_name="0n.cld",
+    ) == ("_0n", "cld")
+
+
+def test_digit_leading_nested_component_exposes_prefixed_namespace() -> None:
+    assert _namespace_path_for_agent_output_variables(
+        agent_name="build.3",
+    ) == ("build", "_3")
+
+
 def test_invalid_namespace_raises_instead_of_silent_skip() -> None:
     with pytest.raises(_AgentOutputVariableNamespaceError, match="Jinja identifier"):
-        _namespace_path_for_agent_output_variables(agent_name="1bad")
+        _namespace_path_for_agent_output_variables(agent_name="bad/name")
+
+
+def test_digit_leading_scoped_upstream_variables_load_into_nested_context(
+    tmp_path: Path,
+) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        upstream = build_agent_var_upstream_record(
+            agent_name="0n.cld",
+            project_name="proj",
+            workflow_timestamp="260501_120000",
+        )
+
+    artifacts_dir = Path(str(upstream["artifacts_dir"]))
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "0n.cld",
+                "output_variables": {"report_path": "reports/final.md"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    context = build_agent_output_variable_context(
+        upstreams_json=encode_agent_var_upstreams([upstream]),
+    )
+
+    assert context == {"_0n": {"cld": {"report_path": "reports/final.md"}}}
 
 
 def test_scoped_upstream_variables_load_into_nested_context(tmp_path: Path) -> None:

@@ -1549,7 +1549,8 @@ The variables appear in ACE's Agents-tab metadata panel and can be rendered by l
 
 Keys must be valid Jinja attribute identifiers (`[A-Za-z_][A-Za-z0-9_]*`). Values are strings split on the first `=`, so
 values may contain additional equals signs. Multiple calls merge into the same variable map; later writes for the same
-key replace earlier values.
+key replace earlier values. Producer namespaces are derived from agent names: dots create nested namespaces, hyphens
+become underscores, and digit-leading components are prefixed with `_`.
 
 ### `sase telemetry`
 
