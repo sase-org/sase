@@ -192,7 +192,7 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_cancelled_history_uses_submi
     catalog = {
         "swarm": XPrompt(
             name="swarm",
-            content="%name:bad-name\nPlan phase\n---\nBuild phase",
+            content="%name:bad--name\nPlan phase\n---\nBuild phase",
         )
     }
 

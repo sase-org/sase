@@ -1,14 +1,16 @@
 """Indexed agent-name template helpers.
 
 ``<base>-@`` is a controlled template syntax. It allocates and resolves
-concrete names of the form ``<base>-<N>`` without making arbitrary
-hyphenated user names valid.
+concrete names of the form ``<base>-<N>``. The base may contain ordinary
+single hyphens, but it cannot contain the reserved agent-family separator.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Collection
+
+from sase.plan_chain import AGENT_FAMILY_SEPARATOR
 
 INDEXED_AGENT_NAME_MARKER = "-@"
 
@@ -49,8 +51,10 @@ def indexed_agent_name_base(template: str) -> str:
     base = template[: -len(INDEXED_AGENT_NAME_MARKER)]
     if not base:
         raise InvalidIndexedAgentNameTemplateError(template, "base cannot be empty")
-    if "-" in base:
-        raise InvalidIndexedAgentNameTemplateError(template, "base cannot contain '-'")
+    if AGENT_FAMILY_SEPARATOR in base:
+        raise InvalidIndexedAgentNameTemplateError(
+            template, f"base cannot contain '{AGENT_FAMILY_SEPARATOR}'"
+        )
     if "@" in base:
         raise InvalidIndexedAgentNameTemplateError(template, "base cannot contain '@'")
     return base

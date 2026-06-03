@@ -58,14 +58,19 @@ def test_forced_reuse_requires_confirmation_on_non_tui_surfaces() -> None:
         validate_launch_name_requests(["%name:!foo\nDo work"])
 
 
-def test_user_agent_names_cannot_contain_hyphens() -> None:
-    with pytest.raises(AgentNameSyntaxError, match="cannot contain '-'"):
-        validate_user_agent_name("foo-bar")
+def test_user_agent_names_cannot_contain_reserved_family_separator() -> None:
+    validate_user_agent_name("foo-bar")
+    with pytest.raises(AgentNameSyntaxError, match="cannot contain '--'"):
+        validate_user_agent_name("foo--bar")
 
 
-def test_name_directive_rejects_hyphenated_name_before_launch() -> None:
-    with pytest.raises(AgentNameSyntaxError, match="foo-bar"):
-        validate_launch_name_requests(["%name:foo-bar\nDo work"])
+def test_name_directive_allows_hyphenated_name_before_launch() -> None:
+    validate_launch_name_requests(["%name:foo-bar\nDo work"])
+
+
+def test_name_directive_rejects_reserved_family_separator_before_launch() -> None:
+    with pytest.raises(AgentNameSyntaxError, match="foo--bar"):
+        validate_launch_name_requests(["%name:foo--bar\nDo work"])
 
 
 def test_name_directive_allows_indexed_template_before_launch(tmp_path: Path) -> None:
@@ -82,9 +87,9 @@ def test_duplicate_indexed_templates_are_not_exact_name_collisions(
         validate_launch_name_requests(["%name:foo-@\nFirst", "%name:foo-@\nSecond"])
 
 
-def test_direct_hyphenated_generated_name_remains_invalid() -> None:
-    with pytest.raises(AgentNameSyntaxError, match="foo-1"):
-        validate_launch_name_requests(["%name:foo-1\nDo work"])
+def test_direct_generated_family_name_remains_invalid() -> None:
+    with pytest.raises(AgentNameSyntaxError, match="foo--1"):
+        validate_launch_name_requests(["%name:foo--1\nDo work"])
 
 
 def test_forced_reuse_indexed_template_is_rejected() -> None:
@@ -98,21 +103,25 @@ def test_force_reuse_owner_names_ignores_indexed_templates() -> None:
     assert names == ["bar"]
 
 
-def test_forced_reuse_name_directive_rejects_hyphen_after_bang_strip() -> None:
-    with pytest.raises(AgentNameSyntaxError, match="foo-bar"):
-        validate_launch_name_requests(["%name:!foo-bar\nDo work"])
+def test_forced_reuse_name_directive_rejects_separator_after_bang_strip() -> None:
+    with pytest.raises(AgentNameSyntaxError, match="foo--bar"):
+        validate_launch_name_requests(["%name:!foo--bar\nDo work"])
 
 
-def test_internal_bypass_allows_hyphenated_system_names(tmp_path: Path) -> None:
+def test_internal_bypass_allows_reserved_family_separator_system_names(
+    tmp_path: Path,
+) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         validate_launch_name_requests(
-            ["%name:sase-42.3\nDo work"],
-            allow_hyphenated_names=True,
+            ["%name:sase--42.3\nDo work"],
+            allow_reserved_family_separator_names=True,
         )
     assert internal_agent_name_bypass_enabled({INTERNAL_AGENT_NAME_BYPASS_ENV: "1"})
 
 
-def test_tui_agent_rename_rejects_hyphenated_name(tmp_path: Path) -> None:
+def test_tui_agent_rename_rejects_reserved_family_separator_name(
+    tmp_path: Path,
+) -> None:
     from sase.ace.tui.actions.rename import RenameMixin
 
     artifacts_dir = tmp_path / "artifacts"
@@ -139,7 +148,7 @@ def test_tui_agent_rename_rejects_hyphenated_name(tmp_path: Path) -> None:
             self.notifications.append((message, severity))
 
         def push_screen(self, _screen, callback) -> None:
-            callback("foo-bar")
+            callback("foo--bar")
 
         def _refresh_agents_display(self, *, list_changed: bool) -> None:
             raise AssertionError("invalid rename should not refresh")
@@ -149,7 +158,7 @@ def test_tui_agent_rename_rejects_hyphenated_name(tmp_path: Path) -> None:
 
     assert app.notifications == [
         (
-            "Agent name 'foo-bar' cannot contain '-'; hyphen suffixes are "
+            "Agent name 'foo--bar' cannot contain '--'; double dash is "
             "reserved for agent-family phases.",
             "error",
         )
@@ -227,7 +236,7 @@ def test_launch_agents_from_cwd_cancels_history_and_skips_spawn(
 
     from sase.agent.launcher import launch_agents_from_cwd
 
-    prompt = "%name:bad-name\n#cd:~ Do work"
+    prompt = "%name:bad--name\n#cd:~ Do work"
     with patch.object(Path, "home", return_value=tmp_path):
         with pytest.raises(AgentNameSyntaxError):
             launch_agents_from_cwd(prompt)

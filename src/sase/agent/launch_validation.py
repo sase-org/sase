@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass
 from collections.abc import Mapping
 
+from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+
 __all__ = [
     "AgentNameLaunchCollisionError",
     "AgentNameSyntaxError",
@@ -70,8 +72,8 @@ class AgentNameSyntaxError(_LaunchNameValidationError):
     def __init__(self, name: str) -> None:
         self.name = name
         super().__init__(
-            f"Agent name '{name}' cannot contain '-'; hyphen suffixes are "
-            "reserved for agent-family phases."
+            f"Agent name '{name}' cannot contain '{AGENT_FAMILY_SEPARATOR}'; "
+            "double dash is reserved for agent-family phases."
         )
 
 
@@ -81,7 +83,7 @@ def validate_user_agent_name(name: str) -> None:
     Historical artifact names are read separately; this is only for explicit
     user entry points such as ``%name``, mobile launch names, and TUI naming.
     """
-    if "-" in name:
+    if AGENT_FAMILY_SEPARATOR in name:
         raise AgentNameSyntaxError(name)
 
 
@@ -117,14 +119,18 @@ def validate_launch_name_requests(
     prompts: list[str],
     *,
     allow_force_reuse: bool = False,
-    allow_hyphenated_names: bool = False,
+    allow_reserved_family_separator_names: bool = False,
+    allow_hyphenated_names: bool | None = None,
 ) -> None:
     """Validate explicit launch names under the global name allocation lock."""
+    if allow_hyphenated_names is not None:
+        allow_reserved_family_separator_names = allow_hyphenated_names
+
     requests = _explicit_launch_name_requests(prompts)
     if not requests:
         return
 
-    if not allow_hyphenated_names:
+    if not allow_reserved_family_separator_names:
         for request in requests:
             if request.indexed_template:
                 continue

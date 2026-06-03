@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 21:02:48
-status: wip
+status: done
 prompt: sdd/prompts/202606/double_dash_agent_family_separator.md
 ---
 # Plan: Double-Dash Agent Family Separator

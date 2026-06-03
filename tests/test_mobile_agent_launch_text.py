@@ -163,23 +163,23 @@ def test_launch_mobile_text_agents_reports_validation_errors() -> None:
     assert "prompt must be a non-empty string" in stderr.getvalue()
 
 
-def test_launch_mobile_text_agents_rejects_hyphenated_name() -> None:
-    with pytest.raises(Exception, match="cannot contain '-'"):
+def test_launch_mobile_text_agents_rejects_reserved_family_separator_name() -> None:
+    with pytest.raises(Exception, match="cannot contain '--'"):
         _launch_mobile_text_agents(
             {
                 "schema_version": 1,
                 "prompt": "Do work",
-                "name": "mobile-demo",
+                "name": "mobile--demo",
             }
         )
 
 
 def test_launch_mobile_text_dry_run_validates_prompt_name() -> None:
-    with pytest.raises(Exception, match="cannot contain '-'"):
+    with pytest.raises(Exception, match="cannot contain '--'"):
         _launch_mobile_text_agents(
             {
                 "schema_version": 1,
-                "prompt": "%name:dry-run\nDo work",
+                "prompt": "%name:dry--run\nDo work",
                 "dry_run": True,
             }
         )

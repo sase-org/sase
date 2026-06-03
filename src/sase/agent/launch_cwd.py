@@ -220,7 +220,7 @@ def launch_agents_from_cwd(
 
             validate_launch_name_requests(
                 expanded_segments,
-                allow_hyphenated_names=_internal_agent_name_bypass_for_launch(
+                allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
                     extra_env,
                     expanded_segment_extra_env,
                 ),
@@ -257,7 +257,7 @@ def launch_agents_from_cwd(
             vcs_ref=mp_vcs_ref,
             extra_env=extra_env,
             segment_extra_env=expanded_segment_extra_env,
-            allow_hyphenated_names=_internal_agent_name_bypass_for_launch(
+            allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
                 extra_env,
                 expanded_segment_extra_env,
             ),
@@ -302,7 +302,7 @@ def launch_agents_from_cwd(
 
             validate_launch_name_requests(
                 [spec.prompt for spec in repeat_specs],
-                allow_hyphenated_names=_internal_agent_name_bypass_for_launch(
+                allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
                     extra_env,
                 ),
             )
@@ -367,7 +367,7 @@ def launch_agents_from_cwd(
 
             validate_launch_name_requests(
                 [slot.prompt for slot in alt_plan.slots],
-                allow_hyphenated_names=_internal_agent_name_bypass_for_launch(
+                allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
                     extra_env,
                 ),
             )
@@ -396,7 +396,9 @@ def launch_agents_from_cwd(
             is_home_mode=is_home_mode,
             vcs_ref=alt_vcs_ref,
             extra_env=extra_env,
-            allow_hyphenated_names=_internal_agent_name_bypass_for_launch(extra_env),
+            allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
+                extra_env
+            ),
             default_bare_segments_to_home=True,
         )
         return results
@@ -496,7 +498,9 @@ def launch_agents_from_cwd(
 
         validate_launch_name_requests(
             [query],
-            allow_hyphenated_names=_internal_agent_name_bypass_for_launch(extra_env),
+            allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
+                extra_env
+            ),
         )
     except RuntimeError:
         add_or_update_prompt(
@@ -537,7 +541,9 @@ def launch_agents_from_cwd(
         ),
         extra_env=extra_env,
         base_timestamp=timestamp,
-        allow_hyphenated_names=_internal_agent_name_bypass_for_launch(extra_env),
+        allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
+            extra_env
+        ),
     )
     return execution.results
 

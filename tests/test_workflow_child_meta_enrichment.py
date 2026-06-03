@@ -49,10 +49,10 @@ def test_workflow_child_enrichment_derives_planner_identity_only_for_main_agent(
     enrich_agent_from_meta(planner, str(tmp_path), workflow_child=True)
     enrich_agent_from_meta(bash, str(tmp_path), workflow_child=True)
 
-    assert planner.agent_name == "ap5-plan"
+    assert planner.agent_name == "ap5--plan"
     assert planner.agent_family == "ap5"
     assert planner.agent_family_role == "plan"
-    assert planner.role_suffix == "-plan"
+    assert planner.role_suffix == "--plan"
     assert planner.plan_chain_root is False
 
     assert bash.agent_name is None

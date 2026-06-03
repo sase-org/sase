@@ -70,7 +70,7 @@ def test_promote_to_workflow_marks_stable_family_root(tmp_path) -> None:
     assert meta["plan_chain_root"] is True
     assert meta["agent_family"] == "a"
     assert meta["agent_family_role"] == "root"
-    assert meta["role_suffix"] == "-plan"
+    assert meta["role_suffix"] == "--plan"
     assert meta["pid"] == 123
 
 
@@ -86,7 +86,7 @@ def test_promote_to_workflow_can_promote_question_phase(tmp_path) -> None:
     assert meta["workflow_name"] == "a"
     assert meta["agent_family"] == "a"
     assert meta["agent_family_role"] == "root"
-    assert meta["role_suffix"] == "-q"
+    assert meta["role_suffix"] == "--q"
 
 
 def test_create_followup_with_name_override(tmp_path) -> None:
@@ -103,16 +103,16 @@ def test_create_followup_with_name_override(tmp_path) -> None:
             {"name": "a", "model": "test"},
             ".code",
             "20260326120000",
-            agent_name_override="a-code",
+            agent_name_override="a--code",
             workflow_name="a",
         )
 
     meta = json.loads((tmp_path / "new" / "agent_meta.json").read_text())
-    assert meta["name"] == "a-code"
+    assert meta["name"] == "a--code"
     assert meta["workflow_name"] == "a"
     assert meta["agent_family"] == "a"
     assert meta["agent_family_role"] == "code"
-    assert meta["role_suffix"] == "-code"
+    assert meta["role_suffix"] == "--code"
     assert meta["parent_timestamp"] == "20260326120000"
     assert meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] == "20260326120000"
 
@@ -185,17 +185,17 @@ def test_create_followup_artifacts_writes_episode_trace(tmp_path) -> None:
             },
             ".code",
             "20260526110000",
-            agent_name_override="root-code",
+            agent_name_override="root--code",
             workflow_name="root",
         )
 
     trace = json.loads((followup / "episode_trace.json").read_text())
     assert trace["schema_version"] == 1
     assert trace["artifact_timestamp"] == "20260526120000"
-    assert trace["agent_name"] == "root-code"
+    assert trace["agent_name"] == "root--code"
     assert trace["agent_family"] == "root"
     assert trace["agent_role"] == "code"
-    assert trace["role_suffix"] == "-code"
+    assert trace["role_suffix"] == "--code"
     assert trace["parent_timestamp"] == "20260526110000"
     assert trace["changespec_names"] == ["episode-cl"]
     assert trace["bead_ids"] == ["sase-45.6"]
@@ -208,7 +208,7 @@ def test_write_episode_trace_marker_records_stable_paths(tmp_path) -> None:
             {
                 "name": "agent",
                 "agent_family": "family",
-                "role_suffix": "-plan",
+                "role_suffix": "--plan",
                 "plan_path": str(tmp_path / "plan.md"),
                 "chat_path": str(tmp_path / "chat.md"),
                 "changespec_name": "episode-cl",

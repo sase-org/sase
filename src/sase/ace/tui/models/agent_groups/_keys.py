@@ -24,7 +24,7 @@ from ._buckets import (
 def _agent_family_base_from_row(agent: Agent, name: str) -> str | None:
     """Infer a family base only for rows carrying known family metadata."""
     if canonical_plan_chain_suffix(agent.role_suffix) is not None:
-        return agent_family_base(name)
+        return agent_family_base(name, include_legacy_dash=True)
     return None
 
 

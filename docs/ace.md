@@ -1193,17 +1193,18 @@ older generated names into the permanent namespace; pass `--force` to rerun afte
 ### Per-Step Naming for Multi-Agent Workflows
 
 Plan-family workflows have a stable family name plus phase suffixes. The root row keeps the family name and acts as the
-workflow container; generated follow-up rows and phase metadata use canonical hyphen suffixes. For example, if the
+workflow container; generated follow-up rows and phase metadata use canonical double-dash suffixes. For example, if the
 initial agent family is named `a`:
 
 1. The root workflow row keeps `a`.
-2. The planner phase uses suffix `-plan` and is displayed as `a-plan` when ACE renders it as a phase child.
-3. Feedback and question-continuation rounds become `a-2`, `a-3`, etc.
-4. Terminal follow-ups use the phase suffix, such as `a-code`, `a-epic`, `a-legend`, or `a-commit`.
+2. The planner phase uses suffix `--plan` and is displayed as `a--plan` when ACE renders it as a phase child.
+3. Feedback and question-continuation rounds become `a--2`, `a--3`, etc.
+4. Terminal follow-ups use the phase suffix, such as `a--code`, `a--epic`, `a--legend`, or `a--commit`.
 
 The base name (`a`) is reserved for the workflow as a whole, so `%wait:a` or `@a` references resolve to the family root.
-New plan-family metadata stores hyphenated `role_suffix` values (`-plan`, `-2`, `-code`, ...). ACE still canonicalizes
-older dotted suffixes (`.plan`, `.2`, `.code`, etc.) when reading legacy artifacts.
+New plan-family metadata stores double-dash `role_suffix` values (`--plan`, `--2`, `--code`, ...). ACE still
+canonicalizes older dotted suffixes (`.plan`, `.2`, `.code`, etc.) and legacy single-dash suffixes (`-plan`, `-2`,
+`-code`, etc.) when reading legacy artifacts.
 
 ## Agent Statuses
 
@@ -1212,17 +1213,17 @@ active (the agent is still running or awaiting input) and completed (the agent h
 
 ### Active Statuses
 
-| Status             | Color        | Description                                                        |
-| ------------------ | ------------ | ------------------------------------------------------------------ |
-| **RUNNING**        | Gold         | Agent subprocess is executing                                      |
-| **WAITING**        | Light blue   | Agent is queued, waiting for another agent to succeed (`%wait`)    |
-| **WAITING INPUT**  | Amber/orange | Workflow is paused at a human-in-the-loop (HITL) step              |
-| **PLAN**           | Pink/magenta | Agent has produced a plan and is waiting for user approval         |
-| **PLAN APPROVED**  | Cyan         | Plan was approved; follow-up agent has been spawned                |
-| **EPIC APPROVED**  | Cyan         | Plan was approved as an epic; `-epic` follow-up is running         |
-| **PLAN COMMITTED** | Cyan         | Plan was approved with auto-commit; `-commit` follow-up is running |
-| **QUESTION**       | Amber        | Agent is asking the user a question (via `/sase_questions`)        |
-| **RETRYING**       | Orange       | Agent hit a retryable error and is in a countdown before retrying  |
+| Status             | Color        | Description                                                         |
+| ------------------ | ------------ | ------------------------------------------------------------------- |
+| **RUNNING**        | Gold         | Agent subprocess is executing                                       |
+| **WAITING**        | Light blue   | Agent is queued, waiting for another agent to succeed (`%wait`)     |
+| **WAITING INPUT**  | Amber/orange | Workflow is paused at a human-in-the-loop (HITL) step               |
+| **PLAN**           | Pink/magenta | Agent has produced a plan and is waiting for user approval          |
+| **PLAN APPROVED**  | Cyan         | Plan was approved; follow-up agent has been spawned                 |
+| **EPIC APPROVED**  | Cyan         | Plan was approved as an epic; `--epic` follow-up is running         |
+| **PLAN COMMITTED** | Cyan         | Plan was approved with auto-commit; `--commit` follow-up is running |
+| **QUESTION**       | Amber        | Agent is asking the user a question (via `/sase_questions`)         |
+| **RETRYING**       | Orange       | Agent hit a retryable error and is in a countdown before retrying   |
 
 `QUESTION` status survives notification dismissal. While an agent is waiting for an answer it writes a
 `pending_question.json` marker into its run directory and removes the marker once it resumes (whether the user replied,
@@ -1234,10 +1235,10 @@ still reopen the question modal.
 `QUESTION` also propagates up agent families. When a completed row recorded a question (`questions_times` is non-empty)
 but has neither a persisted `question_response_path` nor a later follow-up child, the parent workflow row inherits
 `QUESTION` so the family still shows as waiting on you. Once the user response is persisted, the continued work usually
-appears as the next numeric phase (`-2`, `-3`, ...); `-q` identifies the question phase in metadata and phase labels. On
-the next status pass, the parent is re-evaluated without the stale question override. If the parent has several active
-children, the most recently started one wins, so a newer `RUNNING` child can overtake the `QUESTION` override on the
-parent.
+appears as the next numeric phase (`--2`, `--3`, ...); `--q` identifies the question phase in metadata and phase labels.
+On the next status pass, the parent is re-evaluated without the stale question override. If the parent has several
+active children, the most recently started one wins, so a newer `RUNNING` child can overtake the `QUESTION` override on
+the parent.
 
 The keybinding footer renders available conditional actions as non-breaking key/label chips. When the chips do not fit
 on one line, the footer switches to a deterministic grid so narrow terminals and leader-mode action sets do not wrap in
@@ -1357,9 +1358,9 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   `live_reply_timestamps.jsonl`), the reply is displayed with timestamp dividers between each agent turn. For agents
   with follow-up phases (planner, feedback rounds, coder), the AGENT REPLY section consolidates replies from all phases
   into a single view with purple phase dividers showing each phase's label and start time. Phase labels are derived from
-  canonical plan-family `role_suffix` values: `-plan` renders as `PLANNER`, `-code` as `CODER`, `-q` as `QUESTIONS`,
-  `-epic` as `EPIC`, `-legend` as `LEGEND`, `-commit` as `COMMIT`, and numeric feedback suffixes such as `-2` as
-  `PLANNER (round 2)`. Legacy dotted suffixes render the same way.
+  canonical plan-family `role_suffix` values: `--plan` renders as `PLANNER`, `--code` as `CODER`, `--q` as `QUESTIONS`,
+  `--epic` as `EPIC`, `--legend` as `LEGEND`, `--commit` as `COMMIT`, and numeric feedback suffixes such as `--2` as
+  `PLANNER (round 2)`. Legacy dotted and single-dash suffixes render the same way.
 - **STEP METADATA**: workflow step outputs with additional `meta_*` keys are grouped under a dedicated header. The
   special routing keys `meta_project`, `meta_changespec`, and `meta_workspace` are promoted into the normal header
   fields; other metadata keys are title-cased and shown in this section.
@@ -1417,11 +1418,11 @@ PLAN status appears without waiting for the next auto-refresh tick. The pulse fi
 watcher (see [Auto-Refresh](#auto-refresh)) and is harmless if no TUI is open.
 
 Root plan workflows also surface PLAN when a re-proposed plan is still awaiting review. Plan and feedback timestamps
-from feedback-round children (`-2`, `-3`, ...; legacy `.2`, `.3`, ...) propagate onto the root entry, and whenever the
-root's latest plan timestamp is newer than its latest feedback timestamp the override engine restores `PLAN` over a
+from feedback-round children (`--2`, `--3`, ...; legacy `-2`, `.2`, etc.) propagate onto the root entry, and whenever
+the root's latest plan timestamp is newer than its latest feedback timestamp the override engine restores `PLAN` over a
 `RUNNING` or `DONE` label. This applies only to root plan workflows that have not yet spawned a terminal follow-up
-(`-code`, `-epic`, ...); once a terminal follow-up is launched, the parent moves on to `PLAN APPROVED` (or the matching
-follow-up status) instead.
+(`--code`, `--epic`, ...); once a terminal follow-up is launched, the parent moves on to `PLAN APPROVED` (or the
+matching follow-up status) instead.
 
 The Plan Review modal title shows a provider-themed `PROVIDER(model)` badge between the "Plan Review" label and the plan
 filename — orange for Claude, lime for Codex, Google blue for Gemini, neutral muted for other providers. The badge is

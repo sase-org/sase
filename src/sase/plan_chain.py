@@ -5,18 +5,19 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 
-PLAN_CHAIN_PLAN_SUFFIX = "-plan"
-PLAN_CHAIN_QUESTION_SUFFIX = "-q"
-PLAN_CHAIN_CODER_SUFFIX = "-code"
-PLAN_CHAIN_EPIC_SUFFIX = "-epic"
-PLAN_CHAIN_LEGEND_SUFFIX = "-legend"
-PLAN_CHAIN_COMMIT_SUFFIX = "-commit"
+AGENT_FAMILY_SEPARATOR = "--"
+PLAN_CHAIN_PLAN_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}plan"
+PLAN_CHAIN_QUESTION_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}q"
+PLAN_CHAIN_CODER_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}code"
+PLAN_CHAIN_EPIC_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}epic"
+PLAN_CHAIN_LEGEND_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}legend"
+PLAN_CHAIN_COMMIT_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}commit"
 PLAN_CHAIN_PARENT_TIMESTAMP_FIELD = "plan_chain_parent_timestamp"
 PLAN_CHAIN_ROOT_FIELD = "plan_chain_root"
 AGENT_FAMILY_FIELD = "agent_family"
 AGENT_FAMILY_ROLE_FIELD = "agent_family_role"
 
-_FEEDBACK_SUFFIX_RE = re.compile(r"^[-.](\d+)$")
+_FEEDBACK_SUFFIX_RE = re.compile(r"^(?:--|[-.])(\d+)$")
 _KNOWN_SUFFIXES = {
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
@@ -25,7 +26,7 @@ _KNOWN_SUFFIXES = {
     PLAN_CHAIN_LEGEND_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
 }
-_LEGACY_SUFFIX_MAP = {
+_LEGACY_DOTTED_SUFFIX_MAP = {
     ".plan": PLAN_CHAIN_PLAN_SUFFIX,
     ".q": PLAN_CHAIN_QUESTION_SUFFIX,
     ".code": PLAN_CHAIN_CODER_SUFFIX,
@@ -33,21 +34,32 @@ _LEGACY_SUFFIX_MAP = {
     ".legend": PLAN_CHAIN_LEGEND_SUFFIX,
     ".commit": PLAN_CHAIN_COMMIT_SUFFIX,
 }
+_LEGACY_DASH_SUFFIX_MAP = {
+    "-plan": PLAN_CHAIN_PLAN_SUFFIX,
+    "-q": PLAN_CHAIN_QUESTION_SUFFIX,
+    "-code": PLAN_CHAIN_CODER_SUFFIX,
+    "-epic": PLAN_CHAIN_EPIC_SUFFIX,
+    "-legend": PLAN_CHAIN_LEGEND_SUFFIX,
+    "-commit": PLAN_CHAIN_COMMIT_SUFFIX,
+}
+_LEGACY_SUFFIX_MAP = {**_LEGACY_DOTTED_SUFFIX_MAP, **_LEGACY_DASH_SUFFIX_MAP}
 
 
 def plan_chain_feedback_suffix(feedback_round: int) -> str:
     """Return the visible suffix for a one-based feedback round."""
     if feedback_round < 1:
         raise ValueError("feedback_round must be one-based")
-    return f"-{feedback_round + 1}"
+    return f"{AGENT_FAMILY_SEPARATOR}{feedback_round + 1}"
 
 
-def _is_plan_chain_feedback_suffix(suffix: object) -> bool:
-    """Return ``True`` for feedback suffixes such as ``-2`` and ``.2``."""
+def _plan_chain_feedback_round_from_raw_suffix(suffix: object) -> int | None:
     if not isinstance(suffix, str):
-        return False
+        return None
     match = _FEEDBACK_SUFFIX_RE.match(suffix)
-    return match is not None and int(match.group(1)) >= 2
+    if match is None:
+        return None
+    round_number = int(match.group(1))
+    return round_number if round_number >= 2 else None
 
 
 def canonical_plan_chain_suffix(suffix: object) -> str | None:
@@ -58,9 +70,18 @@ def canonical_plan_chain_suffix(suffix: object) -> str | None:
         return _LEGACY_SUFFIX_MAP[suffix]
     if suffix in _KNOWN_SUFFIXES:
         return suffix
-    if _is_plan_chain_feedback_suffix(suffix):
-        return f"-{suffix[1:]}"
+    feedback_round = _plan_chain_feedback_round_from_raw_suffix(suffix)
+    if feedback_round is not None:
+        return f"{AGENT_FAMILY_SEPARATOR}{feedback_round}"
     return None
+
+
+def plan_chain_feedback_round(suffix: object) -> int | None:
+    """Return the visible feedback round number for a known feedback suffix."""
+    canonical = canonical_plan_chain_suffix(suffix)
+    if canonical is None:
+        return None
+    return _plan_chain_feedback_round_from_raw_suffix(canonical)
 
 
 def agent_family_phase_name(base_name: str, suffix: str) -> str:
@@ -76,12 +97,17 @@ def plan_chain_agent_name(base_name: str, suffix: str) -> str:
     return agent_family_phase_name(base_name, suffix)
 
 
-def _split_agent_family_name(name: object) -> tuple[str, str] | None:
+def _split_agent_family_name(
+    name: object, *, include_legacy_dash: bool = False
+) -> tuple[str, str] | None:
     if not isinstance(name, str) or not name:
         return None
-    for separator in ("-", "."):
+    separators = [AGENT_FAMILY_SEPARATOR, "."]
+    if include_legacy_dash:
+        separators.append("-")
+    for separator in separators:
         head, sep, tail = name.rpartition(separator)
-        if not sep or not head:
+        if not sep or not head or not tail:
             continue
         suffix = canonical_plan_chain_suffix(f"{sep}{tail}")
         if suffix is not None:
@@ -89,21 +115,26 @@ def _split_agent_family_name(name: object) -> tuple[str, str] | None:
     return None
 
 
-def agent_family_base(name: object) -> str | None:
+def agent_family_base(name: object, *, include_legacy_dash: bool = False) -> str | None:
     """Return the base family name for a known family member name."""
-    split = _split_agent_family_name(name)
+    split = _split_agent_family_name(name, include_legacy_dash=include_legacy_dash)
     return split[0] if split is not None else None
 
 
-def _agent_family_suffix(name: object) -> str | None:
+def _agent_family_suffix(
+    name: object, *, include_legacy_dash: bool = False
+) -> str | None:
     """Return the canonical suffix for a known family member name."""
-    split = _split_agent_family_name(name)
+    split = _split_agent_family_name(name, include_legacy_dash=include_legacy_dash)
     return split[1] if split is not None else None
 
 
-def is_agent_family_member(name: object) -> bool:
+def is_agent_family_member(name: object, *, include_legacy_dash: bool = False) -> bool:
     """Return whether *name* has a known agent-family suffix."""
-    return _split_agent_family_name(name) is not None
+    return (
+        _split_agent_family_name(name, include_legacy_dash=include_legacy_dash)
+        is not None
+    )
 
 
 def agent_family_role_for_suffix(suffix: object) -> str | None:
@@ -123,7 +154,7 @@ def agent_family_role_for_suffix(suffix: object) -> str | None:
         return "legend"
     if canonical == PLAN_CHAIN_COMMIT_SUFFIX:
         return "commit"
-    if _is_plan_chain_feedback_suffix(canonical):
+    if plan_chain_feedback_round(canonical) is not None:
         return "feedback"
     return None
 
@@ -148,7 +179,7 @@ def _plan_chain_suffix_from_meta(meta: Mapping[str, object]) -> str | None:
                 return suffix
 
     if isinstance(name, str):
-        for candidate in (*_KNOWN_SUFFIXES, *_LEGACY_SUFFIX_MAP):
+        for candidate in (*_KNOWN_SUFFIXES, *_LEGACY_DOTTED_SUFFIX_MAP):
             if name.endswith(candidate):
                 return canonical_plan_chain_suffix(candidate)
         suffix = _agent_family_suffix(name)

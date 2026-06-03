@@ -125,8 +125,8 @@ class TestPlanFollowupPromptConstruction:
             state.current_prompt,
             label="Full question prompt",
         )
-        assert state.current_role_suffix == "-2"
-        assert plan_mod.create_followup_artifacts.call_args.args[2] == "-2"
+        assert state.current_role_suffix == "--2"
+        assert plan_mod.create_followup_artifacts.call_args.args[2] == "--2"
 
     def test_question_followup_second_round_uses_next_numeric_suffix(
         self, tmp_path
@@ -144,8 +144,8 @@ class TestPlanFollowupPromptConstruction:
             outcome = handle_questions_marker({"questions": []}, ctx, state)
 
         assert outcome is None
-        assert state.current_role_suffix == "-3"
-        assert plan_mod.create_followup_artifacts.call_args.args[2] == "-3"
+        assert state.current_role_suffix == "--3"
+        assert plan_mod.create_followup_artifacts.call_args.args[2] == "--3"
 
     def test_multiple_question_rounds_merge_into_one_section(self, tmp_path) -> None:
         """Two question rounds produce one merged Q&A section with continuous numbering."""
@@ -316,8 +316,8 @@ class TestPlanFollowupPromptConstruction:
         """SASE_CODER_INHERIT_PLANNER_CHAT=1 restores the old #fork behavior."""
         monkeypatch.setenv("SASE_CODER_INHERIT_PLANNER_CHAT", "1")
         state = self._run(tmp_path, action="approve", agent_model="opus")
-        assert "#fork:test_agent-plan " in state.current_prompt
-        assert state.current_prompt.startswith("%model:opus\n#fork:test_agent-plan ")
+        assert "#fork:test_agent--plan " in state.current_prompt
+        assert state.current_prompt.startswith("%model:opus\n#fork:test_agent--plan ")
 
     def test_coder_prompt_qa_round_excludes_resume_by_default(self, tmp_path) -> None:
         """Q&A round (agent_step > 2) also drops #fork by default."""
@@ -367,8 +367,8 @@ class TestPlanFollowupPromptConstruction:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        assert "#fork:test_agent-plan " in state.current_prompt
-        assert "#fork:test_agent-2 " not in state.current_prompt
+        assert "#fork:test_agent--plan " in state.current_prompt
+        assert "#fork:test_agent--2 " not in state.current_prompt
 
     def test_coder_prompt_no_resume_without_agent_name(self, tmp_path) -> None:
         """No #fork prefix when ctx.agent_name is not set."""

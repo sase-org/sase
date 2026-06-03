@@ -45,7 +45,10 @@ def _agent_prompt_name(agent: Agent) -> str | None:
         if agent.agent_family:
             return agent.agent_family
         if agent.agent_name:
-            return agent_family_base(agent.agent_name) or agent.agent_name
+            return (
+                agent_family_base(agent.agent_name, include_legacy_dash=True)
+                or agent.agent_name
+            )
     return agent.agent_name
 
 

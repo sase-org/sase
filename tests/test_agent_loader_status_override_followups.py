@@ -29,7 +29,7 @@ def test_apply_status_overrides_root_awaiting_plan_review_mirrors_planner() -> N
 
     assert parent.status == "PLAN"
     planner = next(a for a in agents if a.parent_timestamp == parent.raw_suffix)
-    assert planner.agent_name == "root-plan"
+    assert planner.agent_name == "root--plan"
     assert planner.status == "PLAN"
 
 

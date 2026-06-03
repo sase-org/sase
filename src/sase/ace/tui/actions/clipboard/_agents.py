@@ -51,7 +51,10 @@ class ClipboardAgentsMixin(ClipboardBase):
             name_value = agent.agent_family
             label = "Agent Name"
         elif family_root and agent.agent_name:
-            name_value = agent_family_base(agent.agent_name) or agent.agent_name
+            name_value = (
+                agent_family_base(agent.agent_name, include_legacy_dash=True)
+                or agent.agent_name
+            )
             label = "Agent Name"
         elif agent.agent_name:
             name_value = agent.agent_name

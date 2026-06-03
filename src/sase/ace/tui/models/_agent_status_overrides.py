@@ -9,6 +9,7 @@ from sase.plan_chain import (
     agent_family_base,
     agent_family_phase_name,
     canonical_plan_chain_suffix,
+    plan_chain_feedback_round,
 )
 
 from .agent import Agent, AgentType
@@ -18,11 +19,8 @@ _APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "legend", "commit
 
 
 def is_feedback_suffix(suffix: str | None) -> bool:
-    """Check if a role suffix is a plan feedback round (e.g., "-2", ".2")."""
-    canonical = canonical_plan_chain_suffix(suffix)
-    if not canonical or not canonical.startswith("-"):
-        return False
-    return canonical[1:].isdigit()
+    """Check if a role suffix is a plan feedback round (e.g., "--2" or ".2")."""
+    return plan_chain_feedback_round(suffix) is not None
 
 
 def is_coder_followup_suffix(suffix: str | None) -> bool:
@@ -140,7 +138,11 @@ def _agent_family_name(agent: Agent) -> str | None:
     if agent.agent_family:
         return agent.agent_family
     if agent.agent_name:
-        base = agent_family_base(agent.agent_name)
+        base = agent_family_base(
+            agent.agent_name,
+            include_legacy_dash=canonical_plan_chain_suffix(agent.role_suffix)
+            is not None,
+        )
         if base:
             return base
     return None

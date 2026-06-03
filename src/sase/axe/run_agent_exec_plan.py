@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import subprocess
 import uuid
 from datetime import UTC, datetime
@@ -48,6 +47,7 @@ from sase.plan_chain import (
     canonical_plan_chain_suffix,
     plan_chain_agent_name,
     plan_chain_feedback_suffix,
+    plan_chain_feedback_round,
 )
 
 if TYPE_CHECKING:
@@ -542,7 +542,7 @@ def handle_plan_marker(
                     model_prefix = ""
         # By default the coder starts with a fresh context window; the plan
         # file itself is the hand-off artifact. Set SASE_CODER_INHERIT_PLANNER_CHAT=1
-        # to prepend #fork:<base>-plan so the coder inherits the planner's
+        # to prepend #fork:<base>--plan so the coder inherits the planner's
         # full chat transcript.
         resume_prefix = ""
         if ctx.agent_name and os.environ.get("SASE_CODER_INHERIT_PLANNER_CHAT") == "1":
@@ -620,7 +620,7 @@ def handle_questions_marker(
     previous_suffix = canonical_plan_chain_suffix(previous_role_suffix)
     _q_suffix = (
         f"{previous_suffix}{PLAN_CHAIN_QUESTION_SUFFIX}"
-        if previous_suffix and re.match(r"^-\d+$", previous_suffix)
+        if plan_chain_feedback_round(previous_suffix) is not None
         else state.current_role_suffix or PLAN_CHAIN_QUESTION_SUFFIX
     )
     _q_agent = f"{ctx.agent_name}{_q_suffix}" if ctx.agent_name else None

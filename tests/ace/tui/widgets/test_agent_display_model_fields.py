@@ -105,7 +105,7 @@ class TestLoaderFollowupPopulation:
             start_time=datetime(2024, 1, 1, 15, 0),
         )
         _apply_status_overrides([parent, coder, fb])
-        assert parent.followup_agents[0].role_suffix == "-plan"
+        assert parent.followup_agents[0].role_suffix == "--plan"
         assert parent.followup_agents[1] is fb
         assert parent.followup_agents[2] is coder
 
@@ -126,4 +126,4 @@ class TestLoaderFollowupPopulation:
         )
         _apply_status_overrides([parent, step])
         assert len(parent.followup_agents) == 1
-        assert parent.followup_agents[0].role_suffix == "-plan"
+        assert parent.followup_agents[0].role_suffix == "--plan"

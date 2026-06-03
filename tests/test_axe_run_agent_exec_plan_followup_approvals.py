@@ -109,7 +109,7 @@ class TestPlanFollowupApprovals:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        assert state.current_role_suffix == "-legend"
+        assert state.current_role_suffix == "--legend"
         assert (
             "#bd/new_legend:sdd/legends/202605/scratch_plan.md" in state.current_prompt
         )

@@ -108,7 +108,7 @@ def test_finalize_loop_prefers_latest_agent_meta_for_transcript_metadata(
             SimpleNamespace(response_text="done"),
         )
 
-    assert captured["metadata_agent"] == "agent-code"
+    assert captured["metadata_agent"] == "agent--code"
     assert captured["metadata_model"] == "coder-model"
     assert captured["metadata_llm_provider"] == "codex"
 

@@ -30,11 +30,12 @@ def test_detects_only_terminal_indexed_marker() -> None:
 
 def test_extracts_and_validates_template_base() -> None:
     assert indexed_agent_name_base("build-@") == "build"
+    assert indexed_agent_name_base("build-stage-@") == "build-stage"
 
     with pytest.raises(InvalidIndexedAgentNameTemplateError, match="base"):
         indexed_agent_name_base("-@")
     with pytest.raises(InvalidIndexedAgentNameTemplateError, match="base"):
-        indexed_agent_name_base("build-stage-@")
+        indexed_agent_name_base("build--stage-@")
     with pytest.raises(InvalidIndexedAgentNameTemplateError, match="terminal"):
         indexed_agent_name_base("build-1")
 

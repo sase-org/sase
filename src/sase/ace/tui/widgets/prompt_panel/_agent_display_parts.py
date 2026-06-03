@@ -19,6 +19,7 @@ from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
     canonical_plan_chain_suffix,
+    plan_chain_feedback_round,
 )
 
 from ...models.agent import Agent, AttemptRecord
@@ -141,8 +142,9 @@ def get_phase_label(agent: Agent) -> str:
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
     if suffix in _PHASE_LABELS:
         return _PHASE_LABELS[suffix]
-    if suffix and suffix.startswith("-") and suffix[1:].isdigit():
-        return f"PLANNER (round {suffix[1:]})"
+    feedback_round = plan_chain_feedback_round(suffix)
+    if feedback_round is not None:
+        return f"PLANNER (round {feedback_round})"
     return "AGENT"
 
 

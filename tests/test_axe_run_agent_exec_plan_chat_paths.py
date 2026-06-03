@@ -66,20 +66,20 @@ class TestFeedbackRoundChatPath:
     def test_handle_plan_marker_round1_uses_plan_suffix_in_agent_name(
         self, tmp_path
     ) -> None:
-        """Round 1 (no role suffix yet) falls back to '-plan' suffix."""
+        """Round 1 (no role suffix yet) falls back to '--plan' suffix."""
         captured = self._run_plan(tmp_path, role_suffix="")
-        assert captured["agent"] == "test_agent-plan"
-        assert captured["metadata_agent"] == "test_agent-plan"
+        assert captured["agent"] == "test_agent--plan"
+        assert captured["metadata_agent"] == "test_agent--plan"
         assert captured["metadata_model"] is None
         assert captured["metadata_llm_provider"] == "anthropic"
 
     def test_handle_plan_marker_round2_uses_round_suffix_in_agent_name(
         self, tmp_path
     ) -> None:
-        """Round 2 uses the round suffix instead of hardcoded '-plan'."""
+        """Round 2 uses the round suffix instead of hardcoded '--plan'."""
         captured = self._run_plan(tmp_path, role_suffix=".2")
-        assert captured["agent"] == "test_agent-2"
-        assert captured["metadata_agent"] == "test_agent-2"
+        assert captured["agent"] == "test_agent--2"
+        assert captured["metadata_agent"] == "test_agent--2"
 
     def test_handle_plan_marker_uses_distinct_agent_per_round(self, tmp_path) -> None:
         """Two rounds with different suffixes must produce distinct agent names."""
@@ -98,7 +98,7 @@ class TestFeedbackRoundChatPath:
         assert captured["metadata_agent"] is None
 
     def test_handle_questions_marker_uses_suffix_in_agent_name(self, tmp_path) -> None:
-        """Questions handler uses current_role_suffix (post-`-q` accumulation)."""
+        """Questions handler uses current_role_suffix (post-`--q` accumulation)."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         state.current_role_suffix = ".2"
@@ -121,7 +121,7 @@ class TestFeedbackRoundChatPath:
         ):
             handle_questions_marker({"questions": []}, ctx, state)
 
-        assert captured["agent"] == "test_agent-2-q"
-        assert captured["metadata_agent"] == "test_agent-2-q"
+        assert captured["agent"] == "test_agent--2--q"
+        assert captured["metadata_agent"] == "test_agent--2--q"
         assert "metadata_model" not in captured
         assert "metadata_llm_provider" not in captured
