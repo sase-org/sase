@@ -53,7 +53,7 @@ from tests.main.init_skills_handler_helpers import make_args
             (
                 "sase var set KEY=VALUE",
                 "%name:build-@",
-                "{{ build.result_path }}",
+                '{{ agents["build"].result_path }}',
             ),
         ),
     ],

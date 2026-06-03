@@ -649,8 +649,8 @@ Workflows use Jinja2 for template rendering.
 {{ name }}
 
 # Output variables from waited named agents, loaded when this run starts
-{{ build.report_path }}
-{{ research.final.summary }}
+{{ agents["build"].report_path }}
+{{ agents["research.final"].summary }}
 ```
 
 ### Filters
@@ -693,27 +693,26 @@ are a separate handoff for SASE agents. After a consumer's `%wait` dependencies 
 that the producers wrote with `sase var set KEY=VALUE` and adds them to the consumer's Jinja context.
 
 Those values are loaded when the consumer starts; they are not live-updated after rendering begins. Have the producer
-call `sase var set` before it finishes. In workflows launched as agents, these namespaces are available to workflow
-template rendering, including `agent`, `bash`, `python`, `environment`, and `prompt_part` templates.
+call `sase var set` before it finishes. In workflows launched as agents, the `agents` dictionary is available to
+workflow template rendering, including `agent`, `bash`, `python`, `environment`, and `prompt_part` templates.
 
-The producer's stable name determines the namespace. Indexed name templates expose the template base instead of the
-concrete numeric name:
+Every producer's variables live under a single `agents` dictionary keyed by the producer's stable name. Indexed name
+templates use the template base instead of the concrete numeric name. The key is the raw agent name with no identifier
+munging, so dotted, hyphenated, and digit-leading names work via bracket access:
 
-| Producer name or template | Referenced as                      |
-| ------------------------- | ---------------------------------- |
-| `%name:build-agent`       | `{{ build_agent.report_path }}`    |
-| `%name:build-@`           | `{{ build.report_path }}`          |
-| `%name:research.final-@`  | `{{ research.final.report_path }}` |
-| `%name:0n.cld`            | `{{ _0n.cld.report_path }}`        |
+| Producer name or template | Referenced as                                |
+| ------------------------- | -------------------------------------------- |
+| `%name:build-agent`       | `{{ agents["build-agent"].report_path }}`    |
+| `%name:build-@`           | `{{ agents["build"].report_path }}`          |
+| `%name:research.final-@`  | `{{ agents["research.final"].report_path }}` |
+| `%name:0n.cld`            | `{{ agents["0n.cld"].report_path }}`         |
 
-Output-variable namespaces are agent-level handoffs, not replacements for workflow `output:` schemas or the ACE
+Identifier-safe keys also support attribute access such as `{{ agents.build.report_path }}`.
+
+The `agents` dictionary is an agent-level handoff, not a replacement for workflow `output:` schemas or the ACE
 `WORKFLOW VARIABLES` section. Use `output:` for values produced and consumed inside one YAML workflow; use
 `sase var set` when a later named agent, segment, or agent-launched workflow needs a small value from a completed
-producer. Avoid namespace collisions with workflow input names; SASE rejects collisions with built-in workflow arguments
-such as `cl_name`.
-
-Namespace normalization is intentionally narrow: hyphens become underscores, dots create nested namespaces, and
-digit-leading components are prefixed with `_`. Each component must be a valid Jinja identifier after that conversion.
+producer. `agents` is a reserved agent-run Jinja name; a workflow input named `agents` collides and fails clearly.
 
 ## Cross-Step Field Type Checking
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-03 01:31:36
-status: wip
+status: done
 prompt: sdd/prompts/202606/agents_var_namespace_1.md
 ---
 # Plan: Expose `sase var` Output Variables Under a Single `agents` Jinja Dictionary

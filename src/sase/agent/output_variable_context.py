@@ -1,70 +1,50 @@
-"""Jinja namespace context for cross-agent output variables."""
+"""Jinja ``agents`` context for cross-agent output variables."""
 
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 SASE_AGENT_VAR_UPSTREAMS_ENV = "SASE_AGENT_VAR_UPSTREAMS_JSON"
 
-_JINJA_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# Single top-level Jinja variable holding every producer's output variables,
+# keyed by agent name. Reserved in the agent-run Jinja named-arg namespace.
+AGENTS_CONTEXT_KEY = "agents"
 
 
 class _AgentOutputVariableNamespaceError(ValueError):
-    """Raised when an agent output-variable namespace cannot be exposed."""
+    """Raised when an agent output-variable key cannot be derived."""
 
 
-def _namespace_path_for_agent_output_variables(
+def _agent_key_for_output_variables(
     *,
     agent_name: str | None,
     agent_name_template: str | None = None,
-) -> tuple[str, ...]:
-    """Return the nested Jinja namespace path for an agent's output variables."""
-    source = _namespace_source(agent_name=agent_name, template=agent_name_template)
-    components = tuple(
-        _normalize_agent_namespace_component(component)
-        for component in source.split(".")
-    )
-    if not components or any(not component for component in components):
-        raise _AgentOutputVariableNamespaceError(
-            f"Invalid output-variable namespace {source!r}: empty component"
-        )
-    invalid = [
-        component
-        for component in components
-        if _JINJA_IDENTIFIER_RE.fullmatch(component) is None
-    ]
-    if invalid:
-        raise _AgentOutputVariableNamespaceError(
-            "Invalid output-variable namespace "
-            f"{source!r}: {invalid[0]!r} is not a valid Jinja identifier"
-        )
-    return components
+) -> str:
+    """Return the stable ``agents`` dictionary key for an agent's variables.
 
+    The key is the agent's stable reference so that xprompts stay authorable
+    and repeatable across runs:
 
-def _normalize_agent_namespace_component(component: str) -> str:
-    normalized = component.replace("-", "_")
-    if normalized and normalized[0].isdigit():
-        return f"_{normalized}"
-    return normalized
-
-
-def _namespace_source(*, agent_name: str | None, template: str | None) -> str:
-    if template:
+    - An indexed template (``build-@``) yields its base (``build``), not the
+      launch-time ``build-1`` allocated at runtime.
+    - Otherwise the concrete/dotted agent name is used verbatim
+      (``research.final``, ``0n.cld``), without any Jinja-identifier munging.
+    """
+    if agent_name_template:
         from sase.agent.names import (
             indexed_agent_name_base,
             is_indexed_agent_name_template,
         )
 
-        if is_indexed_agent_name_template(template):
-            return indexed_agent_name_base(template)
+        if is_indexed_agent_name_template(agent_name_template):
+            return indexed_agent_name_base(agent_name_template)
     if agent_name:
         return agent_name
-    if template:
-        return template
+    if agent_name_template:
+        return agent_name_template
     raise _AgentOutputVariableNamespaceError(
         "Cannot expose output variables without an agent name"
     )
@@ -78,13 +58,13 @@ def build_agent_var_upstream_record(
     agent_name_template: str | None = None,
 ) -> dict[str, Any]:
     """Build the launch-scoped upstream record passed to later agents."""
-    namespace_path = _namespace_path_for_agent_output_variables(
+    agent_key = _agent_key_for_output_variables(
         agent_name=agent_name,
         agent_name_template=agent_name_template,
     )
     return {
         "name": agent_name,
-        "namespace": ".".join(namespace_path),
+        "agent_key": agent_key,
         "agent_name_template": agent_name_template,
         "project_name": project_name,
         "workflow_timestamp": workflow_timestamp,
@@ -102,8 +82,13 @@ def build_agent_output_variable_context(
     upstreams_json: str | None,
     wait_names: Sequence[str] = (),
 ) -> dict[str, Any]:
-    """Load upstream output variables as nested Jinja named-arg context."""
-    context: dict[str, Any] = {}
+    """Load upstream output variables under the single ``agents`` named arg.
+
+    Returns ``{"agents": {agent_key: variables, ...}}`` when any producer wrote
+    variables, else ``{}`` (so nothing is injected when there is nothing to
+    render). Later producers override earlier ones for the same key.
+    """
+    agents: dict[str, dict[str, str]] = {}
     seen_artifacts_dirs: set[str] = set()
 
     for upstream in _decode_upstreams(upstreams_json):
@@ -114,8 +99,8 @@ def build_agent_output_variable_context(
         variables = _read_variables_if_present(artifacts_dir)
         if not variables:
             continue
-        namespace = _namespace_path_from_upstream(upstream)
-        _merge_namespace_variables(context, namespace, variables)
+        key = _agent_key_from_upstream(upstream)
+        _merge_agent_variables(agents, key, variables)
 
     for wait_name in wait_names:
         resolved = _resolve_waited_agent(wait_name)
@@ -127,13 +112,15 @@ def build_agent_output_variable_context(
         variables = _read_variables_if_present(artifacts_dir)
         if not variables:
             continue
-        namespace = _namespace_path_for_agent_output_variables(
+        key = _agent_key_for_output_variables(
             agent_name=agent_name,
             agent_name_template=agent_name_template,
         )
-        _merge_namespace_variables(context, namespace, variables)
+        _merge_agent_variables(agents, key, variables)
 
-    return context
+    if not agents:
+        return {}
+    return {AGENTS_CONTEXT_KEY: agents}
 
 
 def _decode_upstreams(upstreams_json: str | None) -> list[dict[str, Any]]:
@@ -163,35 +150,22 @@ def _upstream_artifacts_dir(upstream: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _namespace_path_from_upstream(upstream: Mapping[str, Any]) -> tuple[str, ...]:
-    namespace = upstream.get("namespace")
-    if isinstance(namespace, str) and namespace:
-        return _validate_namespace_string(namespace)
+def _agent_key_from_upstream(upstream: Mapping[str, Any]) -> str:
+    """Derive the ``agents`` key from an upstream record.
+
+    Tolerates older payloads (in-flight spawned agents) that may only carry
+    ``name``/``agent_name_template`` by deriving the key from the best
+    available fields. A legacy ``namespace`` field is ignored.
+    """
+    agent_key = upstream.get("agent_key")
+    if isinstance(agent_key, str) and agent_key:
+        return agent_key
     name = upstream.get("name")
     template = upstream.get("agent_name_template")
-    return _namespace_path_for_agent_output_variables(
+    return _agent_key_for_output_variables(
         agent_name=name if isinstance(name, str) else None,
         agent_name_template=template if isinstance(template, str) else None,
     )
-
-
-def _validate_namespace_string(namespace: str) -> tuple[str, ...]:
-    components = tuple(namespace.split("."))
-    if not components or any(not component for component in components):
-        raise _AgentOutputVariableNamespaceError(
-            f"Invalid output-variable namespace {namespace!r}: empty component"
-        )
-    invalid = [
-        component
-        for component in components
-        if _JINJA_IDENTIFIER_RE.fullmatch(component) is None
-    ]
-    if invalid:
-        raise _AgentOutputVariableNamespaceError(
-            "Invalid output-variable namespace "
-            f"{namespace!r}: {invalid[0]!r} is not a valid Jinja identifier"
-        )
-    return components
 
 
 def _read_variables_if_present(artifacts_dir: str) -> dict[str, str]:
@@ -223,37 +197,17 @@ def _resolve_waited_agent(
     )
 
 
-def _merge_namespace_variables(
-    context: dict[str, Any],
-    namespace: tuple[str, ...],
+def _merge_agent_variables(
+    agents: dict[str, dict[str, str]],
+    key: str,
     variables: Mapping[str, str],
 ) -> None:
-    target = context
-    for component in namespace[:-1]:
-        existing = target.get(component)
-        if existing is None:
-            child: dict[str, Any] = {}
-            target[component] = child
-            target = child
-            continue
-        if not isinstance(existing, dict):
-            joined = ".".join(namespace)
-            raise _AgentOutputVariableNamespaceError(
-                f"Output-variable namespace {joined!r} collides with a value"
-            )
-        target = existing
-
-    leaf = namespace[-1]
-    existing_leaf = target.get(leaf)
-    if existing_leaf is None:
-        target[leaf] = dict(variables)
+    """Merge ``variables`` into ``agents[key]``, later writes overriding."""
+    existing = agents.get(key)
+    if existing is None:
+        agents[key] = dict(variables)
         return
-    if not isinstance(existing_leaf, dict):
-        joined = ".".join(namespace)
-        raise _AgentOutputVariableNamespaceError(
-            f"Output-variable namespace {joined!r} collides with a value"
-        )
-    existing_leaf.update(variables)
+    existing.update(variables)
 
 
 def _artifacts_dir_for_launch(project_name: str, workflow_timestamp: str) -> str:
@@ -271,6 +225,7 @@ def _artifacts_dir_for_launch(project_name: str, workflow_timestamp: str) -> str
 
 
 __all__ = [
+    "AGENTS_CONTEXT_KEY",
     "SASE_AGENT_VAR_UPSTREAMS_ENV",
     "build_agent_output_variable_context",
     "build_agent_var_upstream_record",

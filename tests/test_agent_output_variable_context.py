@@ -1,4 +1,4 @@
-"""Tests for cross-agent output-variable Jinja context."""
+"""Tests for the cross-agent ``agents`` output-variable Jinja context."""
 
 from __future__ import annotations
 
@@ -10,8 +10,7 @@ import pytest
 
 from sase.agent.output_variable_context import (
     SASE_AGENT_VAR_UPSTREAMS_ENV,
-    _AgentOutputVariableNamespaceError,
-    _namespace_path_for_agent_output_variables,
+    _agent_key_for_output_variables,
     build_agent_output_variable_context,
     build_agent_var_upstream_record,
     encode_agent_var_upstreams,
@@ -23,52 +22,149 @@ from sase.xprompt.workflow_runner import execute_workflow
 from tests._agent_names_fixtures import make_agent
 
 
-def test_indexed_name_template_exposes_base_namespace() -> None:
-    assert _namespace_path_for_agent_output_variables(
-        agent_name="build-7",
-        agent_name_template="build-@",
-    ) == ("build",)
+def _consumer_ctx(
+    output_variable_namespaces: dict[str, object],
+) -> AgentExecContext:
+    return AgentExecContext(
+        cl_name="cl",
+        project_file="/tmp/project.sase",
+        workspace_dir="/tmp/ws",
+        output_path="/tmp/out.txt",
+        workspace_num=3,
+        timestamp="260501_120000",
+        update_target="",
+        project_name="proj",
+        is_home_mode=False,
+        artifacts_dir="/tmp/artifacts",
+        artifacts_timestamp="20260501120000",
+        vcs_tag=None,
+        agent_name="consumer",
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_vcs_provider=None,
+        agent_hidden=False,
+        agent_meta={},
+        local_xprompts={},
+        output_variable_namespaces=output_variable_namespaces,
+    )
 
 
-def test_dotted_indexed_name_template_exposes_nested_namespace() -> None:
-    assert _namespace_path_for_agent_output_variables(
-        agent_name="research_swarm.final-2",
-        agent_name_template="research_swarm.final-@",
-    ) == ("research_swarm", "final")
+def test_indexed_name_template_exposes_base_key() -> None:
+    assert (
+        _agent_key_for_output_variables(
+            agent_name="build-7",
+            agent_name_template="build-@",
+        )
+        == "build"
+    )
 
 
-def test_plain_hyphenated_agent_name_exposes_underscore_namespace() -> None:
-    assert _namespace_path_for_agent_output_variables(
-        agent_name="build-agent",
-    ) == ("build_agent",)
+def test_dotted_indexed_name_template_exposes_flat_dotted_key() -> None:
+    assert (
+        _agent_key_for_output_variables(
+            agent_name="research.final-2",
+            agent_name_template="research.final-@",
+        )
+        == "research.final"
+    )
 
 
-def test_digit_leading_agent_name_exposes_prefixed_namespace() -> None:
-    assert _namespace_path_for_agent_output_variables(
-        agent_name="0n",
-    ) == ("_0n",)
+def test_plain_hyphenated_agent_name_is_used_verbatim() -> None:
+    assert _agent_key_for_output_variables(agent_name="build-agent") == "build-agent"
 
 
-def test_dotted_digit_leading_agent_name_exposes_nested_prefixed_namespace() -> None:
-    assert _namespace_path_for_agent_output_variables(
-        agent_name="0n.cld",
-    ) == ("_0n", "cld")
+def test_digit_leading_dotted_agent_name_is_used_verbatim() -> None:
+    assert _agent_key_for_output_variables(agent_name="0n.cld") == "0n.cld"
 
 
-def test_digit_leading_nested_component_exposes_prefixed_namespace() -> None:
-    assert _namespace_path_for_agent_output_variables(
-        agent_name="build.3",
-    ) == ("build", "_3")
+def test_named_producer_loads_under_agents_dict(tmp_path: Path) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        upstream = build_agent_var_upstream_record(
+            agent_name="build",
+            project_name="proj",
+            workflow_timestamp="260501_120000",
+        )
+
+    artifacts_dir = Path(str(upstream["artifacts_dir"]))
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "build",
+                "output_variables": {"report_path": "reports/final.md"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    context = build_agent_output_variable_context(
+        upstreams_json=encode_agent_var_upstreams([upstream]),
+    )
+
+    assert context == {"agents": {"build": {"report_path": "reports/final.md"}}}
 
 
-def test_invalid_namespace_raises_instead_of_silent_skip() -> None:
-    with pytest.raises(_AgentOutputVariableNamespaceError, match="Jinja identifier"):
-        _namespace_path_for_agent_output_variables(agent_name="bad/name")
+def test_indexed_template_upstream_uses_stable_base_key(tmp_path: Path) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        upstream = build_agent_var_upstream_record(
+            agent_name="build-1",
+            agent_name_template="build-@",
+            project_name="proj",
+            workflow_timestamp="260501_120000",
+        )
+
+    artifacts_dir = Path(str(upstream["artifacts_dir"]))
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "build-1",
+                "agent_name_template": "build-@",
+                "output_variables": {"report_path": "reports/final.md"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    context = build_agent_output_variable_context(
+        upstreams_json=encode_agent_var_upstreams([upstream]),
+    )
+
+    assert context == {"agents": {"build": {"report_path": "reports/final.md"}}}
 
 
-def test_digit_leading_scoped_upstream_variables_load_into_nested_context(
-    tmp_path: Path,
-) -> None:
+def test_dotted_indexed_template_uses_flat_dotted_key(tmp_path: Path) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        upstream = build_agent_var_upstream_record(
+            agent_name="research.final-1",
+            agent_name_template="research.final-@",
+            project_name="proj",
+            workflow_timestamp="260501_120000",
+        )
+
+    artifacts_dir = Path(str(upstream["artifacts_dir"]))
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "research.final-1",
+                "agent_name_template": "research.final-@",
+                "output_variables": {"report_path": "reports/final.md"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    context = build_agent_output_variable_context(
+        upstreams_json=encode_agent_var_upstreams([upstream]),
+    )
+
+    assert context == {
+        "agents": {"research.final": {"report_path": "reports/final.md"}}
+    }
+
+
+def test_digit_leading_dotted_fanout_uses_raw_key(tmp_path: Path) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         upstream = build_agent_var_upstream_record(
             agent_name="0n.cld",
@@ -92,39 +188,10 @@ def test_digit_leading_scoped_upstream_variables_load_into_nested_context(
         upstreams_json=encode_agent_var_upstreams([upstream]),
     )
 
-    assert context == {"_0n": {"cld": {"report_path": "reports/final.md"}}}
+    assert context == {"agents": {"0n.cld": {"report_path": "reports/final.md"}}}
 
 
-def test_scoped_upstream_variables_load_into_nested_context(tmp_path: Path) -> None:
-    with patch.object(Path, "home", return_value=tmp_path):
-        upstream = build_agent_var_upstream_record(
-            agent_name="research_swarm.final-1",
-            agent_name_template="research_swarm.final-@",
-            project_name="proj",
-            workflow_timestamp="260501_120000",
-        )
-
-    artifacts_dir = Path(str(upstream["artifacts_dir"]))
-    artifacts_dir.mkdir(parents=True)
-    (artifacts_dir / "agent_meta.json").write_text(
-        json.dumps(
-            {
-                "name": "research_swarm.final-1",
-                "agent_name_template": "research_swarm.final-@",
-                "output_variables": {"report_path": "reports/final.md"},
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    context = build_agent_output_variable_context(
-        upstreams_json=encode_agent_var_upstreams([upstream]),
-    )
-
-    assert context == {"research_swarm": {"final": {"report_path": "reports/final.md"}}}
-
-
-def test_later_upstream_overrides_same_namespace_key(tmp_path: Path) -> None:
+def test_later_upstream_overrides_same_key(tmp_path: Path) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         first = build_agent_var_upstream_record(
             agent_name="build",
@@ -149,7 +216,23 @@ def test_later_upstream_overrides_same_namespace_key(tmp_path: Path) -> None:
         upstreams_json=encode_agent_var_upstreams([first, second]),
     )
 
-    assert context == {"build": {"path": "new.txt"}}
+    assert context == {"agents": {"build": {"path": "new.txt"}}}
+
+
+def test_empty_producers_create_no_agents_entry(tmp_path: Path) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        upstream = build_agent_var_upstream_record(
+            agent_name="build",
+            project_name="proj",
+            workflow_timestamp="260501_120000",
+        )
+
+    # No agent_meta.json on disk: producer wrote nothing.
+    context = build_agent_output_variable_context(
+        upstreams_json=encode_agent_var_upstreams([upstream]),
+    )
+
+    assert context == {}
 
 
 def test_waited_agent_variables_load_as_fallback_context(tmp_path: Path) -> None:
@@ -173,38 +256,26 @@ def test_waited_agent_variables_load_as_fallback_context(tmp_path: Path) -> None
             wait_names=["build-1"],
         )
 
-    assert context == {"build": {"report_path": "reports/build.md"}}
+    assert context == {"agents": {"build": {"report_path": "reports/build.md"}}}
 
 
-def test_build_named_args_includes_output_variable_namespaces() -> None:
-    ctx = AgentExecContext(
-        cl_name="cl",
-        project_file="/tmp/project.sase",
-        workspace_dir="/tmp/ws",
-        output_path="/tmp/out.txt",
-        workspace_num=3,
-        timestamp="260501_120000",
-        update_target="",
-        project_name="proj",
-        is_home_mode=False,
-        artifacts_dir="/tmp/artifacts",
-        artifacts_timestamp="20260501120000",
-        vcs_tag=None,
-        agent_name="consumer",
-        agent_model=None,
-        agent_llm_provider=None,
-        agent_vcs_provider=None,
-        agent_hidden=False,
-        agent_meta={},
-        local_xprompts={},
-        output_variable_namespaces={"build": {"report_path": "reports/build.md"}},
+def test_build_named_args_injects_single_agents_arg() -> None:
+    ctx = _consumer_ctx(
+        {"agents": {"build": {"report_path": "reports/build.md"}}},
     )
 
     named_args = _build_named_args(ctx)
 
-    assert named_args["build"] == {"report_path": "reports/build.md"}
+    assert named_args["agents"] == {"build": {"report_path": "reports/build.md"}}
     assert named_args["cl_name"] == "cl"
     assert named_args["workspace_num"] == 3
+
+
+def test_build_named_args_raises_on_agents_collision() -> None:
+    ctx = _consumer_ctx({"cl_name": {"build": {}}})
+
+    with pytest.raises(ValueError, match="Reserved agent-run Jinja name"):
+        _build_named_args(ctx)
 
 
 def test_waited_producer_variables_render_in_later_workflow_prompt(
@@ -239,37 +310,15 @@ def test_waited_producer_variables_render_in_later_workflow_prompt(
             wait_names=["build-1"],
         )
 
-    ctx = AgentExecContext(
-        cl_name="cl",
-        project_file="/tmp/project.sase",
-        workspace_dir="/tmp/ws",
-        output_path="/tmp/out.txt",
-        workspace_num=3,
-        timestamp="260501_120001",
-        update_target="",
-        project_name="proj",
-        is_home_mode=False,
-        artifacts_dir=str(tmp_path / "consumer_artifacts"),
-        artifacts_timestamp="20260501120001",
-        vcs_tag=None,
-        agent_name="consumer",
-        agent_model=None,
-        agent_llm_provider=None,
-        agent_vcs_provider=None,
-        agent_hidden=False,
-        agent_meta={},
-        local_xprompts={},
-        wait_chats=[],
-        output_variable_namespaces=output_variable_namespaces,
-    )
+    ctx = _consumer_ctx(output_variable_namespaces)
     workflow = Workflow(
         name="consumer",
         steps=[
             WorkflowStep(
                 name="main",
                 prompt_part=(
-                    "Read {{ build.report_path }} after producer status "
-                    "{{ build.status }}."
+                    'Read {{ agents["build"].report_path }} after producer '
+                    'status {{ agents["build"].status }}.'
                 ),
             )
         ],
@@ -293,6 +342,60 @@ def test_waited_producer_variables_render_in_later_workflow_prompt(
     assert rendered_workflow.steps[0].agent == (
         "Read reports/build.md after producer status ok."
     )
+
+
+def test_raw_key_producer_renders_via_bracket_access(tmp_path: Path) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        upstream = build_agent_var_upstream_record(
+            agent_name="0n.cld",
+            project_name="proj",
+            workflow_timestamp="260501_120000",
+        )
+
+    artifacts_dir = Path(str(upstream["artifacts_dir"]))
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "0n.cld",
+                "output_variables": {"report_path": "reports/cld.md"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        output_variable_namespaces = build_agent_output_variable_context(
+            upstreams_json=encode_agent_var_upstreams([upstream]),
+        )
+
+    ctx = _consumer_ctx(output_variable_namespaces)
+    workflow = Workflow(
+        name="consumer",
+        steps=[
+            WorkflowStep(
+                name="main",
+                prompt_part='Read {{ agents["0n.cld"].report_path }}.',
+            )
+        ],
+    )
+
+    with patch("sase.xprompt.workflow_executor.WorkflowExecutor") as executor_cls:
+        executor = executor_cls.return_value
+        executor.execute.return_value = True
+        executor.state.steps = []
+
+        execute_workflow(
+            name=workflow.name,
+            positional_args=[],
+            named_args=_build_named_args(ctx),
+            artifacts_dir=str(tmp_path / "consumer_workflow"),
+            workflow_obj=workflow,
+            silent=True,
+        )
+
+    rendered_workflow = executor_cls.call_args.kwargs["workflow"]
+    assert rendered_workflow.steps[0].agent == "Read reports/cld.md."
 
 
 def test_spawn_env_scrubber_removes_inherited_upstream_context() -> None:

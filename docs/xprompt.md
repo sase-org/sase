@@ -535,15 +535,15 @@ Hello, {{ user }}.
 
 ### Template Context
 
-| Variable           | Description                                                                                           |
-| ------------------ | ----------------------------------------------------------------------------------------------------- |
-| `{{ name }}`       | Named argument or input mapped by name                                                                |
-| `{{ _1 }}`         | First positional argument (1-indexed)                                                                 |
-| `{{ _2 }}`         | Second positional argument, etc.                                                                      |
-| `{{ _args }}`      | List of all positional arguments                                                                      |
-| `{{ root }}`       | Absolute path to the primary workspace directory (omitted if unresolvable)                            |
-| `{{ wait_chats }}` | List of chat-transcript paths for agents named in `%wait:<name>` directives, in the order they appear |
-| `{{ build.path }}` | Output-variable namespace loaded from `%wait:build` when that agent used `sase var set path=...`      |
+| Variable                     | Description                                                                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `{{ name }}`                 | Named argument or input mapped by name                                                                |
+| `{{ _1 }}`                   | First positional argument (1-indexed)                                                                 |
+| `{{ _2 }}`                   | Second positional argument, etc.                                                                      |
+| `{{ _args }}`                | List of all positional arguments                                                                      |
+| `{{ root }}`                 | Absolute path to the primary workspace directory (omitted if unresolvable)                            |
+| `{{ wait_chats }}`           | List of chat-transcript paths for agents named in `%wait:<name>` directives, in the order they appear |
+| `{{ agents["build"].path }}` | Output variables loaded from `%wait:build` when that agent used `sase var set path=...`               |
 
 Named arguments and positional-to-name mappings take priority; if an xprompt is called within a workflow step, the
 workflow's execution scope is also available (xprompt args override scope values on conflict).
@@ -1384,7 +1384,8 @@ share the `_common` local xprompt.
 ### Cross-Agent Output Variables
 
 Agents can publish small string values for later waited agents or segments with `sase var set KEY=VALUE`. Give the
-producer a stable name and make the consumer wait before referencing the producer namespace:
+producer a stable name and make the consumer wait before referencing the producer's variables. Every producer's
+variables live under a single reserved `agents` dictionary keyed by agent name:
 
 ```
 %name:build-@
@@ -1393,19 +1394,21 @@ sase var set report_path=dist/report.md status=ok
 ---
 %name:review
 %wait:build-@
-Review {{ build.report_path }} after the build status is {{ build.status }}.
+Review {{ agents["build"].report_path }} after the build status is {{ agents["build"].status }}.
 ```
 
-The review prompt is rendered after the `build-@` dependency completes, so `{{ build.report_path }}` and
-`{{ build.status }}` come from the producer's stored `agent_meta.json` values. A consumer that has already started will
-not see later writes.
+The review prompt is rendered after the `build-@` dependency completes, so `{{ agents["build"].report_path }}` and
+`{{ agents["build"].status }}` come from the producer's stored `agent_meta.json` values. A consumer that has already
+started will not see later writes.
 
-Indexed names expose the indexed base as the namespace, so `%name:build-@` becomes `{{ build.report_path }}` rather than
-`{{ build_1.report_path }}`. Dotted templates create nested namespaces such as `%name:research.final-@` →
-`{{ research.final.report_path }}`; hyphens in plain names become underscores. If a namespace component starts with a
-digit, SASE prefixes it with `_`, so `%name:0n.cld` exposes `{{ _0n.cld.report_path }}`. Output variables are persisted
-in the producer's `agent_meta.json` and also appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata section. They are
-visible metadata, not secret storage.
+The `agents` key is the producer's stable name. Indexed templates use the template base, so `%name:build-@` is
+`{{ agents["build"].report_path }}`, not `agents["build-1"]`. The key is the raw agent name with no identifier munging,
+so dotted, hyphenated, and digit-leading names all work via bracket access: `%name:research.final-@` →
+`{{ agents["research.final"].report_path }}`, and `%name:0n.cld` → `{{ agents["0n.cld"].report_path }}`. Identifier-safe
+keys also support attribute access such as `{{ agents.build.report_path }}`. `agents` is a reserved agent-run Jinja
+name; a workflow input named `agents` collides and fails clearly. Output variables are persisted in the producer's
+`agent_meta.json` and also appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata section. They are visible metadata,
+not secret storage.
 
 ### Rules
 

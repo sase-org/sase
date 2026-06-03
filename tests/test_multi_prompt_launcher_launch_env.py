@@ -37,7 +37,10 @@ def test_launch_multi_prompt_passes_scoped_output_variable_upstreams(
 
     with patch.object(Path, "home", return_value=tmp_path):
         launch_multi_prompt_agents(
-            segments=["%n:build-@\nBuild", "%w:build-@\nUse {{ build.path }}"],
+            segments=[
+                "%n:build-@\nBuild",
+                '%w:build-@\nUse {{ agents["build"].path }}',
+            ],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -63,7 +66,7 @@ def test_launch_multi_prompt_passes_scoped_output_variable_upstreams(
                 / "20260501120000"
             ),
             "name": "build-1",
-            "namespace": "build",
+            "agent_key": "build",
             "project_name": "test",
             "workflow_timestamp": "260501_120000",
         }
@@ -125,7 +128,7 @@ def test_launch_multi_prompt_passes_digit_leading_fanout_output_variable_upstrea
                 / "20260501120000"
             ),
             "name": "0n.cld",
-            "namespace": "_0n.cld",
+            "agent_key": "0n.cld",
             "project_name": "test",
             "workflow_timestamp": "260501_120000",
         }
@@ -236,7 +239,7 @@ def test_launch_multi_prompt_merges_segment_extra_env(
     assert call1_env["SASE_AGENT_PLANNED_NAME"] == "first.w1"
     upstreams = json.loads(call1_env[SASE_AGENT_VAR_UPSTREAMS_ENV])
     assert upstreams[0]["name"] == "first"
-    assert upstreams[0]["namespace"] == "first"
+    assert upstreams[0]["agent_key"] == "first"
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
