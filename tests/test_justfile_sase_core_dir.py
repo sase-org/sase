@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def _evaluate_sase_core_dir(env_vars: dict[str, str]) -> str:
     env = os.environ.copy()
     env.pop("SASE_CORE_DIR", None)
+    env.pop("SASE_SIBLING_REPO_SASE_CORE_DIR", None)
     env.pop("SASE_SIBLING_REPO_CORE_DIR", None)
     env.update(env_vars)
 
@@ -33,9 +34,17 @@ def _evaluate_sase_core_dir(env_vars: dict[str, str]) -> str:
         (
             {
                 "SASE_CORE_DIR": "/tmp/explicit-sase-core",
+                "SASE_SIBLING_REPO_SASE_CORE_DIR": "/tmp/real-sibling-sase-core",
                 "SASE_SIBLING_REPO_CORE_DIR": "/tmp/sibling-sase-core",
             },
             "/tmp/explicit-sase-core",
+        ),
+        (
+            {
+                "SASE_SIBLING_REPO_SASE_CORE_DIR": "/tmp/real-sibling-sase-core",
+                "SASE_SIBLING_REPO_CORE_DIR": "/tmp/sibling-sase-core",
+            },
+            "/tmp/real-sibling-sase-core",
         ),
         (
             {"SASE_SIBLING_REPO_CORE_DIR": "/tmp/sibling-sase-core"},
