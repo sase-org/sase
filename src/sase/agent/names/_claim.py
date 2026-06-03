@@ -4,12 +4,8 @@ Collision checks intentionally consider all project lifecycle states; inactive
 projects can still contain historical owners for explicit agent names.
 """
 
-import json
-from pathlib import Path
-
 from sase.agent.names._common import NameCollisionError
-from sase.agent.names._registry import claim_registered_name, lowest_name_suggestion
-from sase.core.paths import sase_projects_dir
+from sase.agent.names._registry import claim_registered_name
 
 
 def claim_agent_name(
@@ -29,8 +25,6 @@ def claim_agent_name(
     from sase.agent.names._resume import agent_name_allocation_lock
 
     with agent_name_allocation_lock():
-        if explicit and not force_reuse:
-            _reject_explicit_collision(name, claiming_dir)
         try:
             claim_registered_name(
                 name,
@@ -40,75 +34,3 @@ def claim_agent_name(
         except NameCollisionError:
             if explicit:
                 raise
-
-
-def _reject_explicit_collision(name: str, claiming_dir: str) -> None:
-    """Raise when *name* already belongs to another existing owner."""
-    if not _name_has_existing_owner(name, Path(claiming_dir)):
-        return
-    suggestion = lowest_name_suggestion(name)
-    raise NameCollisionError(
-        f"agent name '{name}' is already taken; try '{suggestion}'"
-    )
-
-
-def _name_has_existing_owner(name: str, claiming_dir: Path) -> bool:
-    claiming = claiming_dir.expanduser().resolve(strict=False)
-    projects_dir = sase_projects_dir()
-    if not projects_dir.is_dir():
-        return _dismissed_bundle_name_exists(name)
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
-            continue
-
-        artifacts_root = project_dir / "artifacts"
-        if not artifacts_root.is_dir():
-            continue
-
-        for workflow_dir in _safe_iterdir(artifacts_root):
-            if not workflow_dir.is_dir():
-                continue
-            for artifact_dir in _safe_iterdir(workflow_dir):
-                if not artifact_dir.is_dir():
-                    continue
-                if artifact_dir.resolve(strict=False) == claiming:
-                    continue
-                if _payload_names_include(artifact_dir / "agent_meta.json", name):
-                    return True
-                if _payload_names_include(artifact_dir / "done.json", name):
-                    return True
-
-    return _dismissed_bundle_name_exists(name)
-
-
-def _safe_iterdir(path: Path) -> list[Path]:
-    try:
-        return list(path.iterdir())
-    except OSError:
-        return []
-
-
-def _payload_names_include(path: Path, name: str) -> bool:
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return False
-    if not isinstance(data, dict):
-        return False
-    return data.get("name") == name or data.get("workflow_name") == name
-
-
-def _dismissed_bundle_name_exists(name: str) -> bool:
-    try:
-        from sase.ace import dismissed_agents
-    except Exception:
-        return False
-    try:
-        paths = list(dismissed_agents.dismissed_bundles_dir().rglob("*.json"))
-    except OSError:
-        return False
-    for path in paths:
-        if _payload_names_include(path, name):
-            return True
-    return False

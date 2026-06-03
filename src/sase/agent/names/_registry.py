@@ -75,19 +75,16 @@ def claim_registered_name(
     """Best-effort upsert of a claimed name into the registry."""
     with _registry_mutation_lock():
         artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
-        entries = load_name_registry()["entries"]
+        entries = dict(load_name_registry()["entries"])
         existing = entries.get(name)
         if isinstance(existing, dict) and not replace_existing:
-            existing_dir = existing.get("artifacts_dir")
-            if isinstance(existing_dir, str) and existing_dir:
-                existing_path = Path(existing_dir).expanduser().resolve(strict=False)
-                if existing_path != artifact_dir:
-                    from sase.agent.names._common import NameCollisionError
+            if _entry_has_other_owner(existing, artifact_dir):
+                from sase.agent.names._common import NameCollisionError
 
-                    suggestion = lowest_name_suggestion(name)
-                    raise NameCollisionError(
-                        f"agent name '{name}' is already taken; try '{suggestion}'"
-                    )
+                suggestion = lowest_name_suggestion(name)
+                raise NameCollisionError(
+                    f"agent name '{name}' is already taken; try '{suggestion}'"
+                )
         entry = _owner_from_artifact_name(
             artifact_dir, name, reservation_kind="claimed"
         )
@@ -104,6 +101,28 @@ def delete_registered_name(name: str) -> None:
         entries = dict(entries)
         entries.pop(name, None)
         _save_entries(entries)
+
+
+def _entry_belongs_to_artifact(entry: dict[str, Any], artifact_dir: Path) -> bool:
+    existing_dir = entry.get("artifacts_dir")
+    if not isinstance(existing_dir, str) or not existing_dir:
+        return False
+    existing_path = Path(existing_dir).expanduser().resolve(strict=False)
+    return existing_path == artifact_dir
+
+
+def _entry_has_other_owner(entry: dict[str, Any], artifact_dir: Path) -> bool:
+    if not _entry_belongs_to_artifact(entry, artifact_dir):
+        return True
+    collision_owners = entry.get("collision_owners")
+    if not isinstance(collision_owners, list):
+        return False
+    for owner in collision_owners:
+        if isinstance(owner, dict) and not _entry_belongs_to_artifact(
+            owner, artifact_dir
+        ):
+            return True
+    return False
 
 
 def load_name_registry() -> dict[str, Any]:
@@ -235,10 +254,17 @@ def _entry_owner_missing(entry: dict[str, Any]) -> bool:
     source = entry.get("source")
     if source == "artifact":
         artifacts_dir = entry.get("artifacts_dir")
-        return isinstance(artifacts_dir, str) and not Path(artifacts_dir).exists()
-    if source == "dismissed_bundle":
+        if isinstance(artifacts_dir, str) and not Path(artifacts_dir).exists():
+            return True
+    elif source == "dismissed_bundle":
         bundle_path = entry.get("bundle_path")
-        return isinstance(bundle_path, str) and not Path(bundle_path).is_file()
+        if isinstance(bundle_path, str) and not Path(bundle_path).is_file():
+            return True
+    collision_owners = entry.get("collision_owners")
+    if isinstance(collision_owners, list):
+        for owner in collision_owners:
+            if isinstance(owner, dict) and _entry_owner_missing(owner):
+                return True
     return False
 
 
@@ -357,13 +383,51 @@ def _add_owner_names(
     owner: dict[str, Any],
 ) -> None:
     for name in names:
-        entries.setdefault(name, {**owner, "name": name, "reservation_kind": "claimed"})
+        _add_owner_name(entries, name, owner, reservation_kind="claimed")
         prefix = extract_auto_name_prefix(name)
         if prefix is not None and prefix not in names:
-            entries.setdefault(
-                prefix,
-                {**owner, "name": prefix, "reservation_kind": "auto_prefix"},
-            )
+            _add_owner_name(entries, prefix, owner, reservation_kind="auto_prefix")
+
+
+def _add_owner_name(
+    entries: dict[str, dict[str, Any]],
+    name: str,
+    owner: dict[str, Any],
+    *,
+    reservation_kind: str,
+) -> None:
+    entry = {**owner, "name": name, "reservation_kind": reservation_kind}
+    existing = entries.get(name)
+    if not isinstance(existing, dict):
+        entries[name] = entry
+        return
+    if _entry_owner_identity(existing) == _entry_owner_identity(entry):
+        return
+    collision_owners = existing.setdefault("collision_owners", [])
+    if not isinstance(collision_owners, list):
+        collision_owners = []
+        existing["collision_owners"] = collision_owners
+    new_identity = _entry_owner_identity(entry)
+    for owner_entry in collision_owners:
+        if (
+            isinstance(owner_entry, dict)
+            and _entry_owner_identity(owner_entry) == new_identity
+        ):
+            return
+    collision_owners.append(entry)
+
+
+def _entry_owner_identity(entry: dict[str, Any]) -> tuple[str, str] | None:
+    source = entry.get("source")
+    if source == "artifact":
+        artifacts_dir = entry.get("artifacts_dir")
+        if isinstance(artifacts_dir, str) and artifacts_dir:
+            return source, artifacts_dir
+    if source == "dismissed_bundle":
+        bundle_path = entry.get("bundle_path")
+        if isinstance(bundle_path, str) and bundle_path:
+            return source, bundle_path
+    return None
 
 
 def _names_from_payloads(

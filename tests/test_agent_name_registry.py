@@ -5,11 +5,15 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 import json
 import shutil
+from threading import Barrier
 import time
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.agent.names import (
+    NameCollisionError,
     claim_registered_name,
     delete_registered_name,
     get_reserved_agent_names,
@@ -212,3 +216,52 @@ def test_concurrent_claim_registered_name_preserves_all_claims(
     path = tmp_path / ".sase" / "agent_name_registry.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     assert set(data["entries"]) == {f"name{i}" for i in range(12)}
+
+
+def test_failed_claim_registered_name_does_not_mutate_cached_registry(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = (
+        tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "run0"
+    )
+    artifacts_dir.mkdir(parents=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        with patch.object(_registry, "_write_registry", side_effect=OSError("boom")):
+            with pytest.raises(OSError, match="boom"):
+                claim_registered_name("dupe", artifacts_dir)
+
+        assert "dupe" not in load_name_registry()["entries"]
+        assert lookup_registered_name("dupe") is None
+
+
+def test_concurrent_explicit_claims_without_metadata_reject_collision(
+    tmp_path: Path,
+) -> None:
+    artifacts_root = tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run"
+    claim_dirs = [artifacts_root / f"run{i}" for i in range(2)]
+    for claim_dir in claim_dirs:
+        claim_dir.mkdir(parents=True)
+
+    barrier = Barrier(2)
+
+    def claim(index: int) -> tuple[str, str]:
+        barrier.wait()
+        try:
+            claim_registered_name("dupe", claim_dirs[index], replace_existing=False)
+        except NameCollisionError as exc:
+            return "error", str(exc)
+        return "ok", str(claim_dirs[index])
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        ThreadPoolExecutor(max_workers=2) as pool,
+    ):
+        results = list(pool.map(claim, range(2)))
+
+    statuses = [status for status, _ in results]
+    assert statuses.count("ok") == 1
+    assert statuses.count("error") == 1
+    assert any("dupe1" in detail for status, detail in results if status == "error")
+    assert all(not (claim_dir / "agent_meta.json").exists() for claim_dir in claim_dirs)

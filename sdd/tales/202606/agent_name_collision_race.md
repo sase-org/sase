@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-02 23:37:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_name_collision_race.md
 ---
 # Fix Explicit Agent Name Collision Race
