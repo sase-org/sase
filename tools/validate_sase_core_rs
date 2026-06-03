@@ -143,6 +143,75 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
     return True
 
 
+def _validate_agent_meta_output_variables(module: ModuleType) -> bool:
+    artifact_timestamp = "20260427110600"
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-output-vars-probe-") as tmp:
+        projects_root = Path(tmp) / "projects"
+        project_dir = projects_root / "probe"
+        artifact_dir = project_dir / "artifacts" / "ace-run" / artifact_timestamp
+        artifact_dir.mkdir(parents=True)
+        (project_dir / "probe.sase").write_text("", encoding="utf-8")
+        (artifact_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": "probe",
+                    "output_variables": {
+                        "report_path": "/tmp/report.md",
+                        "status": "ok",
+                        "attempts": 2,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        try:
+            snapshot = module.scan_agent_artifacts(
+                str(projects_root),
+                _scan_probe_options(),
+            )
+        except Exception as exc:
+            _error(f"scan_agent_artifacts output-variable probe failed: {exc}")
+            return False
+
+    if not isinstance(snapshot, dict):
+        _error("scan_agent_artifacts output-variable probe returned a non-dict payload")
+        return False
+
+    records = snapshot.get("records")
+    if not isinstance(records, list):
+        _error("scan_agent_artifacts output-variable probe payload has no records list")
+        return False
+
+    matches = [
+        r
+        for r in records
+        if isinstance(r, dict) and r.get("timestamp") == artifact_timestamp
+    ]
+    if len(matches) != 1:
+        _error(
+            "scan_agent_artifacts output-variable probe did not return exactly "
+            f"one record for timestamp {artifact_timestamp}"
+        )
+        return False
+
+    agent_meta = matches[0].get("agent_meta")
+    if not isinstance(agent_meta, dict):
+        _error("scan_agent_artifacts output-variable probe has no agent_meta dict")
+        return False
+
+    actual = agent_meta.get("output_variables")
+    expected = {"report_path": "/tmp/report.md", "status": "ok"}
+    if actual != expected:
+        _error(
+            "scan_agent_artifacts output-variable probe did not preserve "
+            f"string output variables: got {actual!r}"
+        )
+        return False
+
+    return True
+
+
 def _validate_saved_group_wire_fields(module: ModuleType) -> bool:
     payload = {
         "schema_version": 1,
@@ -281,6 +350,8 @@ def main() -> int:
     if not _validate_bindings(module):
         return 1
     if not _validate_scalar_plan_timestamp(module):
+        return 1
+    if not _validate_agent_meta_output_variables(module):
         return 1
     if not _validate_saved_group_wire_fields(module):
         return 1
