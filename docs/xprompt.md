@@ -543,6 +543,7 @@ Hello, {{ user }}.
 | `{{ _args }}`      | List of all positional arguments                                                                      |
 | `{{ root }}`       | Absolute path to the primary workspace directory (omitted if unresolvable)                            |
 | `{{ wait_chats }}` | List of chat-transcript paths for agents named in `%wait:<name>` directives, in the order they appear |
+| `{{ build.path }}` | Output-variable namespace from a waited named agent, when that agent used `sase var set path=...`     |
 
 Named arguments and positional-to-name mappings take priority; if an xprompt is called within a workflow step, the
 workflow's execution scope is also available (xprompt args override scope values on conflict).
@@ -1382,8 +1383,8 @@ share the `_common` local xprompt.
 
 ### Cross-Agent Output Variables
 
-Agents can publish small string values for later segments with `sase var set KEY=VALUE`. In a multi-agent prompt, name
-the producer and make the consumer wait before referencing the producer namespace:
+Agents can publish small string values for later segments with `sase var set KEY=VALUE`. In a multi-agent prompt, give
+the producer a stable name and make the consumer wait before referencing the producer namespace:
 
 ```
 %name:build-@
@@ -1399,7 +1400,8 @@ Indexed names expose the indexed base as the namespace, so `%name:build-@` becom
 `{{ build_1.report_path }}`. Dotted templates create nested namespaces such as `%name:research.final-@` →
 `{{ research.final.report_path }}`; hyphens in plain names become underscores. If a namespace component starts with a
 digit, SASE prefixes it with `_`, so `%name:0n.cld` exposes `{{ _0n.cld.report_path }}`. Output variables are persisted
-in the producer's `agent_meta.json` and also appear in the ACE Agents-tab metadata panel.
+in the producer's `agent_meta.json` and also appear in the ACE Agents-tab metadata panel. They are visible metadata, not
+secret storage.
 
 ### Rules
 

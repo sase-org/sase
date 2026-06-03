@@ -18,6 +18,7 @@ with control flow, parallel execution, and human-in-the-loop approval.
 - [Parallel Execution](#parallel-execution)
 - [Join Modes](#join-modes)
 - [Template Syntax](#template-syntax)
+- [Agent Output-Variable Namespaces](#agent-output-variable-namespaces)
 - [Cross-Step Field Type Checking](#cross-step-field-type-checking)
 - [Human-in-the-Loop](#human-in-the-loop)
 - [Cleanup Steps](#cleanup-steps)
@@ -646,6 +647,10 @@ Workflows use Jinja2 for template rendering.
 # Loop variables (within for: loops)
 {{ item }}
 {{ name }}
+
+# Output variables from named agents waited on by the current agent
+{{ build.report_path }}
+{{ research.final.summary }}
 ```
 
 ### Filters
@@ -680,6 +685,29 @@ agent: |
 
   {{ "yes" if flag else "no" }}
 ```
+
+## Agent Output-Variable Namespaces
+
+Workflow step outputs are the normal way to pass data between steps in one YAML workflow. Separately, when a
+SASE-launched agent or multi-prompt segment starts after `%wait:<producer>`, SASE loads small string values that the
+producer wrote with `sase var set KEY=VALUE` and injects them into the same Jinja context used to render prompts and
+workflow `prompt_part` text.
+
+The producer name determines the namespace:
+
+| Producer name or template | Referenced as                      |
+| ------------------------- | ---------------------------------- |
+| `%name:build-agent`       | `{{ build_agent.report_path }}`    |
+| `%name:build-@`           | `{{ build.report_path }}`          |
+| `%name:research.final-@`  | `{{ research.final.report_path }}` |
+| `%name:0n.cld`            | `{{ _0n.cld.report_path }}`        |
+
+Output-variable namespaces are agent-level handoffs, not replacements for workflow `output:` schemas. Use `output:` for
+values produced and consumed inside one YAML workflow; use `sase var set` when a later named agent or segment needs a
+small value from a completed producer. Namespaces must not collide with built-in workflow arguments or input names.
+
+Namespace normalization is intentionally narrow: hyphens become underscores, dots create nested namespaces, and
+digit-leading components are prefixed with `_`. Each component must be a valid Jinja identifier after that conversion.
 
 ## Cross-Step Field Type Checking
 

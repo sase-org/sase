@@ -155,36 +155,36 @@ GitHub pull requests, and other provider plugins.
 
 ## Operations And Diagnostics
 
-| Command                        | Purpose                                                                                                 | Details                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `sase config layers`           | Show the configuration merge chain.                                                                     | [Configuration](configuration.md)                           |
-| `sase config show`             | Dump the final merged configuration, optionally filtered by key.                                        | [Configuration](configuration.md)                           |
-| `sase config mentor-match`     | Trace mentor profile matching for a ChangeSpec.                                                         | [Mentors](mentors.md)                                       |
-| `sase core health`             | Check that the required `sase_core_rs` extension is loadable and working.                               | [Rust backend](rust_backend.md)                             |
-| `sase validate`                | Run SASE validation checks: initialization drift plus SDD frontmatter validation.                       | [Initialization](init.md), [SDD](sdd.md)                    |
-| `sase telemetry status`        | Show telemetry configuration and reachability.                                                          | [Telemetry](telemetry.md)                                   |
-| `sase telemetry list`          | Display the metric catalog.                                                                             | [Telemetry](telemetry.md)                                   |
-| `sase telemetry snapshot`      | Fetch current metric values.                                                                            | [Telemetry](telemetry.md)                                   |
-| `sase telemetry dashboard`     | Open the live telemetry dashboard.                                                                      | [Telemetry](telemetry.md)                                   |
-| `sase telemetry health`        | Run subsystem health assessment.                                                                        | [Telemetry](telemetry.md)                                   |
-| `sase telemetry export-config` | Export the bundled monitoring stack.                                                                    | [Telemetry](telemetry.md)                                   |
-| `sase logs`                    | Collect and package agent run logs for a date range.                                                    | [Configuration CLI flags](configuration.md#sase-logs)       |
-| `sase revive-log`              | Inspect the agent-revival audit log (start / success / failure events).                                 | [Agent revival audit log](troubleshooting/agent-revival.md) |
-| `sase artifact create`         | Move an explicit file into persistent agent artifact storage.                                           | [Agent attachments](agent_images.md)                        |
-| `sase var set`                 | Attach named output variables for ACE metadata and downstream waited agents.                            | [Configuration CLI flags](configuration.md#sase-var)        |
-| `sase plugin` / `list`         | Inventory installed SASE plugin entry points and configured/available chop scripts.                     | [Plugins](plugins.md#cli-diagnostics)                       |
-| `sase plugin doctor`           | Diagnose plugin resource loading, configured chops, and optional integration prerequisites.             | [Plugins](plugins.md#cli-diagnostics)                       |
-| `sase path`                    | Print well-known paths such as schemas and xprompt directories.                                         | [Configuration CLI flags](configuration.md#sase-path)       |
-| `sase workspace list`          | List managed workspace checkouts in the registry, including primary `#0`.                               | [Workspace provider](workspace.md)                          |
-| `sase workspace path`          | Print the checkout path for a workspace number.                                                         | [Workspace provider](workspace.md)                          |
-| `sase workspace open`          | Materialize, prepare, and print a workspace path.                                                       | [Workspace provider](workspace.md)                          |
-| `sase workspace cleanup`       | Remove stale unclaimed managed checkouts older than the configured TTL.                                 | [Workspace provider](workspace.md)                          |
-| `sase workspace repair`        | Reconcile the workspace registry with the filesystem.                                                   | [Workspace provider](workspace.md)                          |
-| `sase workspace migrate`       | Opt-in move of adjacent checkouts to a managed root, with optional symlink transition and finalization. | [Workspace provider](workspace.md)                          |
-| `sase git init`                | Initialize a bare-repo-backed git project, including generated SDD guide files.                         | [ProjectSpec](project_spec.md)                              |
-| `sase mobile gateway start`    | Start the workstation-hosted mobile gateway.                                                            | [Mobile gateway](mobile_gateway.md)                         |
-| `sase mobile agent-bridge`     | Fixed JSON bridge used by the mobile gateway for agent operations.                                      | [Mobile gateway](mobile_gateway.md)                         |
-| `sase mobile helper-bridge`    | Fixed JSON bridge used by the mobile gateway for workflow helper operations.                            | [Mobile gateway](mobile_gateway.md)                         |
+| Command                        | Purpose                                                                                                 | Details                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `sase config layers`           | Show the configuration merge chain.                                                                     | [Configuration](configuration.md)                            |
+| `sase config show`             | Dump the final merged configuration, optionally filtered by key.                                        | [Configuration](configuration.md)                            |
+| `sase config mentor-match`     | Trace mentor profile matching for a ChangeSpec.                                                         | [Mentors](mentors.md)                                        |
+| `sase core health`             | Check that the required `sase_core_rs` extension is loadable and working.                               | [Rust backend](rust_backend.md)                              |
+| `sase validate`                | Run SASE validation checks: initialization drift plus SDD frontmatter validation.                       | [Initialization](init.md), [SDD](sdd.md)                     |
+| `sase telemetry status`        | Show telemetry configuration and reachability.                                                          | [Telemetry](telemetry.md)                                    |
+| `sase telemetry list`          | Display the metric catalog.                                                                             | [Telemetry](telemetry.md)                                    |
+| `sase telemetry snapshot`      | Fetch current metric values.                                                                            | [Telemetry](telemetry.md)                                    |
+| `sase telemetry dashboard`     | Open the live telemetry dashboard.                                                                      | [Telemetry](telemetry.md)                                    |
+| `sase telemetry health`        | Run subsystem health assessment.                                                                        | [Telemetry](telemetry.md)                                    |
+| `sase telemetry export-config` | Export the bundled monitoring stack.                                                                    | [Telemetry](telemetry.md)                                    |
+| `sase logs`                    | Collect and package agent run logs for a date range.                                                    | [Configuration CLI flags](configuration.md#sase-logs)        |
+| `sase revive-log`              | Inspect the agent-revival audit log (start / success / failure events).                                 | [Agent revival audit log](troubleshooting/agent-revival.md)  |
+| `sase artifact create`         | Move an explicit file into persistent agent artifact storage.                                           | [Agent attachments](agent_images.md)                         |
+| `sase var set`                 | Attach named output variables for ACE metadata and downstream waited agents.                            | [XPrompt variables](xprompt.md#cross-agent-output-variables) |
+| `sase plugin` / `list`         | Inventory installed SASE plugin entry points and configured/available chop scripts.                     | [Plugins](plugins.md#cli-diagnostics)                        |
+| `sase plugin doctor`           | Diagnose plugin resource loading, configured chops, and optional integration prerequisites.             | [Plugins](plugins.md#cli-diagnostics)                        |
+| `sase path`                    | Print well-known paths such as schemas and xprompt directories.                                         | [Configuration CLI flags](configuration.md#sase-path)        |
+| `sase workspace list`          | List managed workspace checkouts in the registry, including primary `#0`.                               | [Workspace provider](workspace.md)                           |
+| `sase workspace path`          | Print the checkout path for a workspace number.                                                         | [Workspace provider](workspace.md)                           |
+| `sase workspace open`          | Materialize, prepare, and print a workspace path.                                                       | [Workspace provider](workspace.md)                           |
+| `sase workspace cleanup`       | Remove stale unclaimed managed checkouts older than the configured TTL.                                 | [Workspace provider](workspace.md)                           |
+| `sase workspace repair`        | Reconcile the workspace registry with the filesystem.                                                   | [Workspace provider](workspace.md)                           |
+| `sase workspace migrate`       | Opt-in move of adjacent checkouts to a managed root, with optional symlink transition and finalization. | [Workspace provider](workspace.md)                           |
+| `sase git init`                | Initialize a bare-repo-backed git project, including generated SDD guide files.                         | [ProjectSpec](project_spec.md)                               |
+| `sase mobile gateway start`    | Start the workstation-hosted mobile gateway.                                                            | [Mobile gateway](mobile_gateway.md)                          |
+| `sase mobile agent-bridge`     | Fixed JSON bridge used by the mobile gateway for agent operations.                                      | [Mobile gateway](mobile_gateway.md)                          |
+| `sase mobile helper-bridge`    | Fixed JSON bridge used by the mobile gateway for workflow helper operations.                            | [Mobile gateway](mobile_gateway.md)                          |
 
 Operational commands are intentionally narrow. Helper bridges expose fixed JSON operations for editor and mobile
 clients; they are not general shell or filesystem APIs.

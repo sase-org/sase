@@ -40,7 +40,8 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 
 - **ACE** - The interactive TUI for ChangeSpecs, live agents, notifications, automation, comments, and review.
 - **AXE** - The background automation daemon for scheduled work, chop scripts, hooks, mentors, and workflow runs.
-- **XPrompt** - Prompt templates and YAML workflows with reference expansion, typed inputs, and workflow visualization.
+- **XPrompt** - Prompt templates and YAML workflows with reference expansion, typed inputs, output-variable handoffs,
+  and workflow visualization.
 - **ChangeSpecs** - Tracked CL/PR-sized units of work with lifecycle state, commits, comments, mentors, and metadata.
 - **Memory** - Agent instruction memory loaded through `AGENTS.md`, keyword-triggered long-term context, audited agent
   reads, and human-reviewed write proposals.
@@ -135,6 +136,9 @@ SASE keeps durable state outside any one chat session:
   workspace-matched directories. SASE records those paths in environment variables and agent metadata so cross-repo work
   uses the same numbered workspace as the main checkout, while singleton repos such as chezmoi can opt out with
   `workspace.strategy: none`.
+- **Named-agent handoffs** - `%name` and `%wait` make dependencies explicit across multi-agent prompts. A producer can
+  publish small non-secret string values with `sase var set KEY=VALUE`; waited consumers receive those values as Jinja
+  namespaces during prompt or workflow rendering, and ACE shows them in the producer's metadata panel.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
   provider-neutral finalizer checks the main workspace and configured Git sibling workspace directories for uncommitted
   changes. Static siblings (`workspace.strategy: none`) are reported as advisory work that the agent may commit when it
