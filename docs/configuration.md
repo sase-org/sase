@@ -1541,7 +1541,9 @@ SDD validation passes.
 
 `sase var set` attaches small named string values to the current SASE agent run by merging them into
 `agent_meta.json["output_variables"]`. The command is agent-scoped and requires `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR`.
-The variables appear in ACE's Agents-tab metadata panel and can be rendered by later waited agents as Jinja namespaces.
+The variables appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata panel. Later agents that wait on this agent with
+`%wait` load the stored strings when they start and can render them as Jinja namespaces in prompts and xprompt
+workflows.
 
 | Form                           | Flags / arguments      | Description                                               |
 | ------------------------------ | ---------------------- | --------------------------------------------------------- |
@@ -1549,9 +1551,10 @@ The variables appear in ACE's Agents-tab metadata panel and can be rendered by l
 
 Keys must be valid Jinja attribute identifiers (`[A-Za-z_][A-Za-z0-9_]*`). Values are strings split on the first `=`, so
 values may contain additional equals signs. Multiple calls merge into the same variable map; later writes for the same
-key replace earlier values. Producer namespaces are derived from agent names for downstream rendering: dots create
-nested namespaces, hyphens become underscores, and digit-leading components are prefixed with `_`. Do not store secrets;
-output variables are persisted in `agent_meta.json` and shown in ACE.
+key replace earlier values. The command does not update prompts that have already started rendering, so write variables
+before the producing agent completes and before dependent agents unblock. Producer namespaces are derived from agent
+names for downstream rendering: dots create nested namespaces, hyphens become underscores, and digit-leading components
+are prefixed with `_`. Do not store secrets; output variables are persisted in `agent_meta.json` and shown in ACE.
 
 ### `sase telemetry`
 

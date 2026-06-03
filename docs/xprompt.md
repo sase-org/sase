@@ -543,7 +543,7 @@ Hello, {{ user }}.
 | `{{ _args }}`      | List of all positional arguments                                                                      |
 | `{{ root }}`       | Absolute path to the primary workspace directory (omitted if unresolvable)                            |
 | `{{ wait_chats }}` | List of chat-transcript paths for agents named in `%wait:<name>` directives, in the order they appear |
-| `{{ build.path }}` | Output-variable namespace from a waited named agent, when that agent used `sase var set path=...`     |
+| `{{ build.path }}` | Output-variable namespace loaded from `%wait:build` when that agent used `sase var set path=...`      |
 
 Named arguments and positional-to-name mappings take priority; if an xprompt is called within a workflow step, the
 workflow's execution scope is also available (xprompt args override scope values on conflict).
@@ -1383,8 +1383,8 @@ share the `_common` local xprompt.
 
 ### Cross-Agent Output Variables
 
-Agents can publish small string values for later segments with `sase var set KEY=VALUE`. In a multi-agent prompt, give
-the producer a stable name and make the consumer wait before referencing the producer namespace:
+Agents can publish small string values for later waited agents or segments with `sase var set KEY=VALUE`. Give the
+producer a stable name and make the consumer wait before referencing the producer namespace:
 
 ```
 %name:build-@
@@ -1396,12 +1396,16 @@ sase var set report_path=dist/report.md status=ok
 Review {{ build.report_path }} after the build status is {{ build.status }}.
 ```
 
+The review prompt is rendered after the `build-@` dependency completes, so `{{ build.report_path }}` and
+`{{ build.status }}` come from the producer's stored `agent_meta.json` values. A consumer that has already started will
+not see later writes.
+
 Indexed names expose the indexed base as the namespace, so `%name:build-@` becomes `{{ build.report_path }}` rather than
 `{{ build_1.report_path }}`. Dotted templates create nested namespaces such as `%name:research.final-@` →
 `{{ research.final.report_path }}`; hyphens in plain names become underscores. If a namespace component starts with a
 digit, SASE prefixes it with `_`, so `%name:0n.cld` exposes `{{ _0n.cld.report_path }}`. Output variables are persisted
-in the producer's `agent_meta.json` and also appear in the ACE Agents-tab metadata panel. They are visible metadata, not
-secret storage.
+in the producer's `agent_meta.json` and also appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata section. They are
+visible metadata, not secret storage.
 
 ### Rules
 

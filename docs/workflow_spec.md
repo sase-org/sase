@@ -648,7 +648,7 @@ Workflows use Jinja2 for template rendering.
 {{ item }}
 {{ name }}
 
-# Output variables from named agents waited on by the current agent
+# Output variables from waited named agents, loaded when this run starts
 {{ build.report_path }}
 {{ research.final.summary }}
 ```
@@ -688,12 +688,16 @@ agent: |
 
 ## Agent Output-Variable Namespaces
 
-Workflow step outputs are the normal way to pass data between steps in one YAML workflow. Separately, when a
-SASE-launched agent or multi-prompt segment starts after `%wait:<producer>`, SASE loads small string values that the
-producer wrote with `sase var set KEY=VALUE` and injects them into the same Jinja context used to render prompts and
-workflow `prompt_part` text.
+Workflow step outputs are the normal way to pass data between steps in one YAML workflow. Cross-agent output variables
+are a separate handoff for SASE agents. After a consumer's `%wait` dependencies complete, SASE reads small string values
+that the producers wrote with `sase var set KEY=VALUE` and adds them to the consumer's Jinja context.
 
-The producer name determines the namespace:
+Those values are loaded when the consumer starts; they are not live-updated after rendering begins. Have the producer
+call `sase var set` before it finishes. In workflows launched as agents, these namespaces are available to workflow
+template rendering, including `agent`, `bash`, `python`, `environment`, and `prompt_part` templates.
+
+The producer's stable name determines the namespace. Indexed name templates expose the template base instead of the
+concrete numeric name:
 
 | Producer name or template | Referenced as                      |
 | ------------------------- | ---------------------------------- |
@@ -702,9 +706,11 @@ The producer name determines the namespace:
 | `%name:research.final-@`  | `{{ research.final.report_path }}` |
 | `%name:0n.cld`            | `{{ _0n.cld.report_path }}`        |
 
-Output-variable namespaces are agent-level handoffs, not replacements for workflow `output:` schemas. Use `output:` for
-values produced and consumed inside one YAML workflow; use `sase var set` when a later named agent or segment needs a
-small value from a completed producer. Namespaces must not collide with built-in workflow arguments or input names.
+Output-variable namespaces are agent-level handoffs, not replacements for workflow `output:` schemas or the ACE
+`WORKFLOW VARIABLES` section. Use `output:` for values produced and consumed inside one YAML workflow; use
+`sase var set` when a later named agent, segment, or agent-launched workflow needs a small value from a completed
+producer. Avoid namespace collisions with workflow input names; SASE rejects collisions with built-in workflow arguments
+such as `cl_name`.
 
 Namespace normalization is intentionally narrow: hyphens become underscores, dots create nested namespaces, and
 digit-leading components are prefixed with `_`. Each component must be a valid Jinja identifier after that conversion.

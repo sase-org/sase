@@ -136,9 +136,10 @@ SASE keeps durable state outside any one chat session:
   workspace-matched directories. SASE records those paths in environment variables and agent metadata so cross-repo work
   uses the same numbered workspace as the main checkout, while singleton repos such as chezmoi can opt out with
   `workspace.strategy: none`.
-- **Named-agent handoffs** - `%name` and `%wait` make dependencies explicit across multi-agent prompts. A producer can
-  publish small non-secret string values with `sase var set KEY=VALUE`; waited consumers receive those values as Jinja
-  namespaces during prompt or workflow rendering, and ACE shows them in the producer's metadata panel.
+- **Named-agent handoffs** - `%name` gives a producer a stable identity, and `%wait` starts consumers only after
+  dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
+  waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them
+  in the producer's `OUTPUT VARIABLES` metadata panel.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
   provider-neutral finalizer checks the main workspace and configured Git sibling workspace directories for uncommitted
   changes. Static siblings (`workspace.strategy: none`) are reported as advisory work that the agent may commit when it
