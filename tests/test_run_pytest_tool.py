@@ -73,7 +73,40 @@ def test_visual_mode_selects_visual_marker() -> None:
     result = runner._pytest_command("visual", ["tests/ace/tui/visual"])
 
     assert result[0:3] == [runner.sys.executable, "-m", "pytest"]
-    assert result[-3:] == ["-m", "visual", "tests/ace/tui/visual"]
+    assert result[-3:] == [
+        "-m",
+        runner.VISUAL_MARKER_EXPRESSION,
+        "tests/ace/tui/visual",
+    ]
+
+
+def test_fast_mode_selects_non_slow_marker_to_include_visual_tests() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._pytest_command("fast", [])
+
+    assert result[-2:] == ["-m", runner.FAST_MARKER_EXPRESSION]
+    assert result[-1] == "not slow"
+
+
+def test_slow_mode_selects_slow_marker() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._pytest_command("slow", ["tests/perf"])
+
+    assert result[-3:] == ["-m", runner.SLOW_MARKER_EXPRESSION, "tests/perf"]
+
+
+def test_cov_mode_selects_non_slow_marker_to_include_visual_tests() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._pytest_command("cov", [])
+
+    assert [
+        "-m",
+        runner.FAST_MARKER_EXPRESSION,
+    ] in [result[index : index + 2] for index in range(len(result) - 1)]
+    assert "--cov=src/sase" in result
 
 
 def test_visual_flag_selects_visual_mode() -> None:
