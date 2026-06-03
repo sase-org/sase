@@ -254,6 +254,7 @@ class TestExtractDirectivesAutoDismiss:
 
         assert result["info"].name == "build-2"
         assert result["meta"]["name"] == "build-2"
+        assert result["meta"]["agent_name_template"] == "build-@"
 
     def test_indexed_name_template_uses_matching_planned_name(
         self, tmp_path: Path
@@ -267,6 +268,7 @@ class TestExtractDirectivesAutoDismiss:
 
         assert result["info"].name == "build-7"
         assert result["meta"]["name"] == "build-7"
+        assert result["meta"]["agent_name_template"] == "build-@"
 
     def test_indexed_name_template_ignores_unrelated_planned_name(
         self, tmp_path: Path

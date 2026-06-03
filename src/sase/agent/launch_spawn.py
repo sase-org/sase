@@ -34,6 +34,13 @@ def _remove_inherited_deferred_workspace_env(env: dict[str, str]) -> None:
     env.pop("SASE_AGENT_VCS_WORKFLOW_TYPE", None)
 
 
+def _remove_inherited_agent_var_context_env(env: dict[str, str]) -> None:
+    """Drop stale cross-agent variable context unless the launch supplies it."""
+    from sase.agent.output_variable_context import SASE_AGENT_VAR_UPSTREAMS_ENV
+
+    env.pop(SASE_AGENT_VAR_UPSTREAMS_ENV, None)
+
+
 def _remove_inherited_sibling_repo_env(env: dict[str, str]) -> None:
     """Drop stale sibling-repo mappings inherited from parent agents."""
     from sase.sibling_repos import scrub_sibling_repo_env
@@ -216,6 +223,7 @@ def spawn_agent_subprocess(
         _remove_inherited_sase_codex_home(subprocess_env)
         _remove_inherited_workspace_preallocation_env(subprocess_env)
         _remove_inherited_deferred_workspace_env(subprocess_env)
+        _remove_inherited_agent_var_context_env(subprocess_env)
         _remove_inherited_sibling_repo_env(subprocess_env)
         subprocess_env.update(prepared.env_delta)
         from sase.sibling_repos import apply_sibling_repo_env

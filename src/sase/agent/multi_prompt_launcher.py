@@ -7,6 +7,7 @@ the launcher falls back to the legacy naming poll.
 """
 
 from collections.abc import Callable, Sequence
+from typing import Any
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_references import (
@@ -29,6 +30,11 @@ from sase.agent.multi_prompt_xprompts import (
     extract_called_xprompt_names as _extract_called_xprompt_names,
     local_xprompts_for_segment as _local_xprompts_for_segment,
     serialize_local_xprompts as _serialize_local_xprompts,
+)
+from sase.agent.output_variable_context import (
+    SASE_AGENT_VAR_UPSTREAMS_ENV,
+    build_agent_var_upstream_record,
+    encode_agent_var_upstreams,
 )
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.xprompt.models import XPrompt
@@ -171,10 +177,12 @@ def _spawn_segments_into(
 
     name_allocator = _PlannedNameAllocator()
     previous_agent_name: str | None = None
+    upstreams: list[dict[str, Any]] = []
     for i, segment in enumerate(segments):
         segment_env = (
             dict(segment_extra_env[i] or {}) if segment_extra_env is not None else {}
         )
+        upstreams_json = encode_agent_var_upstreams(upstreams) if upstreams else None
         if default_bare_segments_to_home:
             with timer.stage("prompt_normalize", segment_index=i):
                 segment = normalize_default_vcs_workflow_segment(segment)
@@ -191,6 +199,7 @@ def _spawn_segments_into(
                     segment = _rewrite_bare_resume_references(
                         segment, previous_agent_name
                     )
+        segment_explicit_name = _extract_static_name_directive(segment)
         with timer.stage("prompt_parse", segment_index=i):
             has_wait = has_deferred_start_directive(segment)
             segment_local_xprompts = _local_xprompts_for_segment(
@@ -232,10 +241,13 @@ def _spawn_segments_into(
         slot_planned_env: dict[int, dict[str, str]] = {}
         slot_local_xprompts_files: dict[int, str | None] = {}
         planned_names: dict[int, str | None] = {}
+        explicit_templates: dict[int, str | None] = {}
         for slot in plan.slots:
             j = slot.slot_index
             sub_prompt = slot.prompt
             with timer.stage("name_plan", segment_index=i, slot_index=j):
+                explicit_template = _extract_static_name_directive(sub_prompt)
+                explicit_templates[j] = explicit_template
                 planned_name, planned_env_name = name_allocator.planned_name_for_prompt(
                     sub_prompt
                 )
@@ -248,11 +260,12 @@ def _spawn_segments_into(
                 env_name_to_inject = (
                     planned_env_name if planned_env_name is not None else planned_name
                 )
-                slot_planned_env[j] = (
-                    {**segment_env, _PLANNED_AGENT_NAME_ENV: env_name_to_inject}
-                    if env_name_to_inject is not None
-                    else dict(segment_env)
-                )
+                slot_env = dict(segment_env)
+                if upstreams_json is not None:
+                    slot_env[SASE_AGENT_VAR_UPSTREAMS_ENV] = upstreams_json
+                if env_name_to_inject is not None:
+                    slot_env[_PLANNED_AGENT_NAME_ENV] = env_name_to_inject
+                slot_planned_env[j] = slot_env
 
             # Each sub-prompt gets its own copy of the local xprompts file
             # (the agent runner deletes it after reading).
@@ -329,6 +342,25 @@ def _spawn_segments_into(
             )
 
         results.extend(execution.results)
+        for record in execution.records:
+            planned_name = planned_names.get(record.slot.slot_index)
+            explicit_template = explicit_templates.get(record.slot.slot_index)
+            if (
+                planned_name is None
+                or explicit_template is None
+                or segment_explicit_name is None
+            ):
+                continue
+            upstreams.append(
+                build_agent_var_upstream_record(
+                    agent_name=planned_name,
+                    agent_name_template=(
+                        explicit_template if explicit_template.endswith("-@") else None
+                    ),
+                    project_name=record.request.project_name,
+                    workflow_timestamp=record.request.timestamp,
+                )
+            )
         last_record = execution.records[-1]
         last_timestamp = last_record.request.timestamp
         last_project_name = last_record.request.project_name

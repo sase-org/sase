@@ -350,6 +350,16 @@ def main() -> None:
             if info.approve:
                 os.environ["SASE_AGENT_AUTO_APPROVE"] = "1"
 
+            from sase.agent.output_variable_context import (
+                SASE_AGENT_VAR_UPSTREAMS_ENV,
+                build_agent_output_variable_context,
+            )
+
+            output_variable_namespaces = build_agent_output_variable_context(
+                upstreams_json=os.environ.get(SASE_AGENT_VAR_UPSTREAMS_ENV),
+                wait_names=info.wait_names,
+            )
+
             ctx = AgentExecContext(
                 cl_name=cl_name,
                 project_file=project_file,
@@ -371,6 +381,7 @@ def main() -> None:
                 agent_meta=agent_meta,
                 local_xprompts=info.local_xprompts,
                 wait_chats=wait_chats,
+                output_variable_namespaces=output_variable_namespaces,
             )
 
             run_started_at = record_run_started_at(artifacts_dir, agent_meta)

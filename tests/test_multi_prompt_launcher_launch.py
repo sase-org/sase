@@ -1,9 +1,11 @@
 """Tests for core multi-prompt launch behavior."""
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from tests._agent_names_fixtures import make_agent
+from sase.agent.output_variable_context import SASE_AGENT_VAR_UPSTREAMS_ENV
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.xprompt.models import XPrompt
 
@@ -255,6 +257,70 @@ def test_launch_multi_prompt_allocates_distinct_indexed_names_per_segment(
         call.kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
         for call in mock_spawn.call_args_list
     ] == ["build-1", "build-2"]
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.claim_next_axe_workspace",
+    side_effect=[100, 101],
+)
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_passes_scoped_output_variable_upstreams(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Later segments receive scoped upstream identity for prior named agents."""
+    mock_spawn.side_effect = _spawn_result_with_planned_name
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        launch_multi_prompt_agents(
+            segments=["%n:build-@\nBuild", "%w:build-@\nUse {{ build.path }}"],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    first_env = mock_spawn.call_args_list[0].kwargs["extra_env"]
+    second_env = mock_spawn.call_args_list[1].kwargs["extra_env"]
+    assert SASE_AGENT_VAR_UPSTREAMS_ENV not in first_env
+    upstreams = json.loads(second_env[SASE_AGENT_VAR_UPSTREAMS_ENV])
+    assert upstreams == [
+        {
+            "agent_name_template": "build-@",
+            "artifacts_dir": str(
+                tmp_path
+                / ".sase"
+                / "projects"
+                / "test"
+                / "artifacts"
+                / "ace-run"
+                / "20260501120000"
+            ),
+            "name": "build-1",
+            "namespace": "build",
+            "project_name": "test",
+            "workflow_timestamp": "260501_120000",
+        }
+    ]
+    assert second_env["SASE_AGENT_PLANNED_NAME"] == "build-1.w1"
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
 
@@ -568,11 +634,13 @@ def test_launch_multi_prompt_merges_segment_extra_env(
         "SASE_BEAD_ID": "sase-x.1",
         "SASE_AGENT_PLANNED_NAME": "first",
     }
-    assert mock_spawn.call_args_list[1].kwargs["extra_env"] == {
-        "SASE_SHARED": "yes",
-        "SASE_BEAD_ID": "sase-x.2",
-        "SASE_AGENT_PLANNED_NAME": "first.w1",
-    }
+    call1_env = mock_spawn.call_args_list[1].kwargs["extra_env"]
+    assert call1_env["SASE_SHARED"] == "yes"
+    assert call1_env["SASE_BEAD_ID"] == "sase-x.2"
+    assert call1_env["SASE_AGENT_PLANNED_NAME"] == "first.w1"
+    upstreams = json.loads(call1_env[SASE_AGENT_VAR_UPSTREAMS_ENV])
+    assert upstreams[0]["name"] == "first"
+    assert upstreams[0]["namespace"] == "first"
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")

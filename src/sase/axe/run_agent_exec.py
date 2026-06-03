@@ -100,6 +100,14 @@ def _build_named_args(ctx: AgentExecContext) -> dict[str, Any]:
     vcs_tag = getattr(ctx, "vcs_tag", None)
     if vcs_tag:
         named_args[_WORKFLOW_INHERITED_VCS_TAG_ARG] = vcs_tag
+    output_variable_namespaces = getattr(ctx, "output_variable_namespaces", {}) or {}
+    for key, value in output_variable_namespaces.items():
+        if key in named_args:
+            raise ValueError(
+                f"Output-variable namespace {key!r} collides with a built-in "
+                "workflow argument"
+            )
+        named_args[key] = value
     return named_args
 
 

@@ -210,6 +210,8 @@ def extract_directives_and_write_meta(
             agent_meta["plan"] = True
         if directives.tag:
             agent_meta["tag"] = directives.tag
+        if directives.name_indexed_template and directives.name:
+            agent_meta["agent_name_template"] = directives.name
         sibling_repos = _sibling_repos_from_env()
         if sibling_repos:
             agent_meta["sibling_repos"] = sibling_repos
