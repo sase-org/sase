@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-03 03:14:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/telegram_kill_redo.md
 ---
 # Telegram Kill Redo Button Plan
