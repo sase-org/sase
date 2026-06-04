@@ -10,6 +10,7 @@ from sase.ace.tui.modals.project_management_modal import (
     _DEFAULT_STATE_FILTER,
     ProjectManagementModal,
 )
+from sase.ace.tui.modals.project_management_rendering import column_header_text
 
 from .project_management_modal_test_helpers import (
     ProjectManagementTestApp,
@@ -133,6 +134,45 @@ async def test_project_management_modal_filters_states(
         assert [r.project_name for r in modal._filtered_records] == ["core"]
 
 
+def test_project_management_modal_renders_alias_affordances(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    record = make_project_record("alpha", aliases=["bob", "docs"])
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+
+    modal = ProjectManagementModal(projects_root=tmp_path)
+
+    assert "ALIASES" in column_header_text().plain
+    assert "bob, docs" in modal._record_label(record).plain
+    assert "Aliases:" in modal._detail_text(record).plain
+    assert "bob, docs" in modal._detail_text(record).plain
+    assert "A aliases" in modal._footer_text()
+
+
+def test_project_management_modal_filters_by_alias(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    records = [
+        make_project_record("alpha", aliases=["bob", "docs"]),
+        make_project_record("beta"),
+    ]
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        lambda *_args, **_kwargs: records,
+    )
+
+    modal = ProjectManagementModal(projects_root=tmp_path)
+    modal._text_filter = "docs"
+    modal._apply_filters()
+
+    assert [record.project_name for record in modal._filtered_records] == ["alpha"]
+
+
 async def test_project_management_reload_preserves_load_failure_status(
     monkeypatch,
     tmp_path: Path,
@@ -180,6 +220,7 @@ def test_project_management_modal_footer_includes_delete_affordance(
     modal = ProjectManagementModal(projects_root=tmp_path)
 
     assert "e edit" in modal._footer_text()
+    assert "A aliases" in modal._footer_text()
     assert "d deactivate" in modal._footer_text()
     assert "Ctrl+D delete" in modal._footer_text()
     assert "Ctrl+X show inactive" in modal._footer_text()

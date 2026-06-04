@@ -16,10 +16,11 @@ from sase.main.project_handler import ProjectLifecycleBlockedError
 _MARK_WIDTH = 4
 _NAME_WIDTH = 28
 _STATE_WIDTH = 12
+_ALIASES_WIDTH = 15
 _CLAIMS_WIDTH = 9
 _LAUNCH_WIDTH = 9
 _WARN_WIDTH = 7
-_WORKSPACE_WIDTH = 50
+_WORKSPACE_WIDTH = 38
 
 _STATE_TABS: tuple[str, ...] = ("active", "sibling", "inactive", "all")
 
@@ -51,6 +52,20 @@ def _launch_label(record: ProjectRecordWire) -> str:
     return "yes" if record.launchable and record.state == "active" else "no"
 
 
+def _aliases_label(record: ProjectRecordWire) -> str:
+    if not record.aliases:
+        return "-"
+    joined = ", ".join(record.aliases)
+    if len(joined) <= _ALIASES_WIDTH:
+        return joined
+    count = f"{len(record.aliases)} aliases"
+    if len(count) <= _ALIASES_WIDTH:
+        return count
+    if _ALIASES_WIDTH <= 3:
+        return joined[:_ALIASES_WIDTH]
+    return joined[: _ALIASES_WIDTH - 3] + "..."
+
+
 def column_header_text() -> Text:
     """Dim/bold header row labeling the project columns.
 
@@ -61,6 +76,7 @@ def column_header_text() -> Text:
     text.append(" " * _MARK_WIDTH)
     text.append(f"{'NAME':<{_NAME_WIDTH}}")
     text.append(f"{'STATE':<{_STATE_WIDTH}}")
+    text.append(f"{'ALIASES':<{_ALIASES_WIDTH}}")
     text.append(f"{'CLAIMS':<{_CLAIMS_WIDTH}}")
     text.append(f"{'LAUNCH':<{_LAUNCH_WIDTH}}")
     text.append(f"{'WARN':<{_WARN_WIDTH}}")
@@ -83,6 +99,11 @@ def record_label(record: ProjectRecordWire, marked_projects: set[str]) -> Text:
     text.append(
         f"{badge:<{_STATE_WIDTH}.{_STATE_WIDTH}}",
         style=state_style(record.state),
+    )
+    alias_style = "#D7AF5F" if record.aliases else "dim"
+    text.append(
+        f"{_aliases_label(record):<{_ALIASES_WIDTH}.{_ALIASES_WIDTH}}",
+        style=alias_style,
     )
     text.append(f"{record.active_claim_count:<{_CLAIMS_WIDTH}}")
     text.append(f"{_launch_label(record):<{_LAUNCH_WIDTH}}")
@@ -161,7 +182,7 @@ def footer_text(marked_projects: set[str], show_inactive_projects: bool) -> str:
     inactive_action = "hide inactive" if show_inactive_projects else "show inactive"
     base = (
         "j/k navigate  / filter  Tab/Shift+Tab state  Enter highlighted  "
-        f"Ctrl+X {inactive_action}  m mark  u unmark all  e edit  a activate  d deactivate  "
+        f"Ctrl+X {inactive_action}  m mark  u unmark all  e edit  A aliases  a activate  d deactivate  "
         "Ctrl+D delete  F force after block  R reload  q close"
     )
     mark_count = len(marked_projects)
@@ -194,6 +215,8 @@ def detail_text(
     text.append(str(record.active_claim_count))
     text.append("    Launchable: ", style="dim")
     text.append(launch)
+    text.append("\nAliases:       ", style="dim")
+    text.append(", ".join(record.aliases) if record.aliases else "-")
     if marked_projects:
         row_state = "marked" if record.project_name in marked_projects else "not marked"
         text.append(

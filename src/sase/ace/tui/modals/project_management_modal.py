@@ -21,6 +21,7 @@ from sase.main.project_handler import (
     ProjectLifecycleBlockedError,
     delete_project_locked,
     set_project_state_locked,
+    set_project_aliases_locked,
 )
 
 from .base import FilterInput, OptionListNavigationMixin
@@ -70,6 +71,7 @@ class ProjectManagementModal(
         Binding("m", "toggle_project_mark", "Mark", priority=True),
         Binding("u", "clear_project_marks", "Unmark All", priority=True),
         Binding("e", "edit_project_spec", "Edit", priority=True),
+        Binding("A", "edit_project_aliases", "Aliases", priority=True),
         Binding("a", "activate_project", "Activate", priority=True),
         Binding("d", "deactivate_project", "Deactivate", priority=True),
         Binding("ctrl+d", "delete_project", "Delete", priority=True),
@@ -160,6 +162,7 @@ class ProjectManagementModal(
                 haystack = " ".join(
                     (
                         record.project_name,
+                        " ".join(record.aliases),
                         record.state,
                         record.workspace_dir or "",
                         " ".join(record.warnings),
@@ -341,6 +344,17 @@ class ProjectManagementModal(
     def _delete_project_locked(self, project: str) -> Path:
         return delete_project_locked(project, projects_root=self._projects_root)
 
+    def _set_project_aliases_locked(
+        self,
+        project: str,
+        aliases: list[str],
+    ) -> ProjectRecordWire:
+        return set_project_aliases_locked(
+            project,
+            aliases,
+            projects_root=self._projects_root,
+        )
+
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id != "project-management-filter":
             return
@@ -444,5 +458,6 @@ __all__ = [
     "ProjectStateFilter",
     "delete_project_locked",
     "list_project_records",
+    "set_project_aliases_locked",
     "set_project_state_locked",
 ]

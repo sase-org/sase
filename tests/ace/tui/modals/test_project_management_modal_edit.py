@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock
 
-from textual.widgets import OptionList
+import pytest
+from textual.widgets import Input, OptionList
 
+from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
+from sase.ace.tui.modals.project_alias_editor_modal import ProjectAliasEditorModal
 from sase.ace.tui.modals.project_management_modal import ProjectManagementModal
 
 from .project_management_modal_test_helpers import (
@@ -108,6 +112,274 @@ async def test_project_management_modal_edit_opens_selected_project_spec(
         )
         pilot.app._schedule_axe_async_refresh.assert_called_once_with()
         pilot.app._refresh_current_tab.assert_called_once_with()
+
+
+async def test_project_management_modal_alias_editor_updates_selected_project(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    aliases_by_project = {"alpha": ["old"], "beta": []}
+    set_calls: list[tuple[str, list[str], Path | None]] = []
+
+    def record_for(project: str):
+        return make_project_record(project, aliases=aliases_by_project[project])
+
+    def list_records(*_args, **_kwargs):
+        records = [record_for("alpha"), record_for("beta")]
+        if aliases_by_project["alpha"] == ["old"]:
+            return records
+        return [records[1], records[0]]
+
+    def set_aliases(
+        project: str,
+        aliases: list[str],
+        *,
+        projects_root: Path | None = None,
+    ):
+        set_calls.append((project, aliases, projects_root))
+        aliases_by_project[project] = list(aliases)
+        return record_for(project)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.set_project_aliases_locked",
+        set_aliases,
+    )
+
+    async with ProjectManagementTestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        pilot.app._schedule_changespecs_async_refresh = MagicMock()
+        pilot.app._schedule_agents_async_refresh = MagicMock()
+        pilot.app._schedule_axe_async_refresh = MagicMock()
+        pilot.app._refresh_current_tab = MagicMock()
+        monkeypatch.setattr(modal, "notify", MagicMock())
+
+        await pilot.press("A")
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, ProjectAliasEditorModal)
+        editor = cast(ProjectAliasEditorModal, pilot.app.screen)
+        editor.query_one("#project-alias-input", Input).value = "new, docs"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert set_calls == [("alpha", ["docs", "new"], tmp_path)]
+        assert [record.project_name for record in modal._filtered_records] == [
+            "beta",
+            "alpha",
+        ]
+        option_list = modal.query_one("#project-management-list", OptionList)
+        assert option_list.highlighted == 1
+        assert modal._status_message == "alpha aliases: docs, new"
+        modal.notify.assert_called_once_with("Updated aliases for 'alpha'")
+        pilot.app._schedule_changespecs_async_refresh.assert_called_once_with()
+        pilot.app._schedule_agents_async_refresh.assert_called_once_with(
+            source="project_lifecycle",
+            full_history=False,
+        )
+        pilot.app._schedule_axe_async_refresh.assert_called_once_with()
+        pilot.app._refresh_current_tab.assert_called_once_with()
+
+
+async def test_project_management_modal_alias_editor_empty_input_confirms_clear(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    aliases = {"alpha": ["old"]}
+    set_calls: list[tuple[str, list[str]]] = []
+
+    def list_records(*_args, **_kwargs):
+        return [make_project_record("alpha", aliases=aliases["alpha"])]
+
+    def set_aliases(
+        project: str,
+        new_aliases: list[str],
+        *,
+        projects_root: Path | None = None,
+    ):
+        assert projects_root == tmp_path
+        set_calls.append((project, new_aliases))
+        aliases[project] = list(new_aliases)
+        return make_project_record(project, aliases=new_aliases)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.set_project_aliases_locked",
+        set_aliases,
+    )
+
+    async with ProjectManagementTestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("A")
+        await pilot.pause()
+        editor = cast(ProjectAliasEditorModal, pilot.app.screen)
+        editor.query_one("#project-alias-input", Input).value = ""
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ConfirmActionModal)
+        assert set_calls == []
+
+        await pilot.press("y")
+        await pilot.pause()
+
+        assert set_calls == [("alpha", [])]
+        assert modal._status_message == "alpha aliases: none"
+
+
+async def test_project_management_modal_alias_editor_targets_highlighted_not_marked(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    aliases_by_project = {"alpha": [], "beta": ["marked"]}
+    set_calls: list[tuple[str, list[str]]] = []
+
+    def list_records(*_args, **_kwargs):
+        return [
+            make_project_record(project, aliases=aliases_by_project[project])
+            for project in ("alpha", "beta")
+        ]
+
+    def set_aliases(
+        project: str,
+        aliases: list[str],
+        *,
+        projects_root: Path | None = None,
+    ):
+        assert projects_root == tmp_path
+        set_calls.append((project, aliases))
+        aliases_by_project[project] = list(aliases)
+        return make_project_record(project, aliases=aliases)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.set_project_aliases_locked",
+        set_aliases,
+    )
+
+    async with ProjectManagementTestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        modal._marked_projects = {"beta"}
+        modal._refresh_options(preferred_project="alpha")
+
+        await pilot.press("A")
+        await pilot.pause()
+        editor = cast(ProjectAliasEditorModal, pilot.app.screen)
+        editor.query_one("#project-alias-input", Input).value = "selected"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert set_calls == [("alpha", ["selected"])]
+        assert aliases_by_project == {"alpha": ["selected"], "beta": ["marked"]}
+        assert modal._marked_projects == {"beta"}
+
+
+@pytest.mark.parametrize(
+    ("alias_text", "error"),
+    [
+        ("bad alias", "invalid project alias: 'bad alias'"),
+        (
+            "bob",
+            "project alias 'bob' is assigned to both 'beta' and 'alpha'",
+        ),
+    ],
+)
+async def test_project_management_modal_alias_editor_errors_do_not_reload(
+    monkeypatch,
+    tmp_path: Path,
+    alias_text: str,
+    error: str,
+) -> None:
+    list_calls = 0
+    set_calls: list[tuple[str, list[str]]] = []
+
+    def list_records(*_args, **_kwargs):
+        nonlocal list_calls
+        list_calls += 1
+        return [make_project_record("alpha")]
+
+    def set_aliases(
+        project: str,
+        aliases: list[str],
+        *,
+        projects_root: Path | None = None,
+    ):
+        assert projects_root == tmp_path
+        set_calls.append((project, aliases))
+        raise ValueError(error)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        list_records,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.set_project_aliases_locked",
+        set_aliases,
+    )
+
+    async with ProjectManagementTestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        monkeypatch.setattr(modal, "notify", MagicMock())
+
+        await pilot.press("A")
+        await pilot.pause()
+        editor = cast(ProjectAliasEditorModal, pilot.app.screen)
+        editor.query_one("#project-alias-input", Input).value = alias_text
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert set_calls == [("alpha", [alias_text])]
+        assert list_calls == 1
+        message = f"Alias update failed for alpha: {error}"
+        assert modal._status_message == message
+        modal.notify.assert_called_once_with(message, severity="error")
+
+
+async def test_project_management_modal_alias_editor_cancel_leaves_records_untouched(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    set_aliases = MagicMock()
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        lambda *_args, **_kwargs: [make_project_record("alpha", aliases=["old"])],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_management_modal.set_project_aliases_locked",
+        set_aliases,
+    )
+
+    async with ProjectManagementTestApp().run_test() as pilot:
+        modal = ProjectManagementModal(projects_root=tmp_path)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("A")
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, ProjectAliasEditorModal)
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        set_aliases.assert_not_called()
+        assert modal._status_message == "Alias edit cancelled"
 
 
 async def test_project_management_modal_edit_no_selection_warns(

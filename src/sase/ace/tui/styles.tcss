@@ -628,6 +628,43 @@ ProjectManagementModal {
     margin-top: 1;
 }
 
+ProjectAliasEditorModal {
+    align: center middle;
+}
+
+ProjectAliasEditorModal > Container {
+    width: 72;
+    height: auto;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+ProjectAliasEditorModal #modal-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+ProjectAliasEditorModal #project-alias-input {
+    width: 100%;
+    margin: 1 0;
+}
+
+ProjectAliasEditorModal #project-alias-hint {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+ProjectAliasEditorModal Horizontal {
+    align: center middle;
+    height: auto;
+    margin-top: 1;
+}
+
+ProjectAliasEditorModal Button {
+    margin: 0 1;
+}
+
 
 /* Shared Duration Choice Modal styling */
 SnoozeDurationModal,

@@ -163,13 +163,19 @@ def _get_project_record_from_records(
     raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
 
 
-def _resolve_mutable_project_file(project: str) -> Path:
+def _resolve_mutable_project_file(
+    project: str,
+    projects_root: Path | None = None,
+) -> Path:
     if project == "home":
         raise _ProjectLifecycleError("project 'home' is system-managed")
     if not is_valid_sase_project_name(project):
         raise _ProjectLifecycleError(f"invalid project name: {project!r}")
 
-    project_dir = sase_projects_dir() / project
+    root = (
+        projects_root.expanduser() if projects_root is not None else sase_projects_dir()
+    )
+    project_dir = root / project
     project_file = Path(preferred_project_spec_path(str(project_dir), project))
     if not project_file.is_file():
         raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
@@ -329,11 +335,16 @@ def _mutate_project_aliases_locked(
     project: str,
     update_aliases: Callable[[list[str]], list[str]],
     commit_msg: str,
+    *,
+    projects_root: Path | None = None,
 ) -> ProjectRecordWire:
-    project_file = _resolve_mutable_project_file(project)
+    root = (
+        projects_root.expanduser() if projects_root is not None else sase_projects_dir()
+    )
+    project_file = _resolve_mutable_project_file(project, root)
     with changespec_lock(str(project_file)):
         records = list_project_records(
-            sase_projects_dir(),
+            root,
             list(_ALL_STATES),
             include_home=True,
         )
@@ -348,15 +359,24 @@ def _mutate_project_aliases_locked(
         updated = apply_project_aliases_update(content, aliases)
         write_changespec_atomic(str(project_file), updated, commit_msg)
 
-    return _get_project_record(project)
+    return _get_project_record_from_records(
+        list_project_records(root, list(_ALL_STATES), include_home=True),
+        project,
+    )
 
 
-def set_project_aliases_locked(project: str, aliases: list[str]) -> ProjectRecordWire:
+def set_project_aliases_locked(
+    project: str,
+    aliases: list[str],
+    *,
+    projects_root: Path | None = None,
+) -> ProjectRecordWire:
     """Replace aliases for *project* while holding the ProjectSpec lock."""
     return _mutate_project_aliases_locked(
         project,
         lambda _current: list(aliases),
         "Set project aliases",
+        projects_root=projects_root,
     )
 
 

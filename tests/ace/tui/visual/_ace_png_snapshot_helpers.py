@@ -113,6 +113,7 @@ def project_records() -> list[ProjectRecordWire]:
         claims: int = 0,
         launchable: bool = True,
         warnings: list[str] | None = None,
+        aliases: list[str] | None = None,
         workspace_dir: str | None = None,
     ) -> ProjectRecordWire:
         project_dir = f"/home/visual/.sase/projects/{name}"
@@ -132,13 +133,13 @@ def project_records() -> list[ProjectRecordWire]:
             system_managed=False,
             active_claim_count=claims,
             launchable=launchable,
-            aliases=[],
+            aliases=aliases or [],
             warnings=warnings or [],
             parse_warnings=[],
         )
 
     return [
-        _record("sase", state="active", claims=2),
+        _record("sase", state="active", claims=2, aliases=["bob"]),
         _record("sase-core", state="active", claims=1, explicit=False),
         _record(
             "project-management-fullscreen",

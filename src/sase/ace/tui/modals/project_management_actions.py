@@ -17,6 +17,7 @@ from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.main.project_handler import ProjectLifecycleBlockedError
 
 from .confirm_action_modal import ConfirmActionModal
+from .project_alias_editor_modal import ProjectAliasEditorModal
 from .project_management_rendering import (
     bulk_delete_message,
     bulk_delete_status,
@@ -27,6 +28,10 @@ from .project_management_rendering import (
 
 if TYPE_CHECKING:
     from textual.app import App
+
+
+def _normalize_alias_input(aliases: Sequence[str]) -> list[str]:
+    return sorted({alias.strip() for alias in aliases if alias.strip()})
 
 
 class ProjectManagementActionsMixin:
@@ -55,6 +60,9 @@ class ProjectManagementActionsMixin:
             self, project: str, state: str, *, force: bool = False
         ) -> ProjectRecordWire: ...
         def _delete_project_locked(self, project: str) -> Path: ...
+        def _set_project_aliases_locked(
+            self, project: str, aliases: list[str]
+        ) -> ProjectRecordWire: ...
 
     def action_activate_project(self) -> None:
         self._set_project_state("active")
@@ -111,6 +119,49 @@ class ProjectManagementActionsMixin:
         self._set_status(f"Editor closed for {record.project_name}")
         self._refresh_options(preferred_project=record.project_name)
         self._notify_lifecycle_changed()
+
+    def action_edit_project_aliases(self) -> None:
+        record = self._selected_record()
+        if record is None:
+            self._set_status("No project selected")
+            self.notify("No project selected", severity="warning")
+            return
+
+        current_aliases = _normalize_alias_input(record.aliases)
+
+        def _on_alias_editor_dismiss(aliases: list[str] | None) -> None:
+            if aliases is None:
+                self._set_status("Alias edit cancelled")
+                return
+
+            normalized = _normalize_alias_input(aliases)
+            if normalized == current_aliases:
+                self._set_status(f"Aliases unchanged for {record.project_name}")
+                return
+
+            if not normalized and current_aliases:
+
+                def _on_clear_confirm(confirmed: bool | None) -> None:
+                    if not confirmed:
+                        self._set_status("Alias clear cancelled")
+                        return
+                    self._replace_project_aliases(record.project_name, [])
+
+                self.app.push_screen(
+                    ConfirmActionModal(
+                        title="Clear Project Aliases",
+                        message=(f"Clear all aliases for '{record.project_name}'?"),
+                    ),
+                    _on_clear_confirm,
+                )
+                return
+
+            self._replace_project_aliases(record.project_name, normalized)
+
+        self.app.push_screen(
+            ProjectAliasEditorModal(record.project_name, record.aliases),
+            _on_alias_editor_dismiss,
+        )
 
     def action_delete_project(self) -> None:
         if self._marked_projects:
@@ -297,6 +348,28 @@ class ProjectManagementActionsMixin:
             self.notify(status, severity="warning")
         if failed:
             self.notify(status, severity="error")
+
+    def _replace_project_aliases(self, project: str, aliases: list[str]) -> None:
+        try:
+            updated = self._set_project_aliases_locked(project, aliases)
+        except Exception as exc:
+            self._pending_force = None
+            message = f"Alias update failed for {project}: {exc}"
+            self._set_status(message)
+            self.notify(message, severity="error")
+            return
+
+        self._pending_force = None
+        if not self._load_records():
+            self._refresh_options(preferred_project=project)
+            self.notify(self._status_message, severity="error")
+            return
+
+        aliases_text = ", ".join(updated.aliases) if updated.aliases else "none"
+        self._status_message = f"{updated.project_name} aliases: {aliases_text}"
+        self._refresh_options(preferred_project=updated.project_name)
+        self._notify_lifecycle_changed()
+        self.notify(f"Updated aliases for '{updated.project_name}'")
 
     def _state_change_status(
         self,

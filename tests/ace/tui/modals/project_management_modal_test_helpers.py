@@ -22,6 +22,7 @@ def make_project_record(
     claims: int = 0,
     launchable: bool = True,
     warnings: list[str] | None = None,
+    aliases: list[str] | None = None,
     system_managed: bool = False,
     project_dir: str | None = None,
     project_file: str | None = None,
@@ -40,7 +41,7 @@ def make_project_record(
         system_managed=system_managed,
         active_claim_count=claims,
         launchable=launchable,
-        aliases=[],
+        aliases=aliases or [],
         warnings=warnings or [],
         parse_warnings=[],
     )
