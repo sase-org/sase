@@ -7,6 +7,7 @@ venv_bin_abs := justfile_directory() / venv_bin
 keep_sorted_version := "v0.8.0"
 keep_sorted_bin := venv_bin / "keep-sorted"
 prettier_bin := "node_modules/.bin/prettier"
+pyvision_epic_args := "--epic-symbol 'sase-4c(apply_project_aliases_update)'"
 
 # Sibling Rust core repo. CI can override this with SASE_CORE_DIR after
 # checking out sase-core inside the Actions workspace. SASE-launched agents
@@ -139,7 +140,7 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 --epic-symbol 'sase-4c(apply_project_aliases_update)' src/sase
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 {{ pyvision_epic_args }} src/sase
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
@@ -289,7 +290,7 @@ all: fix lint pylimit test
 
 # Find unused Python function/class definitions
 pyvision *args: _setup (_header "pyvision")
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 src/sase {{ args }}
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260512 {{ pyvision_epic_args }} src/sase {{ args }}
 
 # Check Python file line counts
 pylimit *args: (_header "pylimit")
