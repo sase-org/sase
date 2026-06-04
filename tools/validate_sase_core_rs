@@ -38,6 +38,7 @@ REQUIRED_BINDINGS = (
     "parse_git_local_changes",
     "read_project_lifecycle_from_content",
     "apply_project_lifecycle_update",
+    "apply_project_aliases_update",
     "list_project_records",
     "bead_build_legend_work_plan",
     "bead_build_legend_work_plan_from_issues",
@@ -232,6 +233,20 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
         )
         return False
 
+    aliases_updated = module.apply_project_aliases_update(
+        "WORKSPACE_DIR: /tmp\nRUNNING:\n\nNAME: demo\n",
+        ["docs", "bob"],
+    )
+    if (
+        aliases_updated
+        != "WORKSPACE_DIR: /tmp\nPROJECT_ALIASES: bob, docs\nRUNNING:\n\nNAME: demo\n"
+    ):
+        _error(
+            "project alias update probe did not write canonical aliases: "
+            f"got {aliases_updated!r}"
+        )
+        return False
+
     with tempfile.TemporaryDirectory(prefix="sase-core-rs-lifecycle-probe-") as tmp:
         root = Path(tmp)
         projects_root = root / "projects"
@@ -245,7 +260,9 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
         active_dir.mkdir(parents=True)
         inactive_dir.mkdir(parents=True)
         (active_dir / "active.sase").write_text(
-            f"WORKSPACE_DIR: {active_workspace}\nNAME: active\n",
+            "PROJECT_ALIASES: bob, docs\n"
+            f"WORKSPACE_DIR: {active_workspace}\n"
+            "NAME: active\n",
             encoding="utf-8",
         )
         (inactive_dir / "inactive.sase").write_text(
@@ -268,6 +285,14 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
         _error(
             "project lifecycle record probe did not filter inactive projects: "
             f"got {project_names!r}"
+        )
+        return False
+    first_record = records[0] if records and isinstance(records[0], dict) else None
+    aliases = first_record.get("aliases") if isinstance(first_record, dict) else None
+    if aliases != ["bob", "docs"]:
+        _error(
+            "project lifecycle record probe did not preserve aliases: "
+            f"got {aliases!r}"
         )
         return False
 
