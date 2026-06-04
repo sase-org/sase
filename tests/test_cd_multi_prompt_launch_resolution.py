@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -86,9 +87,46 @@ def test_launch_multi_prompt_agents_activates_inactive_known_project_later_segme
         encoding="utf-8",
     )
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    from sase.core.project_lifecycle_wire import ProjectRecordWire
+
+    known_record = ProjectRecordWire(
+        schema_version=1,
+        project_name="sase",
+        project_dir=str(projects_dir),
+        project_file=str(project_file),
+        archive_file=None,
+        workspace_dir=str(workspace),
+        state="inactive",
+        state_explicit=True,
+        system_managed=False,
+        active_claim_count=0,
+        launchable=True,
+    )
+
+    def activate_known_project(ref: str) -> ProjectRecordWire:
+        assert ref == "sase-org/sase"
+        project_file.write_text(
+            f"PROJECT_STATE: active\nWORKSPACE_DIR: {workspace}\n",
+            encoding="utf-8",
+        )
+        return replace(known_record, state="active")
 
     with (
         patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
+        patch(
+            "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
+            side_effect=lambda prompt: (
+                ("gh", "sase-org/sase") if "#gh:" in prompt else None
+            ),
+        ),
+        patch(
+            "sase.agent.launch_projects.activate_known_project_for_launch_ref",
+            side_effect=activate_known_project,
+        ),
+        patch(
+            "sase.xprompt.loader.get_known_project_workspaces",
+            return_value={"sase": str(workspace)},
+        ),
         patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming"),
         patch("sase.core.time.generate_timestamp", return_value="260501_120000"),
         patch(

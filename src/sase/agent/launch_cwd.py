@@ -3,6 +3,7 @@
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.launch_validation import internal_agent_name_bypass_enabled
@@ -31,9 +32,25 @@ def _internal_agent_name_bypass_for_launch(
 _PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
 
 
+def _future_agent_artifacts_dir(*, project_name: str, timestamp: str) -> str:
+    from sase.artifacts import convert_timestamp_to_artifacts_format
+
+    return str(
+        sase_projects_dir()
+        / project_name
+        / "artifacts"
+        / "ace-run"
+        / convert_timestamp_to_artifacts_format(timestamp)
+    )
+
+
 def _plan_single_agent_name(
-    query: str, extra_env: dict[str, str] | None
-) -> dict[str, str] | None:
+    query: str,
+    extra_env: dict[str, str] | None,
+    *,
+    project_name: str,
+    timestamp: str,
+) -> tuple[dict[str, str] | None, Any | None]:
     """Allocate a parent-side agent name for a single-prompt launch.
 
     Returns ``extra_env`` augmented with ``SASE_AGENT_PLANNED_NAME`` when the
@@ -43,18 +60,24 @@ def _plan_single_agent_name(
     xprompt expansion that only the child can perform.
     """
     if extra_env and _PLANNED_AGENT_NAME_ENV in extra_env:
-        return extra_env
+        return extra_env, None
 
     from sase.agent.multi_prompt_references import PlannedNameAllocator
 
     allocator = PlannedNameAllocator()
-    planned_name, _ = allocator.planned_name_for_prompt(query)
+    planned_name, _ = allocator.planned_name_for_prompt(
+        query,
+        artifacts_dir=_future_agent_artifacts_dir(
+            project_name=project_name,
+            timestamp=timestamp,
+        ),
+    )
     if planned_name is None:
-        return extra_env
+        return extra_env, allocator
 
     augmented = dict(extra_env or {})
     augmented[_PLANNED_AGENT_NAME_ENV] = planned_name
-    return augmented
+    return augmented, allocator
 
 
 def resolve_known_project_vcs_launch_ref(
@@ -523,30 +546,40 @@ def launch_agents_from_cwd(
     from sase.agent.launch_executor import LaunchExecutionContext, execute_launch_plan
     from sase.core.agent_launch_facade import plan_fake_fanout
 
-    extra_env = _plan_single_agent_name(query, extra_env)
+    extra_env, name_allocator = _plan_single_agent_name(
+        query,
+        extra_env,
+        project_name=project_name,
+        timestamp=timestamp,
+    )
 
     fixed_workspace = is_home_mode or has_wait
-    execution = execute_launch_plan(
-        plan_fake_fanout("single", [query]),
-        LaunchExecutionContext(
-            cl_name=cl_name,
-            project_file=project_file,
-            project_name=project_name,
-            update_target=update_target,
-            history_sort_key=history_sort_key,
-            is_home_mode=is_home_mode,
-            vcs_ref=vcs_ref,
-            deferred_workspace=has_wait,
-            workspace_num=workspace_num if fixed_workspace else None,
-            workspace_dir=workspace_dir if fixed_workspace else None,
-            use_preallocated_workspace=False,
-        ),
-        extra_env=extra_env,
-        base_timestamp=timestamp,
-        allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
-            extra_env
-        ),
-    )
+    try:
+        execution = execute_launch_plan(
+            plan_fake_fanout("single", [query]),
+            LaunchExecutionContext(
+                cl_name=cl_name,
+                project_file=project_file,
+                project_name=project_name,
+                update_target=update_target,
+                history_sort_key=history_sort_key,
+                is_home_mode=is_home_mode,
+                vcs_ref=vcs_ref,
+                deferred_workspace=has_wait,
+                workspace_num=workspace_num if fixed_workspace else None,
+                workspace_dir=workspace_dir if fixed_workspace else None,
+                use_preallocated_workspace=False,
+            ),
+            extra_env=extra_env,
+            base_timestamp=timestamp,
+            allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
+                extra_env
+            ),
+        )
+    except Exception:
+        if name_allocator is not None:
+            name_allocator.release_uncommitted_indexed_reservations()
+        raise
     return execution.results
 
 

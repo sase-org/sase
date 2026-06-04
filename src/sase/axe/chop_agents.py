@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+import fcntl
 import json
 import os
+import tempfile
+import threading
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +27,9 @@ ENV_CHOP_LUMBERJACK = "SASE_CHOP_LUMBERJACK"
 ENV_CHOP_NAME = "SASE_CHOP_NAME"
 ENV_CHOP_RUN_ID = "SASE_CHOP_RUN_ID"
 ENV_CHOP_PROMPT_HASH = "SASE_CHOP_PROMPT_HASH"
+
+_PROCESS_REGISTRY_LOCKS: dict[Path, threading.RLock] = {}
+_PROCESS_REGISTRY_LOCKS_GUARD = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -111,7 +119,31 @@ def _registry_path(lumberjack_name: str) -> Path:
     return jack_state_dir / lumberjack_name / "agent_chops.json"
 
 
-def _read_records(lumberjack_name: str) -> list[_ChopAgentRecord]:
+def _process_registry_lock(lock_path: Path) -> threading.RLock:
+    with _PROCESS_REGISTRY_LOCKS_GUARD:
+        lock = _PROCESS_REGISTRY_LOCKS.get(lock_path)
+        if lock is None:
+            lock = threading.RLock()
+            _PROCESS_REGISTRY_LOCKS[lock_path] = lock
+        return lock
+
+
+@contextmanager
+def _registry_lock(lumberjack_name: str) -> Iterator[None]:
+    path = _registry_path(lumberjack_name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_suffix(".lock")
+    process_lock = _process_registry_lock(lock_path)
+    with process_lock:
+        with lock_path.open("a+", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _read_records_unlocked(lumberjack_name: str) -> list[_ChopAgentRecord]:
     path = _registry_path(lumberjack_name)
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -131,13 +163,29 @@ def _read_records(lumberjack_name: str) -> list[_ChopAgentRecord]:
     return records
 
 
-def _write_records(lumberjack_name: str, records: list[_ChopAgentRecord]) -> None:
+def _write_records_unlocked(
+    lumberjack_name: str, records: list[_ChopAgentRecord]
+) -> None:
     path = _registry_path(lumberjack_name)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_suffix(".tmp")
-    with temp_path.open("w", encoding="utf-8") as f:
-        json.dump([asdict(record) for record in records], f, indent=2)
-    temp_path.replace(path)
+    temp_path: Path | None = None
+    replaced = False
+    try:
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+        )
+        temp_path = Path(temp_name)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump([asdict(record) for record in records], f, indent=2)
+            f.write("\n")
+        os.replace(temp_path, path)
+        replaced = True
+    finally:
+        if temp_path is not None and not replaced:
+            try:
+                temp_path.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def _artifacts_dir(record: _ChopAgentRecord) -> Path | None:
@@ -161,12 +209,14 @@ def _is_live_record(record: _ChopAgentRecord) -> bool:
     return is_process_running(record.pid) and not _has_done_marker(record)
 
 
-def _prune_chop_agent_records(lumberjack_name: str) -> list[_ChopAgentRecord]:
+def _prune_chop_agent_records_unlocked(
+    lumberjack_name: str,
+) -> list[_ChopAgentRecord]:
     """Drop dead or completed records and return the remaining live records."""
-    records = _read_records(lumberjack_name)
+    records = _read_records_unlocked(lumberjack_name)
     live = [record for record in records if _is_live_record(record)]
     if live != records:
-        _write_records(lumberjack_name, live)
+        _write_records_unlocked(lumberjack_name, live)
     return live
 
 
@@ -177,7 +227,8 @@ def get_live_chop_agent_records(
     prompt_hash_value: str | None = None,
 ) -> list[_ChopAgentRecord]:
     """Return live registry records, optionally filtered by chop/prompt."""
-    records = _prune_chop_agent_records(lumberjack_name)
+    with _registry_lock(lumberjack_name):
+        records = _prune_chop_agent_records_unlocked(lumberjack_name)
     if chop_name is not None:
         records = [record for record in records if record.chop_name == chop_name]
     if prompt_hash_value is not None:
@@ -220,18 +271,21 @@ def _record_chop_agent_launch(
         run_id=run_id,
     )
 
-    records = [
-        existing
-        for existing in _prune_chop_agent_records(lumberjack_name)
-        if not (
-            existing.pid == pid
-            or (
-                run_id and existing.run_id == run_id and existing.chop_name == chop_name
+    with _registry_lock(lumberjack_name):
+        records = [
+            existing
+            for existing in _prune_chop_agent_records_unlocked(lumberjack_name)
+            if not (
+                existing.pid == pid
+                or (
+                    run_id
+                    and existing.run_id == run_id
+                    and existing.chop_name == chop_name
+                )
             )
-        )
-    ]
-    records.append(record)
-    _write_records(lumberjack_name, records)
+        ]
+        records.append(record)
+        _write_records_unlocked(lumberjack_name, records)
     return record
 
 

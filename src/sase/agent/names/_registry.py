@@ -8,6 +8,7 @@ agent history.
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
+from datetime import UTC, datetime
 import json
 import os
 import tempfile
@@ -92,6 +93,50 @@ def claim_registered_name(
         _save_entries(entries)
 
 
+def reserve_registered_name(name: str, claiming_dir: str | Path) -> None:
+    """Reserve *name* for a not-yet-started agent artifacts directory.
+
+    Planned launch reservations are intentionally collision-checked like
+    explicit claims, but they use ``reservation_kind="planned"`` so callers can
+    roll them back if the child process never starts. The child runner's later
+    regular claim is idempotent because it uses the same artifacts owner.
+    """
+    with _registry_mutation_lock():
+        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
+        entries = dict(load_name_registry()["entries"])
+        existing = entries.get(name)
+        if isinstance(existing, dict) and _entry_has_other_owner(
+            existing, artifact_dir
+        ):
+            from sase.agent.names._common import NameCollisionError
+
+            suggestion = lowest_name_suggestion(name)
+            raise NameCollisionError(
+                f"agent name '{name}' is already taken; try '{suggestion}'"
+            )
+        entry = _owner_from_artifact_name(
+            artifact_dir, name, reservation_kind="planned"
+        )
+        entries[name] = entry
+        _save_entries(entries)
+
+
+def release_planned_registered_name(name: str, claiming_dir: str | Path) -> None:
+    """Remove a still-planned reservation for *name* owned by *claiming_dir*."""
+    with _registry_mutation_lock():
+        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
+        entries = dict(load_name_registry()["entries"])
+        existing = entries.get(name)
+        if not isinstance(existing, dict):
+            return
+        if existing.get("reservation_kind") != "planned":
+            return
+        if not _entry_belongs_to_artifact(existing, artifact_dir):
+            return
+        entries.pop(name, None)
+        _save_entries(entries)
+
+
 def delete_registered_name(name: str) -> None:
     """Remove *name* from the registry."""
     with _registry_mutation_lock():
@@ -144,6 +189,7 @@ def rebuild_name_registry() -> dict[str, Any]:
     """Rebuild the registry by scanning existing artifacts and dismissed bundles."""
     with _registry_mutation_lock():
         entries: dict[str, dict[str, Any]] = {}
+        _collect_planned_reservation_entries(entries)
         _collect_artifact_entries(entries)
         _collect_dismissed_bundle_entries(entries)
         data = _registry_data(entries)
@@ -251,6 +297,8 @@ def _registry_file_is_stale(data: dict[str, Any]) -> bool:
 
 
 def _entry_owner_missing(entry: dict[str, Any]) -> bool:
+    if entry.get("reservation_kind") == "planned":
+        return False
     source = entry.get("source")
     if source == "artifact":
         artifacts_dir = entry.get("artifacts_dir")
@@ -377,6 +425,21 @@ def _collect_dismissed_bundle_entries(entries: dict[str, dict[str, Any]]) -> Non
         _add_owner_names(entries, names, owner)
 
 
+def _collect_planned_reservation_entries(entries: dict[str, dict[str, Any]]) -> None:
+    existing = _read_registry(_registry_path())
+    if existing is None:
+        return
+    existing_entries = existing.get("entries")
+    if not isinstance(existing_entries, dict):
+        return
+    for name, entry in existing_entries.items():
+        if not isinstance(name, str) or not isinstance(entry, dict):
+            continue
+        if entry.get("reservation_kind") != "planned":
+            continue
+        entries[name] = dict(entry)
+
+
 def _add_owner_names(
     entries: dict[str, dict[str, Any]],
     names: set[str],
@@ -480,17 +543,26 @@ def _owner_from_artifact_name(
     project_dir = (
         workflow_dir.parent.parent if workflow_dir.parent.name == "artifacts" else None
     )
-    return {
+    entry: dict[str, Any] = {
         "source": "artifact",
         "name": name,
         "project_name": project_dir.name if project_dir is not None else None,
         "workflow_dir": workflow_dir.name,
         "raw_suffix": artifact_dir.name,
         "artifacts_dir": str(artifact_dir),
-        "state": "done" if (artifact_dir / "done.json").exists() else "active",
+        "state": (
+            "planned"
+            if reservation_kind == "planned"
+            else "done"
+            if (artifact_dir / "done.json").exists()
+            else "active"
+        ),
         "created_at": artifact_dir.name,
         "reservation_kind": reservation_kind,
     }
+    if reservation_kind == "planned":
+        entry["reserved_at"] = datetime.now(UTC).isoformat()
+    return entry
 
 
 def _bundle_owner(path: Path, bundle: dict[str, Any]) -> dict[str, Any]:

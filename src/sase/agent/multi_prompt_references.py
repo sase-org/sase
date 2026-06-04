@@ -4,8 +4,17 @@ import json
 import os
 import re
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
 
 _PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
+
+
+@dataclass(frozen=True)
+class _PlannedNameReservation:
+    name: str
+    artifacts_dir: str
 
 
 def wait_for_agent_naming(artifacts_dir: str, timeout: float = 30) -> str | None:
@@ -241,20 +250,30 @@ class PlannedNameAllocator:
         self._wait_reserved: dict[str, set[str]] = {}
         self._indexed_reserved: dict[str, set[str]] = {}
         self._indexed_latest: dict[str, str] = {}
+        self._indexed_group_indexes: dict[str, int] = {}
+        self._indexed_reservations: list[_PlannedNameReservation] = []
+        self._committed_indexed_reservations: set[_PlannedNameReservation] = set()
 
     def rewrite_indexed_references(self, prompt: str) -> str:
         """Resolve indexed wait/resume refs against this launch's plan."""
         prompt = self._rewrite_indexed_wait_directives(prompt)
         return self._rewrite_indexed_resume_references(prompt)
 
-    def planned_name_for_prompt(self, prompt: str) -> tuple[str | None, str | None]:
+    def planned_name_for_prompt(
+        self,
+        prompt: str,
+        *,
+        artifacts_dir: str | Path | None = None,
+    ) -> tuple[str | None, str | None]:
         """Return ``(name, env_value)`` for a prompt, if safely knowable."""
         explicit_name = extract_static_name_directive(prompt)
         if explicit_name is not None:
             from sase.agent.names import is_indexed_agent_name_template
 
             if is_indexed_agent_name_template(explicit_name):
-                name = self._allocate_indexed_name(explicit_name)
+                name = self._allocate_indexed_name(
+                    explicit_name, artifacts_dir=artifacts_dir
+                )
                 return name, name
             return explicit_name, None
 
@@ -439,15 +458,78 @@ class PlannedNameAllocator:
             return None
         return self._latest_indexed_name(arg)
 
-    def _allocate_indexed_name(self, template: str) -> str:
+    def mark_indexed_reservation_committed(
+        self, name: str | None, artifacts_dir: str | Path | None
+    ) -> None:
+        """Mark a planned indexed reservation as owned by a spawned child."""
+        if name is None or artifacts_dir is None:
+            return
+        reservation = _PlannedNameReservation(
+            name=name,
+            artifacts_dir=str(Path(artifacts_dir).expanduser().resolve(strict=False)),
+        )
+        if reservation in self._indexed_reservations:
+            self._committed_indexed_reservations.add(reservation)
+
+    def release_uncommitted_indexed_reservations(self) -> None:
+        """Release planned indexed reservations whose child never spawned."""
+        from sase.agent.names import release_planned_registered_name
+
+        for reservation in list(self._indexed_reservations):
+            if reservation in self._committed_indexed_reservations:
+                continue
+            release_planned_registered_name(reservation.name, reservation.artifacts_dir)
+        self._indexed_reservations = [
+            reservation
+            for reservation in self._indexed_reservations
+            if reservation in self._committed_indexed_reservations
+        ]
+
+    def _allocate_indexed_name(
+        self, template: str, *, artifacts_dir: str | Path | None = None
+    ) -> str:
         from sase.agent.names import (
+            agent_name_allocation_lock,
             allocate_indexed_agent_name,
+            get_reserved_agent_names,
             indexed_agent_name_base,
+            reserve_registered_name,
         )
 
         base = indexed_agent_name_base(template)
+        group = _indexed_group_key(base)
+        if artifacts_dir is not None:
+            artifacts_path = Path(artifacts_dir).expanduser().resolve(strict=False)
+            with agent_name_allocation_lock():
+                reserved = set(get_reserved_agent_names())
+                reserved.update(self._indexed_reserved.get(base, set()))
+                name = _allocate_indexed_name_for_group(
+                    base,
+                    template,
+                    reserved=reserved,
+                    group_index=self._indexed_group_indexes.get(group),
+                    allocate=allocate_indexed_agent_name,
+                )
+                self._indexed_group_indexes[group] = _indexed_name_suffix(name)
+                reserve_registered_name(name, artifacts_path)
+                self._indexed_reserved[base] = reserved
+                self._indexed_latest[base] = name
+                self._indexed_reservations.append(
+                    _PlannedNameReservation(
+                        name=name, artifacts_dir=str(artifacts_path)
+                    )
+                )
+                return name
+
         reserved = self._indexed_reserved_names(base)
-        name = allocate_indexed_agent_name(template, reserved=reserved)
+        name = _allocate_indexed_name_for_group(
+            base,
+            template,
+            reserved=reserved,
+            group_index=self._indexed_group_indexes.get(group),
+            allocate=allocate_indexed_agent_name,
+        )
+        self._indexed_group_indexes[group] = _indexed_name_suffix(name)
         self._indexed_latest[base] = name
         return name
 
@@ -482,3 +564,30 @@ def _unquote_backtick_arg(arg: str) -> str:
     if arg.startswith("`") and arg.endswith("`"):
         return arg[1:-1]
     return arg
+
+
+def _indexed_group_key(base: str) -> str:
+    return base.rsplit(".", 1)[0] if "." in base else base
+
+
+def _indexed_name_suffix(name: str) -> int:
+    try:
+        return int(name.rsplit("-", 1)[1])
+    except (IndexError, ValueError):
+        return 1
+
+
+def _allocate_indexed_name_for_group(
+    base: str,
+    template: str,
+    *,
+    reserved: set[str],
+    group_index: int | None,
+    allocate: Callable[..., str],
+) -> str:
+    if group_index is not None:
+        candidate = f"{base}-{group_index}"
+        if candidate not in reserved:
+            reserved.add(candidate)
+            return candidate
+    return allocate(template, reserved=reserved)

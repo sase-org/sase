@@ -15,6 +15,7 @@ from sase.agent.launch_projects import (
 )
 from sase.agent.launch_spawn import spawn_agent_subprocess
 from sase.agent.launch_types import AgentLaunchResult
+from sase.agent.partial_launch import rollback_partial_launch_results
 
 __all__ = [
     "AgentLaunchResult",
@@ -23,5 +24,6 @@ __all__ = [
     "launch_agent_from_cwd",
     "launch_agents_from_cwd",
     "resolve_known_project_vcs_launch_ref",
+    "rollback_partial_launch_results",
     "spawn_agent_subprocess",
 ]

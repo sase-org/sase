@@ -87,9 +87,12 @@ class MultiModelLaunchMixin:
                 "home_mode": ctx.is_home_mode,
             },
         )
-        try:
-            from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+        from sase.agent.multi_prompt_launcher import (
+            MultiPromptPartialLaunchError,
+            launch_multi_prompt_agents,
+        )
 
+        try:
             with timer.stage(
                 "launch_multi_prompt_agents",
                 slot_count=len(model_prompts),
@@ -113,6 +116,30 @@ class MultiModelLaunchMixin:
             msg = f"Started {len(results)} agent(s) for {ctx.display_name}"
             timer.finish(outcome="ok", launched=len(results))
             self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
+        except MultiPromptPartialLaunchError as exc:
+            from sase.agent.partial_launch import rollback_partial_launch_results
+
+            rollback_partial_launch_results(exc.results)
+            timer.finish(outcome="error")
+            log.exception("Prompt fan-out launch failed")
+            _record_fanout_launch_failure(
+                exc,
+                ctx=ctx,
+                vcs_ref=vcs_ref,
+                has_wait=has_wait,
+                fanout_kind=fanout_kind,
+                slot_count=len(model_prompts),
+                submitted_xprompt=submitted_xprompt,
+            )
+            self.call_later(  # type: ignore[attr-defined]
+                _refresh_notification_count_if_available, self
+            )
+            self.call_later(  # type: ignore[attr-defined]
+                lambda: self.notify(  # type: ignore[attr-defined]
+                    "Prompt fan-out launch failed; spawned agents terminated",
+                    severity="error",
+                )
+            )
         except Exception as exc:
             timer.finish(outcome="error")
             log.exception("Prompt fan-out launch failed")

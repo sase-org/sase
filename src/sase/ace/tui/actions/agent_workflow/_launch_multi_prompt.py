@@ -56,7 +56,10 @@ class MultiPromptLaunchMixin:
     ) -> None:
         """Worker-thread body for :meth:`_launch_multi_prompt_agents`."""
         from sase.agent.multi_prompt import MultiPrompt
-        from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+        from sase.agent.multi_prompt_launcher import (
+            MultiPromptPartialLaunchError,
+            launch_multi_prompt_agents,
+        )
 
         assert isinstance(multi, MultiPrompt)
 
@@ -78,6 +81,18 @@ class MultiPromptLaunchMixin:
             self.call_later(self.request_agents_refresh, "launch")  # type: ignore[attr-defined]
             msg = f"Started {len(results)} agent(s) for {ctx.display_name}"
             self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
+        except MultiPromptPartialLaunchError as exc:
+            from sase.agent.partial_launch import rollback_partial_launch_results
+
+            rollback_partial_launch_results(exc.results)
+            log.exception("Partial multi-prompt launch failed; children terminated")
+            self.call_later(self.request_agents_refresh, "launch")  # type: ignore[attr-defined]
+            self.call_later(  # type: ignore[attr-defined]
+                lambda: self.notify(  # type: ignore[attr-defined]
+                    "Partial multi-prompt launch failed; spawned agents terminated",
+                    severity="error",
+                )
+            )
         except Exception:
             log.exception("Multi-prompt launch failed")
             self.call_later(  # type: ignore[attr-defined]

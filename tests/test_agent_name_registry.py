@@ -21,6 +21,7 @@ from sase.agent.names import (
     lookup_registered_name,
     lowest_name_suggestion,
     rebuild_name_registry,
+    reserve_registered_name,
 )
 from sase.agent.names import _registry
 
@@ -216,6 +217,34 @@ def test_concurrent_claim_registered_name_preserves_all_claims(
     path = tmp_path / ".sase" / "agent_name_registry.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     assert set(data["entries"]) == {f"name{i}" for i in range(12)}
+
+
+def test_planned_reservation_survives_rebuild_until_child_claims(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "20260501120000"
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        reserve_registered_name("research.cdx-1", artifacts_dir)
+        planned = lookup_registered_name("research.cdx-1")
+        assert planned["reservation_kind"] == "planned"
+
+        artifacts_dir.mkdir(parents=True)
+        rebuilt = rebuild_name_registry()
+        assert rebuilt["entries"]["research.cdx-1"]["reservation_kind"] == "planned"
+
+        claim_registered_name("research.cdx-1", artifacts_dir, replace_existing=False)
+        claimed = lookup_registered_name("research.cdx-1")
+        assert claimed["reservation_kind"] == "claimed"
+        assert claimed["artifacts_dir"] == str(artifacts_dir)
 
 
 def test_failed_claim_registered_name_does_not_mutate_cached_registry(

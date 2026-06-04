@@ -73,6 +73,8 @@ from sase.agent.names._registry import (
     lookup_registered_name,
     lowest_name_suggestion,
     rebuild_name_registry,
+    release_planned_registered_name,
+    reserve_registered_name,
 )
 from sase.agent.names._retry import allocate_retry_name
 from sase.agent.names._resume import (
@@ -228,7 +230,9 @@ __all__ = [
     "reserve_repeat_name_base",
     "resolve_indexed_agent_name_reference",
     "rebuild_name_registry",
+    "release_planned_registered_name",
     "most_recent_completed_family_member",
+    "reserve_registered_name",
     "resolve_agent_changespec",
     "resolve_resume_agent_name",
     "resolve_wait_dependency",

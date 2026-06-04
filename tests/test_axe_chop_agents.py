@@ -231,6 +231,50 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     assert records[0].workflow_name == "ace(run)-260101_120000"
 
 
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_ignores_post_spawn_chop_record_failure(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A chop-registry write failure after spawn does not fail the launch."""
+    output_path = tmp_path / "proj_ace-run-260101_120000.txt"
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    tmp_dir = tmp_path / "tmp"
+    tmp_dir.mkdir()
+    mock_spawn.side_effect = _fake_spawn_success
+    monkeypatch.setenv(ENV_CHOP_LUMBERJACK, "hooks")
+    monkeypatch.setenv(ENV_CHOP_NAME, "split")
+    monkeypatch.setenv(ENV_CHOP_RUN_ID, "run-1")
+    monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
+    monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
+    monkeypatch.setattr(
+        "sase.sibling_repos.resolve_sibling_repos_for_project",
+        lambda **_: SiblingRepoResolution(()),
+    )
+
+    with patch(
+        "sase.axe.chop_agents.record_chop_agent_launch_from_env",
+        side_effect=OSError("registry busy"),
+    ) as record:
+        result = spawn_agent_subprocess(
+            cl_name="proj",
+            project_file="/tmp/projects/proj/proj.sase",
+            workspace_dir=str(workspace_dir),
+            workspace_num=3,
+            workflow_name="ace(run)-260101_120000",
+            prompt="do work",
+            timestamp="260101_120000",
+            project_name="proj",
+        )
+
+    assert result.pid == 4321
+    record.assert_called_once()
+
+
 def test_live_records_prune_when_done_marker_exists(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

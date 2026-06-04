@@ -1,11 +1,14 @@
 """Low-level detached subprocess spawning for agents."""
 
+import logging
 import os
 import sys
 from functools import lru_cache
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.paths import sase_projects_dir
+
+log = logging.getLogger(__name__)
 
 
 def _remove_inherited_sase_codex_home(env: dict[str, str]) -> None:
@@ -315,17 +318,20 @@ def spawn_agent_subprocess(
         )
 
     with timer.stage("chop_registry_record"):
-        record_chop_agent_launch_from_env(
-            pid=pid,
-            project_file=project_file,
-            project_name=resolved_project_name,
-            workspace_num=workspace_num,
-            workflow_name=workflow_name,
-            cl_name=cl_name,
-            timestamp=timestamp,
-            prompt=prompt,
-            env=subprocess_env,
-        )
+        try:
+            record_chop_agent_launch_from_env(
+                pid=pid,
+                project_file=project_file,
+                project_name=resolved_project_name,
+                workspace_num=workspace_num,
+                workflow_name=workflow_name,
+                cl_name=cl_name,
+                timestamp=timestamp,
+                prompt=prompt,
+                env=subprocess_env,
+            )
+        except Exception:
+            log.exception("Failed to record chop launch metadata for pid %s", pid)
 
     timer.finish(outcome="ok", pid=pid)
     planned_agent_name = (extra_env or {}).get("SASE_AGENT_PLANNED_NAME") or None

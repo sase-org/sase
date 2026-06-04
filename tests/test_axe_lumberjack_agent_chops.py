@@ -2,9 +2,10 @@
 
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Iterator
 from pathlib import Path
-from threading import Event, Lock
+from threading import Barrier, Event, Lock
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -454,6 +455,44 @@ def test_agent_chop_registry_prunes_dead_pid(
     lumberjack = Lumberjack("dedup_prune", config, axe_config)
     with patch("sase.axe.chop_agents.is_process_running", return_value=False):
         assert lumberjack._is_agent_eligible(config.chops[0]) is True
+
+
+def test_concurrent_agent_chop_registry_records_preserve_both_launches(
+    temp_state_dir: Path,
+) -> None:
+    """Concurrent chop launch records use distinct temp files and merge records."""
+    import json
+
+    from sase.axe.chop_agents import _record_chop_agent_launch
+
+    barrier = Barrier(2)
+
+    def record(pid: int) -> None:
+        barrier.wait()
+        _record_chop_agent_launch(
+            lumberjack_name="registry_race",
+            chop_name=f"agent_{pid}",
+            run_id=f"run-{pid}",
+            pid=pid,
+            project_file="/tmp/projects/proj/proj.sase",
+            project_name="proj",
+            workspace_num=pid,
+            workflow_name=f"ace(run)-260101_120{pid:03d}",
+            cl_name="proj",
+            timestamp=f"260101_120{pid:03d}",
+            prompt=f"prompt {pid}",
+        )
+
+    with (
+        patch("sase.axe.chop_agents.is_process_running", return_value=True),
+        ThreadPoolExecutor(max_workers=2) as pool,
+    ):
+        list(pool.map(record, [111, 222]))
+
+    registry = temp_state_dir / "lumberjacks" / "registry_race" / "agent_chops.json"
+    data = json.loads(registry.read_text(encoding="utf-8"))
+    assert {item["pid"] for item in data} == {111, 222}
+    assert not list(registry.parent.glob("*.tmp"))
 
 
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])

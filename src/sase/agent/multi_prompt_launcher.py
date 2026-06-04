@@ -7,6 +7,8 @@ the launcher falls back to the legacy naming poll.
 """
 
 from collections.abc import Callable, Sequence
+from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 from sase.agent.launch_types import AgentLaunchResult
@@ -37,9 +39,11 @@ from sase.agent.output_variable_context import (
     encode_agent_var_upstreams,
 )
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
+from sase.core.agent_launch_wire import LaunchFanoutPlanWire
 from sase.xprompt.models import XPrompt
 
 __all__ = [
+    "MultiPromptPartialLaunchError",
     "_MultiPromptPartialLaunchError",
     "_SegmentVcsContext",
     "_extract_called_xprompt_names",
@@ -67,6 +71,42 @@ class _MultiPromptPartialLaunchError(RuntimeError):
     def __init__(self, results: list[AgentLaunchResult], cause: BaseException) -> None:
         super().__init__(f"partial multi-prompt launch failed: {cause}")
         self.results = results
+        self.cause = cause
+
+
+MultiPromptPartialLaunchError = _MultiPromptPartialLaunchError
+
+
+def _future_agent_artifacts_dir(*, project_name: str, timestamp: str) -> Path:
+    from sase.artifacts import convert_timestamp_to_artifacts_format
+    from sase.core.paths import sase_projects_dir
+
+    return (
+        sase_projects_dir()
+        / project_name
+        / "artifacts"
+        / "ace-run"
+        / convert_timestamp_to_artifacts_format(timestamp)
+    )
+
+
+def _assign_missing_slot_timestamps(
+    plan: LaunchFanoutPlanWire,
+    timestamp_allocator: LaunchTimestampBatchAllocator,
+) -> LaunchFanoutPlanWire:
+    missing_count = sum(1 for slot in plan.slots if slot.timestamp is None)
+    if missing_count == 0:
+        return plan
+    allocated = iter(timestamp_allocator.allocate(missing_count))
+    return replace(
+        plan,
+        slots=[
+            slot
+            if slot.timestamp is not None
+            else replace(slot, timestamp=next(allocated))
+            for slot in plan.slots
+        ],
+    )
 
 
 def launch_multi_prompt_agents(
@@ -242,114 +282,136 @@ def _spawn_segments_into(
             if fanout_plan is not None
             else plan_fake_fanout("multi_prompt", [segment])
         )
+        plan = _assign_missing_slot_timestamps(plan, timestamp_allocator)
 
         slot_contexts: dict[int, LaunchExecutionContext] = {}
+        slot_artifacts_dirs: dict[int, Path] = {}
         slot_planned_env: dict[int, dict[str, str]] = {}
         slot_local_xprompts_files: dict[int, str | None] = {}
         planned_names: dict[int, str | None] = {}
         explicit_templates: dict[int, str | None] = {}
-        for slot in plan.slots:
-            j = slot.slot_index
-            sub_prompt = slot.prompt
-            with timer.stage("name_plan", segment_index=i, slot_index=j):
-                explicit_template = _extract_static_name_directive(sub_prompt)
-                explicit_templates[j] = explicit_template
-                planned_name, planned_env_name = name_allocator.planned_name_for_prompt(
-                    sub_prompt
+        try:
+            for slot in plan.slots:
+                j = slot.slot_index
+                sub_prompt = slot.prompt
+                assert slot.timestamp is not None
+                with timer.stage("vcs_resolution", segment_index=i, slot_index=j):
+                    segment_ctx = _resolve_segment_vcs_context(
+                        prompt=sub_prompt,
+                        fallback_cl_name=cl_name,
+                        fallback_project_file=project_file,
+                        fallback_project_name=project_name,
+                        fallback_is_home_mode=is_home_mode,
+                        fallback_vcs_ref=vcs_ref,
+                        has_wait=has_wait,
+                    )
+                    slot_contexts[j] = LaunchExecutionContext(
+                        cl_name=segment_ctx.cl_name,
+                        project_file=segment_ctx.project_file,
+                        update_target=segment_ctx.update_target,
+                        project_name=segment_ctx.project_name,
+                        history_sort_key=segment_ctx.history_sort_key,
+                        is_home_mode=segment_ctx.is_home_mode,
+                        vcs_ref=segment_ctx.vcs_ref,
+                        deferred_workspace=has_wait,
+                        workspace_num=segment_ctx.workspace_num,
+                        workspace_dir=segment_ctx.workspace_dir,
+                        use_preallocated_workspace=False,
+                    )
+                    slot_artifacts_dirs[j] = _future_agent_artifacts_dir(
+                        project_name=segment_ctx.project_name,
+                        timestamp=slot.timestamp,
+                    )
+
+                # Each sub-prompt gets its own copy of the local xprompts file
+                # (the agent runner deletes it after reading).
+                with timer.stage(
+                    "local_xprompts_serialize", segment_index=i, slot_index=j
+                ):
+                    slot_local_xprompts_files[j] = (
+                        _serialize_local_xprompts(segment_local_xprompts)
+                        if segment_local_xprompts
+                        else None
+                    )
+
+                with timer.stage("name_plan", segment_index=i, slot_index=j):
+                    explicit_template = _extract_static_name_directive(sub_prompt)
+                    explicit_templates[j] = explicit_template
+                    planned_name, planned_env_name = (
+                        name_allocator.planned_name_for_prompt(
+                            sub_prompt,
+                            artifacts_dir=slot_artifacts_dirs[j],
+                        )
+                    )
+                    planned_names[j] = planned_name
+                    # Inject SASE_AGENT_PLANNED_NAME whenever a planned name is
+                    # known (auto or explicit) so the launch result carries it
+                    # synchronously. The child runner ignores the env var when an
+                    # explicit %name directive is present, so explicit names are
+                    # safe to ship via env too.
+                    env_name_to_inject = (
+                        planned_env_name
+                        if planned_env_name is not None
+                        else planned_name
+                    )
+                    slot_env = dict(segment_env)
+                    if upstreams_json is not None:
+                        slot_env[SASE_AGENT_VAR_UPSTREAMS_ENV] = upstreams_json
+                    if env_name_to_inject is not None:
+                        slot_env[_PLANNED_AGENT_NAME_ENV] = env_name_to_inject
+                    slot_planned_env[j] = slot_env
+
+            with timer.stage(
+                "execute_launch_plan",
+                segment_index=i,
+                slot_count=len(plan.slots),
+            ):
+
+                def _slot_context(
+                    slot: object,
+                    _context: LaunchExecutionContext,
+                    contexts: dict[int, LaunchExecutionContext] = slot_contexts,
+                ) -> LaunchExecutionContext:
+                    return contexts[slot.slot_index]  # type: ignore[attr-defined]
+
+                def _slot_extra_env(
+                    slot: object,
+                    env_by_slot: dict[int, dict[str, str]] = slot_planned_env,
+                ) -> dict[str, str]:
+                    return env_by_slot[slot.slot_index]  # type: ignore[attr-defined]
+
+                def _slot_local_xprompts_file(
+                    slot: object,
+                    files_by_slot: dict[int, str | None] = slot_local_xprompts_files,
+                ) -> str | None:
+                    return files_by_slot[slot.slot_index]  # type: ignore[attr-defined]
+
+                execution = execute_launch_plan(
+                    plan,
+                    slot_contexts[0],
+                    slot_context=_slot_context,
+                    slot_extra_env=_slot_extra_env,
+                    slot_local_xprompts_file=_slot_local_xprompts_file,
+                    extra_env=extra_env,
+                    timestamp_allocator=timestamp_allocator,
+                    on_slot_executed=(
+                        None
+                        if on_agent_spawned is None
+                        else lambda _record: on_agent_spawned()
+                    ),
+                    allow_reserved_family_separator_names=allow_reserved_family_separator_names,
                 )
-                planned_names[j] = planned_name
-                # Inject SASE_AGENT_PLANNED_NAME whenever a planned name is
-                # known (auto or explicit) so the launch result carries it
-                # synchronously. The child runner ignores the env var when an
-                # explicit %name directive is present, so explicit names are
-                # safe to ship via env too.
-                env_name_to_inject = (
-                    planned_env_name if planned_env_name is not None else planned_name
-                )
-                slot_env = dict(segment_env)
-                if upstreams_json is not None:
-                    slot_env[SASE_AGENT_VAR_UPSTREAMS_ENV] = upstreams_json
-                if env_name_to_inject is not None:
-                    slot_env[_PLANNED_AGENT_NAME_ENV] = env_name_to_inject
-                slot_planned_env[j] = slot_env
-
-            # Each sub-prompt gets its own copy of the local xprompts file
-            # (the agent runner deletes it after reading).
-            with timer.stage("local_xprompts_serialize", segment_index=i, slot_index=j):
-                slot_local_xprompts_files[j] = (
-                    _serialize_local_xprompts(segment_local_xprompts)
-                    if segment_local_xprompts
-                    else None
-                )
-
-            with timer.stage("vcs_resolution", segment_index=i, slot_index=j):
-                segment_ctx = _resolve_segment_vcs_context(
-                    prompt=sub_prompt,
-                    fallback_cl_name=cl_name,
-                    fallback_project_file=project_file,
-                    fallback_project_name=project_name,
-                    fallback_is_home_mode=is_home_mode,
-                    fallback_vcs_ref=vcs_ref,
-                    has_wait=has_wait,
-                )
-                slot_contexts[j] = LaunchExecutionContext(
-                    cl_name=segment_ctx.cl_name,
-                    project_file=segment_ctx.project_file,
-                    update_target=segment_ctx.update_target,
-                    project_name=segment_ctx.project_name,
-                    history_sort_key=segment_ctx.history_sort_key,
-                    is_home_mode=segment_ctx.is_home_mode,
-                    vcs_ref=segment_ctx.vcs_ref,
-                    deferred_workspace=has_wait,
-                    workspace_num=segment_ctx.workspace_num,
-                    workspace_dir=segment_ctx.workspace_dir,
-                    use_preallocated_workspace=False,
-                )
-
-        with timer.stage(
-            "execute_launch_plan",
-            segment_index=i,
-            slot_count=len(plan.slots),
-        ):
-
-            def _slot_context(
-                slot: object,
-                _context: LaunchExecutionContext,
-                contexts: dict[int, LaunchExecutionContext] = slot_contexts,
-            ) -> LaunchExecutionContext:
-                return contexts[slot.slot_index]  # type: ignore[attr-defined]
-
-            def _slot_extra_env(
-                slot: object,
-                env_by_slot: dict[int, dict[str, str]] = slot_planned_env,
-            ) -> dict[str, str]:
-                return env_by_slot[slot.slot_index]  # type: ignore[attr-defined]
-
-            def _slot_local_xprompts_file(
-                slot: object,
-                files_by_slot: dict[int, str | None] = slot_local_xprompts_files,
-            ) -> str | None:
-                return files_by_slot[slot.slot_index]  # type: ignore[attr-defined]
-
-            execution = execute_launch_plan(
-                plan,
-                slot_contexts[0],
-                slot_context=_slot_context,
-                slot_extra_env=_slot_extra_env,
-                slot_local_xprompts_file=_slot_local_xprompts_file,
-                extra_env=extra_env,
-                timestamp_allocator=timestamp_allocator,
-                on_slot_executed=(
-                    None
-                    if on_agent_spawned is None
-                    else lambda _record: on_agent_spawned()
-                ),
-                allow_reserved_family_separator_names=allow_reserved_family_separator_names,
-            )
+        except Exception:
+            name_allocator.release_uncommitted_indexed_reservations()
+            raise
 
         results.extend(execution.results)
         for record in execution.records:
             planned_name = planned_names.get(record.slot.slot_index)
+            name_allocator.mark_indexed_reservation_committed(
+                planned_name,
+                slot_artifacts_dirs.get(record.slot.slot_index),
+            )
             explicit_template = explicit_templates.get(record.slot.slot_index)
             if (
                 planned_name is None

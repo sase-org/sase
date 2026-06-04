@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-04 19:35:04
-status: wip
+status: done
 prompt: sdd/prompts/202606/concurrent_research_swarm_launch_race.md
 ---
 # Plan: Fix Concurrent Research Swarm Launch Races
