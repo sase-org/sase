@@ -33,15 +33,17 @@ Most agent work enters through `sase run`, ACE, axe agent chops, bead epic execu
 The launch path follows the same shape across those entry points:
 
 1. Parse prompt text, directives, and optional multi-prompt separators.
-2. Resolve workspace references such as `#cd:<path>`, `#git:<project>`, or plugin-provided forms, rejecting inactive
+2. Canonicalize ProjectSpec aliases in launch-bound VCS refs, so aliases such as `#gh:bob` become canonical refs such as
+   `#gh:bob-cli` before history or artifact snapshots are written.
+3. Resolve workspace references such as `#cd:<path>`, `#git:<project>`, or plugin-provided forms, rejecting inactive
    known projects before new work is claimed.
-3. Allocate or prepare the target workspace through the workspace provider layer.
-4. Expand xprompt references and standalone workflow references.
-5. Invoke the selected LLM provider or workflow executor.
-6. Stream subprocess output, write chat history, and persist launch metadata.
-7. Record agent artifacts such as prompts, diffs, generated Markdown PDFs, images, plans, and explicit files.
-8. Emit notifications and update ACE-visible status.
-9. Hand review, revert, restore, or commit work to the VCS and workspace provider layers when requested.
+4. Allocate or prepare the target workspace through the workspace provider layer.
+5. Expand xprompt references and standalone workflow references.
+6. Invoke the selected LLM provider or workflow executor.
+7. Stream subprocess output, write chat history, and persist launch metadata.
+8. Record agent artifacts such as prompts, diffs, generated Markdown PDFs, images, plans, and explicit files.
+9. Emit notifications and update ACE-visible status.
+10. Hand review, revert, restore, or commit work to the VCS and workspace provider layers when requested.
 
 Detached launches appear in the agent registry and ACE Agents tab. Multi-prompt launches create a sequence of detached
 agents. Workflow launches persist step state so ACE and axe can inspect progress and recover meaningful output.

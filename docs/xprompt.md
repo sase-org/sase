@@ -16,6 +16,7 @@ There are two related paths to keep separate:
 launch setup:
   multi-agent xprompt fan-out check
   -> default workspace ref insertion when needed (#git:home)
+  -> project alias canonicalization (#gh:bob -> #gh:bob-cli)
   -> workspace ref resolution (#cd/#git/#gh/#hg and known-project fallbacks)
   -> prompt/workflow execution
 
@@ -322,6 +323,12 @@ workspace plugin is not loaded in the current process. Known projects come from 
 `~/.sase/projects/*/*.gp` accepted as a fallback). A launch such as `#gh:sase #!fix_just` therefore targets the
 registered `sase` project, allocates a numbered workspace for non-wait runs, and lets dispatch surfaces strip the
 wrapper ref when identifying an embedded workflow body.
+
+Known projects may also declare `PROJECT_ALIASES` in their ProjectSpec. Alias refs in VCS workspace tags are
+canonicalized before workspace resolution and xprompt expansion, so `#gh:bob #p` is processed as `#gh:bob-cli #p` when
+the `bob-cli` project declares alias `bob`. The rewrite is exact and applies to colon, underscore, and parenthesized
+workspace-ref forms; it does not rewrite owner/repo paths such as `#gh:bbugyi200/bob`, partial project names, prose, or
+fenced code examples. See [Project Aliases](project_spec.md#project-aliases) for validation and management commands.
 
 Known-project lookup defaults to active ProjectSpecs. Inactive and sibling projects are omitted from broad project-local
 xprompt catalogs and normal VCS workspace resolution; an explicit reference to an inactive known project fails with a
@@ -1304,6 +1311,11 @@ And expansion resumes here.
 
 XPrompt aliases provide raw text-level substitution that runs _before_ any other xprompt processing. They are defined in
 the `xprompt_aliases` config field in `sase.yml`.
+
+These are global shorthand aliases for xprompt names and raw refs. They are separate from ProjectSpec `PROJECT_ALIASES`,
+which map alternate project names such as `bob` to canonical known projects such as `bob-cli` at the launch boundary.
+Project aliases are canonicalized before xprompt expansion so launch artifacts and history store the canonical project
+name.
 
 The built-in defaults provide two shorthand aliases:
 

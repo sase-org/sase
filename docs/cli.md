@@ -80,6 +80,7 @@ explicit, for example `sase notify list -j`, `sase memory episodes list -p <proj
 | `sase project list`                          | List active projects by default, or include hidden lifecycle states with `--state`.          | [Project lifecycle](project_spec.md#project-lifecycle) |
 | `sase project show`                          | Show lifecycle, workspace, launchability, and warning details for one project.               | [Project lifecycle](project_spec.md#project-lifecycle) |
 | `sase project set-state` / aliases           | Update `PROJECT_STATE` under the ProjectSpec lock.                                           | [Project lifecycle](project_spec.md#project-lifecycle) |
+| `sase project alias`                         | List, add, remove, or clear `PROJECT_ALIASES` under the ProjectSpec lock.                    | [Project aliases](project_spec.md#project-aliases)     |
 | `sase plan`                                  | Submit a plan for approval from the plan skill path.                                         | [XPrompt directives](xprompt.md#plan-directive)        |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                 | [XPrompt directives](xprompt.md#directives)            |
 
@@ -95,6 +96,11 @@ Management panel provides the interactive counterpart, including marking multipl
 `$EDITOR`, and deleting obsolete SASE project directories after confirmation. There is no CLI delete subcommand; full
 project-directory deletion is only available from ACE's `,p` panel and removes state under `~/.sase/projects/`, not
 workspace checkouts.
+
+`sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`, `remove PROJECT ALIAS`, and `clear PROJECT` manage
+ProjectSpec aliases. The ACE `,p` Project Management panel also displays aliases, includes them in filtering, and opens
+an alias editor with `A`. Alias refs are accepted in launch-bound VCS workspace tags, but prompt history, agent
+metadata, and artifacts use the canonical project name.
 
 Active-only project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
 catalogs, broad mobile helper catalogs, and all-known bead helper reads. Sibling records are hidden from those surfaces

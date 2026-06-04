@@ -22,6 +22,7 @@ stay before the first ChangeSpec.
 BARE_REPO_DIR: ~/.sase/repos/my_project.git
 WORKSPACE_DIR: ~/projects/git/my_project/
 PROJECT_STATE: active
+PROJECT_ALIASES: docs
 RUNNING:
   #10 | 12345 | run | my_project_add_config_parser_1 | 260509_121314
 
@@ -70,6 +71,8 @@ Project metadata fields are optional and appear before the first `NAME:` line. S
 - **PROJECT_STATE**: Project lifecycle state. Valid values are `active`, `inactive`, and `sibling`. Missing
   `PROJECT_STATE` means `active`, so existing projects do not need a migration. Legacy `archived` and `closed` values
   are read as `inactive`.
+- **PROJECT_ALIASES**: Comma-separated alternate project names accepted in VCS workspace references. Aliases are
+  canonicalized to the real project name before launch state, prompt history, and agent artifacts are written.
 - **RUNNING**: Active workspace claims written and released by SASE while agents or workflows are running.
 
 `BARE_REPO_DIR` and `WORKSPACE_DIR` are created by `sase git init` or by first-use `#git:<project>` initialization. They
@@ -77,6 +80,47 @@ are parsed only before the first ChangeSpec.
 
 `PROJECT_STATE` is managed by `sase project`. If you edit this field by hand, keep it before `RUNNING:` or the first
 `NAME:` line and use one of the valid lowercase values.
+
+`PROJECT_ALIASES` is managed by `sase project alias` and ACE's Project Management panel. If you edit it by hand, keep it
+before `RUNNING:` or the first `NAME:` line and use the same comma-separated form SASE writes.
+
+### Project Aliases
+
+Project aliases let a known project expose short names without changing the canonical project record. For example,
+`PROJECT_ALIASES: bob` in `~/.sase/projects/bob-cli/bob-cli.sase` makes launch-bound VCS refs such as `#gh:bob`,
+`#gh_bob`, and `#gh(bob)` behave like `#gh:bob-cli`, `#gh:bob-cli`, and `#gh(bob-cli)`.
+
+Aliases are resolved at the launch/xprompt boundary before workspace resolution, xprompt expansion, prompt history
+writes, and agent artifact writes. The alias should not persist in `submitted_xprompt.md`, `raw_xprompt.md`,
+`agent_meta.json`, prompt history, display names, history sort keys, or VCS refs. Normal launch and history surfaces
+show the canonical project name; project-management surfaces show the configured aliases.
+
+Validation rules:
+
+- Missing `PROJECT_ALIASES` means the project has no aliases.
+- Values are comma-separated, trimmed, deduplicated, and stored in sorted order.
+- Alias names use the same syntax as SASE project names.
+- An alias cannot equal its canonical project name.
+- An alias cannot collide with a real project name or with another project's alias across non-system projects in any
+  lifecycle state.
+- Invalid or duplicate manually edited aliases are reported as parse warnings; CLI and TUI mutation helpers reject
+  invalid writes.
+
+CLI commands:
+
+```bash
+sase project alias list [PROJECT] [-j|--json]
+sase project alias add PROJECT ALIAS
+sase project alias remove PROJECT ALIAS
+sase project alias clear PROJECT
+```
+
+Alias mutation uses the normal ProjectSpec lock and can target active, inactive, or sibling projects. The system-managed
+`home` project cannot be mutated.
+
+ACE exposes aliases in the `,p` Project Management panel. Rows show compact alias information, the detail pane shows the
+full list, the text filter matches aliases, and `A` opens the alias editor for the highlighted project. Alias edits
+replace the selected project's alias set; marked bulk operations remain lifecycle-only.
 
 ### Project Lifecycle
 
@@ -121,7 +165,10 @@ Common workflows:
 - List sibling project records: `sase project list --state sibling`
 - Inspect every lifecycle state as JSON: `sase project list --state all --json`
 - Reactivate from the CLI: `sase project activate old-project`
+- Add a short project alias: `sase project alias add bob-cli bob`
+- Inspect project aliases as JSON: `sase project alias list bob-cli --json`
 - Reactivate from ACE: press `,p`, highlight the project, then press `a`
+- Edit aliases from ACE: press `,p`, highlight the project, then press `A`
 - Bulk-deactivate from ACE: press `,p`, mark projects with `m`, then press `d`
 
 Maintenance and agent-history scans intentionally keep reading all project directories. This keeps live `RUNNING`
@@ -162,6 +209,7 @@ Common optional fields include:
 ```text
 WORKSPACE_DIR: ~/projects/git/my_project/
 PROJECT_STATE: active
+PROJECT_ALIASES: docs
 
 
 NAME: my_project_add_config_parser_1
@@ -202,7 +250,7 @@ STATUS: WIP
 - **Project file path**: Use `~/.sase/projects/<project>/<project>.sase` for active ChangeSpecs and
   `~/.sase/projects/<project>/<project>-archive.sase` for terminal history.
 - **Project metadata**: Keep `BARE_REPO_DIR`, `WORKSPACE_DIR`, `PROJECT_STATE`, and `RUNNING` before the first `NAME:`
-  line.
+  line. `PROJECT_ALIASES` is also project metadata and belongs in the same header area.
 - **Blank lines between ChangeSpecs**: Separate ChangeSpecs with exactly two blank lines.
 - **NAME field**: Prefer SASE-generated names, which use the project prefix and a numeric suffix.
 - **PARENT field**: Set it only to another ChangeSpec `NAME`; omit it when there is no dependency.
