@@ -18,8 +18,10 @@ class SegmentVcsContext:
 
 def extract_vcs_ref(prompt: str) -> tuple[str, str] | None:
     """Return the first VCS ref present in *prompt*, if any."""
+    from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.workspace_provider import get_ref_patterns
 
+    prompt = canonicalize_project_aliases_in_prompt(prompt)
     for wf_name, pattern in get_ref_patterns().items():
         match = pattern.search(prompt)
         if match is None:

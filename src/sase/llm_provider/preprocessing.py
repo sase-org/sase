@@ -88,6 +88,10 @@ def preprocess_prompt_early(
         prompt = render_template(prompt, context)
         prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
+    from sase.project_aliases import canonicalize_project_aliases_in_prompt
+
+    prompt = canonicalize_project_aliases_in_prompt(prompt)
+
     # 2. Expand xprompt references
     prompt = process_xprompt_references(
         prompt, extra_xprompts=extra_xprompts, scope=scope, trace=trace

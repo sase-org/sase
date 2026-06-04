@@ -159,6 +159,7 @@ def _spawn_segments_into(
         plan_prompt_fanout_variants,
     )
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
+    from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     timer = LaunchTimingRecorder(
         "agent_launch_multi_prompt",
@@ -183,6 +184,7 @@ def _spawn_segments_into(
     previous_agent_name: str | None = None
     upstreams: list[dict[str, Any]] = []
     for i, segment in enumerate(segments):
+        segment = canonicalize_project_aliases_in_prompt(segment)
         segment_env = (
             dict(segment_extra_env[i] or {}) if segment_extra_env is not None else {}
         )

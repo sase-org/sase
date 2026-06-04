@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from unittest.mock import patch
 
 import pytest
 
-from sase.main.xprompt_handler import _handle_list
+from sase.main.xprompt_handler import _handle_expand, _handle_list
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
@@ -77,6 +78,33 @@ def test_xprompt_list_includes_kind_and_insertion(
     assert rows["sync"]["kind"] == "standalone_workflow"
     assert rows["sync"]["prefix"] == "#!"
     assert rows["sync"]["insertion"] == "#!sync"
+
+
+def test_xprompt_expand_canonicalizes_project_alias(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"bob": "bob-cli"},
+    )
+    with (
+        patch("sase.config.load_merged_config", return_value={"xprompt_aliases": {}}),
+        patch("sase.xprompt.loader.get_all_xprompts", return_value={}),
+        patch(
+            "sase.main.query_handler.expand_embedded_workflows_in_query",
+            side_effect=lambda prompt: (prompt, []),
+        ),
+        patch(
+            "sase.llm_provider.preprocessing.preprocess_prompt_late",
+            side_effect=lambda prompt, **_kwargs: prompt,
+        ),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        _handle_expand(argparse.Namespace(prompt="#gh:bob do it", trace=False))
+
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == "#gh:bob-cli do it"
 
 
 def test_xprompt_list_marks_only_skill_xprompts(

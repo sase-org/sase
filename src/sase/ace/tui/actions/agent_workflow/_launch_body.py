@@ -57,6 +57,9 @@ class AgentLaunchBodyMixin:
             # Context was cleared between the submit and the worker tick
             # (e.g. another launch path ran); nothing to do.
             return
+        from sase.project_aliases import canonicalize_project_aliases_in_prompt
+
+        prompt = canonicalize_project_aliases_in_prompt(prompt)
         submitted_xprompt = prompt
         ctx = self._prompt_context
         from sase.agent.names import ensure_historical_auto_name_migration

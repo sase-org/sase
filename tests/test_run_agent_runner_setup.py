@@ -66,6 +66,35 @@ def test_submitted_xprompt_artifact_does_not_change_raw_xprompt_behavior(
     assert (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8") == resolved
 
 
+def test_runner_setup_artifacts_keep_project_alias_canonical(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"bob": "bob-cli"},
+    )
+    prompt = "#gh:bob-cli do it"
+
+    write_submitted_xprompt_artifact(str(tmp_path), prompt)
+    with (
+        patch("sase.config.load_merged_config", return_value={"xprompt_aliases": {}}),
+        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
+        patch(
+            "sase.xprompt.processor.process_xprompt_references",
+            side_effect=lambda text: text,
+        ),
+    ):
+        preprocess_prompt_xprompts(prompt, str(tmp_path))
+
+    submitted = (tmp_path / "submitted_xprompt.md").read_text(encoding="utf-8")
+    raw = (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8")
+    assert submitted == "#gh:bob-cli do it"
+    assert raw == "#gh:bob-cli do it"
+    assert "#gh:bob " not in submitted
+    assert "#gh:bob " not in raw
+
+
 def test_setup_artifacts_directory_updates_artifact_index(tmp_path: Path) -> None:
     calls: list[str] = []
 

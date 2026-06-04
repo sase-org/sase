@@ -123,10 +123,12 @@ def preprocess_prompt_xprompts(
     expansion so follow-up naming and chat-resume decisions can use the
     original top-level references.
     """
+    from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.xprompt import resolve_xprompt_aliases
     from sase.xprompt._parsing import extract_vcs_workflow_tag
     from sase.xprompt.processor import process_xprompt_references
 
+    prompt = canonicalize_project_aliases_in_prompt(prompt)
     prompt = resolve_xprompt_aliases(prompt)
     raw_resolved_prompt = prompt
     vcs_tag = extract_vcs_workflow_tag(prompt)

@@ -48,6 +48,7 @@ def resolve_ref_from_prompt(
     workspace claiming until their dependencies are resolved.  Directory
     workflows such as ``#cd`` also skip numbered workspace allocation.
     """
+    from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.running_field import get_first_available_axe_workspace
     from sase.workspace_provider import (
         get_ref_patterns,
@@ -55,6 +56,7 @@ def resolve_ref_from_prompt(
         resolve_ref,
     )
 
+    prompt = canonicalize_project_aliases_in_prompt(prompt)
     patterns = get_ref_patterns()
     pattern = patterns.get(workflow_type)
     if pattern is None:

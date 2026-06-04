@@ -43,6 +43,9 @@ def _handle_expand(args: argparse.Namespace) -> None:
     multi = parse_multi_prompt(prompt)
     local_xprompts = multi.local_xprompts or None
     prompt_body = "\n---\n".join(multi.segments)
+    from sase.project_aliases import canonicalize_project_aliases_in_prompt
+
+    prompt_body = canonicalize_project_aliases_in_prompt(prompt_body)
 
     trace = ExpansionTrace() if args.trace else None
     early = preprocess_prompt_early(

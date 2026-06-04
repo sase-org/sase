@@ -108,7 +108,7 @@ def prompt_may_reference_xprompt(
 
 
 def resolve_xprompt_aliases(prompt: str) -> str:
-    """Resolve xprompt aliases via raw text substitution.
+    """Resolve project aliases and xprompt aliases via raw text substitution.
 
     Aliases are defined in the ``xprompt_aliases`` config field and are
     substituted *before* any other xprompt processing.  This allows aliases
@@ -117,6 +117,10 @@ def resolve_xprompt_aliases(prompt: str) -> str:
     """
     if "#" not in prompt:
         return prompt
+
+    from sase.project_aliases import canonicalize_project_aliases_in_prompt
+
+    prompt = canonicalize_project_aliases_in_prompt(prompt)
 
     from sase.config import load_merged_config
 

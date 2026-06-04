@@ -77,6 +77,76 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
     ws_dir.assert_called_once_with(101, "sase")
 
 
+def test_launch_agent_from_cwd_canonicalizes_project_alias_before_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agent_from_cwd
+    from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"bob": "bob-cli"},
+    )
+    workspace = tmp_path / "bob-cli"
+    workspace.mkdir()
+    allocated_workspace = tmp_path / "bob-cli_101"
+    allocated_workspace.mkdir()
+    project_file = str(tmp_path / ".sase" / "projects" / "bob-cli" / "bob-cli.sase")
+    spawn_result = MagicMock(
+        pid=123, workspace_dir=str(allocated_workspace), workspace_num=101
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda: {"bob-cli": workspace},
+    )
+
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt") as history,
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
+        patch(
+            "sase.agent.launcher.spawn_agent_subprocess",
+            return_value=spawn_result,
+        ) as spawn,
+        patch(
+            "sase.running_field.claim_next_axe_workspace",
+            return_value=101,
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=(str(allocated_workspace), None),
+        ),
+    ):
+        result = launch_agent_from_cwd("#gh:bob #!bob/fix")
+
+    assert result is spawn_result
+    kwargs = spawn.call_args.kwargs
+    assert kwargs["prompt"] == "#gh:bob-cli #!bob/fix"
+    assert kwargs["project_name"] == "bob-cli"
+    assert kwargs["project_file"] == project_file
+    assert kwargs["workspace_dir"] == str(allocated_workspace)
+    assert kwargs["workspace_num"] == 101
+    assert kwargs["is_home_mode"] is False
+    assert kwargs["update_target"] == VCS_DEFAULT_REVISION
+    assert kwargs["cl_name"] == "bob-cli"
+    assert kwargs["history_sort_key"] == "bob-cli"
+    assert kwargs["vcs_ref"] == ("gh", "bob-cli")
+    history.assert_called_once_with(
+        "#gh:bob-cli #!bob/fix",
+        project_name="bob-cli",
+        branch_or_workspace="bob-cli",
+    )
+
+
 def test_resolve_known_project_vcs_launch_ref_activates_inactive_owner_repo_ref(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
