@@ -27,8 +27,51 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     project_sub = project_parser.add_subparsers(
         dest="project_subcommand",
         help="Project subcommands",
-        metavar="{activate,deactivate,list,set-state,show}",
+        metavar="{activate,alias,deactivate,list,set-state,show}",
     )
+
+    alias_parser = project_sub.add_parser(
+        "alias",
+        help="Inspect and mutate project aliases",
+    )
+    alias_sub = alias_parser.add_subparsers(
+        dest="alias_subcommand",
+        help="Project alias subcommands",
+        metavar="{add,clear,list,remove}",
+    )
+    alias_list_parser = alias_sub.add_parser(
+        "list",
+        help="List project aliases",
+    )
+    alias_list_parser.add_argument(
+        "project",
+        nargs="?",
+        help="Optional project name to inspect",
+    )
+    alias_list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )
+    alias_parser.set_defaults(alias_subcommand="list", project=None, json=False)
+    alias_add_parser = alias_sub.add_parser(
+        "add",
+        help="Add an alias to a project",
+    )
+    alias_add_parser.add_argument("project", help="Project name")
+    alias_add_parser.add_argument("alias", help="Alias name")
+    alias_remove_parser = alias_sub.add_parser(
+        "remove",
+        help="Remove an alias from a project",
+    )
+    alias_remove_parser.add_argument("project", help="Project name")
+    alias_remove_parser.add_argument("alias", help="Alias name")
+    alias_clear_parser = alias_sub.add_parser(
+        "clear",
+        help="Remove all aliases from a project",
+    )
+    alias_clear_parser.add_argument("project", help="Project name")
 
     list_parser = project_sub.add_parser(
         "list",
@@ -78,9 +121,9 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
         ("archive", argparse.SUPPRESS),
         ("close", argparse.SUPPRESS),
     ):
-        alias_parser = project_sub.add_parser(
+        lifecycle_parser = project_sub.add_parser(
             command,
             help=help_text,
         )
-        alias_parser.add_argument("project", help="Project name")
-        _add_force(alias_parser)
+        lifecycle_parser.add_argument("project", help="Project name")
+        _add_force(lifecycle_parser)

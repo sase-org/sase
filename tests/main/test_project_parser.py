@@ -34,6 +34,39 @@ class TestProjectParser:
         assert ns.project == "demo"
         assert ns.json is True
 
+    def test_alias_list_defaults(self) -> None:
+        ns = create_parser().parse_args(["project", "alias"])
+
+        assert ns.project_subcommand == "alias"
+        assert ns.alias_subcommand == "list"
+        assert ns.project is None
+        assert ns.json is False
+
+    def test_alias_list_project_json_option(self) -> None:
+        ns = create_parser().parse_args(["project", "alias", "list", "demo", "-j"])
+
+        assert ns.project_subcommand == "alias"
+        assert ns.alias_subcommand == "list"
+        assert ns.project == "demo"
+        assert ns.json is True
+
+    def test_alias_add_remove_clear_parse(self) -> None:
+        add = create_parser().parse_args(["project", "alias", "add", "demo", "docs"])
+        remove = create_parser().parse_args(
+            ["project", "alias", "remove", "demo", "docs"]
+        )
+        clear = create_parser().parse_args(["project", "alias", "clear", "demo"])
+
+        assert add.project_subcommand == "alias"
+        assert add.alias_subcommand == "add"
+        assert add.project == "demo"
+        assert add.alias == "docs"
+        assert remove.alias_subcommand == "remove"
+        assert remove.project == "demo"
+        assert remove.alias == "docs"
+        assert clear.alias_subcommand == "clear"
+        assert clear.project == "demo"
+
     def test_set_state_force_option(self) -> None:
         ns = create_parser().parse_args(
             ["project", "set-state", "demo", "inactive", "-f"]

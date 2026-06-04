@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 
 from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
@@ -69,23 +70,40 @@ def _filtered_project_records(
     ]
 
 
-# pyvision: sdd/epics/202606/project_aliases.md
-def load_project_alias_map(projects_root: Path | str | None = None) -> dict[str, str]:
-    """Return ``alias -> canonical project`` for all non-system projects.
+def _normalize_project_aliases(aliases: Iterable[str]) -> list[str]:
+    """Return trimmed, deduplicated project aliases in stable order."""
+    return sorted({alias.strip() for alias in aliases if alias.strip()})
 
-    The map includes aliases for active, inactive, and sibling project records.
-    Conflicts are rejected instead of guessed so launch-time canonicalization is
-    deterministic even after manual ProjectSpec edits.
-    """
-    records = _filtered_project_records(projects_root)
-    project_names = {record.project_name for record in records}
+
+def _project_alias_map_from_records(
+    records: Sequence[ProjectRecordWire],
+    *,
+    overrides: Mapping[str, Sequence[str]] | None = None,
+) -> dict[str, str]:
+    project_names = {
+        record.project_name
+        for record in records
+        if record.project_name != "home" and not record.system_managed
+    }
     alias_map: dict[str, str] = {}
 
     for record in records:
-        for alias in record.aliases:
+        if record.project_name == "home" or record.system_managed:
+            continue
+        aliases = (
+            overrides[record.project_name]
+            if overrides is not None and record.project_name in overrides
+            else record.aliases
+        )
+        for alias in _normalize_project_aliases(aliases):
             if not is_valid_sase_project_name(alias):
                 raise ValueError(
                     f"invalid project alias {alias!r} for project "
+                    f"{record.project_name!r}"
+                )
+            if alias == record.project_name:
+                raise ValueError(
+                    f"project alias {alias!r} cannot equal project "
                     f"{record.project_name!r}"
                 )
             if alias in project_names:
@@ -102,6 +120,31 @@ def load_project_alias_map(projects_root: Path | str | None = None) -> dict[str,
             alias_map[alias] = record.project_name
 
     return alias_map
+
+
+def validate_project_aliases(
+    project_name: str,
+    aliases: Iterable[str],
+    records: Sequence[ProjectRecordWire],
+) -> list[str]:
+    """Validate proposed aliases for one project against project records."""
+    normalized = _normalize_project_aliases(aliases)
+    _project_alias_map_from_records(
+        records,
+        overrides={project_name: normalized},
+    )
+    return normalized
+
+
+# pyvision: sdd/epics/202606/project_aliases.md
+def load_project_alias_map(projects_root: Path | str | None = None) -> dict[str, str]:
+    """Return ``alias -> canonical project`` for all non-system projects.
+
+    The map includes aliases for active, inactive, and sibling project records.
+    Conflicts are rejected instead of guessed so launch-time canonicalization is
+    deterministic even after manual ProjectSpec edits.
+    """
+    return _project_alias_map_from_records(_filtered_project_records(projects_root))
 
 
 def resolve_project_alias_ref(ref: str) -> str:
@@ -150,4 +193,5 @@ __all__ = [
     "canonicalize_project_aliases_in_prompt",
     "load_project_alias_map",
     "resolve_project_alias_ref",
+    "validate_project_aliases",
 ]

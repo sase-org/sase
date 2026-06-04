@@ -6,6 +6,7 @@ import argparse
 import json
 import shutil
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
@@ -14,6 +15,7 @@ from sase.running_field._model import WorkspaceClaim
 from sase.core.agent_launch_claims import list_workspace_claims_from_content
 from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 from sase.core.project_lifecycle_facade import (
+    apply_project_aliases_update,
     apply_project_lifecycle_update,
     list_project_records,
 )
@@ -25,6 +27,7 @@ from sase.core.project_lifecycle_wire import (
     normalize_project_lifecycle_state_filter,
     project_lifecycle_wire_to_json_dict,
 )
+from sase.project_aliases import validate_project_aliases
 
 _ALL_STATES = tuple(PROJECT_LIFECYCLE_STATES)
 _LIVE_ARTIFACT_MARKERS = ("running.json", "waiting.json", "pending_question.json")
@@ -114,8 +117,10 @@ def _print_records_table(records: list[ProjectRecordWire], state_filter: str) ->
 def _print_record_detail(record: ProjectRecordWire) -> None:
     source = "explicit" if record.state_explicit else "defaulted"
     launch = "yes" if record.launchable and record.state == "active" else "no"
+    aliases = ", ".join(record.aliases) if record.aliases else "-"
     print(f"Project: {record.project_name}")
     print(f"State: {record.state} ({source})")
+    print(f"Aliases: {aliases}")
     print(f"Project file: {record.project_file}")
     print(f"Archive file: {_archive_display(record)}")
     print(f"Workspace: {_workspace_display(record)}")
@@ -148,6 +153,16 @@ def _get_project_record(project: str) -> ProjectRecordWire:
     raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
 
 
+def _get_project_record_from_records(
+    records: list[ProjectRecordWire],
+    project: str,
+) -> ProjectRecordWire:
+    for record in records:
+        if record.project_name == project:
+            return record
+    raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
+
+
 def _resolve_mutable_project_file(project: str) -> Path:
     if project == "home":
         raise _ProjectLifecycleError("project 'home' is system-managed")
@@ -159,6 +174,13 @@ def _resolve_mutable_project_file(project: str) -> Path:
     if not project_file.is_file():
         raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
     return project_file
+
+
+def _reject_system_managed_record(record: ProjectRecordWire) -> None:
+    if record.system_managed:
+        raise _ProjectLifecycleError(
+            f"project '{record.project_name}' is system-managed"
+        )
 
 
 def _resolve_deletable_project_dir(project: str, projects_root: Path) -> Path:
@@ -278,6 +300,193 @@ def delete_project_locked(
     return project_dir
 
 
+def _alias_json_payload(record: ProjectRecordWire) -> dict[str, object]:
+    return {
+        "project_name": record.project_name,
+        "aliases": list(record.aliases),
+    }
+
+
+def _print_alias_records(records: list[ProjectRecordWire]) -> None:
+    if not records:
+        print("No project aliases.")
+        return
+    for record in records:
+        print(f"{record.project_name}: {', '.join(record.aliases)}")
+
+
+def _print_alias_result(record: ProjectRecordWire) -> None:
+    aliases = ", ".join(record.aliases) if record.aliases else "-"
+    print(f"Project '{record.project_name}' aliases: {aliases}")
+
+
+def _validate_alias_arg(alias: str) -> None:
+    if not is_valid_sase_project_name(alias):
+        raise _ProjectLifecycleError(f"invalid project alias: {alias!r}")
+
+
+def _mutate_project_aliases_locked(
+    project: str,
+    update_aliases: Callable[[list[str]], list[str]],
+    commit_msg: str,
+) -> ProjectRecordWire:
+    project_file = _resolve_mutable_project_file(project)
+    with changespec_lock(str(project_file)):
+        records = list_project_records(
+            sase_projects_dir(),
+            list(_ALL_STATES),
+            include_home=True,
+        )
+        record = _get_project_record_from_records(records, project)
+        _reject_system_managed_record(record)
+        aliases = validate_project_aliases(
+            record.project_name,
+            update_aliases(list(record.aliases)),
+            records,
+        )
+        content = project_file.read_text(encoding="utf-8")
+        updated = apply_project_aliases_update(content, aliases)
+        write_changespec_atomic(str(project_file), updated, commit_msg)
+
+    return _get_project_record(project)
+
+
+def set_project_aliases_locked(project: str, aliases: list[str]) -> ProjectRecordWire:
+    """Replace aliases for *project* while holding the ProjectSpec lock."""
+    return _mutate_project_aliases_locked(
+        project,
+        lambda _current: list(aliases),
+        "Set project aliases",
+    )
+
+
+def _add_project_alias_locked(project: str, alias: str) -> ProjectRecordWire:
+    """Add *alias* to *project* while holding the ProjectSpec lock."""
+    _validate_alias_arg(alias)
+    return _mutate_project_aliases_locked(
+        project,
+        lambda aliases: [*aliases, alias],
+        f"Add project alias {alias}",
+    )
+
+
+def _remove_project_alias_locked(project: str, alias: str) -> ProjectRecordWire:
+    """Remove *alias* from *project* while holding the ProjectSpec lock."""
+    _validate_alias_arg(alias)
+    return _mutate_project_aliases_locked(
+        project,
+        lambda aliases: [item for item in aliases if item != alias],
+        f"Remove project alias {alias}",
+    )
+
+
+def _clear_project_aliases_locked(project: str) -> ProjectRecordWire:
+    """Remove all aliases from *project* while holding the ProjectSpec lock."""
+    return set_project_aliases_locked(project, [])
+
+
+def _handle_alias_list(args: argparse.Namespace) -> int:
+    project = getattr(args, "project", None)
+    try:
+        if project:
+            record = _get_project_record(str(project))
+            if args.json:
+                print(json.dumps(_alias_json_payload(record), indent=2, sort_keys=True))
+            else:
+                _print_alias_result(record)
+            return 0
+
+        records = [
+            record
+            for record in list_project_records(
+                sase_projects_dir(),
+                list(_ALL_STATES),
+                include_home=False,
+            )
+            if not record.system_managed and record.aliases
+        ]
+    except (_ProjectLifecycleError, ImportError, AttributeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(
+            json.dumps(
+                [_alias_json_payload(record) for record in records],
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    else:
+        _print_alias_records(records)
+    return 0
+
+
+def _handle_alias_add(args: argparse.Namespace) -> int:
+    try:
+        record = _add_project_alias_locked(str(args.project), str(args.alias))
+    except (
+        ValueError,
+        _ProjectLifecycleError,
+        ImportError,
+        AttributeError,
+    ) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    _print_alias_result(record)
+    return 0
+
+
+def _handle_alias_remove(args: argparse.Namespace) -> int:
+    try:
+        record = _remove_project_alias_locked(str(args.project), str(args.alias))
+    except (
+        ValueError,
+        _ProjectLifecycleError,
+        ImportError,
+        AttributeError,
+    ) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    _print_alias_result(record)
+    return 0
+
+
+def _handle_alias_clear(args: argparse.Namespace) -> int:
+    try:
+        record = _clear_project_aliases_locked(str(args.project))
+    except (
+        ValueError,
+        _ProjectLifecycleError,
+        ImportError,
+        AttributeError,
+    ) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    _print_alias_result(record)
+    return 0
+
+
+_ALIAS_HANDLERS = {
+    "list": _handle_alias_list,
+    "add": _handle_alias_add,
+    "remove": _handle_alias_remove,
+    "clear": _handle_alias_clear,
+}
+
+
+def _handle_alias(args: argparse.Namespace) -> int:
+    sub = getattr(args, "alias_subcommand", None)
+    handler = _ALIAS_HANDLERS.get(sub) if isinstance(sub, str) else None
+    if handler is None:
+        print(
+            "Usage: sase project alias {add,clear,list,remove}",
+            file=sys.stderr,
+        )
+        return 2
+    return handler(args)
+
+
 def _handle_list(args: argparse.Namespace) -> int:
     state_filter = str(args.state)
     try:
@@ -357,6 +566,7 @@ def _handle_close(args: argparse.Namespace) -> int:
 
 
 _HANDLERS = {
+    "alias": _handle_alias,
     "list": _handle_list,
     "show": _handle_show,
     "set-state": _handle_set_state,
@@ -373,7 +583,7 @@ def handle_project_command(args: argparse.Namespace) -> None:
     handler = _HANDLERS.get(sub) if isinstance(sub, str) else None
     if handler is None:
         print(
-            "Usage: sase project {list,show,set-state,activate,deactivate}",
+            "Usage: sase project {alias,list,show,set-state,activate,deactivate}",
             file=sys.stderr,
         )
         sys.exit(2)
