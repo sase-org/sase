@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION = 1
+PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION = 2
 PROJECT_LIFECYCLE_STATES = ("active", "inactive", "sibling")
 PROJECT_LIFECYCLE_LEGACY_INACTIVE_STATES = ("archived", "closed")
 PROJECT_LIFECYCLE_COMPAT_STATES = (
@@ -88,6 +88,7 @@ class ProjectRecordWire:
     system_managed: bool
     active_claim_count: int
     launchable: bool
+    aliases: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     parse_warnings: list[str] = field(default_factory=list)
 
@@ -131,6 +132,7 @@ def project_record_from_dict(data: dict[str, Any]) -> ProjectRecordWire:
         system_managed=bool(data["system_managed"]),
         active_claim_count=int(data["active_claim_count"]),
         launchable=bool(data["launchable"]),
+        aliases=_str_list(data.get("aliases")),
         warnings=_str_list(data.get("warnings")),
         parse_warnings=_str_list(data.get("parse_warnings")),
     )

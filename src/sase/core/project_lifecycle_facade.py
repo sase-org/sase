@@ -32,6 +32,13 @@ def apply_project_lifecycle_update(content: str, state: str) -> str:
     return binding(content, state)  # type: ignore[no-any-return]
 
 
+def apply_project_aliases_update(content: str, aliases: Sequence[str]) -> str:
+    """Return ProjectSpec content with ``PROJECT_ALIASES`` updated by Rust."""
+
+    binding = require_rust_binding("apply_project_aliases_update")
+    return binding(content, list(aliases))  # type: ignore[no-any-return]
+
+
 def list_project_records(
     projects_root: Path | str,
     include_states: Sequence[str] | str = ("active",),
@@ -53,6 +60,7 @@ def list_project_records(
 __all__ = [
     "ProjectLifecycleWire",
     "ProjectRecordWire",
+    "apply_project_aliases_update",
     "apply_project_lifecycle_update",
     "list_project_records",
     "read_project_lifecycle_from_content",

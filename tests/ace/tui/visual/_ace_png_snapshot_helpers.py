@@ -132,6 +132,7 @@ def project_records() -> list[ProjectRecordWire]:
             system_managed=False,
             active_claim_count=claims,
             launchable=launchable,
+            aliases=[],
             warnings=warnings or [],
             parse_warnings=[],
         )

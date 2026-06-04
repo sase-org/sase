@@ -53,10 +53,11 @@ def _fake_list_workspace_claims_from_content(content: str) -> list[WorkspaceClai
     return claims
 
 
-def _parse_header(content: str) -> tuple[str, bool, str | None, int]:
+def _parse_header(content: str) -> tuple[str, bool, str | None, list[str], int]:
     state = "active"
     explicit = False
     workspace_dir: str | None = None
+    aliases: list[str] = []
     active_claim_count = 0
     before_changespec = True
     in_running = False
@@ -72,13 +73,21 @@ def _parse_header(content: str) -> tuple[str, bool, str | None, int]:
             explicit = True
         elif line.startswith("WORKSPACE_DIR:"):
             workspace_dir = line.split(":", 1)[1].strip() or None
+        elif line.startswith("PROJECT_ALIASES:"):
+            aliases = sorted(
+                {
+                    alias.strip()
+                    for alias in line.split(":", 1)[1].split(",")
+                    if alias.strip()
+                }
+            )
         elif line.startswith("RUNNING:"):
             in_running = True
         elif in_running and WorkspaceClaim.from_line(line) is not None:
             active_claim_count += 1
         elif in_running and line and not line.startswith(" "):
             in_running = False
-    return state, explicit, workspace_dir, active_claim_count
+    return state, explicit, workspace_dir, aliases, active_claim_count
 
 
 def _disk_project_records(
@@ -102,7 +111,9 @@ def _disk_project_records(
         if not project_file.is_file():
             continue
         content = project_file.read_text(encoding="utf-8")
-        state, explicit, workspace_dir, active_claim_count = _parse_header(content)
+        state, explicit, workspace_dir, aliases, active_claim_count = _parse_header(
+            content
+        )
         if state not in state_set:
             continue
         archive_file = project_dir / f"{project_name}-archive.sase"
@@ -119,6 +130,7 @@ def _disk_project_records(
                 system_managed=project_name == "home",
                 active_claim_count=active_claim_count,
                 launchable=state == "active" and workspace_dir is not None,
+                aliases=aliases,
                 warnings=[],
                 parse_warnings=[],
             )

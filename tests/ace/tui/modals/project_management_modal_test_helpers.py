@@ -40,6 +40,7 @@ def make_project_record(
         system_managed=system_managed,
         active_claim_count=claims,
         launchable=launchable,
+        aliases=[],
         warnings=warnings or [],
         parse_warnings=[],
     )
