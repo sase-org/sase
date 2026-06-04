@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-04 10:31:44
-status: wip
+status: done
 prompt: sdd/prompts/202606/project_aliases.md
 bead_id: sase-4c
 tier: epic
