@@ -177,6 +177,45 @@ class PromptTextArea(
             self._clear_xprompt_arg_hint()
             bar.post_message(PromptInputBar.WorkflowEditorRequested())
 
+    def _open_recursive_file_finder(self) -> None:
+        """Open the recursive fuzzy file finder modal (Ctrl+R).
+
+        Captures the recursive root and prompt token-range, enumerates
+        candidates once, and pushes the finder modal.  On accept, the selected
+        path replaces the captured token range in the prompt.
+        """
+        from sase.ace.tui.modals.recursive_finder_modal import (
+            RecursiveFileFinderModal,
+        )
+        from sase.ace.tui.widgets.recursive_file_finder import (
+            enumerate_recursive_candidates,
+        )
+
+        ctx = self._compute_recursive_finder_context()
+        if ctx is None:
+            return
+
+        candidates, truncated = enumerate_recursive_candidates(
+            ctx.root_abs, ctx.root_display
+        )
+        self._clear_file_completion()
+        self._clear_soft_completion(cancel_timer=True)
+
+        def _on_result(result: CompletionCandidate | None) -> None:
+            self._refocus_if_needed()
+            if result is not None:
+                self._insert_finder_result(ctx, result)
+
+        self.app.push_screen(
+            RecursiveFileFinderModal(
+                root_label=ctx.root_display or "./",
+                candidates=candidates,
+                truncated=truncated,
+                initial_query=ctx.query,
+            ),
+            _on_result,
+        )
+
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
         self._clear_file_completion()
@@ -249,6 +288,15 @@ class PromptTextArea(
             event.stop()
             event.prevent_default()
             self._enter_normal_mode()
+            return
+
+        # Ctrl+R: open the recursive fuzzy file finder. Works whether or not
+        # the Ctrl+T completion panel is open — when it is, Case A derives the
+        # recursive root from the currently-selected entry.
+        if event.key == "ctrl+r":
+            event.stop()
+            event.prevent_default()
+            self._open_recursive_file_finder()
             return
 
         if self._active_xprompt_arg_hint is not None and event.character in (":", "("):

@@ -12,6 +12,10 @@ from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 class CompletionTestApp(App[None]):
     """Minimal app that hosts PromptInputBar for file completion tests."""
 
+    # Mirror AceApp: the prompt subsystem owns ctrl+n/ctrl+p/ctrl+r, so the
+    # command palette (default ctrl+p) must not intercept them.
+    ENABLE_COMMAND_PALETTE = False
+
     def __init__(self, snippets: dict[str, str] | None = None) -> None:
         super().__init__()
         self._snippets: dict[str, str] = snippets or {}

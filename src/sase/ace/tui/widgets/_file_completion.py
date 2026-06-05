@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any
 
+from sase.ace.tui.widgets.recursive_file_finder import (
+    RecursiveFinderContext,
+    derive_root_from_path,
+    resolve_root_abs,
+    split_root_and_query,
+)
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
     extract_directive_token_around_cursor,
@@ -34,6 +41,12 @@ if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 else:
     _MixinBase = object
+
+
+_RECURSIVE_PATH_KINDS: frozenset[str] = frozenset(
+    {"file", "file_history", "xprompt_arg_path"}
+)
+"""Completion kinds whose active selection can seed the Ctrl+R recursive root."""
 
 
 class FileCompletionMixin(_MixinBase):
@@ -133,6 +146,60 @@ class FileCompletionMixin(_MixinBase):
         self.cursor_location = self._location_from_absolute(
             start_offset + len(replacement)
         )
+
+    # -- Recursive (Ctrl+R) finder root + token-range resolution --
+
+    def _compute_recursive_finder_context(self) -> RecursiveFinderContext | None:
+        """Resolve the recursive root and prompt range to replace for Ctrl+R.
+
+        Case A: when the Ctrl+T completion panel is open on a path-like kind,
+        derive the root from the currently-selected entry (its directory, or
+        the entry itself when it is a directory).  Case B: otherwise derive the
+        root from the path token around the cursor.
+        """
+        if (
+            self._file_completion_active
+            and self._completion_kind in _RECURSIVE_PATH_KINDS
+            and self._file_completion_candidates
+        ):
+            ctx = self._recursive_context_from_active_completion()
+            if ctx is not None:
+                return ctx
+        return self._recursive_context_from_cursor_token()
+
+    def _recursive_context_from_active_completion(
+        self,
+    ) -> RecursiveFinderContext | None:
+        """Build a Ctrl+R context rooted at the active Ctrl+T selection."""
+        selected = self._file_completion_candidates[self._file_completion_index]
+        root_display = derive_root_from_path(selected.insertion, selected.is_dir)
+        root_abs = resolve_root_abs(root_display)
+        row, col = self.cursor_location
+        token_info = self._extract_token_around_cursor()
+        if token_info is not None:
+            start, end, _token = token_info
+        else:
+            start = end = col
+        return RecursiveFinderContext(root_display, root_abs, row, start, end, "")
+
+    def _recursive_context_from_cursor_token(self) -> RecursiveFinderContext:
+        """Build a Ctrl+R context from the path token around the cursor."""
+        row, col = self.cursor_location
+        token_info = self._extract_token_around_cursor()
+        if token_info is None:
+            return RecursiveFinderContext("", os.getcwd(), row, col, col, "")
+        start, end, token = token_info
+        root_display, query = split_root_and_query(token)
+        root_abs = resolve_root_abs(root_display)
+        return RecursiveFinderContext(root_display, root_abs, row, start, end, query)
+
+    def _insert_finder_result(
+        self,
+        ctx: RecursiveFinderContext,
+        candidate: CompletionCandidate,
+    ) -> None:
+        """Insert a chosen recursive-finder path at the captured token range."""
+        self._replace_token_text(ctx.row, ctx.start, ctx.end, candidate.insertion)
 
     def _update_file_completion_panel(self, token: str) -> None:
         """Sync completion UI with the current completion state."""

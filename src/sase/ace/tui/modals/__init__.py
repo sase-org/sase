@@ -40,6 +40,7 @@ from .prompt_history_modal import (
     PromptHistoryResult,
 )
 from .query_edit_modal import QueryEditModal
+from .recursive_finder_modal import RecursiveFileFinderModal
 from .rename_cl_modal import RenameCLModal
 from .save_agent_group_modal import SaveAgentGroupModal, SaveAgentGroupResult
 from .wait_modal import WaitModal
@@ -147,6 +148,7 @@ __all__ = [
     "HookHistoryResult",
     "JumpAllModal",
     "JumpAllResult",
+    "RecursiveFileFinderModal",
     "ModelPickerModal",
     "NotificationModal",
     "ParentSelectModal",

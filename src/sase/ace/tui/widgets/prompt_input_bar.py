@@ -104,7 +104,7 @@ class PromptInputBar(Static):
         else:
             placeholder = (
                 "Type prompt, '.' for history, '#@' for snippets  "
-                "[^T] complete  [^G] editor  [^Y] workflow  [^J] newline"
+                "[^T] complete  [^R] find  [^G] editor  [^Y] workflow  [^J] newline"
             )
         yield Static("", id="prompt-completion", classes="hidden")
         yield PromptTextArea(
