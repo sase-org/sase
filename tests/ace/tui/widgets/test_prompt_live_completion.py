@@ -149,6 +149,46 @@ async def test_soft_xprompt_suggestion_accepts_with_ctrl_l_not_enter() -> None:
     assert ta._active_xprompt_arg_hint is not None
 
 
+async def test_ctrl_l_accepts_warm_xprompt_suggestion_before_debounce() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [_entry("review", inputs=(_input("path", "path"),))])
+        prefix = "please inspect the wrapped prompt context " * 8
+        text = f"{prefix}#r"
+
+        ta.load_text(text)
+        ta.cursor_location = (0, len(text))
+        ta._on_prompt_completion_context_changed()
+
+        assert ta._soft_completion is None
+        assert ta._prompt_completion_timer is not None
+        await pilot.press("ctrl+l")
+
+    assert ta.text == f"{prefix}#review:"
+    assert ta._active_xprompt_arg_hint is not None
+
+
+async def test_ctrl_l_builds_xprompt_entries_when_soft_cache_is_cold() -> None:
+    entries = [_entry("review", inputs=(_input("path", "path"),))]
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#r")
+        ta.cursor_location = (0, 2)
+        ta._on_prompt_completion_context_changed()
+
+        with patch(
+            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
+            return_value=entries,
+        ) as build_entries:
+            await pilot.press("ctrl+l")
+
+    build_entries.assert_called_once_with(project=None)
+    assert ta.text == "#review:"
+    assert ta._active_xprompt_arg_hint is not None
+
+
 async def test_soft_directive_suggestion_replaces_only_with_ctrl_l() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:

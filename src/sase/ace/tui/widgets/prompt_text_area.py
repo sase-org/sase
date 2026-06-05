@@ -285,7 +285,7 @@ class PromptTextArea(
                 self._delete_selected_file_completion()
                 return
 
-        if event.key == "ctrl+l" and self._accept_soft_completion():
+        if event.key == "ctrl+l" and self._accept_or_build_soft_completion():
             event.stop()
             event.prevent_default()
             return

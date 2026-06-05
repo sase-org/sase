@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-05 10:37:27
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_ctrl_l_completion.md
 ---
 # Prompt Ctrl+L Completion Plan

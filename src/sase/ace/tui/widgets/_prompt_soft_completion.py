@@ -54,6 +54,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             self,
             selected: CompletionCandidate,
         ) -> None: ...
+        def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]: ...
         def _expand_snippet_template_at_range(
             self,
             template: str,
@@ -161,6 +162,48 @@ class PromptSoftCompletionMixin(_MixinBase):
         )
         return token_ctx is not None and is_xprompt_like_token(token_ctx[2])
 
+    def _build_current_soft_completion(
+        self,
+        *,
+        allow_sync_xprompt_entries: bool = False,
+    ) -> PromptSoftCompletion | None:
+        """Build the best soft completion for the current prompt state."""
+        text = self.text
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        settings = self._prompt_completion_settings()
+        if settings.auto != "soft":
+            return None
+
+        entries: list[XPromptAssistEntry] | None = None
+        may_need_xprompt_entries = self._soft_completion_may_need_xprompt_entries(
+            text,
+            cursor_offset,
+        )
+        if may_need_xprompt_entries:
+            project = self._xprompt_arg_assist_project_from_text()
+            entries = self._xprompt_arg_assist_entries_by_project.get(project)
+
+        suggestion = build_prompt_soft_completion(
+            text=text,
+            cursor_offset=cursor_offset,
+            settings=settings,
+            xprompt_entries=entries,
+        )
+        if (
+            suggestion is not None
+            or not allow_sync_xprompt_entries
+            or entries is not None
+            or not may_need_xprompt_entries
+        ):
+            return suggestion
+
+        return build_prompt_soft_completion(
+            text=text,
+            cursor_offset=cursor_offset,
+            settings=settings,
+            xprompt_entries=self._get_xprompt_arg_assist_entries(),
+        )
+
     def _set_soft_completion(self, suggestion: PromptSoftCompletion | None) -> None:
         self._soft_completion = suggestion
         bar = self._find_prompt_bar()
@@ -241,3 +284,18 @@ class PromptSoftCompletionMixin(_MixinBase):
         else:
             self._clear_xprompt_arg_hint()
         return True
+
+    def _accept_or_build_soft_completion(self) -> bool:
+        """Accept a cached completion, or synchronously compute one for Ctrl+L."""
+        if self._accept_soft_completion():
+            return True
+        if self._soft_completion_blocked():
+            return False
+
+        suggestion = self._build_current_soft_completion(
+            allow_sync_xprompt_entries=True,
+        )
+        if suggestion is None:
+            return False
+        self._set_soft_completion(suggestion)
+        return self._accept_soft_completion()
