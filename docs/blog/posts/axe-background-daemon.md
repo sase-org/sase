@@ -1,6 +1,7 @@
 ---
 title: "[03] AXE — The Background Daemon That Keeps Agent Work Moving"
 date: 2026-05-14
+draft: true
 description: >-
   Agents shouldn't poll. AXE is the background daemon that does the polling for them so the engineering workflow keeps
   moving while individual agents finish, fail, or wait.

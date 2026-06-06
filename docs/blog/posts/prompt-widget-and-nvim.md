@@ -1,6 +1,7 @@
 ---
 title: "[08] Where You Type — The Prompt Input Widget and sase-nvim"
 date: 2026-05-22
+draft: true
 description: >-
   Where the operator actually types: a multiline Textual TextArea with completion, history, snippets, and a Vim mode in
   the TUI — and sase-nvim, the Neovim plugin that gives the same prompt language a richer editor.

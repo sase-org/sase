@@ -1,6 +1,7 @@
 ---
 title: "[05] Commit Workflows — The Pluggable Path From Diff to PR"
 date: 2026-05-18
+draft: true
 description: >-
   Every agent eventually has to land code somewhere. SASE's commit workflows are the small, runtime-uniform layer that
   turns a diff into a commit, a proposal, or a pull request without the agent caring which VCS is underneath.

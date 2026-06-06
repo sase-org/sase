@@ -1,6 +1,7 @@
 ---
 title: "[04] Beads and SDD — Planning Multi-Agent Work That Actually Lands"
 date: 2026-05-16
+draft: true
 description: >-
   Orchestration only matters if you can split work into pieces with a real ordering. Beads and Spec-Driven Development
   are how SASE files that work and schedules it.

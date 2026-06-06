@@ -1,6 +1,7 @@
 ---
 title: "[09] What's Next — Shared Memory, Mobile, and the Web Surface"
 date: 2026-05-23
+draft: true
 description: >-
   SASE today is the orchestration layer. The next horizon is shared memory across agents, a mobile control surface, and
   a web frontend that doesn't require a terminal.

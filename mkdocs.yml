@@ -53,15 +53,6 @@ nav:
       - Blog Home: blog/index.md
       - SASE Blog Series: series/agentic-software-engineering.md
       - "[00] Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
-      - "[01] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
-      - "[02] XPrompts in Depth — From One File to Full Workflows": blog/posts/xprompts-in-depth.md
-      - "[03] AXE — The Background Daemon That Keeps Agent Work Moving": blog/posts/axe-background-daemon.md
-      - "[04] Beads and SDD — Planning Multi-Agent Work That Actually Lands": blog/posts/beads-and-sdd.md
-      - "[05] Commit Workflows — The Pluggable Path From Diff to PR": blog/posts/commit-workflows-plugins.md
-      - "[06] ChangeSpecs in Practice — Review State Outside the Chat": blog/posts/changespecs-in-practice.md
-      - "[07] Driving SASE From Your Phone — Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
-      - "[08] Where You Type — The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
-      - "[09] What's Next — Shared Memory, Mobile, and the Web Surface": blog/posts/whats-next-memory-mobile-web.md
 
 theme:
   name: material

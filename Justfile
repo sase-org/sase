@@ -272,8 +272,16 @@ docs-deploy-artifact-check:
     test "$(head -c 4 site/downloads/sase-handbook.pdf)" = "%PDF"
     test -f site/blog/index.html
     test -f site/blog/posts/why-coding-agents-need-orchestration/index.html
+    test "$(find site/blog/posts -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = "1"
     test -f site/series/agentic-software-engineering/index.html
     ! grep -Fq 'href="blog/why-coding-agents-need-orchestration/"' site/index.html
+    @set -e; \
+    draft_slugs='hello-sase-your-first-15-minutes xprompts-in-depth axe-background-daemon beads-and-sdd commit-workflows-plugins changespecs-in-practice telegram-mobile-agents prompt-widget-and-nvim whats-next-memory-mobile-web'; \
+    for slug in $draft_slugs; do \
+        test ! -d "site/blog/posts/$slug"; \
+        ! grep -R -F -q "/blog/posts/$slug/" site; \
+        ! grep -R -F -q "blog/posts/$slug/" site; \
+    done
 
 # Validate SASE initialization and SDD prompt/plan frontmatter links.
 validate: _setup

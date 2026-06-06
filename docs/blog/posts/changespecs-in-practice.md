@@ -1,6 +1,7 @@
 ---
 title: "[06] ChangeSpecs in Practice — Review State Outside the Chat"
 date: 2026-05-20
+draft: true
 description: >-
   ChangeSpecs are the durable, reviewable shape of one CL/PR of agent work. They survive the chat. [01] named them; this
   post lives inside them.

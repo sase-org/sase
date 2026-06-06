@@ -1,6 +1,7 @@
 ---
 title: "[07] Driving SASE From Your Phone — Telegram as the Mobile Control Surface"
 date: 2026-05-21
+draft: true
 description: >-
   The sase-telegram plugin turns an existing Telegram chat into a mobile control surface for SASE — launch agents,
   approve plans, kill runs, and review generated images from the phone in your pocket.
