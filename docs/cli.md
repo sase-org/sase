@@ -100,7 +100,9 @@ workspace checkouts.
 `sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`, `remove PROJECT ALIAS`, and `clear PROJECT` manage
 ProjectSpec aliases. The ACE `,p` Project Management panel also displays aliases, includes them in filtering, and opens
 an alias editor with `A`. Alias refs are accepted in launch-bound VCS workspace tags, but prompt history, agent
-metadata, and artifacts use the canonical project name.
+metadata, and artifacts use the canonical project name. Providers may also generate aliases automatically; for example,
+the GitHub provider can create `foo` and then `foo-2` aliases for distinct `owner/foo` repositories while keeping stable
+canonical project records. Use the same `sase project alias` commands to inspect or adjust those generated aliases.
 
 Active-only project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
 catalogs, broad mobile helper catalogs, and all-known bead helper reads. Sibling records are hidden from those surfaces

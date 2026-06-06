@@ -90,6 +90,16 @@ Project aliases let a known project expose short names without changing the cano
 `PROJECT_ALIASES: bob` in `~/.sase/projects/bob-cli/bob-cli.sase` makes launch-bound VCS refs such as `#gh:bob`,
 `#gh_bob`, and `#gh(bob)` behave like `#gh:bob-cli`, `#gh:bob-cli`, and `#gh(bob-cli)`.
 
+Workspace providers can also create aliases automatically. The GitHub provider uses this for first-use `owner/repo`
+refs: `#gh:foo-org/foo` can create a canonical SASE project such as `gh_foo-org__foo` with `WORKSPACE_DIR` set to
+`~/projects/github/foo-org/foo/` and `PROJECT_ALIASES: foo`. If another GitHub repo has the same basename, such as
+`#gh:bar-org/foo`, the provider keeps a distinct canonical project such as `gh_bar-org__foo` and allocates the first
+available short alias, starting with `foo-2`, then `foo-3`, and so on.
+
+Existing basename projects are compatibility anchors. If `~/.sase/projects/foo/foo.sase` already points at
+`~/projects/github/foo-org/foo/`, the GitHub provider reuses `foo` instead of migrating or renaming it. No automatic
+ProjectSpec rename is required; generated aliases can be inspected or adjusted with `sase project alias`.
+
 Aliases are resolved at the launch/xprompt boundary before workspace resolution, xprompt expansion, prompt history
 writes, and agent artifact writes. The alias should not persist in `submitted_xprompt.md`, `raw_xprompt.md`,
 `agent_meta.json`, prompt history, display names, history sort keys, or VCS refs. Normal launch and history surfaces
@@ -100,6 +110,8 @@ Validation rules:
 - Missing `PROJECT_ALIASES` means the project has no aliases.
 - Values are comma-separated, trimmed, deduplicated, and stored in sorted order.
 - Alias names use the same syntax as SASE project names.
+- Automatic alias allocation tries the requested short name first, then appends `-2`, `-3`, and higher suffixes until it
+  finds a value that does not collide.
 - An alias cannot equal its canonical project name.
 - An alias cannot collide with a real project name or with another project's alias across non-system projects in any
   lifecycle state.

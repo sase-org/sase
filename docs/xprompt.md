@@ -330,6 +330,17 @@ the `bob-cli` project declares alias `bob`. The rewrite is exact and applies to 
 workspace-ref forms; it does not rewrite owner/repo paths such as `#gh:bbugyi200/bob`, partial project names, prose, or
 fenced code examples. See [Project Aliases](project_spec.md#project-aliases) for validation and management commands.
 
+GitHub `owner/repo` refs use aliases after first use. Resolving `#gh:foo-org/foo` creates or reuses the canonical
+project whose `WORKSPACE_DIR` is `~/projects/github/foo-org/foo/`; for a new repo that canonical name is typically
+`gh_foo-org__foo`, with generated alias `foo`. A second repo with the same basename, such as `#gh:bar-org/foo`, gets a
+different canonical project such as `gh_bar-org__foo` and the next available alias, for example `foo-2`. Future launches
+can use `#gh:foo` and `#gh:foo-2`, and those refs canonicalize before prompt history, metadata, and artifacts are
+written.
+
+For compatibility, existing basename ProjectSpecs are reused when their `WORKSPACE_DIR` already matches the GitHub repo.
+Owner/repo fallback avoids basename routing when duplicate GitHub basenames would make that ambiguous; direct
+`owner/repo` refs match the GitHub workspace path first, then only use a basename fallback when it is unambiguous.
+
 Known-project lookup defaults to active ProjectSpecs. Inactive and sibling projects are omitted from broad project-local
 xprompt catalogs and normal VCS workspace resolution; an explicit reference to an inactive known project fails with a
 hint to run `sase project activate <project>` before launching new work. Management and history code paths that need
