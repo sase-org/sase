@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.tui.widgets.recursive_file_finder import (
-    RecursiveFinderContext,
-    derive_root_from_path,
-    resolve_root_abs,
-    split_root_and_query,
+from sase.ace.tui.widgets._file_completion_context import FileCompletionContextMixin
+from sase.ace.tui.widgets._file_completion_xprompt_args import (
+    build_xprompt_arg_completion_candidates,
+    effective_xprompt_arg_token,
 )
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
-    extract_directive_token_around_cursor,
     is_directive_like_token,
 )
 from sase.ace.tui.widgets.file_completion import (
@@ -21,38 +18,21 @@ from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
     build_completion_candidates,
     build_file_history_completion_candidates,
-    extract_token_around_cursor,
     is_path_like_token,
 )
-from sase.ace.tui.widgets.prompt_completion_root import (
-    resolve_prompt_completion_base_dir,
-)
 from sase.ace.tui.widgets.xprompt_completion import (
-    build_xprompt_completion_candidates,
     is_xprompt_like_token,
 )
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
     XPromptAssistEntry,
     XPromptArgCompletionContext,
-    detect_xprompt_arg_completion_at_cursor,
     detect_xprompt_arg_hint_at_cursor,
     xprompt_completion_skeleton,
 )
 
-if TYPE_CHECKING:
-    from textual.widgets import TextArea as _MixinBase
-else:
-    _MixinBase = object
 
-
-_RECURSIVE_PATH_KINDS: frozenset[str] = frozenset(
-    {"file", "file_history", "xprompt_arg_path"}
-)
-"""Completion kinds whose active selection can seed the Ctrl+R recursive root."""
-
-
-class FileCompletionMixin(_MixinBase):
+class FileCompletionMixin(FileCompletionContextMixin):
     """Mixin providing file path completion for PromptTextArea.
 
     Mixed into :class:`~sase.ace.tui.widgets.prompt_text_area.PromptTextArea`.
@@ -89,135 +69,6 @@ class FileCompletionMixin(_MixinBase):
         ) -> bool: ...
 
     # -- Mixin implementation --
-
-    def _extract_token_around_cursor(self) -> tuple[int, int, str] | None:
-        """Extract token bounds around the cursor in the current line."""
-        row, col = self.cursor_location
-        line = self.document.get_line(row)
-        return extract_token_around_cursor(line, col)
-
-    def _get_path_token_context(self) -> tuple[int, int, int, str] | None:
-        """Return (row, start, end, token) for the current path token."""
-        token_info = self._extract_token_around_cursor()
-        if token_info is None:
-            return None
-
-        start, end, token = token_info
-        if not is_path_like_token(token):
-            return None
-        row, _ = self.cursor_location
-        return row, start, end, token
-
-    def _get_xprompt_token_context(self) -> tuple[int, int, int, str] | None:
-        """Return (row, start, end, token) for the current xprompt token."""
-        token_info = self._extract_token_around_cursor()
-        if token_info is None:
-            return None
-
-        start, end, token = token_info
-        if not is_xprompt_like_token(token):
-            return None
-        row, _ = self.cursor_location
-        return row, start, end, token
-
-    def _get_directive_token_context(self) -> tuple[int, int, int, str] | None:
-        """Return (row, start, end, token) for the current directive token."""
-        row, col = self.cursor_location
-        line = self.document.get_line(row)
-        token_info = extract_directive_token_around_cursor(line, col)
-        if token_info is None:
-            return None
-
-        start, end, token = token_info
-        return row, start, end, token
-
-    def _replace_token_text(self, row: int, start: int, end: int, token: str) -> None:
-        """Replace token range and put cursor at token end."""
-        self._replace_via_keyboard(token, (row, start), (row, end))
-        self.cursor_location = (row, start + len(token))
-
-    def _replace_absolute_range(
-        self,
-        start_offset: int,
-        end_offset: int,
-        replacement: str,
-    ) -> None:
-        """Replace an absolute prompt range and put cursor at replacement end."""
-        start = self._location_from_absolute(start_offset)
-        end = self._location_from_absolute(end_offset)
-        self._replace_via_keyboard(replacement, start, end)
-        self.cursor_location = self._location_from_absolute(
-            start_offset + len(replacement)
-        )
-
-    def _prompt_completion_base_dir(self) -> str | None:
-        """Return the prompt-selected filesystem base for path completion."""
-        return resolve_prompt_completion_base_dir(self.text)
-
-    # -- Recursive (Ctrl+R) finder root + token-range resolution --
-
-    def _compute_recursive_finder_context(self) -> RecursiveFinderContext | None:
-        """Resolve the recursive root and prompt range to replace for Ctrl+R.
-
-        Case A: when the Ctrl+T completion panel is open on a path-like kind,
-        derive the root from the currently-selected entry (its directory, or
-        the entry itself when it is a directory).  Case B: otherwise derive the
-        root from the path token around the cursor.
-        """
-        if (
-            self._file_completion_active
-            and self._completion_kind in _RECURSIVE_PATH_KINDS
-            and self._file_completion_candidates
-        ):
-            ctx = self._recursive_context_from_active_completion()
-            if ctx is not None:
-                return ctx
-        return self._recursive_context_from_cursor_token()
-
-    def _recursive_context_from_active_completion(
-        self,
-    ) -> RecursiveFinderContext | None:
-        """Build a Ctrl+R context rooted at the active Ctrl+T selection."""
-        selected = self._file_completion_candidates[self._file_completion_index]
-        root_display = derive_root_from_path(selected.insertion, selected.is_dir)
-        root_abs = resolve_root_abs(
-            root_display,
-            base_dir=self._prompt_completion_base_dir(),
-        )
-        row, col = self.cursor_location
-        token_info = self._extract_token_around_cursor()
-        if token_info is not None:
-            start, end, _token = token_info
-        else:
-            start = end = col
-        return RecursiveFinderContext(root_display, root_abs, row, start, end, "")
-
-    def _recursive_context_from_cursor_token(self) -> RecursiveFinderContext:
-        """Build a Ctrl+R context from the path token around the cursor."""
-        row, col = self.cursor_location
-        base_dir = self._prompt_completion_base_dir()
-        token_info = self._extract_token_around_cursor()
-        if token_info is None:
-            return RecursiveFinderContext(
-                "",
-                resolve_root_abs("", base_dir=base_dir),
-                row,
-                col,
-                col,
-                "",
-            )
-        start, end, token = token_info
-        root_display, query = split_root_and_query(token)
-        root_abs = resolve_root_abs(root_display, base_dir=base_dir)
-        return RecursiveFinderContext(root_display, root_abs, row, start, end, query)
-
-    def _insert_finder_result(
-        self,
-        ctx: RecursiveFinderContext,
-        candidate: CompletionCandidate,
-    ) -> None:
-        """Insert a chosen recursive-finder path at the captured token range."""
-        self._replace_token_text(ctx.row, ctx.start, ctx.end, candidate.insertion)
 
     def _update_file_completion_panel(self, token: str) -> None:
         """Sync completion UI with the current completion state."""
@@ -294,42 +145,6 @@ class FileCompletionMixin(_MixinBase):
             return
         self._active_xprompt_arg_hint = hint
         self._show_xprompt_arg_hint(hint)
-
-    def _get_token_context(self) -> tuple[int, int, int, str] | None:
-        """Return token context using the appropriate getter for the active kind."""
-        if self._completion_kind == "directive":
-            return self._get_directive_token_context()
-        if self._completion_kind == "xprompt":
-            return self._get_xprompt_token_context()
-        if self._completion_kind.startswith("xprompt_arg_"):
-            return self._get_xprompt_arg_token_context()
-        return self._get_path_token_context()
-
-    def _get_xprompt_arg_completion_context(
-        self,
-    ) -> XPromptArgCompletionContext | None:
-        """Return an xprompt argument completion context at the current cursor."""
-        if "#" not in self.text:
-            return None
-        cursor_offset = self._absolute_offset(self.cursor_location)
-        if not _cursor_prefix_may_contain_xprompt_args(self.text, cursor_offset):
-            return None
-        return detect_xprompt_arg_completion_at_cursor(
-            self.text,
-            cursor_offset,
-            self._get_xprompt_arg_assist_entries(),
-        )
-
-    def _get_xprompt_arg_token_context(self) -> tuple[int, int, int, str] | None:
-        """Return row-local token context for active xprompt argument completion."""
-        ctx = self._get_xprompt_arg_completion_context()
-        if ctx is None:
-            return None
-        row, start = self._location_from_absolute(ctx.value_start)
-        end_row, end = self._location_from_absolute(ctx.value_end)
-        if row != end_row:
-            return None
-        return row, start, end, effective_xprompt_arg_token(ctx)
 
     def _move_file_completion(self, delta: int) -> bool:
         """Move highlighted completion candidate."""
@@ -647,88 +462,3 @@ class FileCompletionMixin(_MixinBase):
         self._file_completion_index = 0
         self._update_file_completion_panel("")
         return True
-
-    def _build_xprompt_completion_candidates(
-        self,
-        token: str,
-    ) -> tuple[list[CompletionCandidate], str]:
-        """Build xprompt candidates, reusing warm prompt-local cache if present."""
-        entries = self._get_warm_xprompt_arg_assist_entries()
-        if entries is not None:
-            return build_xprompt_completion_candidates(token, entries=entries)
-        return build_xprompt_completion_candidates(token)
-
-
-def effective_xprompt_arg_token(ctx: XPromptArgCompletionContext) -> str:
-    """Return the token passed to an underlying completion engine."""
-    if ctx.completion_kind != "xprompt_arg_path":
-        return ctx.token
-    if not ctx.token:
-        return "./"
-    if is_path_like_token(ctx.token):
-        return ctx.token
-    return f"./{ctx.token}"
-
-
-def build_xprompt_arg_completion_candidates(
-    ctx: XPromptArgCompletionContext,
-    *,
-    base_dir: str | os.PathLike[str] | None = None,
-) -> tuple[list[CompletionCandidate], str]:
-    """Build candidates for an xprompt argument completion context."""
-    if ctx.completion_kind == "xprompt_arg_path":
-        return build_completion_candidates(
-            effective_xprompt_arg_token(ctx),
-            base_dir=base_dir,
-        )
-    if ctx.completion_kind == "xprompt_arg_value":
-        return _build_bool_completion_candidates(ctx.token)
-    if ctx.completion_kind == "xprompt_arg_name":
-        return _build_named_arg_completion_candidates(ctx)
-    return [], ""
-
-
-def _build_bool_completion_candidates(
-    token: str,
-) -> tuple[list[CompletionCandidate], str]:
-    partial = token.lower()
-    candidates = [
-        CompletionCandidate(
-            display=value,
-            insertion=value,
-            is_dir=False,
-            name=value,
-        )
-        for value in ("true", "false")
-        if value.startswith(partial)
-    ]
-    return candidates, ""
-
-
-def _cursor_prefix_may_contain_xprompt_args(text: str, cursor_offset: int) -> bool:
-    """Return True when the cursor prefix has possible xprompt arg syntax."""
-    prefix = text[:cursor_offset]
-    marker = prefix.rfind("#")
-    if marker == -1:
-        return False
-    suffix = prefix[marker:]
-    return ":" in suffix or "(" in suffix
-
-
-def _build_named_arg_completion_candidates(
-    ctx: XPromptArgCompletionContext,
-) -> tuple[list[CompletionCandidate], str]:
-    partial = ctx.token.lower()
-    candidates = [
-        CompletionCandidate(
-            display=f"{inp.name}=",
-            insertion=f"{inp.name}=",
-            is_dir=False,
-            name=inp.name,
-            metadata=inp,
-        )
-        for inp in ctx.entry.inputs
-        if inp.name not in ctx.used_arg_names and inp.name.lower().startswith(partial)
-    ]
-    candidates.sort(key=lambda c: c.name.lower())
-    return candidates, ""

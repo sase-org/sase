@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from sase.ace.tui.widgets._file_completion import (
+from sase.ace.tui.widgets._file_completion_xprompt_args import (
     build_xprompt_arg_completion_candidates,
     effective_xprompt_arg_token,
 )
