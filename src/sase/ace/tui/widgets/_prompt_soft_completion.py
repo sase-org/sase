@@ -14,6 +14,9 @@ from sase.ace.tui.widgets.prompt_completion import (
     PromptSoftCompletion,
     build_prompt_soft_completion,
 )
+from sase.ace.tui.widgets.prompt_completion_root import (
+    resolve_prompt_completion_base_dir,
+)
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     xprompt_completion_skeleton,
@@ -132,6 +135,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             cursor_offset=cursor_offset,
             settings=self._prompt_completion_settings(),
             xprompt_entries=entries,
+            base_dir=resolve_prompt_completion_base_dir(text),
         )
         if generation != self._prompt_completion_generation:
             return
@@ -188,6 +192,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             cursor_offset=cursor_offset,
             settings=settings,
             xprompt_entries=entries,
+            base_dir=resolve_prompt_completion_base_dir(text),
         )
         if (
             suggestion is not None
@@ -202,6 +207,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             cursor_offset=cursor_offset,
             settings=settings,
             xprompt_entries=self._get_xprompt_arg_assist_entries(),
+            base_dir=resolve_prompt_completion_base_dir(text),
         )
 
     def _set_soft_completion(self, suggestion: PromptSoftCompletion | None) -> None:

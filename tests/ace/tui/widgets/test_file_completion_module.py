@@ -115,3 +115,24 @@ class TestFileCompletionModule:
         assert len(candidates) == 1
         assert candidates[0].name == "alpha"
         assert candidates[0].insertion == "@~/alpha/"
+
+    def test_build_completion_candidates_uses_base_dir_for_relative_lookup(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        project_root = tmp_path / "project"
+        other_cwd = tmp_path / "cwd"
+        (project_root / "sdd").mkdir(parents=True)
+        (other_cwd / "sdd").mkdir(parents=True)
+        (project_root / "sdd" / "from_project.md").write_text(
+            "x",
+            encoding="utf-8",
+        )
+        (other_cwd / "sdd" / "from_cwd.md").write_text("x", encoding="utf-8")
+        monkeypatch.chdir(other_cwd)
+
+        candidates, _ = build_completion_candidates("sdd/", base_dir=project_root)
+
+        assert [c.name for c in candidates] == ["from_project.md"]
+        assert candidates[0].insertion == "sdd/from_project.md"

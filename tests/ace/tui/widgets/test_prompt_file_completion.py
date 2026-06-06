@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from _pytest.monkeypatch import MonkeyPatch
@@ -10,6 +11,7 @@ from textual.widgets import Static
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from tests._cd_launch_resolution_helpers import patch_cd_metadata
 
 from ._completion_helpers import CompletionTestApp, create_entries
 
@@ -331,3 +333,93 @@ class TestPromptFileCompletion:
             assert candidates_by_name["real_dir"].is_dir is True
             assert candidates_by_name["link_dir"].is_dir is True
             assert candidates_by_name["link_dir"].display == "link_dir/"
+
+    async def test_ctrl_t_uses_known_project_workspace_for_relative_paths(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        patch_cd_metadata(monkeypatch)
+        project_root = tmp_path / "bob-cli"
+        other_cwd = tmp_path / "cwd"
+        (project_root / "sdd").mkdir(parents=True)
+        (other_cwd / "sdd").mkdir(parents=True)
+        (project_root / "sdd" / "alpha.md").write_text("x", encoding="utf-8")
+        (project_root / "sdd" / "beta.md").write_text("x", encoding="utf-8")
+        (other_cwd / "sdd" / "noise.md").write_text("x", encoding="utf-8")
+        (other_cwd / "sdd" / "wrong.md").write_text("x", encoding="utf-8")
+        monkeypatch.chdir(other_cwd)
+        monkeypatch.setattr(
+            "sase.xprompt.loader.get_known_project_workspaces",
+            lambda include_states=("active",): {"bob-cli": project_root},
+        )
+
+        app = CompletionTestApp()
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            text = "#gh:bob-cli sdd/"
+            ta.load_text(text)
+            ta.cursor_location = (0, len(text))
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                assert ta._try_file_completion_tab() is True
+
+            assert ta._file_completion_active is True
+            assert [c.name for c in ta._file_completion_candidates] == [
+                "alpha.md",
+                "beta.md",
+            ]
+            assert [c.insertion for c in ta._file_completion_candidates] == [
+                "sdd/alpha.md",
+                "sdd/beta.md",
+            ]
+
+    async def test_ctrl_t_prefers_cd_workspace_over_known_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        patch_cd_metadata(monkeypatch)
+        project_root = tmp_path / "bob-cli"
+        cd_root = tmp_path / "cd-target"
+        other_cwd = tmp_path / "cwd"
+        (project_root / "sdd").mkdir(parents=True)
+        (cd_root / "sdd").mkdir(parents=True)
+        (other_cwd / "sdd").mkdir(parents=True)
+        (project_root / "sdd" / "project.md").write_text("x", encoding="utf-8")
+        (cd_root / "sdd" / "alpha.md").write_text("x", encoding="utf-8")
+        (cd_root / "sdd" / "beta.md").write_text("x", encoding="utf-8")
+        (other_cwd / "sdd" / "wrong.md").write_text("x", encoding="utf-8")
+        monkeypatch.chdir(other_cwd)
+        monkeypatch.setattr(
+            "sase.xprompt.loader.get_known_project_workspaces",
+            lambda include_states=("active",): {"bob-cli": project_root},
+        )
+        monkeypatch.setattr(
+            "sase.workspace_provider.resolve_ref",
+            lambda ref, workflow_type: SimpleNamespace(
+                primary_workspace_dir=str(cd_root)
+            ),
+        )
+
+        app = CompletionTestApp()
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            text = f"#gh:bob-cli #cd:{cd_root} sdd/"
+            ta.load_text(text)
+            ta.cursor_location = (0, len(text))
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                assert ta._try_file_completion_tab() is True
+
+            assert ta._file_completion_active is True
+            assert [c.name for c in ta._file_completion_candidates] == [
+                "alpha.md",
+                "beta.md",
+            ]
+            assert [c.insertion for c in ta._file_completion_candidates] == [
+                "sdd/alpha.md",
+                "sdd/beta.md",
+            ]

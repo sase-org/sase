@@ -364,12 +364,23 @@ def split_root_and_query(token: str) -> tuple[str, str]:
     return prefix, token
 
 
-def resolve_root_abs(root_display: str) -> str:
+def resolve_root_abs(
+    root_display: str,
+    *,
+    base_dir: str | os.PathLike[str] | None = None,
+) -> str:
     """Resolve an insertion-prefix root to an absolute filesystem directory."""
     path = root_display[1:] if root_display.startswith("@") else root_display
     if not path:
-        return os.getcwd()
-    return os.path.abspath(os.path.expanduser(path))
+        return (
+            os.path.abspath(os.fspath(base_dir))
+            if base_dir is not None
+            else os.getcwd()
+        )
+    expanded = os.path.expandvars(os.path.expanduser(path))
+    if base_dir is not None and not os.path.isabs(expanded):
+        expanded = os.path.join(os.fspath(base_dir), expanded)
+    return os.path.abspath(expanded)
 
 
 # ── Finder state ──────────────────────────────────────────────────────

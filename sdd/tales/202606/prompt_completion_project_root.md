@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-06 14:17:10
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_completion_project_root.md
 ---
 # Plan: Project-Rooted Prompt File Completion

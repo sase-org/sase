@@ -12,6 +12,7 @@ from textual.widgets import Static
 from sase.ace.tui.modals.recursive_finder_modal import RecursiveFileFinderModal
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from tests._cd_launch_resolution_helpers import patch_cd_metadata
 
 from ._completion_helpers import CompletionTestApp
 
@@ -259,3 +260,33 @@ class TestCtrlRPromptWiring:
                 # scoped under alpha/ and exclude beta/.
                 assert any(d.endswith("deep/target.py") for d in displays)
                 assert all("beta/" not in d for d in displays)
+
+    async def test_ctrl_r_context_uses_known_project_workspace(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        patch_cd_metadata(monkeypatch)
+        project_root = tmp_path / "bob-cli"
+        other_cwd = tmp_path / "cwd"
+        (project_root / "sdd").mkdir(parents=True)
+        (other_cwd / "sdd").mkdir(parents=True)
+        monkeypatch.chdir(other_cwd)
+        monkeypatch.setattr(
+            "sase.xprompt.loader.get_known_project_workspaces",
+            lambda include_states=("active",): {"bob-cli": project_root},
+        )
+
+        app = CompletionTestApp()
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            text = "#gh:bob-cli sdd/alp"
+            ta.load_text(text)
+            ta.cursor_location = (0, len(text))
+
+            ctx = ta._compute_recursive_finder_context()
+
+        assert ctx is not None
+        assert ctx.root_display == "sdd/"
+        assert ctx.root_abs == str(project_root / "sdd")
+        assert ctx.query == "alp"

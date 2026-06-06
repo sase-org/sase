@@ -160,6 +160,21 @@ class TestRootResolution:
         assert resolve_root_abs("src/") == os.path.abspath("src")
         assert resolve_root_abs("@src/") == os.path.abspath("src")
 
+    def test_resolve_root_abs_uses_base_dir_for_relative_root(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        project_root = tmp_path / "project"
+        other_cwd = tmp_path / "cwd"
+        (project_root / "sdd").mkdir(parents=True)
+        other_cwd.mkdir()
+        monkeypatch.chdir(other_cwd)
+
+        assert resolve_root_abs("sdd/", base_dir=project_root) == str(
+            project_root / "sdd"
+        )
+
 
 class TestEnumerate:
     def test_walk_excludes_heavy_and_dot_dirs(self, tmp_path: Path) -> None:

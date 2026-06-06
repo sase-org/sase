@@ -88,6 +88,7 @@ def build_prompt_soft_completion(
     cursor_offset: int,
     settings: PromptCompletionSettings,
     xprompt_entries: list[XPromptAssistEntry] | None,
+    base_dir: str | None = None,
 ) -> PromptSoftCompletion | None:
     """Build the best warm soft completion at ``cursor_offset``."""
     if settings.auto != "soft":
@@ -101,6 +102,7 @@ def build_prompt_soft_completion(
             cursor_offset,
             xprompt_entries,
             auto_file_paths=settings.auto_file_paths,
+            base_dir=base_dir,
         )
         if arg_suggestion is not None:
             return arg_suggestion
@@ -151,7 +153,7 @@ def build_prompt_soft_completion(
             )
 
     if settings.auto_file_paths and is_path_like_token(token):
-        candidates, _shared = build_completion_candidates(token)
+        candidates, _shared = build_completion_candidates(token, base_dir=base_dir)
         candidate = _first_candidate_that_changes(candidates, token)
         if candidate is not None:
             return _line_suggestion(
@@ -172,13 +174,17 @@ def _build_xprompt_arg_suggestion(
     entries: list[XPromptAssistEntry],
     *,
     auto_file_paths: bool,
+    base_dir: str | None,
 ) -> PromptSoftCompletion | None:
     ctx = detect_xprompt_arg_completion_at_cursor(text, cursor_offset, entries)
     if ctx is None:
         return None
     if ctx.completion_kind == "xprompt_arg_path" and not auto_file_paths:
         return None
-    candidates, _shared = build_xprompt_arg_completion_candidates(ctx)
+    candidates, _shared = build_xprompt_arg_completion_candidates(
+        ctx,
+        base_dir=base_dir,
+    )
     token = effective_xprompt_arg_token(ctx)
     candidate = _first_candidate_that_changes(candidates, token)
     if candidate is None:

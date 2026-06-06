@@ -24,6 +24,9 @@ from sase.ace.tui.widgets.file_completion import (
     extract_token_around_cursor,
     is_path_like_token,
 )
+from sase.ace.tui.widgets.prompt_completion_root import (
+    resolve_prompt_completion_base_dir,
+)
 from sase.ace.tui.widgets.xprompt_completion import (
     build_xprompt_completion_candidates,
     is_xprompt_like_token,
@@ -147,6 +150,10 @@ class FileCompletionMixin(_MixinBase):
             start_offset + len(replacement)
         )
 
+    def _prompt_completion_base_dir(self) -> str | None:
+        """Return the prompt-selected filesystem base for path completion."""
+        return resolve_prompt_completion_base_dir(self.text)
+
     # -- Recursive (Ctrl+R) finder root + token-range resolution --
 
     def _compute_recursive_finder_context(self) -> RecursiveFinderContext | None:
@@ -173,7 +180,10 @@ class FileCompletionMixin(_MixinBase):
         """Build a Ctrl+R context rooted at the active Ctrl+T selection."""
         selected = self._file_completion_candidates[self._file_completion_index]
         root_display = derive_root_from_path(selected.insertion, selected.is_dir)
-        root_abs = resolve_root_abs(root_display)
+        root_abs = resolve_root_abs(
+            root_display,
+            base_dir=self._prompt_completion_base_dir(),
+        )
         row, col = self.cursor_location
         token_info = self._extract_token_around_cursor()
         if token_info is not None:
@@ -185,12 +195,20 @@ class FileCompletionMixin(_MixinBase):
     def _recursive_context_from_cursor_token(self) -> RecursiveFinderContext:
         """Build a Ctrl+R context from the path token around the cursor."""
         row, col = self.cursor_location
+        base_dir = self._prompt_completion_base_dir()
         token_info = self._extract_token_around_cursor()
         if token_info is None:
-            return RecursiveFinderContext("", os.getcwd(), row, col, col, "")
+            return RecursiveFinderContext(
+                "",
+                resolve_root_abs("", base_dir=base_dir),
+                row,
+                col,
+                col,
+                "",
+            )
         start, end, token = token_info
         root_display, query = split_root_and_query(token)
-        root_abs = resolve_root_abs(root_display)
+        root_abs = resolve_root_abs(root_display, base_dir=base_dir)
         return RecursiveFinderContext(root_display, root_abs, row, start, end, query)
 
     def _insert_finder_result(
@@ -413,6 +431,7 @@ class FileCompletionMixin(_MixinBase):
             return
 
         _row, _start, _end, token = ctx
+        base_dir = self._prompt_completion_base_dir()
         previous = None
         if self._file_completion_candidates:
             previous = self._file_completion_candidates[
@@ -427,9 +446,15 @@ class FileCompletionMixin(_MixinBase):
             if arg_ctx is None:
                 self._clear_file_completion()
                 return
-            candidates, _shared = build_xprompt_arg_completion_candidates(arg_ctx)
+            candidates, _shared = build_xprompt_arg_completion_candidates(
+                arg_ctx,
+                base_dir=base_dir,
+            )
         else:
-            candidates, _shared = build_completion_candidates(token)
+            candidates, _shared = build_completion_candidates(
+                token,
+                base_dir=base_dir,
+            )
         if not candidates:
             self._clear_file_completion()
             return
@@ -453,6 +478,7 @@ class FileCompletionMixin(_MixinBase):
 
     def _try_file_completion_tab(self) -> bool:
         """Handle Ctrl+T-driven completion for path, xprompt, or history."""
+        base_dir = self._prompt_completion_base_dir()
         arg_ctx = self._get_xprompt_arg_completion_context()
         if arg_ctx is not None:
             return self._try_xprompt_arg_completion_tab(arg_ctx)
@@ -488,7 +514,10 @@ class FileCompletionMixin(_MixinBase):
                     self._clear_file_completion()
                     return False
                 row, start, end, token = ctx
-                candidates, shared_extension = build_completion_candidates(token)
+                candidates, shared_extension = build_completion_candidates(
+                    token,
+                    base_dir=base_dir,
+                )
             else:
                 self._clear_file_completion()
                 return False
@@ -533,9 +562,15 @@ class FileCompletionMixin(_MixinBase):
                 if arg_ctx is None:
                     self._clear_file_completion()
                     return True
-                candidates, _ = build_xprompt_arg_completion_candidates(arg_ctx)
+                candidates, _ = build_xprompt_arg_completion_candidates(
+                    arg_ctx,
+                    base_dir=base_dir,
+                )
             else:
-                candidates, _ = build_completion_candidates(token)
+                candidates, _ = build_completion_candidates(
+                    token,
+                    base_dir=base_dir,
+                )
             if not candidates:
                 self._clear_file_completion()
                 return True
@@ -551,7 +586,11 @@ class FileCompletionMixin(_MixinBase):
         ctx: XPromptArgCompletionContext,
     ) -> bool:
         """Handle Ctrl+T-driven completion inside xprompt argument syntax."""
-        candidates, shared_extension = build_xprompt_arg_completion_candidates(ctx)
+        base_dir = self._prompt_completion_base_dir()
+        candidates, shared_extension = build_xprompt_arg_completion_candidates(
+            ctx,
+            base_dir=base_dir,
+        )
         self._completion_kind = ctx.completion_kind
 
         if not candidates:
@@ -577,7 +616,10 @@ class FileCompletionMixin(_MixinBase):
                 self._clear_file_completion(clear_xprompt_arg_hint=False)
                 self._refresh_xprompt_arg_hint_from_cursor()
                 return True
-            candidates, _ = build_xprompt_arg_completion_candidates(next_ctx)
+            candidates, _ = build_xprompt_arg_completion_candidates(
+                next_ctx,
+                base_dir=base_dir,
+            )
             ctx = next_ctx
             token = effective_xprompt_arg_token(ctx)
             self._completion_kind = ctx.completion_kind
@@ -630,10 +672,15 @@ def effective_xprompt_arg_token(ctx: XPromptArgCompletionContext) -> str:
 
 def build_xprompt_arg_completion_candidates(
     ctx: XPromptArgCompletionContext,
+    *,
+    base_dir: str | os.PathLike[str] | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
     """Build candidates for an xprompt argument completion context."""
     if ctx.completion_kind == "xprompt_arg_path":
-        return build_completion_candidates(effective_xprompt_arg_token(ctx))
+        return build_completion_candidates(
+            effective_xprompt_arg_token(ctx),
+            base_dir=base_dir,
+        )
     if ctx.completion_kind == "xprompt_arg_value":
         return _build_bool_completion_candidates(ctx.token)
     if ctx.completion_kind == "xprompt_arg_name":

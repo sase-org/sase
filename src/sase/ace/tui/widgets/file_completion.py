@@ -79,6 +79,8 @@ def extract_token_around_cursor(line: str, col: int) -> tuple[int, int, str] | N
 
 def build_completion_candidates(
     token: str,
+    *,
+    base_dir: str | os.PathLike[str] | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
     """Build candidates and shared extension for a path token.
 
@@ -95,12 +97,15 @@ def build_completion_candidates(
 
     if token.endswith("/"):
         raw_dir = token
-        expanded_dir = os.path.expanduser(token)
+        expanded_dir = _lookup_path(token, base_dir=base_dir)
         partial = ""
     else:
         raw_head, raw_tail = token.rsplit("/", 1)
         raw_dir = f"{raw_head}/"
-        expanded_head, expanded_tail = os.path.expanduser(token).rsplit("/", 1)
+        expanded_head, expanded_tail = _lookup_path(
+            token,
+            base_dir=base_dir,
+        ).rsplit("/", 1)
         expanded_dir = f"{expanded_head}/"
         partial = expanded_tail
         if raw_tail != expanded_tail:
@@ -148,6 +153,18 @@ def build_completion_candidates(
             c.insertion = at_prefix + c.insertion
 
     return candidates, shared_extension
+
+
+def _lookup_path(
+    raw_path: str,
+    *,
+    base_dir: str | os.PathLike[str] | None,
+) -> str:
+    """Return the filesystem path used to look up a caller-visible token."""
+    expanded = os.path.expandvars(os.path.expanduser(raw_path))
+    if base_dir is None or os.path.isabs(expanded):
+        return expanded
+    return os.path.join(os.fspath(base_dir), expanded)
 
 
 def build_file_history_completion_candidates() -> tuple[list[CompletionCandidate], str]:
