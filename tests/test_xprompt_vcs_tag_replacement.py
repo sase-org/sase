@@ -1,0 +1,161 @@
+"""Tests for xprompt._parsing VCS tag replacement and inheritance helpers."""
+
+import re
+from unittest.mock import patch
+
+from sase.xprompt._parsing import inherit_vcs_workflow_tag, replace_vcs_workflow_tags
+
+
+_TEST_VCS_REPLACE_PATTERN = re.compile(
+    r"^((?:%\S+[\s]+)*)#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s",
+    re.MULTILINE,
+)
+
+
+def _patch_vcs_replace_pattern():
+    """Patch _get_vcs_replace_pattern to use the test pattern."""
+    return patch(
+        "sase.xprompt._parsing._get_vcs_replace_pattern",
+        return_value=_TEST_VCS_REPLACE_PATTERN,
+    )
+
+
+def test_replace_vcs_tags_single_prompt() -> None:
+    """Replace the VCS tag in a simple single-segment prompt."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("#gh:sase Fix the bug", "#gh:other")
+        assert result == "#gh:other Fix the bug"
+
+
+def test_replace_vcs_tags_multi_prompt() -> None:
+    """Replace VCS tags in each segment of a multi-prompt."""
+    prompt = "#gh:sase Fix A\n---\n#gh:sase Fix B"
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags(prompt, "#gh:other")
+        assert result == "#gh:other Fix A\n---\n#gh:other Fix B"
+
+
+def test_replace_vcs_tags_cross_vcs() -> None:
+    """Replace a #git tag with a #gh tag (cross-VCS reuse)."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("#git:repo Fix bug", "#gh:sase")
+        assert result == "#gh:sase Fix bug"
+
+
+def test_replace_vcs_tags_with_directive_same_line() -> None:
+    """Preserve %directive prefix when replacing VCS tag."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("%n:a #gh:sase Fix bug", "#gh:other")
+        assert result == "%n:a #gh:other Fix bug"
+
+
+def test_replace_vcs_tags_with_directives_multi_line() -> None:
+    """Preserve multi-line directives before VCS tag."""
+    prompt = "%plan\n%n:a #gh:sase Fix bug"
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags(prompt, "#gh:other")
+        assert result == "%plan\n%n:a #gh:other Fix bug"
+
+
+def test_replace_vcs_tags_multi_prompt_with_directives() -> None:
+    """Replace VCS tags in multi-prompt where segments have directives."""
+    prompt = "%n:a #gh:sase Fix A\n---\n%n:b #gh:sase Fix B"
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags(prompt, "#gh:other")
+        assert result == "%n:a #gh:other Fix A\n---\n%n:b #gh:other Fix B"
+
+
+def test_replace_vcs_tags_no_existing_tag() -> None:
+    """Prepend VCS prefix when prompt has no existing VCS tag."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("Fix the bug", "#gh:sase")
+        assert result == "#gh:sase Fix the bug"
+
+
+def test_replace_vcs_tags_hitl_modifier() -> None:
+    """Replace a VCS tag that has !! (HITL) modifier."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("#hg!!:cl Fix it", "#gh:sase")
+        assert result == "#gh:sase Fix it"
+
+
+def test_replace_vcs_tags_paren_args() -> None:
+    """Replace a VCS tag that uses parenthesis args."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("#git(repo) Do stuff", "#gh:sase")
+        assert result == "#gh:sase Do stuff"
+
+
+def test_replace_vcs_tags_mixed_vcs_multi_prompt() -> None:
+    """Replace different VCS tags across multi-prompt segments."""
+    prompt = "#gh:sase Fix A\n---\n#git:repo Fix B"
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags(prompt, "#gh:other")
+        assert result == "#gh:other Fix A\n---\n#gh:other Fix B"
+
+
+def _patch_ref_patterns(names: set[str] | None = None):
+    pattern = re.compile(
+        r"#(?:gh|git|hg|cd)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?=\s|$)"
+    )
+    return patch(
+        "sase.workspace_provider.get_ref_patterns",
+        return_value=dict.fromkeys(names or {"gh", "git", "hg", "cd"}, pattern),
+    )
+
+
+def test_inherit_vcs_tag_prefixes_bare_prompt() -> None:
+    """Bare prompt segments inherit the wrapper VCS tag."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        assert inherit_vcs_workflow_tag("Fix the bug", "#gh:sase ") == (
+            "#gh:sase Fix the bug"
+        )
+
+
+def test_inherit_vcs_tag_preserves_leading_directives() -> None:
+    """Inherited tags are inserted after leading % directives."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        prompt = "%w #fork #research/more %m:opus"
+        assert inherit_vcs_workflow_tag(prompt, "#gh:sase ") == (
+            "%w #gh:sase #fork #research/more %m:opus"
+        )
+
+
+def test_inherit_vcs_tag_applies_per_multi_prompt_segment() -> None:
+    """Each untagged multi-prompt segment inherits independently."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        prompt = "Fix A\n---\n%w Fix B"
+        assert inherit_vcs_workflow_tag(prompt, "#gh:sase ") == (
+            "#gh:sase Fix A\n---\n%w #gh:sase Fix B"
+        )
+
+
+def test_inherit_vcs_tag_skips_explicit_workspace_refs() -> None:
+    """Explicit VCS or directory refs remain authoritative."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        prompt = "#git:other Fix A\n---\n#cd:~/work Fix B"
+        assert inherit_vcs_workflow_tag(prompt, "#gh:sase ") == prompt
+
+
+def test_inherit_vcs_tag_skips_known_project_fallback_ref() -> None:
+    """Known-project refs are preserved even without a registered provider."""
+    with (
+        patch("sase.workspace_provider.get_ref_patterns", return_value={}),
+        patch(
+            "sase.xprompt.loader.get_known_project_workspaces", return_value={"sase"}
+        ),
+    ):
+        prompt = "#gh:sase Fix it"
+        assert inherit_vcs_workflow_tag(prompt, "#git:other ") == prompt
