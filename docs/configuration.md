@@ -217,9 +217,11 @@ ace:
 | `auto_file_paths` | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false. |
 | `max_auto_rows`   | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                   |
 
-File-path completion roots relative lookups in the prompt-selected workspace when `#cd`, a registered VCS provider ref,
-or a known project ref can be resolved from the prompt text. If no prompt workspace context is present, lookups fall
-back to the TUI process directory.
+File-path completion roots relative lookups in the prompt-selected workspace. A resolvable `#cd` reference takes
+precedence; without `#cd`, registered workspace-provider refs and known-project refs such as `#git:<project>` or
+`#gh:<owner>/<repo>` can root lookup in that project checkout. If no prompt workspace ref resolves, lookups fall back to
+the TUI process directory. These root rules are shared by live path suggestions, manual `Ctrl+T` path completion, and
+the manual `Ctrl+R` recursive finder.
 
 Source: `src/sase/ace/tui/widgets/prompt_completion.py`, `src/sase/ace/tui/widgets/_prompt_soft_completion.py`,
 `src/sase/ace/tui/widgets/prompt_completion_root.py`, `src/sase/ace/tui/widgets/recursive_file_finder.py`

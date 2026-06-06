@@ -64,11 +64,12 @@ have to feel native.
 | Path-like token (`./`, `~/`, `/`, `@…`) | Filesystem entries; directories drill down on accept                        |
 | Whitespace / empty prompt               | Recent-file history from `~/.sase/file_reference_history.json`              |
 
-Path completion is rooted in the prompt when possible. If the prompt already contains `#cd`, a registered VCS provider
-ref, or a known project ref such as `#git:<project>`, relative path candidates come from that workspace instead of from
-whatever directory launched ACE. For broader search, `Ctrl+R` opens a recursive fuzzy finder. A path token like
-`src/alp` uses `src/` as the root and `alp` as the initial fuzzy query; when the `Ctrl+T` panel is already open, the
-highlighted file or directory seeds the recursive root.
+Path completion is rooted in the prompt when possible. A resolvable `#cd` reference wins. When no `#cd` reference is
+present, registered workspace-provider refs and known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can
+make relative path candidates come from that project checkout instead of from whatever directory launched ACE. For
+broader search, `Ctrl+R` opens a recursive fuzzy finder. A path token like `src/alp` uses `src/` as the root and `alp`
+as the initial fuzzy query; when the `Ctrl+T` panel is already open on a file/path candidate, the highlighted entry
+seeds the recursive root.
 
 Inside a known xprompt argument position, `Ctrl+T` flips to argument completion: `path` inputs delegate to file
 completion, `bool` inputs offer `true` / `false`, and inside `name(arg=…)` syntax the panel completes _missing_ named
