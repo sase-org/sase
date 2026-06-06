@@ -1,11 +1,12 @@
-"""Argument parsing, text block processing, and shorthand syntax."""
+"""Compatibility exports for xprompt parsing helpers."""
 
 import re
 from collections.abc import Mapping, Sequence
-from pathlib import Path
 
 from . import _parsing_args as _args
 from . import _parsing_shorthand as _shorthand
+from . import _parsing_vcs_refs as _vcs_refs
+from . import _parsing_vcs_tags as _vcs_tags
 from ._parsing_args import (
     decode_xprompt_arg_value,
     decode_xprompt_args,
@@ -35,6 +36,11 @@ from ._parsing_shorthand import (
     find_shorthand_text_end,
     preprocess_shorthand_syntax,
 )
+from ._parsing_vcs_tags import (
+    DEFAULT_VCS_WORKFLOW_PREFIX,
+    extract_project_from_vcs_tag,
+    replace_ref_in_vcs_tag,
+)
 
 
 def _parse_named_arg(token: str) -> tuple[str | None, str]:
@@ -57,148 +63,115 @@ def _preprocess_paren_shorthand(prompt: str, xprompt_names: set[str]) -> str:
     return _shorthand._preprocess_paren_shorthand(prompt, xprompt_names)
 
 
-_VCS_TAG_PATTERN: re.Pattern[str] | None = None
-_VCS_TAG_EMBEDDED_PATTERN: re.Pattern[str] | None = None
-_VCS_UNDERSCORE_NORMALIZER: re.Pattern[str] | None = None
-_GENERIC_PROJECT_VCS_REF_PATTERN = re.compile(
-    r"(?:^|(?<=\s)|(?<=[(\"']))"
-    r"#(?P<workflow>[a-zA-Z_][a-zA-Z0-9_]*)"
-    r"(?:!!|\?\?)?"
-    r"(?:[_:](?P<colon>[a-zA-Z0-9_.~/-]+)|\((?P<paren>[a-zA-Z0-9_.~/-]+)\))"
-    r"(?=\s|$)"
-)
-_KNOWN_FALLBACK_VCS_PREFIXES = frozenset({"gh", "git", "hg", "jj", "p4"})
-_LAUNCH_XPROMPT_AT_REF_RE: re.Pattern[str] | None = None
-DEFAULT_VCS_WORKFLOW_PREFIX = "#git:home"
+_VCS_UNDERSCORE_NORMALIZER = _vcs_refs._VCS_UNDERSCORE_NORMALIZER
+_LAUNCH_XPROMPT_AT_REF_RE = _vcs_refs._LAUNCH_XPROMPT_AT_REF_RE
+_VCS_TAG_PATTERN = _vcs_tags._VCS_TAG_PATTERN
+_VCS_TAG_EMBEDDED_PATTERN = _vcs_tags._VCS_TAG_EMBEDDED_PATTERN
+_VCS_REPLACE_PATTERN = _vcs_tags._VCS_REPLACE_PATTERN
+_DIRECTIVE_PREFIX_RE = _vcs_tags._DIRECTIVE_PREFIX_RE
+_SEGMENT_SEPARATOR_RE = _vcs_tags._SEGMENT_SEPARATOR_RE
+
+
+def _sync_vcs_ref_caches_to_impl() -> None:
+    _vcs_refs._VCS_UNDERSCORE_NORMALIZER = _VCS_UNDERSCORE_NORMALIZER
+    _vcs_refs._LAUNCH_XPROMPT_AT_REF_RE = _LAUNCH_XPROMPT_AT_REF_RE
+
+
+def _sync_vcs_ref_caches_from_impl() -> None:
+    global _LAUNCH_XPROMPT_AT_REF_RE, _VCS_UNDERSCORE_NORMALIZER  # noqa: PLW0603
+    _VCS_UNDERSCORE_NORMALIZER = _vcs_refs._VCS_UNDERSCORE_NORMALIZER
+    _LAUNCH_XPROMPT_AT_REF_RE = _vcs_refs._LAUNCH_XPROMPT_AT_REF_RE
+
+
+def _sync_vcs_tag_caches_to_impl() -> None:
+    _vcs_tags._VCS_TAG_PATTERN = _VCS_TAG_PATTERN
+    _vcs_tags._VCS_TAG_EMBEDDED_PATTERN = _VCS_TAG_EMBEDDED_PATTERN
+    _vcs_tags._VCS_REPLACE_PATTERN = _VCS_REPLACE_PATTERN
+
+
+def _sync_vcs_tag_caches_from_impl() -> None:
+    global _VCS_REPLACE_PATTERN, _VCS_TAG_EMBEDDED_PATTERN, _VCS_TAG_PATTERN  # noqa: PLW0603
+    _VCS_TAG_PATTERN = _vcs_tags._VCS_TAG_PATTERN
+    _VCS_TAG_EMBEDDED_PATTERN = _vcs_tags._VCS_TAG_EMBEDDED_PATTERN
+    _VCS_REPLACE_PATTERN = _vcs_tags._VCS_REPLACE_PATTERN
 
 
 def normalize_vcs_underscore_refs(prompt: str) -> str:
-    """Normalize ``#gh_sase`` to ``#gh:sase`` for known VCS workflow names.
-
-    The xprompt and embedded-workflow regex patterns treat ``_`` as part of the
-    identifier, so ``#gh_sase`` is parsed as a single name ``gh_sase`` which
-    doesn't match any workflow.  Converting the first ``_`` after a known VCS
-    prefix to ``:`` lets downstream patterns correctly split the VCS prefix
-    from the ref name.
-    """
-    global _VCS_UNDERSCORE_NORMALIZER  # noqa: PLW0603
-    if _VCS_UNDERSCORE_NORMALIZER is None:
-        from sase.workspace_provider import get_workflow_names
-
-        names = get_workflow_names()
-        if not names:
-            return prompt
-        alts = "|".join(re.escape(n) for n in sorted(names))
-        _VCS_UNDERSCORE_NORMALIZER = re.compile(
-            rf"((?:^|(?<=\s)|(?<=[(\"']))#(?:{alts}))_",
-            re.MULTILINE,
-        )
-    return _VCS_UNDERSCORE_NORMALIZER.sub(r"\1:", prompt)
-
-
-def _markdown_code_ranges(text: str) -> list[tuple[int, int]]:
-    ranges: list[tuple[int, int]] = []
-    i = 0
-    while i < len(text):
-        if text.startswith("```", i):
-            start = i
-            close = text.find("```", i + 3)
-            if close == -1:
-                ranges.append((start, len(text)))
-                break
-            ranges.append((start, close + 3))
-            i = close + 3
-            continue
-        if text[i] == "`":
-            start = i
-            close = text.find("`", i + 1)
-            if close == -1:
-                i += 1
-                continue
-            ranges.append((start, close + 1))
-            i = close + 1
-            continue
-        i += 1
-    return ranges
-
-
-def _inside_any_range(index: int, ranges: list[tuple[int, int]]) -> bool:
-    return any(start <= index < end for start, end in ranges)
+    """Normalize ``#gh_sase`` to ``#gh:sase`` for known VCS workflow names."""
+    _sync_vcs_ref_caches_to_impl()
+    result = _vcs_refs.normalize_vcs_underscore_refs(prompt)
+    _sync_vcs_ref_caches_from_impl()
+    return result
 
 
 def _get_launch_xprompt_at_ref_pattern() -> re.Pattern[str]:
     """Return the scoped ``#workflow@ref`` launch-shorthand normalizer."""
-    global _LAUNCH_XPROMPT_AT_REF_RE  # noqa: PLW0603
-    if _LAUNCH_XPROMPT_AT_REF_RE is None:
-        from sase.workspace_provider import get_workflow_names
-
-        workflows = (
-            set(get_workflow_names()) | set(_KNOWN_FALLBACK_VCS_PREFIXES) | {"cd"}
-        )
-        alts = "|".join(re.escape(name) for name in sorted(workflows))
-        _LAUNCH_XPROMPT_AT_REF_RE = re.compile(
-            rf"(?P<context>^|(?<=[\s([{{\"']))"
-            rf"#(?P<workflow>{alts})"
-            r"(?P<marker>!!|\?\?)?"
-            r"@(?P<ref>[A-Za-z0-9][A-Za-z0-9_.~/-]*)"
-            r"(?=$|[\s)\]},.!?;:\"'])",
-            re.IGNORECASE,
-        )
-    return _LAUNCH_XPROMPT_AT_REF_RE
+    _sync_vcs_ref_caches_to_impl()
+    pattern = _vcs_refs._get_launch_xprompt_at_ref_pattern()
+    _sync_vcs_ref_caches_from_impl()
+    return pattern
 
 
 def normalize_launch_xprompt_at_refs(prompt: str) -> str:
-    """Normalize mobile/Telegram ``#workflow@ref`` launch shorthand.
+    """Normalize mobile/Telegram ``#workflow@ref`` launch shorthand."""
+    _sync_vcs_ref_caches_to_impl()
+    result = _vcs_refs.normalize_launch_xprompt_at_refs(prompt)
+    _sync_vcs_ref_caches_from_impl()
+    return result
 
-    The rewrite is intentionally scoped to workspace/VCS workflow names and
-    skips Markdown code spans so ordinary prose and code samples are preserved.
-    """
-    if "@" not in prompt or "#" not in prompt:
-        return prompt
 
-    code_ranges = _markdown_code_ranges(prompt)
+def resolve_known_project_ref(
+    ref: str, known_projects: Mapping[str, object]
+) -> str | None:
+    """Return the registered project name for *ref* or ``None``."""
+    return _vcs_refs.resolve_known_project_ref(ref, known_projects)
 
-    def replace(match: re.Match[str]) -> str:
-        if _inside_any_range(match.start(), code_ranges):
-            return match.group(0)
-        marker = match.group("marker") or ""
-        return f"{match.group('context')}#{match.group('workflow')}{marker}:{match.group('ref')}"
 
-    return _get_launch_xprompt_at_ref_pattern().sub(replace, prompt)
+def extract_known_project_vcs_ref(
+    prompt: str,
+    include_states: Sequence[str] | str = ("active",),
+) -> tuple[str, str] | None:
+    """Return ``(workflow_type, ref)`` for a generic known-project VCS ref."""
+    _sync_vcs_ref_caches_to_impl()
+    result = _vcs_refs.extract_known_project_vcs_ref(prompt, include_states)
+    _sync_vcs_ref_caches_from_impl()
+    return result
+
+
+def iter_known_project_vcs_refs(
+    prompt: str,
+    known_projects: Mapping[str, object],
+) -> list[tuple[str, str]]:
+    """Return all generic VCS refs that resolve to known projects."""
+    _sync_vcs_ref_caches_to_impl()
+    result = _vcs_refs.iter_known_project_vcs_refs(prompt, known_projects)
+    _sync_vcs_ref_caches_from_impl()
+    return result
+
+
+def strip_known_project_vcs_refs(prompt: str) -> str:
+    """Remove generic VCS refs that point at known projects."""
+    return _vcs_refs.strip_known_project_vcs_refs(prompt)
 
 
 def _get_vcs_tag_pattern() -> re.Pattern[str]:
     """Lazily initialize and return the VCS tag pattern."""
-    global _VCS_TAG_PATTERN  # noqa: PLW0603
-    if _VCS_TAG_PATTERN is None:
-        from sase.workspace_provider import get_vcs_tag_pattern
-
-        _VCS_TAG_PATTERN = get_vcs_tag_pattern()
-    return _VCS_TAG_PATTERN
+    _sync_vcs_tag_caches_to_impl()
+    pattern = _vcs_tags._get_vcs_tag_pattern()
+    _sync_vcs_tag_caches_from_impl()
+    return pattern
 
 
 def _get_embedded_vcs_tag_pattern() -> re.Pattern[str]:
     """Lazily initialize and return the embedded VCS tag pattern."""
-    global _VCS_TAG_EMBEDDED_PATTERN  # noqa: PLW0603
-    if _VCS_TAG_EMBEDDED_PATTERN is None:
-        from sase.workspace_provider import get_embedded_vcs_tag_pattern
-
-        _VCS_TAG_EMBEDDED_PATTERN = get_embedded_vcs_tag_pattern()
-    return _VCS_TAG_EMBEDDED_PATTERN
-
-
-_DIRECTIVE_PREFIX_RE = re.compile(r"(%\S+[\s]+)+")
-_SEGMENT_SEPARATOR_RE = re.compile(r"^---\s*$", re.MULTILINE)
+    _sync_vcs_tag_caches_to_impl()
+    pattern = _vcs_tags._get_embedded_vcs_tag_pattern()
+    _sync_vcs_tag_caches_from_impl()
+    return pattern
 
 
 def extract_vcs_workflow_tag(prompt: str) -> str | None:
-    """Extract a leading VCS workflow tag from a prompt string.
-
-    Skips leading ``%directive`` tokens before checking for a VCS tag.
-    Handles directives on the same line as the VCS tag (e.g. from
-    Telegram-originated prompts like ``%n:a #gh_sase Fix the bug``).
-    Returns the matched tag (e.g., ``"#gh:sase "``) or ``None``.
-    """
+    """Extract a leading VCS workflow tag from a prompt string."""
     m = _DIRECTIVE_PREFIX_RE.match(prompt)
     stripped = prompt[m.end() :] if m else prompt
 
@@ -209,209 +182,11 @@ def extract_vcs_workflow_tag(prompt: str) -> str | None:
 
 
 def find_vcs_workflow_tag(prompt: str) -> str | None:
-    """Find the first VCS workflow tag anywhere in *prompt*.
-
-    Unlike :func:`extract_vcs_workflow_tag`, the tag does NOT need to be at
-    the start of the prompt — it may appear on a later line or after some
-    text on the first line, as long as it is preceded by a token boundary
-    (start of string or whitespace).
-
-    Use this for resume/display callers that want to recover the agent's
-    workspace context from the original prompt regardless of where the user
-    wrote the tag. Continue using :func:`extract_vcs_workflow_tag` when the
-    tag must be the strict leading token (e.g. agent launch, where the tag
-    is stripped from the prompt body).
-    """
+    """Find the first VCS workflow tag anywhere in *prompt*."""
     match = _get_embedded_vcs_tag_pattern().search(prompt)
     if match:
         return match.group(0)
     return None
-
-
-def _prompt_segment_has_vcs_workflow_ref(segment: str) -> bool:
-    """Return whether *segment* contains any registered workspace workflow ref."""
-    from sase.workspace_provider import get_ref_patterns
-
-    if "#" not in segment:
-        return False
-
-    normalized = normalize_vcs_underscore_refs(segment)
-    return any(
-        pattern.search(normalized) is not None
-        for pattern in get_ref_patterns().values()
-    )
-
-
-def _known_project_workspace_path(value: object) -> Path | None:
-    """Return the workspace path carried by a known-project mapping value."""
-    if isinstance(value, Path):
-        return value
-    if isinstance(value, str):
-        return Path(value)
-
-    workspace_dir = getattr(value, "workspace_dir", None)
-    if isinstance(workspace_dir, Path):
-        return workspace_dir
-    if isinstance(workspace_dir, str) and workspace_dir:
-        return Path(workspace_dir)
-    return None
-
-
-def _workspace_path_key(path: Path) -> str:
-    return str(path.expanduser().resolve(strict=False))
-
-
-def _github_owner_repo_workspace(ref: str) -> Path | None:
-    parts = ref.split("/")
-    if len(parts) != 2 or not parts[0] or not parts[1]:
-        return None
-    return Path.home() / "projects" / "github" / parts[0] / parts[1]
-
-
-def _project_for_owner_repo_workspace(
-    ref: str,
-    known_projects: Mapping[str, object],
-) -> str | None:
-    expected = _github_owner_repo_workspace(ref)
-    if expected is None:
-        return None
-
-    expected_key = _workspace_path_key(expected)
-    matches = [
-        project
-        for project, value in known_projects.items()
-        if (
-            (workspace_path := _known_project_workspace_path(value)) is not None
-            and _workspace_path_key(workspace_path) == expected_key
-        )
-    ]
-    if len(matches) == 1:
-        return matches[0]
-    return None
-
-
-def _unambiguous_basename_project(
-    ref: str,
-    known_projects: Mapping[str, object],
-) -> str | None:
-    basename = ref.rsplit("/", 1)[-1]
-    candidates: set[str] = set()
-    if basename in known_projects:
-        candidates.add(basename)
-
-    for project, value in known_projects.items():
-        workspace_path = _known_project_workspace_path(value)
-        if workspace_path is not None and workspace_path.name == basename:
-            candidates.add(project)
-
-    if len(candidates) == 1:
-        return next(iter(candidates))
-    return None
-
-
-def resolve_known_project_ref(
-    ref: str, known_projects: Mapping[str, object]
-) -> str | None:
-    """Return the registered project name for *ref* or ``None``.
-
-    Exact project names are accepted first.  GitHub-style ``owner/repo`` refs
-    then match a known project whose workspace is
-    ``~/projects/github/<owner>/<repo>``.  A legacy basename fallback is kept
-    only when it identifies a single plausible project.
-    """
-    if ref in known_projects:
-        return ref
-    if "/" in ref:
-        workspace_project = _project_for_owner_repo_workspace(ref, known_projects)
-        if workspace_project is not None:
-            return workspace_project
-        return _unambiguous_basename_project(ref, known_projects)
-    return None
-
-
-def extract_known_project_vcs_ref(
-    prompt: str,
-    include_states: Sequence[str] | str = ("active",),
-) -> tuple[str, str] | None:
-    """Return ``(workflow_type, ref)`` for a generic known-project VCS ref.
-
-    This recognizes project refs such as ``#gh:sase`` or ``#gh:sase-org/sase``
-    even when the ``gh`` workspace provider is not registered in the current
-    process.  The project must be known via ``~/.sase/projects/*/*.sase`` (or
-    legacy ``.gp``) to avoid treating ordinary xprompt references as workspace
-    selectors.  The returned ``ref`` preserves the form that appears in
-    *prompt*; callers needing the registered project name should pass it
-    through :func:`resolve_known_project_ref`.
-    """
-    if "#" not in prompt:
-        return None
-
-    from sase.xprompt.loader import get_known_project_workspaces
-
-    try:
-        known_projects = get_known_project_workspaces(include_states=include_states)
-    except TypeError as exc:
-        if "include_states" not in str(exc):
-            raise
-        known_projects = get_known_project_workspaces()
-    if not known_projects:
-        return None
-
-    refs = iter_known_project_vcs_refs(prompt, known_projects)
-    if refs:
-        return refs[0]
-    return None
-
-
-def iter_known_project_vcs_refs(
-    prompt: str,
-    known_projects: Mapping[str, object],
-) -> list[tuple[str, str]]:
-    """Return all generic VCS refs that resolve to known projects.
-
-    The returned refs preserve the user-written ref value, so owner/repo forms
-    like ``sase-org/sase`` remain available to callers that need history or
-    display context while still checking the registered project basename.
-    """
-    if not known_projects or "#" not in prompt:
-        return []
-
-    refs: list[tuple[str, str]] = []
-    seen: set[tuple[str, str]] = set()
-    normalized = normalize_vcs_underscore_refs(prompt)
-    for match in _GENERIC_PROJECT_VCS_REF_PATTERN.finditer(normalized):
-        workflow_type = match.group("workflow")
-        if workflow_type not in _KNOWN_FALLBACK_VCS_PREFIXES:
-            continue
-        ref = match.group("colon") or match.group("paren")
-        if resolve_known_project_ref(ref, known_projects) is None:
-            continue
-        key = (workflow_type, ref)
-        if key in seen:
-            continue
-        seen.add(key)
-        refs.append(key)
-    return refs
-
-
-def strip_known_project_vcs_refs(prompt: str) -> str:
-    """Remove generic VCS refs that point at known projects."""
-    from sase.xprompt.loader import get_known_project_workspaces
-
-    known_projects = get_known_project_workspaces()
-    if not known_projects or "#" not in prompt:
-        return prompt.strip()
-
-    def _replace(match: re.Match[str]) -> str:
-        workflow_type = match.group("workflow")
-        if workflow_type not in _KNOWN_FALLBACK_VCS_PREFIXES:
-            return match.group(0)
-        ref = match.group("colon") or match.group("paren")
-        if resolve_known_project_ref(ref, known_projects) is not None:
-            return ""
-        return match.group(0)
-
-    return _GENERIC_PROJECT_VCS_REF_PATTERN.sub(_replace, prompt).strip()
 
 
 def normalize_default_vcs_workflow_segment(
@@ -419,270 +194,52 @@ def normalize_default_vcs_workflow_segment(
     *,
     default_vcs_prefix: str = DEFAULT_VCS_WORKFLOW_PREFIX,
 ) -> str:
-    """Prefix *segment* with the default workspace workflow when none is present.
-
-    Leading whitespace and leading ``%directive`` tokens remain before the
-    inserted workflow tag so existing directive parsing keeps working.
-    """
-    from sase.workspace_provider import get_ref_patterns
-
-    default_workflow_match = re.match(r"#([a-zA-Z_][a-zA-Z0-9_]*)", default_vcs_prefix)
-    if default_workflow_match is None:
-        return segment
-
-    if default_workflow_match.group(1) not in get_ref_patterns():
-        return segment
-
-    if (
-        not segment.strip()
-        or _prompt_segment_has_vcs_workflow_ref(segment)
-        or extract_known_project_vcs_ref(segment) is not None
-    ):
-        return segment
-
-    leading_ws_match = re.match(r"\s*", segment)
-    assert leading_ws_match is not None
-    leading_ws = leading_ws_match.group(0)
-    body = segment[leading_ws_match.end() :]
-
-    directive_match = _DIRECTIVE_PREFIX_RE.match(body)
-    if directive_match is None:
-        return f"{leading_ws}{default_vcs_prefix} {body}"
-
-    directive_prefix = directive_match.group(0)
-    remainder = body[directive_match.end() :]
-    return f"{leading_ws}{directive_prefix}{default_vcs_prefix} {remainder}"
-
-
-def _inherit_vcs_workflow_tag_segment(segment: str, inherited_vcs_tag: str) -> str:
-    """Prefix *segment* with *inherited_vcs_tag* when it has no workspace ref."""
-    if (
-        not segment.strip()
-        or _prompt_segment_has_vcs_workflow_ref(segment)
-        or extract_known_project_vcs_ref(segment) is not None
-    ):
-        return segment
-
-    leading_ws_match = re.match(r"\s*", segment)
-    assert leading_ws_match is not None
-    leading_ws = leading_ws_match.group(0)
-    body = segment[leading_ws_match.end() :]
-
-    tag = inherited_vcs_tag.strip()
-    directive_match = _DIRECTIVE_PREFIX_RE.match(body)
-    if directive_match is None:
-        return f"{leading_ws}{tag} {body}"
-
-    directive_prefix = directive_match.group(0)
-    remainder = body[directive_match.end() :]
-    return f"{leading_ws}{directive_prefix}{tag} {remainder}"
+    """Prefix *segment* with the default workspace workflow when none is present."""
+    _sync_vcs_ref_caches_to_impl()
+    result = _vcs_tags.normalize_default_vcs_workflow_segment(
+        segment,
+        default_vcs_prefix=default_vcs_prefix,
+    )
+    _sync_vcs_ref_caches_from_impl()
+    return result
 
 
 def inherit_vcs_workflow_tag(prompt: str, inherited_vcs_tag: str | None) -> str:
     """Apply an inherited workspace workflow tag to each untagged prompt segment."""
-    if not inherited_vcs_tag or not inherited_vcs_tag.strip():
-        return prompt
-
-    from sase.xprompt._fenced_blocks import (
-        protect_fenced_blocks,
-        unprotect_fenced_blocks,
-    )
-
-    frontmatter, body = _split_frontmatter_block(prompt)
-    fenced_blocks: list[str] = []
-    protected = protect_fenced_blocks(body, fenced_blocks)
-    pieces = _SEGMENT_SEPARATOR_RE.split(protected)
-    separators = _SEGMENT_SEPARATOR_RE.findall(protected)
-
-    normalized_pieces: list[str] = []
-    for piece in pieces:
-        restored = unprotect_fenced_blocks(piece, fenced_blocks)
-        normalized_pieces.append(
-            _inherit_vcs_workflow_tag_segment(restored, inherited_vcs_tag)
-        )
-
-    rebuilt = normalized_pieces[0] if normalized_pieces else ""
-    for sep, piece in zip(separators, normalized_pieces[1:], strict=False):
-        rebuilt = f"{rebuilt}{sep}{piece}"
-    return f"{frontmatter}{rebuilt}"
-
-
-def _split_frontmatter_block(prompt: str) -> tuple[str, str]:
-    """Split raw leading YAML frontmatter from *prompt*, preserving text."""
-    lines = prompt.splitlines(keepends=True)
-    if not lines or lines[0].strip() != "---":
-        return "", prompt
-
-    for i, line in enumerate(lines[1:], start=1):
-        if line.strip() == "---":
-            return "".join(lines[: i + 1]), "".join(lines[i + 1 :])
-
-    return "", prompt
+    _sync_vcs_ref_caches_to_impl()
+    result = _vcs_tags.inherit_vcs_workflow_tag(prompt, inherited_vcs_tag)
+    _sync_vcs_ref_caches_from_impl()
+    return result
 
 
 def normalize_default_vcs_workflow(prompt: str) -> str:
-    """Normalize bare prompt segments to the default workspace workflow.
-
-    The transformation is applied per multi-prompt segment while preserving a
-    leading frontmatter block and ``---`` separators. Segments that already
-    contain any registered workspace workflow ref are left unchanged.
-    """
-    from sase.xprompt._fenced_blocks import (
-        protect_fenced_blocks,
-        unprotect_fenced_blocks,
-    )
-
-    frontmatter, body = _split_frontmatter_block(prompt)
-    fenced_blocks: list[str] = []
-    protected = protect_fenced_blocks(body, fenced_blocks)
-    pieces = _SEGMENT_SEPARATOR_RE.split(protected)
-    separators = _SEGMENT_SEPARATOR_RE.findall(protected)
-
-    normalized_pieces: list[str] = []
-    for piece in pieces:
-        restored = unprotect_fenced_blocks(piece, fenced_blocks)
-        normalized_pieces.append(normalize_default_vcs_workflow_segment(restored))
-
-    rebuilt = normalized_pieces[0] if normalized_pieces else ""
-    for sep, piece in zip(separators, normalized_pieces[1:], strict=False):
-        rebuilt = f"{rebuilt}{sep}{piece}"
-    return f"{frontmatter}{rebuilt}"
+    """Normalize bare prompt segments to the default workspace workflow."""
+    _sync_vcs_ref_caches_to_impl()
+    result = _vcs_tags.normalize_default_vcs_workflow(prompt)
+    _sync_vcs_ref_caches_from_impl()
+    return result
 
 
 def strip_vcs_workflow_tag(prompt: str) -> str:
-    """Strip a leading VCS workflow tag from a prompt string.
-
-    Removes prefixes like ``#gh:sase``, ``#git(repo)``, ``#hg!!:cl``, etc.
-    so the prompt can be re-wrapped with a different VCS workflow.
-    """
+    """Strip a leading VCS workflow tag from a prompt string."""
     return _get_vcs_tag_pattern().sub("", prompt)
 
 
-_VCS_REPLACE_PATTERN: re.Pattern[str] | None = None
-
-
 def _get_vcs_replace_pattern() -> re.Pattern[str]:
-    """Build a regex matching VCS workflow tags at the start of any line.
-
-    Unlike :func:`_get_vcs_tag_pattern` (which is ``^``-anchored and matches
-    only at the very start of the string), this pattern uses ``re.MULTILINE``
-    so ``^`` matches at every line start.  Leading ``%directive`` tokens are
-    captured in group 1 to be preserved during replacement.
-    """
-    global _VCS_REPLACE_PATTERN  # noqa: PLW0603
-    if _VCS_REPLACE_PATTERN is None:
-        from sase.workspace_provider import get_workflow_names
-
-        names = "|".join(re.escape(n) for n in sorted(get_workflow_names()))
-        _VCS_REPLACE_PATTERN = re.compile(
-            rf"^((?:%\S+[\s]+)*)#(?:{names})(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s",
-            re.MULTILINE,
-        )
-    return _VCS_REPLACE_PATTERN
+    """Build a regex matching VCS workflow tags at the start of any line."""
+    _sync_vcs_tag_caches_to_impl()
+    pattern = _vcs_tags._get_vcs_replace_pattern()
+    _sync_vcs_tag_caches_from_impl()
+    return pattern
 
 
 def replace_vcs_workflow_tags(prompt: str, new_vcs_prefix: str) -> str:
-    """Replace all VCS workflow tags in *prompt* with *new_vcs_prefix*.
-
-    Handles multi-prompt segments (``---`` separated), directives before
-    VCS tags, and VCS tags that appear at the start of any line.
-
-    If no VCS tags are found, prepends *new_vcs_prefix* to the prompt.
-    """
+    """Replace all VCS workflow tags in *prompt* with *new_vcs_prefix*."""
     pattern = _get_vcs_replace_pattern()
     result, count = pattern.subn(lambda m: f"{m.group(1)}{new_vcs_prefix} ", prompt)
     if count == 0:
         return f"{new_vcs_prefix} {prompt}"
     return result
-
-
-def replace_ref_in_vcs_tag(tag: str, new_ref: str) -> str:
-    """Replace the ref portion of a VCS workflow tag with *new_ref*.
-
-    Strips HITL suffixes (``!!`` / ``??``) since this is used for resume
-    scenarios where HITL overrides should not carry over.
-
-    Handles colon format (``#gh:sase `` -> ``#gh:new_ref ``),
-    parenthesized format (``#git(repo) `` -> ``#git(new_ref) ``),
-    and underscore format (``#gh_sase `` -> ``#gh:new_ref ``).
-
-    Args:
-        tag: The VCS tag string as returned by :func:`extract_vcs_workflow_tag`.
-        new_ref: The new ref to use (e.g. a branch name).
-
-    Returns:
-        The tag with the ref replaced and HITL suffixes stripped.
-    """
-    stripped = tag.rstrip()
-    if not stripped.startswith("#"):
-        return tag
-
-    body = stripped[1:]  # strip leading #
-
-    # Strip HITL suffixes (!! or ??)
-    for suffix in ("!!", "??"):
-        idx = body.find(suffix)
-        if idx != -1:
-            body = body[:idx] + body[idx + len(suffix) :]
-            break
-
-    # Parenthesized ref: #git(repo) -> #git(new_ref)
-    if "(" in body:
-        paren_start = body.index("(")
-        return f"#{body[:paren_start]}({new_ref}) "
-
-    # Colon ref: #gh:sase -> #gh:new_ref
-    if ":" in body:
-        prefix = body.split(":", 1)[0]
-        return f"#{prefix}:{new_ref} "
-
-    # Underscore ref: #gh_sase -> #gh:new_ref
-    if "_" in body:
-        prefix = body.split("_", 1)[0]
-        return f"#{prefix}:{new_ref} "
-
-    # No ref (bare #gh) - append with colon
-    return f"#{body}:{new_ref} "
-
-
-def extract_project_from_vcs_tag(tag: str) -> str | None:
-    """Extract the project/ref name from a VCS workflow tag.
-
-    Handles formats like ``#gh:sase ``, ``#gh!!:sase ``, ``#git(repo) ``.
-    Returns the ref portion (e.g. ``"sase"``, ``"repo"``) or ``None`` if
-    no ref is present.
-
-    Args:
-        tag: The VCS tag string as returned by :func:`extract_vcs_workflow_tag`.
-    """
-    tag = tag.strip()
-    if not tag.startswith("#"):
-        return None
-
-    body = tag[1:]  # strip leading #
-
-    # Strip optional !! or ?? HITL suffix from the workflow-type portion
-    for suffix in ("!!", "??"):
-        idx = body.find(suffix)
-        if idx != -1:
-            body = body[:idx] + body[idx + len(suffix) :]
-            break
-
-    # Parenthesized ref: #git(repo) -> repo
-    if "(" in body:
-        start = body.index("(")
-        end = body.find(")", start)
-        if end != -1:
-            return body[start + 1 : end] or None
-        return None
-
-    # Colon ref: #gh:sase -> sase
-    if ":" in body:
-        ref = body.split(":", 1)[1]
-        return ref or None
-
-    # No ref (e.g. #gh+ or bare #gh)
-    return None
 
 
 __all__ = [
