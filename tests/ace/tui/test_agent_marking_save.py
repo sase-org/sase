@@ -106,7 +106,11 @@ def test_save_marked_group_persists_refs_in_display_order() -> None:
     app.action_save_marked_agents()
     _confirm_save_modal(app, name="Backend batch")
 
+    assert len(app._recent_dismissed_agent_groups) == 1
+    assert app._recent_dismissed_agent_groups[0].name == "Backend batch"
+
     saved_groups: list[Any] = []
+    recent_groups: list[Any] = []
     saved_bundles: list[Agent] = []
     with (
         patch("sase.ace.dismissed_agents.save_dismissed_bundle") as mock_bundle,
@@ -114,6 +118,10 @@ def test_save_marked_group_persists_refs_in_display_order() -> None:
         patch(
             "sase.ace.dismissed_agents.save_dismissed_agent_group",
             side_effect=lambda group: saved_groups.append(group) or group,
+        ),
+        patch(
+            "sase.ace.dismissed_agents.record_recent_dismissed_agent_group",
+            side_effect=lambda group: recent_groups.append(group) or group,
         ),
         patch(
             "sase.ace.tui.actions.agents._marking.sync_dismissed_agent_artifact_index"
@@ -143,6 +151,7 @@ def test_save_marked_group_persists_refs_in_display_order() -> None:
     assert group.agent_count == 3
     assert group.top_level_agent_count == 2
     assert group.name == "Backend batch"
+    assert recent_groups == saved_groups
 
 
 def test_blank_save_preserves_generated_group_title() -> None:
@@ -161,6 +170,7 @@ def test_blank_save_preserves_generated_group_title() -> None:
             "sase.ace.dismissed_agents.save_dismissed_agent_group",
             side_effect=lambda group: saved_groups.append(group) or group,
         ),
+        patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
         patch(
             "sase.ace.tui.actions.agents._marking.sync_dismissed_agent_artifact_index"
         ),

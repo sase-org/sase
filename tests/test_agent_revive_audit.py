@@ -92,6 +92,10 @@ def test_no_dismissed_agents_emits_failure_event(tmp_path: Path) -> None:
             "sase.ace.dismissed_agents.list_dismissed_agent_groups",
             return_value=SavedAgentGroupPageWire(groups=(), next_cursor=None),
         ),
+        patch(
+            "sase.ace.dismissed_agents.list_recent_dismissed_agent_groups",
+            return_value=SavedAgentGroupPageWire(groups=(), next_cursor=None),
+        ),
     ):
         app._revive_agent()
 

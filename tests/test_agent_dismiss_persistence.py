@@ -35,6 +35,9 @@ def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # t
             "sase.ace.tui.actions.agents._dismissing."
             "sync_dismissed_agent_artifact_index"
         ) as mock_sync_index,
+        patch(
+            "sase.ace.dismissed_agents.record_recent_dismissed_agent_group"
+        ) as mock_record_recent,
     ):
         callback, args = app._scheduled[0]
         asyncio.run(callback(*args))  # type: ignore[misc]
@@ -42,6 +45,8 @@ def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # t
     mock_persist_intents.assert_called_once()
     assert mock_persist_intents.call_args[0][1] == [agent]
     mock_dismiss_many.assert_not_called()
+    mock_record_recent.assert_called_once()
+    assert mock_record_recent.call_args.args[0].source == "recent_dismissal"
     mock_save.assert_called_once_with({agent.identity})
     mock_sync_index.assert_called_once_with({agent.identity}, added={agent.identity})
     assert app.notification_refreshes_async == 1
@@ -107,6 +112,7 @@ def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
     ):
         callback, args = app._scheduled[0]
         asyncio.run(callback(*args))  # type: ignore[misc]
@@ -148,6 +154,7 @@ def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
     ):
         callback, args = _find_bulk_persistence_callback(app)
         asyncio.run(callback(*args))  # type: ignore[misc]
@@ -300,6 +307,7 @@ def test_bulk_dismiss_passes_added_to_artifact_index_sync() -> None:
             "sase.ace.tui.actions.agents._dismissing."
             "sync_dismissed_agent_artifact_index"
         ) as mock_sync_index,
+        patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
     ):
         callback, args = _find_bulk_persistence_callback(app)
         asyncio.run(callback(*args))  # type: ignore[misc]

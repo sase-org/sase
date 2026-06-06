@@ -26,8 +26,12 @@ from .dismissed_agents_bundles import (
 )
 from .dismissed_agent_groups import (
     list_dismissed_agent_groups as _list_dismissed_agent_groups_impl,
+    list_recent_dismissed_agent_groups as _list_recent_dismissed_agent_groups_impl,
     load_dismissed_agent_group as _load_dismissed_agent_group_impl,
+    load_recent_dismissed_agent_group as _load_recent_dismissed_agent_group_impl,
     mark_dismissed_agent_group_revived as _mark_dismissed_agent_group_revived_impl,
+    mark_recent_dismissed_agent_group_revived as _mark_recent_dismissed_agent_group_revived_impl,
+    record_recent_dismissed_agent_group as _record_recent_dismissed_agent_group_impl,
     save_dismissed_agent_group as _save_dismissed_agent_group_impl,
 )
 from .dismissed_agents_migrations import (
@@ -54,6 +58,7 @@ if TYPE_CHECKING:
 _DISMISSED_AGENTS_FILE: Path | None = None
 _DISMISSED_BUNDLES_DIR: Path | None = None
 _DISMISSED_AGENT_GROUPS_DIR: Path | None = None
+_RECENT_DISMISSED_AGENT_GROUPS_DIR: Path | None = None
 _OLD_BUNDLES_FILE: Path | None = None
 
 
@@ -71,6 +76,12 @@ def dismissed_bundles_dir() -> Path:
 
 def _dismissed_agent_groups_dir() -> Path:
     return _DISMISSED_AGENT_GROUPS_DIR or sase_subdir("dismissed_agent_groups")
+
+
+def _recent_dismissed_agent_groups_dir() -> Path:
+    return _RECENT_DISMISSED_AGENT_GROUPS_DIR or sase_subdir(
+        "recent_dismissed_agent_groups"
+    )
 
 
 def _old_bundles_file() -> Path:
@@ -189,6 +200,40 @@ def mark_dismissed_agent_group_revived(
         group_id,
         revived_at=revived_at,
         groups_dir=_dismissed_agent_groups_dir(),
+    )
+
+
+def record_recent_dismissed_agent_group(group: Any, *, limit: int = 10) -> Any:
+    return _record_recent_dismissed_agent_group_impl(
+        group,
+        groups_dir=_recent_dismissed_agent_groups_dir(),
+        limit=limit,
+    )
+
+
+def list_recent_dismissed_agent_groups(*, limit: int = 10) -> Any:
+    return _list_recent_dismissed_agent_groups_impl(
+        limit=limit,
+        groups_dir=_recent_dismissed_agent_groups_dir(),
+    )
+
+
+def load_recent_dismissed_agent_group(group_id: str) -> Any:
+    return _load_recent_dismissed_agent_group_impl(
+        group_id,
+        groups_dir=_recent_dismissed_agent_groups_dir(),
+    )
+
+
+def mark_recent_dismissed_agent_group_revived(
+    group_id: str,
+    *,
+    revived_at: str,
+) -> Any:
+    return _mark_recent_dismissed_agent_group_revived_impl(
+        group_id,
+        revived_at=revived_at,
+        groups_dir=_recent_dismissed_agent_groups_dir(),
     )
 
 

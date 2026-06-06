@@ -11,8 +11,10 @@ from sase.ace.tui.modals.saved_agent_group_revival_modal import (
     SavedAgentGroupRevivalResult,
 )
 from sase.core.agent_group_archive_wire import (
+    SavedAgentGroupRefWire,
     SavedAgentGroupPageWire,
     SavedAgentGroupSummaryWire,
+    SavedAgentGroupWire,
 )
 
 from tests._agent_revive_helpers import FakeReviveApp, make_agent
@@ -34,9 +36,15 @@ def test_agents_r_opens_saved_group_revival_panel() -> None:
     app._dismissed_agent_objects = [agent]
     app._dismissed_agents = {agent.identity}
 
-    with patch(
-        "sase.ace.dismissed_agents.list_dismissed_agent_groups",
-        return_value=SavedAgentGroupPageWire(groups=(), next_cursor=None),
+    with (
+        patch(
+            "sase.ace.dismissed_agents.list_dismissed_agent_groups",
+            return_value=SavedAgentGroupPageWire(groups=(), next_cursor=None),
+        ),
+        patch(
+            "sase.ace.dismissed_agents.list_recent_dismissed_agent_groups",
+            return_value=SavedAgentGroupPageWire(groups=(), next_cursor=None),
+        ),
     ):
         app._revive_agent()
 
@@ -52,9 +60,17 @@ def test_custom_search_result_opens_legacy_project_scope_flow() -> None:
     app._dismissed_agent_objects = [agent]
     app._dismissed_agents = {agent.identity}
 
-    with patch(
-        "sase.ace.dismissed_agents.list_dismissed_agent_groups",
-        return_value=SavedAgentGroupPageWire(groups=(_summary(),), next_cursor=None),
+    with (
+        patch(
+            "sase.ace.dismissed_agents.list_dismissed_agent_groups",
+            return_value=SavedAgentGroupPageWire(
+                groups=(_summary(),), next_cursor=None
+            ),
+        ),
+        patch(
+            "sase.ace.dismissed_agents.list_recent_dismissed_agent_groups",
+            return_value=SavedAgentGroupPageWire(groups=(), next_cursor=None),
+        ),
     ):
         app._revive_agent()
 
@@ -85,9 +101,17 @@ def test_saved_group_result_dispatches_to_phase_four_hook() -> None:
     revived_group_ids: list[str] = []
     app._revive_saved_agent_group = revived_group_ids.append  # type: ignore[method-assign]
 
-    with patch(
-        "sase.ace.dismissed_agents.list_dismissed_agent_groups",
-        return_value=SavedAgentGroupPageWire(groups=(_summary(),), next_cursor=None),
+    with (
+        patch(
+            "sase.ace.dismissed_agents.list_dismissed_agent_groups",
+            return_value=SavedAgentGroupPageWire(
+                groups=(_summary(),), next_cursor=None
+            ),
+        ),
+        patch(
+            "sase.ace.dismissed_agents.list_recent_dismissed_agent_groups",
+            return_value=SavedAgentGroupPageWire(groups=(), next_cursor=None),
+        ),
     ):
         app._revive_agent()
 
@@ -102,6 +126,47 @@ def test_saved_group_result_dispatches_to_phase_four_hook() -> None:
     assert revived_group_ids == ["group-a"]
 
 
+def test_recent_group_result_dispatches_with_recent_location() -> None:
+    app = FakeReviveApp()
+    capture = _ScreenCapture()
+    app.app = capture  # type: ignore[attr-defined]
+    revived: list[tuple[str, str]] = []
+
+    def revive(group_id: str, *, location: str = "saved") -> None:
+        revived.append((group_id, location))
+
+    app._revive_saved_agent_group = revive  # type: ignore[method-assign]
+
+    with (
+        patch(
+            "sase.ace.dismissed_agents.list_dismissed_agent_groups",
+            return_value=SavedAgentGroupPageWire(groups=(), next_cursor=None),
+        ),
+        patch(
+            "sase.ace.dismissed_agents.list_recent_dismissed_agent_groups",
+            return_value=SavedAgentGroupPageWire(
+                groups=(_recent_summary(),), next_cursor=None
+            ),
+        ),
+        patch(
+            "sase.ace.dismissed_agents.load_recent_dismissed_agent_group",
+            return_value=_recent_group(),
+        ),
+    ):
+        app._revive_agent()
+
+    callback = capture.pushed[0][1]
+    callback(
+        SavedAgentGroupRevivalResult(
+            action="revive_group",
+            group_id="recent-a",
+            location="recent",
+        )
+    )
+
+    assert revived == [("recent-a", "recent")]
+
+
 def _summary() -> SavedAgentGroupSummaryWire:
     return SavedAgentGroupSummaryWire(
         group_id="group-a",
@@ -113,4 +178,40 @@ def _summary() -> SavedAgentGroupSummaryWire:
         status_counts={"DONE": 1},
         project_names=("sase",),
         cl_names=("backend",),
+    )
+
+
+def _recent_summary() -> SavedAgentGroupSummaryWire:
+    return SavedAgentGroupSummaryWire(
+        group_id="recent-a",
+        created_at="2026-05-27T12:30:00Z",
+        source="recent_dismissal",
+        title="1 agent in backend",
+        agent_count=1,
+        top_level_agent_count=1,
+        status_counts={"DONE": 1},
+        project_names=("sase",),
+        cl_names=("backend",),
+    )
+
+
+def _recent_group() -> SavedAgentGroupWire:
+    summary = _recent_summary()
+    return SavedAgentGroupWire(
+        group_id=summary.group_id,
+        created_at=summary.created_at,
+        source=summary.source,
+        title=summary.title,
+        agent_count=summary.agent_count,
+        top_level_agent_count=summary.top_level_agent_count,
+        status_counts=summary.status_counts,
+        project_names=summary.project_names,
+        cl_names=summary.cl_names,
+        agent_refs=(
+            SavedAgentGroupRefWire(
+                agent_type="run",
+                cl_name="backend",
+                raw_suffix="recent-suffix",
+            ),
+        ),
     )

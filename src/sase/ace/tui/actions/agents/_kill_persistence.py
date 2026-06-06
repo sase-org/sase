@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
+    from sase.core.agent_group_archive_wire import SavedAgentGroupWire
 
 from ._dismiss_persistence import (
     persist_cleanup_side_effect_intents,
@@ -74,9 +75,13 @@ def persist_bulk_kill_side_effects(
     dismissed_snapshot: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: object | None = None,
+    recent_group: SavedAgentGroupWire | None = None,
 ) -> None:
     """Apply filesystem/project-file side effects for a bulk kill operation."""
-    from ....dismissed_agents import save_dismissed_agents
+    from ....dismissed_agents import (
+        record_recent_dismissed_agent_group,
+        save_dismissed_agents,
+    )
 
     consumed_intents = persist_cleanup_side_effect_intents(
         cleanup_plan,
@@ -98,6 +103,8 @@ def persist_bulk_kill_side_effects(
         dismiss_notifications_for_agents(
             [item.agent for item in kill_items] + list(dismissable)
         )
+    if recent_group is not None:
+        record_recent_dismissed_agent_group(recent_group)
     if save_dismissed_agents(dismissed_snapshot):
         try:
             sync_dismissed_agent_artifact_index(dismissed_snapshot)

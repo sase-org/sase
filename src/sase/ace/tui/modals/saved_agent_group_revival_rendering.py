@@ -75,6 +75,7 @@ def format_saved_group_row(
     index: int,
     *,
     now: datetime | None = None,
+    source_label: str | None = None,
 ) -> Text:
     """Build one saved-group list row."""
 
@@ -88,6 +89,9 @@ def format_saved_group_row(
         text.append(summary.title, style="dim")
     text.append("  ")
     text.append(_saved_group_row_time_label(summary.created_at, now=now), style="dim")
+    if source_label:
+        text.append("  ")
+        text.append(source_label, style="dim italic")
     text.append("  ")
     text.append(f"{summary.agent_count} agents", style="#87D7FF")
     text.append("  ")

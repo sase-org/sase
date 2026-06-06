@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
+    from sase.core.agent_group_archive_wire import SavedAgentGroupWire
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
 # in attribute declarations (not just in function signatures)
@@ -34,6 +35,11 @@ from ._kill_persistence import (
     KillKind,
     persist_bulk_kill_side_effects,
     persist_kill_side_effects,
+)
+from ._recent_dismissal_groups import (
+    agents_for_recent_group,
+    build_recent_dismissed_agent_group,
+    cache_recent_dismissed_agent_group,
 )
 from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
@@ -410,6 +416,10 @@ class AgentKillingMixin(AgentDismissingMixin):
         dismissed_ids = dismissed_identities_from_plan(cleanup_plan)
         if not dismissed_ids:
             dismissed_ids = self._collect_dismissal_identities(dismiss_candidates)
+        recent_group = build_recent_dismissed_agent_group(
+            agents_for_recent_group(dismissed_ids, agents_with_children_snapshot)
+        )
+        cache_recent_dismissed_agent_group(self, recent_group)
         killed_ids: set[AgentIdentity] = set()
         for item in kill_items:
             killed_ids.update(item.identities)
@@ -451,6 +461,7 @@ class AgentKillingMixin(AgentDismissingMixin):
                 set(self._dismissed_agents),
                 agents_with_children_snapshot,
                 cleanup_plan,
+                recent_group,
             )
         log.debug(
             "bulk agent kill immediate stage: killed=%d dismissed=%d elapsed=%.3fs",
@@ -466,6 +477,7 @@ class AgentKillingMixin(AgentDismissingMixin):
         dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
         cleanup_plan: object | None = None,
+        recent_group: SavedAgentGroupWire | None = None,
     ) -> None:
         """Persist bulk kill/dismiss side effects in a worker thread."""
         inflight = {item.agent.identity for item in kill_items}
@@ -477,13 +489,24 @@ class AgentKillingMixin(AgentDismissingMixin):
         success = True
         try:
             if cleanup_plan is None:
-                await asyncio.to_thread(
-                    persist_bulk_kill_side_effects,
-                    kill_items,
-                    dismissable,
-                    dismissed_snapshot,
-                    agents_with_children_snapshot,
-                )
+                if recent_group is None:
+                    await asyncio.to_thread(
+                        persist_bulk_kill_side_effects,
+                        kill_items,
+                        dismissable,
+                        dismissed_snapshot,
+                        agents_with_children_snapshot,
+                    )
+                else:
+                    await asyncio.to_thread(
+                        persist_bulk_kill_side_effects,
+                        kill_items,
+                        dismissable,
+                        dismissed_snapshot,
+                        agents_with_children_snapshot,
+                        None,
+                        recent_group,
+                    )
             else:
                 await asyncio.to_thread(
                     persist_bulk_kill_side_effects,
@@ -492,6 +515,7 @@ class AgentKillingMixin(AgentDismissingMixin):
                     dismissed_snapshot,
                     agents_with_children_snapshot,
                     cleanup_plan,
+                    recent_group,
                 )
         except Exception as exc:
             success = False

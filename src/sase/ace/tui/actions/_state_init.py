@@ -393,6 +393,8 @@ class StateInitMixin:
         # Agent completion tracking for notifications
         from ...dismissed_agents import (
             dismissed_agents_file_signature,
+            list_recent_dismissed_agent_groups,
+            load_recent_dismissed_agent_group,
             load_dismissed_agents,
         )
         from sase.core.agent_artifact_index_lifecycle import (
@@ -414,6 +416,17 @@ class StateInitMixin:
         self._dismissed_agents_disk_signature_initialized = True
         sync_dismissed_agent_artifact_index(self._dismissed_agents)
         self._dismissed_agent_objects: list[Agent] = []
+        try:
+            recent_page = list_recent_dismissed_agent_groups(limit=10)
+            self._recent_dismissed_agent_groups = [
+                group
+                for summary in recent_page.groups
+                if (group := load_recent_dismissed_agent_group(summary.group_id))
+                is not None
+            ]
+        except Exception:
+            log.debug("failed to load recent dismissed-agent groups", exc_info=True)
+            self._recent_dismissed_agent_groups = []
         self._revived_agent_raw_suffixes: set[str] = set()
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
 

@@ -26,6 +26,7 @@ from sase.core.rust import require_rust_binding
 from .dismissed_agents_bundles import write_json_file_atomic
 
 _DEFAULT_DISMISSED_AGENT_GROUPS_DIR: Path | None = None
+_DEFAULT_RECENT_DISMISSED_AGENT_GROUPS_DIR: Path | None = None
 _WIRE_EXPORT_TYPES = (SavedAgentGroupRefWire, SavedAgentGroupSummaryWire)
 _WIRE_CAPABILITY_PROBE = {
     "schema_version": AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION,
@@ -52,6 +53,12 @@ _WIRE_CAPABILITY_PROBE = {
 
 def _default_dismissed_agent_groups_dir() -> Path:
     return _DEFAULT_DISMISSED_AGENT_GROUPS_DIR or sase_subdir("dismissed_agent_groups")
+
+
+def _default_recent_dismissed_agent_groups_dir() -> Path:
+    return _DEFAULT_RECENT_DISMISSED_AGENT_GROUPS_DIR or sase_subdir(
+        "recent_dismissed_agent_groups"
+    )
 
 
 def _rust_group_archive_binding(name: str) -> Any:
@@ -159,6 +166,92 @@ def mark_dismissed_agent_group_revived(
     return saved_agent_group_from_dict(dict(result))
 
 
+def record_recent_dismissed_agent_group(
+    group: SavedAgentGroupWire | dict[str, Any],
+    *,
+    groups_dir: Path | None = None,
+    limit: int = 10,
+) -> SavedAgentGroupWire:
+    """Persist one recent dismissal record and prune the capped store."""
+
+    root = groups_dir or _default_recent_dismissed_agent_groups_dir()
+    payload = _normalize_group_dict(group)
+    try:
+        binding = _rust_group_archive_binding("record_recent_dismissed_agent_group")
+    except (ImportError, AttributeError):
+        return _record_recent_dismissed_agent_group_python(
+            root,
+            payload,
+            limit=limit,
+        )
+
+    result = binding(str(root), payload, limit)
+    return saved_agent_group_from_dict(dict(result))
+
+
+def list_recent_dismissed_agent_groups(
+    *,
+    limit: int = 10,
+    groups_dir: Path | None = None,
+) -> SavedAgentGroupPageWire:
+    """List recent dismissal records in newest-first order."""
+
+    root = groups_dir or _default_recent_dismissed_agent_groups_dir()
+    try:
+        binding = _rust_group_archive_binding("list_recent_dismissed_agent_groups")
+    except (ImportError, AttributeError):
+        page = _list_dismissed_agent_groups_python(root, limit=limit, cursor=None)
+        return SavedAgentGroupPageWire(groups=page.groups, next_cursor=None)
+
+    result = binding(str(root), limit)
+    return saved_agent_group_page_from_dict(dict(result))
+
+
+def load_recent_dismissed_agent_group(
+    group_id: str,
+    *,
+    groups_dir: Path | None = None,
+) -> SavedAgentGroupWire | None:
+    """Load one recent dismissal record, returning ``None`` when absent/corrupt."""
+
+    root = groups_dir or _default_recent_dismissed_agent_groups_dir()
+    try:
+        binding = _rust_group_archive_binding("load_recent_dismissed_agent_group")
+    except (ImportError, AttributeError):
+        return _load_dismissed_agent_group_python(root, group_id)
+
+    result = binding(str(root), group_id)
+    if result is None:
+        return None
+    return saved_agent_group_from_dict(dict(result))
+
+
+def mark_recent_dismissed_agent_group_revived(
+    group_id: str,
+    *,
+    revived_at: str,
+    groups_dir: Path | None = None,
+) -> SavedAgentGroupWire | None:
+    """Mark one recent dismissal record revived without deleting it."""
+
+    root = groups_dir or _default_recent_dismissed_agent_groups_dir()
+    try:
+        binding = _rust_group_archive_binding(
+            "mark_recent_dismissed_agent_group_revived"
+        )
+    except (ImportError, AttributeError):
+        return _mark_dismissed_agent_group_revived_python(
+            root,
+            group_id,
+            revived_at=revived_at,
+        )
+
+    result = binding(str(root), group_id, revived_at)
+    if result is None:
+        return None
+    return saved_agent_group_from_dict(dict(result))
+
+
 def _save_dismissed_agent_group_python(
     root: Path,
     payload: dict[str, Any],
@@ -222,6 +315,33 @@ def _mark_dismissed_agent_group_revived_python(
     payload = saved_agent_group_wire_to_json_dict(updated)
     write_json_file_atomic(_group_path(root, group_id), payload)
     return updated
+
+
+def _record_recent_dismissed_agent_group_python(
+    root: Path,
+    payload: dict[str, Any],
+    *,
+    limit: int,
+) -> SavedAgentGroupWire:
+    group = _save_dismissed_agent_group_python(root, payload)
+    _prune_recent_dismissed_agent_groups_python(root, limit=limit)
+    return group
+
+
+def _prune_recent_dismissed_agent_groups_python(root: Path, *, limit: int) -> None:
+    keep = max(1, int(limit))
+    groups = [
+        group
+        for path in _iter_group_paths(root)
+        if (group := _read_group_file(path)) is not None
+    ]
+    groups.sort(key=lambda group: group.group_id)
+    groups.sort(key=lambda group: group.created_at, reverse=True)
+    for group in groups[keep:]:
+        try:
+            _group_path(root, group.group_id).unlink()
+        except FileNotFoundError:
+            pass
 
 
 def _normalize_group_dict(
@@ -297,4 +417,8 @@ __all__ = [
     "list_dismissed_agent_groups",
     "load_dismissed_agent_group",
     "mark_dismissed_agent_group_revived",
+    "record_recent_dismissed_agent_group",
+    "list_recent_dismissed_agent_groups",
+    "load_recent_dismissed_agent_group",
+    "mark_recent_dismissed_agent_group_revived",
 ]

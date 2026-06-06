@@ -5,157 +5,41 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections import Counter
-from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
-from sase.core.agent_group_archive_wire import (
-    SavedAgentGroupRefWire,
-    SavedAgentGroupWire,
-)
 
 from ._dismiss_cleanup import AgentIdentity
+from ._recent_dismissal_groups import cache_recent_dismissed_agent_group
+from ._saved_group_records import (
+    build_saved_agent_group,
+    normalize_saved_group_name,
+    plural_agent,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+    from sase.core.agent_group_archive_wire import SavedAgentGroupWire
 
 TabName = Literal["changespecs", "agents", "axe"]
 log = logging.getLogger(__name__)
-
-
-def _utc_wire_timestamp(value: datetime) -> str:
-    """Return a UTC ISO timestamp using the archive wire's ``Z`` convention."""
-
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
-
-
-def _agent_start_time_wire(agent: Agent) -> str | None:
-    if agent.start_time is None:
-        return None
-    if agent.start_time.tzinfo is None:
-        return agent.start_time.isoformat()
-    return _utc_wire_timestamp(agent.start_time)
-
-
-def _agent_project_name(agent: Agent) -> str | None:
-    if not agent.project_file:
-        return None
-    parent = Path(agent.project_file).parent.name
-    if parent:
-        return parent
-    stem = Path(agent.project_file).stem
-    return stem or None
-
-
-def _plural_agent(count: int) -> str:
-    return "agent" if count == 1 else "agents"
-
-
-def _saved_group_title(agents: list[Agent]) -> str:
-    count = len(agents)
-    tags = sorted({a.tag for a in agents if a.tag})
-    cl_names = sorted(
-        {a.cl_name for a in agents if a.cl_name and a.cl_name != "unknown"}
-    )
-    project_names = sorted(
-        {name for a in agents if (name := _agent_project_name(a)) is not None}
-    )
-
-    if len(tags) == 1:
-        return f"{count} {_plural_agent(count)} from @{tags[0]}"
-    if len(cl_names) == 1:
-        return f"{count} {_plural_agent(count)} in {cl_names[0]}"
-    if len(project_names) == 1:
-        return f"{count} {_plural_agent(count)} from {project_names[0]}"
-    if len(cl_names) > 1:
-        return f"{count} {_plural_agent(count)} across {len(cl_names)} CLs"
-    return f"{count} {_plural_agent(count)}"
-
-
-def _normalize_saved_group_name(group_name: str | None) -> str | None:
-    if group_name is None:
-        return None
-    normalized = group_name.strip()
-    return normalized or None
-
-
-def _bundle_path_for_agent(agent: Agent) -> str | None:
-    existing = getattr(agent, "_dismissed_bundle_path", None)
-    if existing:
-        return existing
-    if agent.raw_suffix is None:
-        return None
-    try:
-        from ....dismissed_agents import dismissed_bundle_path_for_agent
-
-        path = dismissed_bundle_path_for_agent(agent)
-    except Exception:
-        return None
-    return None if path is None else str(path)
-
-
-def _saved_group_ref_for_agent(agent: Agent) -> SavedAgentGroupRefWire:
-    return SavedAgentGroupRefWire(
-        agent_type=agent.agent_type.value,
-        cl_name=agent.cl_name,
-        raw_suffix=agent.raw_suffix,
-        bundle_path=_bundle_path_for_agent(agent),
-        is_workflow_child=agent.is_workflow_child,
-        parent_timestamp=agent.parent_timestamp,
-        display_name=agent.display_name,
-        agent_name=agent.agent_name,
-        status=agent.status,
-        start_time=_agent_start_time_wire(agent),
-        model=agent.model,
-        llm_provider=agent.llm_provider,
-        tag=agent.tag,
-    )
-
-
-def _build_saved_agent_group(
-    agents: list[Agent],
-    *,
-    group_name: str | None = None,
-) -> SavedAgentGroupWire:
-    now = datetime.now(UTC)
-    created_at = _utc_wire_timestamp(now)
-    status_counts = dict(sorted(Counter(a.status for a in agents if a.status).items()))
-    project_names = tuple(
-        sorted({name for a in agents if (name := _agent_project_name(a)) is not None})
-    )
-    cl_names = tuple(
-        sorted({a.cl_name for a in agents if a.cl_name and a.cl_name != "unknown"})
-    )
-    top_level_count = sum(1 for agent in agents if not agent.is_workflow_child)
-    return SavedAgentGroupWire(
-        group_id=f"marked-{now.strftime('%Y%m%dT%H%M%S%fZ')}",
-        created_at=created_at,
-        source="marked_agents",
-        title=_saved_group_title(agents),
-        name=_normalize_saved_group_name(group_name),
-        agent_count=len(agents),
-        top_level_agent_count=top_level_count,
-        status_counts=status_counts,
-        project_names=project_names,
-        cl_names=cl_names,
-        agent_refs=tuple(_saved_group_ref_for_agent(agent) for agent in agents),
-    )
 
 
 def _persist_marked_agent_group_save(
     agents: list[Agent],
     dismissed_snapshot: set[AgentIdentity],
     added: set[AgentIdentity],
+    group: SavedAgentGroupWire,
     group_name: str | None = None,
 ) -> None:
     """Persist non-killing marked-agent dismissal side effects."""
+    del group_name
 
     from ....dismissed_agents import (
+        record_recent_dismissed_agent_group,
         save_dismissed_agent_group,
         save_dismissed_agents,
         save_dismissed_bundle,
@@ -165,8 +49,8 @@ def _persist_marked_agent_group_save(
         if not agent._from_changespec:
             save_dismissed_bundle(agent)
 
-    group = _build_saved_agent_group(agents, group_name=group_name)
     save_dismissed_agent_group(group)
+    record_recent_dismissed_agent_group(group)
 
     if save_dismissed_agents(dismissed_snapshot):
         try:
@@ -187,6 +71,7 @@ class AgentMarkingMixin:
     _agents_with_children: list[Agent]
     _marked_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
+    _recent_dismissed_agent_groups: list[SavedAgentGroupWire]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]]
@@ -407,6 +292,8 @@ class AgentMarkingMixin:
 
         identities = {agent.identity for agent in agents}
         added = identities - self._dismissed_agents
+        group = build_saved_agent_group(agents, group_name=group_name)
+        cache_recent_dismissed_agent_group(self, group)
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
             self._agent_pre_question_status.pop(identity, None)
@@ -416,7 +303,7 @@ class AgentMarkingMixin:
         self._apply_dismissal_in_memory(agents)  # type: ignore[attr-defined]
 
         count = len(agents)
-        message = f"Saved and dismissed {count} {_plural_agent(count)}"
+        message = f"Saved and dismissed {count} {plural_agent(count)}"
         notify_after_refresh = getattr(self, "_notify_after_refresh", None)
         if callable(notify_after_refresh):
             notify_after_refresh(message)
@@ -428,7 +315,8 @@ class AgentMarkingMixin:
             list(agents),
             set(self._dismissed_agents),
             added,
-            _normalize_saved_group_name(group_name),
+            group,
+            normalize_saved_group_name(group_name),
         )
 
     async def _run_marked_agent_group_save_persistence_async(
@@ -436,6 +324,7 @@ class AgentMarkingMixin:
         agents: list[Agent],
         dismissed_snapshot: set[AgentIdentity],
         added: set[AgentIdentity],
+        group: SavedAgentGroupWire,
         group_name: str | None = None,
     ) -> None:
         """Persist the saved group and dismissed index in a worker thread."""
@@ -452,13 +341,14 @@ class AgentMarkingMixin:
                 agents,
                 dismissed_snapshot,
                 added,
+                group,
                 group_name,
             )
         except Exception as exc:
             success = False
             count = len(agents)
             self.notify(  # type: ignore[attr-defined]
-                f"Saved {count} {_plural_agent(count)} in memory, but group "
+                f"Saved {count} {plural_agent(count)} in memory, but group "
                 f"archive failed: {exc}. Refresh recommended.",
                 severity="error",
             )

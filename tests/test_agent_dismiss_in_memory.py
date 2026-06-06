@@ -234,6 +234,13 @@ def test_dismiss_done_workflow_parent_removes_children(tmp_path) -> None:  # typ
     assert app._agents_with_children == []
     assert len(app._scheduled) == 1
     assert app._scheduled[0][1][2] == [parent, child]
+    assert len(app._recent_dismissed_agent_groups) == 1
+    recent = app._recent_dismissed_agent_groups[0]
+    assert recent.source == "recent_dismissal"
+    assert [ref.raw_suffix for ref in recent.agent_refs] == [
+        "20240101120000",
+        "child_suffix_1",
+    ]
 
 
 def test_dismiss_done_changespec_agent_does_not_full_reload() -> None:

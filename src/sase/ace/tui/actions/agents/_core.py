@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from ...models.agent_panels import AgentPanelGroup
     from ...models.fold_state import FoldStateManager
     from ...util.debounce import DetailPanelDebouncer
+    from sase.core.agent_group_archive_wire import SavedAgentGroupWire
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
 # in attribute declarations (not just in function signatures)
@@ -104,6 +105,7 @@ class AgentsMixinCore(
     _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
+    _recent_dismissed_agent_groups: list[SavedAgentGroupWire]
     _marked_agents: set[tuple[AgentType, str, str | None]]
 
     # Agent status override system (for PLAN/PLAN APPROVED/QUESTION statuses)

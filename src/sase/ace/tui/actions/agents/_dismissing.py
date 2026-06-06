@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
+    from sase.core.agent_group_archive_wire import SavedAgentGroupWire
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
 # in attribute declarations (not just in function signatures).
@@ -32,6 +33,11 @@ from ._dismiss_persistence import (
     persist_bulk_dismiss_side_effects,
     persist_cleanup_side_effect_intents,
     persist_dismiss_side_effects,
+)
+from ._recent_dismissal_groups import (
+    agents_for_recent_group,
+    build_recent_dismissed_agent_group,
+    cache_recent_dismissed_agent_group,
 )
 from ._killing_utils import (
     delete_agent_artifacts,
@@ -63,6 +69,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
     _agents: list[Agent]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
+    _recent_dismissed_agent_groups: list[SavedAgentGroupWire]
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
@@ -140,6 +147,13 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
             agents_with_children_snapshot,
         )
         dismissed_identities = dismissed_identities_from_plan(cleanup_plan)
+        recent_group = build_recent_dismissed_agent_group(
+            agents_for_recent_group(
+                dismissed_identities,
+                agents_with_children_snapshot,
+            )
+        )
+        cache_recent_dismissed_agent_group(self, recent_group)
 
         new_identities = dismissed_identities - self._dismissed_agents
         for identity in dismissed_identities:
@@ -161,6 +175,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
             agents_with_children_snapshot,
             cleanup_plan,
             new_identities,
+            recent_group,
         )
 
     async def _run_bulk_dismiss_persistence_async(
@@ -170,6 +185,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         agents_with_children_snapshot: list[Agent],
         cleanup_plan: object | None = None,
         added: set[AgentIdentity] | None = None,
+        recent_group: SavedAgentGroupWire | None = None,
     ) -> None:
         """Persist a batch dismissal's filesystem side effects in a worker."""
         identities = {a.identity for a in agents}
@@ -187,6 +203,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
                 agents_with_children_snapshot,
                 cleanup_plan,
                 added,
+                recent_group,
             )
         except Exception as exc:
             success = False
@@ -235,6 +252,10 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         identities = dismissed_identities_from_plan(cleanup_plan)
         if not identities:
             identities = self._collect_dismissal_identities([agent])
+        recent_group = build_recent_dismissed_agent_group(
+            agents_for_recent_group(identities, agents_with_children_snapshot)
+        )
+        cache_recent_dismissed_agent_group(self, recent_group)
         new_identities = identities - self._dismissed_agents
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
@@ -254,6 +275,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
             agents_with_children_snapshot,
             cleanup_plan,
             new_identities,
+            recent_group,
         )
 
     async def _run_dismiss_persistence_async(
@@ -263,6 +285,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         agents_with_children_snapshot: list[Agent],
         cleanup_plan: object | None = None,
         added: set[AgentIdentity] | None = None,
+        recent_group: SavedAgentGroupWire | None = None,
     ) -> None:
         """Persist single-agent dismiss side effects in a worker thread."""
         identity = agent.identity
@@ -280,6 +303,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
                 agents_with_children_snapshot,
                 cleanup_plan,
                 added,
+                recent_group,
             )
         except Exception as exc:
             success = False
@@ -308,9 +332,13 @@ def _persist_single_dismiss_transaction(
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: object | None = None,
     added: set[AgentIdentity] | None = None,
+    recent_group: SavedAgentGroupWire | None = None,
 ) -> None:
     """Persist all side effects for one optimistic dismiss operation."""
-    from ....dismissed_agents import save_dismissed_agents
+    from ....dismissed_agents import (
+        record_recent_dismissed_agent_group,
+        save_dismissed_agents,
+    )
 
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
@@ -320,6 +348,8 @@ def _persist_single_dismiss_transaction(
         dismiss_notifications_for_agents(
             agents_related_to_dismissal(agent, agents_with_children_snapshot)
         )
+    if recent_group is not None:
+        record_recent_dismissed_agent_group(recent_group)
     if save_dismissed_agents(dismissed_snapshot):
         try:
             sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
@@ -333,9 +363,13 @@ def _persist_bulk_dismiss_transaction(
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: object | None = None,
     added: set[AgentIdentity] | None = None,
+    recent_group: SavedAgentGroupWire | None = None,
 ) -> None:
     """Persist all side effects for an optimistic batch dismiss operation."""
-    from ....dismissed_agents import save_dismissed_agents
+    from ....dismissed_agents import (
+        record_recent_dismissed_agent_group,
+        save_dismissed_agents,
+    )
 
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
@@ -354,6 +388,8 @@ def _persist_bulk_dismiss_transaction(
                 related.append(rel)
         if related:
             dismiss_notifications_for_agents(related)
+    if recent_group is not None:
+        record_recent_dismissed_agent_group(recent_group)
     if save_dismissed_agents(dismissed_snapshot):
         try:
             sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)

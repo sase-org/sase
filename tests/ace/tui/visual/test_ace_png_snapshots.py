@@ -342,6 +342,7 @@ async def test_saved_agent_group_modal_normal_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
+    recent_groups = tuple(_recent_group_summary(idx) for idx in range(2))
     groups = tuple(_saved_group_summary(idx) for idx in range(3))
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -350,6 +351,10 @@ async def test_saved_agent_group_modal_normal_png_snapshot(
             page,
             SavedAgentGroupPageWire(groups=groups, next_cursor=None),
             {},
+            recent_page=SavedAgentGroupPageWire(
+                groups=recent_groups,
+                next_cursor=None,
+            ),
         )
 
         ace_png_visual.assert_page_png(
@@ -531,9 +536,12 @@ async def _push_saved_group_modal(
     page: AcePage,
     initial_page: SavedAgentGroupPageWire,
     groups_by_id: dict[str, SavedAgentGroupWire],
+    *,
+    recent_page: SavedAgentGroupPageWire | None = None,
 ) -> SavedAgentGroupRevivalModal:
     modal = SavedAgentGroupRevivalModal(
         initial_page,
+        recent_page=recent_page,
         group_loader=groups_by_id.get,
     )
     page.app.push_screen(modal)
@@ -562,6 +570,20 @@ def _saved_group_summary(
         status_counts=status_counts or {"DONE": 2, "FAILED": 1},
         project_names=project_names,
         cl_names=cl_names,
+    )
+
+
+def _recent_group_summary(idx: int) -> SavedAgentGroupSummaryWire:
+    return SavedAgentGroupSummaryWire(
+        group_id=f"recent-visual-group-{idx:02}",
+        created_at=f"May 27 12:{idx + 30:02}",
+        source="recent_dismissal",
+        title="2 agents from @visual",
+        agent_count=2,
+        top_level_agent_count=2,
+        status_counts={"DONE": 2},
+        project_names=("sase",),
+        cl_names=("visual-polish",),
     )
 
 

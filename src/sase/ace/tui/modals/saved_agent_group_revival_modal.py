@@ -31,6 +31,11 @@ from .saved_agent_group_revival_rendering import (
 _CUSTOM_SEARCH_ID = "custom-search"
 _EMPTY_ID = "empty"
 _LOAD_MORE_ID = "load-more"
+_RECENT_HEADING_ID = "heading:recent"
+_SAVED_HEADING_ID = "heading:saved"
+_RECENT_EMPTY_ID = "empty:recent"
+_SAVED_EMPTY_ID = "empty:saved"
+_RECENT_PREFIX = "recent:"
 _GROUP_PREFIX = "group:"
 
 
@@ -40,6 +45,7 @@ class SavedAgentGroupRevivalResult:
 
     action: Literal["revive_group", "custom_search"]
     group_id: str | None = None
+    location: Literal["saved", "recent"] = "saved"
 
 
 class SavedAgentGroupRevivalModal(
@@ -58,14 +64,20 @@ class SavedAgentGroupRevivalModal(
         self,
         initial_page: SavedAgentGroupPageWire,
         *,
+        recent_page: SavedAgentGroupPageWire | None = None,
         page_loader: Callable[[int | None], SavedAgentGroupPageWire] | None = None,
         group_loader: Callable[[str], SavedAgentGroupWire | None] | None = None,
+        recent_group_loader: Callable[[str], SavedAgentGroupWire | None] | None = None,
     ) -> None:
         super().__init__()
+        self._recent_groups: list[SavedAgentGroupSummaryWire] = list(
+            recent_page.groups if recent_page is not None else ()
+        )
         self._groups: list[SavedAgentGroupSummaryWire] = list(initial_page.groups)
         self._next_cursor = initial_page.next_cursor
         self._page_loader = page_loader
         self._group_loader = group_loader
+        self._recent_group_loader = recent_group_loader
         self._loaded_groups: dict[str, SavedAgentGroupWire | None] = {}
 
     @property
@@ -73,6 +85,12 @@ class SavedAgentGroupRevivalModal(
         """Currently loaded group summaries."""
 
         return tuple(self._groups)
+
+    @property
+    def recent_groups(self) -> tuple[SavedAgentGroupSummaryWire, ...]:
+        """Currently loaded recent-dismissal summaries."""
+
+        return tuple(self._recent_groups)
 
     @property
     def next_cursor(self) -> int | None:
@@ -84,10 +102,10 @@ class SavedAgentGroupRevivalModal(
         """Compose the saved-group revival modal."""
 
         with Container(id="saved-agent-group-modal-container"):
-            yield Label("Revive Saved Agent Groups", id="saved-agent-group-title")
+            yield Label("Agent Restore", id="saved-agent-group-title")
             with Horizontal(id="saved-agent-group-panels"):
                 with Vertical(id="saved-agent-group-list-panel"):
-                    yield Static("Saved groups", id="saved-agent-group-list-heading")
+                    yield Static("Groups", id="saved-agent-group-list-heading")
                     yield OptionList(
                         *self._create_options(),
                         id="saved-agent-group-list",
@@ -131,12 +149,23 @@ class SavedAgentGroupRevivalModal(
         if option_id == _CUSTOM_SEARCH_ID:
             self.dismiss(SavedAgentGroupRevivalResult(action="custom_search"))
             return
-        group_id = _group_id_from_option(option_id)
+        recent_group_id = _group_id_from_option(option_id, prefix=_RECENT_PREFIX)
+        if recent_group_id is not None:
+            self.dismiss(
+                SavedAgentGroupRevivalResult(
+                    action="revive_group",
+                    group_id=recent_group_id,
+                    location="recent",
+                )
+            )
+            return
+        group_id = _group_id_from_option(option_id, prefix=_GROUP_PREFIX)
         if group_id is not None:
             self.dismiss(
                 SavedAgentGroupRevivalResult(
                     action="revive_group",
                     group_id=group_id,
+                    location="saved",
                 )
             )
 
@@ -167,6 +196,37 @@ class SavedAgentGroupRevivalModal(
 
     def _create_options(self) -> list[Option]:
         options: list[Option] = []
+        options.append(
+            Option(
+                Text("Recent dismissals", style="bold #87D7FF"),
+                id=_RECENT_HEADING_ID,
+                disabled=True,
+            )
+        )
+        if self._recent_groups:
+            for idx, group in enumerate(self._recent_groups):
+                options.append(
+                    Option(
+                        format_saved_group_row(group, idx, source_label="recent"),
+                        id=f"{_RECENT_PREFIX}{group.group_id}",
+                    )
+                )
+        else:
+            options.append(
+                Option(
+                    Text("No recent dismissals", style="dim"),
+                    id=_RECENT_EMPTY_ID,
+                    disabled=True,
+                )
+            )
+
+        options.append(
+            Option(
+                Text("Saved groups", style="bold #87D7FF"),
+                id=_SAVED_HEADING_ID,
+                disabled=True,
+            )
+        )
         if self._groups:
             for idx, group in enumerate(self._groups):
                 options.append(
@@ -177,7 +237,11 @@ class SavedAgentGroupRevivalModal(
                 )
         else:
             options.append(
-                Option(Text("No saved groups yet", style="dim"), id=_EMPTY_ID)
+                Option(
+                    Text("No saved groups yet", style="dim"),
+                    id=_SAVED_EMPTY_ID,
+                    disabled=True,
+                )
             )
 
         if self._next_cursor is not None:
@@ -211,17 +275,21 @@ class SavedAgentGroupRevivalModal(
         self.query_one("#saved-agent-group-hints", Static).update(self._hints_text())
 
     def _hints_text(self) -> str:
+        recent_count = len(self._recent_groups)
         group_count = len(self._groups)
         load_more = " | PgDn/load row: more" if self._next_cursor is not None else ""
         return (
-            f"j/k: navigate | Enter: revive/open | {group_count} saved loaded"
+            f"j/k: navigate | Enter: revive/open | {recent_count} recent | "
+            f"{group_count} saved loaded"
             f"{load_more} | Esc/q: cancel"
         )
 
     def _first_option_id(self) -> str:
+        if self._recent_groups:
+            return f"{_RECENT_PREFIX}{self._recent_groups[0].group_id}"
         if self._groups:
             return f"{_GROUP_PREFIX}{self._groups[0].group_id}"
-        return _EMPTY_ID
+        return _CUSTOM_SEARCH_ID
 
     def _update_preview_for_option_id(self, option_id: str | None) -> None:
         try:
@@ -229,51 +297,82 @@ class SavedAgentGroupRevivalModal(
         except Exception:
             return
 
-        if option_id == _EMPTY_ID:
+        if option_id in {_EMPTY_ID, _RECENT_EMPTY_ID, _SAVED_EMPTY_ID}:
             preview.update(build_empty_groups_preview())
             return
         if option_id == _LOAD_MORE_ID:
             preview.update(build_load_more_preview(self._next_cursor))
             return
+        if option_id in {_RECENT_HEADING_ID, _SAVED_HEADING_ID}:
+            return
         if option_id == _CUSTOM_SEARCH_ID or option_id is None:
             preview.update(build_saved_group_preview(None))
             return
 
-        group_id = _group_id_from_option(option_id)
-        summary = self._summary_for_group_id(group_id)
+        location = _group_location_from_option(option_id)
+        group_id = _group_id_from_option(
+            option_id,
+            prefix=_RECENT_PREFIX if location == "recent" else _GROUP_PREFIX,
+        )
+        summary = self._summary_for_group_id(group_id, location=location)
         if summary is None:
             preview.update(build_saved_group_preview(None))
             return
 
-        group = self._load_group(group_id)
+        group = self._load_group(option_id, group_id, location=location)
         preview.update(build_saved_group_preview(summary, group))
 
     def _summary_for_group_id(
-        self, group_id: str | None
+        self,
+        group_id: str | None,
+        *,
+        location: Literal["saved", "recent"] | None = None,
     ) -> SavedAgentGroupSummaryWire | None:
         if group_id is None:
             return None
-        for group in self._groups:
+        groups = self._recent_groups if location == "recent" else self._groups
+        for group in groups:
             if group.group_id == group_id:
                 return group
         return None
 
-    def _load_group(self, group_id: str | None) -> SavedAgentGroupWire | None:
-        if group_id is None or self._group_loader is None:
+    def _load_group(
+        self,
+        option_id: str | None,
+        group_id: str | None,
+        *,
+        location: Literal["saved", "recent"] | None = None,
+    ) -> SavedAgentGroupWire | None:
+        if group_id is None or option_id is None:
             return None
-        if group_id not in self._loaded_groups:
+        loader = (
+            self._recent_group_loader if location == "recent" else self._group_loader
+        )
+        if loader is None:
+            return None
+        if option_id not in self._loaded_groups:
             try:
-                self._loaded_groups[group_id] = self._group_loader(group_id)
+                self._loaded_groups[option_id] = loader(group_id)
             except Exception as exc:
                 self.notify(
                     f"Failed to load saved group {group_id}: {exc}",
                     severity="error",
                 )
-                self._loaded_groups[group_id] = None
-        return self._loaded_groups[group_id]
+                self._loaded_groups[option_id] = None
+        return self._loaded_groups[option_id]
 
 
-def _group_id_from_option(option_id: str | None) -> str | None:
-    if not option_id or not option_id.startswith(_GROUP_PREFIX):
+def _group_location_from_option(
+    option_id: str | None,
+) -> Literal["saved", "recent"] | None:
+    if option_id and option_id.startswith(_RECENT_PREFIX):
+        return "recent"
+    if option_id and option_id.startswith(_GROUP_PREFIX):
+        return "saved"
+    return None
+
+
+def _group_id_from_option(option_id: str | None, *, prefix: str) -> str | None:
+    if not option_id or not option_id.startswith(prefix):
         return None
-    return option_id.removeprefix(_GROUP_PREFIX)
+    return option_id.removeprefix(prefix)

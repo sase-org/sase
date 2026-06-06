@@ -175,6 +175,46 @@ def test_revive_saved_group_does_not_mark_group_when_no_refs_load() -> None:
     assert app.load_count == 0
 
 
+def test_revive_recent_group_loads_cache_first_and_marks_recent_and_saved() -> None:
+    app = FakeReviveApp()
+    parent = make_agent(cl_name="feature", raw_suffix="parent_suffix")
+    group = _group("recent-a", parent)
+    app._recent_dismissed_agent_groups = [group]
+    app._dismissed_agents = {parent.identity}
+
+    with (
+        patch(
+            "sase.ace.dismissed_agents.load_recent_dismissed_agent_group"
+        ) as mock_load_recent,
+        patch(
+            "sase.ace.dismissed_agents.load_dismissed_bundles",
+            return_value=[parent],
+        ) as mock_load_bundles,
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
+        patch(
+            "sase.ace.dismissed_agents.mark_recent_dismissed_agent_group_revived"
+        ) as mock_mark_recent,
+        patch(
+            "sase.ace.dismissed_agents.mark_dismissed_agent_group_revived"
+        ) as mock_mark_saved,
+        patch(
+            "sase.ace.tui.actions.agents._revive.sync_dismissed_agent_artifact_index"
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._revive.upsert_agent_artifact_index_artifacts"
+        ),
+    ):
+        app._revive_saved_agent_group("recent-a", location="recent")
+
+    mock_load_recent.assert_not_called()
+    mock_load_bundles.assert_called_once_with({"parent_suffix"})
+    mock_mark_recent.assert_called_once_with("recent-a", revived_at=ANY)
+    mock_mark_saved.assert_called_once_with("recent-a", revived_at=ANY)
+    assert app._recent_dismissed_agent_groups[0].times_revived == 1
+    assert app._recent_dismissed_agent_groups[0].revived_at is not None
+
+
 def _group(
     group_id: str,
     *agents: Agent,

@@ -37,9 +37,15 @@ def test_initial_page_includes_load_more_before_custom_search() -> None:
 
     option_ids = [option.id for option in modal._create_options()]
 
-    assert option_ids[:2] == ["group:group-00", "group:group-01"]
+    assert option_ids[:5] == [
+        "heading:recent",
+        "empty:recent",
+        "heading:saved",
+        "group:group-00",
+        "group:group-01",
+    ]
     assert option_ids[-2:] == ["load-more", "custom-search"]
-    assert len(option_ids) == 22
+    assert len(option_ids) == 25
 
 
 def test_empty_state_still_keeps_custom_search_final() -> None:
@@ -49,8 +55,14 @@ def test_empty_state_still_keeps_custom_search_final() -> None:
 
     option_ids = [option.id for option in modal._create_options()]
 
-    assert option_ids == ["empty", "custom-search"]
-    assert "0 saved loaded" in modal._hints_text()
+    assert option_ids == [
+        "heading:recent",
+        "empty:recent",
+        "heading:saved",
+        "empty:saved",
+        "custom-search",
+    ]
+    assert "0 recent | 0 saved loaded" in modal._hints_text()
 
 
 async def test_load_more_appends_next_page_and_keeps_custom_final() -> None:
@@ -111,11 +123,39 @@ async def test_enter_on_custom_search_returns_custom_result() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
         option_list = modal.query_one("#saved-agent-group-list", OptionList)
-        option_list.highlighted = 1
+        option_list.highlighted = 4
         await pilot.press("enter")
         await pilot.pause()
 
     assert result == SavedAgentGroupRevivalResult(action="custom_search")
+
+
+async def test_enter_on_recent_group_returns_recent_location() -> None:
+    result: SavedAgentGroupRevivalResult | None = None
+    modal = SavedAgentGroupRevivalModal(
+        SavedAgentGroupPageWire(groups=(), next_cursor=None),
+        recent_page=SavedAgentGroupPageWire(
+            groups=(_recent_summary(),), next_cursor=None
+        ),
+    )
+
+    def on_dismiss(value: SavedAgentGroupRevivalResult | None) -> None:
+        nonlocal result
+        result = value
+
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+        option_list = modal.query_one("#saved-agent-group-list", OptionList)
+        option_list.highlighted = 1
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == SavedAgentGroupRevivalResult(
+        action="revive_group",
+        group_id="recent-00",
+        location="recent",
+    )
 
 
 def test_preview_rendering_includes_stable_time_and_status_text() -> None:
@@ -182,6 +222,20 @@ def _summary(idx: int, *, name: str | None = None) -> SavedAgentGroupSummaryWire
         agent_count=3,
         top_level_agent_count=2,
         status_counts={"DONE": 2, "FAILED": 1},
+        project_names=("sase",),
+        cl_names=("backend",),
+    )
+
+
+def _recent_summary() -> SavedAgentGroupSummaryWire:
+    return SavedAgentGroupSummaryWire(
+        group_id="recent-00",
+        created_at="2026-05-27T12:10:00Z",
+        source="recent_dismissal",
+        title="1 agent in backend",
+        agent_count=1,
+        top_level_agent_count=1,
+        status_counts={"DONE": 1},
         project_names=("sase",),
         cl_names=("backend",),
     )

@@ -8,8 +8,12 @@ from unittest.mock import patch
 
 from sase.ace.dismissed_agents import (
     list_dismissed_agent_groups,
+    list_recent_dismissed_agent_groups,
     load_dismissed_agent_group,
+    load_recent_dismissed_agent_group,
     mark_dismissed_agent_group_revived,
+    mark_recent_dismissed_agent_group_revived,
+    record_recent_dismissed_agent_group,
     save_dismissed_agent_group,
 )
 from sase.core.agent_group_archive_wire import (
@@ -148,6 +152,95 @@ def test_saved_agent_group_missing_name_loads_as_none(tmp_path: Path) -> None:
     assert loaded is not None
     assert loaded.name is None
     assert page.groups[0].name is None
+
+
+def test_recent_dismissed_agent_groups_are_capped_newest_first(
+    tmp_path: Path,
+) -> None:
+    recent_dir = tmp_path / "recent"
+
+    with patch(
+        "sase.ace.dismissed_agents._RECENT_DISMISSED_AGENT_GROUPS_DIR", recent_dir
+    ):
+        for idx in range(12):
+            group = _group(
+                f"recent-{idx:02}",
+                f"2026-05-27T12:{idx:02}:00Z",
+            )
+            record_recent_dismissed_agent_group(group)
+
+        page = list_recent_dismissed_agent_groups(limit=10)
+
+    assert [summary.group_id for summary in page.groups] == [
+        "recent-11",
+        "recent-10",
+        "recent-09",
+        "recent-08",
+        "recent-07",
+        "recent-06",
+        "recent-05",
+        "recent-04",
+        "recent-03",
+        "recent-02",
+    ]
+    assert page.next_cursor is None
+    assert not (recent_dir / "recent-00.json").exists()
+    assert not (recent_dir / "recent-01.json").exists()
+
+
+def test_recent_dismissed_agent_groups_replace_and_mark_revived(
+    tmp_path: Path,
+) -> None:
+    recent_dir = tmp_path / "recent"
+
+    with patch(
+        "sase.ace.dismissed_agents._RECENT_DISMISSED_AGENT_GROUPS_DIR", recent_dir
+    ):
+        record_recent_dismissed_agent_group(
+            _group("recent-same", "2026-05-27T12:00:00Z")
+        )
+        record_recent_dismissed_agent_group(
+            _group("recent-same", "2026-05-27T12:30:00Z")
+        )
+        loaded = load_recent_dismissed_agent_group("recent-same")
+        revived = mark_recent_dismissed_agent_group_revived(
+            "recent-same",
+            revived_at="2026-05-27T13:00:00Z",
+        )
+        page = list_recent_dismissed_agent_groups(limit=10)
+
+    assert loaded is not None
+    assert loaded.created_at == "2026-05-27T12:30:00Z"
+    assert revived is not None
+    assert revived.revived_at == "2026-05-27T13:00:00Z"
+    assert revived.times_revived == 1
+    assert [summary.group_id for summary in page.groups] == ["recent-same"]
+
+
+def test_recent_dismissed_agent_group_python_fallback_tolerates_corrupt(
+    tmp_path: Path,
+) -> None:
+    recent_dir = tmp_path / "recent"
+    recent_dir.mkdir()
+    (recent_dir / "corrupt.json").write_text("not json", encoding="utf-8")
+
+    with (
+        patch(
+            "sase.ace.dismissed_agents._RECENT_DISMISSED_AGENT_GROUPS_DIR", recent_dir
+        ),
+        patch(
+            "sase.ace.dismissed_agent_groups.require_rust_binding",
+            side_effect=AttributeError("stale"),
+        ),
+    ):
+        record_recent_dismissed_agent_group(
+            _group("recent-valid", "2026-05-27T12:00:00Z")
+        )
+        page = list_recent_dismissed_agent_groups(limit=10)
+        corrupt = load_recent_dismissed_agent_group("corrupt")
+
+    assert [summary.group_id for summary in page.groups] == ["recent-valid"]
+    assert corrupt is None
 
 
 def _group(

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-06 08:56:33
-status: wip
+status: done
 prompt: sdd/prompts/202606/recent_agent_restore.md
 ---
 # Plan: Recent Agent Dismissals in Agent Restore
