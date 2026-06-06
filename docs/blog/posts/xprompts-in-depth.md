@@ -1,5 +1,5 @@
 ---
-title: "[03] XPrompts in Depth — From One File to Full Workflows"
+title: "[02] XPrompts in Depth — From One File to Full Workflows"
 date: 2026-05-12
 description: >-
   XPrompts up close: when a single Markdown file is the right shape, when typed inputs and directives are enough, and
@@ -12,18 +12,18 @@ links:
   - SASE Blog Series: series/agentic-software-engineering.md
   - XPrompts: xprompt.md
   - Workflow Specification: workflow_spec.md
-  - "[02] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
+  - "[01] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# [03] XPrompts in Depth — From One File to Full Workflows
+# [02] XPrompts in Depth — From One File to Full Workflows
 
 A single `#tag` is the smallest reusable unit of agent work in SASE. This post is about what's underneath that tag and
 when to stop there instead of reaching for a workflow.
 
 <!-- more -->
 
-[\[02\]](hello-sase-your-first-15-minutes.md) showed how to turn a one-off prompt into a reusable `#docstring`. That is
+[\[01\]](hello-sase-your-first-15-minutes.md) showed how to turn a one-off prompt into a reusable `#docstring`. That is
 the smallest XPrompt: one Markdown file in `xprompts/`, invoked by name. This post zooms in. We will walk from that
 one-file XPrompt up through typed inputs, directives, and multi-agent fan-out, and only at the end show why YAML
 workflows exist — because most of the time you do not need one.
@@ -178,15 +178,15 @@ source file, its arguments. When something resolves to the wrong copy, that is t
   packaging.
 - [Workflow specification](../../workflow_spec.md) — every step type, control flow form, join mode, and template
   feature.
-- [\[04\] AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md) — what runs your `%wait`
+- [\[03\] AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md) — what runs your `%wait`
   dependencies and `done.json` completions in the background.
 
 ## Series Navigation
 
-This is [03] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [02] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
 - Previous:
-  [\[02\] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](hello-sase-your-first-15-minutes.md).
-- Next: [\[04\] AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md).
+  [\[01\] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](hello-sase-your-first-15-minutes.md).
+- Next: [\[03\] AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [XPrompts guide](../../xprompt.md).

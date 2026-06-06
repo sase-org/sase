@@ -1,5 +1,5 @@
 ---
-title: "[04] AXE — The Background Daemon That Keeps Agent Work Moving"
+title: "[03] AXE — The Background Daemon That Keeps Agent Work Moving"
 date: 2026-05-14
 description: >-
   Agents shouldn't poll. AXE is the background daemon that does the polling for them so the engineering workflow keeps
@@ -12,11 +12,11 @@ links:
   - SASE Blog Series: series/agentic-software-engineering.md
   - AXE Automation: axe.md
   - Notifications: notifications.md
-  - "[03] XPrompts in Depth — From One File to Full Workflows": blog/posts/xprompts-in-depth.md
+  - "[02] XPrompts in Depth — From One File to Full Workflows": blog/posts/xprompts-in-depth.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# [04] AXE — The Background Daemon That Keeps Agent Work Moving
+# [03] AXE — The Background Daemon That Keeps Agent Work Moving
 
 Agents shouldn't poll. They should write code, hand the result back, and exit. AXE is the daemon that does the polling
 for them — so hooks complete, mentors launch, dependencies unblock, comments get noticed, and error digests get sent
@@ -24,7 +24,7 @@ while individual agents finish, fail, or wait.
 
 <!-- more -->
 
-[\[02\]](hello-sase-your-first-15-minutes.md) named AXE as the third tab in the ACE TUI; this post explains what is
+[\[01\]](hello-sase-your-first-15-minutes.md) named AXE as the third tab in the ACE TUI; this post explains what is
 actually running behind that tab.
 
 ## The Architecture in One Paragraph
@@ -53,7 +53,7 @@ AXE pays for it once, in the background, for every agent in the project.
 
 ## The Waits Chop Resolves `%wait` Dependencies
 
-[\[03\]](xprompts-in-depth.md) showed how `%wait:agent_name` in a directive declares a dependency. The `waits`
+[\[02\]](xprompts-in-depth.md) showed how `%wait:agent_name` in a directive declares a dependency. The `waits`
 lumberjack is what unblocks it. Every two seconds, `wait_checks` looks at every parked agent and asks: did the newest
 matching dependency produce a `done.json` with outcome `completed`? Only then does it write `ready.json` and let the
 agent launch.
@@ -119,14 +119,14 @@ launch and supervise, not compute.
   artifacts, ACE integration.
 - [Notifications](../../notifications.md) — how AXE's error digests, plan approvals, and workflow completions surface to
   the operator.
-- [\[05\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md) — what AXE is unblocking when
+- [\[04\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md) — what AXE is unblocking when
   multi-phase epic work executes.
 
 ## Series Navigation
 
-This is [04] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [03] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
-- Previous: [\[03\] XPrompts in Depth — From One File to Full Workflows](xprompts-in-depth.md).
-- Next: [\[05\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md).
+- Previous: [\[02\] XPrompts in Depth — From One File to Full Workflows](xprompts-in-depth.md).
+- Next: [\[04\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [AXE guide](../../axe.md).

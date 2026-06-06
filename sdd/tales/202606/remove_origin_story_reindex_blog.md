@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-06 15:59:49
-status: wip
+status: done
 prompt: sdd/prompts/202606/remove_origin_story_reindex_blog.md
 ---
 # Remove Origin Story Blog Post And Reindex Series

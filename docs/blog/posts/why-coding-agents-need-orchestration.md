@@ -1,5 +1,5 @@
 ---
-title: "[01] Why Coding Agents Need Orchestration"
+title: "[00] Why Coding Agents Need Orchestration"
 date: 2026-05-08
 description:
   Why coding-agent work needs durable orchestration around planning, state, review, dependencies, retries, and handoff.
@@ -12,7 +12,7 @@ links:
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# [01] Why Coding Agents Need Orchestration
+# [00] Why Coding Agents Need Orchestration
 
 Coding agents are strongest when they operate inside a workflow that can preserve intent, track state, and recover from
 interruptions. The model can produce a patch, but the surrounding engineering system has to remember what the work was
@@ -129,9 +129,9 @@ has to make the work durable, reviewable, resumable, and transferable.
 
 ## Series Navigation
 
-This is [01] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [00] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
-- Previous: [\[00\] Origin Story — Where SASE Came From](origin-story.md).
-- Next: [\[02\] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](hello-sase-your-first-15-minutes.md).
+- Previous: none.
+- Next: [\[01\] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](hello-sase-your-first-15-minutes.md).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).

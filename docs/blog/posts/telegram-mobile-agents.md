@@ -1,5 +1,5 @@
 ---
-title: "[08] Driving SASE From Your Phone — Telegram as the Mobile Control Surface"
+title: "[07] Driving SASE From Your Phone — Telegram as the Mobile Control Surface"
 date: 2026-05-21
 description: >-
   The sase-telegram plugin turns an existing Telegram chat into a mobile control surface for SASE — launch agents,
@@ -13,11 +13,11 @@ links:
   - Plugins: plugins.md
   - Notifications: notifications.md
   - Mobile Gateway: mobile_gateway.md
-  - "[07] ChangeSpecs in Practice — Review State Outside the Chat": blog/posts/changespecs-in-practice.md
+  - "[06] ChangeSpecs in Practice — Review State Outside the Chat": blog/posts/changespecs-in-practice.md
   - View on GitHub: https://github.com/sase-org/sase-telegram
 ---
 
-# [08] Driving SASE From Your Phone — Telegram as the Mobile Control Surface
+# [07] Driving SASE From Your Phone — Telegram as the Mobile Control Surface
 
 The mobile gateway is the long-term path to a phone-native SASE client. The plugin already in everyone's pocket is
 Telegram. **sase-telegram** is the bridge: pip-install a plugin, point it at a bot token, and a regular Telegram chat
@@ -25,7 +25,7 @@ becomes a two-way control surface for agents, plans, ChangeSpecs, and generated 
 
 <!-- more -->
 
-[\[07\]](changespecs-in-practice.md) showed how review state lives in a `.sase` ChangeSpec on disk. This post is about
+[\[06\]](changespecs-in-practice.md) showed how review state lives in a `.sase` ChangeSpec on disk. This post is about
 moving the operator off the keyboard entirely: replying to plan approvals, launching new runs, and reviewing rendered
 plans or generated images from the same chat you already use for everything else.
 
@@ -39,7 +39,7 @@ cadence:
 | `sase_chop_tg_outbound` | Phone ←   | Reads unsent SASE notifications, formats them as Telegram MarkdownV2, attaches PDFs/images. |
 | `sase_chop_tg_inbound`  | Phone →   | Polls Telegram for button presses, text, photos, and slash commands; writes response files. |
 
-Both scripts shell into the same notification machinery [\[04\]](axe-background-daemon.md) covered. The outbound side
+Both scripts shell into the same notification machinery [\[03\]](axe-background-daemon.md) covered. The outbound side
 reads from the unsent-notification high-water mark; the inbound side writes response files that the local SASE process
 picks up the next time it sweeps. There is no separate state machine — Telegram is just another transport, drawn from
 and back into the same notification tables that drive the in-TUI inbox and Slack delivery.
@@ -93,7 +93,7 @@ The actionable notification types each get their own inline keyboard:
 
 | Notification      | Buttons                                               | Use                                                                     |
 | ----------------- | ----------------------------------------------------- | ----------------------------------------------------------------------- |
-| Plan Approval     | Tale / ✅ Approve / Epic / Legend / Reject / Feedback | The four SDD plan modes from [\[05\]](beads-and-sdd.md), plus rejection |
+| Plan Approval     | Tale / ✅ Approve / Epic / Legend / Reject / Feedback | The four SDD plan modes from [\[04\]](beads-and-sdd.md), plus rejection |
 | HITL Request      | Accept / Reject / Feedback                            | Mid-run human-in-the-loop checkpoints                                   |
 | User Question     | dynamic option buttons + Custom                       | Multiple-choice questions emitted via `sase_questions`                  |
 | Agent Launched    | Resume / Wait / Kill / Retry                          | Lifecycle control over the run that was just launched                   |
@@ -104,7 +104,7 @@ The actionable notification types each get their own inline keyboard:
 
 Plan approvals are the everyday case. The plan content is wrapped in an expandable MarkdownV2 blockquote, and when the
 plan is long enough to be inconvenient inline, sase-telegram renders it to PDF through SASE's shared Markdown renderer
-and sends the PDF as an attachment. Either way, the four mode buttons map directly to the SDD plan modes from [05] —
+and sends the PDF as an attachment. Either way, the four mode buttons map directly to the SDD plan modes from [04] —
 **Tale**, **Epic**, and **Legend** queue work at different scopes, and **Approve** accepts a plan as-is. **Feedback** is
 the escape hatch: tap it and your next text message becomes the feedback body, written to a response file SASE picks up
 on the next sweep.
@@ -141,7 +141,7 @@ in effect, a remote control for keeping the local install fresh.
 
 ## What This Replaces (And What It Doesn't)
 
-The mobile gateway from [\[10\]](whats-next-memory-mobile-web.md) is the long-term answer — a Rust HTTP gateway, a
+The mobile gateway from [\[09\]](whats-next-memory-mobile-web.md) is the long-term answer — a Rust HTTP gateway, a
 native mobile client, FCM push hints, Tailscale Serve for non-loopback deployments. None of that exists for end users
 today. sase-telegram exists today, and it covers the high-value subset of the mobile workflow with infrastructure that
 is already on every developer's phone:
@@ -170,9 +170,9 @@ the launch path is independent.
 
 ## Series Navigation
 
-This is [08] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [07] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
-- Previous: [\[07\] ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md).
-- Next: [\[09\] Where You Type — The Prompt Input Widget and sase-nvim](prompt-widget-and-nvim.md).
+- Previous: [\[06\] ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md).
+- Next: [\[08\] Where You Type — The Prompt Input Widget and sase-nvim](prompt-widget-and-nvim.md).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [plugins overview](../../plugins.md).

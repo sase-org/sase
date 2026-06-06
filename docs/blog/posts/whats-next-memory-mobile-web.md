@@ -1,5 +1,5 @@
 ---
-title: "[10] What's Next — Shared Memory, Mobile, and the Web Surface"
+title: "[09] What's Next — Shared Memory, Mobile, and the Web Surface"
 date: 2026-05-23
 description: >-
   SASE today is the orchestration layer. The next horizon is shared memory across agents, a mobile control surface, and
@@ -11,18 +11,18 @@ slug: whats-next-memory-mobile-web
 links:
   - SASE Blog Series: series/agentic-software-engineering.md
   - Mobile Gateway: mobile_gateway.md
-  - "[09] Where You Type — The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
+  - "[08] Where You Type — The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# [10] What's Next — Shared Memory, Mobile, and the Web Surface
+# [09] What's Next — Shared Memory, Mobile, and the Web Surface
 
 SASE today is the orchestration layer. The next horizon is the things that horizon-line doesn't quite reach yet —
 durable shared memory across agents, a phone you can drive from, and a browser the team can open without learning a TUI.
 
 <!-- more -->
 
-The previous ten posts walked through what exists: XPrompts, AXE, SDD and beads, commit workflows, ChangeSpecs, the
+The previous nine posts walked through what exists: XPrompts, AXE, SDD and beads, commit workflows, ChangeSpecs, the
 Telegram mobile control surface, and the prompt input widget with its Neovim plugin. This one is shorter and more
 speculative. It names three threads that are in motion but not yet shipped, and points at the artifacts where the design
 work is happening.
@@ -66,7 +66,7 @@ not have to land at once.
 
 ## Mobile
 
-[\[08\]](telegram-mobile-agents.md) covered the Telegram chop that ships today and gives you a working mobile control
+[\[07\]](telegram-mobile-agents.md) covered the Telegram chop that ships today and gives you a working mobile control
 surface right now. The native mobile path is the longer-term answer.
 
 The mobile gateway already exists. `sase mobile gateway start` runs a Rust gateway in the foreground on
@@ -106,13 +106,13 @@ memory, mobile, and web are how that durable object stays reachable.
   contract snapshot.
 - [Shared memory research](https://github.com/sase-org/sase/blob/master/sdd/research/202605/zettel_sase_shared_memory.md)
   — the full proposal, including external research notes, design decisions, and open questions.
-- [SASE Blog Series](../../series/agentic-software-engineering.md) — all eleven posts in one place.
+- [SASE Blog Series](../../series/agentic-software-engineering.md) — all ten posts in one place.
 
 ## Series Navigation
 
-This is [10] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [09] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
-- Previous: [\[09\] Where You Type — The Prompt Input Widget and sase-nvim](prompt-widget-and-nvim.md).
+- Previous: [\[08\] Where You Type — The Prompt Input Widget and sase-nvim](prompt-widget-and-nvim.md).
 - Next: none (latest post).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [mobile gateway guide](../../mobile_gateway.md).

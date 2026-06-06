@@ -1,5 +1,5 @@
 ---
-title: "[06] Commit Workflows — The Pluggable Path From Diff to PR"
+title: "[05] Commit Workflows — The Pluggable Path From Diff to PR"
 date: 2026-05-18
 description: >-
   Every agent eventually has to land code somewhere. SASE's commit workflows are the small, runtime-uniform layer that
@@ -13,11 +13,11 @@ links:
   - Commit Workflows: commit_workflows.md
   - Plugins: plugins.md
   - VCS Providers: vcs.md
-  - "[05] Beads and SDD — Planning Multi-Agent Work That Actually Lands": blog/posts/beads-and-sdd.md
+  - "[04] Beads and SDD — Planning Multi-Agent Work That Actually Lands": blog/posts/beads-and-sdd.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# [06] Commit Workflows — The Pluggable Path From Diff to PR
+# [05] Commit Workflows — The Pluggable Path From Diff to PR
 
 Every agent eventually has to land code somewhere. SASE's commit XPrompt workflows are the small, runtime-uniform layer
 that turns an agent's diff into a commit, a proposal, or a pull request — without the agent caring which VCS is
@@ -25,7 +25,7 @@ underneath.
 
 <!-- more -->
 
-[\[05\]](beads-and-sdd.md) covered how a plan turns into a fleet of phase agents that produce code. This post covers
+[\[04\]](beads-and-sdd.md) covered how a plan turns into a fleet of phase agents that produce code. This post covers
 what happens at the end: how each of those agents lands its diff somewhere durable, and how that path is uniform across
 runtimes and VCS providers.
 
@@ -155,14 +155,14 @@ those are about which configuration and prompt files contribute to the resolver,
 - [Plugins](../../plugins.md) — entry-point groups, discovery, writing new VCS / workspace / LLM / xprompt / config
   plugins.
 - [VCS providers](../../vcs.md) — provider selection tiers, per-command VCS usage, provider-specific details.
-- [\[07\] ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md) — what the commit/PR flow
+- [\[06\] ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md) — what the commit/PR flow
   writes to, and how ACE reviews it.
 
 ## Series Navigation
 
-This is [06] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
+This is [05] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
-- Previous: [\[05\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md).
-- Next: [\[07\] ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md).
+- Previous: [\[04\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md).
+- Next: [\[06\] ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [commit workflows guide](../../commit_workflows.md).
