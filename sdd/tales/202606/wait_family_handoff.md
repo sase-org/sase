@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-06 10:49:47
-status: wip
+status: done
 prompt: sdd/prompts/202606/wait_family_handoff.md
 ---
 # Fix Wait-Check Resolution for Plan-Chain Handoff Artifacts

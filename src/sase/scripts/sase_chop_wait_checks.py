@@ -21,6 +21,7 @@ from sase.plan_chain import (
 )
 
 _SUCCESS_OUTCOME = "completed"
+_HANDOFF_TERMINAL_STEP_STATUSES = frozenset({"completed", "skipped"})
 
 
 @dataclass(frozen=True)
@@ -33,8 +34,8 @@ class _WaitCandidate:
 class _ArtifactCandidate:
     name: str
     timestamp: str
-    outcome: str | None
     parent_timestamp: str | None
+    is_resolved: bool
 
 
 @dataclass(frozen=True)
@@ -55,13 +56,14 @@ class _WaitDependencyIndex:
 
     def add(self, artifact_dir: Path, meta: dict[str, Any]) -> None:
         outcome = _done_outcome(artifact_dir)
+        is_resolved = _artifact_is_resolved(artifact_dir, meta, outcome)
         timestamp = artifact_dir.name
 
         name = meta.get("name")
         if isinstance(name, str):
             candidate = _WaitCandidate(
                 timestamp=timestamp,
-                is_resolved=outcome == _SUCCESS_OUTCOME,
+                is_resolved=is_resolved,
             )
             latest = self.named.get(name)
             if latest is None or candidate.timestamp > latest.timestamp:
@@ -74,8 +76,8 @@ class _WaitDependencyIndex:
             artifact = _ArtifactCandidate(
                 name=name if isinstance(name, str) else workflow_name,
                 timestamp=timestamp,
-                outcome=outcome,
                 parent_timestamp=parent_timestamp,
+                is_resolved=is_resolved,
             )
             self.workflows.setdefault(workflow_name, []).append(artifact)
             family_name = _family_base_from_meta(meta)
@@ -104,9 +106,7 @@ class _WaitDependencyIndex:
             )
             return _FamilyCandidate(
                 timestamp=newest_timestamp,
-                is_resolved=all(
-                    candidate.outcome == _SUCCESS_OUTCOME for candidate in generation
-                ),
+                is_resolved=all(candidate.is_resolved for candidate in generation),
             )
 
         # Legacy recovery path: if only child artifacts remain, judge the known
@@ -114,9 +114,7 @@ class _WaitDependencyIndex:
         newest_timestamp = max(candidate.timestamp for candidate in family_agents)
         return _FamilyCandidate(
             timestamp=newest_timestamp,
-            is_resolved=all(
-                candidate.outcome == _SUCCESS_OUTCOME for candidate in family_agents
-            ),
+            is_resolved=all(candidate.is_resolved for candidate in family_agents),
         )
 
     def workflow_candidate(self, name: str) -> _WaitCandidate | None:
@@ -134,17 +132,15 @@ class _WaitDependencyIndex:
             latest = max(workflow_agents, key=lambda candidate: candidate.timestamp)
             return _WaitCandidate(
                 timestamp=latest.timestamp,
-                is_resolved=latest.outcome == _SUCCESS_OUTCOME,
+                is_resolved=latest.is_resolved,
             )
 
         root = max(roots, key=lambda candidate: candidate.timestamp)
-        if root.outcome != _SUCCESS_OUTCOME:
+        if not root.is_resolved:
             return _WaitCandidate(timestamp=root.timestamp, is_resolved=False)
 
         for child in workflow_agents:
-            if child.parent_timestamp == root.timestamp and (
-                child.outcome != _SUCCESS_OUTCOME
-            ):
+            if child.parent_timestamp == root.timestamp and not child.is_resolved:
                 return _WaitCandidate(timestamp=root.timestamp, is_resolved=False)
 
         return _WaitCandidate(timestamp=root.timestamp, is_resolved=True)
@@ -187,6 +183,56 @@ def _done_outcome(artifact_dir: Path) -> str | None:
         return None
     outcome = done_data.get("outcome")
     return outcome if isinstance(outcome, str) else None
+
+
+def _artifact_is_resolved(
+    artifact_dir: Path,
+    meta: dict[str, Any],
+    outcome: str | None,
+) -> bool:
+    if outcome is not None:
+        return outcome == _SUCCESS_OUTCOME
+    if not is_plan_chain_artifact_meta(meta):
+        return False
+    return _completed_handoff_workflow_state(artifact_dir)
+
+
+def _completed_handoff_workflow_state(artifact_dir: Path) -> bool:
+    state_data = _read_json_dict(artifact_dir / "workflow_state.json")
+    if state_data is None or state_data.get("status") != _SUCCESS_OUTCOME:
+        return False
+    if _has_failure_fields(state_data):
+        return False
+
+    steps_data = state_data.get("steps", [])
+    if not isinstance(steps_data, list):
+        return False
+
+    for step_data in steps_data:
+        if not isinstance(step_data, dict):
+            return False
+        if step_data.get("status") not in _HANDOFF_TERMINAL_STEP_STATUSES:
+            return False
+        if _has_failure_fields(step_data):
+            return False
+
+    return not _has_blocking_prompt_step_marker(artifact_dir)
+
+
+def _has_failure_fields(data: dict[str, Any]) -> bool:
+    return bool(data.get("error") or data.get("traceback"))
+
+
+def _has_blocking_prompt_step_marker(artifact_dir: Path) -> bool:
+    for marker_path in artifact_dir.glob("prompt_step_*.json"):
+        marker_data = _read_json_dict(marker_path)
+        if marker_data is None:
+            return True
+        if marker_data.get("status") not in _HANDOFF_TERMINAL_STEP_STATUSES:
+            return True
+        if _has_failure_fields(marker_data):
+            return True
+    return False
 
 
 def _family_base_from_meta(meta: dict[str, Any]) -> str | None:

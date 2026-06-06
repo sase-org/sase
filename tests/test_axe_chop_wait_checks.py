@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 import sase.scripts.sase_chop_wait_checks as wait_checks_module
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
 from sase.scripts.sase_chop_wait_checks import main as wait_checks_main
@@ -44,6 +46,45 @@ def _make_waiting_agent(base: Path, *waiting_for: str, suffix: str = "waiter") -
         encoding="utf-8",
     )
     return artifact_dir
+
+
+def _write_workflow_state(
+    artifact_dir: Path,
+    *,
+    status: str = "completed",
+    step_status: str = "completed",
+    marker_status: str = "completed",
+) -> None:
+    (artifact_dir / "workflow_state.json").write_text(
+        json.dumps(
+            {
+                "workflow_name": "run",
+                "status": status,
+                "current_step_index": 0,
+                "steps": [
+                    {
+                        "name": "main",
+                        "status": step_status,
+                        "error": None,
+                        "traceback": None,
+                    }
+                ],
+                "appears_as_agent": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "prompt_step_main.json").write_text(
+        json.dumps(
+            {
+                "step_name": "main",
+                "status": marker_status,
+                "error": None,
+                "traceback": None,
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def _run_wait_checks(tmp_path: Path, monkeypatch) -> None:
@@ -184,6 +225,143 @@ def test_successful_plan_family_dependency_resolves(
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
     assert ready == {"resolved_deps": ["planfam"]}
+
+
+def test_completed_plan_chain_handoff_without_done_resolves_family_dependency(
+    tmp_path: Path, monkeypatch
+) -> None:
+    waiter_dir = _make_waiting_agent(tmp_path, "33.r1")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260606094012",
+        "33.r1",
+        workflow_name="33.r1",
+        agent_family="33.r1",
+        done=True,
+        outcome="completed",
+    )
+    feedback_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260606095139",
+        "33.r1--2",
+        workflow_name="33.r1",
+        agent_family="33.r1",
+        role_suffix="--2",
+        parent_timestamp="20260606094012",
+    )
+    _write_workflow_state(feedback_dir)
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260606100411",
+        "33.r1--code",
+        workflow_name="33.r1",
+        agent_family="33.r1",
+        role_suffix="--code",
+        parent_timestamp="20260606094012",
+        done=True,
+        outcome="completed",
+    )
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["33.r1"]}
+
+
+@pytest.mark.parametrize("outcome", ["failed", "killed"])
+def test_failed_or_killed_plan_chain_handoff_done_blocks_family_dependency(
+    tmp_path: Path, monkeypatch, outcome: str
+) -> None:
+    waiter_dir = _make_waiting_agent(tmp_path, "planfam")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260606094012",
+        "planfam",
+        workflow_name="planfam",
+        agent_family="planfam",
+        done=True,
+        outcome="completed",
+    )
+    feedback_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260606095139",
+        "planfam--2",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="--2",
+        parent_timestamp="20260606094012",
+        done=True,
+        outcome=outcome,
+    )
+    _write_workflow_state(feedback_dir)
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260606100411",
+        "planfam--code",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="--code",
+        parent_timestamp="20260606094012",
+        done=True,
+        outcome="completed",
+    )
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("workflow_status", "step_status", "marker_status"),
+    [
+        ("running", "completed", "completed"),
+        ("completed", "in_progress", "in_progress"),
+    ],
+)
+def test_incomplete_plan_chain_handoff_blocks_family_dependency(
+    tmp_path: Path,
+    monkeypatch,
+    workflow_status: str,
+    step_status: str,
+    marker_status: str,
+) -> None:
+    waiter_dir = _make_waiting_agent(tmp_path, "planfam")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260606094012",
+        "planfam",
+        workflow_name="planfam",
+        agent_family="planfam",
+        done=True,
+        outcome="completed",
+    )
+    feedback_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260606095139",
+        "planfam--2",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="--2",
+        parent_timestamp="20260606094012",
+    )
+    _write_workflow_state(
+        feedback_dir,
+        status=workflow_status,
+        step_status=step_status,
+        marker_status=marker_status,
+    )
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
 
 
 def test_failed_latest_plan_family_child_blocks_dependency(
