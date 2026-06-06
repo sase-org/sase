@@ -12,6 +12,7 @@ from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
     normalize_project_lifecycle_state,
 )
+from sase import project_aliases
 from sase.main import project_handler
 from sase.running_field._model import WorkspaceClaim
 
@@ -182,6 +183,17 @@ def lifecycle_stubs(
         )
         monkeypatch.setattr(
             project_handler,
+            "apply_project_aliases_update",
+            _fake_apply_project_aliases_update,
+            raising=False,
+        )
+        monkeypatch.setattr(
+            project_aliases,
+            "list_project_records",
+            _disk_project_records,
+        )
+        monkeypatch.setattr(
+            project_aliases,
             "apply_project_aliases_update",
             _fake_apply_project_aliases_update,
         )

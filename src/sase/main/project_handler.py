@@ -6,7 +6,6 @@ import argparse
 import json
 import shutil
 import sys
-from collections.abc import Callable
 from pathlib import Path
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
@@ -15,7 +14,6 @@ from sase.running_field._model import WorkspaceClaim
 from sase.core.agent_launch_claims import list_workspace_claims_from_content
 from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 from sase.core.project_lifecycle_facade import (
-    apply_project_aliases_update,
     apply_project_lifecycle_update,
     list_project_records,
 )
@@ -27,7 +25,13 @@ from sase.core.project_lifecycle_wire import (
     normalize_project_lifecycle_state_filter,
     project_lifecycle_wire_to_json_dict,
 )
-from sase.project_aliases import validate_project_aliases
+from sase.project_aliases import (
+    ProjectAliasError,
+    add_project_alias_locked as _add_project_alias_locked,
+    clear_project_aliases_locked as _clear_project_aliases_locked,
+    remove_project_alias_locked as _remove_project_alias_locked,
+    set_project_aliases_locked,
+)
 
 _ALL_STATES = tuple(PROJECT_LIFECYCLE_STATES)
 _LIVE_ARTIFACT_MARKERS = ("running.json", "waiting.json", "pending_question.json")
@@ -153,16 +157,6 @@ def _get_project_record(project: str) -> ProjectRecordWire:
     raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
 
 
-def _get_project_record_from_records(
-    records: list[ProjectRecordWire],
-    project: str,
-) -> ProjectRecordWire:
-    for record in records:
-        if record.project_name == project:
-            return record
-    raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
-
-
 def _resolve_mutable_project_file(
     project: str,
     projects_root: Path | None = None,
@@ -180,13 +174,6 @@ def _resolve_mutable_project_file(
     if not project_file.is_file():
         raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
     return project_file
-
-
-def _reject_system_managed_record(record: ProjectRecordWire) -> None:
-    if record.system_managed:
-        raise _ProjectLifecycleError(
-            f"project '{record.project_name}' is system-managed"
-        )
 
 
 def _resolve_deletable_project_dir(project: str, projects_root: Path) -> Path:
@@ -326,85 +313,6 @@ def _print_alias_result(record: ProjectRecordWire) -> None:
     print(f"Project '{record.project_name}' aliases: {aliases}")
 
 
-def _validate_alias_arg(alias: str) -> None:
-    if not is_valid_sase_project_name(alias):
-        raise _ProjectLifecycleError(f"invalid project alias: {alias!r}")
-
-
-def _mutate_project_aliases_locked(
-    project: str,
-    update_aliases: Callable[[list[str]], list[str]],
-    commit_msg: str,
-    *,
-    projects_root: Path | None = None,
-) -> ProjectRecordWire:
-    root = (
-        projects_root.expanduser() if projects_root is not None else sase_projects_dir()
-    )
-    project_file = _resolve_mutable_project_file(project, root)
-    with changespec_lock(str(project_file)):
-        records = list_project_records(
-            root,
-            list(_ALL_STATES),
-            include_home=True,
-        )
-        record = _get_project_record_from_records(records, project)
-        _reject_system_managed_record(record)
-        aliases = validate_project_aliases(
-            record.project_name,
-            update_aliases(list(record.aliases)),
-            records,
-        )
-        content = project_file.read_text(encoding="utf-8")
-        updated = apply_project_aliases_update(content, aliases)
-        write_changespec_atomic(str(project_file), updated, commit_msg)
-
-    return _get_project_record_from_records(
-        list_project_records(root, list(_ALL_STATES), include_home=True),
-        project,
-    )
-
-
-def set_project_aliases_locked(
-    project: str,
-    aliases: list[str],
-    *,
-    projects_root: Path | None = None,
-) -> ProjectRecordWire:
-    """Replace aliases for *project* while holding the ProjectSpec lock."""
-    return _mutate_project_aliases_locked(
-        project,
-        lambda _current: list(aliases),
-        "Set project aliases",
-        projects_root=projects_root,
-    )
-
-
-def _add_project_alias_locked(project: str, alias: str) -> ProjectRecordWire:
-    """Add *alias* to *project* while holding the ProjectSpec lock."""
-    _validate_alias_arg(alias)
-    return _mutate_project_aliases_locked(
-        project,
-        lambda aliases: [*aliases, alias],
-        f"Add project alias {alias}",
-    )
-
-
-def _remove_project_alias_locked(project: str, alias: str) -> ProjectRecordWire:
-    """Remove *alias* from *project* while holding the ProjectSpec lock."""
-    _validate_alias_arg(alias)
-    return _mutate_project_aliases_locked(
-        project,
-        lambda aliases: [item for item in aliases if item != alias],
-        f"Remove project alias {alias}",
-    )
-
-
-def _clear_project_aliases_locked(project: str) -> ProjectRecordWire:
-    """Remove all aliases from *project* while holding the ProjectSpec lock."""
-    return set_project_aliases_locked(project, [])
-
-
 def _handle_alias_list(args: argparse.Namespace) -> int:
     project = getattr(args, "project", None)
     try:
@@ -447,6 +355,7 @@ def _handle_alias_add(args: argparse.Namespace) -> int:
         record = _add_project_alias_locked(str(args.project), str(args.alias))
     except (
         ValueError,
+        ProjectAliasError,
         _ProjectLifecycleError,
         ImportError,
         AttributeError,
@@ -462,6 +371,7 @@ def _handle_alias_remove(args: argparse.Namespace) -> int:
         record = _remove_project_alias_locked(str(args.project), str(args.alias))
     except (
         ValueError,
+        ProjectAliasError,
         _ProjectLifecycleError,
         ImportError,
         AttributeError,
@@ -477,6 +387,7 @@ def _handle_alias_clear(args: argparse.Namespace) -> int:
         record = _clear_project_aliases_locked(str(args.project))
     except (
         ValueError,
+        ProjectAliasError,
         _ProjectLifecycleError,
         ImportError,
         AttributeError,
