@@ -8,7 +8,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.amd.constants import HOME_PROVIDER_SHIM_CONTENT, PROVIDER_SHIM_FILES
+from sase.amd.constants import (
+    CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT,
+    HOME_PROVIDER_SHIM_CONTENT,
+    PROVIDER_SHIM_FILES,
+)
 from sase.main import init_memory_handler
 from sase.main._init_chezmoi_deploy import defer_chezmoi_deploy
 from tests.main.init_memory_handler_helpers import (
@@ -77,8 +81,49 @@ sibling_repos:
         "This repo is defined in the `~/.local/share/chezmoi/` directory."
     ) in _single_line(chezmoi_memory)
     for filename in PROVIDER_SHIM_FILES:
-        assert (chezmoi_home / filename).read_text() == HOME_PROVIDER_SHIM_CONTENT
+        assert (
+            chezmoi_home / f"{filename}.tmpl"
+        ).read_text() == CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT
+        assert not (chezmoi_home / filename).exists()
     assert chezmoi_home / "memory" / "short" / "sase.md" in deployed
+    assert chezmoi_home / "CLAUDE.md.tmpl" in deployed
+
+
+def test_init_memory_chezmoi_migrates_plain_provider_shim_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        use_chezmoi=True,
+    )
+    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    write(chezmoi_home / "CLAUDE.md", HOME_PROVIDER_SHIM_CONTENT)
+    deployed: list[Path] = []
+
+    def fake_deploy(paths: Iterable[Path]) -> int:
+        deployed.extend(paths)
+        return 0
+
+    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+
+    assert run_handler() == 0
+
+    assert (
+        chezmoi_home / "CLAUDE.md.tmpl"
+    ).read_text() == CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT
+    assert not (chezmoi_home / "CLAUDE.md").exists()
+    assert chezmoi_home / "CLAUDE.md.tmpl" in deployed
+    assert chezmoi_home / "CLAUDE.md" in deployed
 
 
 def test_init_memory_deferred_chezmoi_collects_paths_without_deploy(
@@ -108,4 +153,5 @@ def test_init_memory_deferred_chezmoi_collects_paths_without_deploy(
 
     deploy_mock.assert_not_called()
     assert chezmoi_home / "memory" / "short" / "sase.md" in deferred.paths
+    assert chezmoi_home / "CLAUDE.md.tmpl" in deferred.paths
     assert deferred.apply_force is True

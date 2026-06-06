@@ -9,7 +9,6 @@ import subprocess
 import pytest
 
 from sase.amd.constants import (
-    HOME_PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
 )
@@ -40,6 +39,10 @@ def _single_line(text: str) -> str:
 
 
 _SASE_MEMORY_HEADER = "# SASE = Structured Agentic Software Engineering"
+
+
+def home_provider_shim_content(root: Path) -> str:
+    return f"@{root.resolve(strict=False).as_posix()}/AGENTS.md\n"
 
 
 def test_init_memory_uses_local_siblings_for_project_and_global_for_home(
@@ -106,7 +109,7 @@ sibling_repos:
 
     for root, shim_content in (
         (project_root, PROVIDER_SHIM_CONTENT),
-        (home_root, HOME_PROVIDER_SHIM_CONTENT),
+        (home_root, home_provider_shim_content(home_root)),
     ):
         assert (root / "memory" / "long").is_dir()
         assert (root / "memory" / "README.md").is_file()

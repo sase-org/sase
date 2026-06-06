@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-MemoryChangeOperation = Literal["create", "update", "overwrite"]
+MemoryChangeOperation = Literal["create", "update", "overwrite", "delete"]
 MemoryWritePolicy = Literal["overwrite", "create_if_missing"]
 WorkspaceStrategy = Literal["suffix", "none"]
 
@@ -49,3 +49,4 @@ class MemoryRootResult:
     root: Path
     written_paths: tuple[Path, ...]
     unreferenced: tuple[Path, ...]
+    deleted_paths: tuple[Path, ...] = ()

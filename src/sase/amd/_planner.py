@@ -11,9 +11,10 @@ from ._config import amd_init_roots, load_amd_h1_title
 from ._memory import render_managed_agents
 from ._shared import (
     AmdInitPlan,
+    PlannedDelete,
     PlannedWrite,
     planned_write,
-    provider_shim_writes,
+    provider_shim_plan,
     provider_statuses,
     read_text,
 )
@@ -23,10 +24,10 @@ from .constants import AGENTS_FILENAME
 def _migration_writes(
     root: Path,
     provider_statuses: dict[Path, str],
-) -> tuple[tuple[PlannedWrite, ...], tuple[str, ...]]:
+) -> tuple[tuple[PlannedWrite, ...], tuple[PlannedDelete, ...], tuple[str, ...]]:
     agents_path = root / AGENTS_FILENAME
     if agents_path.exists():
-        return (), ()
+        return (), (), ()
 
     custom_provider_paths = tuple(
         path for path, status in provider_statuses.items() if status == "custom"
@@ -39,24 +40,33 @@ def _migration_writes(
 
     if len(custom_provider_paths) > 1:
         names = ", ".join(path.name for path in custom_provider_paths)
-        return (), (
-            f"{AGENTS_FILENAME} is missing and multiple provider instruction "
-            f"files contain custom content: {names}",
+        return (
+            (),
+            (),
+            (
+                f"{AGENTS_FILENAME} is missing and multiple provider instruction "
+                f"files contain custom content: {names}",
+            ),
         )
 
     if len(custom_provider_paths) == 0:
         if shim_provider_paths:
             names = ", ".join(path.name for path in shim_provider_paths)
-            return (), (
-                f"{AGENTS_FILENAME} is missing but provider shim files already "
-                f"point to it: {names}",
+            return (
+                (),
+                (),
+                (
+                    f"{AGENTS_FILENAME} is missing but provider shim files already "
+                    f"point to it: {names}",
+                ),
             )
-        return (), ()
+        shim_plan = provider_shim_plan(root)
+        return shim_plan.writes, shim_plan.deletes, shim_plan.blockers
 
     source_path = custom_provider_paths[0]
     source_text, error = read_text(source_path)
     if error is not None or source_text is None:
-        return (), (error or f"{source_path}: failed to read legacy provider file",)
+        return (), (), (error or f"{source_path}: failed to read legacy provider file",)
 
     writes: list[PlannedWrite] = []
     agents_write = planned_write(
@@ -66,8 +76,11 @@ def _migration_writes(
     )
     if agents_write is not None:
         writes.append(agents_write)
-    writes.extend(provider_shim_writes(root))
-    return tuple(writes), ()
+    shim_plan = provider_shim_plan(root, migrated_paths=(source_path,))
+    if shim_plan.blockers:
+        return (), (), shim_plan.blockers
+    writes.extend(shim_plan.writes)
+    return tuple(writes), shim_plan.deletes, ()
 
 
 def _summarize_amd_actions(
@@ -96,6 +109,7 @@ def _build_single_amd_init_plan(root: Path, *, explicit: bool = True) -> AmdInit
     provider_status_map, provider_errors = provider_statuses(root)
     blockers = tuple(error for error in (title_error, *provider_errors) if error)
     writes: list[PlannedWrite] = []
+    deletes: list[PlannedDelete] = []
 
     if not blockers:
         if title is not None:
@@ -106,21 +120,32 @@ def _build_single_amd_init_plan(root: Path, *, explicit: bool = True) -> AmdInit
             )
             if agents_write is not None:
                 writes.append(agents_write)
-            writes.extend(provider_shim_writes(root))
+            shim_plan = provider_shim_plan(root)
+            blockers = shim_plan.blockers
+            if not blockers:
+                writes.extend(shim_plan.writes)
+                deletes.extend(shim_plan.deletes)
         elif not explicit:
             pass
         else:
-            migration_writes, migration_blockers = _migration_writes(
+            migration_writes, migration_deletes, migration_blockers = _migration_writes(
                 root,
                 provider_status_map,
             )
             blockers = migration_blockers
             if not blockers:
                 writes.extend(migration_writes)
+                deletes.extend(migration_deletes)
                 if not migration_writes:
-                    writes.extend(provider_shim_writes(root))
+                    shim_plan = provider_shim_plan(root)
+                    blockers = shim_plan.blockers
+                    if not blockers:
+                        writes.extend(shim_plan.writes)
+                        deletes.extend(shim_plan.deletes)
 
-    actions = tuple(write.action for write in writes)
+    actions = tuple(write.action for write in writes) + tuple(
+        delete.action for delete in deletes
+    )
     return AmdInitPlan(
         plan=InitPlan(
             command="amd",
@@ -130,6 +155,7 @@ def _build_single_amd_init_plan(root: Path, *, explicit: bool = True) -> AmdInit
             blockers=blockers,
         ),
         writes=tuple(writes),
+        deletes=tuple(deletes),
     )
 
 
@@ -138,12 +164,14 @@ def _combine_amd_init_plans(plans: tuple[AmdInitPlan, ...]) -> AmdInitPlan:
     warnings: list[str] = []
     blockers: list[str] = []
     writes: list[PlannedWrite] = []
+    deletes: list[PlannedDelete] = []
 
     for built in plans:
         actions.extend(built.plan.actions)
         warnings.extend(built.plan.warnings)
         blockers.extend(built.plan.blockers)
         writes.extend(built.writes)
+        deletes.extend(built.deletes)
 
     return AmdInitPlan(
         plan=InitPlan(
@@ -155,6 +183,7 @@ def _combine_amd_init_plans(plans: tuple[AmdInitPlan, ...]) -> AmdInitPlan:
             blockers=tuple(blockers),
         ),
         writes=tuple(writes),
+        deletes=tuple(deletes),
     )
 
 

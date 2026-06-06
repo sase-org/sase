@@ -144,7 +144,9 @@ def _deploy_to_project_repo(
         return 1
 
     memory_path = project_result.root / "memory" / "short" / "sase.md"
-    stage_paths = _unique_paths((*project_result.written_paths, memory_path))
+    stage_paths = _unique_paths(
+        (*project_result.written_paths, *project_result.deleted_paths, memory_path)
+    )
     for path in stage_paths:
         add = subprocess.run(
             ["git", "-C", str(git_root), "add", "--", str(path)],
@@ -253,17 +255,20 @@ def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
 
 def _memory_root_plans(inputs: _MemoryInitInputs) -> tuple[_MemoryRootPlan, ...]:
     home_equivalent_roots = (inputs.home_root,)
+    chezmoi_home_roots = (inputs.home_root,) if inputs.use_chezmoi else ()
     project_plan = _plan_memory_root(
         inputs.project_root,
         inputs.project_entries,
         project_name=inputs.project_name,
         enable_amd=True,
         home_equivalent_roots=home_equivalent_roots,
+        chezmoi_home_roots=chezmoi_home_roots,
     )
     home_plan = _plan_memory_root(
         inputs.home_root,
         inputs.home_entries,
         home_equivalent_roots=home_equivalent_roots,
+        chezmoi_home_roots=chezmoi_home_roots,
     )
     return (project_plan, home_plan)
 
@@ -378,11 +383,13 @@ def run_init_memory(args: argparse.Namespace) -> int:
         project_name=inputs.project_name,
         enable_amd=True,
         home_equivalent_roots=(inputs.home_root,),
+        chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
     )
     home_result = _initialize_memory_root(
         inputs.home_root,
         inputs.home_entries,
         home_equivalent_roots=(inputs.home_root,),
+        chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
     )
     results = (project_result, home_result)
 
@@ -404,14 +411,15 @@ def run_init_memory(args: argparse.Namespace) -> int:
         exit_code = project_exit_code
 
     if inputs.use_chezmoi:
+        home_changed_paths = (*home_result.written_paths, *home_result.deleted_paths)
         if defer_chezmoi_paths(
-            home_result.written_paths,
+            home_changed_paths,
             apply_force=True,
             chezmoi_home=CHEZMOI_HOME,
         ):
             chezmoi_exit_code = 0
         else:
-            chezmoi_exit_code = _deploy_to_chezmoi(home_result.written_paths)
+            chezmoi_exit_code = _deploy_to_chezmoi(home_changed_paths)
         if chezmoi_exit_code != 0:
             exit_code = chezmoi_exit_code
     return exit_code

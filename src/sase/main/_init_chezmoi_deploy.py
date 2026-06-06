@@ -78,6 +78,38 @@ def _unique_paths(paths: Iterable[Path]) -> tuple[Path, ...]:
     return tuple(unique)
 
 
+def _git_pathspec(git_root: Path, path: Path) -> str:
+    return (
+        path.resolve(strict=False)
+        .relative_to(git_root.resolve(strict=False))
+        .as_posix()
+    )
+
+
+def _missing_untracked_path(git_root: Path, path: Path) -> bool:
+    if path.exists():
+        return False
+    try:
+        pathspec = _git_pathspec(git_root, path)
+    except ValueError:
+        return False
+    tracked = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(git_root),
+            "ls-files",
+            "--error-unmatch",
+            "--",
+            pathspec,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return tracked.returncode != 0
+
+
 def deploy_to_chezmoi(
     written_paths: Iterable[Path],
     behavior: ChezmoiDeployBehavior,
@@ -114,6 +146,8 @@ def deploy_to_chezmoi(
         return 1 if behavior.git_failure_is_error else 0
 
     for path in paths:
+        if _missing_untracked_path(git_root, path):
+            continue
         add = subprocess.run(
             ["git", "-C", str(git_root), "add", "--", str(path)],
             capture_output=True,

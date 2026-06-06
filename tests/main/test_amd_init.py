@@ -9,6 +9,7 @@ import pytest
 
 import sase.amd.init as amd_init
 from sase.amd.constants import (
+    CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT,
     HOME_PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
@@ -29,6 +30,18 @@ def run_amd(*, check: bool = False) -> int:
 def write_provider_shims(root: Path, content: str = PROVIDER_SHIM_CONTENT) -> None:
     for filename in PROVIDER_SHIM_FILES:
         write(root / filename, content)
+
+
+def write_provider_shim_templates(
+    root: Path,
+    content: str = CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT,
+) -> None:
+    for filename in PROVIDER_SHIM_FILES:
+        write(root / f"{filename}.tmpl", content)
+
+
+def home_provider_shim_content(root: Path) -> str:
+    return f"@{root.resolve(strict=False).as_posix()}/AGENTS.md\n"
 
 
 def plan_amd() -> set[tuple[str, Path]]:
@@ -283,7 +296,7 @@ def test_amd_init_manages_live_home_from_user_overlay(
     assert "- @memory/short/sase.md" in agents
     for filename in PROVIDER_SHIM_FILES:
         assert (home / filename).read_text(encoding="utf-8") == (
-            HOME_PROVIDER_SHIM_CONTENT
+            home_provider_shim_content(home)
         )
 
 
@@ -313,9 +326,10 @@ def test_amd_init_manages_chezmoi_home_from_source_overlay(
     assert agents.startswith("# Source Title\n")
     assert "Live Title" not in agents
     for filename in PROVIDER_SHIM_FILES:
-        assert (chezmoi_home / filename).read_text(encoding="utf-8") == (
-            HOME_PROVIDER_SHIM_CONTENT
+        assert (chezmoi_home / f"{filename}.tmpl").read_text(encoding="utf-8") == (
+            CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT
         )
+        assert not (chezmoi_home / filename).exists()
 
 
 def test_amd_init_use_chezmoi_from_home_updates_source_agents(
@@ -354,9 +368,10 @@ def test_amd_init_use_chezmoi_from_home_updates_source_agents(
     assert "Stale description." not in agents
     assert not (live_home / "AGENTS.md").exists()
     for filename in PROVIDER_SHIM_FILES:
-        assert (chezmoi_home / filename).read_text(encoding="utf-8") == (
-            HOME_PROVIDER_SHIM_CONTENT
+        assert (chezmoi_home / f"{filename}.tmpl").read_text(encoding="utf-8") == (
+            CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT
         )
+        assert not (chezmoi_home / filename).exists()
 
 
 def test_amd_init_use_chezmoi_from_project_updates_project_and_source(
@@ -403,9 +418,10 @@ def test_amd_init_use_chezmoi_from_project_updates_project_and_source(
         assert (project / filename).read_text(encoding="utf-8") == (
             PROVIDER_SHIM_CONTENT
         )
-        assert (chezmoi_home / filename).read_text(encoding="utf-8") == (
-            HOME_PROVIDER_SHIM_CONTENT
+        assert (chezmoi_home / f"{filename}.tmpl").read_text(encoding="utf-8") == (
+            CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT
         )
+        assert not (chezmoi_home / filename).exists()
 
 
 def test_amd_init_refreshes_old_live_home_provider_shim(
@@ -426,8 +442,56 @@ def test_amd_init_refreshes_old_live_home_provider_shim(
     assert ("overwrite", home / "CLAUDE.md") in planned
     assert run_amd() == 0
     assert (home / "CLAUDE.md").read_text(encoding="utf-8") == (
+        home_provider_shim_content(home)
+    )
+
+
+def test_amd_check_reports_chezmoi_template_migration_without_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    live_home = tmp_path / "home"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    live_home.mkdir()
+    chezmoi_home.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(live_home))
+    monkeypatch.setattr(amd_init.config_core, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.chdir(chezmoi_home)
+    write(chezmoi_home / "AGENTS.md", "# Chezmoi Instructions\n")
+    write(chezmoi_home / "CLAUDE.md", HOME_PROVIDER_SHIM_CONTENT)
+
+    planned = plan_amd()
+
+    assert ("create", chezmoi_home / "CLAUDE.md.tmpl") in planned
+    assert ("delete", chezmoi_home / "CLAUDE.md") in planned
+    assert run_amd(check=True) == 1
+    assert (chezmoi_home / "CLAUDE.md").read_text(encoding="utf-8") == (
         HOME_PROVIDER_SHIM_CONTENT
     )
+    assert not (chezmoi_home / "CLAUDE.md.tmpl").exists()
+
+
+def test_amd_init_migrates_chezmoi_plain_shims_to_templates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    live_home = tmp_path / "home"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    live_home.mkdir()
+    chezmoi_home.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(live_home))
+    monkeypatch.setattr(amd_init.config_core, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.chdir(chezmoi_home)
+    write(chezmoi_home / "AGENTS.md", "# Chezmoi Instructions\n")
+    write(chezmoi_home / "CLAUDE.md", HOME_PROVIDER_SHIM_CONTENT)
+
+    assert run_amd() == 0
+
+    for filename in PROVIDER_SHIM_FILES:
+        assert (chezmoi_home / f"{filename}.tmpl").read_text(
+            encoding="utf-8"
+        ) == CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT
+    assert not (chezmoi_home / "CLAUDE.md").exists()
 
 
 @pytest.mark.parametrize("cwd_name", ("home", "project"))
@@ -461,7 +525,7 @@ def test_amd_check_use_chezmoi_reports_source_drift_without_writing(
         "# Source Home\n\n**`memory/long/source.md`**  \nStale description.\n"
     )
     write(chezmoi_home / "AGENTS.md", stale_agents)
-    write_provider_shims(chezmoi_home, HOME_PROVIDER_SHIM_CONTENT)
+    write_provider_shim_templates(chezmoi_home)
     if cwd_name == "project":
         write(project / "AGENTS.md", "# Project\n")
         write_provider_shims(project)

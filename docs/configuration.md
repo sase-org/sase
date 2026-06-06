@@ -691,6 +691,9 @@ when it needs to initialize home-level `AGENTS.md`; `sase memory init` writes ho
 configured chezmoi deploy path; `sase skills init` writes provider skill files there before optional commit, push, and
 apply steps.
 
+Home-level AMD provider shims in the chezmoi source are managed as `*.md.tmpl` files containing
+`@{{ .chezmoi.homeDir }}/AGENTS.md`, so deployed provider files render to absolute home imports on each machine.
+
 ```yaml
 use_chezmoi: true # default: false
 ```
@@ -1337,12 +1340,13 @@ left untouched.
 
 Creates or refreshes project and home memory roots and keeps `AGENTS.md` memory references reachable. It creates a
 minimal `AGENTS.md` when absent for repositories that are not opted into AMD-managed instructions, and it still repairs
-provider instruction shims for compatibility. When the project-local `./sase.yml` sets `amd_h1_title`, memory init
-synchronizes that project's AMD-managed short/long memory blocks and inserts missing long-memory `description`
-frontmatter. By default it also tries to commit, rebase-pull, and push generated project-side files. `sase init memory`
-is a compatibility alias for this command. Generated sibling-repository memory lists direct paths for
-`workspace.strategy: none` siblings and only includes `sase workspace open` guidance when a configured sibling uses
-numbered workspace resolution.
+provider instruction shims for compatibility. Direct home shims use absolute `@/path/to/home/AGENTS.md` imports; when
+`use_chezmoi` is enabled, home shim sources are written as `*.md.tmpl` files. When the project-local `./sase.yml` sets
+`amd_h1_title`, memory init synchronizes that project's AMD-managed short/long memory blocks and inserts missing
+long-memory `description` frontmatter. By default it also tries to commit, rebase-pull, and push generated project-side
+files. `sase init memory` is a compatibility alias for this command. Generated sibling-repository memory lists direct
+paths for `workspace.strategy: none` siblings and only includes `sase workspace open` guidance when a configured sibling
+uses numbered workspace resolution.
 
 | Flag              | Values | Default | Description                                                                                             |
 | ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

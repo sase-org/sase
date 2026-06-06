@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-InitOperation = Literal["create", "update", "overwrite", "validate", "deploy"]
+InitOperation = Literal["create", "update", "overwrite", "delete", "validate", "deploy"]
 
 
 @dataclass(frozen=True)
