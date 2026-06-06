@@ -8,6 +8,7 @@ from pathlib import Path
 from rich.console import Console
 
 from sase.amd.constants import (
+    HOME_PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
 )
@@ -21,9 +22,14 @@ def write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def write_shims(root: Path, filenames: tuple[str, ...] = PROVIDER_SHIM_FILES) -> None:
+def write_shims(
+    root: Path,
+    filenames: tuple[str, ...] = PROVIDER_SHIM_FILES,
+    *,
+    content: str = PROVIDER_SHIM_CONTENT,
+) -> None:
     for filename in filenames:
-        write(root / filename, PROVIDER_SHIM_CONTENT)
+        write(root / filename, content)
 
 
 def legacy_marker(name: str) -> str:
@@ -159,6 +165,59 @@ def test_build_inventory_includes_live_home_and_chezmoi_source(
         entries[("chezmoi", "~/.local/share/chezmoi/home/AGENTS.md")].h1_title
         == "Chezmoi Instructions"
     )
+
+
+def test_build_inventory_uses_home_specific_provider_shim_status(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "repo"
+    home = tmp_path / "home"
+    (project / ".git").mkdir(parents=True)
+    write(project / "AGENTS.md", "# Project Instructions\n")
+    write(home / "AGENTS.md", "# Home Instructions\n")
+    write(home / "CLAUDE.md", HOME_PROVIDER_SHIM_CONTENT)
+    write(home / "GEMINI.md", PROVIDER_SHIM_CONTENT)
+
+    inventory = _build_amd_inventory(
+        root=project,
+        home_root=home,
+        chezmoi_root=tmp_path / "chezmoi",
+        include_chezmoi=False,
+    )
+
+    home_entry = entry_by_path("~/AGENTS.md", inventory.entries)
+
+    assert [(shim.filename, shim.state) for shim in home_entry.provider_shims] == [
+        ("CLAUDE.md", "exact_shim"),
+        ("GEMINI.md", "shim"),
+        ("QWEN.md", "missing"),
+        ("OPENCODE.md", "missing"),
+    ]
+
+
+def test_build_inventory_uses_chezmoi_home_provider_shim_status(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "repo"
+    home = tmp_path / "home"
+    chezmoi = tmp_path / "chezmoi" / "home"
+    (project / ".git").mkdir(parents=True)
+    write(project / "AGENTS.md", "# Project Instructions\n")
+    write(chezmoi / "AGENTS.md", "# Chezmoi Instructions\n")
+    write_shims(chezmoi, content=HOME_PROVIDER_SHIM_CONTENT)
+
+    inventory = _build_amd_inventory(
+        root=project,
+        home_root=home,
+        chezmoi_root=chezmoi,
+        include_chezmoi=True,
+    )
+
+    chezmoi_entry = next(
+        entry for entry in inventory.entries if entry.scope == "chezmoi"
+    )
+
+    assert {shim.state for shim in chezmoi_entry.provider_shims} == {"exact_shim"}
 
 
 def test_build_inventory_treats_legacy_markered_structure_as_managed(

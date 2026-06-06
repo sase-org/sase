@@ -6,10 +6,10 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from sase.amd.init import AmdMemorySyncPlan, plan_amd_memory_sync
+from sase.amd._shared import provider_shim_content_for_root
 
 from .constants import (
     MINIMAL_AGENTS_CONTENT,
-    PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
 )
 from .formatting import format_generated_memory_markdown
@@ -130,6 +130,7 @@ def _render_expected_memory_files(
     *,
     project_name: str | None = None,
     amd_sync: AmdMemorySyncPlan | None = None,
+    home_equivalent_roots: Iterable[Path] = (),
 ) -> tuple[MemoryExpectedFile, ...]:
     expected: list[MemoryExpectedFile] = [
         MemoryExpectedFile(
@@ -172,10 +173,14 @@ def _render_expected_memory_files(
                 write_policy="create_if_missing",
             )
         )
+    provider_shim_content = provider_shim_content_for_root(
+        root,
+        home_equivalent_roots=home_equivalent_roots,
+    )
     expected.extend(
         MemoryExpectedFile(
             path=root / filename,
-            content=PROVIDER_SHIM_CONTENT,
+            content=provider_shim_content,
             detail="provider instruction shim",
             stale_operation="overwrite",
         )
@@ -294,6 +299,7 @@ def plan_memory_root(
     *,
     project_name: str | None = None,
     enable_amd: bool = False,
+    home_equivalent_roots: Iterable[Path] = (),
 ) -> MemoryRootPlan:
     amd_sync = _amd_sync_plan(root, enable_amd=enable_amd)
     expected_files = _render_expected_memory_files(
@@ -301,6 +307,7 @@ def plan_memory_root(
         sibling_entries,
         project_name=project_name,
         amd_sync=amd_sync,
+        home_equivalent_roots=home_equivalent_roots,
     )
     overlay = _validation_overlay_for_expected_files(root, expected_files)
     return MemoryRootPlan(
@@ -317,6 +324,7 @@ def initialize_memory_root(
     *,
     project_name: str | None = None,
     enable_amd: bool = False,
+    home_equivalent_roots: Iterable[Path] = (),
 ) -> MemoryRootResult:
     amd_sync = _amd_sync_plan(root, enable_amd=enable_amd)
     expected_files = _render_expected_memory_files(
@@ -324,6 +332,7 @@ def initialize_memory_root(
         sibling_entries,
         project_name=project_name,
         amd_sync=amd_sync,
+        home_equivalent_roots=home_equivalent_roots,
     )
     written = _apply_expected_memory_files(expected_files)
 

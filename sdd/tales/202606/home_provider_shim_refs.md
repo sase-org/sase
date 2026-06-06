@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-06 10:02:01
-status: wip
+status: done
 prompt: sdd/prompts/202606/home_provider_shim_refs.md
 ---
 # Plan: Make Home Provider Shims Load Home AGENTS.md

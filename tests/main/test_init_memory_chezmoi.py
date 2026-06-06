@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sase.amd.constants import HOME_PROVIDER_SHIM_CONTENT, PROVIDER_SHIM_FILES
 from sase.main import init_memory_handler
 from sase.main._init_chezmoi_deploy import defer_chezmoi_deploy
 from tests.main.init_memory_handler_helpers import (
@@ -75,6 +76,8 @@ sibling_repos:
         "- `chezmoi`: Chezmoi-managed dotfiles and global SASE configuration source. "
         "This repo is defined in the `~/.local/share/chezmoi/` directory."
     ) in _single_line(chezmoi_memory)
+    for filename in PROVIDER_SHIM_FILES:
+        assert (chezmoi_home / filename).read_text() == HOME_PROVIDER_SHIM_CONTENT
     assert chezmoi_home / "memory" / "short" / "sase.md" in deployed
 
 

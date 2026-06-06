@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.amd.constants import PROVIDER_SHIM_CONTENT
 from sase.main import init_memory_handler
 from sase.main.init_memory.inventory import unreferenced_memory_files
 from sase.main.init_memory_handler import plan_init_memory
@@ -147,6 +148,31 @@ def test_memory_plan_stale_provider_shim_reports_overwrite(
 
     assert {(action.operation, action.path) for action in plan.actions} == {
         ("overwrite", project_root / "CLAUDE.md")
+    }
+
+
+def test_memory_plan_stale_home_provider_shim_reports_overwrite(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    assert run_memory() == 0
+    (home_root / "CLAUDE.md").write_text(PROVIDER_SHIM_CONTENT, encoding="utf-8")
+
+    plan = plan_memory()
+
+    assert {(action.operation, action.path) for action in plan.actions} == {
+        ("overwrite", home_root / "CLAUDE.md")
     }
 
 

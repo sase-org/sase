@@ -18,9 +18,9 @@ from rich.text import Text
 from sase.config import core as config_core
 
 from ._agents_doc import parse_amd_agents_document
+from ._shared import is_provider_shim_text, provider_shim_content_for_root
 from .constants import (
     AGENTS_FILENAME,
-    PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
 )
 
@@ -183,17 +183,25 @@ def _management_state_and_memory_counts(
     return management, short_count, long_count
 
 
-def _provider_shims(directory: Path) -> tuple[_ProviderShimStatus, ...]:
+def _provider_shims(
+    directory: Path,
+    *,
+    home_equivalent_roots: tuple[Path, ...] = (),
+) -> tuple[_ProviderShimStatus, ...]:
     statuses: list[_ProviderShimStatus] = []
+    expected_content = provider_shim_content_for_root(
+        directory,
+        home_equivalent_roots=home_equivalent_roots,
+    )
     for filename in PROVIDER_SHIM_FILES:
         path = directory / filename
         if not path.exists():
             statuses.append(_ProviderShimStatus(filename=filename, state="missing"))
             continue
         text = _read_text(path)
-        if text == PROVIDER_SHIM_CONTENT:
+        if text == expected_content:
             state: ProviderShimState = "exact_shim"
-        elif text is not None and text.strip() == PROVIDER_SHIM_CONTENT.strip():
+        elif text is not None and is_provider_shim_text(text):
             state = "shim"
         else:
             state = "custom"
@@ -224,6 +232,7 @@ def _entry_for_agents(
     scope: AmdScope,
     project_root: Path,
     home_root: Path,
+    home_equivalent_roots: tuple[Path, ...] = (),
 ) -> _AmdDocumentEntry:
     text = _read_text(path)
     management, short_count, long_count = _management_state_and_memory_counts(text)
@@ -239,7 +248,10 @@ def _entry_for_agents(
         management=management,
         short_memory_refs=short_count,
         long_memory_refs=long_count,
-        provider_shims=_provider_shims(path.parent),
+        provider_shims=_provider_shims(
+            path.parent,
+            home_equivalent_roots=home_equivalent_roots,
+        ),
     )
 
 
@@ -267,6 +279,7 @@ def _build_amd_inventory(
         if include_chezmoi is not None
         else (use_chezmoi or source_root.exists())
     )
+    home_equivalent_roots = (live_home_root, source_root)
 
     entries: list[_AmdDocumentEntry] = []
     seen: set[Path] = set()
@@ -285,6 +298,7 @@ def _build_amd_inventory(
                 scope=scope,
                 project_root=project_root,
                 home_root=live_home_root,
+                home_equivalent_roots=home_equivalent_roots,
             )
         )
 
@@ -299,6 +313,7 @@ def _build_amd_inventory(
                     scope="home",
                     project_root=project_root,
                     home_root=live_home_root,
+                    home_equivalent_roots=home_equivalent_roots,
                 )
             )
 
@@ -313,6 +328,7 @@ def _build_amd_inventory(
                     scope="chezmoi",
                     project_root=project_root,
                     home_root=live_home_root,
+                    home_equivalent_roots=home_equivalent_roots,
                 )
             )
 

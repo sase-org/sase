@@ -7,6 +7,12 @@ import shutil
 import subprocess
 
 import pytest
+
+from sase.amd.constants import (
+    HOME_PROVIDER_SHIM_CONTENT,
+    PROVIDER_SHIM_CONTENT,
+    PROVIDER_SHIM_FILES,
+)
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -98,7 +104,10 @@ sibling_repos:
         assert "When a sibling repository needs changes, agents MUST run:" not in memory
         assert "sibling edits" not in memory
 
-    for root in (project_root, home_root):
+    for root, shim_content in (
+        (project_root, PROVIDER_SHIM_CONTENT),
+        (home_root, HOME_PROVIDER_SHIM_CONTENT),
+    ):
         assert (root / "memory" / "long").is_dir()
         assert (root / "memory" / "README.md").is_file()
         readme = (root / "memory" / "README.md").read_text()
@@ -107,8 +116,8 @@ sibling_repos:
         assert "`@memory/...` reference" in readme
         assert "Plain `memory/...` mentions" in readme
         assert "@memory/short/sase.md" in (root / "AGENTS.md").read_text()
-        for filename in ("CLAUDE.md", "GEMINI.md", "QWEN.md", "OPENCODE.md"):
-            assert (root / filename).read_text() == "@AGENTS.md\n"
+        for filename in PROVIDER_SHIM_FILES:
+            assert (root / filename).read_text() == shim_content
 
 
 def test_init_memory_static_siblings_use_paths_without_workspace_open(
@@ -386,9 +395,9 @@ def test_init_memory_overwrites_provider_shims(
 
     assert run_handler() == 0
 
-    assert (project_root / "CLAUDE.md").read_text() == "@AGENTS.md\n"
+    assert (project_root / "CLAUDE.md").read_text() == PROVIDER_SHIM_CONTENT
     for filename in ("GEMINI.md", "QWEN.md", "OPENCODE.md"):
-        assert (project_root / filename).read_text() == "@AGENTS.md\n"
+        assert (project_root / filename).read_text() == PROVIDER_SHIM_CONTENT
 
 
 def test_init_memory_allows_transitive_memory_references(

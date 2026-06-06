@@ -110,12 +110,14 @@ chezmoi-source `AGENTS.md` files, their H1 titles, whether they look AMD-managed
 and nearby provider shim status.
 
 `sase amd init` plans against the current directory unless `use_chezmoi: true` adds or redirects to the chezmoi home
-source root. It always creates or repairs provider shims for each selected root. When a selected ordinary root has a
-local `./sase.yml` with `amd_h1_title`, AMD writes a managed `AGENTS.md` with marker-delimited short-memory and
-long-memory sections. When the selected root is the live home root, a user config value from `~/.config/sase/sase.yml`
-or `~/.config/sase/sase_*.yml` can provide the home `AGENTS.md` title. When the current directory is the chezmoi home
-source root, AMD reads the source-side `dot_config/sase/sase.yml` and `dot_config/sase/sase_*.yml` files instead, so
-edited dotfile source config can drive source `AGENTS.md` generation before `chezmoi apply`.
+source root. It always creates or repairs provider shims for each selected root. Project-local provider shims contain
+`@AGENTS.md`; live-home and chezmoi-home provider shims contain `@~/AGENTS.md` so they keep pointing at the home
+instruction file from ephemeral workspaces. When a selected ordinary root has a local `./sase.yml` with `amd_h1_title`,
+AMD writes a managed `AGENTS.md` with marker-delimited short-memory and long-memory sections. When the selected root is
+the live home root, a user config value from `~/.config/sase/sase.yml` or `~/.config/sase/sase_*.yml` can provide the
+home `AGENTS.md` title. When the current directory is the chezmoi home source root, AMD reads the source-side
+`dot_config/sase/sase.yml` and `dot_config/sase/sase_*.yml` files instead, so edited dotfile source config can drive
+source `AGENTS.md` generation before `chezmoi apply`.
 
 With `use_chezmoi: true`, running `sase amd init` from the live home root initializes the chezmoi home source root
 instead of writing `~/AGENTS.md` directly. Running it from any other directory initializes that directory and the
@@ -136,8 +138,8 @@ own `./sase.yml` opts in with `amd_h1_title`; global config values are ignored f
 - Project memory under `./memory/`, including `memory/README.md`, `memory/short/sase.md`, and `memory/long/`.
 - Home memory under `~/memory/`, or under `~/.local/share/chezmoi/home/` when `use_chezmoi: true`.
 - A minimal `AGENTS.md` when one does not already exist and the repo is not opted into AMD-managed instructions.
-- Provider shims `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md` containing `@AGENTS.md` for compatibility with
-  older memory-init workflows.
+- Provider shims `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`; project roots contain `@AGENTS.md`, while
+  live-home and chezmoi-home roots contain `@~/AGENTS.md`.
 
 When the project-local `./sase.yml` sets `amd_h1_title`, `sase memory init` synchronizes the AMD-managed memory blocks
 inside `AGENTS.md`, adds missing `description` frontmatter to long-memory files, and renders the Tier 3 list from those

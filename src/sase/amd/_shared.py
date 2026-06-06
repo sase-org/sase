@@ -2,17 +2,26 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.config import core as config_core
 from sase.main.init_plan import InitAction, InitPlan
 
-from .constants import PROVIDER_SHIM_CONTENT, PROVIDER_SHIM_FILES
+from .constants import (
+    HOME_PROVIDER_SHIM_CONTENT,
+    PROVIDER_SHIM_CONTENT,
+    PROVIDER_SHIM_FILES,
+)
 
 COMMAND_LABEL = "init amd"
+_PROVIDER_SHIM_TEXTS = frozenset(
+    {PROVIDER_SHIM_CONTENT.strip(), HOME_PROVIDER_SHIM_CONTENT.strip()}
+)
 
 
 @dataclass(frozen=True)
@@ -70,13 +79,47 @@ def load_yaml_mapping(path: Path) -> tuple[dict[str, Any] | None, str | None]:
     return data, None
 
 
-def _is_shim_text(text: str) -> bool:
-    return text.strip() == PROVIDER_SHIM_CONTENT.strip()
+def _resolved(path: Path) -> Path:
+    return path.expanduser().resolve(strict=False)
 
 
-def provider_statuses(root: Path) -> tuple[dict[Path, str], tuple[str, ...]]:
+def _is_home_equivalent_root(
+    root: Path,
+    *,
+    home_equivalent_roots: Iterable[Path] = (),
+) -> bool:
+    root_resolved = _resolved(root)
+    for candidate in (Path.home(), config_core.CHEZMOI_HOME, *home_equivalent_roots):
+        if root_resolved == _resolved(candidate):
+            return True
+    return False
+
+
+def provider_shim_content_for_root(
+    root: Path,
+    *,
+    home_equivalent_roots: Iterable[Path] = (),
+) -> str:
+    if _is_home_equivalent_root(root, home_equivalent_roots=home_equivalent_roots):
+        return HOME_PROVIDER_SHIM_CONTENT
+    return PROVIDER_SHIM_CONTENT
+
+
+def is_provider_shim_text(text: str) -> bool:
+    return text.strip() in _PROVIDER_SHIM_TEXTS
+
+
+def provider_statuses(
+    root: Path,
+    *,
+    home_equivalent_roots: Iterable[Path] = (),
+) -> tuple[dict[Path, str], tuple[str, ...]]:
     statuses: dict[Path, str] = {}
     errors: list[str] = []
+    expected_content = provider_shim_content_for_root(
+        root,
+        home_equivalent_roots=home_equivalent_roots,
+    )
     for filename in PROVIDER_SHIM_FILES:
         path = root / filename
         if not path.exists():
@@ -87,9 +130,9 @@ def provider_statuses(root: Path) -> tuple[dict[Path, str], tuple[str, ...]]:
             statuses[path] = "custom"
             errors.append(error or f"{path}: failed to read file")
             continue
-        if text == PROVIDER_SHIM_CONTENT:
+        if text == expected_content:
             statuses[path] = "exact_shim"
-        elif _is_shim_text(text):
+        elif is_provider_shim_text(text):
             statuses[path] = "shim"
         else:
             statuses[path] = "custom"
@@ -112,12 +155,20 @@ def planned_write(path: Path, content: str, *, detail: str) -> PlannedWrite | No
     return PlannedWrite(path=path, content=content, action=action)
 
 
-def provider_shim_writes(root: Path) -> tuple[PlannedWrite, ...]:
+def provider_shim_writes(
+    root: Path,
+    *,
+    home_equivalent_roots: Iterable[Path] = (),
+) -> tuple[PlannedWrite, ...]:
     writes: list[PlannedWrite] = []
+    content = provider_shim_content_for_root(
+        root,
+        home_equivalent_roots=home_equivalent_roots,
+    )
     for filename in PROVIDER_SHIM_FILES:
         write = planned_write(
             root / filename,
-            PROVIDER_SHIM_CONTENT,
+            content,
             detail="provider instruction shim",
         )
         if write is not None:
