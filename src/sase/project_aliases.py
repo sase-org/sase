@@ -157,6 +157,7 @@ def _validate_project_aliases(
     return normalized
 
 
+# pyvision: https://github.com/sase-org/sase-github.git
 def allocate_project_alias(
     desired_base_alias: str,
     records: Sequence[ProjectRecordWire],
@@ -321,6 +322,7 @@ def clear_project_aliases_locked(
     return set_project_aliases_locked(project, [], projects_root=projects_root)
 
 
+# pyvision: https://github.com/sase-org/sase-github.git
 def ensure_project_alias_locked(
     project: str,
     alias: str,
