@@ -640,9 +640,34 @@ def test_resolve_known_project_ref_accepts_bare_name() -> None:
 
 
 def test_resolve_known_project_ref_normalizes_owner_repo_form() -> None:
-    """``owner/repo`` is normalized to the repo basename for known-project lookup."""
+    """``owner/repo`` keeps a legacy single-project basename fallback."""
     known = {"sase": object()}
     assert resolve_known_project_ref("sase-org/sase", known) == "sase"
+
+
+def test_resolve_known_project_ref_matches_owner_repo_workspace(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    known = {
+        "gh_foo_org__foo": tmp_path / "projects" / "github" / "foo-org" / "foo",
+        "gh_bar_org__foo": tmp_path / "projects" / "github" / "bar-org" / "foo",
+    }
+
+    assert resolve_known_project_ref("foo-org/foo", known) == "gh_foo_org__foo"
+    assert resolve_known_project_ref("bar-org/foo", known) == "gh_bar_org__foo"
+
+
+def test_resolve_known_project_ref_skips_ambiguous_basename_fallback(
+    tmp_path,
+) -> None:
+    known = {
+        "gh_foo_org__foo": tmp_path / "elsewhere" / "foo",
+        "gh_bar_org__foo": tmp_path / "another" / "foo",
+    }
+
+    assert resolve_known_project_ref("baz-org/foo", known) is None
 
 
 def test_resolve_known_project_ref_returns_none_for_unknown() -> None:
@@ -659,6 +684,40 @@ def test_extract_known_project_vcs_ref_matches_owner_repo_form() -> None:
     ):
         result = extract_known_project_vcs_ref("#gh:sase-org/sase #!sase/refresh_docs")
     assert result == ("gh", "sase-org/sase")
+
+
+def test_extract_known_project_vcs_ref_matches_duplicate_owner_repo_workspace(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    known = {
+        "gh_foo_org__foo": tmp_path / "projects" / "github" / "foo-org" / "foo",
+        "gh_bar_org__foo": tmp_path / "projects" / "github" / "bar-org" / "foo",
+    }
+    with patch(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        return_value=known,
+    ):
+        result = extract_known_project_vcs_ref("#gh:bar-org/foo fix")
+
+    assert result == ("gh", "bar-org/foo")
+
+
+def test_extract_known_project_vcs_ref_ignores_ambiguous_basename_fallback(
+    tmp_path,
+) -> None:
+    known = {
+        "gh_foo_org__foo": tmp_path / "elsewhere" / "foo",
+        "gh_bar_org__foo": tmp_path / "another" / "foo",
+    }
+    with patch(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        return_value=known,
+    ):
+        result = extract_known_project_vcs_ref("#gh:baz-org/foo fix")
+
+    assert result is None
 
 
 def test_strip_known_project_vcs_refs_handles_owner_repo_form() -> None:

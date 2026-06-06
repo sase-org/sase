@@ -170,6 +170,80 @@ def test_launch_multi_prompt_agents_activates_inactive_known_project_later_segme
     assert "PROJECT_STATE: active" in project_file.read_text(encoding="utf-8")
 
 
+def test_launch_multi_prompt_agents_owner_repo_ref_uses_duplicate_workspace_match(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    dir_a = tmp_path / "a"
+    dir_a.mkdir()
+    foo_workspace = tmp_path / "projects" / "github" / "foo-org" / "foo"
+    bar_workspace = tmp_path / "projects" / "github" / "bar-org" / "foo"
+    foo_workspace.mkdir(parents=True)
+    bar_workspace.mkdir(parents=True)
+    allocated_workspace = tmp_path / "gh_bar_org__foo_101"
+    allocated_workspace.mkdir()
+    project_file = str(
+        tmp_path / ".sase" / "projects" / "gh_bar_org__foo" / "gh_bar_org__foo.sase"
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda *_args, **_kwargs: {
+            "gh_foo_org__foo": foo_workspace,
+            "gh_bar_org__foo": bar_workspace,
+        },
+    )
+
+    with (
+        patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
+        patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming"),
+        patch("sase.core.time.generate_timestamp", return_value="260501_120000"),
+        patch(
+            "sase.artifacts.create_artifacts_directory",
+            return_value="/artifacts",
+        ),
+        patch(
+            "sase.running_field.claim_next_axe_workspace",
+            return_value=101,
+        ) as claim_ws,
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=(str(allocated_workspace), None),
+        ) as ws_dir,
+    ):
+        spawn.return_value = MagicMock(pid=1)
+        launch_multi_prompt_agents(
+            segments=[f"#cd:{dir_a} first", "#gh:bar-org/foo second"],
+            local_xprompts={},
+            cl_name="base",
+            project_file="/projects/base/base.sase",
+            project_name="base",
+            is_home_mode=False,
+            vcs_ref=None,
+            default_bare_segments_to_home=True,
+        )
+
+    calls = spawn.call_args_list
+    assert [c.kwargs["project_name"] for c in calls] == [
+        dir_a.name,
+        "gh_bar_org__foo",
+    ]
+    assert [c.kwargs["workspace_dir"] for c in calls] == [
+        str(dir_a.resolve()),
+        str(allocated_workspace),
+    ]
+    assert [c.kwargs["vcs_ref"] for c in calls] == [
+        ("cd", str(dir_a)),
+        ("gh", "gh_bar_org__foo"),
+    ]
+    claim_ws.assert_called_once()
+    assert claim_ws.call_args.args[0] == project_file
+    ws_dir.assert_called_once_with(101, "gh_bar_org__foo")
+
+
 def test_launch_multi_prompt_agents_defaults_bare_segment_to_git_home(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

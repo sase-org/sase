@@ -178,6 +178,24 @@ def test_canonicalize_project_aliases_in_prompt_rewrites_vcs_refs(
     )
 
 
+def test_canonicalize_project_aliases_in_prompt_rewrites_generated_github_aliases(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {
+            "foo": "gh_foo_org__foo",
+            "foo-2": "gh_bar_org__foo",
+        },
+    )
+
+    prompt = "#gh:foo fix\n#gh:foo-2 fix\n#gh:foo-org/foo keep"
+
+    assert canonicalize_project_aliases_in_prompt(prompt) == (
+        "#gh:gh_foo_org__foo fix\n#gh:gh_bar_org__foo fix\n#gh:foo-org/foo keep"
+    )
+
+
 def test_canonicalize_project_aliases_in_prompt_does_not_rewrite_non_exact_refs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

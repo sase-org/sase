@@ -2,6 +2,7 @@
 
 import re
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 from . import _parsing_args as _args
 from . import _parsing_shorthand as _shorthand
@@ -241,23 +242,90 @@ def _prompt_segment_has_vcs_workflow_ref(segment: str) -> bool:
     )
 
 
+def _known_project_workspace_path(value: object) -> Path | None:
+    """Return the workspace path carried by a known-project mapping value."""
+    if isinstance(value, Path):
+        return value
+    if isinstance(value, str):
+        return Path(value)
+
+    workspace_dir = getattr(value, "workspace_dir", None)
+    if isinstance(workspace_dir, Path):
+        return workspace_dir
+    if isinstance(workspace_dir, str) and workspace_dir:
+        return Path(workspace_dir)
+    return None
+
+
+def _workspace_path_key(path: Path) -> str:
+    return str(path.expanduser().resolve(strict=False))
+
+
+def _github_owner_repo_workspace(ref: str) -> Path | None:
+    parts = ref.split("/")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        return None
+    return Path.home() / "projects" / "github" / parts[0] / parts[1]
+
+
+def _project_for_owner_repo_workspace(
+    ref: str,
+    known_projects: Mapping[str, object],
+) -> str | None:
+    expected = _github_owner_repo_workspace(ref)
+    if expected is None:
+        return None
+
+    expected_key = _workspace_path_key(expected)
+    matches = [
+        project
+        for project, value in known_projects.items()
+        if (
+            (workspace_path := _known_project_workspace_path(value)) is not None
+            and _workspace_path_key(workspace_path) == expected_key
+        )
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _unambiguous_basename_project(
+    ref: str,
+    known_projects: Mapping[str, object],
+) -> str | None:
+    basename = ref.rsplit("/", 1)[-1]
+    candidates: set[str] = set()
+    if basename in known_projects:
+        candidates.add(basename)
+
+    for project, value in known_projects.items():
+        workspace_path = _known_project_workspace_path(value)
+        if workspace_path is not None and workspace_path.name == basename:
+            candidates.add(project)
+
+    if len(candidates) == 1:
+        return next(iter(candidates))
+    return None
+
+
 def resolve_known_project_ref(
     ref: str, known_projects: Mapping[str, object]
 ) -> str | None:
     """Return the registered project name for *ref* or ``None``.
 
-    Accepts both the bare project name (``sase``) and the GitHub-style
-    ``owner/repo`` form (``sase-org/sase``); the latter is normalized to its
-    repo basename before lookup.  This lets ``#gh:sase-org/sase`` map to the
-    known ``sase`` workspace when the ``gh`` workspace provider is not
-    registered in the current process.
+    Exact project names are accepted first.  GitHub-style ``owner/repo`` refs
+    then match a known project whose workspace is
+    ``~/projects/github/<owner>/<repo>``.  A legacy basename fallback is kept
+    only when it identifies a single plausible project.
     """
     if ref in known_projects:
         return ref
     if "/" in ref:
-        basename = ref.rsplit("/", 1)[-1]
-        if basename in known_projects:
-            return basename
+        workspace_project = _project_for_owner_repo_workspace(ref, known_projects)
+        if workspace_project is not None:
+            return workspace_project
+        return _unambiguous_basename_project(ref, known_projects)
     return None
 
 
