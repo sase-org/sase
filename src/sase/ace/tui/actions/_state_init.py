@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from ..models.agent_loader import AgentLoadState
     from .axe_display._loaders import AxeItemKey
     from .navigation._types import JumpAllResult
+    from sase.core.agent_group_archive_wire import SavedAgentGroupWire
     from sase.core.query_corpus_facade import QueryCorpus
 
 log = logging.getLogger(__name__)
@@ -393,8 +394,6 @@ class StateInitMixin:
         # Agent completion tracking for notifications
         from ...dismissed_agents import (
             dismissed_agents_file_signature,
-            list_recent_dismissed_agent_groups,
-            load_recent_dismissed_agent_group,
             load_dismissed_agents,
         )
         from sase.core.agent_artifact_index_lifecycle import (
@@ -416,17 +415,12 @@ class StateInitMixin:
         self._dismissed_agents_disk_signature_initialized = True
         sync_dismissed_agent_artifact_index(self._dismissed_agents)
         self._dismissed_agent_objects: list[Agent] = []
-        try:
-            recent_page = list_recent_dismissed_agent_groups(limit=10)
-            self._recent_dismissed_agent_groups = [
-                group
-                for summary in recent_page.groups
-                if (group := load_recent_dismissed_agent_group(summary.group_id))
-                is not None
-            ]
-        except Exception:
-            log.debug("failed to load recent dismissed-agent groups", exc_info=True)
-            self._recent_dismissed_agent_groups = []
+        # The recent dismissed-agent group cache is intentionally left empty at
+        # startup: the revive modal (`_revive_agent`) re-reads the recent store
+        # from disk and merges it into this cache every time it opens, so a cold
+        # init would only duplicate that read on the latency-sensitive cold-start
+        # path. See sdd/tales/202606/recent_restore_perf_fix.md.
+        self._recent_dismissed_agent_groups: list[SavedAgentGroupWire] = []
         self._revived_agent_raw_suffixes: set[str] = set()
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
 

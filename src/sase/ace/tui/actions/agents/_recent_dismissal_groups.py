@@ -44,7 +44,9 @@ def build_recent_dismissed_agent_group(
 ) -> SavedAgentGroupWire | None:
     if not agents:
         return None
-    return build_saved_agent_group(agents, source="recent_dismissal")
+    return build_saved_agent_group(
+        agents, source="recent_dismissal", resolve_bundle_paths=False
+    )
 
 
 def cache_recent_dismissed_agent_group(

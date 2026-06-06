@@ -292,7 +292,9 @@ class AgentMarkingMixin:
 
         identities = {agent.identity for agent in agents}
         added = identities - self._dismissed_agents
-        group = build_saved_agent_group(agents, group_name=group_name)
+        group = build_saved_agent_group(
+            agents, group_name=group_name, resolve_bundle_paths=False
+        )
         cache_recent_dismissed_agent_group(self, group)
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)

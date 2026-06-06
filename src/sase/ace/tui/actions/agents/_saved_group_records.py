@@ -35,8 +35,17 @@ def build_saved_agent_group(
     group_name: str | None = None,
     source: SavedAgentGroupSource = "marked_agents",
     created_at: datetime | None = None,
+    resolve_bundle_paths: bool = True,
 ) -> SavedAgentGroupWire:
-    """Build a saved-group wire record from concrete agent rows."""
+    """Build a saved-group wire record from concrete agent rows.
+
+    When *resolve_bundle_paths* is ``False`` the builder never probes the
+    filesystem for an agent's dismissed bundle; it uses only the in-memory
+    ``_dismissed_bundle_path`` attribute (set when an agent was revived from a
+    bundle). Pass ``False`` from UI-thread call sites: fresh dismissals have no
+    bundle on disk yet, so the probe is pure wasted I/O, and revive resolves by
+    suffix regardless of ``bundle_path``.
+    """
 
     now = created_at or datetime.now(UTC)
     created_at_wire = utc_wire_timestamp(now)
@@ -59,7 +68,10 @@ def build_saved_agent_group(
         status_counts=status_counts,
         project_names=project_names,
         cl_names=cl_names,
-        agent_refs=tuple(_saved_group_ref_for_agent(agent) for agent in agents),
+        agent_refs=tuple(
+            _saved_group_ref_for_agent(agent, resolve_bundle_paths=resolve_bundle_paths)
+            for agent in agents
+        ),
     )
 
 
@@ -138,10 +150,14 @@ def _normalize_saved_group_name(group_name: str | None) -> str | None:
     return normalized or None
 
 
-def _bundle_path_for_agent(agent: Agent) -> str | None:
+def _bundle_path_for_agent(
+    agent: Agent, *, resolve_bundle_paths: bool = True
+) -> str | None:
     existing = getattr(agent, "_dismissed_bundle_path", None)
     if existing:
         return existing
+    if not resolve_bundle_paths:
+        return None
     if agent.raw_suffix is None:
         return None
     try:
@@ -153,12 +169,16 @@ def _bundle_path_for_agent(agent: Agent) -> str | None:
     return None if path is None else str(path)
 
 
-def _saved_group_ref_for_agent(agent: Agent) -> SavedAgentGroupRefWire:
+def _saved_group_ref_for_agent(
+    agent: Agent, *, resolve_bundle_paths: bool = True
+) -> SavedAgentGroupRefWire:
     return SavedAgentGroupRefWire(
         agent_type=agent.agent_type.value,
         cl_name=agent.cl_name,
         raw_suffix=agent.raw_suffix,
-        bundle_path=_bundle_path_for_agent(agent),
+        bundle_path=_bundle_path_for_agent(
+            agent, resolve_bundle_paths=resolve_bundle_paths
+        ),
         is_workflow_child=agent.is_workflow_child,
         parent_timestamp=agent.parent_timestamp,
         display_name=agent.display_name,
