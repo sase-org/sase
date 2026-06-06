@@ -199,7 +199,7 @@ Source: `src/sase/ace/tui/widgets/prompt_text_area.py`
 
 Controls automatic non-disruptive suggestions in the ACE prompt input. Suggestions appear in the prompt-bar subtitle and
 are accepted with `Ctrl+L`; `Enter` still submits the prompt as typed. Manual `Ctrl+T` completion is independent of
-these settings.
+these settings, and the `Ctrl+R` recursive fuzzy file finder is always manual.
 
 ```yaml
 ace:
@@ -217,7 +217,12 @@ ace:
 | `auto_file_paths` | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false. |
 | `max_auto_rows`   | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                   |
 
-Source: `src/sase/ace/tui/widgets/prompt_completion.py`, `src/sase/ace/tui/widgets/_prompt_soft_completion.py`
+File-path completion roots relative lookups in the prompt-selected workspace when `#cd`, a registered VCS provider ref,
+or a known project ref can be resolved from the prompt text. If no prompt workspace context is present, lookups fall
+back to the TUI process directory.
+
+Source: `src/sase/ace/tui/widgets/prompt_completion.py`, `src/sase/ace/tui/widgets/_prompt_soft_completion.py`,
+`src/sase/ace/tui/widgets/prompt_completion_root.py`, `src/sase/ace/tui/widgets/recursive_file_finder.py`
 
 ### llm_provider
 

@@ -1595,6 +1595,7 @@ markdown syntax highlighting for prompt content (headings, bold, italic, code bl
 | `Ctrl+G` | Open full prompt in `$EDITOR`                                                                 |
 | `Ctrl+I` | Load a prompt from history                                                                    |
 | `Ctrl+T` | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
+| `Ctrl+R` | Recursive fuzzy file finder rooted at the prompt's current path/workspace context             |
 | `Tab`    | Snippet expansion (see below)                                                                 |
 | `#@`     | Open XPrompt snippet picker (type `#` then `@`)                                               |
 | `Escape` | Switch to vim NORMAL mode                                                                     |
@@ -1604,7 +1605,7 @@ the text exceeds one line.
 
 ### Completion
 
-Press `Ctrl+T` to activate completion. The completion kind is determined by the token under the cursor:
+Press `Ctrl+T` to activate token completion. The completion kind is determined by the token under the cursor:
 
 - **XPrompt completion**: When the cursor is on a `#`-prefixed token (e.g., `#my_pro`), completion shows matching
   xprompt names from all discovery sources. Built-in workspace references such as `#cd` are included; use `#cd:<path>`
@@ -1624,7 +1625,9 @@ Press `Ctrl+T` to activate completion. The completion kind is determined by the 
   and `%w` completes to `%wait`. The panel shows each directive's aliases and whether it takes an argument or is a flag.
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
-  preserved in the completed path (useful for file-reference arguments).
+  preserved in the completed path (useful for file-reference arguments). Relative paths are rooted at the prompt's
+  current workspace context when one can be resolved from `#cd`, a registered VCS provider ref, or a known project ref
+  such as `#git:<project>`; otherwise they use the TUI process directory.
 - **File-history completion**: When the cursor is in whitespace (or at an empty prompt prefix), `Ctrl+T` opens a list of
   recently referenced files drawn from prompt history, ranked by recency. Project-local `.sase/` paths are filtered out
   so internal bead/plan artifacts don't pollute the suggestions. Press `Ctrl+D` in the completion panel to delete the
@@ -1637,6 +1640,13 @@ Press `Ctrl+T` to activate completion. The completion kind is determined by the 
 | `Ctrl+P` / `Up`    | Previous candidate                       |
 | `Enter` / `Ctrl+L` | Accept highlighted candidate             |
 | `Escape`           | Cancel completion                        |
+
+Press `Ctrl+R` to open the recursive fuzzy file finder. If a path token is under the cursor, the directory portion
+becomes the search root and the filename portion pre-seeds the fuzzy query; if a `Ctrl+T` file candidate is highlighted,
+that highlighted path seeds the root. The finder uses `git ls-files --cached --others --exclude-standard` when possible,
+falls back to a bounded filesystem walk, and inserts the selected path into the captured prompt range. Inside the
+finder, type to filter, use `Ctrl+N` / `Ctrl+P` or arrows to move, `Ctrl+U` to clear the query, `Enter` to insert, and
+`Esc` to cancel.
 
 ACE also computes a non-disruptive live suggestion after a short debounce while the prompt input is in INSERT mode. The
 suggestion appears in the prompt bar subtitle as `[^L] accept ...`; press `Ctrl+L` to accept it. `Enter` still submits

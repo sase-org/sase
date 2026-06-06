@@ -52,9 +52,9 @@ The mode boundary matters because the same widget has to handle two different au
 `#mentor reorder` and pressing Enter, and someone editing a 30-line plan-approval response with vim muscle memory. Both
 have to feel native.
 
-## Completion: One Key, Five Behaviors
+## Completion: One Dispatcher, Plus Recursive Search
 
-`Ctrl+T` is the only completion key, but what it does depends on what's under the cursor:
+`Ctrl+T` is the main completion dispatcher, and what it does depends on what's under the cursor:
 
 | Cursor on…                              | Completion shows…                                                           |
 | --------------------------------------- | --------------------------------------------------------------------------- |
@@ -63,6 +63,12 @@ have to feel native.
 | `%directive` (e.g. `%m`)                | Directive list with aliases — `%m` accepts into `%model`, `%w` into `%wait` |
 | Path-like token (`./`, `~/`, `/`, `@…`) | Filesystem entries; directories drill down on accept                        |
 | Whitespace / empty prompt               | Recent-file history from `~/.sase/file_reference_history.json`              |
+
+Path completion is rooted in the prompt when possible. If the prompt already contains `#cd`, a registered VCS provider
+ref, or a known project ref such as `#git:<project>`, relative path candidates come from that workspace instead of from
+whatever directory launched ACE. For broader search, `Ctrl+R` opens a recursive fuzzy finder. A path token like
+`src/alp` uses `src/` as the root and `alp` as the initial fuzzy query; when the `Ctrl+T` panel is already open, the
+highlighted file or directory seeds the recursive root.
 
 Inside a known xprompt argument position, `Ctrl+T` flips to argument completion: `path` inputs delegate to file
 completion, `bool` inputs offer `true` / `false`, and inside `name(arg=…)` syntax the panel completes _missing_ named

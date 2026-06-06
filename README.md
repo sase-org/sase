@@ -128,6 +128,10 @@ SASE keeps durable state outside any one chat session:
   path for a custom managed-root base; `sase workspace list`, `path`, `repair`, `cleanup`, and `migrate` inspect and
   maintain that view. Normal `sase run` launches prepare their own workspaces; use `sase workspace open 10` when you
   want to prepare a specific checkout for an external shell, editor, or debugging session.
+- **Prompt authoring surface** - ACE's prompt input combines history, snippets, `Ctrl+T` completion for directives,
+  xprompts, slash skills, file paths, and recent files, plus a `Ctrl+R` recursive fuzzy file finder. File-path
+  completion is prompt-aware: when the prompt already names a workspace with `#cd`, a VCS provider ref, or a known
+  project ref, completion searches from that workspace instead of only using the TUI process directory.
 - **Provider retries** - The LLM provider layer can retry matching provider errors, preserve the workspace across
   retries, and fall back to another model when configured. Claude adds built-in matching for context-limit,
   socket-close, and Claude CLI API-error output; per-provider retry counts, waits, and fallback policy live under

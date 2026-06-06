@@ -58,7 +58,7 @@ def _build_bool_completion_candidates(
     return candidates, ""
 
 
-def _cursor_prefix_may_contain_xprompt_args(text: str, cursor_offset: int) -> bool:
+def cursor_prefix_may_contain_xprompt_args(text: str, cursor_offset: int) -> bool:
     """Return True when the cursor prefix has possible xprompt arg syntax."""
     prefix = text[:cursor_offset]
     marker = prefix.rfind("#")

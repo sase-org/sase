@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets._file_completion_xprompt_args import (
-    _cursor_prefix_may_contain_xprompt_args,
+    cursor_prefix_may_contain_xprompt_args,
     effective_xprompt_arg_token,
 )
 from sase.ace.tui.widgets.directive_completion import (
@@ -208,7 +208,7 @@ class FileCompletionContextMixin(_MixinBase):
         if "#" not in self.text:
             return None
         cursor_offset = self._absolute_offset(self.cursor_location)
-        if not _cursor_prefix_may_contain_xprompt_args(self.text, cursor_offset):
+        if not cursor_prefix_may_contain_xprompt_args(self.text, cursor_offset):
             return None
         return detect_xprompt_arg_completion_at_cursor(
             self.text,
