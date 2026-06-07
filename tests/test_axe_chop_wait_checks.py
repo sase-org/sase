@@ -271,6 +271,29 @@ def test_completed_plan_chain_handoff_without_done_resolves_family_dependency(
     assert ready == {"resolved_deps": ["33.r1"]}
 
 
+def test_completed_plan_root_handoff_without_done_does_not_resolve(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # A `--plan` root that merely completed its handoff (completed
+    # workflow_state.json, no terminal done.json anywhere in the family) must
+    # not resolve the wait barrier: the plan chain is still in flight.
+    waiter_dir = _make_waiting_agent(tmp_path, "3j")
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260607083133",
+        "3j",
+        workflow_name="3j",
+        agent_family="3j",
+        role_suffix="--plan",
+    )
+    _write_workflow_state(root_dir)
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+
+
 @pytest.mark.parametrize("outcome", ["failed", "killed"])
 def test_failed_or_killed_plan_chain_handoff_done_blocks_family_dependency(
     tmp_path: Path, monkeypatch, outcome: str

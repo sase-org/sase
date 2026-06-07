@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-07 08:55:25
-status: wip
+status: done
 prompt: sdd/prompts/202606/wait_plan_chain_premature_ready.md
 ---
 # Plan: Stop wait-dependencies from resolving on an unfinished plan chain

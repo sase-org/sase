@@ -28,6 +28,7 @@ _HANDOFF_TERMINAL_STEP_STATUSES = frozenset({"completed", "skipped"})
 class _WaitCandidate:
     timestamp: str
     is_resolved: bool
+    is_done: bool
 
 
 @dataclass(frozen=True)
@@ -36,12 +37,14 @@ class _ArtifactCandidate:
     timestamp: str
     parent_timestamp: str | None
     is_resolved: bool
+    is_done: bool
 
 
 @dataclass(frozen=True)
 class _FamilyCandidate:
     timestamp: str
     is_resolved: bool
+    is_done: bool
 
 
 @dataclass
@@ -57,6 +60,7 @@ class _WaitDependencyIndex:
     def add(self, artifact_dir: Path, meta: dict[str, Any]) -> None:
         outcome = _done_outcome(artifact_dir)
         is_resolved = _artifact_is_resolved(artifact_dir, meta, outcome)
+        is_done = outcome == _SUCCESS_OUTCOME
         timestamp = artifact_dir.name
 
         name = meta.get("name")
@@ -64,6 +68,7 @@ class _WaitDependencyIndex:
             candidate = _WaitCandidate(
                 timestamp=timestamp,
                 is_resolved=is_resolved,
+                is_done=is_done,
             )
             latest = self.named.get(name)
             if latest is None or candidate.timestamp > latest.timestamp:
@@ -78,6 +83,7 @@ class _WaitDependencyIndex:
                 timestamp=timestamp,
                 parent_timestamp=parent_timestamp,
                 is_resolved=is_resolved,
+                is_done=is_done,
             )
             self.workflows.setdefault(workflow_name, []).append(artifact)
             family_name = _family_base_from_meta(meta)
@@ -107,6 +113,7 @@ class _WaitDependencyIndex:
             return _FamilyCandidate(
                 timestamp=newest_timestamp,
                 is_resolved=all(candidate.is_resolved for candidate in generation),
+                is_done=any(candidate.is_done for candidate in generation),
             )
 
         # Legacy recovery path: if only child artifacts remain, judge the known
@@ -115,6 +122,7 @@ class _WaitDependencyIndex:
         return _FamilyCandidate(
             timestamp=newest_timestamp,
             is_resolved=all(candidate.is_resolved for candidate in family_agents),
+            is_done=any(candidate.is_done for candidate in family_agents),
         )
 
     def workflow_candidate(self, name: str) -> _WaitCandidate | None:
@@ -133,17 +141,20 @@ class _WaitDependencyIndex:
             return _WaitCandidate(
                 timestamp=latest.timestamp,
                 is_resolved=latest.is_resolved,
+                is_done=latest.is_done,
             )
 
         root = max(roots, key=lambda candidate: candidate.timestamp)
-        if not root.is_resolved:
-            return _WaitCandidate(timestamp=root.timestamp, is_resolved=False)
-
-        for child in workflow_agents:
-            if child.parent_timestamp == root.timestamp and not child.is_resolved:
-                return _WaitCandidate(timestamp=root.timestamp, is_resolved=False)
-
-        return _WaitCandidate(timestamp=root.timestamp, is_resolved=True)
+        generation = [root] + [
+            child
+            for child in workflow_agents
+            if child.parent_timestamp == root.timestamp
+        ]
+        return _WaitCandidate(
+            timestamp=root.timestamp,
+            is_resolved=all(candidate.is_resolved for candidate in generation),
+            is_done=any(candidate.is_done for candidate in generation),
+        )
 
     def is_resolved(self, name: str) -> bool:
         candidates = [
@@ -159,7 +170,7 @@ class _WaitDependencyIndex:
             return False
 
         latest = max(candidates, key=lambda candidate: candidate.timestamp)
-        return latest.is_resolved
+        return latest.is_resolved and latest.is_done
 
 
 @dataclass(frozen=True)
