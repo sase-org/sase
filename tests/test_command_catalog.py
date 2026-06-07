@@ -93,7 +93,7 @@ def test_start_agent_from_changespec_command_uses_ctrl_space() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.start_agent_from_changespec"]
 
-    assert spec.label == "Run agent from CL"
+    assert spec.label == "Run agent from PR"
     assert spec.key_sequence == ("ctrl+@",)
     assert spec.key_display == "Ctrl+Space"
 
@@ -328,7 +328,7 @@ def test_agent_from_cl_leader_command_uses_space() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.agent_from_cl")
 
-    assert spec.label == "Agent from CL (quick)"
+    assert spec.label == "Agent from PR (quick)"
     assert spec.key_sequence == ("comma", "space")
     assert spec.key_display == ", Space"
     assert spec.tabs == ("changespecs", "agents")

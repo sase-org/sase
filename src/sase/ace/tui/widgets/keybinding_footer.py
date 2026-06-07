@@ -566,7 +566,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         if current_tab == "changespecs":
             if has_comments:
                 bindings.append((k("clear_comments"), "clear comments"))
-            bindings.append((k("run_cmd"), "run cmd (CL)"))
+            bindings.append((k("run_cmd"), "run cmd (PR)"))
             bindings.append((k("kill_mentors"), "manage mentors"))
             if has_mentor_results:
                 bindings.append((k("review_mentors"), "review mentors"))
@@ -575,7 +575,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             bindings.append((k("runners"), f"runners ({self._runner_count})"))
         bindings.append((k("agent_home"), "agent (home)"))
         if current_tab in ("changespecs", "agents"):
-            bindings.append((k("agent_from_cl"), "run agent (CL)"))
+            bindings.append((k("agent_from_cl"), "run agent (PR)"))
         if current_tab == "agents":
             bindings.append((k("toggle_agent_panel_grouping"), "group panels"))
             bindings.append((k("full_history_refresh"), "full history refresh"))
@@ -663,7 +663,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
                 (k("raw"), "raw"),
                 (k("with_snapshot"), "+snap"),
                 (k("bug"), "bug"),
-                (k("cl_number"), "CL#"),
+                (k("cl_number"), "PR#"),
                 (k("name"), "name"),
                 (k("spec"), "spec"),
                 (k("snapshot"), "snap"),

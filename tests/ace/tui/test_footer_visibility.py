@@ -68,7 +68,7 @@ async def test_leader_footer_final_grid_row_visible(
         _assert_export_contains(
             page.export_svg(title="ACE footer leader"),
             "LEADER",
-            "run cmd (CL)",
+            "run cmd (PR)",
             "task queue",
             "temporary model",
             "STOPPED",

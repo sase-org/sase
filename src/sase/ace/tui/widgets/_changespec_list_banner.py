@@ -47,9 +47,9 @@ def _banner_label(group: ChangeSpecGroupRow) -> str:
 
 
 def _banner_chip(group: ChangeSpecGroupRow) -> str:
-    """Right-aligned ``N CLs`` summary chip for *group*."""
+    """Right-aligned ``N PRs`` summary chip for *group*."""
     n = len(group.changespec_indices)
-    return f"{n} CL{'s' if n != 1 else ''}"
+    return f"{n} PR{'s' if n != 1 else ''}"
 
 
 def _banner_parts(group: ChangeSpecGroupRow) -> tuple[str, str, str, str, str]:

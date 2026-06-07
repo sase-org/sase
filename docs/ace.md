@@ -49,80 +49,80 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 | Tab                   | Description                                                |
 | --------------------- | ---------------------------------------------------------- |
-| **CLs** (ChangeSpecs) | Browse and act on ChangeSpecs matching the current query   |
+| **PRs** (ChangeSpecs) | Browse and act on ChangeSpecs matching the current query   |
 | **Agents**            | View running and completed agents, their files and prompts |
 | **Axe**               | Monitor the Axe daemon and background commands             |
 
-## Keybindings: CLs Tab
+## Keybindings: PRs Tab
 
 ### Navigation
 
 | Key                 | Action                                                                             |
 | ------------------- | ---------------------------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous visible row (banner at fold `< L2`, CL at the leaf level)  |
-| `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL                                          |
+| `j` / `k`           | Move to next / previous visible row (banner at fold `< L2`, PR at the leaf level)  |
+| `<` / `>` / `~`     | Navigate to ancestor / child / sibling PR                                          |
 | `'`                 | Jump to entry by hint character (current tab); hints land on collapsed banners too |
 | `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint     |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))              |
-| `Ctrl+R` / `Ctrl+K` | Jump back / forward in CL history                                                  |
-| `o` / `O`           | Cycle CL grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)  |
+| `Ctrl+R` / `Ctrl+K` | Jump back / forward in PR history                                                  |
+| `o` / `O`           | Cycle PR grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)  |
 | `g` / `G`           | Scroll detail panel to top / bottom                                                |
 | `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                          |
 
-> **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the Agents and CLs tabs (each tab
+> **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the Agents and PRs tabs (each tab
 > keeps its own in-session mode). On the AXE tab it is a silent no-op. See
-> [CL Grouping and Folding](#cl-grouping-and-folding) and the Agents-tab [Grouping Modes](#grouping-modes) below.
+> [PR Grouping and Folding](#pr-grouping-and-folding) and the Agents-tab [Grouping Modes](#grouping-modes) below.
 
-### CL Actions
+### PR Actions
 
 | Key             | Action                                                      |
 | --------------- | ----------------------------------------------------------- |
 | `a`             | Accept proposal (`!` = spec only, `@` = mark ready to mail) |
-| `b`             | Rebase CL onto parent                                       |
-| `C` / `c1`-`c9` | Checkout CL (primary / workspace 1-9)                       |
+| `b`             | Rebase PR onto parent                                       |
+| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                       |
 | `d`             | Show diff                                                   |
 | `e`             | Edit spec file                                              |
 | `f`             | Edit hooks (re-run / delete via hint input)                 |
-| `M`             | Mail CL                                                     |
-| `m`             | Mark / unmark current CL (auto-advances to next)            |
-| `n`             | Rename CL (non-Sub/Rev CLs only)                            |
+| `M`             | Mail PR                                                     |
+| `m`             | Mark / unmark current PR (auto-advances to next)            |
+| `n`             | Rename PR (non-Sub/Rev PRs only)                            |
 | `R`             | Rewind to previous commit (`!` suffix skips VCS operations) |
 | `s`             | Change status (opens status modal)                          |
-| `S`             | Bulk status change for all marked CLs                       |
+| `S`             | Bulk status change for all marked PRs                       |
 | `T`             | Checkout + tmux (opens workspace input modal for number)    |
 | `u`             | Clear all marks                                             |
 | `v`             | View files (hint mode)                                      |
-| `w`             | Reword CL description                                       |
-| `W`             | Add tag to CL description                                   |
+| `w`             | Reword PR description                                       |
+| `W`             | Add tag to PR description                                   |
 | `Y`             | Sync workspace                                              |
 
-### CL Grouping and Folding
+### PR Grouping and Folding
 
-The CLs tab is always grouped — the renderer walks one of `BY_PROJECT`, `BY_DATE`, or `BY_STATUS` and emits a banner row
+The PRs tab is always grouped — the renderer walks one of `BY_PROJECT`, `BY_DATE`, or `BY_STATUS` and emits a banner row
 above each bucket. `BY_PROJECT` is the startup default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` for the current
 session.
 
 | Mode         | L0 buckets                                                                   | Notes                                                                                                                                                                                                                                                                                                       |
 | ------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BY_PROJECT` | Project name                                                                 | Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings. Singletons suppress their L1 banner.                                                                                                                                                                          |
-| `BY_DATE`    | `Today` / `Yesterday` / `This Week` / `Earlier`                              | Bucket from the latest TIMESTAMPS entry. Today/Yesterday add 4-hour L1 windows; hourly L2 headings appear only inside 4-hour windows with 2+ CLs. This Week adds day headings; Earlier adds week headings plus `(no timestamp)`.                                                                            |
+| `BY_DATE`    | `Today` / `Yesterday` / `This Week` / `Earlier`                              | Bucket from the latest TIMESTAMPS entry. Today/Yesterday add 4-hour L1 windows; hourly L2 headings appear only inside 4-hour windows with 2+ PRs. This Week adds day headings; Earlier adds week headings plus `(no timestamp)`.                                                                            |
 | `BY_STATUS`  | `Mailed` / `Ready` / `WIP` / `Draft` / `Submitted` / `Reverted` / `Archived` | Bucket from the literal `status` field; actionable buckets first (`Mailed` = awaiting response, `Ready` = next to mail), terminal states last. Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings inside each status bucket. Singletons suppress their L1 banner. |
 
-In `BY_DATE` mode, CLs sort newest-first within each date bucket. `Today` and `Yesterday` are grouped first by compact
-4-hour windows (`8AM-12PM`); one-hour headings (`09:00`) appear only when that 4-hour window contains at least two CLs.
-`This Week` uses calendar-day subgroups; `Earlier` uses Monday-start week ranges. CLs without a parseable TIMESTAMPS
+In `BY_DATE` mode, PRs sort newest-first within each date bucket. `Today` and `Yesterday` are grouped first by compact
+4-hour windows (`8AM-12PM`); one-hour headings (`09:00`) appear only when that 4-hour window contains at least two PRs.
+`This Week` uses calendar-day subgroups; `Earlier` uses Monday-start week ranges. PRs without a parseable TIMESTAMPS
 entry fall into `(no timestamp)` under `Earlier`.
 
-The active grouping mode is shown in the CLs-tab info-panel header as a `[group: <label>]` badge.
+The active grouping mode is shown in the PRs-tab info-panel header as a `[group: <label>]` badge.
 
 | Key | Action                                                                                                                                 |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `l` | Expand the focused banner one level (or peel one layer of the visible tree)                                                            |
 | `h` | Collapse the focused banner; on a collapsed L1 banner, escalate to its parent. With agent focus, collapse the deepest enclosing group. |
-| `L` | Snap to fully expanded — all banners and CL rows visible                                                                               |
+| `L` | Snap to fully expanded — all banners and PR rows visible                                                                               |
 | `H` | Snap to fully collapsed — collapse every visible banner                                                                                |
 
-Collapsed banner rows are first-class navigation stops: `j`/`k` step through them just like CL rows, and `'` jump-hints
+Collapsed banner rows are first-class navigation stops: `j`/`k` step through them just like PR rows, and `'` jump-hints
 land on them too. After a fold change that hides the focused CL, focus snaps to the deepest collapsed ancestor banner so
 the cursor always sits on a row the user can see.
 
@@ -169,9 +169,9 @@ zero-count entries display `0 lines`. The section is omitted entirely when the C
 
 | Key     | Action                                          |
 | ------- | ----------------------------------------------- |
-| `r`     | Run workflow on current CL                      |
-| `@`     | Run a custom agent (opens project/CL selection) |
-| `Space` | Run agent from current CL                       |
+| `r`     | Run workflow on current PR                      |
+| `@`     | Run a custom agent (opens project/PR selection) |
+| `Space` | Run agent from current PR                       |
 
 If ACE cannot detect a workspace provider for the selected ChangeSpec or agent, the quick-launch actions show an error
 toast instead of opening a prompt with a broken VCS prefix.
@@ -202,8 +202,8 @@ The modal supports live filtering as you type in the search box and displays las
 | Key        | Action                                                                                        |
 | ---------- | --------------------------------------------------------------------------------------------- |
 | `,,`       | Repeat the last leader command                                                                |
-| `,!`       | Run command using current CL context                                                          |
-| `,A`       | Open the Agent Run Log modal for the current CL                                               |
+| `,!`       | Run command using current PR context                                                          |
+| `,A`       | Open the Agent Run Log modal for the current PR                                               |
 | `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                                |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,m`       | Review mentors (opens Mentor Review modal)                                                    |
@@ -212,12 +212,12 @@ The modal supports live filtering as you type in the search box and displays las
 | `,o`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r`       | Show runners info                                                                             |
 | `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))                             |
-| `,<space>` | Run agent from current CL (skips project selection)                                           |
-| `,.`       | Open prompt history modal for the last CL                                                     |
+| `,<space>` | Run agent from current PR (skips project selection)                                           |
+| `,.`       | Open prompt history modal for the last PR                                                     |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
 
-The `,h` shortcut opens a home-context prompt directly. Project and CL launch pickers use lifecycle-aware discovery:
-project entries, including `home` when it appears in picker lists, must have active and launchable ProjectSpecs; CL
+The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers use lifecycle-aware discovery:
+project entries, including `home` when it appears in picker lists, must have active and launchable ProjectSpecs; PR
 choices come from active ProjectSpecs. Inactive projects do not appear in normal launch pickers until they are
 reactivated with `sase project activate <project>`.
 
@@ -261,8 +261,8 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `%%` | Copy ChangeSpec            |
 | `%!` | Copy ChangeSpec + snapshot |
 | `%b` | Copy bug number            |
-| `%c` | Copy CL number             |
-| `%n` | Copy CL name               |
+| `%c` | Copy PR number             |
+| `%n` | Copy PR name               |
 | `%p` | Copy project spec file     |
 | `%s` | Copy sase ace snapshot     |
 
@@ -283,7 +283,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
 | `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                                         |
 
-> **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents and CLs tabs (each tab keeps
+> **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents and PRs tabs (each tab keeps
 > its own in-session selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their conventional
 > vim-style scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes) below.
 
@@ -635,8 +635,8 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,R`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation             |
 | `,x`       | Kill agent & edit prompt                                                                      |
-| `,<space>` | Run agent from current agent's CL (skips selection)                                           |
-| `,.`       | Open prompt history modal for the last CL                                                     |
+| `,<space>` | Run agent from current agent's PR (skips selection)                                           |
+| `,.`       | Open prompt history modal for the last PR                                                     |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
 
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`, `TALE DONE`, `PLAN REJECTED`,
@@ -815,7 +815,7 @@ Press `1`-`9` or `0` to instantly load a saved query. These also work from withi
 | `^` | Navigate to previous query in history |
 | `_` | Navigate to next query in history     |
 
-Query history is available on the CLs tab and tracks queries as you switch between them.
+Query history is available on the PRs tab and tracks queries as you switch between them.
 
 See [`docs/query_language.md`](query_language.md) for the full query syntax reference, including boolean expressions,
 status shorthands, property filters, and searchable fields.
@@ -826,10 +826,10 @@ These work on all tabs:
 
 | Key                 | Action                                                                            |
 | ------------------- | --------------------------------------------------------------------------------- |
-| `Tab` / `Shift+Tab` | Switch between CLs, Agents, and Axe tabs                                          |
+| `Tab` / `Shift+Tab` | Switch between PRs, Agents, and Axe tabs                                          |
 | `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)              |
 | `F`                 | Open Episode Explorer (see [Episode Explorer](#episode-explorer) below)           |
-| `.`                 | Toggle visibility of hidden items (reverted CLs, non-run agents, or axe commands) |
+| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands) |
 | `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                        |
 | `,i`                | Open Activity Dashboard modal                                                     |
 | `i`                 | Show notifications inbox                                                          |
@@ -855,12 +855,12 @@ can search by command label, key sequence (e.g. `%n`, `,t`, `zc`), category, or 
 
 **Behavior:**
 
-- Only commands applicable to the current tab and selected entry are shown by default. For example, CL diff appears only
-  when a CL is selected; AXE start/stop appears only on the AXE tab; agent-specific actions appear only when an agent
+- Only commands applicable to the current tab and selected entry are shown by default. For example, PR diff appears only
+  when a PR is selected; AXE start/stop appears only on the AXE tab; agent-specific actions appear only when an agent
   row (not a group banner) is focused.
-- Each row shows the keybinding, the command label, and a category badge such as `Navigation`, `CL Actions`,
+- Each row shows the keybinding, the command label, and a category badge such as `Navigation`, `PR Actions`,
   `Agent Actions`, `Copy`, or `Leader`.
-- A title-bar badge (`CLs`, `Agents`, or `AXE`) reflects the current tab.
+- A title-bar badge (`PRs`, `Agents`, or `AXE`) reflects the current tab.
 
 **Keybindings inside the palette:**
 
@@ -969,7 +969,7 @@ notification action types are supported:
 | -------------------- | --------------- | ------------------------------------------------------------------------------- |
 | `HITL`               | Workflow        | Opens the workflow human-in-the-loop response modal                             |
 | `JumpToAgent`        | Agent/workflow  | Jumps to the matching Agents-tab row                                            |
-| `JumpToChangeSpec`   | Sync/workflow   | Jumps to the referenced ChangeSpec on the CLs tab                               |
+| `JumpToChangeSpec`   | Sync/workflow   | Jumps to the referenced ChangeSpec on the PRs tab                               |
 | `JumpToMentorReview` | Mentors         | Jumps to the ChangeSpec and opens mentor review output when available           |
 | `PlanApproval`       | Agent           | Opens the plan approval modal                                                   |
 | `Tmux`               | External bridge | Runs `tm <workspace-name>` for the notification's `action_data.workspace_dir`   |
@@ -1088,7 +1088,7 @@ programmatically.
 
 ## Jump All Modal
 
-Press `` ` `` (backtick) on any tab to open the Jump All Modal. It displays all entries across CLs, Agents, and Axe tabs
+Press `` ` `` (backtick) on any tab to open the Jump All Modal. It displays all entries across PRs, Agents, and Axe tabs
 with single-keypress hint characters for instant navigation. Selecting an entry switches to the appropriate tab and
 focuses it.
 
@@ -1100,7 +1100,7 @@ many entries can still fit a unique single-keypress hint per row without resorti
 | Hint char   | Jump to the corresponding entry |
 | `Esc` / `q` | Close modal                     |
 
-The modal groups entries by tab (CLs, Agents, Axe) and shows contextual information for each: CL names and statuses,
+The modal groups entries by tab (PRs, Agents, Axe) and shows contextual information for each: PR names and statuses,
 agent names with running indicators, and Axe lumberjack/command labels.
 
 ### Jump Back
@@ -1116,9 +1116,9 @@ Both jump modals support a jump-back feature for toggling between two entries:
 
 The single-tab variant (`'` apostrophe) shows entries only from the current tab with the same hint-character navigation.
 
-## Mentor Comment Stats in CL List
+## Mentor Comment Stats in PR List
 
-When a ChangeSpec has completed mentor reviews with comments, the CLs tab list entry shows inline stats:
+When a ChangeSpec has completed mentor reviews with comments, the PRs tab list entry shows inline stats:
 
 - **checkmark + count** (e.g., `✓3`) — number of accepted comments
 - **dot + count** (e.g., `●2`) — number of unread comments
@@ -1128,7 +1128,7 @@ the Mentor Review modal.
 
 ## Tab Bar Display
 
-The tab bar renders plain tab labels (`CLs`, `Agents`, `AXE`). Per-bucket counts live inside each tab's body — for
+The tab bar renders plain tab labels (`PRs`, `Agents`, `AXE`). Per-bucket counts live inside each tab's body — for
 example the per-panel count summaries on the Agents tab — rather than as suffixes on the tab title itself.
 
 ### Background Task Indicator
@@ -1297,10 +1297,10 @@ respective modals.
 ### Agent Revival
 
 Press `R` on the Agents tab to revive previously dismissed work. ACE opens the saved-group revival modal first, showing
-newest saved groups with a right-hand preview of included agents, projects, CLs, statuses, provider/model labels, and
+newest saved groups with a right-hand preview of included agents, projects, PRs, statuses, provider/model labels, and
 revival count. Select a group and press Enter to revive it, choose **Load more saved groups...** to page older groups,
 or choose **Custom revival search...** to open the older dismissed-agent search where you choose all, home, project, or
-CL scope manually.
+PR scope manually.
 
 Use `m` to mark related Agents-tab rows and then `s` to save and dismiss them as a group. The save modal accepts an
 optional human name. Leaving it blank keeps the generated display title, such as "3 agents from @review" or "2 agents in
@@ -1310,7 +1310,7 @@ restore the original tree.
 
 Dismissed agents are saved as individual bundle files under month shards in `~/.sase/dismissed_bundles/YYYYMM/` and can
 be restored later. Saved group metadata lives under `~/.sase/dismissed_agent_groups/` and stores stable references to
-those bundle files plus the optional group name, status counts, projects, CLs, model/provider metadata, and agent tags.
+those bundle files plus the optional group name, status counts, projects, PRs, model/provider metadata, and agent tags.
 There is no limit on the number of dismissed agents or saved groups that can be stored.
 
 Dismiss operations are O(1) per agent: each agent is saved to its own JSON file rather than a monolithic store. Parent
@@ -1684,7 +1684,7 @@ open.
 
 | Input | Action                                                            |
 | ----- | ----------------------------------------------------------------- |
-| `.`   | Open prompt history modal for the current CL                      |
+| `.`   | Open prompt history modal for the current PR                      |
 | `.x`  | Open prompt history modal with cancelled prompts shown by default |
 
 ### NORMAL Mode
@@ -1745,8 +1745,8 @@ The border subtitle shows pending operators and counts (e.g., `2d` when a delete
 
 ## Prompt History Modal
 
-Press `,.` (leader + `.`) on the CLs or Agents tab to open the prompt history modal. It displays prompts previously run
-in ACE, sorted by relevance to the current CL/agent context. Prompts shorter than two words are skipped when writing to
+Press `,.` (leader + `.`) on the PRs or Agents tab to open the prompt history modal. It displays prompts previously run
+in ACE, sorted by relevance to the current PR/agent context. Prompts shorter than two words are skipped when writing to
 history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter the list.
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit workspace reference appears with the

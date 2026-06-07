@@ -421,7 +421,7 @@ async def test_saved_agent_group_modal_preview_rich_png_snapshot(
     patch_startup_loaders(monkeypatch)
     summary = _saved_group_summary(
         0,
-        title="6 agents across 3 CLs",
+        title="6 agents across 3 PRs",
         agent_count=6,
         top_level_agent_count=4,
         status_counts={"DONE": 3, "FAILED": 1, "RUNNING": 2},

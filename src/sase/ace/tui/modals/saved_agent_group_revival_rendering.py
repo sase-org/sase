@@ -117,7 +117,7 @@ def build_saved_group_preview(
         preview.append("Custom revival search", style="bold #D7AFFF")
         preview.append("\n\n")
         preview.append(
-            "Open the existing project/CL scoped dismissed-agent search.",
+            "Open the existing project/PR scoped dismissed-agent search.",
             style="dim",
         )
         return preview
@@ -146,7 +146,7 @@ def build_saved_group_preview(
         preview.append("\n")
 
     if summary.cl_names:
-        preview.append("CLs          ", style="bold")
+        preview.append("PRs          ", style="bold")
         preview.append(_join_limited(summary.cl_names), style="dim")
         preview.append("\n")
 

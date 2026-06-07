@@ -231,12 +231,12 @@ class TestUnknownClName:
 
 
 # ---------------------------------------------------------------------------
-# FM4: Footer hides "go to CL" for agents that can't jump
+# FM4: Footer hides "go to PR" for agents that can't jump
 # ---------------------------------------------------------------------------
 
 
 class TestFooterVisibility:
-    """Footer should only show 'go to CL' when the agent can actually jump."""
+    """Footer should only show 'go to PR' when the agent can actually jump."""
 
     def test_can_jump_true_for_normal_agent(self) -> None:
         agent = _make_agent(cl_name="real_cl")

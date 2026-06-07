@@ -242,7 +242,7 @@ class AgentGroupingMixin:
         try:
             label = _CHANGESPEC_MODE_LABELS.get(next_mode.name, next_mode.name)
             self.notify(  # type: ignore[attr-defined]
-                f"CL grouping: {label}", timeout=1.5
+                f"PR grouping: {label}", timeout=1.5
             )
         except Exception:
             pass

@@ -18,7 +18,7 @@ _TAB_COLORS: dict[TabName, str] = {
 }
 
 _TAB_LABELS: list[tuple[TabName, str]] = [
-    ("changespecs", "CLs"),
+    ("changespecs", "PRs"),
     ("agents", "Agents"),
     ("axe", "AXE"),
 ]

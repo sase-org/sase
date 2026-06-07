@@ -16,7 +16,7 @@ pdf: false
 ```text
 Use case: infographic-diagram
 Asset type: 16:9 technical documentation infographic base for a GitHub Markdown page
-Primary request: Create a clean architecture-infographic base showing the SASE ACE TUI as one shared control plane wrapping three tabs: CLs, Agents, and AXE. IMPORTANT: use no readable words, no letters, no numbers, and no fake text; leave blank label space for deterministic labels to be added later.
+Primary request: Create a clean architecture-infographic base showing the SASE ACE TUI as one shared control plane wrapping three tabs: PRs, Agents, and AXE. IMPORTANT: use no readable words, no letters, no numbers, and no fake text; leave blank label space for deterministic labels to be added later.
 
 Scene/backdrop: light neutral software documentation diagram on an off-white background.
 
@@ -39,9 +39,9 @@ the existing 1672x941 documentation image size, and labeled deterministically wi
 The generated base is intentionally text-free. Final labels were added to show:
 
 - Shared ACE chrome: connected tab pills, `Tab / Shift-Tab`, top-right indicators, and footer framing.
-- Tab colors: CLs `#00D7AF`, Agents `#87D7FF`, AXE `#FF5F5F`.
+- Tab colors: PRs `#00D7AF`, Agents `#87D7FF`, AXE `#FF5F5F`.
 - Per-tab `Surfaces`, `Lifecycle`, and `Actions` rows:
-  - CLs: ChangeSpec list/detail, ancestors/children, CL status lifecycle, accept/mail/rebase/diff/checkout.
+  - PRs: ChangeSpec list/detail, ancestors/children, PR status lifecycle, accept/mail/rebase/diff/checkout.
   - Agents: agent tree, retry chains, prompt/files/diffs/thinking detail, run lifecycle, resume/tag/kill/open.
   - AXE: BgCmd list, dashboard, daemon health, Lumberjack output, queued/running/done/errored lifecycle, daemon and log
     actions.

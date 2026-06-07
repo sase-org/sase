@@ -82,7 +82,7 @@ def test_agents_help_lists_save_dismiss_marked_agents() -> None:
     }
 
     assert ("s", "Save/dismiss marked agents") in agent_pairs
-    assert ("S", "Bulk status change (marked CLs)") in cls_pairs
+    assert ("S", "Bulk status change (marked PRs)") in cls_pairs
 
 
 def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:
@@ -191,7 +191,7 @@ def test_help_modal_displays_ctrl_space_agent_shortcuts() -> None:
         assert ("Ctrl+Space", "Repeat last @/Ctrl+Space selection") in pairs
         assert not any("@/Space" in label for _key, label in pairs)
 
-    assert (", Space", "Run agent from current CL") in cls_pairs
+    assert (", Space", "Run agent from current PR") in cls_pairs
     assert (", Space", "Run agent from selected agent") in agent_pairs
 
 

@@ -79,7 +79,7 @@ sase ace
 
 ACE has three tabs:
 
-- **CLs** — every ChangeSpec on this project. Your agent's commit should be sitting here as a new ChangeSpec, complete
+- **PRs** — every ChangeSpec on this project. Your agent's commit should be sitting here as a new ChangeSpec, complete
   with a name, status, commits drawer, and diff. A **ChangeSpec** is SASE's durable record of one CL/PR-sized unit of
   work; think of it as the long-lived sibling of a pull request that holds the description, parent, status (WIP → Draft
   → Ready → Mailed → Submitted), commits, hooks, comments, and mentor activity all in one place. The

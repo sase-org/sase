@@ -252,7 +252,7 @@ def test_cycle_emits_cl_grouping_toast() -> None:
     """The toast distinguishes the CL cycle from the Agents cycle."""
     app = _StubApp()
     app.action_cycle_grouping_mode()
-    assert app.notifications == ["CL grouping: by date"]
+    assert app.notifications == ["PR grouping: by date"]
 
 
 # ---------------------------------------------------------------------------

@@ -75,7 +75,7 @@ def save_replayable_vcs_selection(
         )
     else:
         sel = SelectionItem(
-            display_name=f"[C] {_ref}",
+            display_name=f"[PR] {_ref}",
             item_type="cl",
             project_name=ctx.project_name,
             cl_name=_ref,

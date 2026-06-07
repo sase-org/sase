@@ -1,4 +1,4 @@
-"""Project/CL selection modal with filtering for the ace TUI."""
+"""Project/PR selection modal with filtering for the ace TUI."""
 
 import os
 from collections.abc import Iterable
@@ -77,7 +77,7 @@ class ProjectSelectModal(
         self._load_items()
 
     def _load_items(self) -> None:
-        """Load all projects and CLs."""
+        """Load all projects and PRs."""
         # Add "ALL" option first when requested
         if self._include_all:
             self.all_items.append(
@@ -101,13 +101,13 @@ class ProjectSelectModal(
                 )
             )
 
-        # Load CLs with WIP, Draft, Ready, or Mailed status
+        # Load PRs with WIP, Draft, Ready, or Mailed status
         for cs in find_all_changespecs():
             base_status = remove_workspace_suffix(cs.status)
             if base_status in ("WIP", "Draft", "Ready", "Mailed"):
                 self.all_items.append(
                     SelectionItem(
-                        display_name=f"[C] {cs.name} [{base_status}]",
+                        display_name=f"[PR] {cs.name} [{base_status}]",
                         item_type="cl",
                         project_name=cs.project_basename,
                         cl_name=cs.name,
@@ -122,11 +122,11 @@ class ProjectSelectModal(
                 id="project-select-title",
             )
             yield FilterInput(
-                placeholder="Type to filter projects & CLs…",
+                placeholder="Type to filter projects & PRs…",
                 id="filter-input",
             )
             yield Static(
-                "Enter launch · ↑/↓ move · type a name to create a CL",
+                "Enter launch · ↑/↓ move · type a name to create a PR",
                 id="project-select-hint",
             )
             yield OptionList(
@@ -154,9 +154,9 @@ class ProjectSelectModal(
         elif display_name.startswith("[P]"):
             text.append("[P]", style="bold #87D7FF")  # Cyan for projects
             text.append(display_name[3:])
-        elif display_name.startswith("[C]"):
-            text.append("[C]", style="bold #00D7AF")  # Green for CLs
-            text.append(display_name[3:])
+        elif display_name.startswith("[PR]"):
+            text.append("[PR]", style="bold #00D7AF")  # Green for PRs
+            text.append(display_name[4:])
         else:
             text.append(display_name)
         return text
@@ -172,7 +172,7 @@ class ProjectSelectModal(
         """Build the icon'd title with a live match count."""
         text = Text()
         text.append("✦ ", style="bold #FFD700")
-        text.append("Select Project or CL", style="bold white")
+        text.append("Select Project or PR", style="bold white")
         text.append("  ·  ", style="dim")
         plural = "match" if count == 1 else "matches"
         text.append(f"{count} {plural}", style="dim #87D7FF")

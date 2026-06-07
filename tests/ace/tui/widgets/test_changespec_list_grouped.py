@@ -155,7 +155,7 @@ def test_banner_natural_width_uses_two_cell_prefix_for_l1() -> None:
     )
 
     assert banner_natural_width(group, hint_char="x") == (
-        4 + 2 + len("21:00") + 1 + 2 + 2 + len("2 CLs")
+        4 + 2 + len("21:00") + 1 + 2 + 2 + len("2 PRs")
     )
 
 
@@ -420,7 +420,7 @@ def test_long_cl_name_does_not_force_banner_past_panel(
     assert _option_cell_len(widget, 0) <= CL_LIST_MAX_CONTENT_WIDTH
     opt = widget.get_option_at_index(0)
     plain = opt.prompt.plain if hasattr(opt.prompt, "plain") else str(opt.prompt)
-    assert "2 CLs" in plain
+    assert "2 PRs" in plain
 
     # The width broadcast to the parent container still accounts for the
     # long row; the parent will clamp it to the side-panel max.
@@ -446,7 +446,7 @@ def test_long_status_label_truncates_without_clipping_chip(
     opt = widget.get_option_at_index(0)
     plain = opt.prompt.plain if hasattr(opt.prompt, "plain") else str(opt.prompt)
     assert _option_cell_len(widget, 0) <= CL_LIST_MAX_CONTENT_WIDTH
-    assert "2 CLs" in plain
+    assert "2 PRs" in plain
     assert "…" in plain
 
 
@@ -506,4 +506,4 @@ def test_jump_hint_prefix_does_not_overflow_banner(monkeypatch: Any) -> None:
     plain = opt.prompt.plain if hasattr(opt.prompt, "plain") else str(opt.prompt)
     assert _option_cell_len(widget, 0) <= CL_LIST_MAX_CONTENT_WIDTH
     assert "[x]" in plain
-    assert "2 CLs" in plain
+    assert "2 PRs" in plain

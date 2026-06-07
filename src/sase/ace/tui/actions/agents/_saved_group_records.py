@@ -139,7 +139,7 @@ def _saved_group_title(agents: list[Agent]) -> str:
     if len(project_names) == 1:
         return f"{count} {plural_agent(count)} from {project_names[0]}"
     if len(cl_names) > 1:
-        return f"{count} {plural_agent(count)} across {len(cl_names)} CLs"
+        return f"{count} {plural_agent(count)} across {len(cl_names)} PRs"
     return f"{count} {plural_agent(count)}"
 
 

@@ -201,9 +201,9 @@ class KeybindingBindingsMixin:
             bindings.append((self._kd("start_tmux_mode"), "tmux"))
             bindings.append((self._kd("open_tmux"), "tmux (primary)"))
 
-        # Jump to CL (only when resolution logic found a valid ChangeSpec)
+        # Jump to PR (only when resolution logic found a valid ChangeSpec)
         if can_jump_to_changespec:
-            bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
+            bindings.append((self._kd("jump_to_agent_changespec"), "go to PR"))
 
         if has_agent_artifacts and marked_count == 0:
             bindings.append((self._kd("open_agent_artifacts"), "artifacts"))

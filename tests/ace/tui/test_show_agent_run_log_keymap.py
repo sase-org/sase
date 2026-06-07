@@ -559,10 +559,10 @@ def test_footer_surfaces_space_run_agent_on_cl_and_agents_tabs() -> None:
     for tab in ("changespecs", "agents"):
         footer.update_leader_bindings(current_tab=tab)
         assert "<space>" in _last_keys(captured)
-        assert "run agent (CL)" in _last_labels(captured)
+        assert "run agent (PR)" in _last_labels(captured)
 
     footer.update_leader_bindings(current_tab="axe")
-    assert "run agent (CL)" not in _last_labels(captured)
+    assert "run agent (PR)" not in _last_labels(captured)
 
 
 def test_footer_surfaces_configured_repeat_last_key() -> None:

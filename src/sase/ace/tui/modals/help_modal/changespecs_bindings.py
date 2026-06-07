@@ -5,7 +5,7 @@ from .binding_common import Sections, custom_mode_sections, key_sequence_display
 
 
 def cls_bindings(km: KeymapRegistry) -> Sections:
-    """Build keybinding sections for the CLs tab."""
+    """Build keybinding sections for the PRs tab."""
     d = key_display_name
     a = km.app
     fm = km.fold_mode
@@ -45,29 +45,29 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "CL Actions",
+            "PR Actions",
             [
                 (d(a.accept_proposal), "Accept (! = spec only, @ = mail)"),
-                (d(a.rebase), "Rebase CL onto parent"),
+                (d(a.rebase), "Rebase PR onto parent"),
                 (
                     f"{d(a.checkout)} / {d(a.start_checkout_mode)}1-{d(a.start_checkout_mode)}9",
-                    "Checkout CL (workspace 1-9)",
+                    "Checkout PR (workspace 1-9)",
                 ),
                 (d(a.show_diff), "Show diff"),
                 (d(a.edit_hooks), "Edit hooks"),
                 (d(a.hooks_or_collapse_all), "Add hooks from failed targets"),
                 (d(a.show_agent_run_log), "Agent run log"),
-                (d(a.mail), "Mail CL"),
-                (d(a.toggle_mark), "Mark/unmark current CL"),
-                (d(a.rename_cl), "Rename CL (non-Sub/Rev)"),
+                (d(a.mail), "Mail PR"),
+                (d(a.toggle_mark), "Mark/unmark current PR"),
+                (d(a.rename_cl), "Rename PR (non-Sub/Rev)"),
                 (d(a.start_rewind), "Rewind to prev commit (! skip VCS)"),
                 (d(a.change_status), "Change status"),
-                (d(a.bulk_change_status), "Bulk status change (marked CLs)"),
+                (d(a.bulk_change_status), "Bulk status change (marked PRs)"),
                 (d(a.start_tmux_mode), "Checkout + tmux (prompts ws#)"),
                 (d(a.clear_marks), "Clear all marks"),
                 (d(a.view_files), "View files"),
-                (d(a.reword), "Reword CL description"),
-                (d(a.add_tag), "Add tag to CL description"),
+                (d(a.reword), "Reword PR description"),
+                (d(a.add_tag), "Add tag to PR description"),
                 (d(a.sync), "Sync workspace"),
                 (d(a.edit_spec), "Edit spec file"),
             ],
@@ -164,7 +164,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'run_cmd'))}",
-                    "Run command (use current CL)",
+                    "Run command (use current PR)",
                 ),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
@@ -181,11 +181,11 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_from_cl")),
-                    "Run agent from current CL",
+                    "Run agent from current PR",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",
-                    "Prompt history (last CL)",
+                    "Prompt history (last PR)",
                 ),
                 (
                     f"{d(lm.prefix)} {d(sk(lm.keys, 'prompt_history_edit_first'))}",
@@ -233,7 +233,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(a.cycle_grouping_mode)} / {d(a.cycle_grouping_mode_reverse)}",
                     "Cycle: proj→date→status",
                 ),
-                ("CL by date", "Today/Yesterday by 4h then hour; week/older unchanged"),
+                ("PR by date", "Today/Yesterday by 4h then hour; week/older unchanged"),
                 (
                     f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
                     "Expand/collapse group",
@@ -253,8 +253,8 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Copy ChangeSpec + snapshot",
                 ),
                 (f"{d(cm.prefix)}{d(cs_copy['bug'])}", "Copy bug number"),
-                (f"{d(cm.prefix)}{d(cs_copy['cl_number'])}", "Copy CL number"),
-                (f"{d(cm.prefix)}{d(cs_copy['name'])}", "Copy CL name"),
+                (f"{d(cm.prefix)}{d(cs_copy['cl_number'])}", "Copy PR number"),
+                (f"{d(cm.prefix)}{d(cs_copy['name'])}", "Copy PR name"),
                 (f"{d(cm.prefix)}{d(cs_copy['spec'])}", "Copy project spec file"),
                 (f"{d(cm.prefix)}{d(cs_copy['snapshot'])}", "Copy sase ace snapshot"),
             ],
@@ -272,8 +272,8 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Toggle idle (any key clears)",
                 ),
                 (d(a.mark_inactive_pinned), "Toggle pinned idle (sticky)"),
-                (d(a.toggle_hide_submitted), "Show/hide submitted CLs"),
-                (d(a.toggle_hide_reverted), "Show/hide reverted CLs"),
+                (d(a.toggle_hide_submitted), "Show/hide submitted PRs"),
+                (d(a.toggle_hide_reverted), "Show/hide reverted PRs"),
                 (d(a.browse_xprompts), "Browse xprompts"),
                 (d(a.open_episode_explorer), "Open Episode Explorer"),
                 (d(a.show_notifications), "Show notifications"),

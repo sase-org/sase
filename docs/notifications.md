@@ -153,7 +153,7 @@ two conditions:
   `COMMENTED`, `FAILED`, `DEAD`, or `KILLED`).
 - **No matching profile** — every hook is ready and no mentor profile matched the ChangeSpec, so no mentors will run.
 
-Selecting the notification jumps to the CLs tab, focuses the target ChangeSpec, and pushes the Mentor Review modal when
+Selecting the notification jumps to the PRs tab, focuses the target ChangeSpec, and pushes the Mentor Review modal when
 at least one mentor produced reviewable output.
 
 Idempotency is enforced via `~/.sase/notifications/mentors_complete.json`, keyed on

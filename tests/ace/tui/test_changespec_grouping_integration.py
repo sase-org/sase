@@ -149,7 +149,7 @@ def test_o_cycles_widget_through_every_grouping_mode(monkeypatch: Any) -> None:
     app.action_cycle_grouping_mode()
     assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
     # All test CSs have no TIMESTAMPS so they all land in ``Earlier``.
-    assert app.notifications[-1] == "CL grouping: by date"
+    assert app.notifications[-1] == "PR grouping: by date"
     banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
     assert len(banner_rows) == 2
 

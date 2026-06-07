@@ -98,6 +98,13 @@ def test_tab_bar_update_tab_to_agents() -> None:
     assert tab_bar._current_tab == "agents"
 
 
+def test_tab_bar_changespec_tab_label_is_prs() -> None:
+    tab_bar = TabBar()
+    plain = tab_bar._build_content().plain
+    assert " PRs " in plain
+    assert " CLs " not in plain
+
+
 def test_info_panel_fold_indicator_hidden_when_all_collapsed() -> None:
     """No fold indicator when all sections are collapsed (default)."""
     panel = ChangeSpecInfoPanel()

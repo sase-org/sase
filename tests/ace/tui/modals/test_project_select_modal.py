@@ -168,7 +168,7 @@ def test_project_select_modal_loads_launchable_projects_and_active_changespecs(
         "[*] ALL",
         "[P] home",
         "[P] valid",
-        "[C] valid_active [Ready]",
+        "[PR] valid_active [Ready]",
     ]
 
 
@@ -195,8 +195,8 @@ def test_project_select_modal_excludes_named_project_rows_only(
     assert [item.display_name for item in modal.all_items] == [
         "[*] ALL",
         "[P] valid",
-        "[C] home_active [WIP]",
-        "[C] valid_active [Ready]",
+        "[PR] home_active [WIP]",
+        "[PR] valid_active [Ready]",
     ]
 
 
@@ -218,7 +218,7 @@ async def test_filter_updates_match_count_and_highlights_first(
         modal._apply_filter("valid")
         await pilot.pause()
 
-        # "valid" matches the project and its CL.
+        # "valid" matches the project and its PR.
         assert "2 matches" in _static_text(modal, "#project-select-title")
         assert option_list.option_count == 2
         assert option_list.highlighted == 0

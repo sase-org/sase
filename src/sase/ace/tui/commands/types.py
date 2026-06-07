@@ -38,7 +38,7 @@ CommandTab = Literal["changespecs", "agents", "axe"]
 CommandCategory = Literal[
     "Navigation",
     "Tabs",
-    "CL Actions",
+    "PR Actions",
     "ChangeSpec Edits",
     "Proposals & Sync",
     "Folding",
@@ -65,7 +65,7 @@ CommandCategory = Literal[
 CATEGORY_ORDER: tuple[CommandCategory, ...] = (
     "Navigation",
     "Tabs",
-    "CL Actions",
+    "PR Actions",
     "ChangeSpec Edits",
     "Proposals & Sync",
     "Folding",

@@ -143,13 +143,13 @@ They combine: `!$just presubmit` skips fix-hook hints _and_ skips proposals.
 
 ## Advanced ACE Operations
 
-The CLs tab in [ACE](../../ace.md) is built around ChangeSpec navigation. The high-leverage moves:
+The PRs tab in [ACE](../../ace.md) is built around ChangeSpec navigation. The high-leverage moves:
 
 - **Grouping (`o` / `O`)** cycles the L0 bucket through `BY_PROJECT`, `BY_DATE`, and `BY_STATUS`. Sibling workspaces
   (`foobar_1` / `foobar_2`) share an L1 banner inside each L0 bucket.
-- **Tree navigation (`<` / `>` / `~`)** walks ancestor / child / sibling CLs. `Ctrl+R` / `Ctrl+K` jump back and forward
-  in CL history. `Ctrl+O` is the fast current-tab entry jump, and `` ` `` (backtick) is jump-all across every tab.
-- **CL actions** are mostly one-letter: `a` accept proposal, `C` / `c1`–`c9` checkout, `d` diff, `e` edit, `f` hooks,
+- **Tree navigation (`<` / `>` / `~`)** walks ancestor / child / sibling PRs. `Ctrl+R` / `Ctrl+K` jump back and forward
+  in PR history. `Ctrl+O` is the fast current-tab entry jump, and `` ` `` (backtick) is jump-all across every tab.
+- **PR actions** are mostly one-letter: `a` accept proposal, `C` / `c1`–`c9` checkout, `d` diff, `e` edit, `f` hooks,
   `M` mail, `m` mark, `n` rename, `R` rewind, `s` status, `Y` sync.
 - **Fold modes** (`z` prefix): `z c` cycles COMMITS, `z h` cycles HOOKS, `z m` cycles MENTORS, `z t` cycles TIMESTAMPS;
   uppercase variants toggle between collapsed and fully expanded. `z z` cycles every section at once.
@@ -184,7 +184,7 @@ by SASE and is not normally edited by hand.
 - [ChangeSpec format](../../change_spec.md) — every field, every state transition, complete examples.
 - [Mentors](../../mentors.md) — profile matching criteria, execution lifecycle, ACE review modal, apply modes,
   file-snapshot semantics.
-- [ACE TUI](../../ace.md) — the full keybinding reference for the CLs, Agents, and Axe tabs.
+- [ACE TUI](../../ace.md) — the full keybinding reference for the PRs, Agents, and Axe tabs.
 - [\[07\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md) — turn an
   existing Telegram chat into a two-way control surface for plans, agents, and generated artifacts.
 

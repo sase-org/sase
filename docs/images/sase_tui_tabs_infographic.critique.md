@@ -21,7 +21,7 @@ agents, changes, notifications, and automation state." The diagram is reviewed a
 A title strap reads "sase ACE TUI: 3 tabs, one control plane". Below it, three side-by-side coloured cards represent the
 tabs:
 
-- **CLs (teal)** — caption "CLs: ChangeSpec command center" with three small icon rows: `query, group, fold`;
+- **PRs (teal)** — caption "PRs: ChangeSpec command center" with three small icon rows: `query, group, fold`;
   `status lifecycle`; `review, mail, sync`.
 - **Agents (light blue)** — caption "Agents: live run supervision" with three rows: `running + completed runs`;
   `prompts, files, diffs`; `resume, tag, kill`.
@@ -35,7 +35,7 @@ A bottom horizontal strip shows four nodes connected left-to-right by a circuit-
 
 1. **The bottom `plan → launch → monitor → land` strip is not a TUI element and has no labelled relationship to the
    three tab cards above it.** A reader who has never opened ACE will assume this strip corresponds either to a
-   navigation row in the actual UI or to a one-to-one mapping with the three tabs (plan→CLs? launch→Agents?
+   navigation row in the actual UI or to a one-to-one mapping with the three tabs (plan→PRs? launch→Agents?
    monitor→AXE?), but `land` has no tab counterpart and the mapping is not even one-to-one. The strip is best read as
    the _conceptual_ agent lifecycle, but nothing in the diagram says so.
 2. **"One control plane" is the headline claim and it is not depicted.** What makes ACE a single control plane is the
@@ -47,12 +47,12 @@ A bottom horizontal strip shows four nodes connected left-to-right by a circuit-
    conflates _what is shown_ (e.g. `running + completed runs`, `prompts, files, diffs`), _state model_ (e.g.
    `status lifecycle`), and _available actions_ (e.g. `review, mail, sync`, `resume, tag, kill`). A new reader cannot
    tell which row is "what you see" vs. "what you can do".
-4. **`status lifecycle` (CLs row 2) is opaque.** The actual CL lifecycle is documented as
+4. **`status lifecycle` (PRs row 2) is opaque.** The actual CL lifecycle is documented as
    `WIP → Draft → Ready → Mailed → Submitted` (per `memory/short/glossary.md`). Without those chips visible, the row is
    a label without content.
-5. **`review, mail, sync` (CLs row 3) is a grab-bag.** "review" and "mail" are real CL actions (`docs/ace.md` lists `M`
+5. **`review, mail, sync` (PRs row 3) is a grab-bag.** "review" and "mail" are real PR actions (`docs/ace.md` lists `M`
    to mail, `a` to accept, etc.) but "sync" has no clear referent — it could mean refresh-interval auto-pulls, `fetch`
-   from origin, or the SQLite/JSONL bead sync, none of which is a CLs-tab concept. A new user will guess.
+   from origin, or the SQLite/JSONL bead sync, none of which is a PRs-tab concept. A new user will guess.
 6. **`scheduled work` (AXE row 3) is misleading.** Cron-style routine scheduling lives in `sase schedule` /
    `sase axe schedule` and is not a primary surface inside the AXE tab; the AXE tab's right pane is the `AxeDashboard`
    (daemon health, Lumberjack output) and its left pane is `BgCmdList`. Putting `scheduled work` on equal footing with
@@ -78,20 +78,20 @@ The accuracy bar is whether the diagram matches today's `src/sase/ace/tui/widget
 `src/sase/ace/tui/app.py`, and `docs/ace.md`.
 
 1. **Tab labels and ordering are correct.** `_TAB_LABELS` in `tab_bar.py:20-24` declares the order
-   `("changespecs","CLs"), ("agents","Agents"), ("axe","AXE")` and the diagram matches. ✓
+   `("changespecs","PRs"), ("agents","Agents"), ("axe","AXE")` and the diagram matches. ✓
 2. **Tab colour coding is correct.** `_TAB_COLORS` in `tab_bar.py:14-18` is `changespecs=#00D7AF` (teal),
    `agents=#87D7FF` (light blue), `axe=#FF5F5F` (red) — all three match the card colours in the image. ✓
-3. **CLs-tab content row "query, group, fold" understates what is on screen.** The CLs view in `app.py:242-250` composes
+3. **PRs-tab content row "query, group, fold" understates what is on screen.** The PRs view in `app.py:242-250` composes
    `ChangeSpecInfoPanel`, `ChangeSpecList`, **`AncestorsChildrenPanel`**, `SearchQueryPanel`, and `ChangeSpecDetail`.
-   Ancestor / child / sibling navigation (`<`, `>`, `~` per `docs/ace.md:CLs Tab`) is one of the distinctive features of
+   Ancestor / child / sibling navigation (`<`, `>`, `~` per `docs/ace.md:PRs Tab`) is one of the distinctive features of
    the tab and is not represented at all in the icon row.
-4. **CLs-tab grouping is named generically.** Code supports three explicit grouping modes — `BY_PROJECT`, `BY_DATE`,
+4. **PRs-tab grouping is named generically.** Code supports three explicit grouping modes — `BY_PROJECT`, `BY_DATE`,
    `BY_STATUS` — cycled with `o`/`O` (per `docs/ace.md` and the `app.py` grouping logic referenced from the AGENTS.md
    note in `src/sase/ace/`). The diagram says only "group", losing the named-mode information that would help a reader
    recognise the screenshots.
-5. **CLs-tab "review, mail, sync" — `sync` does not correspond to any tab affordance.** No keybinding, no widget, no
+5. **PRs-tab "review, mail, sync" — `sync` does not correspond to any tab affordance.** No keybinding, no widget, no
    config option in `docs/ace.md` is named "sync". The closest concept is the `--refresh-interval` flag (auto-refresh of
-   the query result set), but that is global TUI behaviour, not a CLs-specific action.
+   the query result set), but that is global TUI behaviour, not a PRs-specific action.
 6. **Agents-tab "running + completed runs" is correct,** but the diagram omits the `AgentInfoPanel` summary banner at
    the top (`app.py:253`) and the agent **tree / retry chain** structure that `AgentList` renders. The retry chain
    (`retry_of_timestamp` / `retried_as_timestamp` / `retry_chain_root_timestamp` per `memory/short/glossary.md`) is a
@@ -128,7 +128,7 @@ These are scoped so the regen agent (`sase-2s.17`) can act on them directly.
    control plane" claim visible.
 2. **Replace each card's three icon rows with a "Surfaces / Lifecycle / Actions" trio**, explicitly labelled, so the
    reader knows which row is "what you see", "what state model is in play", and "what you can do":
-   - **CLs**: Surfaces = `ChangeSpec list · detail · ancestors/children`; Lifecycle =
+   - **PRs**: Surfaces = `ChangeSpec list · detail · ancestors/children`; Lifecycle =
      `WIP → Draft → Ready → Mailed → Submitted`; Actions = `accept · mail · rebase · diff · checkout`.
    - **Agents**: Surfaces = `agent tree · retry chains · AgentDetail (prompt / files / diffs / thinking)`; Lifecycle =
      `pending → running → completed (✓ / ✗)` with retry-chain note; Actions = `resume · tag · kill · open`.
@@ -145,7 +145,7 @@ These are scoped so the regen agent (`sase-2s.17`) can act on them directly.
 5. **Show the cycling affordance.** A small `Tab ⇄ Shift-Tab` chip on the tab bar, or a circular-arrow glyph between the
    three tab pills, will signal that the three tabs are cycled rather than parallel windows.
 6. **Add a one-line legend tying card colour to `_TAB_COLORS`.** A small caption like
-   `card colour = tab brand colour (CLs #00D7AF · Agents #87D7FF · AXE #FF5F5F)` removes the "is red a warning?"
+   `card colour = tab brand colour (PRs #00D7AF · Agents #87D7FF · AXE #FF5F5F)` removes the "is red a warning?"
    ambiguity.
 7. **Keep the existing 16:9 layout, neutral palette, no-text-in-base-render policy, and DejaVu-Sans deterministic
    labels.** Style consistency with peer infographics under `docs/images/` should be preserved per
