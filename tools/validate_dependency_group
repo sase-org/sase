@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Validate that an optional dependency group from ``pyproject.toml`` is installed."""
+
+from __future__ import annotations
+
+import argparse
+import importlib.metadata
+import sys
+import tomllib
+from pathlib import Path
+
+try:
+    from packaging.requirements import Requirement
+except ImportError:  # pragma: no cover - exercised by stale environments.
+    Requirement = None  # type: ignore[assignment]
+
+
+PYPROJECT = Path("pyproject.toml")
+
+
+def _error(message: str) -> None:
+    print(f"[validate_dependency_group] {message}", file=sys.stderr)
+
+
+def _dependency_groups(pyproject: Path = PYPROJECT) -> dict[str, list[str]]:
+    data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    groups = data.get("project", {}).get("optional-dependencies", {})
+    return {name: list(requirements) for name, requirements in groups.items()}
+
+
+def _validate_requirement(requirement_text: str) -> bool:
+    if Requirement is None:
+        _error("'packaging' is not installed; dependency versions cannot be checked")
+        return False
+
+    requirement = Requirement(requirement_text)
+    if requirement.marker is not None and not requirement.marker.evaluate():
+        return True
+
+    try:
+        installed_version = importlib.metadata.version(requirement.name)
+    except importlib.metadata.PackageNotFoundError:
+        _error(f"missing dependency: {requirement.name}")
+        return False
+
+    if requirement.specifier and not requirement.specifier.contains(
+        installed_version,
+        prereleases=True,
+    ):
+        _error(
+            f"stale dependency: {requirement.name} {installed_version} "
+            f"does not satisfy {requirement.specifier}"
+        )
+        return False
+
+    return True
+
+
+def validate_dependency_group(group: str, pyproject: Path = PYPROJECT) -> bool:
+    groups = _dependency_groups(pyproject)
+    requirements = groups.get(group)
+    if requirements is None:
+        _error(f"unknown dependency group: {group}")
+        return False
+
+    return all(_validate_requirement(requirement) for requirement in requirements)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("group", help="Optional dependency group to validate")
+    namespace = parser.parse_args(argv)
+
+    return 0 if validate_dependency_group(namespace.group) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
