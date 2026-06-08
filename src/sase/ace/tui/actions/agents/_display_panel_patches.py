@@ -210,6 +210,15 @@ class PanelPatchMixin:
             )
             return False
 
+        if local_idx >= len(widget._agents):
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="panel_membership_change",
+                count=1,
+            )
+            return False
+        widget._agents[local_idx] = agent
+
         if (
             getattr(self, "_grouping_mode", GroupingMode.STANDARD)
             is GroupingMode.BY_STATUS

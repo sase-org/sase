@@ -23,11 +23,22 @@ if TYPE_CHECKING:
 from ...models.agent_groups import GroupingMode
 from ...util.debounce import DetailPanelDebouncer
 from ...util.trace import tui_trace
+from ._display_diff import (
+    affected_panel_keys,
+    build_agent_display_diff,
+    diff_touches_workflow_tree,
+    panel_keys_for_display,
+    rendered_panel_key_by_identity,
+)
 from ._display_detail import DetailMixin
 from ._display_helpers import _MAIN_PANEL_ID, TabName, panel_widget_id
 from ._display_panels import PanelsMixin
 from ._loading import DISMISSABLE_STATUSES
-from ._refresh_trace import AgentRefreshDisplayCost, record_agents_refresh_trace
+from ._refresh_trace import (
+    AgentRefreshDisplayCost,
+    AgentRefreshFallbackReason,
+    record_agents_refresh_trace,
+)
 from ._siblings import AgentSiblingMixin
 
 log = logging.getLogger(__name__)
@@ -169,6 +180,211 @@ class AgentDisplayMixin(AgentSiblingMixin, PanelsMixin, DetailMixin):
             self._refresh_agents_display_impl(
                 list_changed=list_changed, defer_detail=defer_detail
             )
+
+    def _record_display_full_rebuild_fallback(
+        self,
+        reason: AgentRefreshFallbackReason,
+        *,
+        count: int | None = None,
+    ) -> None:
+        record_agents_refresh_trace(
+            self,
+            stage="display_fallback",
+            source=getattr(self, "_agents_refresh_active_source", "unknown"),
+            display_cost="display_full_rebuild",
+            fallback_reason=reason,
+            count=count,
+        )
+
+    def _refresh_agents_display_after_finalize(
+        self,
+        *,
+        previous_agents: list[Agent] | None,
+        defer_detail: bool = False,
+    ) -> None:
+        """Refresh finalized agent display, using a narrow diff when safe."""
+        if previous_agents is not None and self._try_refresh_agents_display_incremental(
+            previous_agents,
+            defer_detail=defer_detail,
+        ):
+            return
+        self._refresh_agents_display(list_changed=True, defer_detail=defer_detail)
+
+    def _try_refresh_agents_display_incremental(
+        self,
+        previous_agents: list[Agent],
+        *,
+        defer_detail: bool,
+    ) -> bool:
+        """Patch/rebuild affected panels after a finalized list replacement."""
+        if self.current_tab != "agents":
+            return False
+        if not previous_agents and self._agents:
+            return False
+        if getattr(self, "_agent_search_query", ""):
+            self._record_display_full_rebuild_fallback("active_search")
+            return False
+        if (
+            getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+            is not GroupingMode.STANDARD
+        ):
+            self._record_display_full_rebuild_fallback("unsupported_grouping")
+            return False
+
+        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        if not self._agent_display_widgets_have_previous_rows(previous_agents):
+            return False
+
+        old_panel_keys = tuple(getattr(self._panel_group, "panel_keys", ()))
+        if (
+            panel_keys_for_display(
+                previous_agents,
+                merge_tag_panels=merge_tag_panels,
+            )
+            != old_panel_keys
+        ):
+            self._record_display_full_rebuild_fallback("panel_membership_change")
+            return False
+
+        next_panel_keys = panel_keys_for_display(
+            self._agents,
+            merge_tag_panels=merge_tag_panels,
+        )
+        if next_panel_keys != old_panel_keys:
+            self._record_display_full_rebuild_fallback("panel_membership_change")
+            return False
+
+        diff = build_agent_display_diff(previous_agents, self._agents)
+        if diff.duplicate_identity:
+            self._record_display_full_rebuild_fallback("panel_membership_change")
+            return False
+        if diff_touches_workflow_tree(diff, previous_agents, self._agents):
+            self._record_display_full_rebuild_fallback("workflow_tree_change")
+            return False
+
+        with tui_trace(
+            "agents.refresh_display_incremental",
+            agents=len(self._agents),
+            previous_agents=len(previous_agents),
+            changed=len(diff.changed_same_position),
+            removed=len(diff.removed_identities),
+            added=len(diff.added_indices),
+            moved=len(diff.moved_identities),
+            defer_detail=bool(defer_detail),
+        ):
+            return self._try_refresh_agents_display_incremental_impl(
+                previous_agents,
+                diff=diff,
+                defer_detail=defer_detail,
+                merge_tag_panels=merge_tag_panels,
+            )
+
+    def _agent_display_widgets_have_previous_rows(
+        self,
+        previous_agents: list[Agent],
+    ) -> bool:
+        """Return True when the current widgets have a prior rendered list."""
+        from textual.css.query import NoMatches
+
+        from ...models.agent_panels import agent_is_rendered_in_agents_panel
+        from ...widgets import AgentList
+
+        if not any(
+            agent_is_rendered_in_agents_panel(agent) for agent in previous_agents
+        ):
+            return True
+        try:
+            container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return False
+        try:
+            widgets = list(
+                container.query(AgentList).results(AgentList)  # type: ignore[attr-defined]
+            )
+        except (AttributeError, NoMatches):
+            widgets = [
+                widget
+                for widget in getattr(container, "children", [])
+                if isinstance(widget, AgentList)
+            ]
+        return any(int(getattr(widget, "option_count", 0)) > 0 for widget in widgets)
+
+    def _try_refresh_agents_display_incremental_impl(
+        self,
+        previous_agents: list[Agent],
+        *,
+        diff: Any,
+        defer_detail: bool,
+        merge_tag_panels: bool,
+    ) -> bool:
+        sync_artifact_layout = getattr(self, "_sync_artifact_viewer_layout", None)
+        if callable(sync_artifact_layout):
+            sync_artifact_layout()
+        self._agent_detail_debouncer.cancel()
+
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentDetail, KeybindingFooter
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+        except NoMatches:
+            self._record_display_full_rebuild_fallback("panel_membership_change")
+            return False
+
+        prune = getattr(self, "_prune_stale_marked_agents", None)
+        if callable(prune):
+            prune()
+        self._sync_panel_group()
+
+        affected_keys = affected_panel_keys(
+            diff,
+            previous_agents,
+            self._agents,
+            merge_tag_panels=merge_tag_panels,
+        )
+        panel_rebuild_keys: set[Any] = set()
+        if diff.has_collection_changes:
+            panel_rebuild_keys.update(affected_keys)
+
+        if diff.removed_identities and not self._try_remove_agent_rows(
+            set(diff.removed_identities)
+        ):
+            return False
+
+        current_keys = rendered_panel_key_by_identity(
+            self._agents,
+            merge_tag_panels=merge_tag_panels,
+        )
+        for idx in diff.changed_same_position:
+            agent = self._agents[idx]
+            if current_keys.get(agent.identity) in panel_rebuild_keys:
+                continue
+            if not self._try_patch_agent_row(agent):
+                return False
+
+        if panel_rebuild_keys:
+            if not self._refresh_affected_panel_widgets(panel_rebuild_keys):
+                self._record_display_full_rebuild_fallback(
+                    "panel_membership_change",
+                    count=len(panel_rebuild_keys),
+                )
+                return False
+            self._record_display_patch_trace(
+                display_cost="display_panel_rebuild",
+                count=len(panel_rebuild_keys),
+            )
+
+        self._reapply_panel_heights()
+        self._refresh_panel_highlights()
+        self._update_agents_info_panel()
+        if defer_detail:
+            self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+            return True
+
+        self._apply_agent_detail_update(agent_detail, footer_widget)
+        return True
 
     def _refresh_agents_display_impl(
         self, *, list_changed: bool = False, defer_detail: bool = False

@@ -389,6 +389,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         self._has_always_visible = prep.has_always_visible
         self._hidden_count = prep.hidden_count
         self._hideable_agents = prep.hideable_agents
+        previous_agents = list(self._agents)
         self._agents_with_children = boundary.fold.unfiltered_agents
         self._agents = boundary.fold.visible_agents
         self._fold_counts = boundary.fold.fold_counts
@@ -404,6 +405,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             save_unfiltered=False,
             fold_filter_already_applied=True,
             precomputed_plan=finalize_plan,
+            previous_agents=previous_agents,
         )
         from ...repro.capture import record_agents_tab_app_projection
 

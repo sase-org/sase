@@ -144,6 +144,7 @@ def _apply_finalize_plan(
     plan: PreparedFinalizePlan,
     *,
     prior_pos: int | None,
+    previous_agents: list[Agent] | None,
 ) -> None:
     """UI-thread half of the precomputed-plan apply path."""
     _surface_query_parse_error_from_plan(app, plan)
@@ -193,10 +194,21 @@ def _apply_finalize_plan(
 
     if on_agents_tab:
         with tui_trace("agents.final_display_refresh", agents=len(app._agents)):
-            app._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True,
-                defer_detail=True,
+            incremental_refresh = getattr(
+                app,
+                "_refresh_agents_display_after_finalize",
+                None,
             )
+            if callable(incremental_refresh):
+                incremental_refresh(
+                    previous_agents=previous_agents,
+                    defer_detail=True,
+                )
+            else:
+                app._refresh_agents_display(  # type: ignore[attr-defined]
+                    list_changed=True,
+                    defer_detail=True,
+                )
 
 
 def finalize_agent_list(
@@ -208,6 +220,7 @@ def finalize_agent_list(
     fold_filter_already_applied: bool = False,
     prior_pos: int | None = None,
     precomputed_plan: PreparedFinalizePlan | None = None,
+    previous_agents: list[Agent] | None = None,
 ) -> None:
     """Shared post-processing pipeline for agent list finalization.
 
@@ -251,6 +264,7 @@ def finalize_agent_list(
             selected_identity,
             precomputed_plan,
             prior_pos=prior_pos,
+            previous_agents=previous_agents,
         )
         return
 
@@ -391,7 +405,18 @@ def finalize_agent_list(
     # Only refresh display if on agents tab
     if on_agents_tab:
         with tui_trace("agents.final_display_refresh", agents=len(app._agents)):
-            app._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True,
-                defer_detail=True,
+            incremental_refresh = getattr(
+                app,
+                "_refresh_agents_display_after_finalize",
+                None,
             )
+            if callable(incremental_refresh):
+                incremental_refresh(
+                    previous_agents=previous_agents,
+                    defer_detail=True,
+                )
+            else:
+                app._refresh_agents_display(  # type: ignore[attr-defined]
+                    list_changed=True,
+                    defer_detail=True,
+                )

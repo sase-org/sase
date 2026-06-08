@@ -183,5 +183,6 @@ class AgentLoadingStateMixin:
         fold_filter_already_applied: bool = False,
         prior_pos: int | None = None,
         precomputed_plan: PreparedFinalizePlan | None = None,
+        previous_agents: list[Agent] | None = None,
     ) -> None:
         raise NotImplementedError

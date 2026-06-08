@@ -63,6 +63,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             selected_identity = getattr(self, "_agents_last_identity", None)
 
         # Start from the cached unfiltered list (already has dismiss/hide applied)
+        previous_agents = list(self._agents)
         self._agents = list(self._agents_with_children)
 
         self._finalize_agent_list(
@@ -70,6 +71,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             selected_identity,
             save_unfiltered=False,
             prior_pos=prior_pos,
+            previous_agents=previous_agents,
         )
         if refresh_content_index:
             self._schedule_agent_content_search_index_refresh()
@@ -152,11 +154,13 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         elif not on_agents_tab:
             selected_identity = getattr(self, "_agents_last_identity", None)
 
+        previous_agents = list(self._agents)
         self._agents = current_agents
         self._finalize_agent_list(
             on_agents_tab,
             selected_identity,
             save_unfiltered=False,
+            previous_agents=previous_agents,
         )
 
     def _cancel_pending_content_search_refresh(self) -> None:
@@ -175,6 +179,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         fold_filter_already_applied: bool = False,
         prior_pos: int | None = None,
         precomputed_plan: PreparedFinalizePlan | None = None,
+        previous_agents: list[Agent] | None = None,
     ) -> None:
         """Shared post-processing pipeline for agent list finalization.
 
@@ -191,4 +196,5 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             fold_filter_already_applied=fold_filter_already_applied,
             prior_pos=prior_pos,
             precomputed_plan=precomputed_plan,
+            previous_agents=previous_agents,
         )
