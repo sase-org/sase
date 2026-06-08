@@ -251,8 +251,8 @@ class PlannedNameAllocator:
         self._indexed_reserved: dict[str, set[str]] = {}
         self._indexed_latest: dict[str, str] = {}
         self._indexed_group_indexes: dict[str, int] = {}
-        self._indexed_reservations: list[_PlannedNameReservation] = []
-        self._committed_indexed_reservations: set[_PlannedNameReservation] = set()
+        self._planned_reservations: list[_PlannedNameReservation] = []
+        self._committed_reservations: set[_PlannedNameReservation] = set()
 
     def rewrite_indexed_references(self, prompt: str) -> str:
         """Resolve indexed wait/resume refs against this launch's plan."""
@@ -290,11 +290,17 @@ class PlannedNameAllocator:
         if resume_target is not None:
             if _has_non_resume_xprompt_reference(prompt):
                 return None, None
-            reserved = self._resume_reserved.get(resume_target)
-            if reserved is None:
-                reserved = active_resume_reserved_names(resume_target)
-                self._resume_reserved[resume_target] = reserved
-            name = allocate_resume_name(resume_target, reserved=reserved)
+            from sase.agent.names import agent_name_allocation_lock
+
+            with agent_name_allocation_lock():
+                reserved = self._resume_reserved.get(resume_target)
+                if reserved is None:
+                    reserved = active_resume_reserved_names(resume_target)
+                    self._resume_reserved[resume_target] = reserved
+                while True:
+                    name = allocate_resume_name(resume_target, reserved=reserved)
+                    if self._reserve_planned_name(name, artifacts_dir):
+                        break
             return name, name
 
         if "#" in prompt:
@@ -302,20 +308,30 @@ class PlannedNameAllocator:
 
         wait_target = single_wait_agent_name(prompt)
         if wait_target is not None:
-            reserved = self._wait_reserved.get(wait_target)
-            if reserved is None:
-                reserved = active_wait_reserved_names(wait_target)
-                self._wait_reserved[wait_target] = reserved
-            name = allocate_wait_name(wait_target, reserved=reserved)
+            from sase.agent.names import agent_name_allocation_lock
+
+            with agent_name_allocation_lock():
+                reserved = self._wait_reserved.get(wait_target)
+                if reserved is None:
+                    reserved = active_wait_reserved_names(wait_target)
+                    self._wait_reserved[wait_target] = reserved
+                while True:
+                    name = allocate_wait_name(wait_target, reserved=reserved)
+                    if self._reserve_planned_name(name, artifacts_dir):
+                        break
             return name, name
 
-        from sase.agent.names import allocate_auto_names
+        from sase.agent.names import agent_name_allocation_lock, allocate_auto_names
 
-        if self._auto_reserved is None:
-            from sase.agent.names import get_reserved_agent_names
+        with agent_name_allocation_lock():
+            if self._auto_reserved is None:
+                from sase.agent.names import get_reserved_agent_names
 
-            self._auto_reserved = get_reserved_agent_names()
-        name = allocate_auto_names(1, reserved=self._auto_reserved)[0]
+                self._auto_reserved = get_reserved_agent_names()
+            while True:
+                name = allocate_auto_names(1, reserved=self._auto_reserved)[0]
+                if self._reserve_planned_name(name, artifacts_dir):
+                    break
         return name, name
 
     def _rewrite_indexed_wait_directives(self, prompt: str) -> str:
@@ -461,29 +477,50 @@ class PlannedNameAllocator:
     def mark_indexed_reservation_committed(
         self, name: str | None, artifacts_dir: str | Path | None
     ) -> None:
-        """Mark a planned indexed reservation as owned by a spawned child."""
+        """Mark a planned reservation as owned by a spawned child."""
         if name is None or artifacts_dir is None:
             return
         reservation = _PlannedNameReservation(
             name=name,
             artifacts_dir=str(Path(artifacts_dir).expanduser().resolve(strict=False)),
         )
-        if reservation in self._indexed_reservations:
-            self._committed_indexed_reservations.add(reservation)
+        if reservation in self._planned_reservations:
+            self._committed_reservations.add(reservation)
 
     def release_uncommitted_indexed_reservations(self) -> None:
-        """Release planned indexed reservations whose child never spawned."""
+        """Release planned reservations whose child never spawned."""
         from sase.agent.names import release_planned_registered_name
 
-        for reservation in list(self._indexed_reservations):
-            if reservation in self._committed_indexed_reservations:
+        for reservation in list(self._planned_reservations):
+            if reservation in self._committed_reservations:
                 continue
             release_planned_registered_name(reservation.name, reservation.artifacts_dir)
-        self._indexed_reservations = [
+        self._planned_reservations = [
             reservation
-            for reservation in self._indexed_reservations
-            if reservation in self._committed_indexed_reservations
+            for reservation in self._planned_reservations
+            if reservation in self._committed_reservations
         ]
+
+    def _reserve_planned_name(
+        self,
+        name: str,
+        artifacts_dir: str | Path | None,
+    ) -> bool:
+        """Reserve a planned name for a not-yet-started child when possible."""
+        if artifacts_dir is None:
+            return True
+
+        from sase.agent.names import NameCollisionError, reserve_registered_name
+
+        artifacts_path = Path(artifacts_dir).expanduser().resolve(strict=False)
+        try:
+            reserve_registered_name(name, artifacts_path)
+        except NameCollisionError:
+            return False
+        self._planned_reservations.append(
+            _PlannedNameReservation(name=name, artifacts_dir=str(artifacts_path))
+        )
+        return True
 
     def _allocate_indexed_name(
         self, template: str, *, artifacts_dir: str | Path | None = None
@@ -514,7 +551,7 @@ class PlannedNameAllocator:
                 reserve_registered_name(name, artifacts_path)
                 self._indexed_reserved[base] = reserved
                 self._indexed_latest[base] = name
-                self._indexed_reservations.append(
+                self._planned_reservations.append(
                     _PlannedNameReservation(
                         name=name, artifacts_dir=str(artifacts_path)
                     )
