@@ -1165,10 +1165,15 @@ guardrails, and current preview behavior.
 
 ## Agent Auto-Naming
 
-Agents launched without an explicit `%name` directive receive the lowest available name from the shared auto-name
-sequence (`0`, `1`, ..., `9`, `a`, ..., `z`, `00`, `01`, ...). The same allocator backs single-marker agent-name
-templates, so `%name:@`, `%name:@.cld`, `%name:build-@`, and `%name:research.@.final` all reserve concrete names from
-that sequence.
+Prompts with no `%name` directive, or with a bare `%name`, use the plain auto-name template `@`. SASE reserves the
+lowest available token from the sequence `0`, `1`, ..., `9`, `a`, ..., `z`, `00`, `01`, ...; with no reserved names,
+plain auto-naming yields concrete names such as `0`, then `1`.
+
+An explicit `%name` value containing exactly one `@` marker is an agent-name template. SASE substitutes the same token
+sequence into the marker, so the first allocation for `%name:@.cld` becomes `0.cld`, `%name:build-@` becomes `build-0`,
+and `%name:research.@.final` becomes `research.0.final`. Later `%wait`, `#fork`, and `#resume` references can use the
+same template text; within a multi-agent launch, SASE rewrites those references to the concrete name already planned for
+that template.
 
 Names are permanent IDs: a name used by any existing agent state remains reserved until that agent is explicitly wiped
 or deleted. This enables the fork-by-name workflow: press `f` on a running named agent to queue a follow-up that waits

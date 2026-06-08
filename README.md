@@ -69,11 +69,11 @@ sase core health
 sase ace
 ```
 
-Useful first commands:
+Useful first commands after activating the virtualenv:
 
 ```bash
 sase core health          # verify the required Rust backend before launching agents
-sase version              # show the local sase/core/plugin runtime inventory
+sase version              # inspect the exact SASE packages loaded by this environment
 sase init -c              # read-only drift report for AMD, memory, SDD, and skills
 sase amd list             # inspect project, home, and chezmoi AGENTS.md surfaces
 sase amd init --check     # read-only AGENTS.md/provider-shim drift report

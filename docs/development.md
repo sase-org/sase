@@ -155,7 +155,7 @@ The repository is organized around the CLI entry point, operational subsystems, 
 | `src/sase/running_field/`      | Workspace claim and slot-management helpers.                                                           |
 | `src/sase/notifications/`      | Notification delivery and storage integration.                                                         |
 | `src/sase/telemetry/`          | Prometheus metrics, health, dashboard, and monitoring export support.                                  |
-| `src/sase/version/`            | Runtime inventory collection and rendering for the `sase version` support command.                     |
+| `src/sase/version/`            | Runtime inventory collection and rendering for the `sase version` CLI command.                         |
 | `src/sase/integrations/`       | Public helper APIs consumed by external plugins and editors.                                           |
 | `src/sase/scripts/`            | Packaged utility scripts used by axe chops and support commands.                                       |
 | `tests/`                       | Python test suite, with subdirectories mirroring major `src/sase/` areas.                              |

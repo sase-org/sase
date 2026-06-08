@@ -1003,10 +1003,13 @@ The `%model` directive also supports automatic provider resolution: known model 
 The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a permanent unique name
 for the agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
 
-Agent-name templates contain exactly one `@` marker. SASE replaces the marker with the shared auto-name token sequence
-(`0`, `1`, ..., `9`, `a`, ..., `z`, `00`, ...), so `%name:@`, `%name:@.cld`, `%name:build-@`, and
-`%name:research.@.final` are all valid. The older terminal `-@` form still works, but new allocations now start at token
-`0` and use the alphanumeric sequence instead of positive integers.
+Agent-name templates contain exactly one `@` marker. The marker is not a wildcard; SASE replaces it with the next token
+from the shared auto-name sequence (`0`, `1`, ..., `9`, `a`, ..., `z`, `00`, ...). For example, with no reserved names,
+`%name:@.cld` renders as `0.cld`, `%name:build-@` renders as `build-0`, and `%name:research.@.final` renders as
+`research.0.final`. The older terminal `-@` form still works, but new allocations now start at token `0` and use the
+alphanumeric sequence instead of positive integers. Later `%wait`, `#fork`, and `#resume` references can use the same
+template text; in one multi-agent launch, SASE rewrites those references to the concrete name already planned for that
+template before spawning dependent agents.
 
 Agent names are permanent IDs. A name that belongs to any existing agent state cannot be reused by a normal
 `%name:<name>` launch; SASE cancels the launch before spawning an agent, records the prompt as cancelled, and suggests
@@ -1436,9 +1439,10 @@ The review prompt is rendered after the `build-@` dependency completes, so `{{ a
 `{{ agents["build"].status }}` come from the producer's stored `agent_meta.json` values. A consumer that has already
 started will not see later writes.
 
-The `agents` key is the producer's stable name. Agent-name templates use the template base, so `%name:build-@` is
-`{{ agents["build"].report_path }}`, not `agents["build-0"]`. The key is the raw agent name with no identifier munging,
-so dotted, hyphenated, and digit-leading names all work via bracket access: `%name:research.@.final` →
+The `agents` key is a stable Jinja namespace for the producer, not always the producer's concrete runtime name.
+Agent-name templates use the template base, so a producer that launches as `build-0` from `%name:build-@` is read as
+`{{ agents["build"].report_path }}`, not `agents["build-0"]`. The key is otherwise the raw agent name with no identifier
+munging, so dotted, hyphenated, and digit-leading names all work via bracket access: `%name:research.@.final` →
 `{{ agents["research.final"].report_path }}`, and `%name:0n.cld` → `{{ agents["0n.cld"].report_path }}`. Identifier-safe
 keys also support attribute access such as `{{ agents.build.report_path }}`. `agents` is a reserved agent-run Jinja
 name; a workflow input named `agents` collides and fails clearly. Output variables are persisted in the producer's
