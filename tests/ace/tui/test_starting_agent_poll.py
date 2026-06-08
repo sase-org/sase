@@ -2,9 +2,8 @@
 
 The poll runs once per countdown tick and stat()s ``agent_meta.json`` and
 ``waiting.json`` for each STARTING agent. When either marker lands or
-changes, the poll fires exactly one debounced
-``request_agents_refresh("starting_poll")`` so the row catches up within
-~1 s even when the inotify watcher misses the marker write.
+changes, the poll schedules one exact artifact-delta reconcile so the row
+catches up within ~1 s even when the inotify watcher misses the marker write.
 """
 
 from __future__ import annotations
@@ -80,7 +79,7 @@ def test_steady_state_no_starting_agents_is_noop() -> None:
 
 
 def test_single_starting_agent_transition_fires_one_refresh(tmp_path: Path) -> None:
-    """A STARTING agent whose meta mtime advances triggers exactly one refresh."""
+    """A STARTING agent whose meta mtime advances triggers exact deltas."""
     artifacts_dir = tmp_path / "starting-agent"
     meta_path = artifacts_dir / "agent_meta.json"
     _write_marker(meta_path, "{}")
@@ -93,27 +92,25 @@ def test_single_starting_agent_transition_fires_one_refresh(tmp_path: Path) -> N
     # First tick: file already exists. The harness treats this as the
     # "watcher missed CREATE" appearance path and nudges a refresh.
     app._poll_starting_agent_transitions()
-    assert len(app._timer_calls) == 1, (
+    assert len(app._scheduled) == 1, (
         "first-observation with present meta should nudge once"
     )
+    assert app._scheduled[0][1] == ((artifacts_dir,), "starting_poll")
 
     # Subsequent tick without changes: cache hit, no new refresh.
     app._poll_starting_agent_transitions()
-    assert len(app._timer_calls) == 1
+    assert len(app._scheduled) == 1
 
     # Bump mtime to simulate the run_started_at write.
     st = os.stat(meta_path)
     new_ns = st.st_mtime_ns + 1_000_000_000
     os.utime(meta_path, ns=(new_ns, new_ns))
 
-    # Fire the existing debounce so a fresh timer can arm.
-    _, fire = app._timer_calls[0]
-    fire()
-    timer_count_before = len(app._timer_calls)
+    scheduled_count_before = len(app._scheduled)
 
     app._poll_starting_agent_transitions()
-    assert len(app._timer_calls) == timer_count_before + 1, (
-        "mtime change should arm a fresh debounce timer"
+    assert len(app._scheduled) == scheduled_count_before + 1, (
+        "mtime change should schedule a fresh delta"
     )
 
 
@@ -134,9 +131,10 @@ def test_fan_out_of_five_transitions_coalesces_to_one_refresh(
 
     app._poll_starting_agent_transitions()
     # First-observation marker presence for all 5 in one tick should
-    # coalesce via the 150 ms debounce into a single armed timer.
-    assert len(app._timer_calls) == 1
-    assert app._agents_refresh_debounce_armed is True
+    # schedule one exact delta batch.
+    assert len(app._scheduled) == 1
+    assert len(app._scheduled[0][1][0]) == 5
+    assert app._scheduled[0][1][1] == "starting_poll"
 
 
 def test_meta_file_appearance_fires_refresh(tmp_path: Path) -> None:
@@ -161,7 +159,7 @@ def test_meta_file_appearance_fires_refresh(tmp_path: Path) -> None:
     # Tick 2: meta lands.
     _write_marker(meta_path, "{}")
     app._poll_starting_agent_transitions()
-    assert len(app._timer_calls) == 1, "file appearance should fire one refresh"
+    assert len(app._scheduled) == 1, "file appearance should schedule one delta"
 
 
 def test_waiting_marker_appearance_fires_refresh(tmp_path: Path) -> None:
@@ -184,7 +182,7 @@ def test_waiting_marker_appearance_fires_refresh(tmp_path: Path) -> None:
 
     _write_marker(waiting_path, '{"waiting_for": ["parent"]}')
     app._poll_starting_agent_transitions()
-    assert len(app._timer_calls) == 1, "waiting marker appearance should refresh"
+    assert len(app._scheduled) == 1, "waiting marker appearance should refresh"
 
 
 def test_waiting_marker_present_on_first_observation_fires_refresh(
@@ -201,7 +199,7 @@ def test_waiting_marker_present_on_first_observation_fires_refresh(
     app._panel_index = _FakePanelIndex(hidden_starting_indices=[0])
 
     app._poll_starting_agent_transitions()
-    assert len(app._timer_calls) == 1, (
+    assert len(app._scheduled) == 1, (
         "first-observation with present waiting marker should nudge once"
     )
 
@@ -220,14 +218,12 @@ def test_unchanged_marker_signature_does_not_rearm_after_debounce(
     app._panel_index = _FakePanelIndex(hidden_starting_indices=[0])
 
     app._poll_starting_agent_transitions()
-    assert len(app._timer_calls) == 1
+    assert len(app._scheduled) == 1
 
-    _, fire = app._timer_calls[0]
-    fire()
-    timer_count_before = len(app._timer_calls)
+    scheduled_count_before = len(app._scheduled)
 
     app._poll_starting_agent_transitions()
-    assert len(app._timer_calls) == timer_count_before
+    assert len(app._scheduled) == scheduled_count_before
 
 
 def test_stuck_starting_agent_does_not_grow_cache(tmp_path: Path) -> None:
@@ -261,7 +257,7 @@ def test_agent_without_artifacts_dir_is_skipped() -> None:
     app._panel_index = _FakePanelIndex(hidden_starting_indices=[0])
 
     app._poll_starting_agent_transitions()
-    assert app._timer_calls == []
+    assert app._scheduled == []
     # No entry added since we skipped before recording state.
     assert app._starting_poll_meta_cache == {}
 

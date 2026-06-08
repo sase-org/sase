@@ -12,6 +12,7 @@ import os
 import signal
 from collections import OrderedDict
 from collections.abc import Callable
+from pathlib import Path
 from types import FrameType
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -98,6 +99,8 @@ class StateInitMixin:
         # watcher event has fired yet.
         self._dirty_changespecs: bool = True
         self._dirty_agents: bool = True
+        self._dirty_agent_artifact_dirs: tuple[Path, ...] = ()
+        self._dirty_agent_artifact_fallback_reason: str | None = None
         self._dirty_axe: bool = True
         self._dirty_notifications: bool = True
         self._artifact_change_defer_pending: bool = False

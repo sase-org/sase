@@ -448,7 +448,7 @@ def test_commit_only_copies_saved_plan_path_after_background_work(
     assert app._agent_status_overrides[mock_agent.identity] == "PLAN COMMITTED"
     copy_to_clipboard.assert_called_once_with("~/workspace/.sase/plans/plan.md")
     app._refresh_notification_count.assert_called_once()
-    app._schedule_agents_async_refresh.assert_called_once()
+    app._schedule_agents_async_refresh.assert_not_called()
     data = json.loads((response_dir / "plan_response.json").read_text())
     assert data["saved_plan_path"] == saved_plan_path
 
@@ -484,6 +484,7 @@ def test_user_question_response_dismisses_notification_and_restores_status(
     )
     app = MagicMock()
     app._agents = [agent]
+    app._agents_with_children = [agent]
     app._agent_status_overrides = {agent.identity: "QUESTION"}
     app._agent_pre_question_status = {agent.identity: "PLAN APPROVED"}
 
@@ -521,7 +522,7 @@ def test_user_question_response_dismisses_notification_and_restores_status(
     assert app._agent_status_overrides[agent.identity] == "PLAN APPROVED"
     assert agent.identity not in app._agent_pre_question_status
     app._refilter_agents.assert_called_once()
-    app._schedule_agents_async_refresh.assert_called_once()
+    app._schedule_agents_async_refresh.assert_not_called()
 
 
 def test_open_user_question_modal_from_marker_dismissed_notification(

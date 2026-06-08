@@ -122,6 +122,8 @@ class AgentLoadingStateMixin:
     # collapses into a single deferred ``_schedule_agents_async_refresh``.
     _agents_refresh_debounce_armed: bool
     _agents_refresh_debounce_source: str
+    _dirty_agent_artifact_dirs: tuple[Path, ...]
+    _dirty_agent_artifact_fallback_reason: str | None
     # Per-STARTING-agent ``agent_meta.json`` and ``waiting.json`` (mtime_ns,
     # size) cache used by the countdown-tick STARTING-transition poll.
     # Each tuple slot is ``None`` when that marker was absent on the

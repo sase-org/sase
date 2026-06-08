@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from inspect import Parameter, getattr_static, signature
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
+
+    from ...models import Agent
 
 
 TabName = Literal["changespecs", "agents", "axe"]
@@ -21,8 +24,7 @@ def _callable_accepts_kwarg(callback: Callable[..., object], name: str) -> bool:
     return any(p.kind == Parameter.VAR_KEYWORD or p.name == name for p in params)
 
 
-def request_notification_agents_refresh(app: Any) -> None:
-    """Debounce notification/completion-triggered agent refreshes."""
+def _call_schedule_agents_refresh(app: Any) -> None:
     if getattr_static(app, "request_agents_refresh", None) is not None:
         request_refresh = getattr(app, "request_agents_refresh", None)
         if callable(request_refresh):
@@ -36,6 +38,132 @@ def request_notification_agents_refresh(app: Any) -> None:
         schedule_refresh(source="notification")
     else:
         schedule_refresh()
+
+
+def _agent_artifact_dir(agent: Any) -> Path | None:
+    get_artifacts_dir = getattr(agent, "get_artifacts_dir", None)
+    if not callable(get_artifacts_dir):
+        return None
+    artifacts_dir = get_artifacts_dir()
+    if not isinstance(artifacts_dir, str) or not artifacts_dir:
+        return None
+    return Path(artifacts_dir)
+
+
+def _resolve_notification_agent(
+    app: Any,
+    notification: Notification | None,
+) -> Agent | None:
+    if notification is None:
+        return None
+    try:
+        from ._notification_navigation import find_agent_for_notification
+
+        return find_agent_for_notification(app, notification)
+    except Exception:
+        return None
+
+
+def refresh_notification_agent_from_cache(
+    app: Any,
+    *,
+    agent: Agent | None = None,
+    notification: Notification | None = None,
+) -> bool:
+    """Refresh notification-driven row state without forcing disk I/O."""
+    if agent is None:
+        agent = _resolve_notification_agent(app, notification)
+    if agent is None:
+        return False
+
+    agents_with_children = getattr(app, "_agents_with_children", None)
+    refilter = getattr(app, "_refilter_agents", None)
+    if (
+        callable(refilter)
+        and isinstance(agents_with_children, list)
+        and agents_with_children
+    ):
+        refilter()
+        return True
+
+    try_patch = None
+    if getattr_static(app, "_try_patch_agent_row", None) is not None:
+        try_patch = getattr(app, "_try_patch_agent_row", None)
+    if callable(try_patch):
+        try:
+            return bool(try_patch(agent))
+        except Exception:
+            return False
+    return False
+
+
+def _completion_notification_delta_dirs(app: Any) -> list[Path]:
+    snapshot = getattr(app, "_notification_snapshot_cache", None)
+    notifications = getattr(snapshot, "notifications", None)
+    if not isinstance(notifications, list):
+        return []
+    completion_keys = active_completion_agent_keys(notifications)
+    if not completion_keys:
+        return []
+
+    artifact_dirs: list[Path] = []
+    for agent in getattr(app, "_agents", []):
+        if (agent.cl_name, agent.raw_suffix) not in completion_keys and (
+            agent.cl_name,
+            None,
+        ) not in completion_keys:
+            continue
+        artifact_dir = _agent_artifact_dir(agent)
+        if artifact_dir is not None:
+            artifact_dirs.append(artifact_dir)
+    return artifact_dirs
+
+
+def request_notification_agents_refresh(
+    app: Any,
+    *,
+    agent: Agent | None = None,
+    notification: Notification | None = None,
+) -> None:
+    """Request notification/completion-triggered agent reconciliation."""
+    if agent is None:
+        agent = _resolve_notification_agent(app, notification)
+
+    artifact_dirs: list[Path] = []
+    if agent is not None:
+        artifact_dir = _agent_artifact_dir(agent)
+        if artifact_dir is not None:
+            artifact_dirs.append(artifact_dir)
+    else:
+        artifact_dirs.extend(_completion_notification_delta_dirs(app))
+
+    if artifact_dirs:
+        schedule_delta = getattr(app, "_schedule_agent_artifact_delta_refresh", None)
+        if callable(schedule_delta):
+            schedule_delta(artifact_dirs, source="notification")
+            return
+
+    _call_schedule_agents_refresh(app)
+
+
+def refresh_notification_agent_or_request(
+    app: Any,
+    *,
+    agent: Agent | None = None,
+    notification: Notification | None = None,
+) -> None:
+    """Patch/refilter a notification-targeted row, falling back to reconcile."""
+    if refresh_notification_agent_from_cache(
+        app,
+        agent=agent,
+        notification=notification,
+    ):
+        return
+    request_notification_agents_refresh(
+        app,
+        agent=agent,
+        notification=notification,
+    )
 
 
 def active_completion_agent_keys(

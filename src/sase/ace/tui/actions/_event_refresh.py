@@ -13,6 +13,10 @@ from sase.core.paths import sase_projects_dir, sase_subdir
 from ._debug_leaks import debug_leaks_enabled, log_leak_snapshot
 from ._event_base import EventHandlersBase
 from .agents._notification_utils import request_notification_agents_refresh
+from .agents._refresh_trace import (
+    AgentRefreshFallbackReason,
+    record_agents_refresh_trace,
+)
 
 if TYPE_CHECKING:
     from ..models import Agent
@@ -27,6 +31,7 @@ PROMPT_INPUT_DEFER_SECONDS = 0.25
 # this floor caps the worst case to one load per window regardless of how
 # often the dirty flag is re-armed by inotify. Sanity refreshes bypass it.
 AGENTS_LOAD_MIN_INTERVAL_SECONDS = 5.0
+AGENT_ARTIFACT_DELTA_QUEUE_LIMIT = 64
 
 _AGENTS_RELEVANT_ARTIFACT_MARKERS = frozenset(
     {
@@ -98,6 +103,18 @@ def _artifact_path_affects_agents(path: Path) -> bool:
     return False
 
 
+def _artifact_dir_from_known_marker_path(path: Path) -> Path | None:
+    """Return the exact artifact dir for loader-visible marker writes."""
+    relative_parts = _artifact_relative_parts(path)
+    if relative_parts is None or len(relative_parts) < 2:
+        return None
+    if path.name in _AGENTS_RELEVANT_ARTIFACT_MARKERS:
+        return path.parent
+    if _is_prompt_step_marker(path):
+        return path.parent
+    return None
+
+
 def _agent_has_live_file_panel(agent: Agent) -> bool:
     """Return True when the detail view can live-refresh this row's file panel."""
     if agent.status not in _LIVE_FILE_REFRESH_STATUSES:
@@ -115,6 +132,118 @@ def _callable_accepts_kwarg(callback: Callable[..., object], name: str) -> bool:
 
 class EventRefreshMixin(EventHandlersBase):
     """Mixin providing watcher, daemon, and refresh timer callbacks."""
+
+    def _agent_artifact_delta_dir_for_path(
+        self, path: Path
+    ) -> tuple[Path | None, bool]:
+        """Return ``(artifact_dir, affects_agents)`` for one watcher path."""
+        notifications_root = sase_subdir("notifications")
+        if notifications_root in (path, *path.parents):
+            return None, False
+        beads_dir = Path.cwd() / "sdd" / "beads"
+        if beads_dir in (path, *path.parents):
+            return None, False
+        if path.suffix in {".sase", ".gp"}:
+            return None, False
+        if "artifacts" in path.parts:
+            if not _artifact_path_affects_agents(path):
+                return None, False
+            return _artifact_dir_from_known_marker_path(path), True
+        projects_root = sase_projects_dir()
+        if projects_root in (path, *path.parents):
+            return None, True
+        return None, True
+
+    def _agent_artifact_delta_dirs_for_paths(
+        self, changed_paths: tuple[Path, ...] | None
+    ) -> tuple[list[Path], AgentRefreshFallbackReason | None]:
+        """Classify watcher paths as an exact artifact-dir batch or fallback."""
+        if not changed_paths:
+            return [], "unknown_watcher_path"
+
+        artifact_dirs: list[Path] = []
+        unmapped_agents_path = False
+        for path in changed_paths:
+            artifact_dir, affects_agents = self._agent_artifact_delta_dir_for_path(path)
+            if not affects_agents:
+                continue
+            if artifact_dir is None:
+                unmapped_agents_path = True
+                continue
+            artifact_dirs.append(artifact_dir)
+
+        if unmapped_agents_path:
+            return [], "unknown_watcher_path"
+        if not artifact_dirs:
+            return [], None
+        return artifact_dirs, None
+
+    def _enqueue_agent_artifact_delta_paths(
+        self, changed_paths: tuple[Path, ...] | None
+    ) -> None:
+        """Store a bounded, deduped set of exact dirty artifact dirs."""
+        if getattr(self, "_dirty_agent_artifact_fallback_reason", None) is not None:
+            return
+
+        artifact_dirs, fallback_reason = self._agent_artifact_delta_dirs_for_paths(
+            changed_paths
+        )
+        if fallback_reason is not None:
+            self._dirty_agent_artifact_dirs = ()
+            self._dirty_agent_artifact_fallback_reason = fallback_reason
+            return
+        if not artifact_dirs:
+            return
+
+        queued: list[Path] = list(getattr(self, "_dirty_agent_artifact_dirs", ()))
+        seen = {str(path) for path in queued}
+        for artifact_dir in artifact_dirs:
+            path = Path(artifact_dir).expanduser()
+            key = str(path)
+            if key in seen:
+                continue
+            if len(queued) >= AGENT_ARTIFACT_DELTA_QUEUE_LIMIT:
+                self._dirty_agent_artifact_dirs = ()
+                self._dirty_agent_artifact_fallback_reason = "dirty_queue_overflow"
+                return
+            seen.add(key)
+            queued.append(path)
+        self._dirty_agent_artifact_dirs = tuple(queued)
+
+    def _clear_agent_artifact_delta_state(self) -> None:
+        self._dirty_agent_artifact_dirs = ()
+        self._dirty_agent_artifact_fallback_reason = None
+
+    def _record_agent_artifact_delta_fallback(
+        self,
+        reason: AgentRefreshFallbackReason,
+        *,
+        source: str = "auto_refresh",
+    ) -> None:
+        record_agents_refresh_trace(
+            self,
+            stage="fallback",
+            source=source,
+            data_cost="tier1_broad_load",
+            fallback_reason=reason,
+        )
+
+    def _consume_agent_artifact_delta_refresh(self, *, source: str) -> bool:
+        """Schedule the queued exact artifact-dir delta, if available."""
+        artifact_dirs = list(getattr(self, "_dirty_agent_artifact_dirs", ()))
+        if not artifact_dirs:
+            return False
+        schedule_delta = getattr(self, "_schedule_agent_artifact_delta_refresh", None)
+        if not callable(schedule_delta):
+            self._dirty_agent_artifact_fallback_reason = "delta_read_failure"
+            self._record_agent_artifact_delta_fallback(
+                "delta_read_failure",
+                source=source,
+            )
+            return False
+        self._clear_agent_artifact_delta_state()
+        schedule_delta(artifact_dirs, source=source)
+        return True
 
     def _on_artifact_change(
         self, changed_paths: tuple[Path, ...] | None = None
@@ -149,6 +278,7 @@ class EventRefreshMixin(EventHandlersBase):
             self._dirty_changespecs = True
         if "agents" in targets:
             self._dirty_agents = True
+            self._enqueue_agent_artifact_delta_paths(changed_paths)
         if "axe" in targets:
             self._dirty_axe = True
         if "notifications" in targets:
@@ -295,7 +425,15 @@ class EventRefreshMixin(EventHandlersBase):
             await self._load_axe_status_async()  # type: ignore[attr-defined]
             self._dirty_axe = False
 
-        agents_due = _should_refresh("_dirty_agents")
+        queued_agent_artifact_dirs = tuple(
+            getattr(self, "_dirty_agent_artifact_dirs", ())
+        )
+        agent_delta_due = (
+            watcher_active
+            and bool(queued_agent_artifact_dirs)
+            and getattr(self, "_dirty_agent_artifact_fallback_reason", None) is None
+        )
+        agents_due = _should_refresh("_dirty_agents") or agent_delta_due
         # Tab-gate: when the watcher is the source of truth, only pay
         # for the (expensive) agent load while the user is actually
         # looking at the agents tab. The sanity-floor escape hatch
@@ -339,17 +477,36 @@ class EventRefreshMixin(EventHandlersBase):
             request_notification_agents_refresh(self)
 
         if agents_due:
-            self._agents_loading = True
-            try:
-                load_agents_async = self._load_agents_async  # type: ignore[attr-defined]
-                kwargs: dict[str, Any] = {}
-                if _callable_accepts_kwarg(load_agents_async, "source"):
-                    kwargs["source"] = "auto_refresh"
-                await load_agents_async(**kwargs)
-            finally:
-                self._agents_loading = False
+            fallback_reason = getattr(
+                self, "_dirty_agent_artifact_fallback_reason", None
+            )
+            if (
+                watcher_active
+                and not sanity_due
+                and fallback_reason is None
+                and queued_agent_artifact_dirs
+                and self._consume_agent_artifact_delta_refresh(source="watcher")
+            ):
+                self._dirty_agents = False
                 self._last_agents_load_mono = time.monotonic()
-            self._dirty_agents = False
+            else:
+                if fallback_reason is not None:
+                    self._record_agent_artifact_delta_fallback(
+                        fallback_reason,
+                        source="auto_refresh",
+                    )
+                self._agents_loading = True
+                try:
+                    load_agents_async = self._load_agents_async  # type: ignore[attr-defined]
+                    kwargs: dict[str, Any] = {}
+                    if _callable_accepts_kwarg(load_agents_async, "source"):
+                        kwargs["source"] = "auto_refresh"
+                    await load_agents_async(**kwargs)
+                finally:
+                    self._agents_loading = False
+                    self._last_agents_load_mono = time.monotonic()
+                    self._clear_agent_artifact_delta_state()
+                self._dirty_agents = False
         elif watcher_active and not new_agent_notification:
             self._refresh_selected_agent_file_panel()
 

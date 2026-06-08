@@ -18,7 +18,10 @@ from ._notification_question_modal import (
     handle_user_question as handle_user_question,
     open_user_question_modal_from_marker as open_user_question_modal_from_marker,
 )
-from ._notification_utils import request_notification_agents_refresh
+from ._notification_utils import (
+    refresh_notification_agent_from_cache,
+    refresh_notification_agent_or_request,
+)
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -188,7 +191,7 @@ def handle_plan_approval(
             status = _plan_approval_status(result)
             if status is not None:
                 app._agent_status_overrides[agent.identity] = status  # type: ignore[attr-defined]
-                _refresh_agents_from_cache(app)
+                _refresh_agents_from_cache(app, agent)
 
         _start_plan_approval_background_worker(
             app,
@@ -340,21 +343,12 @@ def _plan_approval_choice_for_status(result: PlanApprovalResult) -> str | None:
     return None
 
 
-def _refresh_agents_from_cache(app: object) -> None:
+def _refresh_agents_from_cache(app: object, agent: Agent | None = None) -> None:
     """Refresh visible agents without forcing disk I/O on the keypress path."""
-    refilter = getattr(app, "_refilter_agents", None)
-    if callable(refilter) and getattr(app, "_agents_with_children", None):
-        refilter()
+    if refresh_notification_agent_from_cache(app, agent=agent):
         return
 
-    schedule_refresh = getattr(app, "_schedule_agents_async_refresh", None)
-    if callable(schedule_refresh):
-        request_notification_agents_refresh(app)
-        return
-
-    load_agents = getattr(app, "_load_agents", None)
-    if callable(load_agents):
-        load_agents()
+    refresh_notification_agent_or_request(app, agent=agent)
 
 
 def _start_plan_approval_background_worker(
@@ -389,7 +383,11 @@ def _start_plan_approval_background_worker(
 
         _call_on_app_thread(
             app,
-            lambda: _finish_plan_approval_background_work(app, result, saved_plan_path),
+            lambda: _finish_plan_approval_background_work(
+                app,
+                result,
+                saved_plan_path,
+            ),
         )
         return saved_plan_path
 
@@ -456,5 +454,3 @@ def _finish_plan_approval_background_work(
     refresh_count = getattr(app, "_refresh_notification_count", None)
     if callable(refresh_count):
         refresh_count()
-
-    request_notification_agents_refresh(app)

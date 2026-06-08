@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ._notification_utils import request_notification_agents_refresh
+from ._notification_utils import refresh_notification_agent_or_request
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -28,6 +28,7 @@ class AgentNotificationStatusMixin:
         accordingly.
         """
         dismissed_any = False
+        changed_agents: list[Any] = []
         for notification in unread:
             if notification.action not in ("PlanApproval", "UserQuestion"):
                 continue
@@ -55,13 +56,20 @@ class AgentNotificationStatusMixin:
                     break
 
                 if notification.action == "PlanApproval":
-                    self._agent_status_overrides[agent.identity] = "PLAN"  # type: ignore[attr-defined]
+                    if self._agent_status_overrides.get(agent.identity) != "PLAN":  # type: ignore[attr-defined]
+                        self._agent_status_overrides[agent.identity] = "PLAN"  # type: ignore[attr-defined]
+                        changed_agents.append(agent)
                 elif notification.action == "UserQuestion":
                     if agent.identity not in self._agent_pre_question_status:  # type: ignore[attr-defined]
                         self._agent_pre_question_status[agent.identity] = agent.status  # type: ignore[attr-defined]
-                    self._agent_status_overrides[agent.identity] = "QUESTION"  # type: ignore[attr-defined]
+                    if self._agent_status_overrides.get(agent.identity) != "QUESTION":  # type: ignore[attr-defined]
+                        self._agent_status_overrides[agent.identity] = "QUESTION"  # type: ignore[attr-defined]
+                        changed_agents.append(agent)
 
                 break
+
+        for agent in changed_agents:
+            refresh_notification_agent_or_request(self, agent=agent)
 
         if dismissed_any:
             self._refresh_notification_count()
@@ -133,8 +141,7 @@ class AgentNotificationStatusMixin:
                     persist_plan_approved(agent, action="legend")
                 else:
                     self._agent_status_overrides[agent.identity] = "RUNNING"  # type: ignore[attr-defined]
-                self._refilter_agents()  # type: ignore[attr-defined]
-                request_notification_agents_refresh(self)
+                refresh_notification_agent_or_request(self, agent=agent)
 
             return True
 
@@ -145,8 +152,7 @@ class AgentNotificationStatusMixin:
             if agent is not None:
                 self._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent)
-                self._refilter_agents()  # type: ignore[attr-defined]
-                request_notification_agents_refresh(self)
+                refresh_notification_agent_or_request(self, agent=agent)
 
             return True
 
@@ -156,8 +162,7 @@ class AgentNotificationStatusMixin:
             agent = find_agent_for_notification(self, notification)
             if agent is not None:
                 self._agent_status_overrides.pop(agent.identity, None)  # type: ignore[attr-defined]
-                self._refilter_agents()  # type: ignore[attr-defined]
-                request_notification_agents_refresh(self)
+                refresh_notification_agent_or_request(self, agent=agent)
 
             return True
 

@@ -10,7 +10,10 @@ from typing import Any
 
 import pytest
 
-from sase.ace.tui.actions._event_refresh import AGENTS_LOAD_MIN_INTERVAL_SECONDS
+from sase.ace.tui.actions._event_refresh import (
+    AGENT_ARTIFACT_DELTA_QUEUE_LIMIT,
+    AGENTS_LOAD_MIN_INTERVAL_SECONDS,
+)
 from sase.ace.tui.actions.event_handlers import (
     FULL_SANITY_REFRESH_SECONDS,
     PROMPT_INPUT_DEFER_SECONDS,
@@ -78,6 +81,8 @@ class _FakeApp(EventHandlersMixin):
         self._fs_watcher = object() if watcher_active else None
         self._dirty_changespecs = False
         self._dirty_agents = False
+        self._dirty_agent_artifact_dirs: tuple[Path, ...] = ()
+        self._dirty_agent_artifact_fallback_reason: str | None = None
         self._dirty_axe = False
         self._dirty_notifications = False
         self._artifact_change_defer_pending = False
@@ -87,6 +92,8 @@ class _FakeApp(EventHandlersMixin):
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
         self.refresh_requests: list[str] = []
+        self.delta_requests: list[tuple[str, tuple[Path, ...]]] = []
+        self._agents_refresh_trace_records: list[Any] = []
         self.agent_detail = _FakeAgentDetail(self.refresh_calls)
 
     def query(self, selector: type[PromptInputBar]) -> list[PromptInputBar]:
@@ -123,6 +130,16 @@ class _FakeApp(EventHandlersMixin):
     def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
         del source
         self.refresh_calls.append("schedule_agents")
+
+    def _schedule_agent_artifact_delta_refresh(
+        self,
+        artifact_dirs: list[Path],
+        *,
+        source: str = "unknown",
+    ) -> None:
+        dirs = tuple(artifact_dirs)
+        self.delta_requests.append((source, dirs))
+        self.refresh_calls.append(f"delta:{source}:{len(dirs)}")
 
     def request_agents_refresh(
         self,
@@ -422,6 +439,8 @@ def test_artifact_change_marks_only_agents_dirty_for_done_marker() -> None:
     app._on_artifact_change((path,))
 
     assert app._dirty_agents is True
+    assert app._dirty_agent_artifact_dirs == (path.parent,)
+    assert app._dirty_agent_artifact_fallback_reason is None
     assert app._dirty_changespecs is False
     assert app.refresh_calls == []
 
@@ -448,8 +467,83 @@ def test_artifact_change_marks_agents_dirty_for_loader_visible_markers(
     app._on_artifact_change((path,))
 
     assert app._dirty_agents is True
+    assert app._dirty_agent_artifact_dirs == (path.parent,)
     assert app._dirty_changespecs is False
     assert app.refresh_calls == []
+
+
+@pytest.mark.asyncio
+async def test_known_marker_change_schedules_artifact_delta_not_broad_load() -> None:
+    app = _FakeApp(watcher_active=True)
+    path = (
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "20260528120000"
+        / "done.json"
+    )
+
+    app._on_artifact_change((path,))
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == ["delta:watcher:1"]
+    assert app.delta_requests == [("watcher", (path.parent,))]
+    assert app._dirty_agents is False
+    assert app._dirty_agent_artifact_dirs == ()
+    assert app._dirty_agent_artifact_fallback_reason is None
+
+
+@pytest.mark.asyncio
+async def test_unknown_agent_path_uses_broad_auto_refresh_fallback() -> None:
+    app = _FakeApp(watcher_active=True)
+    path = (
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "20260528120000"
+    )
+
+    app._on_artifact_change((path,))
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == ["agents"]
+    assert app.delta_requests == []
+    assert app._dirty_agent_artifact_dirs == ()
+    assert app._dirty_agent_artifact_fallback_reason is None
+    assert app._agents_refresh_trace_records[-1].fallback_reason == (
+        "unknown_watcher_path"
+    )
+
+
+@pytest.mark.asyncio
+async def test_artifact_delta_queue_overflow_uses_broad_fallback() -> None:
+    app = _FakeApp(watcher_active=True)
+    paths = tuple(
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / f"20260528{i:06d}"
+        / "done.json"
+        for i in range(AGENT_ARTIFACT_DELTA_QUEUE_LIMIT + 1)
+    )
+
+    app._on_artifact_change(paths)
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == ["agents"]
+    assert app.delta_requests == []
+    assert app._agents_refresh_trace_records[-1].fallback_reason == (
+        "dirty_queue_overflow"
+    )
 
 
 @pytest.mark.parametrize(
@@ -473,6 +567,8 @@ def test_artifact_change_marks_agents_dirty_for_likely_agent_root_directory(
     app._on_artifact_change((path,))
 
     assert app._dirty_agents is True
+    assert app._dirty_agent_artifact_dirs == ()
+    assert app._dirty_agent_artifact_fallback_reason == "unknown_watcher_path"
     assert app.refresh_calls == []
 
 
@@ -530,6 +626,7 @@ def test_artifact_change_mixed_marker_and_content_marks_agents_dirty() -> None:
     )
 
     assert app._dirty_agents is True
+    assert app._dirty_agent_artifact_dirs == (artifacts_dir,)
     assert app.refresh_calls == []
 
 

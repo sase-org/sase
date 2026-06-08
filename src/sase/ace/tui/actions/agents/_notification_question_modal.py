@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ._notification_modal_responses import write_workflow_action_response
-from ._notification_utils import request_notification_agents_refresh
+from ._notification_utils import refresh_notification_agent_or_request
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -148,6 +148,5 @@ def _restore_pre_question_status(app: object, notification: Notification) -> Non
         else:
             app._agent_status_overrides.pop(identity, None)  # type: ignore[attr-defined]
 
-        app._refilter_agents()  # type: ignore[attr-defined]
-        request_notification_agents_refresh(app)
+        refresh_notification_agent_or_request(app, agent=agent)
         break

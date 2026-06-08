@@ -15,6 +15,8 @@ from sase.notifications import Notification
 class _NotificationApp(AgentNotificationMixin):
     def __init__(self, agents: list[Agent]) -> None:
         self._agents = agents
+        self._agents_with_children = agents
+        self.refilter_calls = 0
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
         self._agent_pre_question_status: dict[
             tuple[AgentType, str, str | None], str | None
@@ -22,6 +24,9 @@ class _NotificationApp(AgentNotificationMixin):
 
     def _auto_dismiss_external_plan_response(self, notification: Notification) -> bool:
         return False
+
+    def _refilter_agents(self) -> None:
+        self.refilter_calls += 1
 
 
 def _notification(
@@ -73,6 +78,7 @@ def test_plan_approval_root_timestamp_sets_parent_planning_override() -> None:
 
     assert app._agent_status_overrides[parent.identity] == "PLAN"
     assert workflow_step.identity not in app._agent_status_overrides
+    assert app.refilter_calls == 1
 
 
 def test_find_agent_for_notification_matches_root_timestamp() -> None:
@@ -108,3 +114,4 @@ def test_user_question_root_timestamp_sets_parent_question_override() -> None:
 
     assert app._agent_status_overrides[parent.identity] == "QUESTION"
     assert app._agent_pre_question_status[parent.identity] == "RUNNING"
+    assert app.refilter_calls == 1

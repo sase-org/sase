@@ -342,7 +342,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             return
 
         live_identities: set[tuple] = set()  # type: ignore[type-arg]
-        nudge = False
+        dirty_artifact_dirs: list[Path] = []
         for i in starting_indices:
             agent = self._agents[i]
             identity = agent.identity
@@ -369,20 +369,23 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 # watcher likely missed the CREATE event and the agent has
                 # already written a loader-visible marker.
                 if current != (None, None):
-                    nudge = True
+                    dirty_artifact_dirs.append(artifacts_path)
                 continue
             if previous is not None and current != previous:
                 # Marker appearance, removal, or update — watcher likely
                 # missed a loader-visible event.
-                nudge = True
+                dirty_artifact_dirs.append(artifacts_path)
 
         # Eviction: drop identities no longer STARTING.
         stale = [identity for identity in cache if identity not in live_identities]
         for identity in stale:
             cache.pop(identity, None)
 
-        if nudge:
-            self.request_agents_refresh("starting_poll")
+        if dirty_artifact_dirs:
+            self._schedule_agent_artifact_delta_refresh(
+                dirty_artifact_dirs,
+                source="starting_poll",
+            )
 
     async def _run_agents_async_refresh(self) -> None:
         """Run the async agent refresh with loading guard.
