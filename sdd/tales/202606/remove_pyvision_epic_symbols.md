@@ -39,7 +39,7 @@ would itself be rejected by the tool as stale.
 
 1. Edit only the `Justfile` `pyvision` recipe to remove the three stale `--epic-symbol` arguments.
 2. Preserve the existing `pyvision *args` recipe shape so manual invocations still run
-   `tools/executable_pyvision-260608 src/sase {{ args }}` through the configured virtualenv and `BD_COMMAND` wrapper.
+   `tools/pyvision-260608 src/sase {{ args }}` through the configured virtualenv and `BD_COMMAND` wrapper.
 3. Leave the three Python symbols public because they are consumed by non-test in-repo Python code.
 4. Do not add `# pyvision:` pragmas and do not rename/delete these symbols unless post-edit verification reveals a new
    classification issue.

@@ -1,12 +1,11 @@
 # SASE Tools (executable scripts)
 
-Any script in this directory that has a suffix of the form `-YYmmdd` (ex: `executable_pyvision-260608`) was vendored
-into this repo from my chezmoi dotfile repo (the ../lib/bugyi-260221.sh file was also vendored using `pyvendor`). If you
-are asked to modify any of these files, you should NOT. Instead make the change in the original source file in my
-dotfiles repo, use your commit skill (NOT `git commit`) to commit the change in that repo, and then re-vendor it here
-using `pyvendor`.
+Any script in this directory that has a suffix of the form `-YYmmdd` (ex: `pyvision-260608`) was vendored into this repo
+from my chezmoi dotfile repo (the ../lib/bugyi-260221.sh file was also vendored using `pyvendor`). If you are asked to
+modify any of these files, you should NOT. Instead make the change in the original source file in my dotfiles repo, use
+your commit skill (NOT `git commit`) to commit the change in that repo, and then re-vendor it here using `pyvendor`.
 
-## `executable_pyvision-260608`
+## `pyvision-260608`
 
 This linter will fail if any public symbol is unused by other files, if any private symbol is used by other files, or if
 any private symbol is NOT used in the file it is defined in. It scans tracked Python usage outside `src/`, but
@@ -16,7 +15,7 @@ non-test" guard. Symbols defined under `testing/` directories are ignored becaus
 symbol must have at least one non-test consumer (another non-test Python file, a doc/code pragma target, or an
 external-repo URI pragma).
 
-### How do I whitelist a symbol for `executable_pyvision-260608`? When am I allowed to do so?
+### How do I whitelist a symbol for `pyvision-260608`? When am I allowed to do so?
 
 This linter should normally be obeyed since it does a good job of preventing unused code from accumulating. With that
 said, there are a few exceptions:

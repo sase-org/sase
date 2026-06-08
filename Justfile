@@ -139,7 +139,7 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260608 src/sase
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
@@ -297,7 +297,7 @@ all: fix lint pylimit test
 
 # Find unused Python function/class definitions
 pyvision *args: _setup (_header "pyvision")
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260608 src/sase {{ args }}
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase {{ args }}
 
 # Check Python file line counts
 pylimit *args: (_header "pylimit")

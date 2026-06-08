@@ -21,8 +21,8 @@ The source of truth for `pyvision` is the chezmoi repo:
 
 - Source script: `/home/bryan/.local/share/chezmoi/home/bin/executable_pyvision`
 - Source tests: `/home/bryan/.local/share/chezmoi/tests/bash/pyvision_test.sh`
-- Vendored SASE copy: `tools/executable_pyvision-260608` or its next date-stamped replacement
-- SASE invocation: `BD_COMMAND=tools/sase_bead .venv/bin/python tools/executable_pyvision-260608 src/sase`
+- Vendored SASE copy: `tools/pyvision-260608` or its next date-stamped replacement
+- SASE invocation: `BD_COMMAND=tools/sase_bead .venv/bin/python tools/pyvision-260608 src/sase`
 
 ## Current State
 
@@ -152,7 +152,7 @@ Owner: one SASE repo agent instance, starting after Phases 1 and 2 are committed
 
 Files likely touched:
 
-- `tools/executable_pyvision-260608` or its date-stamped successor
+- `tools/pyvision-260608` or its date-stamped successor
 - `Justfile`
 - `tools/AGENTS.md`
 - Legacy public API whitelist file

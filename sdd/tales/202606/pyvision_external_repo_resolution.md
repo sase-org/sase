@@ -55,7 +55,7 @@ siblings, so pyvision falls back to the healthy deterministic cache clone.
 
 1. Update pyvision in the chezmoi repo, not SASE's vendored copy.
    - Source file: `/home/bryan/.local/share/chezmoi/home/bin/executable_pyvision`
-   - Keep SASE's `tools/executable_pyvision-260512` untouched until the source fix is tested.
+   - Keep SASE's `tools/pyvision-260608` untouched until the source fix is tested.
 
 2. Make external repo resolution deterministic and freshness-aware.
    - Gather all local checkout candidates whose origin matches the pragma URI.
@@ -79,7 +79,7 @@ siblings, so pyvision falls back to the healthy deterministic cache clone.
    - Run the fixed pyvision source directly against `/home/bryan/projects/github/sase-org/sase`.
 
 5. Re-vendor pyvision into SASE after the source fix is green.
-   - Follow `tools/AGENTS.md`: do not hand-edit `tools/executable_pyvision-260512`.
+   - Follow `tools/AGENTS.md`: do not hand-edit `tools/pyvision-260608`.
    - Use the repo's vendoring flow (`pyvendor`) so the SASE copy is regenerated from chezmoi.
    - Preserve the existing vendored header convention.
 

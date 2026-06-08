@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-08 11:11:35
-status: wip
+status: done
 prompt: sdd/prompts/202606/pyvendor_strip_executable_prefix.md
 ---
 # Plan: Strip Chezmoi `executable_` Prefix During Pyvendor
@@ -13,7 +13,7 @@ derives the vendored script name from `basename "$SCRIPT_PATH"`, so vendoring `h
 
 That `executable_` prefix is a chezmoi source-file convention, not the actual runtime script name. For scripts sourced
 from the chezmoi repo, `pyvendor` should strip `executable_` before copying into another repository. The SASE repo
-currently still references `tools/executable_pyvision-260512`, so the fix must also re-vendor `pyvision` into this
+currently still references the prefixed dated `pyvision` filename, so the fix must also re-vendor `pyvision` into this
 workspace and let references move to the unprefixed dated filename.
 
 ## Implementation Plan
@@ -28,7 +28,7 @@ workspace and let references move to the unprefixed dated filename.
    - When vendoring `home/bin/executable_pyvision`, remove old dated copies matching both `executable_pyvision-YYmmdd`
      and `pyvision-YYmmdd`.
    - Record reference updates from the removed old basename to the new normalized basename so SASE files that still
-     mention `executable_pyvision-260512` are updated automatically.
+     mention the old prefixed dated filename are updated automatically.
 
 3. Add focused bashunit coverage in the chezmoi repo.
    - Create a `tests/bash/pyvendor_test.sh` file using temporary project directories.
@@ -45,7 +45,7 @@ workspace and let references move to the unprefixed dated filename.
    - Run
      `pyvendor /home/bryan/.local/share/chezmoi/home/bin/executable_pyvision /home/bryan/.local/state/sase/workspaces/sase-org/sase/sase_10`.
    - Confirm the generated file is `tools/pyvision-260608`, not `tools/executable_pyvision-260608`.
-   - Confirm the old `tools/executable_pyvision-260512` is removed and references in `Justfile`, `tools/AGENTS.md`, and
+   - Confirm the old prefixed dated copy is removed and references in `Justfile`, `tools/AGENTS.md`, and
      tracked SDD docs move to `pyvision-260608`.
 
 6. Validate the vendored SASE result.

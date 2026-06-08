@@ -17,7 +17,7 @@ non-test reason, not be the only justification for a symbol's existence.
 ## Current Behavior
 
 Pyvision scans tracked Python files outside `src/` (which includes the `tests/` tree) as legitimate **usage** sources.
-Today's flow in `tools/executable_pyvision-260608`:
+Today's flow in `tools/pyvision-260608`:
 
 - `_find_python_files(args.directory)` — collects **definition** files inside the analyzed tree, with `tests/` excluded
   (line 760).
@@ -83,7 +83,7 @@ it in the plan but don't expand scope.
   should NOT be reported as "stale pragma" — the pragma is still load-bearing. New test coverage.
 - **Vendored script policy**: Per `tools/AGENTS.md`, the canonical source is
   `~/.local/share/chezmoi/home/bin/executable_pyvision`. We must edit there, commit there (using the sase commit skill),
-  then re-vendor via `pyvendor`. We do **not** edit the `tools/executable_pyvision-260608` copy directly.
+  then re-vendor via `pyvendor`. We do **not** edit the `tools/pyvision-260608` copy directly.
 
 ## Status (as of 2026-05-12)
 
@@ -96,7 +96,7 @@ The chezmoi-side work is **already complete** and committed as `26cd5d7d`:
   `test_from_import_alias_usage_from_tracked_tests` to assert failure, an updated rejection message check, and new
   positive coverage for the mixed-references and "pragma not stale on test-only import" cases.
 
-The vendored copy in this repo (`tools/executable_pyvision-260608`) still has the **old** behavior. The remaining work
+The vendored copy in this repo (`tools/pyvision-260608`) still has the **old** behavior. The remaining work
 is everything in `sase_104`: re-vendor, doc updates, audit capture, and keeping `just check` green.
 
 ## Implementation Steps
@@ -140,9 +140,9 @@ Run `just check` (or whichever test runner chezmoi uses for `tests/bash/*.sh`) i
 
 ### 4. Re-vendor into sase_104
 
-Run `pyvendor` to refresh `tools/executable_pyvision-260608`. (If the date suffix rolls forward to today's date, update
+Run `pyvendor` to refresh `tools/pyvision-260608`. (If the date suffix rolls forward to today's date, update
 `Justfile` references and any documentation/agent-memory references to the old filename. Grep for
-`executable_pyvision-260608` first to enumerate the touch points — at minimum: `Justfile` lines 112 and 262.)
+`pyvision-260608` first to enumerate the touch points — at minimum: `Justfile` lines 112 and 262.)
 
 ### 5. Audit sase_104 for newly-unused public symbols
 
@@ -171,12 +171,12 @@ Use the existing `--epic-symbol <bead_id>(<symbol_name>)` escape hatch already w
    symbol. The recipe currently reads:
    ```
    _lint-pyvision: _setup
-       BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260608 src/sase
+       BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase
    ```
    becomes:
    ```
    _lint-pyvision: _setup
-       BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260608 src/sase \
+       BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
            --epic-symbol <bead>(<sym1>) \
            --epic-symbol <bead>(<sym2>) \
            ...
@@ -201,7 +201,7 @@ once captured.
 
 ### 7. Update documentation
 
-- `tools/AGENTS.md` `executable_pyvision-260608` section currently says: _"It scans tracked Python usage outside `src/`,
+- `tools/AGENTS.md` `pyvision-260608` section currently says: _"It scans tracked Python usage outside `src/`,
   including tests, so Python test references do not need pragmas."_ Rewrite to state the new contract: tests are scanned
   only for the private-symbol guard; public symbols require at least one non-test consumer.
 - Update the "How do I whitelist a symbol" bullet that mentions _"Pragmas must not point at test files; Python test

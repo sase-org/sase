@@ -11,7 +11,7 @@ The recent pyvision tightening made test-file references insufficient to keep pu
 right default for production code, but it over-applies to SASE-owned testing utilities: helper APIs that exist
 specifically for tests are expected to be imported only from `tests/`.
 
-The pyvision script is vendored into this repo as `tools/executable_pyvision-260608`, but `tools/AGENTS.md` says the
+The pyvision script is vendored into this repo as `tools/pyvision-260608`, but `tools/AGENTS.md` says the
 canonical source is `~/.local/share/chezmoi/home/bin/executable_pyvision`. Implementation must happen in chezmoi first,
 be tested there, and then be re-vendored into SASE with `pyvendor`.
 
@@ -76,7 +76,7 @@ After the chezmoi source is green:
 - Commit the chezmoi change using the required SASE commit workflow.
 - Run `chezmoi apply --force`.
 - Re-vendor pyvision into this repo with `pyvendor`.
-- If the date suffix changes from `executable_pyvision-260608`, update the `Justfile`, `tools/AGENTS.md`, and any
+- If the date suffix changes from `pyvision-260608`, update the `Justfile`, `tools/AGENTS.md`, and any
   current non-historical references that point at the vendored filename.
 
 ### 4. Convert the current SASE testing helper module into a package
