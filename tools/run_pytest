@@ -21,6 +21,8 @@ BROAD_TEST_VISUAL_PNG_MAX_DIFF_RATIO = "0.001"
 FAST_MARKER_EXPRESSION = "not slow"
 SLOW_MARKER_EXPRESSION = "slow"
 VISUAL_MARKER_EXPRESSION = "visual"
+INLINE_SNAPSHOT_OPTION = "--inline-snapshot"
+INLINE_SNAPSHOT_SERIAL_SHORTCUTS = frozenset({"--fix", "--review"})
 NON_PATH_VALUE_OPTIONS = frozenset(
     {
         "-k",
@@ -34,6 +36,7 @@ NON_PATH_VALUE_OPTIONS = frozenset(
         "--import-mode",
         "--color",
         "--capture",
+        INLINE_SNAPSHOT_OPTION,
         "--log-level",
     }
 )
@@ -116,15 +119,43 @@ def _worker_count() -> str:
     return str(min(os.cpu_count() or 1, 16))
 
 
+def _inline_snapshot_value_requires_serial(value: str) -> bool:
+    modes = [mode.strip() for mode in value.split(",") if mode.strip()]
+    if not modes:
+        return True
+    return any(mode != "disable" for mode in modes)
+
+
+def _requires_serial_pytest(args: list[str]) -> bool:
+    for index, arg in enumerate(args):
+        if arg in INLINE_SNAPSHOT_SERIAL_SHORTCUTS:
+            return True
+
+        if arg == INLINE_SNAPSHOT_OPTION:
+            if index + 1 >= len(args):
+                return True
+            if _inline_snapshot_value_requires_serial(args[index + 1]):
+                return True
+            continue
+
+        prefix = f"{INLINE_SNAPSHOT_OPTION}="
+        if arg.startswith(prefix) and _inline_snapshot_value_requires_serial(
+            arg.removeprefix(prefix)
+        ):
+            return True
+
+    return False
+
+
 def _pytest_command(mode: str, args: list[str]) -> list[str]:
     command = [
         sys.executable,
         "-m",
         "pytest",
-        "-n",
-        _worker_count(),
-        "--dist=loadfile",
     ]
+    if not _requires_serial_pytest(args):
+        command.extend(["-n", _worker_count(), "--dist=loadfile"])
+
     if mode == "slow":
         command.extend(["-m", SLOW_MARKER_EXPRESSION])
     elif mode == "visual":
