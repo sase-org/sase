@@ -378,42 +378,48 @@ def extract_prompt_directives(
                 expanded_list.append(raw_arg)
         expanded_multi[directive_name] = expanded_list
 
+    name_template: str | None = None
+    name_template_base: str | None = None
     name_indexed_template = False
     name_indexed_base: str | None = None
     raw_name = expanded_args.get("name")
     if raw_name:
         from sase.agent.names import (
-            InvalidIndexedAgentNameTemplateError,
-            is_indexed_agent_name_template,
-            validate_indexed_agent_name_template,
+            AgentNameTemplateError,
+            agent_name_template_base,
+            is_agent_name_template,
+            parse_agent_name_template,
         )
 
-        if is_indexed_agent_name_template(raw_name):
+        if is_agent_name_template(raw_name):
             if name_force_reuse:
                 raise DirectiveError(
-                    "Cannot combine forced name reuse with an indexed name template"
+                    "Cannot combine forced name reuse with an agent name template"
                 )
             try:
-                name_indexed_base = validate_indexed_agent_name_template(raw_name)
-            except InvalidIndexedAgentNameTemplateError as exc:
+                parse_agent_name_template(raw_name)
+                name_template_base = agent_name_template_base(raw_name)
+            except AgentNameTemplateError as exc:
                 raise DirectiveError(str(exc)) from exc
+            name_template = raw_name
             name_indexed_template = True
+            name_indexed_base = name_template_base
 
     if "wait" in expanded_multi:
         from sase.agent.names import (
-            IndexedAgentNameError,
-            is_indexed_agent_name_template,
-            require_latest_indexed_agent_name,
+            AgentNameTemplateError,
+            is_agent_name_template,
+            require_latest_agent_name_template,
         )
 
         resolved_waits: list[str] = []
         for raw_wait in expanded_multi["wait"]:
-            if not is_indexed_agent_name_template(raw_wait):
+            if not is_agent_name_template(raw_wait):
                 resolved_waits.append(raw_wait)
                 continue
             try:
-                resolved_waits.append(require_latest_indexed_agent_name(raw_wait))
-            except IndexedAgentNameError as exc:
+                resolved_waits.append(require_latest_agent_name_template(raw_wait))
+            except AgentNameTemplateError as exc:
                 raise DirectiveError(str(exc)) from exc
         expanded_multi["wait"] = resolved_waits
 
@@ -464,6 +470,8 @@ def extract_prompt_directives(
         name=expanded_args.get("name") or None,
         name_explicit=name_explicit,
         name_force_reuse=name_force_reuse,
+        name_template=name_template,
+        name_template_base=name_template_base,
         name_indexed_template=name_indexed_template,
         name_indexed_base=name_indexed_base,
         plan="plan" in expanded_args,

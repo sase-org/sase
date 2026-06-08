@@ -83,26 +83,54 @@ def test_name_backtick_arg_is_explicit() -> None:
     assert directives.name_explicit is True
 
 
-def test_name_indexed_template_colon_arg() -> None:
-    """%n:foo-@ is parsed as one indexed-template argument."""
+def test_name_template_colon_arg() -> None:
+    """%n:foo-@ is parsed as one template argument."""
     prompt = "%n:foo-@\nDo work"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do work"
     assert directives.name == "foo-@"
     assert directives.name_explicit is True
+    assert directives.name_template == "foo-@"
+    assert directives.name_template_base == "foo"
     assert directives.name_indexed_template is True
     assert directives.name_indexed_base == "foo"
 
 
-def test_name_indexed_template_paren_arg() -> None:
-    """%name(foo-@) is parsed as an indexed-template argument."""
+def test_name_template_paren_arg() -> None:
+    """%name(foo-@) is parsed as a template argument."""
     _, directives = extract_prompt_directives("%name(foo-@)\nDo work")
     assert directives.name == "foo-@"
+    assert directives.name_template == "foo-@"
+    assert directives.name_template_base == "foo"
     assert directives.name_indexed_template is True
     assert directives.name_indexed_base == "foo"
 
 
-def test_name_indexed_template_rejects_force_reuse() -> None:
+def test_name_template_rejects_force_reuse() -> None:
     prompt = "%name:!foo-@\nDo work"
     with pytest.raises(DirectiveError, match="forced name reuse"):
         extract_prompt_directives(prompt)
+
+
+def test_name_template_bare_marker_arg() -> None:
+    _, directives = extract_prompt_directives("%name:@\nDo work")
+    assert directives.name == "@"
+    assert directives.name_template == "@"
+    assert directives.name_template_base == "@"
+    assert directives.name_indexed_template is True
+
+
+def test_name_template_suffix_shape_arg() -> None:
+    _, directives = extract_prompt_directives("%name:@.cld\nDo work")
+    assert directives.name == "@.cld"
+    assert directives.name_template == "@.cld"
+    assert directives.name_template_base == "cld"
+    assert directives.name_indexed_template is True
+
+
+def test_name_template_middle_shape_arg() -> None:
+    _, directives = extract_prompt_directives("%name:research.@.final\nDo work")
+    assert directives.name == "research.@.final"
+    assert directives.name_template == "research.@.final"
+    assert directives.name_template_base == "research.final"
+    assert directives.name_indexed_template is True

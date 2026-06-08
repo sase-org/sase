@@ -218,4 +218,4 @@ def test_launch_mobile_text_dry_run_returns_concrete_indexed_name(
         {"schema_version": 1, "prompt": "%name:build-@\nDo work", "dry_run": True}
     )
 
-    assert payload["primary"]["name"] == "build-2"
+    assert payload["primary"]["name"] == "build-0"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Collection, Iterator
 from dataclasses import dataclass
 from functools import cache
@@ -66,6 +67,19 @@ def parse_agent_name_template(template: str) -> AgentNameTemplate:
         prefix=str(payload["prefix"]),
         suffix=str(payload["suffix"]),
     )
+
+
+def agent_name_template_base(template: str) -> str:
+    """Return a stable legacy reference base for *template*.
+
+    This is a compatibility helper for call sites that used the old
+    ``<base>-@`` template base as a display/context key. It is not used for
+    allocation semantics.
+    """
+    parse_agent_name_template(template)
+    base = template.replace(AGENT_NAME_TEMPLATE_MARKER, "")
+    base = re.sub(r"([.-])\1+", r"\1", base).strip(".-")
+    return base or template
 
 
 def render_agent_name_template(template: str, token: str) -> str:

@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.agent.names import get_next_auto_name
+from sase.agent.names import allocate_auto_names, get_next_auto_name
 
 from tests._agent_names_fixtures import DEAD_PID as _DEAD_PID
 from tests._agent_names_fixtures import make_agent as _make_agent
@@ -14,6 +14,29 @@ _AUTO_SINGLE_CHARS_BEFORE_M = "0123456789abcdefghijkl"
 
 
 class TestGetNextAutoName:
+    def test_delegates_to_template_allocator(self) -> None:
+        with patch(
+            "sase.agent.names._auto.allocate_agent_name_template",
+            return_value="delegated",
+        ) as allocate:
+            assert get_next_auto_name() == "delegated"
+
+        allocate.assert_called_once_with("@")
+
+    def test_batch_allocation_delegates_to_template_allocator(self) -> None:
+        reserved: set[str] = set()
+        with patch(
+            "sase.agent.names._auto.allocate_agent_name_template",
+            side_effect=["0", "1"],
+        ) as allocate:
+            assert allocate_auto_names(2, reserved=reserved) == ["0", "1"]
+
+        assert [call.args for call in allocate.call_args_list] == [("@",), ("@",)]
+        assert [call.kwargs for call in allocate.call_args_list] == [
+            {"reserved": reserved},
+            {"reserved": reserved},
+        ]
+
     def test_returns_0_when_no_agents(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "0"

@@ -73,11 +73,12 @@ def test_name_directive_rejects_reserved_family_separator_before_launch() -> Non
         validate_launch_name_requests(["%name:foo--bar\nDo work"])
 
 
-def test_name_directive_allows_indexed_template_before_launch(tmp_path: Path) -> None:
+def test_name_directive_allows_template_before_launch(tmp_path: Path) -> None:
     _make_agent(tmp_path, "foo-1")
 
     with patch.object(Path, "home", return_value=tmp_path):
         validate_launch_name_requests(["%name:foo-@\nDo work"])
+        validate_launch_name_requests(["%name:@.cld\nDo work"])
 
 
 def test_duplicate_indexed_templates_are_not_exact_name_collisions(
@@ -92,13 +93,22 @@ def test_direct_generated_family_name_remains_invalid() -> None:
         validate_launch_name_requests(["%name:foo--1\nDo work"])
 
 
-def test_forced_reuse_indexed_template_is_rejected() -> None:
+def test_template_rendering_rejects_reserved_family_separator() -> None:
+    with pytest.raises(AgentNameSyntaxError, match="foo--0"):
+        validate_launch_name_requests(["%name:foo--@\nDo work"])
+
+
+def test_forced_reuse_template_is_rejected() -> None:
     with pytest.raises(RuntimeError, match="forced reuse"):
         validate_launch_name_requests(["%name:!foo-@\nDo work"])
+    with pytest.raises(RuntimeError, match="forced reuse"):
+        validate_launch_name_requests(["%name:!@.cld\nDo work"])
 
 
-def test_force_reuse_owner_names_ignores_indexed_templates() -> None:
-    names = force_reuse_owner_names(["%name:!foo-@\nDo work", "%name:!bar\nMore"])
+def test_force_reuse_owner_names_ignores_templates() -> None:
+    names = force_reuse_owner_names(
+        ["%name:!foo-@\nDo work", "%name:!@.cld\nMore", "%name:!bar\nMore"]
+    )
 
     assert names == ["bar"]
 

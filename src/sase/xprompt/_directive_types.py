@@ -69,6 +69,8 @@ class PromptDirectives:
     name: str | None = None
     name_explicit: bool = False
     name_force_reuse: bool = False
+    name_template: str | None = None
+    name_template_base: str | None = None
     name_indexed_template: bool = False
     name_indexed_base: str | None = None
     plan: bool = False

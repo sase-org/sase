@@ -133,20 +133,18 @@ def extract_directives_and_write_meta(
         agent_vcs_provider = None
 
     with name_lock_context:
-        agent_name_from_indexed_template = False
-        if directives.name_explicit and directives.name_indexed_template and agent_name:
+        agent_name_from_template = False
+        if directives.name_explicit and directives.name_template and agent_name:
             from sase.agent.names import (
-                allocate_indexed_agent_name,
-                is_concrete_indexed_agent_name_for_template,
+                allocate_agent_name_template,
+                match_agent_name_template,
             )
 
-            if planned_name and is_concrete_indexed_agent_name_for_template(
-                planned_name, agent_name
-            ):
+            if planned_name and match_agent_name_template(agent_name, planned_name):
                 agent_name = planned_name
             else:
-                agent_name = allocate_indexed_agent_name(agent_name)
-            agent_name_from_indexed_template = True
+                agent_name = allocate_agent_name_template(agent_name)
+            agent_name_from_template = True
 
         planned_name_matches_resume = (
             planned_name is not None
@@ -158,7 +156,7 @@ def extract_directives_and_write_meta(
             and not auto_dismiss
             and (resume_name is None or planned_name_matches_resume)
         )
-        if agent_name_from_indexed_template:
+        if agent_name_from_template:
             pass
         elif not directives.name_explicit and planned_name_is_usable:
             agent_name = planned_name
@@ -210,7 +208,7 @@ def extract_directives_and_write_meta(
             agent_meta["plan"] = True
         if directives.tag:
             agent_meta["tag"] = directives.tag
-        if directives.name_indexed_template and directives.name:
+        if directives.name_template and directives.name:
             agent_meta["agent_name_template"] = directives.name
         sibling_repos = _sibling_repos_from_env()
         if sibling_repos:
@@ -227,10 +225,8 @@ def extract_directives_and_write_meta(
                 validate_user_agent_name,
             )
 
-            if (
-                directives.name_explicit
-                and not internal_agent_name_bypass_enabled(os.environ)
-                and not agent_name_from_indexed_template
+            if directives.name_explicit and not internal_agent_name_bypass_enabled(
+                os.environ
             ):
                 validate_user_agent_name(agent_name)
 

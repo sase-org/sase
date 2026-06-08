@@ -30,7 +30,7 @@ class _LaunchNameRequest:
 
     name: str
     force_reuse: bool
-    indexed_template: bool
+    name_template: bool
     prompt_index: int
 
 
@@ -57,13 +57,13 @@ class AgentNameReuseConfirmationRequiredError(_LaunchNameValidationError):
         )
 
 
-class _AgentNameIndexedTemplateError(_LaunchNameValidationError):
-    """Raised when indexed template syntax is invalid for launch preflight."""
+class _AgentNameTemplateError(_LaunchNameValidationError):
+    """Raised when template syntax is invalid for launch preflight."""
 
     def __init__(self, name: str, reason: str) -> None:
         self.name = name
         self.reason = reason
-        super().__init__(f"Invalid indexed agent name '{name}': {reason}")
+        super().__init__(f"Invalid agent name template '{name}': {reason}")
 
 
 class AgentNameSyntaxError(_LaunchNameValidationError):
@@ -103,12 +103,12 @@ def _explicit_launch_name_requests(prompts: list[str]) -> list[_LaunchNameReques
         parsed = _extract_explicit_name(prompt)
         if parsed is None:
             continue
-        name, force_reuse, indexed_template = parsed
+        name, force_reuse, name_template = parsed
         requests.append(
             _LaunchNameRequest(
                 name=name,
                 force_reuse=force_reuse,
-                indexed_template=indexed_template,
+                name_template=name_template,
                 prompt_index=i,
             )
         )
@@ -132,33 +132,36 @@ def validate_launch_name_requests(
 
     if not allow_reserved_family_separator_names:
         for request in requests:
-            if request.indexed_template:
+            if request.name_template:
                 continue
             validate_user_agent_name(request.name)
 
     from sase.agent.names import (
         agent_name_allocation_lock,
         is_name_reserved,
-        validate_indexed_agent_name_template,
+        parse_agent_name_template,
+        render_agent_name_template,
         lowest_name_suggestion,
     )
-    from sase.agent.names import InvalidIndexedAgentNameTemplateError
+    from sase.agent.names import InvalidAgentNameTemplateError
 
     seen: set[str] = set()
     with agent_name_allocation_lock():
         for request in requests:
-            if request.indexed_template:
+            if request.name_template:
                 if request.force_reuse:
-                    raise _AgentNameIndexedTemplateError(
+                    raise _AgentNameTemplateError(
                         request.name,
-                        "forced reuse cannot be combined with indexed templates",
+                        "forced reuse cannot be combined with templates",
                     )
                 try:
-                    validate_indexed_agent_name_template(request.name)
-                except InvalidIndexedAgentNameTemplateError as exc:
-                    raise _AgentNameIndexedTemplateError(
-                        request.name, exc.reason
-                    ) from exc
+                    parse_agent_name_template(request.name)
+                    if not allow_reserved_family_separator_names:
+                        validate_user_agent_name(
+                            render_agent_name_template(request.name, "0")
+                        )
+                except InvalidAgentNameTemplateError as exc:
+                    raise _AgentNameTemplateError(request.name, exc.reason) from exc
                 continue
             if request.force_reuse and not allow_force_reuse:
                 raise AgentNameReuseConfirmationRequiredError(request.name)
@@ -236,7 +239,7 @@ def force_reuse_owner_names(prompts: list[str]) -> list[str]:
     names: list[str] = []
     seen: set[str] = set()
     for request in _explicit_launch_name_requests(prompts):
-        if request.indexed_template:
+        if request.name_template:
             continue
         if request.force_reuse and request.name not in seen:
             names.append(request.name)
@@ -262,7 +265,7 @@ def _extract_explicit_name(prompt: str) -> tuple[str, bool, bool] | None:
     from sase.xprompt._disabled_regions import protect_disabled_regions
     from sase.xprompt._fenced_blocks import protect_fenced_blocks
     from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
-    from sase.agent.names import is_indexed_agent_name_template
+    from sase.agent.names import is_agent_name_template
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
@@ -296,7 +299,7 @@ def _extract_explicit_name(prompt: str) -> tuple[str, bool, bool] | None:
         name = value[1:] if force_reuse else value
         if "#" in name or not name:
             return None
-        return name, force_reuse, is_indexed_agent_name_template(name)
+        return name, force_reuse, is_agent_name_template(name)
     return None
 
 

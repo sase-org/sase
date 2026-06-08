@@ -247,13 +247,13 @@ class TestExtractDirectivesAutoDismiss:
     def test_indexed_name_template_allocates_concrete_name(
         self, tmp_path: Path
     ) -> None:
-        make_agent(tmp_path, "proj", "run1", "build-1")
+        make_agent(tmp_path, "proj", "run1", "build-0")
 
         with patch.object(Path, "home", return_value=tmp_path):
             result = _run_extract(tmp_path, prompt="%name:build-@\nDo work")
 
-        assert result["info"].name == "build-2"
-        assert result["meta"]["name"] == "build-2"
+        assert result["info"].name == "build-1"
+        assert result["meta"]["name"] == "build-1"
         assert result["meta"]["agent_name_template"] == "build-@"
 
     def test_indexed_name_template_uses_matching_planned_name(
@@ -280,8 +280,34 @@ class TestExtractDirectivesAutoDismiss:
                 prompt="%name:build-@\nDo work",
             )
 
-        assert result["info"].name == "build-1"
-        assert result["meta"]["name"] == "build-1"
+        assert result["info"].name == "build-0"
+        assert result["meta"]["name"] == "build-0"
+
+    def test_agent_name_template_suffix_shape_uses_matching_planned_name(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                planned_name="7.cld",
+                prompt="%name:@.cld\nDo work",
+            )
+
+        assert result["info"].name == "7.cld"
+        assert result["meta"]["name"] == "7.cld"
+        assert result["meta"]["agent_name_template"] == "@.cld"
+
+    def test_agent_name_template_suffix_shape_falls_back_without_planned_name(
+        self, tmp_path: Path
+    ) -> None:
+        make_agent(tmp_path, "proj", "run1", "0.cld")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(tmp_path, prompt="%name:@.cld\nDo work")
+
+        assert result["info"].name == "1.cld"
+        assert result["meta"]["name"] == "1.cld"
+        assert result["meta"]["agent_name_template"] == "@.cld"
 
     def test_indexed_wait_template_persists_concrete_latest_name(
         self, tmp_path: Path
@@ -296,10 +322,23 @@ class TestExtractDirectivesAutoDismiss:
         assert result["meta"]["wait_for"] == ["build-3"]
         assert result["meta"]["name"] == "build-3.w1"
 
+    def test_wait_template_suffix_shape_persists_concrete_latest_name(
+        self, tmp_path: Path
+    ) -> None:
+        make_agent(tmp_path, "proj", "run1", "0.cld")
+        make_agent(tmp_path, "proj", "run2", "1.cld")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(tmp_path, prompt="%wait:@.cld\nDo work")
+
+        assert result["info"].wait_names == ["1.cld"]
+        assert result["meta"]["wait_for"] == ["1.cld"]
+        assert result["meta"]["name"] == "1.cld.w1"
+
     def test_indexed_wait_resolves_before_same_segment_indexed_name(
         self, tmp_path: Path
     ) -> None:
-        make_agent(tmp_path, "proj", "run1", "build-1")
+        make_agent(tmp_path, "proj", "run1", "build-0")
 
         with patch.object(Path, "home", return_value=tmp_path):
             result = _run_extract(
@@ -307,9 +346,9 @@ class TestExtractDirectivesAutoDismiss:
                 prompt="%wait:build-@\n%name:build-@\nDo work",
             )
 
-        assert result["info"].wait_names == ["build-1"]
-        assert result["meta"]["wait_for"] == ["build-1"]
-        assert result["meta"]["name"] == "build-2"
+        assert result["info"].wait_names == ["build-0"]
+        assert result["meta"]["wait_for"] == ["build-0"]
+        assert result["meta"]["name"] == "build-1"
 
     def test_unnamed_auto_dismiss_agent_writes_basic_metadata(
         self, tmp_path: Path

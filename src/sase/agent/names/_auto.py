@@ -6,14 +6,12 @@ child-name reservation that backs ``%r:N`` repeat batches.
 
 import json
 import re
-from collections.abc import Iterator
-
 from sase.agent.names._common import (
     extract_auto_name_prefix,
     is_process_alive,
 )
 from sase.agent.names._registry import get_reserved_agent_names
-from sase.agent.names._templates import iter_agent_name_template_tokens
+from sase.agent.names._templates import allocate_agent_name_template
 from sase.core.paths import sase_projects_dir
 
 
@@ -23,8 +21,7 @@ def get_next_auto_name() -> str:
     Uses the durable name registry so every existing agent state keeps its
     slot reserved until the agent is explicitly wiped/deleted.
     """
-    used = get_reserved_agent_names()
-    return _next_available_name(used)
+    return allocate_agent_name_template("@")
 
 
 def allocate_auto_names(count: int, *, reserved: set[str] | None = None) -> list[str]:
@@ -34,8 +31,7 @@ def allocate_auto_names(count: int, *, reserved: set[str] | None = None) -> list
     used = get_reserved_agent_names() if reserved is None else reserved
     names: list[str] = []
     for _ in range(count):
-        name = _next_available_name(used)
-        used.add(name)
+        name = allocate_agent_name_template("@", reserved=used)
         names.append(name)
     return names
 
@@ -313,20 +309,6 @@ def _load_dismissed_suffixes() -> set[str]:
         return set()
 
     return {raw_suffix for _, _, raw_suffix in dismissed if raw_suffix is not None}
-
-
-def _name_sequence() -> Iterator[str]:
-    """Yield auto names in shortlex order: 0, ..., z, 00, 01, ..."""
-    yield from iter_agent_name_template_tokens()
-
-
-def _next_available_name(used: set[str]) -> str:
-    """Return the first name from the shortlex auto sequence not in *used*."""
-    for name in _name_sequence():
-        if name not in used:
-            return name
-    # Unreachable — infinite generator
-    raise AssertionError("unreachable")
 
 
 def get_active_child_names(base: str) -> set[str]:

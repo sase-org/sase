@@ -1,16 +1,28 @@
-"""Indexed agent-name template helpers.
+"""Compatibility wrappers for legacy indexed agent-name templates.
 
-``<base>-@`` is a controlled template syntax. It allocates and resolves
-concrete names of the form ``<base>-<N>``. The base may contain ordinary
-single hyphens, but it cannot contain the reserved agent-family separator.
+The old public API was named around terminal ``<base>-@`` templates. The
+runtime now treats any single ``@`` marker as an agent-name template, so these
+helpers delegate to the generic template implementation while keeping the
+legacy names importable during the migration.
 """
 
 from __future__ import annotations
 
-import re
 from collections.abc import Collection
 
 from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+from sase.agent.names._templates import (
+    AgentNameTemplateError,
+    AgentNameTemplateNotFoundError,
+    InvalidAgentNameTemplateError,
+    agent_name_template_base,
+    allocate_agent_name_template,
+    is_agent_name_template,
+    latest_agent_name_template,
+    match_agent_name_template,
+    parse_agent_name_template,
+    render_agent_name_template,
+)
 
 INDEXED_AGENT_NAME_MARKER = "-@"
 
@@ -37,27 +49,22 @@ class IndexedAgentNameNotFoundError(IndexedAgentNameError):
 
 
 def is_indexed_agent_name_template(value: str) -> bool:
-    """Return whether *value* uses the strict terminal ``-@`` marker."""
-    return value.endswith(INDEXED_AGENT_NAME_MARKER)
+    """Return whether *value* is a single-marker agent-name template."""
+    return is_agent_name_template(value)
 
 
 def indexed_agent_name_base(template: str) -> str:
-    """Return the validated base portion for a ``<base>-@`` template."""
-    if not is_indexed_agent_name_template(template):
+    """Return a stable compatibility base for an agent-name template."""
+    try:
+        parse_agent_name_template(template)
+        rendered = render_agent_name_template(template, "0")
+    except AgentNameTemplateError as exc:
+        raise InvalidIndexedAgentNameTemplateError(template, _reason(exc)) from exc
+    if AGENT_FAMILY_SEPARATOR in rendered:
         raise InvalidIndexedAgentNameTemplateError(
-            template, "expected a terminal '-@' marker"
+            template, f"rendered name cannot contain '{AGENT_FAMILY_SEPARATOR}'"
         )
-
-    base = template[: -len(INDEXED_AGENT_NAME_MARKER)]
-    if not base:
-        raise InvalidIndexedAgentNameTemplateError(template, "base cannot be empty")
-    if AGENT_FAMILY_SEPARATOR in base:
-        raise InvalidIndexedAgentNameTemplateError(
-            template, f"base cannot contain '{AGENT_FAMILY_SEPARATOR}'"
-        )
-    if "@" in base:
-        raise InvalidIndexedAgentNameTemplateError(template, "base cannot contain '@'")
-    return base
+    return agent_name_template_base(template)
 
 
 def validate_indexed_agent_name_template(template: str) -> str:
@@ -70,20 +77,11 @@ def allocate_indexed_agent_name(
     *,
     reserved: set[str] | None = None,
 ) -> str:
-    """Allocate the lowest available concrete name for *template*.
-
-    The provided reservation set is mutated in place. When omitted, the durable
-    agent-name registry supplies the initial reservations.
-    """
-    base = indexed_agent_name_base(template)
-    pool = _reserved_names() if reserved is None else reserved
-    n = 1
-    while True:
-        candidate = f"{base}-{n}"
-        if candidate not in pool:
-            pool.add(candidate)
-            return candidate
-        n += 1
+    """Allocate the lowest available concrete name for *template*."""
+    try:
+        return allocate_agent_name_template(template, reserved=reserved)
+    except InvalidAgentNameTemplateError as exc:
+        raise InvalidIndexedAgentNameTemplateError(template, exc.reason) from exc
 
 
 def latest_indexed_agent_name(
@@ -91,25 +89,19 @@ def latest_indexed_agent_name(
     *,
     names: Collection[str] | None = None,
 ) -> str | None:
-    """Return the highest existing ``<base>-<N>`` name for *template*."""
-    base = indexed_agent_name_base(template)
-    pool = _reserved_names() if names is None else names
-    pattern = re.compile(rf"^{re.escape(base)}-([1-9][0-9]*)$")
-    latest: tuple[int, str] | None = None
-    for name in pool:
-        match = pattern.match(name)
-        if match is None:
-            continue
-        index = int(match.group(1))
-        if latest is None or index > latest[0]:
-            latest = (index, name)
-    return None if latest is None else latest[1]
+    """Return the highest existing concrete name for *template*."""
+    try:
+        return latest_agent_name_template(template, names=names)
+    except InvalidAgentNameTemplateError as exc:
+        raise InvalidIndexedAgentNameTemplateError(template, exc.reason) from exc
 
 
 def is_concrete_indexed_agent_name_for_template(name: str, template: str) -> bool:
-    """Return whether *name* is a concrete ``<base>-<N>`` for *template*."""
-    base = indexed_agent_name_base(template)
-    return re.match(rf"^{re.escape(base)}-[1-9][0-9]*$", name) is not None
+    """Return whether *name* is a concrete rendering for *template*."""
+    try:
+        return match_agent_name_template(template, name) is not None
+    except InvalidAgentNameTemplateError:
+        return False
 
 
 def require_latest_indexed_agent_name(
@@ -118,7 +110,12 @@ def require_latest_indexed_agent_name(
     names: Collection[str] | None = None,
 ) -> str:
     """Return the latest concrete name for *template* or raise a typed error."""
-    latest = latest_indexed_agent_name(template, names=names)
+    try:
+        latest = latest_agent_name_template(template, names=names)
+    except AgentNameTemplateNotFoundError as exc:
+        raise IndexedAgentNameNotFoundError(template) from exc
+    except InvalidAgentNameTemplateError as exc:
+        raise InvalidIndexedAgentNameTemplateError(template, exc.reason) from exc
     if latest is None:
         raise IndexedAgentNameNotFoundError(template)
     return latest
@@ -131,7 +128,5 @@ def resolve_indexed_agent_name_reference(name: str) -> str:
     return require_latest_indexed_agent_name(name)
 
 
-def _reserved_names() -> set[str]:
-    from sase.agent.names._registry import get_reserved_agent_names
-
-    return get_reserved_agent_names()
+def _reason(exc: AgentNameTemplateError) -> str:
+    return getattr(exc, "reason", str(exc))

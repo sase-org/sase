@@ -9,6 +9,7 @@ import pytest
 from sase.agent.names import (
     AgentNameTemplateNotFoundError,
     InvalidAgentNameTemplateError,
+    agent_name_template_base,
     allocate_agent_name_template,
     compare_agent_name_template_tokens,
     is_agent_name_template,
@@ -33,6 +34,13 @@ def test_detects_exactly_one_marker() -> None:
 def test_parse_rejects_multiple_markers() -> None:
     with pytest.raises(InvalidAgentNameTemplateError, match="exactly one"):
         parse_agent_name_template("build-@-@")
+
+
+def test_template_base_is_stable_reference_key() -> None:
+    assert agent_name_template_base("@") == "@"
+    assert agent_name_template_base("build-@") == "build"
+    assert agent_name_template_base("@.cld") == "cld"
+    assert agent_name_template_base("research.@.final") == "research.final"
 
 
 def test_renders_template_shapes() -> None:

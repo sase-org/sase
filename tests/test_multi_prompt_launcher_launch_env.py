@@ -65,13 +65,13 @@ def test_launch_multi_prompt_passes_scoped_output_variable_upstreams(
                 / "ace-run"
                 / "20260501120000"
             ),
-            "name": "build-1",
+            "name": "build-0",
             "agent_key": "build",
             "project_name": "test",
             "workflow_timestamp": "260501_120000",
         }
     ]
-    assert second_env["SASE_AGENT_PLANNED_NAME"] == "build-1.w1"
+    assert second_env["SASE_AGENT_PLANNED_NAME"] == "build-0.w1"
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
 

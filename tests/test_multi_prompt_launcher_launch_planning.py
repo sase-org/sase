@@ -52,11 +52,11 @@ def test_launch_multi_prompt_resolves_indexed_wait_to_planned_predecessor(
         )
 
     calls = mock_spawn.call_args_list
-    assert [result.agent_name for result in results] == ["build-1", "build-1.w1"]
+    assert [result.agent_name for result in results] == ["build-0", "build-0.w1"]
     assert calls[0].kwargs["prompt"] == "%n:build-@\nBuild"
-    assert calls[1].kwargs["prompt"] == "%w:build-1\nReview"
-    assert calls[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-1"
-    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-1.w1"
+    assert calls[1].kwargs["prompt"] == "%w:build-0\nReview"
+    assert calls[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-0"
+    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-0.w1"
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
 
@@ -96,11 +96,11 @@ def test_launch_multi_prompt_allocates_distinct_indexed_names_per_segment(
             vcs_ref=None,
         )
 
-    assert [result.agent_name for result in results] == ["build-1", "build-2"]
+    assert [result.agent_name for result in results] == ["build-0", "build-1"]
     assert [
         call.kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
         for call in mock_spawn.call_args_list
-    ] == ["build-1", "build-2"]
+    ] == ["build-0", "build-1"]
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
 
@@ -146,11 +146,11 @@ def test_launch_multi_prompt_resolves_indexed_resume_to_planned_predecessor(
         )
 
     assert mock_spawn.call_args_list[1].kwargs["prompt"] == (
-        "#fork:build-1\n#resume:build-1\nReview"
+        "#fork:build-0\n#resume:build-0\nReview"
     )
     assert (
         mock_spawn.call_args_list[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
-        == "build-1.f1"
+        == "build-0.f1"
     )
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
@@ -187,10 +187,10 @@ def test_launch_multi_prompt_same_segment_indexed_wait_uses_existing_latest(
             vcs_ref=None,
         )
 
-    assert [result.agent_name for result in results] == ["build-2"]
+    assert [result.agent_name for result in results] == ["build-0"]
     assert mock_spawn.call_args.kwargs["prompt"] == "%w:build-1\n%n:build-@\nDo work"
     assert (
-        mock_spawn.call_args.kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-2"
+        mock_spawn.call_args.kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-0"
     )
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
@@ -243,10 +243,10 @@ def test_launch_agents_from_cwd_resolves_indexed_refs_after_multi_xprompt_expans
     ):
         results = launch_agents_from_cwd("#!ix")
 
-    assert [result.agent_name for result in results] == ["flow-1", None]
+    assert [result.agent_name for result in results] == ["flow-0", None]
     assert [call.kwargs["prompt"] for call in mock_spawn.call_args_list] == [
         "%n:flow-@\n#git:home Build",
-        "%w:flow-1\n#git:home Review",
+        "%w:flow-0\n#git:home Review",
     ]
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
@@ -366,12 +366,12 @@ def test_concurrent_multi_prompt_batches_reserve_distinct_indexed_names(
         batch_names = list(pool.map(lambda _i: launch_batch(), range(2)))
 
     assert {names[0] for names in batch_names} == {
+        "research.cdx-0",
         "research.cdx-1",
-        "research.cdx-2",
     }
     assert {names[1] for names in batch_names} == {
+        "research.final-0",
         "research.final-1",
-        "research.final-2",
     }
 
     call_data = [
