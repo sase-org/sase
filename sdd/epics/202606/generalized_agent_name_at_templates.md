@@ -1,5 +1,7 @@
 ---
 create_time: 2026-06-08 15:01:44
+bead_id: sase-4g
+tier: epic
 status: wip
 prompt: sdd/prompts/202606/generalized_agent_name_at_templates.md
 ---
