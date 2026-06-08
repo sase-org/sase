@@ -6,6 +6,8 @@ from pathlib import Path
 from threading import Barrier, Lock
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from tests._agent_names_fixtures import make_agent
 from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planned_name
 from sase.agent.names import lookup_registered_name
@@ -109,6 +111,50 @@ def test_launch_multi_prompt_allocates_distinct_indexed_names_per_segment(
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch(
+    "sase.running_field.claim_next_axe_workspace",
+    side_effect=[100, 101],
+)
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_allocates_distinct_suffix_shape_template_names(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Generic suffix-shape templates allocate by rendering template tokens."""
+    mock_spawn.side_effect = spawn_result_with_planned_name
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        results = launch_multi_prompt_agents(
+            segments=["%n:@.cld\nFirst", "%n:@.cld\nSecond"],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    assert [result.agent_name for result in results] == ["0.cld", "1.cld"]
+    assert [
+        call.kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
+        for call in mock_spawn.call_args_list
+    ] == ["0.cld", "1.cld"]
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
 @patch(
     "sase.running_field.claim_next_axe_workspace",
@@ -152,6 +198,100 @@ def test_launch_multi_prompt_resolves_indexed_resume_to_planned_predecessor(
         mock_spawn.call_args_list[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
         == "build-0.f1"
     )
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.claim_next_axe_workspace",
+    side_effect=[100, 101],
+)
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_resolves_middle_template_wait_to_planned_name(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Middle-marker wait refs resolve to earlier planned concrete names."""
+    mock_spawn.side_effect = spawn_result_with_planned_name
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        results = launch_multi_prompt_agents(
+            segments=[
+                "%n:research.@.final\nFinal",
+                "%w:research.@.final\nReview",
+            ],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    assert [result.agent_name for result in results] == [
+        "research.0.final",
+        "research.0.final.w1",
+    ]
+    assert mock_spawn.call_args_list[1].kwargs["prompt"] == (
+        "%w:research.0.final\nReview"
+    )
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.claim_next_axe_workspace",
+    side_effect=[100, 101],
+)
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_template_refs_prefer_planned_over_existing_latest(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Current-batch planned names win over a higher existing template token."""
+    make_agent(tmp_path, "proj", "run1", "build-z")
+    mock_spawn.side_effect = spawn_result_with_planned_name
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        launch_multi_prompt_agents(
+            segments=["%n:build-@\nBuild", "%w:build-@\nReview"],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "%w:build-0\nReview"
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
 
@@ -295,6 +435,27 @@ def test_launch_multi_prompt_plans_wait_derived_sibling_names(
     assert mock_wait.call_count == 0
 
 
+def test_template_group_allocates_shared_token_for_generic_shapes(
+    tmp_path: Path,
+) -> None:
+    """Callers can group distinct templates that should share one token."""
+    make_agent(tmp_path, "proj", "existing", "0.cdx")
+    artifacts_root = tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run"
+    allocator = PlannedNameAllocator()
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        names = allocator.planned_names_for_template_group(
+            ["@.cld", "@.cdx"],
+            artifacts_dirs=[
+                artifacts_root / "260501120000",
+                artifacts_root / "260501120001",
+            ],
+            template_group="fanout",
+        )
+
+    assert names == ["1.cld", "1.cdx"]
+
+
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.running_field.get_workspace_directory")
@@ -403,6 +564,45 @@ def test_concurrent_multi_prompt_batches_reserve_distinct_indexed_names(
         suffix = name.split("research.final-", 1)[1].split(".", 1)[0]
         assert prompt.startswith(f"#fork:research.final-{suffix}\n")
     assert mock_wait.call_count == 0
+
+
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+def test_unstarted_template_reservations_are_released_on_later_spawn_failure(
+    mock_timestamp: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """A later failed slot releases reservations for children that never started."""
+    del mock_timestamp
+
+    spawn_count = 0
+
+    def spawn_or_fail(**kwargs: object):
+        nonlocal spawn_count
+        spawn_count += 1
+        if spawn_count == 2:
+            raise RuntimeError("boom")
+        return spawn_result_with_planned_name(**kwargs)
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch("sase.agent.launcher.spawn_agent_subprocess", side_effect=spawn_or_fail),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
+        launch_multi_prompt_agents(
+            segments=["%name:build-@\nFirst", "%name:build-@\nSecond"],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=True,
+            vcs_ref=None,
+        )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        first = lookup_registered_name("build-0")
+        assert first is not None
+        assert first["reservation_kind"] == "planned"
+        assert lookup_registered_name("build-1") is None
 
 
 def test_planned_auto_names_reserve_registry_slots_from_stale_snapshots(

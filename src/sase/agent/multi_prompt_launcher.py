@@ -190,6 +190,7 @@ def _spawn_segments_into(
     from sase.agent.launch_timing import LaunchTimingRecorder
     from sase.agent.launch_executor import (
         LaunchExecutionContext,
+        LaunchExecutionRecord,
         execute_launch_plan,
     )
     from sase.core.agent_launch_facade import plan_fake_fanout
@@ -233,7 +234,7 @@ def _spawn_segments_into(
             with timer.stage("prompt_normalize", segment_index=i):
                 segment = normalize_default_vcs_workflow_segment(segment)
         with timer.stage("wait_resume_rewrite", segment_index=i):
-            segment = name_allocator.rewrite_indexed_references(segment)
+            segment = name_allocator.rewrite_template_references(segment)
             segment_has_bare_wait = _has_bare_wait_directive(segment)
             segment_has_bare_resume = _has_bare_resume_reference(segment)
             if previous_agent_name:
@@ -386,6 +387,19 @@ def _spawn_segments_into(
                 ) -> str | None:
                     return files_by_slot[slot.slot_index]  # type: ignore[attr-defined]
 
+                def _on_slot_executed(
+                    record: LaunchExecutionRecord,
+                    planned_names_by_slot: dict[int, str | None] = planned_names,
+                    artifact_dirs_by_slot: dict[int, Path] = slot_artifacts_dirs,
+                ) -> None:
+                    slot_index = record.slot.slot_index
+                    name_allocator.mark_template_reservation_committed(
+                        planned_names_by_slot.get(slot_index),
+                        artifact_dirs_by_slot.get(slot_index),
+                    )
+                    if on_agent_spawned is not None:
+                        on_agent_spawned()
+
                 execution = execute_launch_plan(
                     plan,
                     slot_contexts[0],
@@ -394,24 +408,16 @@ def _spawn_segments_into(
                     slot_local_xprompts_file=_slot_local_xprompts_file,
                     extra_env=extra_env,
                     timestamp_allocator=timestamp_allocator,
-                    on_slot_executed=(
-                        None
-                        if on_agent_spawned is None
-                        else lambda _record: on_agent_spawned()
-                    ),
+                    on_slot_executed=_on_slot_executed,
                     allow_reserved_family_separator_names=allow_reserved_family_separator_names,
                 )
         except Exception:
-            name_allocator.release_uncommitted_indexed_reservations()
+            name_allocator.release_uncommitted_template_reservations()
             raise
 
         results.extend(execution.results)
         for record in execution.records:
             planned_name = planned_names.get(record.slot.slot_index)
-            name_allocator.mark_indexed_reservation_committed(
-                planned_name,
-                slot_artifacts_dirs.get(record.slot.slot_index),
-            )
             explicit_template = explicit_templates.get(record.slot.slot_index)
             if (
                 planned_name is None
@@ -419,11 +425,15 @@ def _spawn_segments_into(
                 or segment_explicit_name is None
             ):
                 continue
+            from sase.agent.names import is_agent_name_template
+
             upstreams.append(
                 build_agent_var_upstream_record(
                     agent_name=planned_name,
                     agent_name_template=(
-                        explicit_template if explicit_template.endswith("-@") else None
+                        explicit_template
+                        if is_agent_name_template(explicit_template)
+                        else None
                     ),
                     project_name=record.request.project_name,
                     workflow_timestamp=record.request.timestamp,

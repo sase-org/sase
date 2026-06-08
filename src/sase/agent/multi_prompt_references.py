@@ -4,7 +4,7 @@ import json
 import os
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,6 +15,13 @@ _PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
 class _PlannedNameReservation:
     name: str
     artifacts_dir: str
+
+
+@dataclass(frozen=True)
+class _TemplateGroup:
+    """Token-sharing group for related agent-name templates."""
+
+    key: str
 
 
 def wait_for_agent_naming(artifacts_dir: str, timeout: float = 30) -> str | None:
@@ -242,37 +249,44 @@ def _has_non_resume_xprompt_reference(prompt: str) -> bool:
 
 
 class PlannedNameAllocator:
-    """Allocate parent-side names for multi-prompt wait rewrites."""
+    """Allocate parent-side names and resolve template references."""
 
     def __init__(self) -> None:
         self._auto_reserved: set[str] | None = None
         self._resume_reserved: dict[str, set[str]] = {}
         self._wait_reserved: dict[str, set[str]] = {}
-        self._indexed_reserved: dict[str, set[str]] = {}
-        self._indexed_latest: dict[str, str] = {}
-        self._indexed_group_indexes: dict[str, int] = {}
+        self._template_reserved: set[str] | None = None
+        self._template_latest: dict[str, str] = {}
+        self._template_group_tokens: dict[str, str] = {}
         self._planned_reservations: list[_PlannedNameReservation] = []
         self._committed_reservations: set[_PlannedNameReservation] = set()
 
+    def rewrite_template_references(self, prompt: str) -> str:
+        """Resolve template wait/resume refs against this launch's plan."""
+        prompt = self._rewrite_template_wait_directives(prompt)
+        return self._rewrite_template_resume_references(prompt)
+
     def rewrite_indexed_references(self, prompt: str) -> str:
-        """Resolve indexed wait/resume refs against this launch's plan."""
-        prompt = self._rewrite_indexed_wait_directives(prompt)
-        return self._rewrite_indexed_resume_references(prompt)
+        """Compatibility alias for legacy indexed-template call sites."""
+        return self.rewrite_template_references(prompt)
 
     def planned_name_for_prompt(
         self,
         prompt: str,
         *,
         artifacts_dir: str | Path | None = None,
+        template_group: str | None = None,
     ) -> tuple[str | None, str | None]:
         """Return ``(name, env_value)`` for a prompt, if safely knowable."""
         explicit_name = extract_static_name_directive(prompt)
         if explicit_name is not None:
-            from sase.agent.names import is_indexed_agent_name_template
+            from sase.agent.names import is_agent_name_template
 
-            if is_indexed_agent_name_template(explicit_name):
-                name = self._allocate_indexed_name(
-                    explicit_name, artifacts_dir=artifacts_dir
+            if is_agent_name_template(explicit_name):
+                name = self._allocate_template_name(
+                    explicit_name,
+                    artifacts_dir=artifacts_dir,
+                    template_group=template_group,
                 )
                 return name, name
             return explicit_name, None
@@ -334,7 +348,71 @@ class PlannedNameAllocator:
                     break
         return name, name
 
-    def _rewrite_indexed_wait_directives(self, prompt: str) -> str:
+    def planned_names_for_template_group(
+        self,
+        templates: Sequence[str],
+        *,
+        artifacts_dirs: Sequence[str | Path | None] | None = None,
+        template_group: str | None = None,
+    ) -> list[str]:
+        """Allocate one shared token across a known group of templates."""
+        if not templates:
+            return []
+        if artifacts_dirs is None:
+            artifacts_dirs = [None] * len(templates)
+        if len(artifacts_dirs) != len(templates):
+            raise ValueError("artifacts_dirs must match templates length")
+
+        from sase.agent.names import (
+            agent_name_allocation_lock,
+            get_reserved_agent_names,
+            iter_agent_name_template_tokens,
+            render_agent_name_template,
+        )
+
+        group = _normalize_template_group(template_group, templates[0])
+        with agent_name_allocation_lock():
+            if self._template_reserved is None:
+                self._template_reserved = get_reserved_agent_names()
+            reserved = self._template_reserved
+
+            existing_token = self._template_group_tokens.get(group.key)
+            if existing_token is not None:
+                candidates = [
+                    render_agent_name_template(template, existing_token)
+                    for template in templates
+                ]
+                if (
+                    len(set(candidates)) == len(candidates)
+                    and not any(candidate in reserved for candidate in candidates)
+                    and self._reserve_planned_names(candidates, artifacts_dirs)
+                ):
+                    reserved.update(candidates)
+                    for template, candidate in zip(templates, candidates, strict=True):
+                        self._template_latest[template] = candidate
+                    return candidates
+                reserved.update(candidates)
+
+            for token in iter_agent_name_template_tokens():
+                candidates = [
+                    render_agent_name_template(template, token)
+                    for template in templates
+                ]
+                if len(set(candidates)) != len(candidates):
+                    continue
+                if any(candidate in reserved for candidate in candidates):
+                    continue
+                if not self._reserve_planned_names(candidates, artifacts_dirs):
+                    reserved.update(candidates)
+                    continue
+                reserved.update(candidates)
+                self._template_group_tokens[group.key] = token
+                for template, candidate in zip(templates, candidates, strict=True):
+                    self._template_latest[template] = candidate
+                return candidates
+        raise AssertionError("unreachable")
+
+    def _rewrite_template_wait_directives(self, prompt: str) -> str:
         if "%" not in prompt:
             return prompt
 
@@ -362,7 +440,7 @@ class PlannedNameAllocator:
 
             colon_arg = match.group(3)
             if colon_arg is not None:
-                resolved_args = self._resolve_indexed_arg_list(
+                resolved_args = self._resolve_template_arg_list(
                     _unquote_backtick_arg(colon_arg).split(",")
                 )
                 if resolved_args is None:
@@ -385,7 +463,7 @@ class PlannedNameAllocator:
                 continue
             inner = protected[paren_start + 1 : paren_end]
             positional_args, _ = parse_args(inner)
-            resolved_args = self._resolve_indexed_arg_list(list(positional_args))
+            resolved_args = self._resolve_template_arg_list(list(positional_args))
             if resolved_args is None:
                 continue
             replacements.append(
@@ -402,7 +480,7 @@ class PlannedNameAllocator:
         rewritten = unprotect_disabled_regions(rewritten, disabled)
         return unprotect_fenced_blocks(rewritten, fenced)
 
-    def _rewrite_indexed_resume_references(self, prompt: str) -> str:
+    def _rewrite_template_resume_references(self, prompt: str) -> str:
         if "#fork" not in prompt and "#resume" not in prompt:
             return prompt
 
@@ -426,7 +504,7 @@ class PlannedNameAllocator:
             kind = match.group("kind")
             colon = match.group("colon")
             if colon is not None:
-                resolved = self._resolve_indexed_arg(_unquote_backtick_arg(colon))
+                resolved = self._resolve_template_arg(_unquote_backtick_arg(colon))
                 if resolved is not None:
                     replacements.append(
                         (match.start(), match.end(), f"#{kind}:{resolved}")
@@ -443,7 +521,7 @@ class PlannedNameAllocator:
             positional_args, _ = parse_args(inner)
             if not positional_args:
                 continue
-            resolved = self._resolve_indexed_arg(positional_args[0])
+            resolved = self._resolve_template_arg(positional_args[0])
             if resolved is not None:
                 replacements.append(
                     (match.start(), paren_end + 1, f"#{kind}:{resolved}")
@@ -455,11 +533,11 @@ class PlannedNameAllocator:
         rewritten = unprotect_disabled_regions(rewritten, disabled)
         return unprotect_fenced_blocks(rewritten, fenced)
 
-    def _resolve_indexed_arg_list(self, args: list[str]) -> list[str] | None:
+    def _resolve_template_arg_list(self, args: list[str]) -> list[str] | None:
         resolved: list[str] = []
         changed = False
         for arg in args:
-            value = self._resolve_indexed_arg(arg)
+            value = self._resolve_template_arg(arg)
             if value is None:
                 resolved.append(arg)
             else:
@@ -467,14 +545,14 @@ class PlannedNameAllocator:
                 changed = True
         return resolved if changed else None
 
-    def _resolve_indexed_arg(self, arg: str) -> str | None:
-        from sase.agent.names import is_indexed_agent_name_template
+    def _resolve_template_arg(self, arg: str) -> str | None:
+        from sase.agent.names import is_agent_name_template
 
-        if not is_indexed_agent_name_template(arg):
+        if not is_agent_name_template(arg):
             return None
-        return self._latest_indexed_name(arg)
+        return self._latest_template_name(arg)
 
-    def mark_indexed_reservation_committed(
+    def mark_template_reservation_committed(
         self, name: str | None, artifacts_dir: str | Path | None
     ) -> None:
         """Mark a planned reservation as owned by a spawned child."""
@@ -487,7 +565,13 @@ class PlannedNameAllocator:
         if reservation in self._planned_reservations:
             self._committed_reservations.add(reservation)
 
-    def release_uncommitted_indexed_reservations(self) -> None:
+    def mark_indexed_reservation_committed(
+        self, name: str | None, artifacts_dir: str | Path | None
+    ) -> None:
+        """Compatibility alias for legacy indexed-template call sites."""
+        self.mark_template_reservation_committed(name, artifacts_dir)
+
+    def release_uncommitted_template_reservations(self) -> None:
         """Release planned reservations whose child never spawned."""
         from sase.agent.names import release_planned_registered_name
 
@@ -500,6 +584,10 @@ class PlannedNameAllocator:
             for reservation in self._planned_reservations
             if reservation in self._committed_reservations
         ]
+
+    def release_uncommitted_indexed_reservations(self) -> None:
+        """Compatibility alias for legacy indexed-template call sites."""
+        self.release_uncommitted_template_reservations()
 
     def _reserve_planned_name(
         self,
@@ -522,79 +610,94 @@ class PlannedNameAllocator:
         )
         return True
 
-    def _allocate_indexed_name(
-        self, template: str, *, artifacts_dir: str | Path | None = None
+    def _reserve_planned_names(
+        self,
+        names: Sequence[str],
+        artifacts_dirs: Sequence[str | Path | None],
+    ) -> bool:
+        reservation_start = len(self._planned_reservations)
+        for name, artifacts_dir in zip(names, artifacts_dirs, strict=True):
+            if self._reserve_planned_name(name, artifacts_dir):
+                continue
+            self._release_planned_reservations_from(reservation_start)
+            return False
+        return True
+
+    def _release_planned_reservations_from(self, start: int) -> None:
+        from sase.agent.names import release_planned_registered_name
+
+        for reservation in self._planned_reservations[start:]:
+            release_planned_registered_name(reservation.name, reservation.artifacts_dir)
+        del self._planned_reservations[start:]
+
+    def _allocate_template_name(
+        self,
+        template: str,
+        *,
+        artifacts_dir: str | Path | None = None,
+        template_group: str | None = None,
     ) -> str:
         from sase.agent.names import (
             agent_name_allocation_lock,
-            allocate_indexed_agent_name,
             get_reserved_agent_names,
-            indexed_agent_name_base,
-            reserve_registered_name,
+            iter_agent_name_template_tokens,
+            render_agent_name_template,
         )
 
-        base = indexed_agent_name_base(template)
-        group = _indexed_group_key(base)
-        if artifacts_dir is not None:
-            artifacts_path = Path(artifacts_dir).expanduser().resolve(strict=False)
-            with agent_name_allocation_lock():
-                reserved = set(get_reserved_agent_names())
-                reserved.update(self._indexed_reserved.get(base, set()))
-                name = _allocate_indexed_name_for_group(
-                    base,
-                    template,
-                    reserved=reserved,
-                    group_index=self._indexed_group_indexes.get(group),
-                    allocate=allocate_indexed_agent_name,
-                )
-                self._indexed_group_indexes[group] = _indexed_name_suffix(name)
-                reserve_registered_name(name, artifacts_path)
-                self._indexed_reserved[base] = reserved
-                self._indexed_latest[base] = name
-                self._planned_reservations.append(
-                    _PlannedNameReservation(
-                        name=name, artifacts_dir=str(artifacts_path)
-                    )
-                )
-                return name
+        group = _normalize_template_group(template_group, template)
+        with agent_name_allocation_lock():
+            if self._template_reserved is None:
+                self._template_reserved = get_reserved_agent_names()
+            reserved = self._template_reserved
 
-        reserved = self._indexed_reserved_names(base)
-        name = _allocate_indexed_name_for_group(
-            base,
-            template,
-            reserved=reserved,
-            group_index=self._indexed_group_indexes.get(group),
-            allocate=allocate_indexed_agent_name,
-        )
-        self._indexed_group_indexes[group] = _indexed_name_suffix(name)
-        self._indexed_latest[base] = name
-        return name
+            existing_token = self._template_group_tokens.get(group.key)
+            if existing_token is not None:
+                candidate = render_agent_name_template(template, existing_token)
+                if candidate not in reserved and self._reserve_planned_name(
+                    candidate, artifacts_dir
+                ):
+                    reserved.add(candidate)
+                    self._template_latest[template] = candidate
+                    return candidate
+                reserved.add(candidate)
 
-    def _latest_indexed_name(self, template: str) -> str:
+            for token in iter_agent_name_template_tokens():
+                candidate = render_agent_name_template(template, token)
+                if candidate in reserved:
+                    continue
+                if not self._reserve_planned_name(candidate, artifacts_dir):
+                    reserved.add(candidate)
+                    continue
+                reserved.add(candidate)
+                self._template_group_tokens[group.key] = token
+                self._template_latest[template] = candidate
+                return candidate
+        raise AssertionError("unreachable")
+
+    def _latest_template_name(self, template: str) -> str:
         from sase.agent.names import (
-            IndexedAgentNameNotFoundError,
-            indexed_agent_name_base,
-            latest_indexed_agent_name,
+            AgentNameTemplateNotFoundError,
+            latest_agent_name_template,
         )
 
-        base = indexed_agent_name_base(template)
-        latest = latest_indexed_agent_name(
+        planned = self._template_latest.get(template)
+        if planned is not None:
+            return planned
+
+        latest = latest_agent_name_template(
             template,
-            names=self._indexed_reserved_names(base),
+            names=self._template_reserved_names(),
         )
         if latest is None:
-            raise IndexedAgentNameNotFoundError(template)
-        self._indexed_latest[base] = latest
+            raise AgentNameTemplateNotFoundError(template)
         return latest
 
-    def _indexed_reserved_names(self, base: str) -> set[str]:
-        reserved = self._indexed_reserved.get(base)
-        if reserved is None:
+    def _template_reserved_names(self) -> set[str]:
+        if self._template_reserved is None:
             from sase.agent.names import get_reserved_agent_names
 
-            reserved = get_reserved_agent_names()
-            self._indexed_reserved[base] = reserved
-        return reserved
+            self._template_reserved = get_reserved_agent_names()
+        return self._template_reserved
 
 
 def _unquote_backtick_arg(arg: str) -> str:
@@ -603,28 +706,19 @@ def _unquote_backtick_arg(arg: str) -> str:
     return arg
 
 
-def _indexed_group_key(base: str) -> str:
-    return base.rsplit(".", 1)[0] if "." in base else base
-
-
-def _indexed_name_suffix(name: str) -> int:
-    try:
-        return int(name.rsplit("-", 1)[1])
-    except (IndexError, ValueError):
-        return 1
-
-
-def _allocate_indexed_name_for_group(
-    base: str,
+def _normalize_template_group(
+    group: _TemplateGroup | str | None,
     template: str,
-    *,
-    reserved: set[str],
-    group_index: int | None,
-    allocate: Callable[..., str],
-) -> str:
-    if group_index is not None:
-        candidate = f"{base}-{group_index}"
-        if candidate not in reserved:
-            reserved.add(candidate)
-            return candidate
-    return allocate(template, reserved=reserved)
+) -> _TemplateGroup:
+    if isinstance(group, _TemplateGroup):
+        return group
+    if group is not None:
+        return _TemplateGroup(str(group))
+    return _TemplateGroup(_template_group_key(template))
+
+
+def _template_group_key(template: str) -> str:
+    from sase.agent.names import agent_name_template_base
+
+    base = agent_name_template_base(template)
+    return base.rsplit(".", 1)[0] if "." in base else base

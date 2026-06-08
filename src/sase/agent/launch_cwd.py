@@ -578,7 +578,7 @@ def launch_agents_from_cwd(
         )
     except Exception:
         if name_allocator is not None:
-            name_allocator.release_uncommitted_indexed_reservations()
+            name_allocator.release_uncommitted_template_reservations()
         raise
     return execution.results
 
