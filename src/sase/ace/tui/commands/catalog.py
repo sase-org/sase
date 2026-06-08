@@ -116,10 +116,10 @@ _APP_COMMAND_META: tuple[
     ),
     # Proposals & Sync
     ("accept_proposal", "Accept proposal", "Proposals & Sync", _CL_AGENTS, ()),
-    ("rebase", "Rebase CL", "Proposals & Sync", _CL_ONLY, ()),
+    ("rebase", "Rebase PR", "Proposals & Sync", _CL_ONLY, ()),
     (
         "start_rewind",
-        "Rewind CL / Revive agent",
+        "Rewind PR / Revive agent",
         "Proposals & Sync",
         _CL_AGENTS,
         (),
