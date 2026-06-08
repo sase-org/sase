@@ -8,7 +8,9 @@ from unittest.mock import MagicMock, patch
 
 from tests._agent_names_fixtures import make_agent
 from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planned_name
+from sase.agent.names import lookup_registered_name
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+from sase.agent.multi_prompt_references import PlannedNameAllocator
 from sase.xprompt.models import XPrompt
 
 
@@ -401,3 +403,37 @@ def test_concurrent_multi_prompt_batches_reserve_distinct_indexed_names(
         suffix = name.split("research.final-", 1)[1].split(".", 1)[0]
         assert prompt.startswith(f"#fork:research.final-{suffix}\n")
     assert mock_wait.call_count == 0
+
+
+def test_planned_auto_names_reserve_registry_slots_from_stale_snapshots(
+    tmp_path: Path,
+) -> None:
+    """A stale parent-side auto-name snapshot must not duplicate a new plan."""
+    first_artifacts = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "260501120000"
+    )
+    second_artifacts = first_artifacts.with_name("260501120001")
+    stale_allocator = PlannedNameAllocator()
+    stale_allocator._auto_reserved = set()
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        fresh_allocator = PlannedNameAllocator()
+        first_name, first_env = fresh_allocator.planned_name_for_prompt(
+            "first prompt",
+            artifacts_dir=first_artifacts,
+        )
+        second_name, second_env = stale_allocator.planned_name_for_prompt(
+            "second prompt",
+            artifacts_dir=second_artifacts,
+        )
+
+        assert (first_name, first_env) == ("0", "0")
+        assert (second_name, second_env) == ("1", "1")
+        assert lookup_registered_name("0")["artifacts_dir"] == str(first_artifacts)
+        assert lookup_registered_name("1")["artifacts_dir"] == str(second_artifacts)
