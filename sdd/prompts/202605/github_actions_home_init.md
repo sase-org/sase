@@ -25,7 +25,7 @@ Success: no issues found in 1157 source files
 All scripts/ and tools/ directories are valid!
 
 ---------- Checking for unused Python definitions... ----------
-BD_COMMAND=tools/sase_bead .venv/bin/python tools/executable_pyvision-260512 src/sase
+BD_COMMAND=tools/sase_bead .venv/bin/python tools/executable_pyvision-260608 src/sase
 All public/private classes/functions are used properly!
 
 ---------- Running SASE validation... ----------
