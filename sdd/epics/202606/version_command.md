@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-08 15:26:21
-status: wip
+status: done
 prompt: sdd/prompts/202606/version_command.md
 bead_id: sase-4h
 tier: epic

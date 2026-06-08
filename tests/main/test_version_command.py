@@ -100,9 +100,11 @@ def _inventory() -> RuntimeVersionInventory:
     )
 
 
-def _render(inventory: RuntimeVersionInventory, *, verbose: bool = False) -> str:
+def _render(
+    inventory: RuntimeVersionInventory, *, verbose: bool = False, width: int = 180
+) -> str:
     output = StringIO()
-    console = Console(file=output, force_terminal=False, color_system=None, width=180)
+    console = Console(file=output, force_terminal=False, color_system=None, width=width)
 
     render_runtime_version_inventory(inventory, verbose=verbose, console=console)
 
@@ -155,10 +157,22 @@ def test_verbose_output_includes_audit_fields_and_plugin_signals() -> None:
     assert "Package Audit" in text
     assert "editable" in text
     assert "abcdef123" in text
-    assert "tag v0.1.3" in text
-    assert "distance" in text
+    assert "Git tag" in text
+    assert "v0.1.3" in text
+    assert "Git distance" in text
     assert "Plugin Signals" in text
     assert "entry_point:sase_vcs:github=sase_github.plugin:Plugin" in text
+
+
+def test_verbose_output_keeps_audit_labels_readable_at_standard_width() -> None:
+    text = _render(_inventory(), verbose=True, width=80)
+
+    assert "Package Audit" in text
+    assert "Git root" in text
+    assert "Git commit" in text
+    assert "Source root" in text
+    assert "Import module" in text
+    assert "Distribution" in text
 
 
 def test_warning_rendering_for_incomplete_package_records() -> None:

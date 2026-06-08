@@ -102,29 +102,51 @@ def _package_table(records: Sequence[VersionPackageRecord]) -> Table:
     return table
 
 
-def _audit_table(records: Sequence[VersionPackageRecord]) -> Table:
-    table = Table(title="Package Audit", show_header=True, header_style="bold")
-    table.add_column("Package", no_wrap=True)
-    table.add_column("Install", no_wrap=True)
-    table.add_column("Dist version", no_wrap=True)
-    table.add_column("Source version", no_wrap=True)
-    table.add_column("Git", overflow="fold")
-    table.add_column("Source root", overflow="fold")
-    table.add_column("Import path", overflow="fold")
-    table.add_column("Distribution", overflow="fold")
+def _audit_table(records: Sequence[VersionPackageRecord]) -> Panel:
+    sections: list[RenderableType] = []
+    for index, record in enumerate(records):
+        if index:
+            sections.append(Text(""))
+        sections.append(_audit_record_table(record))
 
-    for record in records:
-        table.add_row(
-            Text(record.name),
-            Text(record.install_type),
-            Text(record.distribution_version or "-"),
-            Text(record.source_version or "-"),
-            Text(_git_summary(record), overflow="fold"),
-            Text(record.source_root or "-", overflow="fold"),
-            Text(record.import_path or "-", overflow="fold"),
-            Text(record.distribution_location or "-", overflow="fold"),
-        )
+    return Panel(Group(*sections), title="Package Audit", border_style="blue")
+
+
+def _audit_record_table(record: VersionPackageRecord) -> Table:
+    table = Table.grid(expand=True, padding=(0, 2))
+    table.add_column(style="bold", no_wrap=True)
+    table.add_column(overflow="fold")
+
+    git = record.git
+    table.add_row(
+        "Package",
+        Text(f"{record.name} ({record.role})", style=_ROLE_STYLES.get(record.role, "")),
+    )
+    table.add_row("Install", _audit_value(record.install_type))
+    table.add_row("Version", _audit_value(record.display_version))
+    table.add_row("Dist version", _audit_value(record.distribution_version))
+    table.add_row("Source version", _audit_value(record.source_version))
+    table.add_row("Git root", _audit_value(git.root if git else None))
+    table.add_row("Git commit", _audit_value(git.commit if git else None))
+    table.add_row("Git tag", _audit_value(git.tag if git else None))
+    table.add_row(
+        "Git distance",
+        _audit_value(str(git.distance) if git and git.distance is not None else None),
+    )
+    table.add_row("Git dirty", _audit_value(_yes_no(git.dirty) if git else None))
+    table.add_row("Source root", _audit_value(record.source_root))
+    table.add_row("Import module", _audit_value(record.import_module))
+    table.add_row("Import path", _audit_value(record.import_path))
+    table.add_row("Distribution", _audit_value(record.distribution_location))
     return table
+
+
+def _audit_value(value: str | None) -> Text:
+    return Text(value or "-", overflow="fold")
+
+
+def _yes_no(value: bool) -> str:
+    return "yes" if value else "no"
 
 
 def _plugin_signals_table(
@@ -175,18 +197,3 @@ def _display_path(record: VersionPackageRecord) -> str:
         or record.distribution_location
         or "-"
     )
-
-
-def _git_summary(record: VersionPackageRecord) -> str:
-    git = record.git
-    if git is None:
-        return "-"
-
-    parts = [git.short_commit]
-    if git.tag:
-        parts.append(f"tag {git.tag}")
-    if git.distance is not None:
-        parts.append(f"distance {git.distance}")
-    if git.dirty:
-        parts.append("dirty")
-    return ", ".join(parts)
