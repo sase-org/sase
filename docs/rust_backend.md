@@ -286,6 +286,23 @@ rather than silently masked.
 Release jobs and CI install-smokes call `sase core health` instead of probing `import sase_core_rs` and a binding by
 hand: it is the same check, but its exit code is the contract.
 
+## Runtime Version Inventory
+
+`sase version` complements `sase core health` by answering "which local SASE packages is this process actually using?"
+It reports the host `sase` distribution, the required `sase-core-rs` distribution, and installed SASE plugin packages,
+including entry-point plugins and script-only plugin packages.
+
+```bash
+sase version             # human-readable runtime/package inventory
+sase version -v          # add install, source, git, and plugin-signal audit fields
+sase version -j          # stable JSON payload for support/debug tooling
+```
+
+The command is local-only: it does not check latest available releases. Editable development installs prefer source
+metadata and git state over stale installed distribution metadata, so a checkout after tag `v0.1.2` may display a PEP
+440 local version such as `0.1.2+4.g26c39e004`. Verbose and JSON output keep the installed distribution version and the
+source version side by side so stale editable metadata is visible.
+
 ## Justfile Targets
 
 Each target prints a friendly skip message when `../sase-core` is absent and exits 0, so contributors without the
@@ -455,6 +472,8 @@ A handful of commands cover "is my install healthy?" end-to-end:
 ```bash
 sase core health             # Rust health: status + module path + version + platform
 sase core health -j          # same, JSON for scripting
+sase version                 # local host/core/plugin package inventory
+sase version -j              # same, JSON for support/debug tooling
 
 just check                   # formatting, lint, SDD validation, and tests
 just rust-check              # cargo fmt --check + clippy + cargo test (requires sibling ../sase-core checkout)

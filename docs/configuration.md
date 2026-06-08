@@ -1548,6 +1548,23 @@ prints one status line per check, and exits non-zero if any check fails. Because
 memory and skill deployment surfaces, this command can fail on user/home initialization drift even when repository-local
 SDD validation passes.
 
+### `sase version`
+
+`sase version` reports the local runtime that the current `sase` process is using. It does not query PyPI, GitHub, or
+latest available releases. The inventory always includes the host `sase` package and the required `sase-core-rs` Rust
+core distribution, then adds installed SASE plugin packages discovered through SASE entry points, SASE console scripts,
+or `sase-*` distribution names.
+
+The default human output is a compact runtime panel plus a package table with role, effective version, and code
+directory. Development checkouts use PEP 440 local versions such as `0.1.2+4.g26c39e004` or `0.1.2+0.g26c39e004.dirty`.
+Editable installs prefer source metadata over stale installed distribution metadata, while `--verbose` and `--json`
+expose both values for auditability.
+
+| Flag            | Values | Default | Description                                                                   |
+| --------------- | ------ | ------- | ----------------------------------------------------------------------------- |
+| `-j, --json`    | flag   | -       | Emit a stable JSON object with `schema_version: 1`, runtime, and packages.    |
+| `-v, --verbose` | flag   | -       | Include install type, dist/source versions, git metadata, and plugin signals. |
+
 ### `sase var`
 
 `sase var set` attaches small named string values to the current SASE agent run by merging them into

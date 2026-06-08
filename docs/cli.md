@@ -176,6 +176,7 @@ GitHub pull requests, and other provider plugins.
 | `sase telemetry dashboard`     | Open the live telemetry dashboard.                                                                      | [Telemetry](telemetry.md)                                    |
 | `sase telemetry health`        | Run subsystem health assessment.                                                                        | [Telemetry](telemetry.md)                                    |
 | `sase telemetry export-config` | Export the bundled monitoring stack.                                                                    | [Telemetry](telemetry.md)                                    |
+| `sase version`                 | Show the local `sase`, `sase-core-rs`, and installed plugin package inventory for this runtime.         | [Runtime inventory](configuration.md#sase-version)           |
 | `sase logs`                    | Collect and package agent run logs for a date range.                                                    | [Configuration CLI flags](configuration.md#sase-logs)        |
 | `sase revive-log`              | Inspect the agent-revival audit log (start / success / failure events).                                 | [Agent revival audit log](troubleshooting/agent-revival.md)  |
 | `sase artifact create`         | Move an explicit file into persistent agent artifact storage.                                           | [Agent attachments](agent_images.md)                         |
