@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-08 10:56:54
-status: wip
+status: done
 prompt: sdd/prompts/202606/pyvision_external_repo_resolution.md
 ---
 # Plan: Fix pyvision External Repo Resolution
