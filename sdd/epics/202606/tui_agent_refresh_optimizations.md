@@ -1,5 +1,7 @@
 ---
 create_time: 2026-06-08 14:05:44
+bead_id: sase-4f
+tier: epic
 status: wip
 prompt: sdd/prompts/202606/tui_agent_refresh_optimizations.md
 ---
