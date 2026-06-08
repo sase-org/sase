@@ -141,11 +141,11 @@ def test_repeated_leader_j_walks_unread_done_agents_by_recency(
     assert app.notifications == ["No unread completed agents"]
     assert app.current_tab_refresh_calls == 4
     assert app.refresh_calls == [
-        {"list_changed": True, "defer_detail": True},
-        {"list_changed": True, "defer_detail": True},
-        {"list_changed": True, "defer_detail": True},
+        {"list_changed": False, "defer_detail": True},
+        {"list_changed": False, "defer_detail": True},
+        {"list_changed": False, "defer_detail": True},
     ]
-    assert app.patch_calls == []
+    assert app.patch_calls == [newest, middle, oldest]
     assert notification_dismiss.call_count == 3
     assert app.notification_count_refresh_calls == 3
 
@@ -276,7 +276,8 @@ def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> N
     assert app._current_group_key is None
     assert app._entry_jump_agents_anchor_stack == [("banner", 0, ("done",))]
     assert done.identity not in app._unread_completed_agent_ids
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    assert app.patch_calls == [done]
+    assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
 
 
 def test_jump_to_next_unread_done_agent_starts_at_newest_from_focused_banner() -> None:
@@ -331,8 +332,8 @@ def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
     assert app.current_idx == 1
     assert app._panel_group.focused_idx == 1
     assert target.identity not in app._unread_completed_agent_ids
-    assert app.patch_calls == []
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    assert app.patch_calls == [target]
+    assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
 
 
 def test_jump_to_next_unread_done_agent_back_jump_restores_origin() -> None:

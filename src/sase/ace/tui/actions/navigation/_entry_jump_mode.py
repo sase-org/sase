@@ -107,6 +107,23 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
             return
         self._entry_jump_mode_active = True
         self._update_jump_footer()
+        self._refresh_agents_jump_hint_display()
+
+    def _refresh_agents_jump_hint_display(self) -> None:
+        """Refresh jump-hint overlays without forcing a full display rebuild."""
+        panel_group = getattr(self, "_panel_group", None)
+        refresh_affected = getattr(self, "_refresh_affected_panel_widgets", None)
+        if (
+            panel_group is not None
+            and callable(refresh_affected)
+            and hasattr(self, "query_one")
+        ):
+            keys = set(getattr(panel_group, "panel_keys", []))
+            if keys and refresh_affected(keys):
+                record_patch = getattr(self, "_record_display_patch_trace", None)
+                if callable(record_patch):
+                    record_patch(display_cost="display_panel_rebuild", count=len(keys))
+                return
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
     def _jump_candidate_indices(self) -> list[int]:
@@ -157,7 +174,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._entry_jump_hint_to_changespec_banner = {}
         self._entry_jump_changespec_banner_to_hint = {}
         if self.current_tab == "agents":
-            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+            self._refresh_agents_jump_hint_display()
         else:
             self._refresh_current_tab()  # type: ignore[attr-defined]
 

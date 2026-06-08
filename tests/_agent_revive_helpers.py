@@ -47,6 +47,9 @@ class FakeReviveApp(AgentRevivalMixin):
         self.restored: list[tuple[tuple[AgentType, str, str | None], str | None]] = []
         self.load_count = 0
         self.refresh_count = 0
+        self.refresh_calls: list[bool] = []
+        self.delta_refresh_count = 0
+        self.delta_refreshes: list[tuple[list[str], str]] = []
 
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
@@ -74,7 +77,21 @@ class FakeReviveApp(AgentRevivalMixin):
         if on_complete is not None:
             on_complete()
 
+    def _schedule_agent_artifact_delta_refresh(
+        self,
+        artifact_dirs: list[Path],
+        *,
+        source: str = "unknown",
+        on_complete: Callable[[], None] | None = None,
+    ) -> None:
+        self.delta_refresh_count += 1
+        self.delta_refreshes.append(([str(path) for path in artifact_dirs], source))
+        self._load_agents(full_history=False)
+        if on_complete is not None:
+            on_complete()
+
     def _refresh_agents_display(self, *, list_changed: bool) -> None:
+        self.refresh_calls.append(list_changed)
         if list_changed:
             self.refresh_count += 1
 

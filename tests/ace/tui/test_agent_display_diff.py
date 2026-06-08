@@ -55,7 +55,13 @@ class _FooterWidget:
 
 
 class _DisplayDiffApp(AgentDisplayMixin):
-    def __init__(self, agents: list[Agent], monkeypatch: Any) -> None:
+    def __init__(
+        self,
+        agents: list[Agent],
+        monkeypatch: Any,
+        *,
+        merge_tag_panels: bool = False,
+    ) -> None:
         self._agents = list(agents)
         self._fold_counts: dict[str, tuple[int, int]] = {}
         self._agent_search_query = ""
@@ -74,8 +80,11 @@ class _DisplayDiffApp(AgentDisplayMixin):
         self._group_fold_registry = AgentGroupFoldRegistry()
         self._grouping_mode = GroupingMode.STANDARD
         self._current_group_key = None
-        self._agent_panels_grouped = False
-        self._panel_group = AgentPanelGroup.from_agents(self._agents)
+        self._agent_panels_grouped = merge_tag_panels
+        self._panel_group = AgentPanelGroup.from_agents(
+            self._agents,
+            merge_tag_panels=merge_tag_panels,
+        )
         self._agents_first_load_done = True
         self._agents_refresh_active_source = "delta"
         self._agents_refresh_trace_records: list[_AgentRefreshTraceRecord] = []
@@ -235,6 +244,54 @@ def test_single_panel_removal_removes_then_rebuilds_affected_panel(
     assert app.full_rebuilds == 0
     assert "row_remove" in _display_costs(app)
     assert "display_panel_rebuild" in _display_costs(app)
+
+
+def test_tag_move_between_existing_panels_rebuilds_source_and_target(
+    monkeypatch: Any,
+) -> None:
+    apple_one = _agent("apple-one", tag="apple", suffix="a1")
+    apple_two = _agent("apple-two", tag="apple", suffix="a2")
+    banana = _agent("banana-one", tag="banana", suffix="b1")
+    moved = replace(apple_one, tag="banana")
+    app = _DisplayDiffApp([apple_one, apple_two, banana], monkeypatch)
+    apple_widget = app._widgets["#agent-list-panel"]
+    banana_widget = app._widgets["#agent-list-panel-1"]
+
+    app._agents = [moved, apple_two, banana]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[apple_one, apple_two, banana],
+        defer_detail=True,
+    )
+
+    assert apple_widget.update_list_calls == 2
+    assert banana_widget.update_list_calls == 2
+    assert [agent.identity for agent in apple_widget._agents] == [apple_two.identity]
+    assert [agent.identity for agent in banana_widget._agents] == [
+        moved.identity,
+        banana.identity,
+    ]
+    assert app.full_rebuilds == 0
+    assert "display_panel_rebuild" in _display_costs(app)
+    assert "display_full_rebuild" not in _display_costs(app)
+
+
+def test_merged_panel_tag_label_change_rebuilds_panel(monkeypatch: Any) -> None:
+    old_agent = _agent("alpha", tag="apple", suffix="a1")
+    new_agent = replace(old_agent, tag="banana")
+    app = _DisplayDiffApp([old_agent], monkeypatch, merge_tag_panels=True)
+    widget = app._widgets["#agent-list-panel"]
+
+    app._agents = [new_agent]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[old_agent],
+        defer_detail=True,
+    )
+
+    assert widget.update_list_calls == 2
+    assert widget._agents[0].tag == "banana"
+    assert app.full_rebuilds == 0
+    assert "display_panel_rebuild" in _display_costs(app)
+    assert "row_patch" not in _display_costs(app)
 
 
 def test_panel_collection_change_falls_back_to_full_rebuild(monkeypatch: Any) -> None:

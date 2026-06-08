@@ -13,10 +13,51 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sase.ace.tui.actions.agents._filter_actions import AgentFilterActionsMixin
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_content_search import AgentContentSearchIndex
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
+
+
+class _FilterActionApp(AgentFilterActionsMixin):
+    def __init__(self) -> None:
+        self.hide_non_run_agents = False
+        self._agent_search_query = ""
+        self.refilter_calls = 0
+        self.async_refresh_calls: list[str] = []
+        self.pushed_callback: Any = None
+
+    def _refilter_agents(self) -> None:
+        self.refilter_calls += 1
+
+    def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+        self.async_refresh_calls.append(source)
+
+    def push_screen(self, _modal: Any, callback: Any) -> None:
+        self.pushed_callback = callback
+
+
+def test_filter_toggle_refilters_without_async_agents_refresh() -> None:
+    app = _FilterActionApp()
+
+    app._toggle_hide_non_run_agents()
+
+    assert app.hide_non_run_agents is True
+    assert app.refilter_calls == 1
+    assert app.async_refresh_calls == []
+
+
+def test_agent_search_query_refilters_without_async_agents_refresh() -> None:
+    app = _FilterActionApp()
+
+    app._edit_agent_search_query()
+    assert app.pushed_callback is not None
+    app.pushed_callback("status:done")
+
+    assert app._agent_search_query == "status:done"
+    assert app.refilter_calls == 1
+    assert app.async_refresh_calls == []
 
 
 # --- Hierarchy preservation --------------------------------------------------

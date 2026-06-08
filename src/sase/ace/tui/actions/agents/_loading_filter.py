@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from copy import copy
 from typing import TYPE_CHECKING, Any, cast
 
 from ._loading_compute import PreparedFinalizePlan
@@ -21,6 +22,10 @@ log = logging.getLogger(__name__)
 class AgentLoadingFilterMixin(AgentLoadingStateMixin):
     """Methods that re-run in-memory filtering without a disk reload."""
 
+    def _snapshot_agents_for_local_display(self) -> list[Agent]:
+        """Return shallow row snapshots for local display diffs."""
+        return [copy(agent) for agent in getattr(self, "_agents", [])]
+
     def _get_or_parse_agent_query(self) -> QueryExpr | None:
         """Return the parsed AST for the active agent search query."""
         return get_or_parse_agent_query(cast(Any, self))
@@ -30,6 +35,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         *,
         prior_pos: int | None = None,
         refresh_content_index: bool = True,
+        previous_agents: list[Agent] | None = None,
     ) -> None:
         """Lightweight agent refresh that skips disk I/O.
 
@@ -63,7 +69,10 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             selected_identity = getattr(self, "_agents_last_identity", None)
 
         # Start from the cached unfiltered list (already has dismiss/hide applied)
-        previous_agents = list(self._agents)
+        if previous_agents is None:
+            previous_agents = self._snapshot_agents_for_local_display()
+        else:
+            previous_agents = list(previous_agents)
         self._agents = list(self._agents_with_children)
 
         self._finalize_agent_list(

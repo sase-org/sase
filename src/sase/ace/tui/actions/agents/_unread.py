@@ -90,9 +90,15 @@ class AgentUnreadMixin:
             if callable(refresh_count):
                 refresh_count()
 
-        self._refresh_agents_display(  # type: ignore[attr-defined]
-            list_changed=True,
-        )
+        patched_all = True
+        for agent in target_agents:
+            if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
+                patched_all = False
+                break
+        if not patched_all:
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=True,
+            )
         return len(target_agents)
 
     def _jump_to_next_unread_done_agent(self) -> bool:
@@ -105,9 +111,14 @@ class AgentUnreadMixin:
 
         def acknowledge_target(agent: Agent, needs_full_refresh: bool) -> None:
             if needs_full_refresh:
-                self._clear_agent_unread_and_dismiss_notification(agent)
+                changed = self._clear_agent_unread_and_dismiss_notification(agent)
+                if changed and not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
+                    self._refresh_agents_display(  # type: ignore[attr-defined]
+                        list_changed=True, defer_detail=True
+                    )
+                    return
                 self._refresh_agents_display(  # type: ignore[attr-defined]
-                    list_changed=True, defer_detail=True
+                    list_changed=False, defer_detail=True
                 )
             else:
                 self._acknowledge_agent_unread(agent)
@@ -206,7 +217,7 @@ class AgentUnreadMixin:
             after_select(target_agent, needs_full_refresh)
         elif needs_full_refresh:
             self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True, defer_detail=True
+                list_changed=False, defer_detail=True
             )
         return True
 

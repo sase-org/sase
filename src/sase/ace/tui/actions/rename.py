@@ -282,6 +282,10 @@ class RenameMixin:
         def handle_name_result(new_name: str | None) -> None:
             if new_name is None:
                 return
+            snapshot_agents = getattr(self, "_snapshot_agents_for_local_display", None)
+            previous_agents = (
+                snapshot_agents() if callable(snapshot_agents) else list(self._agents)
+            )
             meta_path = os.path.join(artifacts_dir, "agent_meta.json")
             # Read existing meta or create new
             meta: dict[str, object] = {}
@@ -307,13 +311,23 @@ class RenameMixin:
 
             # Find the current agent by identity (may have been replaced by
             # periodic refresh while the modal was open)
-            for a in self._agents:
-                if a.identity == agent_identity:
-                    a.agent_name = new_name
-                    break
+            for candidates in (
+                self._agents,
+                getattr(self, "_agents_with_children", []),
+            ):
+                for a in candidates:
+                    if a.identity == agent_identity:
+                        a.agent_name = new_name
 
             self.notify(f"Agent named: {new_name}")  # type: ignore[attr-defined]
-            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+            refilter = getattr(self, "_refilter_agents", None)
+            if callable(refilter):
+                try:
+                    refilter(previous_agents=previous_agents)
+                except TypeError:
+                    refilter()
+            else:
+                self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
         self.push_screen(  # type: ignore[attr-defined]
             AgentNameModal(current_name=agent.agent_name),

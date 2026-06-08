@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Iterable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -73,3 +74,43 @@ def schedule_revive_full_history_refresh(
     if "full_history_reason" in inspect.signature(schedule).parameters:
         kwargs["full_history_reason"] = reason
     schedule(**kwargs)
+
+
+def schedule_revive_artifact_delta_refresh(
+    app: Any,
+    artifact_dirs: Iterable[str | Path | None],
+    *,
+    reason: str,
+    on_complete: Callable[[], None],
+) -> bool:
+    """Schedule a known-dir revive delta, falling back to full history."""
+    paths = [Path(path) for path in artifact_dirs if path is not None]
+    if not paths:
+        schedule_revive_full_history_refresh(
+            app,
+            reason=reason,
+            on_complete=on_complete,
+        )
+        return False
+
+    schedule_delta = getattr(app, "_schedule_agent_artifact_delta_refresh", None)
+    if not callable(schedule_delta):
+        schedule_revive_full_history_refresh(
+            app,
+            reason=reason,
+            on_complete=on_complete,
+        )
+        return False
+
+    if "on_complete" not in inspect.signature(schedule_delta).parameters:
+        schedule_revive_full_history_refresh(
+            app,
+            reason=reason,
+            on_complete=on_complete,
+        )
+        return False
+
+    kwargs: dict[str, Any] = {"source": reason}
+    kwargs["on_complete"] = on_complete
+    schedule_delta(paths, **kwargs)
+    return True

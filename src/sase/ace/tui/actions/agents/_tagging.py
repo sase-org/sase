@@ -111,8 +111,13 @@ class AgentTaggingMixin:
             unset_tag,
         )
 
+        snapshot_agents = getattr(self, "_snapshot_agents_for_local_display", None)
+        previous_agents = (
+            snapshot_agents() if callable(snapshot_agents) else list(self._agents)
+        )
         store = load_agent_tags()
         changed = 0
+        affected_identities = {agent.identity for agent in affected}
         for agent in affected:
             before = store.get(agent.identity)
             if result.action == "set":
@@ -124,7 +129,10 @@ class AgentTaggingMixin:
                 after = None
             if after != before:
                 changed += 1
-            agent.tag = after
+            for candidates in (self._agents, self._agents_with_children):
+                for candidate in candidates:
+                    if candidate.identity == agent.identity:
+                        candidate.tag = after
 
         if changed == 0:
             verb = "set" if result.action == "set" else "unset"
@@ -149,8 +157,17 @@ class AgentTaggingMixin:
                 self.notify(  # type: ignore[attr-defined]
                     f"Cleared tag on {changed} {suffix}",
                 )
-            affected_identities = {agent.identity for agent in affected}
             self._marked_agents -= affected_identities
             self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
 
-        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        if changed == 0:
+            return
+
+        refilter = getattr(self, "_refilter_agents", None)
+        if callable(refilter):
+            try:
+                refilter(previous_agents=previous_agents)
+            except TypeError:
+                refilter()
+        else:
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]

@@ -8,7 +8,7 @@ from ._revive_artifacts import ArtifactRestorationMixin
 from ._revive_helpers import (
     is_child_of,
     revived_artifact_dir,
-    schedule_revive_full_history_refresh,
+    schedule_revive_artifact_delta_refresh,
 )
 from ._revive_index import (
     sync_dismissed_agent_artifact_index,
@@ -146,8 +146,10 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             if self.current_tab != "agents":
                 return
             try:
-                self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-                self._select_revived_agent(agent)
+                if self._select_revived_agent(agent):
+                    self._refresh_agents_display(  # type: ignore[attr-defined]
+                        list_changed=False,
+                    )
             except Exception as exc:
                 log_revive_failure(
                     stage="refresh_display",
@@ -156,8 +158,9 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                     selection_scope=scope,
                 )
 
-        schedule_revive_full_history_refresh(
+        schedule_revive_artifact_delta_refresh(
             self,
+            revived_artifact_dirs,
             reason="revive_agent_archive_refresh",
             on_complete=_on_revive_loaded,
         )
@@ -357,13 +360,16 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         ) -> None:
             if self.current_tab != "agents":
                 return
-            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
             for candidate in candidates:
                 if self._select_revived_agent(candidate):
+                    self._refresh_agents_display(  # type: ignore[attr-defined]
+                        list_changed=False,
+                    )
                     break
 
-        schedule_revive_full_history_refresh(
+        schedule_revive_artifact_delta_refresh(
             self,
+            revived_artifact_dirs,
             reason="revive_agents_archive_refresh",
             on_complete=_on_revive_loaded,
         )

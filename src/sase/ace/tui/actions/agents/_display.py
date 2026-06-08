@@ -26,6 +26,7 @@ from ...util.trace import tui_trace
 from ._display_diff import (
     affected_panel_keys,
     build_agent_display_diff,
+    changed_same_position_panel_membership_keys,
     diff_touches_workflow_tree,
     panel_keys_for_display,
     rendered_panel_key_by_identity,
@@ -345,6 +346,14 @@ class AgentDisplayMixin(AgentSiblingMixin, PanelsMixin, DetailMixin):
             merge_tag_panels=merge_tag_panels,
         )
         panel_rebuild_keys: set[Any] = set()
+        panel_rebuild_keys.update(
+            changed_same_position_panel_membership_keys(
+                diff,
+                previous_agents,
+                self._agents,
+                merge_tag_panels=merge_tag_panels,
+            )
+        )
         if diff.has_collection_changes:
             panel_rebuild_keys.update(affected_keys)
 

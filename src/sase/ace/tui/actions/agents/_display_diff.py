@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ...models.agent import AgentType
 from ...models.agent_panels import (
@@ -186,6 +186,48 @@ def affected_panel_keys(
         if identity in next_keys:
             keys.add(next_keys[identity])
 
+    return keys
+
+
+def changed_same_position_panel_membership_keys(
+    diff: _AgentDisplayDiff,
+    previous_agents: list[Agent],
+    next_agents: list[Agent],
+    *,
+    merge_tag_panels: bool,
+) -> set[PanelKey]:
+    """Return panels needing rebuild for same-position panel/tag changes."""
+    if not diff.changed_same_position:
+        return set()
+
+    previous_keys = rendered_panel_key_by_identity(
+        previous_agents,
+        merge_tag_panels=merge_tag_panels,
+    )
+    next_keys = rendered_panel_key_by_identity(
+        next_agents,
+        merge_tag_panels=merge_tag_panels,
+    )
+    missing = object()
+    keys: set[PanelKey] = set()
+    for idx in diff.changed_same_position:
+        previous = previous_agents[idx]
+        next_agent = next_agents[idx]
+        identity = next_agent.identity
+        previous_key = previous_keys.get(identity, missing)
+        next_key = next_keys.get(identity, missing)
+        if previous_key != next_key:
+            if previous_key is not missing:
+                keys.add(cast(PanelKey, previous_key))
+            if next_key is not missing:
+                keys.add(cast(PanelKey, next_key))
+            continue
+        if (
+            merge_tag_panels
+            and previous.tag != next_agent.tag
+            and next_key is not missing
+        ):
+            keys.add(cast(PanelKey, next_key))
     return keys
 
 

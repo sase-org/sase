@@ -144,9 +144,21 @@ class AgentMarkingMixin:
             self.notify("No marks to clear", severity="warning")  # type: ignore[attr-defined]
             return
 
+        marked_agents = [
+            agent for agent in self._agents if agent.identity in self._marked_agents
+        ]
         count = len(self._marked_agents)
         self._marked_agents = set()
-        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        if marked_agents:
+            patched_all = True
+            for agent in marked_agents:
+                if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
+                    patched_all = False
+                    break
+            if not patched_all:
+                self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        else:
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
         self.notify(f"Cleared {count} mark(s)")  # type: ignore[attr-defined]
 
     def _prune_stale_marked_agents(self) -> None:

@@ -160,7 +160,7 @@ def test_jump_to_next_stopped_agent_finds_non_focused_panel_row() -> None:
     assert app._panel_group.focused_idx == 1
     assert app.current_attempt_number is None
     assert app.patch_calls == []
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
 
 
 def test_jump_to_next_stopped_agent_back_jump_restores_without_acknowledging_unread() -> (

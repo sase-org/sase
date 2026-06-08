@@ -165,8 +165,8 @@ def test_mark_all_unread_done_agents_read_clears_state_once(
         ]
     )
     assert app.notification_count_refresh_calls == 1
-    assert app.refresh_calls == [{"list_changed": True}]
-    assert app.patch_calls == []
+    assert app.refresh_calls == []
+    assert app.patch_calls == [first, second]
 
 
 def test_mark_all_unread_done_agents_read_noops_without_terminal_unread(

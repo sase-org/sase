@@ -172,9 +172,19 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         artifact_dirs: list[Path],
         *,
         source: str = "unknown",
+        on_complete: Callable[[], None] | None = None,
     ) -> None:
         """Schedule an exact artifact-dir reconcile for a bounded row delta."""
         source = _normalize_refresh_source(source)
+
+        def schedule_broad_fallback() -> None:
+            kwargs: dict[str, Any] = {"source": source}
+            if on_complete is not None and _callable_accepts_kwarg(
+                self._schedule_agents_async_refresh, "on_complete"
+            ):
+                kwargs["on_complete"] = on_complete
+            self._schedule_agents_async_refresh(**kwargs)
+
         unique_dirs: list[Path] = []
         seen: set[str] = set()
         for artifact_dir in artifact_dirs:
@@ -192,7 +202,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 data_cost="tier1_broad_load",
                 fallback_reason="missing_artifact_dir",
             )
-            self._schedule_agents_async_refresh(source=source)
+            schedule_broad_fallback()
             return
         if getattr(self, "_agent_search_query", ""):
             record_agents_refresh_trace(
@@ -202,7 +212,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 data_cost="tier1_broad_load",
                 fallback_reason="active_search",
             )
-            self._schedule_agents_async_refresh(source=source)
+            schedule_broad_fallback()
             return
         if self._agents_loading or self._agents_refresh_scheduled:
             record_agents_refresh_trace(
@@ -212,7 +222,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 data_cost="tier1_broad_load",
                 fallback_reason="delta_read_failure",
             )
-            self._schedule_agents_async_refresh(source=source)
+            schedule_broad_fallback()
             return
 
         record_agents_refresh_trace(
@@ -223,16 +233,19 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             full_history=False,
             artifact_dirs=len(unique_dirs),
         )
+        args: tuple[Any, ...] = (tuple(unique_dirs), source)
+        if on_complete is not None:
+            args = (*args, on_complete)
         self.call_later(  # type: ignore[attr-defined]
             self._run_agent_artifact_delta_refresh,
-            tuple(unique_dirs),
-            source,
+            *args,
         )
 
     async def _run_agent_artifact_delta_refresh(
         self,
         artifact_dirs: tuple[Path, ...],
         source: str = "unknown",
+        on_complete: Callable[[], None] | None = None,
     ) -> None:
         """Run an exact artifact-dir reconcile with broad fallback on failure."""
         if self._nav_gate.is_navigating():
@@ -243,25 +256,35 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                     self._run_agent_artifact_delta_refresh,
                     artifact_dirs,
                     source,
+                    on_complete,
                 ),
             )
             return
         source = _normalize_refresh_source(source)
         if self._agents_loading:
+            if on_complete is not None:
+                self._agents_refresh_pending_callbacks.append(on_complete)
             self._agents_refresh_pending = True
             self._agents_refresh_pending_source = source
             return
 
         self._agents_loading = True
         self._agents_refresh_active_source = source
+        needs_broad_fallback = False
         try:
             ok = await self._load_agent_artifact_delta_async(  # type: ignore[attr-defined]
                 list(artifact_dirs),
                 source=source,
             )
             if not ok:
+                needs_broad_fallback = True
                 self._agents_refresh_pending = True
                 self._agents_refresh_pending_source = source
+            elif on_complete is not None:
+                try:
+                    on_complete()
+                except Exception:
+                    log.exception("agents artifact delta callback failed")
         except Exception:
             log.exception("Agents artifact delta refresh failed")
             record_agents_refresh_trace(
@@ -271,6 +294,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 data_cost="tier1_broad_load",
                 fallback_reason="delta_read_failure",
             )
+            needs_broad_fallback = True
             self._agents_refresh_pending = True
             self._agents_refresh_pending_source = source
         finally:
@@ -284,7 +308,10 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 self._agents_refresh_pending_source = "unknown"
                 self._agents_refresh_pending_full_history = False
                 self._agents_refresh_pending_full_history_reason = None
-                self._schedule_agents_async_refresh(source=pending_source)
+                self._schedule_agents_async_refresh(
+                    source=pending_source,
+                    on_complete=on_complete if needs_broad_fallback else None,
+                )
 
     def _maybe_trigger_idle_tier2_reconcile(
         self, *, now_mono: float | None = None
