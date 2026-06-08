@@ -29,7 +29,7 @@ from sase.xprompt.models import XPrompt
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],
 )
-def test_launch_multi_prompt_resolves_indexed_wait_to_planned_predecessor(
+def test_launch_multi_prompt_resolves_template_wait_to_planned_predecessor(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
     mock_wait_ws_dir: MagicMock,
@@ -39,7 +39,7 @@ def test_launch_multi_prompt_resolves_indexed_wait_to_planned_predecessor(
     mock_spawn: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Later segments can wait on an indexed name planned earlier in the batch."""
+    """Later segments can wait on a template name planned earlier in the batch."""
     mock_spawn.side_effect = spawn_result_with_planned_name
 
     with patch.object(Path, "home", return_value=tmp_path):
@@ -75,7 +75,7 @@ def test_launch_multi_prompt_resolves_indexed_wait_to_planned_predecessor(
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],
 )
-def test_launch_multi_prompt_allocates_distinct_indexed_names_per_segment(
+def test_launch_multi_prompt_allocates_distinct_template_names_per_segment(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
@@ -84,7 +84,7 @@ def test_launch_multi_prompt_allocates_distinct_indexed_names_per_segment(
     mock_spawn: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Two indexed name templates in one launch reserve consecutive names."""
+    """Two identical name templates in one launch reserve consecutive names."""
     mock_spawn.side_effect = spawn_result_with_planned_name
 
     with patch.object(Path, "home", return_value=tmp_path):
@@ -164,7 +164,7 @@ def test_launch_multi_prompt_allocates_distinct_suffix_shape_template_names(
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],
 )
-def test_launch_multi_prompt_resolves_indexed_resume_to_planned_predecessor(
+def test_launch_multi_prompt_resolves_template_resume_to_planned_predecessor(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
     mock_wait_ws_dir: MagicMock,
@@ -174,7 +174,7 @@ def test_launch_multi_prompt_resolves_indexed_resume_to_planned_predecessor(
     mock_spawn: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """#fork/#resume indexed refs resolve to the latest planned concrete name."""
+    """#fork/#resume template refs resolve to the latest planned concrete name."""
     mock_spawn.side_effect = spawn_result_with_planned_name
 
     with patch.object(Path, "home", return_value=tmp_path):
@@ -302,7 +302,7 @@ def test_launch_multi_prompt_template_refs_prefer_planned_over_existing_latest(
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
 @patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
 @patch("sase.agent.launch_projects.extract_known_project_vcs_launch_ref")
-def test_launch_multi_prompt_same_segment_indexed_wait_uses_existing_latest(
+def test_launch_multi_prompt_same_segment_template_wait_uses_existing_latest(
     mock_known_project_ref: MagicMock,
     mock_wait_ws_dir: MagicMock,
     mock_create_artifacts: MagicMock,
@@ -311,7 +311,7 @@ def test_launch_multi_prompt_same_segment_indexed_wait_uses_existing_latest(
     mock_spawn: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Indexed waits resolve before a same-segment indexed name is allocated."""
+    """Template waits resolve before a same-segment template name is allocated."""
     mock_known_project_ref.return_value = None
     make_agent(tmp_path, "proj", "run1", "build-1")
     mock_spawn.side_effect = spawn_result_with_planned_name
@@ -345,7 +345,7 @@ def test_launch_multi_prompt_same_segment_indexed_wait_uses_existing_latest(
     "sase.main.utils.ensure_project_file_and_get_workspace_num",
     return_value=(None, None, None),
 )
-def test_launch_agents_from_cwd_resolves_indexed_refs_after_multi_xprompt_expansion(
+def test_launch_agents_from_cwd_resolves_template_refs_after_multi_xprompt_expansion(
     mock_project: MagicMock,
     mock_history: MagicMock,
     mock_create_artifacts: MagicMock,
@@ -354,7 +354,7 @@ def test_launch_agents_from_cwd_resolves_indexed_refs_after_multi_xprompt_expans
     mock_spawn: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """The cwd launch path resolves indexed refs after multi-agent xprompt expansion."""
+    """The cwd launch path resolves template refs after multi-agent xprompt expansion."""
     from sase.agent.launcher import launch_agents_from_cwd
 
     mock_spawn.side_effect = spawn_result_with_planned_name
@@ -459,12 +459,12 @@ def test_template_group_allocates_shared_token_for_generic_shapes(
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.running_field.get_workspace_directory")
-def test_concurrent_multi_prompt_batches_reserve_distinct_indexed_names(
+def test_concurrent_multi_prompt_batches_reserve_distinct_template_names(
     mock_wait_ws_dir: MagicMock,
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
-    """Concurrent indexed-name batches get unique, internally consistent suffixes."""
+    """Concurrent template-name batches get unique, internally consistent tokens."""
     mock_wait_ws_dir.return_value = "/ws/main"
     mock_spawn.side_effect = spawn_result_with_planned_name
     barrier = Barrier(2)
@@ -496,9 +496,9 @@ def test_concurrent_multi_prompt_batches_reserve_distinct_indexed_names(
         barrier.wait()
         results = launch_multi_prompt_agents(
             segments=[
-                "%name:research.cdx-@\nCDX",
-                "%wait:research.cdx-@\n%name:research.final-@\nFinal",
-                "#fork:research.final-@\nFollow up",
+                "%name:research.@.cdx\nCDX",
+                "%wait:research.@.cdx\n%name:research.@.final\nFinal",
+                "#fork:research.@.final\nFollow up",
             ],
             local_xprompts={},
             cl_name="test",
@@ -527,12 +527,12 @@ def test_concurrent_multi_prompt_batches_reserve_distinct_indexed_names(
         batch_names = list(pool.map(lambda _i: launch_batch(), range(2)))
 
     assert {names[0] for names in batch_names} == {
-        "research.cdx-0",
-        "research.cdx-1",
+        "research.0.cdx",
+        "research.1.cdx",
     }
     assert {names[1] for names in batch_names} == {
-        "research.final-0",
-        "research.final-1",
+        "research.0.final",
+        "research.1.final",
     }
 
     call_data = [
@@ -545,24 +545,24 @@ def test_concurrent_multi_prompt_batches_reserve_distinct_indexed_names(
     final_calls = [
         (name, prompt)
         for name, prompt in call_data
-        if name.startswith("research.final-")
-        and name.removeprefix("research.final-").isdigit()
+        if name.startswith("research.")
+        and name.endswith(".final")
+        and name.removeprefix("research.").removesuffix(".final").isdigit()
     ]
     fork_calls = [
         (name, prompt)
         for name, prompt in call_data
-        if name.startswith("research.final-")
-        and ".f" in name.removeprefix("research.final-")
+        if name.startswith("research.") and ".final.f" in name
     ]
 
     assert len(final_calls) == 2
     assert len(fork_calls) == 2
     for name, prompt in final_calls:
-        suffix = name.rsplit("-", 1)[1]
-        assert prompt.startswith(f"%wait:research.cdx-{suffix}\n")
+        token = name.removeprefix("research.").removesuffix(".final")
+        assert prompt.startswith(f"%wait:research.{token}.cdx\n")
     for name, prompt in fork_calls:
-        suffix = name.split("research.final-", 1)[1].split(".", 1)[0]
-        assert prompt.startswith(f"#fork:research.final-{suffix}\n")
+        token = name.removeprefix("research.").split(".final.", 1)[0]
+        assert prompt.startswith(f"#fork:research.{token}.final\n")
     assert mock_wait.call_count == 0
 
 

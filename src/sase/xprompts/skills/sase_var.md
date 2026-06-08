@@ -9,7 +9,7 @@ you want the value to appear in the Agents-tab metadata for this run.
 
 ## Workflow
 
-1. Make sure the producing agent has a stable name with `%name:<producer>` or an indexed template such as
+1. Make sure the producing agent has a stable name with `%name:<producer>` or an agent-name template such as
    `%name:build-@`.
 2. Set one or more output variables:
 
@@ -27,9 +27,9 @@ you want the value to appear in the Agents-tab metadata for this run.
    A later waited agent can render `{% raw %}{{ agents["build"].result_path }}{% endraw %}` after the producer has
    written the variable.
 
-The key is always the agent's stable name. Indexed templates use the template base, so `%name:build-@` is
-`{% raw %}{{ agents["build"].result_path }}{% endraw %}`, not `build-1`. The key is the raw agent name with no
-identifier munging, so dotted, hyphenated, and digit-leading names all work via bracket access: `%name:research.final-@`
+The key is always the agent's stable name. Agent-name templates use the template base, so `%name:build-@` is
+`{% raw %}{{ agents["build"].result_path }}{% endraw %}`, not `build-0`. The key is the raw agent name with no
+identifier munging, so dotted, hyphenated, and digit-leading names all work via bracket access: `%name:research.@.final`
 → `{% raw %}{{ agents["research.final"].report_path }}{% endraw %}`, and `%name:0n.cld` →
 `{% raw %}{{ agents["0n.cld"].report_path }}{% endraw %}`. Identifier-safe keys also support attribute access such as
 `{% raw %}{{ agents.build.result_path }}{% endraw %}`.

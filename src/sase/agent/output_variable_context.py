@@ -28,19 +28,19 @@ def _agent_key_for_output_variables(
     The key is the agent's stable reference so that xprompts stay authorable
     and repeatable across runs:
 
-    - An indexed template (``build-@``) yields its base (``build``), not the
-      launch-time ``build-1`` allocated at runtime.
+    - An agent-name template (``build-@``) yields its base (``build``), not the
+      launch-time ``build-0`` allocated at runtime.
     - Otherwise the concrete/dotted agent name is used verbatim
       (``research.final``, ``0n.cld``), without any Jinja-identifier munging.
     """
     if agent_name_template:
         from sase.agent.names import (
-            indexed_agent_name_base,
-            is_indexed_agent_name_template,
+            agent_name_template_base,
+            is_agent_name_template,
         )
 
-        if is_indexed_agent_name_template(agent_name_template):
-            return indexed_agent_name_base(agent_name_template)
+        if is_agent_name_template(agent_name_template):
+            return agent_name_template_base(agent_name_template)
     if agent_name:
         return agent_name
     if agent_name_template:

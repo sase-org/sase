@@ -6,15 +6,15 @@ input:
     description: Research topic or question for the swarm to investigate.
 ---
 
-%name:research.cdx-@ %model:codex/gpt-5.5 %g:research {{ prompt }} #research
+%name:research.@.cdx %model:codex/gpt-5.5 %g:research {{ prompt }} #research
 
 ---
 
-%name:research.cld-@ %model:claude/opus %g:research {{ prompt }} #research
+%name:research.@.cld %model:claude/opus %g:research {{ prompt }} #research
 
 ---
 
-%name:research.final-@ %wait:research.cdx-@ %wait:research.cld-@ %g:research
+%name:research.@.final %wait:research.@.cdx %wait:research.@.cld %g:research
 
 The two independent research agents have finished. Their chat transcript paths are available here:
 
@@ -36,4 +36,4 @@ Research request:
 
 ---
 
-%name:research.image-@ %wait:research.final-@ %g:research #fork:research.final-@ #research/image %m:gpt-5.5
+%name:research.@.image %wait:research.@.final %g:research #fork:research.@.final #research/image %m:gpt-5.5

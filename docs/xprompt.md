@@ -1003,6 +1003,11 @@ The `%model` directive also supports automatic provider resolution: known model 
 The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a permanent unique name
 for the agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
 
+Agent-name templates contain exactly one `@` marker. SASE replaces the marker with the shared auto-name token sequence
+(`0`, `1`, ..., `9`, `a`, ..., `z`, `00`, ...), so `%name:@`, `%name:@.cld`, `%name:build-@`, and
+`%name:research.@.final` are all valid. The older terminal `-@` form still works, but new allocations now start at token
+`0` and use the alphanumeric sequence instead of positive integers.
+
 Agent names are permanent IDs. A name that belongs to any existing agent state cannot be reused by a normal
 `%name:<name>` launch; SASE cancels the launch before spawning an agent, records the prompt as cancelled, and suggests
 the lowest free numeric suffix such as `<name>1`. To deliberately reuse a name, use `%name:!<name>` from the TUI; the
@@ -1431,9 +1436,9 @@ The review prompt is rendered after the `build-@` dependency completes, so `{{ a
 `{{ agents["build"].status }}` come from the producer's stored `agent_meta.json` values. A consumer that has already
 started will not see later writes.
 
-The `agents` key is the producer's stable name. Indexed templates use the template base, so `%name:build-@` is
-`{{ agents["build"].report_path }}`, not `agents["build-1"]`. The key is the raw agent name with no identifier munging,
-so dotted, hyphenated, and digit-leading names all work via bracket access: `%name:research.final-@` →
+The `agents` key is the producer's stable name. Agent-name templates use the template base, so `%name:build-@` is
+`{{ agents["build"].report_path }}`, not `agents["build-0"]`. The key is the raw agent name with no identifier munging,
+so dotted, hyphenated, and digit-leading names all work via bracket access: `%name:research.@.final` →
 `{{ agents["research.final"].report_path }}`, and `%name:0n.cld` → `{{ agents["0n.cld"].report_path }}`. Identifier-safe
 keys also support attribute access such as `{{ agents.build.report_path }}`. `agents` is a reserved agent-run Jinja
 name; a workflow input named `agents` collides and fails clearly. Output variables are persisted in the producer's

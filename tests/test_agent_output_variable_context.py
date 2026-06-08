@@ -49,7 +49,7 @@ def _consumer_ctx(
     )
 
 
-def test_indexed_name_template_exposes_base_key() -> None:
+def test_agent_name_template_exposes_base_key() -> None:
     assert (
         _agent_key_for_output_variables(
             agent_name="build-7",
@@ -59,11 +59,11 @@ def test_indexed_name_template_exposes_base_key() -> None:
     )
 
 
-def test_dotted_indexed_name_template_exposes_flat_dotted_key() -> None:
+def test_dotted_agent_name_template_exposes_flat_dotted_key() -> None:
     assert (
         _agent_key_for_output_variables(
-            agent_name="research.final-2",
-            agent_name_template="research.final-@",
+            agent_name="research.2.final",
+            agent_name_template="research.@.final",
         )
         == "research.final"
     )
@@ -104,7 +104,7 @@ def test_named_producer_loads_under_agents_dict(tmp_path: Path) -> None:
     assert context == {"agents": {"build": {"report_path": "reports/final.md"}}}
 
 
-def test_indexed_template_upstream_uses_stable_base_key(tmp_path: Path) -> None:
+def test_agent_name_template_upstream_uses_stable_base_key(tmp_path: Path) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         upstream = build_agent_var_upstream_record(
             agent_name="build-1",
@@ -133,11 +133,11 @@ def test_indexed_template_upstream_uses_stable_base_key(tmp_path: Path) -> None:
     assert context == {"agents": {"build": {"report_path": "reports/final.md"}}}
 
 
-def test_dotted_indexed_template_uses_flat_dotted_key(tmp_path: Path) -> None:
+def test_dotted_agent_name_template_uses_flat_dotted_key(tmp_path: Path) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         upstream = build_agent_var_upstream_record(
-            agent_name="research.final-1",
-            agent_name_template="research.final-@",
+            agent_name="research.1.final",
+            agent_name_template="research.@.final",
             project_name="proj",
             workflow_timestamp="260501_120000",
         )
@@ -147,8 +147,8 @@ def test_dotted_indexed_template_uses_flat_dotted_key(tmp_path: Path) -> None:
     (artifacts_dir / "agent_meta.json").write_text(
         json.dumps(
             {
-                "name": "research.final-1",
-                "agent_name_template": "research.final-@",
+                "name": "research.1.final",
+                "agent_name_template": "research.@.final",
                 "output_variables": {"report_path": "reports/final.md"},
             }
         ),

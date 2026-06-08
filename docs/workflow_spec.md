@@ -696,15 +696,15 @@ Those values are loaded when the consumer starts; they are not live-updated afte
 call `sase var set` before it finishes. In workflows launched as agents, the `agents` dictionary is available to
 workflow template rendering, including `agent`, `bash`, `python`, `environment`, and `prompt_part` templates.
 
-Every producer's variables live under a single `agents` dictionary keyed by the producer's stable name. Indexed name
-templates use the template base instead of the concrete numeric name. The key is the raw agent name with no identifier
+Every producer's variables live under a single `agents` dictionary keyed by the producer's stable name. Agent-name
+templates use the template base instead of the concrete allocated name. The key is the raw agent name with no identifier
 munging, so dotted, hyphenated, and digit-leading names work via bracket access:
 
 | Producer name or template | Referenced as                                |
 | ------------------------- | -------------------------------------------- |
 | `%name:build-agent`       | `{{ agents["build-agent"].report_path }}`    |
 | `%name:build-@`           | `{{ agents["build"].report_path }}`          |
-| `%name:research.final-@`  | `{{ agents["research.final"].report_path }}` |
+| `%name:research.@.final`  | `{{ agents["research.final"].report_path }}` |
 | `%name:0n.cld`            | `{{ agents["0n.cld"].report_path }}`         |
 
 Identifier-safe keys also support attribute access such as `{{ agents.build.report_path }}`.

@@ -28,24 +28,24 @@ INDEXED_AGENT_NAME_MARKER = "-@"
 
 
 class IndexedAgentNameError(ValueError):
-    """Base class for indexed agent-name template failures."""
+    """Base class for legacy indexed-template compatibility failures."""
 
 
 class InvalidIndexedAgentNameTemplateError(IndexedAgentNameError):
-    """Raised when a value is not a valid ``<base>-@`` template."""
+    """Raised when a value is not a valid agent-name template."""
 
     def __init__(self, template: str, reason: str) -> None:
         self.template = template
         self.reason = reason
-        super().__init__(f"Invalid indexed agent name '{template}': {reason}")
+        super().__init__(f"Invalid agent name template '{template}': {reason}")
 
 
 class IndexedAgentNameNotFoundError(IndexedAgentNameError):
-    """Raised when no concrete indexed name exists for a template."""
+    """Raised when no concrete name exists for a template."""
 
     def __init__(self, template: str) -> None:
         self.template = template
-        super().__init__(f"No existing indexed agent name found for '{template}'")
+        super().__init__(f"No existing agent name found for template '{template}'")
 
 
 def is_indexed_agent_name_template(value: str) -> bool:
@@ -122,7 +122,7 @@ def require_latest_indexed_agent_name(
 
 
 def resolve_indexed_agent_name_reference(name: str) -> str:
-    """Resolve ``<base>-@`` to the latest concrete name, otherwise return *name*."""
+    """Resolve a template to the latest concrete name, otherwise return *name*."""
     if not is_indexed_agent_name_template(name):
         return name
     return require_latest_indexed_agent_name(name)
