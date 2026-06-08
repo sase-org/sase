@@ -14,16 +14,19 @@ import re
 import subprocess
 import sys
 import tomllib
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import unquote, urlparse
 
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+from sase.plugins.inventory import ENTRY_POINT_GROUPS as SASE_ENTRY_POINT_GROUPS
 
 HOST_DISTRIBUTION_NAME = "sase"
 CORE_DISTRIBUTION_NAME = "sase-core-rs"
+CONSOLE_SCRIPT_ENTRY_POINT_GROUP = "console_scripts"
+SASE_CHOP_SCRIPT_PREFIX = "sase_chop_"
 
 PackageRole = Literal["host", "core", "plugin"]
 InstallType = Literal["editable", "wheel", "unknown"]
@@ -32,6 +35,8 @@ GitProbe = Callable[[Path], "GitProbeResult"]
 
 _GIT_TIMEOUT_SECONDS = 1.0
 _VERSION_TAG_RE = re.compile(r"^v(?P<version>\d+\.\d+\.\d+(?:[-.a-zA-Z0-9]*)?)$")
+_DISTRIBUTION_NORMALIZE_RE = re.compile(r"[-_.]+")
+_IMPORT_MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 
 @dataclass(frozen=True)
@@ -117,6 +122,14 @@ class _ImportResolution:
     warning: str | None = None
 
 
+@dataclass(frozen=True)
+class _PluginCandidate:
+    distribution_name: str
+    distribution: importlib.metadata.Distribution
+    import_module: str | None
+    plugin_signals: tuple[str, ...]
+
+
 def derive_display_version(
     base_version: str | None,
     git: GitVersionMetadata | None,
@@ -200,10 +213,12 @@ def probe_git_metadata(source_root: Path) -> GitProbeResult:
 
 
 def collect_runtime_version_inventory(
-    *, git_probe: GitProbe | None = probe_git_metadata
+    *,
+    git_probe: GitProbe | None = probe_git_metadata,
+    include_plugins: bool = True,
 ) -> RuntimeVersionInventory:
-    """Collect the Phase 1 runtime inventory for ``sase`` and ``sase-core-rs``."""
-    packages = (
+    """Collect the runtime inventory for the current SASE environment."""
+    packages = [
         collect_package_record(
             HOST_DISTRIBUTION_NAME,
             role="host",
@@ -218,13 +233,41 @@ def collect_runtime_version_inventory(
             source_kind="rust",
             git_probe=git_probe,
         ),
-    )
+    ]
+    if include_plugins:
+        packages.extend(_collect_plugin_package_records(git_probe=git_probe))
+
     return RuntimeVersionInventory(
         executable=sys.argv[0],
         python_executable=sys.executable,
         python_version=sys.version.split()[0],
-        packages=packages,
+        packages=tuple(packages),
     )
+
+
+def _collect_plugin_package_records(
+    *, git_probe: GitProbe | None = probe_git_metadata
+) -> tuple[VersionPackageRecord, ...]:
+    """Collect installed SASE plugin package records without loading plugins."""
+    records: list[VersionPackageRecord] = []
+    for candidate in _plugin_candidates_from_distributions(
+        importlib.metadata.distributions()
+    ):
+        records.append(
+            _collect_package_record_from_distribution(
+                candidate.distribution_name,
+                dist=candidate.distribution,
+                role="plugin",
+                import_module=candidate.import_module,
+                source_kind="python",
+                git_probe=git_probe,
+                plugin_signals=candidate.plugin_signals,
+                initial_warnings=(),
+            )
+        )
+
+    records.sort(key=lambda record: record.name.lower())
+    return tuple(records)
 
 
 def collect_package_record(
@@ -238,6 +281,30 @@ def collect_package_record(
     """Collect one package record without importing provider/plugin code."""
     warnings: list[str] = []
     dist = _find_distribution(distribution_name, warnings)
+    return _collect_package_record_from_distribution(
+        distribution_name,
+        dist=dist,
+        role=role,
+        import_module=import_module,
+        source_kind=source_kind,
+        git_probe=git_probe,
+        plugin_signals=(),
+        initial_warnings=tuple(warnings),
+    )
+
+
+def _collect_package_record_from_distribution(
+    distribution_name: str,
+    *,
+    dist: importlib.metadata.Distribution | None,
+    role: PackageRole,
+    import_module: str | None,
+    source_kind: SourceKind,
+    git_probe: GitProbe | None,
+    plugin_signals: tuple[str, ...],
+    initial_warnings: tuple[str, ...],
+) -> VersionPackageRecord:
+    warnings: list[str] = list(initial_warnings)
     metadata_name = _distribution_name(dist) or distribution_name
     distribution_version = _distribution_version(dist)
     distribution_location = _distribution_location(dist)
@@ -251,6 +318,7 @@ def collect_package_record(
     source_root = _source_root(
         source_kind=source_kind,
         direct_url=direct_url,
+        install_type=install_type,
         import_resolution=import_resolution,
         distribution_location=distribution_location,
     )
@@ -268,7 +336,18 @@ def collect_package_record(
         install_type=install_type,
         source_root=source_root,
         import_resolution=import_resolution,
+        distribution_location=distribution_location,
     )
+    if (
+        code_directory == distribution_location
+        and import_resolution.code_directory is None
+        and distribution_location is not None
+    ):
+        _append_warning(
+            warnings,
+            f"falling back to distribution location for {metadata_name}; "
+            "import module path could not be resolved",
+        )
 
     return VersionPackageRecord(
         name=metadata_name,
@@ -283,8 +362,197 @@ def collect_package_record(
         distribution_location=_path_str(distribution_location),
         install_type=install_type,
         git=git_result.metadata,
+        plugin_signals=plugin_signals,
         warnings=tuple(warnings),
     )
+
+
+def _plugin_candidates_from_distributions(
+    distributions: Iterable[importlib.metadata.Distribution],
+) -> tuple[_PluginCandidate, ...]:
+    candidates: list[_PluginCandidate] = []
+
+    for dist in distributions:
+        distribution_name = _distribution_name(dist)
+        if distribution_name is None:
+            continue
+        if _is_runtime_distribution(distribution_name):
+            continue
+
+        plugin_signals: list[str] = []
+        import_modules: list[str] = []
+
+        if _is_sase_plugin_distribution_name(distribution_name):
+            plugin_signals.append(f"distribution_name:{distribution_name}")
+
+        for ep in _distribution_entry_points(dist):
+            group = _entry_point_group(ep)
+            name = _entry_point_name(ep)
+            value = _entry_point_value(ep)
+
+            if group in SASE_ENTRY_POINT_GROUPS:
+                plugin_signals.append(_entry_point_signal(group, name, value))
+                module = _entry_point_import_module(ep)
+                if module:
+                    import_modules.append(module)
+                continue
+
+            if group == CONSOLE_SCRIPT_ENTRY_POINT_GROUP and (
+                _is_sase_plugin_console_script(name, distribution_name)
+            ):
+                plugin_signals.append(_console_script_signal(name, value))
+                module = _entry_point_import_module(ep)
+                if module:
+                    import_modules.append(module)
+
+        if not plugin_signals:
+            continue
+
+        candidates.append(
+            _PluginCandidate(
+                distribution_name=distribution_name,
+                distribution=dist,
+                import_module=_preferred_plugin_import_module(
+                    import_modules,
+                    dist,
+                    distribution_name,
+                ),
+                plugin_signals=tuple(sorted(set(plugin_signals))),
+            )
+        )
+
+    candidates.sort(key=lambda candidate: candidate.distribution_name.lower())
+    return tuple(candidates)
+
+
+def _distribution_entry_points(
+    dist: importlib.metadata.Distribution,
+) -> tuple[importlib.metadata.EntryPoint, ...]:
+    try:
+        entry_points = getattr(dist, "entry_points", ())
+    except Exception:
+        return ()
+    if entry_points is None:
+        return ()
+    try:
+        return tuple(entry_points)
+    except TypeError:
+        return ()
+
+
+def _preferred_plugin_import_module(
+    import_modules: list[str],
+    dist: importlib.metadata.Distribution,
+    distribution_name: str,
+) -> str | None:
+    for module in import_modules:
+        top_level = _top_level_import_module(module)
+        if top_level:
+            return top_level
+
+    top_level_modules = _distribution_top_level_modules(dist)
+    if top_level_modules:
+        return top_level_modules[0]
+
+    return _module_from_distribution_name(distribution_name)
+
+
+def _distribution_top_level_modules(
+    dist: importlib.metadata.Distribution,
+) -> tuple[str, ...]:
+    try:
+        text = dist.read_text("top_level.txt")
+    except Exception:
+        return ()
+    if not text:
+        return ()
+
+    modules: list[str] = []
+    seen: set[str] = set()
+    for raw_line in text.splitlines():
+        module = raw_line.strip()
+        if not _IMPORT_MODULE_RE.fullmatch(module) or module in seen:
+            continue
+        seen.add(module)
+        modules.append(module)
+    return tuple(modules)
+
+
+def _entry_point_group(ep: importlib.metadata.EntryPoint) -> str:
+    return _safe_str(getattr(ep, "group", None), "")
+
+
+def _entry_point_name(ep: importlib.metadata.EntryPoint) -> str:
+    return _safe_str(getattr(ep, "name", None), "<unknown>")
+
+
+def _entry_point_value(ep: importlib.metadata.EntryPoint) -> str:
+    return _safe_str(getattr(ep, "value", None), "")
+
+
+def _entry_point_import_module(ep: importlib.metadata.EntryPoint) -> str | None:
+    module = getattr(ep, "module", None)
+    if isinstance(module, str) and _IMPORT_MODULE_RE.fullmatch(module):
+        return module
+    return _module_from_entry_point_value(_entry_point_value(ep))
+
+
+def _module_from_entry_point_value(value: str) -> str | None:
+    module = value.split(":", 1)[0].split("[", 1)[0].strip()
+    if _IMPORT_MODULE_RE.fullmatch(module):
+        return module
+    return None
+
+
+def _top_level_import_module(module: str) -> str | None:
+    top_level = module.split(".", 1)[0].strip()
+    if _IMPORT_MODULE_RE.fullmatch(top_level):
+        return top_level
+    return None
+
+
+def _module_from_distribution_name(distribution_name: str) -> str | None:
+    module = _normalize_distribution_name(distribution_name).replace("-", "_")
+    if _IMPORT_MODULE_RE.fullmatch(module):
+        return module
+    return None
+
+
+def _entry_point_signal(group: str, name: str, value: str) -> str:
+    signal = f"entry_point:{group}:{name}"
+    return f"{signal}={value}" if value else signal
+
+
+def _console_script_signal(name: str, value: str) -> str:
+    signal = f"console_script:{name}"
+    return f"{signal}={value}" if value else signal
+
+
+def _is_sase_plugin_console_script(name: str, distribution_name: str) -> bool:
+    if name.startswith(SASE_CHOP_SCRIPT_PREFIX):
+        return True
+    if not _is_sase_plugin_distribution_name(distribution_name):
+        return False
+    return name.startswith(("sase_", "sase-"))
+
+
+def _is_runtime_distribution(distribution_name: str) -> bool:
+    normalized = _normalize_distribution_name(distribution_name)
+    return normalized in {
+        _normalize_distribution_name(HOST_DISTRIBUTION_NAME),
+        _normalize_distribution_name(CORE_DISTRIBUTION_NAME),
+    }
+
+
+def _is_sase_plugin_distribution_name(distribution_name: str) -> bool:
+    normalized = _normalize_distribution_name(distribution_name)
+    return normalized.startswith(
+        "sase-"
+    ) and normalized != _normalize_distribution_name(CORE_DISTRIBUTION_NAME)
+
+
+def _normalize_distribution_name(distribution_name: str) -> str:
+    return _DISTRIBUTION_NORMALIZE_RE.sub("-", distribution_name).lower()
 
 
 def _find_distribution(
@@ -411,13 +679,14 @@ def _source_root(
     *,
     source_kind: SourceKind,
     direct_url: _DirectUrlInfo | None,
+    install_type: InstallType,
     import_resolution: _ImportResolution,
     distribution_location: Path | None,
 ) -> Path | None:
     if source_kind == "python":
         if direct_url and direct_url.source_root:
             return direct_url.source_root
-        if import_resolution.code_directory:
+        if install_type == "editable" and import_resolution.code_directory:
             return _find_ancestor_with_file(
                 import_resolution.code_directory,
                 "pyproject.toml",
@@ -537,10 +806,11 @@ def _code_directory(
     install_type: InstallType,
     source_root: Path | None,
     import_resolution: _ImportResolution,
+    distribution_location: Path | None,
 ) -> Path | None:
     if source_kind == "rust" and install_type == "editable" and source_root:
         return source_root
-    return import_resolution.code_directory or source_root
+    return import_resolution.code_directory or source_root or distribution_location
 
 
 def _version_from_tag(tag: str | None) -> str | None:
@@ -569,6 +839,15 @@ def _metadata_value(metadata: object, key: str) -> str | None:
         return None
     value = getter(key)
     return value if isinstance(value, str) and value else None
+
+
+def _safe_str(value: object, default: str) -> str:
+    return value if isinstance(value, str) and value else default
+
+
+def _append_warning(warnings: list[str], warning: str) -> None:
+    if warning not in warnings:
+        warnings.append(warning)
 
 
 def _path_str(path: Path | None) -> str | None:
