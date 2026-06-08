@@ -347,6 +347,12 @@ def main() -> NoReturn:
 
         handle_var_command(args)
 
+    # --- version ---
+    if args.command == "version":
+        from .version_handler import handle_version_command
+
+        sys.exit(handle_version_command(args))
+
     # --- workspace ---
     if args.command == "workspace":
         from .workspace_handler import handle_workspace_command
