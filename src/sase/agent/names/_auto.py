@@ -4,10 +4,8 @@ The auto sequence (``0, 1, ..., 9, a, ..., z, 00, 01, ...``) plus
 child-name reservation that backs ``%r:N`` repeat batches.
 """
 
-import itertools
 import json
 import re
-import string
 from collections.abc import Iterator
 
 from sase.agent.names._common import (
@@ -15,9 +13,8 @@ from sase.agent.names._common import (
     is_process_alive,
 )
 from sase.agent.names._registry import get_reserved_agent_names
+from sase.agent.names._templates import iter_agent_name_template_tokens
 from sase.core.paths import sase_projects_dir
-
-_AUTO_NAME_ALPHABET = "0123456789" + string.ascii_lowercase
 
 
 def get_next_auto_name() -> str:
@@ -320,11 +317,7 @@ def _load_dismissed_suffixes() -> set[str]:
 
 def _name_sequence() -> Iterator[str]:
     """Yield auto names in shortlex order: 0, ..., z, 00, 01, ..."""
-    length = 1
-    while True:
-        for chars in itertools.product(_AUTO_NAME_ALPHABET, repeat=length):
-            yield "".join(chars)
-        length += 1
+    yield from iter_agent_name_template_tokens()
 
 
 def _next_available_name(used: set[str]) -> str:

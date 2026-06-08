@@ -41,6 +41,12 @@ REQUIRED_BINDINGS = (
     "apply_project_lifecycle_update",
     "apply_project_aliases_update",
     "list_project_records",
+    "is_agent_name_template",
+    "parse_agent_name_template",
+    "render_agent_name_template",
+    "match_agent_name_template",
+    "compare_agent_name_template_tokens",
+    "agent_name_template_tokens_after",
     "bead_build_legend_work_plan",
     "bead_build_legend_work_plan_from_issues",
 )
