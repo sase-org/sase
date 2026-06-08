@@ -218,24 +218,25 @@ def collect_runtime_version_inventory(
     include_plugins: bool = True,
 ) -> RuntimeVersionInventory:
     """Collect the runtime inventory for the current SASE environment."""
+    cached_git_probe = _cached_git_probe(git_probe)
     packages = [
         collect_package_record(
             HOST_DISTRIBUTION_NAME,
             role="host",
             import_module="sase",
             source_kind="python",
-            git_probe=git_probe,
+            git_probe=cached_git_probe,
         ),
         collect_package_record(
             CORE_DISTRIBUTION_NAME,
             role="core",
             import_module=RUST_EXTENSION_MODULE_NAME,
             source_kind="rust",
-            git_probe=git_probe,
+            git_probe=cached_git_probe,
         ),
     ]
     if include_plugins:
-        packages.extend(_collect_plugin_package_records(git_probe=git_probe))
+        packages.extend(_collect_plugin_package_records(git_probe=cached_git_probe))
 
     return RuntimeVersionInventory(
         executable=sys.argv[0],
@@ -249,6 +250,7 @@ def _collect_plugin_package_records(
     *, git_probe: GitProbe | None = probe_git_metadata
 ) -> tuple[VersionPackageRecord, ...]:
     """Collect installed SASE plugin package records without loading plugins."""
+    git_probe = _cached_git_probe(git_probe)
     records: list[VersionPackageRecord] = []
     for candidate in _plugin_candidates_from_distributions(
         importlib.metadata.distributions()
@@ -798,6 +800,35 @@ def _probe_git(
     if source_root is None or git_probe is None:
         return GitProbeResult(None)
     return git_probe(source_root)
+
+
+def _cached_git_probe(git_probe: GitProbe | None) -> GitProbe | None:
+    if git_probe is None:
+        return None
+
+    cache: dict[Path, GitProbeResult] = {}
+
+    def cached(source_root: Path) -> GitProbeResult:
+        cache_key = _git_probe_cache_key(source_root)
+        cached_result = cache.get(cache_key)
+        if cached_result is not None:
+            return cached_result
+
+        result = git_probe(source_root)
+        cache[cache_key] = result
+        if result.metadata is not None:
+            git_root_key = _git_probe_cache_key(Path(result.metadata.root))
+            cache.setdefault(git_root_key, result)
+        return result
+
+    return cached
+
+
+def _git_probe_cache_key(source_root: Path) -> Path:
+    try:
+        return source_root.expanduser().resolve(strict=False)
+    except OSError:
+        return source_root.expanduser().absolute()
 
 
 def _code_directory(
