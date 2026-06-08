@@ -33,7 +33,7 @@ _setup: _venv
             {{ venv_bin }}/python tools/validate_sase_core_rs; \
         fi; \
     fi
-    @if ! {{ venv_bin }}/mypy --version > /dev/null 2>&1 || \
+    @if ! {{ venv_bin }}/python tools/validate_dependency_group dev || \
         ! {{ venv_bin }}/python tools/validate_editable_metadata; then \
         uv pip install --python {{ venv_bin }}/python --no-sources --reinstall-package mypy -e ".[dev]"; \
     fi
@@ -93,7 +93,7 @@ install-visual: _venv
 # Bootstrap visual-test dependencies without making them part of the default
 # development install.
 _setup-visual: _setup
-    @if ! {{ venv_bin }}/python -c "import cairosvg" > /dev/null 2>&1; then \
+    @if ! {{ venv_bin }}/python tools/validate_dependency_group visual; then \
         uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,visual]"; \
     fi
 
@@ -108,7 +108,7 @@ install-terminal-smoke: _venv
 # Bootstrap real-terminal smoke-test dependencies without making them part of
 # the default development install.
 _setup-terminal-smoke: _setup
-    @if ! {{ venv_bin }}/python -c "import pexpect, pyte" > /dev/null 2>&1; then \
+    @if ! {{ venv_bin }}/python tools/validate_dependency_group terminal-smoke; then \
         uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,terminal-smoke]"; \
     fi
 
