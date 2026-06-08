@@ -1,0 +1,31 @@
+name: PR Title
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, edited, reopened, ready_for_review, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  conventional-title:
+    name: Conventional PR title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate squash-merge title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+
+          allowed_types='feat|fix|perf|docs|ci|test|chore|refactor|build|deps'
+          pattern="^(${allowed_types})(\([A-Za-z0-9._/-]+\))?!?: [^[:space:]].*"
+
+          if [[ ! "${PR_TITLE}" =~ ${pattern} ]]; then
+            printf 'PR title must follow Conventional Commits so squash merges produce useful release metadata.\n' >&2
+            printf 'Allowed types: feat, fix, perf, docs, ci, test, chore, refactor, build, deps.\n' >&2
+            printf 'Examples: fix(release): add release workflow, feat!: remove legacy config.\n' >&2
+            printf 'Actual title: %s\n' "${PR_TITLE}" >&2
+            exit 1
+          fi
