@@ -20,6 +20,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.actions.agent_workflow._launch_bulk import BulkLaunchMixin
+from sase.ace.tui.actions.agent_workflow._launch_delta import LaunchDeltaMixin
 from sase.ace.tui.actions.agent_workflow._launch_multi_model import (
     MultiModelLaunchMixin,
     _write_fanout_failure_report,
@@ -31,6 +32,7 @@ from sase.ace.tui.actions.agent_workflow._launch_repeat import RepeatLaunchMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
 from sase.ace.tui.util.nav_gate import NavigationGate
+from sase.agent.launch_types import AgentLaunchResult
 from sase.xprompt.models import XPrompt
 
 
@@ -47,6 +49,26 @@ def _ctx() -> PromptContext:
         display_name="cl",
         update_target="cl",
         is_home_mode=False,
+    )
+
+
+def _launch_result(
+    index: int = 0,
+    *,
+    project_name: str = "proj",
+    timestamp: str | None = None,
+) -> AgentLaunchResult:
+    timestamp = timestamp or f"260501_12000{index}"
+    return AgentLaunchResult(
+        pid=1000 + index,
+        workspace_num=index + 1,
+        workspace_dir=f"/tmp/ws{index + 1}",
+        output_path=f"/tmp/out{index}.txt",
+        project_file=f"/tmp/{project_name}/{project_name}.sase",
+        project_name=project_name,
+        workflow_name=f"ace(run)-{timestamp}",
+        cl_name="cl",
+        timestamp=timestamp,
     )
 
 
@@ -162,6 +184,7 @@ class _FanOutHarness:
         self.notifications: list[tuple[str, str | None]] = []
         self.scheduled: list[tuple[Any, tuple[Any, ...]]] = []
         self.refresh_requests: list[str] = []
+        self.launch_delta_batches: list[list[AgentLaunchResult]] = []
         self.launched: list[dict[str, Any]] = []
         self.refresh_display_calls: int = 0
         self.notification_refresh_count: int = 0
@@ -189,8 +212,28 @@ class _FanOutHarness:
     def _refresh_notification_count(self) -> None:
         self.notification_refresh_count += 1
 
-    def _launch_background_agent(self, **kwargs: Any) -> None:
+    def _launch_background_agent(self, **kwargs: Any) -> AgentLaunchResult:
         self.launched.append(kwargs)
+        return AgentLaunchResult(
+            pid=123,
+            workspace_num=kwargs["workspace_num"],
+            workspace_dir=kwargs["workspace_dir"],
+            output_path="/tmp/out.txt",
+            project_file=kwargs["project_file"],
+            project_name=kwargs["project_name"],
+            workflow_name=kwargs["workflow_name"],
+            cl_name=kwargs["cl_name"],
+            timestamp=kwargs["timestamp"],
+        )
+
+    def _handle_launch_results_delta(
+        self,
+        results: list[AgentLaunchResult],
+        *,
+        source: str = "launch",
+    ) -> None:
+        assert source == "launch"
+        self.launch_delta_batches.append(list(results))
 
 
 class _MultiPromptApp(_FanOutHarness, MultiPromptLaunchMixin):
@@ -213,12 +256,78 @@ class _BulkApp(_FanOutHarness, BulkLaunchMixin):
         self.marked_indices = set()
 
 
+class _LaunchDeltaApp(LaunchDeltaMixin):
+    def __init__(self) -> None:
+        self.delta_refreshes: list[tuple[list[str], str]] = []
+        self.broad_refreshes: list[str] = []
+        self._agents_refresh_trace_records: list[Any] = []
+
+    def _schedule_agent_artifact_delta_refresh(
+        self,
+        artifact_dirs: list[Path],
+        *,
+        source: str = "launch",
+    ) -> None:
+        self.delta_refreshes.append(([str(path) for path in artifact_dirs], source))
+
+    def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+        self.broad_refreshes.append(source)
+
+
 class _FakeMultiPrompt:
     """Stand-in for sase.agent.multi_prompt.MultiPrompt that bypasses isinstance."""
 
     def __init__(self, segments: list[str]) -> None:
         self.segments = segments
         self.local_xprompts: dict[str, Any] = {}
+
+
+def test_launch_delta_handler_schedules_exact_artifact_dirs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _LaunchDeltaApp()
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    app._handle_launch_results_delta(
+        [
+            _launch_result(
+                0,
+                project_name="proj",
+                timestamp="260501_120000",
+            )
+        ]
+    )
+
+    assert app.broad_refreshes == []
+    assert app.delta_refreshes == [
+        (
+            [
+                str(
+                    tmp_path
+                    / ".sase"
+                    / "projects"
+                    / "proj"
+                    / "artifacts"
+                    / "ace-run"
+                    / "20260501120000"
+                )
+            ],
+            "launch",
+        )
+    ]
+
+
+def test_launch_delta_handler_missing_result_falls_back_to_broad_refresh() -> None:
+    app = _LaunchDeltaApp()
+
+    app._handle_launch_results_delta([])
+
+    assert app.delta_refreshes == []
+    assert app.broad_refreshes == ["launch"]
+    assert app._agents_refresh_trace_records[-1].fallback_reason == (
+        "missing_launch_result"
+    )
 
 
 @pytest.mark.asyncio
@@ -273,21 +382,13 @@ async def test_multi_prompt_launch_uses_to_thread_not_threading_thread() -> None
 
 @pytest.mark.asyncio
 async def test_multi_prompt_burst_collapses_to_single_refresh() -> None:
-    """5 spawn callbacks across one fan-out → one debounced refresh request."""
+    """5 spawned agents across one fan-out become one artifact-delta batch."""
     app = _MultiPromptApp()
     segments = ["a", "b", "c", "d", "e"]
     multi = _FakeMultiPrompt(segments)
 
-    def _fake_launch(
-        *,
-        on_agent_spawned: Callable[[], None] | None = None,
-        **_kwargs: Any,
-    ) -> list[Any]:
-        # Mirror multi_prompt_launcher's per-segment callback fan-out.
-        if on_agent_spawned is not None:
-            for _ in range(5):
-                on_agent_spawned()
-        return [object() for _ in range(5)]
+    def _fake_launch(**_kwargs: Any) -> list[AgentLaunchResult]:
+        return [_launch_result(i) for i in range(5)]
 
     with patch("sase.agent.multi_prompt.MultiPrompt", _FakeMultiPrompt, create=True):
         with patch(
@@ -296,10 +397,6 @@ async def test_multi_prompt_burst_collapses_to_single_refresh() -> None:
         ):
             app._launch_multi_prompt_agents(multi, _ctx(), None)
 
-            # First synchronous call has already issued a refresh request
-            # for immediate feedback.
-            initial = list(app.refresh_requests)
-
             # Drain the async runner -> worker -> call_later chain.
             while app.scheduled:
                 fn, args = app.scheduled.pop(0)
@@ -307,13 +404,15 @@ async def test_multi_prompt_burst_collapses_to_single_refresh() -> None:
                 if asyncio.iscoroutine(result):
                     await result
 
-    # Every refresh request used the unified "launch" source tag.
-    assert all(src == "launch" for src in app.refresh_requests)
-    # The 5 per-agent callbacks plus the worker's tail refresh plus the
-    # initial UI-side request all funnel through request_agents_refresh.
-    # The debounce in the real implementation collapses them to a single
-    # timer; this harness records each call but the source is uniform.
-    assert len(app.refresh_requests) >= len(initial) + 5
+    assert app.refresh_requests == []
+    assert len(app.launch_delta_batches) == 1
+    assert [result.pid for result in app.launch_delta_batches[0]] == [
+        1000,
+        1001,
+        1002,
+        1003,
+        1004,
+    ]
 
 
 def test_multi_prompt_launch_context_is_immutable_snapshot() -> None:
@@ -351,7 +450,7 @@ def test_multi_model_launch_uses_canonical_multi_prompt_launcher() -> None:
     app = _MultiModelApp()
     ctx = _ctx()
     local_xprompts = {"_plan": XPrompt(name="_plan", content="Plan locally")}
-    launched = [object(), object()]
+    launched = [_launch_result(0), _launch_result(1)]
 
     with patch(
         "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
@@ -376,19 +475,15 @@ def test_multi_model_launch_uses_canonical_multi_prompt_launcher() -> None:
     assert kwargs["is_home_mode"] is False
     assert kwargs["vcs_ref"] == ("git", "proj")
     assert kwargs["default_bare_segments_to_home"] is False
-
-    kwargs["on_agent_spawned"]()
-    refresh_calls = [
-        (fn, args) for fn, args in app.scheduled if fn == app.request_agents_refresh
-    ]
-    assert len(refresh_calls) == 1
-    assert refresh_calls[0][1] == ("launch",)
+    assert "on_agent_spawned" not in kwargs
+    while app.scheduled:
+        fn, args = app.scheduled.pop(0)
+        fn(*args)
+    assert app.launch_delta_batches == [launched]
 
 
 @pytest.mark.asyncio
-async def test_multi_model_dispatch_requests_immediate_refresh_and_snapshots_xprompts() -> (
-    None
-):
+async def test_multi_model_dispatch_snapshots_xprompts_without_broad_refresh() -> None:
     app = _MultiModelApp()
     ctx = _ctx()
     local_xprompts = {"_epic": XPrompt(name="_epic", content="Epic")}
@@ -404,7 +499,7 @@ async def test_multi_model_dispatch_requests_immediate_refresh_and_snapshots_xpr
     )
     local_xprompts["_late"] = XPrompt(name="_late", content="Late")
 
-    assert app.refresh_requests == ["launch"]
+    assert app.refresh_requests == []
     runners = [fn for fn, _ in app.scheduled if asyncio.iscoroutinefunction(fn)]
     assert runners, "expected an async runner via call_later"
     app.scheduled.clear()
@@ -426,7 +521,7 @@ def test_multi_model_xprompt_alternatives_are_passed_as_planned_segments() -> No
 
     with patch(
         "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
-        return_value=[object(), object()],
+        return_value=[_launch_result(0), _launch_result(1)],
     ) as launch_multi:
         app._run_multi_model_launch(
             segments,
@@ -503,7 +598,7 @@ def test_fanout_failure_report_includes_submitted_xprompt(
     assert submitted in text
 
 
-def test_repeat_launch_runs_off_main_thread_and_unifies_refresh() -> None:
+def test_repeat_launch_runs_off_main_thread_and_batches_delta() -> None:
     from sase.agent.repeat_launcher import RepeatAgentSpec
 
     app = _RepeatApp()
@@ -555,11 +650,16 @@ def test_repeat_launch_runs_off_main_thread_and_unifies_refresh() -> None:
                         app._run_repeat_launch("p %r:3", ctx, None, has_wait=False)
 
     assert len(app.launched) == 3
-    refresh_calls = [
-        (fn, args) for fn, args in app.scheduled if fn == app.request_agents_refresh
+    while app.scheduled:
+        fn, args = app.scheduled.pop(0)
+        fn(*args)
+    assert app.refresh_requests == []
+    assert len(app.launch_delta_batches) == 1
+    assert [result.timestamp for result in app.launch_delta_batches[0]] == [
+        "260501_120000",
+        "260501_120001",
+        "260501_120002",
     ]
-    assert len(refresh_calls) == 3
-    assert all(args[0] == "launch" for _, args in refresh_calls)
 
 
 def test_bulk_launch_takes_changespec_snapshot() -> None:

@@ -61,7 +61,6 @@ class MultiModelLaunchMixin:
                 submitted_xprompt,
             )
 
-        self.request_agents_refresh("launch")  # type: ignore[attr-defined]
         self.notify(f"Launching {n} agent(s) for {snap.display_name}...")  # type: ignore[attr-defined]
         self.call_later(_runner)  # type: ignore[attr-defined]
 
@@ -106,15 +105,15 @@ class MultiModelLaunchMixin:
                     project_name=ctx.project_name,
                     is_home_mode=ctx.is_home_mode,
                     vcs_ref=vcs_ref,
-                    on_agent_spawned=lambda: self.call_later(  # type: ignore[attr-defined]
-                        self.request_agents_refresh,  # type: ignore[attr-defined]
-                        "launch",
-                    ),
                     default_bare_segments_to_home=ctx.is_home_mode,
                 )
 
             msg = f"Started {len(results)} agent(s) for {ctx.display_name}"
             timer.finish(outcome="ok", launched=len(results))
+            self.call_later(  # type: ignore[attr-defined]
+                self._handle_launch_results_delta,  # type: ignore[attr-defined]
+                results,
+            )
             self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
         except MultiPromptPartialLaunchError as exc:
             from sase.agent.partial_launch import rollback_partial_launch_results
@@ -134,6 +133,7 @@ class MultiModelLaunchMixin:
             self.call_later(  # type: ignore[attr-defined]
                 _refresh_notification_count_if_available, self
             )
+            self.call_later(self.request_agents_refresh, "launch")  # type: ignore[attr-defined]
             self.call_later(  # type: ignore[attr-defined]
                 lambda: self.notify(  # type: ignore[attr-defined]
                     "Prompt fan-out launch failed; spawned agents terminated",

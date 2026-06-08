@@ -167,6 +167,125 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         )
         self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
 
+    def _schedule_agent_artifact_delta_refresh(
+        self,
+        artifact_dirs: list[Path],
+        *,
+        source: str = "unknown",
+    ) -> None:
+        """Schedule an exact artifact-dir reconcile for a bounded row delta."""
+        source = _normalize_refresh_source(source)
+        unique_dirs: list[Path] = []
+        seen: set[str] = set()
+        for artifact_dir in artifact_dirs:
+            path = Path(artifact_dir).expanduser()
+            key = str(path)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_dirs.append(path)
+        if not unique_dirs:
+            record_agents_refresh_trace(
+                self,
+                stage="fallback",
+                source=source,
+                data_cost="tier1_broad_load",
+                fallback_reason="missing_artifact_dir",
+            )
+            self._schedule_agents_async_refresh(source=source)
+            return
+        if getattr(self, "_agent_search_query", ""):
+            record_agents_refresh_trace(
+                self,
+                stage="fallback",
+                source=source,
+                data_cost="tier1_broad_load",
+                fallback_reason="active_search",
+            )
+            self._schedule_agents_async_refresh(source=source)
+            return
+        if self._agents_loading or self._agents_refresh_scheduled:
+            record_agents_refresh_trace(
+                self,
+                stage="fallback",
+                source=source,
+                data_cost="tier1_broad_load",
+                fallback_reason="delta_read_failure",
+            )
+            self._schedule_agents_async_refresh(source=source)
+            return
+
+        record_agents_refresh_trace(
+            self,
+            stage="scheduled",
+            source=source,
+            data_cost="artifact_delta_load",
+            full_history=False,
+            artifact_dirs=len(unique_dirs),
+        )
+        self.call_later(  # type: ignore[attr-defined]
+            self._run_agent_artifact_delta_refresh,
+            tuple(unique_dirs),
+            source,
+        )
+
+    async def _run_agent_artifact_delta_refresh(
+        self,
+        artifact_dirs: tuple[Path, ...],
+        source: str = "unknown",
+    ) -> None:
+        """Run an exact artifact-dir reconcile with broad fallback on failure."""
+        if self._nav_gate.is_navigating():
+            delay = self._nav_gate.time_until_idle() + 0.05
+            self.set_timer(  # type: ignore[attr-defined]
+                delay,
+                partial(
+                    self._run_agent_artifact_delta_refresh,
+                    artifact_dirs,
+                    source,
+                ),
+            )
+            return
+        source = _normalize_refresh_source(source)
+        if self._agents_loading:
+            self._agents_refresh_pending = True
+            self._agents_refresh_pending_source = source
+            return
+
+        self._agents_loading = True
+        self._agents_refresh_active_source = source
+        try:
+            ok = await self._load_agent_artifact_delta_async(  # type: ignore[attr-defined]
+                list(artifact_dirs),
+                source=source,
+            )
+            if not ok:
+                self._agents_refresh_pending = True
+                self._agents_refresh_pending_source = source
+        except Exception:
+            log.exception("Agents artifact delta refresh failed")
+            record_agents_refresh_trace(
+                self,
+                stage="fallback",
+                source=source,
+                data_cost="tier1_broad_load",
+                fallback_reason="delta_read_failure",
+            )
+            self._agents_refresh_pending = True
+            self._agents_refresh_pending_source = source
+        finally:
+            self._agents_loading = False
+            self._agents_refresh_active_source = "unknown"
+            if self._agents_refresh_pending:
+                self._agents_refresh_pending = False
+                pending_source = _normalize_refresh_source(
+                    getattr(self, "_agents_refresh_pending_source", source)
+                )
+                self._agents_refresh_pending_source = "unknown"
+                self._agents_refresh_pending_full_history = False
+                self._agents_refresh_pending_full_history_reason = None
+                self._schedule_agents_async_refresh(source=pending_source)
+
     def _maybe_trigger_idle_tier2_reconcile(
         self, *, now_mono: float | None = None
     ) -> bool:

@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from sase.agent.launch_types import AgentLaunchResult
+
     from sase.ace.changespec import ChangeSpec
 
     from ._types import PromptContext
@@ -71,6 +73,7 @@ class BulkLaunchMixin:
             )
             launched_count = 0
             failed_count = 0
+            launch_results: list[AgentLaunchResult] = []
 
             for i, cs in enumerate(changespecs):
                 if i > 0:
@@ -109,7 +112,7 @@ class BulkLaunchMixin:
                 cl_prompt = f"#{workflow_type}:{cl_name} {prompt}"
 
                 with timer.stage("low_level_spawn", slot_index=i):
-                    self._launch_background_agent(  # type: ignore[attr-defined]
+                    launch_result = self._launch_background_agent(  # type: ignore[attr-defined]
                         cl_name=cl_name,
                         project_file=project_file,
                         workspace_dir=workspace_dir,
@@ -122,11 +125,8 @@ class BulkLaunchMixin:
                         history_sort_key=cl_name,
                         vcs_ref=(workflow_type, cl_name),
                     )
+                launch_results.append(launch_result)
                 launched_count += 1
-                self.call_later(  # type: ignore[attr-defined]
-                    self.request_agents_refresh,  # type: ignore[attr-defined]
-                    "launch",
-                )
 
             if failed_count > 0:
                 msg = f"Started {launched_count} agent(s), {failed_count} failed"
@@ -136,6 +136,11 @@ class BulkLaunchMixin:
             else:
                 msg = f"Started {launched_count} agent(s)"
                 self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
+            if launch_results:
+                self.call_later(  # type: ignore[attr-defined]
+                    self._handle_launch_results_delta,  # type: ignore[attr-defined]
+                    launch_results,
+                )
             timer.finish(outcome="ok", launched=launched_count, failed=failed_count)
         except Exception:
             log.exception("Bulk launch failed")

@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from sase.agent.launch_types import AgentLaunchResult
+
     from ._types import PromptContext
 
 
@@ -129,8 +131,8 @@ class RepeatLaunchMixin:
                     REPEAT_TOTAL_ENV: str(spec.total),
                 }
 
-            def _spawn_from_tui(request: LaunchSpawnRequest) -> None:
-                self._launch_background_agent(  # type: ignore[attr-defined]
+            def _spawn_from_tui(request: LaunchSpawnRequest) -> AgentLaunchResult:
+                return self._launch_background_agent(  # type: ignore[attr-defined]
                     cl_name=request.cl_name,
                     project_file=request.project_file,
                     workspace_dir=request.workspace_dir,
@@ -148,12 +150,6 @@ class RepeatLaunchMixin:
                     retry_transfer_from_pid=request.transfer_from_pid,
                 )
 
-            def _refresh_after_slot(_record: object) -> None:
-                self.call_later(  # type: ignore[attr-defined]
-                    self.request_agents_refresh,  # type: ignore[attr-defined]
-                    "launch",
-                )
-
             context = LaunchExecutionContext(
                 cl_name=ctx.display_name,
                 project_file=ctx.project_file,
@@ -167,16 +163,19 @@ class RepeatLaunchMixin:
                 workspace_dir=ctx.workspace_dir,
             )
             with timer.stage("execute_launch_plan", slot_count=len(specs)):
-                execute_launch_plan(
+                execution = execute_launch_plan(
                     plan,
                     context,
                     spawn=_spawn_from_tui,
-                    on_slot_executed=_refresh_after_slot,
                     slot_extra_env=_slot_env,
                 )
 
             msg = f"Started {len(specs)} repeat agent(s) for {ctx.display_name}"
             timer.finish(outcome="ok", launched=len(specs))
+            self.call_later(  # type: ignore[attr-defined]
+                self._handle_launch_results_delta,  # type: ignore[attr-defined]
+                execution.results,
+            )
             self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
         except NameCollisionError as e:
             err_msg = str(e)

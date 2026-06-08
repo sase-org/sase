@@ -16,6 +16,8 @@ from ._types import PromptContext
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from sase.agent.launch_types import AgentLaunchResult
+
     from sase.ace.changespec import ChangeSpec
     from sase.ace.tui.modals import SelectionItem
 
@@ -510,8 +512,8 @@ class AgentLaunchBodyMixin:
 
                 fixed_workspace = ctx.is_home_mode or has_wait
 
-                def _spawn_from_tui(request: LaunchSpawnRequest) -> None:
-                    self._launch_background_agent(  # type: ignore[attr-defined]
+                def _spawn_from_tui(request: LaunchSpawnRequest) -> AgentLaunchResult:
+                    return self._launch_background_agent(  # type: ignore[attr-defined]
                         cl_name=request.cl_name,
                         project_file=request.project_file,
                         workspace_dir=request.workspace_dir,
@@ -530,7 +532,7 @@ class AgentLaunchBodyMixin:
                         retry_transfer_from_pid=request.transfer_from_pid,
                     )
 
-                execute_launch_plan(
+                execution = execute_launch_plan(
                     plan_fake_fanout("single", [raw_prompt]),
                     LaunchExecutionContext(
                         cl_name=ctx.display_name,
@@ -549,7 +551,10 @@ class AgentLaunchBodyMixin:
                     base_timestamp=ctx.timestamp,
                 )
             timer.finish(dispatch="single")
-            self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
+            self.call_later(  # type: ignore[attr-defined]
+                self._handle_launch_results_delta,  # type: ignore[attr-defined]
+                execution.results,
+            )
             msg = f"Agent started for {display_name}"
             self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
         except Exception:

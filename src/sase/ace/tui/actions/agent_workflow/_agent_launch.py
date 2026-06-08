@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from ._launch_background import BackgroundAgentLaunchMixin
 from ._launch_body import AgentLaunchBodyMixin
 from ._launch_bulk import BulkLaunchMixin
+from ._launch_delta import LaunchDeltaMixin
 from ._launch_multi_model import MultiModelLaunchMixin
 from ._launch_multi_prompt import MultiPromptLaunchMixin
 from ._launch_repeat import RepeatLaunchMixin
@@ -23,6 +24,7 @@ class AgentLaunchMixin(
     AgentLaunchStartMixin,
     AgentLaunchBodyMixin,
     BackgroundAgentLaunchMixin,
+    LaunchDeltaMixin,
     MultiModelLaunchMixin,
     RepeatLaunchMixin,
     MultiPromptLaunchMixin,

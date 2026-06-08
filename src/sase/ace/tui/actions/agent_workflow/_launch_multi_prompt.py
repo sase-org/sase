@@ -26,9 +26,8 @@ class MultiPromptLaunchMixin:
 
         Snapshots the launch context on the UI thread and dispatches the
         per-segment fan-out to ``asyncio.to_thread`` so the Textual event
-        loop stays responsive during naming-wait polls. Per-agent refresh
-        triggers funnel through ``request_agents_refresh("launch")`` and
-        collapse into a single deferred refresh after the burst settles.
+        loop stays responsive during naming-wait polls. Successful launch
+        results are batched into one exact artifact-delta reconcile.
         """
         from sase.agent.multi_prompt import MultiPrompt
 
@@ -43,7 +42,6 @@ class MultiPromptLaunchMixin:
 
         # Immediate feedback while agents launch in background.
         n = len(multi.segments)
-        self.request_agents_refresh("launch")  # type: ignore[attr-defined]
         self.notify(f"Launching {n} agent(s) for {snap.display_name}...")  # type: ignore[attr-defined]
 
         self.call_later(_runner)  # type: ignore[attr-defined]
@@ -72,13 +70,12 @@ class MultiPromptLaunchMixin:
                 project_name=ctx.project_name,
                 is_home_mode=ctx.is_home_mode,
                 vcs_ref=vcs_ref,
-                on_agent_spawned=lambda: self.call_later(  # type: ignore[attr-defined]
-                    self.request_agents_refresh,  # type: ignore[attr-defined]
-                    "launch",
-                ),
                 default_bare_segments_to_home=ctx.is_home_mode,
             )
-            self.call_later(self.request_agents_refresh, "launch")  # type: ignore[attr-defined]
+            self.call_later(  # type: ignore[attr-defined]
+                self._handle_launch_results_delta,  # type: ignore[attr-defined]
+                results,
+            )
             msg = f"Started {len(results)} agent(s) for {ctx.display_name}"
             self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
         except MultiPromptPartialLaunchError as exc:

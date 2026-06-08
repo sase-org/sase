@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ....changespec import ChangeSpec
@@ -172,6 +173,11 @@ class AgentLoadingStateMixin:
     def _load_agents(
         self, *, full_history: bool = False, source: str = "sync_load"
     ) -> None:
+        raise NotImplementedError
+
+    async def _load_agent_artifact_delta_async(
+        self, artifact_dirs: list[Path], *, source: str = "unknown"
+    ) -> bool:
         raise NotImplementedError
 
     def _finalize_agent_list(

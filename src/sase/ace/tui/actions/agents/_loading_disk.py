@@ -7,6 +7,7 @@ import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from . import _loading_helpers
@@ -416,6 +417,153 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             if installed_active_source:
                 self._agents_refresh_active_source = previous_active_source
         log.debug("agents async load: apply=%.3fs", time.perf_counter() - apply_start)
+
+    async def _load_agent_artifact_delta_async(
+        self,
+        artifact_dirs: list[Path],
+        *,
+        source: str = "unknown",
+    ) -> bool:
+        """Load and apply a bounded exact-artifact delta.
+
+        Returns False when the exact scan could not cover every requested
+        artifact dir and the caller should fall back to a broad refresh.
+        """
+        import asyncio
+
+        from ....changespec import find_all_changespecs_cached
+
+        source = normalize_refresh_source(source)
+        merge_result = await asyncio.to_thread(
+            self._external_dismissal_merge_result, set(self._dismissed_agents)
+        )
+        self._apply_external_dismissal_merge(merge_result)
+        dismissed_snapshot = set(self._dismissed_agents)
+        changespec_snapshot = await asyncio.to_thread(
+            find_all_changespecs_cached,
+            include_states="all",
+        )
+        disk_start = time.perf_counter()
+        load_result = await asyncio.to_thread(
+            _loading_helpers.load_agent_artifact_delta_from_disk_with_state,
+            dismissed_snapshot,
+            artifact_dirs,
+            changespec_snapshot=changespec_snapshot,
+            source=source,
+        )
+        all_agents = load_result.all_agents
+        dismissed_from_loader = load_result.dismissed_from_loader
+        disk_elapsed = time.perf_counter() - disk_start
+        data_cost = classify_agents_data_cost(artifact_delta=True)
+        record_agents_refresh_trace(
+            self,
+            stage="data_loaded",
+            source=source,
+            data_cost=data_cost,
+            agents=len(all_agents),
+            dismissed=len(dismissed_from_loader),
+            disk_ms=disk_elapsed * 1000.0,
+            load_tier=load_result.load_state.tier,
+            artifact_source=load_result.load_state.artifact_source,
+            complete_history=load_result.load_state.complete_history,
+        )
+        if load_result.load_state.repair_recommended:
+            record_agents_refresh_trace(
+                self,
+                stage="fallback",
+                source=source,
+                data_cost=data_cost,
+                fallback_reason="missing_artifact_dir",
+            )
+            return False
+
+        cleanup_start = time.perf_counter()
+        orphaned, cleaned_dirs = await asyncio.to_thread(
+            compute_loader_cleanup, dismissed_snapshot, dismissed_from_loader
+        )
+        if orphaned:
+            self._dismissed_agents -= orphaned
+        if cleaned_dirs:
+            _CLEANED_ARTIFACT_DIRS.update(cleaned_dirs)
+        log.debug(
+            "agents artifact delta load: cleanup=%.3fs orphaned=%d cleaned=%d",
+            time.perf_counter() - cleanup_start,
+            len(orphaned),
+            len(cleaned_dirs),
+        )
+
+        on_agents_tab = self.current_tab == "agents"
+        selected_identity: tuple[AgentType, str, str | None] | None = None
+        if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
+            selected_identity = self._agents[self.current_idx].identity
+        elif not on_agents_tab:
+            selected_identity = getattr(self, "_agents_last_identity", None)
+
+        from ...repro.capture import record_agents_tab_loader_result
+
+        record_agents_tab_loader_result(
+            self,
+            load_state=load_result.load_state,
+            agents=all_agents,
+            dismissed_from_loader=dismissed_from_loader,
+            on_agents_tab=on_agents_tab,
+            selected_identity=selected_identity,
+            source="artifact_delta_load",
+        )
+
+        worker_snapshot = self._make_prepared_apply_snapshot(
+            on_agents_tab=on_agents_tab,
+            selected_identity=selected_identity,
+            load_state=load_result.load_state,
+        )
+
+        prep_start = time.perf_counter()
+        boundary = await asyncio.to_thread(
+            prepare_loaded_agents_worker_boundary,
+            all_agents,
+            dismissed_from_loader,
+            set(self._dismissed_agents),
+            bool(self.hide_non_run_agents),
+            worker_snapshot,
+        )
+        content_index = await self._prepare_agent_content_search_index_async(
+            boundary.fold.unfiltered_agents
+        )
+        boundary = await asyncio.to_thread(
+            attach_finalize_plan_to_boundary,
+            boundary,
+            worker_snapshot,
+            content_index=content_index,
+        )
+        log.debug(
+            "agents artifact delta load: prep=%.3fs",
+            time.perf_counter() - prep_start,
+        )
+
+        previous_active_source = getattr(
+            self, "_agents_refresh_active_source", "unknown"
+        )
+        installed_active_source = previous_active_source == "unknown"
+        if installed_active_source:
+            self._agents_refresh_active_source = source
+        try:
+            self._apply_loaded_agents_prepared(
+                boundary.prep,
+                on_agents_tab=on_agents_tab,
+                selected_identity=selected_identity,
+                load_state=load_result.load_state,
+                persist_dismissed_changes=bool(orphaned)
+                or bool(boundary.prep.recovered_bundle_identities)
+                or bool(boundary.prep.auto_dismissed_identities),
+                dismissed_changes_include_removals=bool(orphaned),
+                incomplete_merge_already_applied=True,
+                precomputed_boundary=boundary,
+                precomputed_fold_levels=worker_snapshot.fold_levels,
+            )
+        finally:
+            if installed_active_source:
+                self._agents_refresh_active_source = previous_active_source
+        return True
 
     def _apply_loaded_agents(
         self,

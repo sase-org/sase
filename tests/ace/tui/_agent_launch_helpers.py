@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
+from sase.agent.launch_types import AgentLaunchResult
 from sase.workspace_provider._hookspec import WorkflowMetadata
 
 
@@ -57,6 +58,8 @@ class _LaunchBodyApp(AgentLaunchMixin):
         self.notifications: list[tuple[str, str | None]] = []
         self.scheduled: list[tuple[Any, tuple[Any, ...]]] = []
         self.launched: list[dict[str, Any]] = []
+        self.launch_delta_batches: list[list[AgentLaunchResult]] = []
+        self.delta_artifact_dirs: list[list[str]] = []
         self.launch_thread_ids: list[int] = []
         self.refresh_count = 0
         self._prompt_context: PromptContext | None = _launch_body_context()
@@ -86,9 +89,29 @@ class _LaunchBodyApp(AgentLaunchMixin):
         del source
         self.refresh_count += 1
 
-    def _launch_background_agent(self, **kwargs: Any) -> None:
+    def _schedule_agent_artifact_delta_refresh(
+        self,
+        artifact_dirs: list[Any],
+        *,
+        source: str = "launch",
+    ) -> None:
+        del source
+        self.delta_artifact_dirs.append([str(path) for path in artifact_dirs])
+
+    def _launch_background_agent(self, **kwargs: Any) -> AgentLaunchResult:
         self.launch_thread_ids.append(threading.get_ident())
         self.launched.append(kwargs)
+        return AgentLaunchResult(
+            pid=123,
+            workspace_num=kwargs["workspace_num"],
+            workspace_dir=kwargs["workspace_dir"],
+            output_path="/tmp/out.txt",
+            project_file=kwargs["project_file"],
+            project_name=kwargs["project_name"],
+            workflow_name=kwargs["workflow_name"],
+            cl_name=kwargs["cl_name"],
+            timestamp=kwargs["timestamp"],
+        )
 
 
 def _fake_context() -> PromptContext:

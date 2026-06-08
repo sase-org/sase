@@ -34,12 +34,13 @@ def test_run_agent_launch_body_skips_xprompt_processing_for_plain_prompt() -> No
     assert app.launched[0]["workspace_num"] == 100
     assert app.launched[0]["workspace_dir"] == "/tmp/ws100"
     assert app.launch_thread_ids == [body_thread_id]
-    refresh_calls = [
+    delta_calls = [
         (fn, args)
         for fn, args in app.scheduled
-        if fn == app._schedule_agents_async_refresh
+        if fn == app._handle_launch_results_delta
     ]
-    assert len(refresh_calls) == 1
+    assert len(delta_calls) == 1
+    assert app.refresh_count == 0
 
 
 def test_run_agent_launch_body_expands_possible_xprompt_for_model_dispatch() -> None:
@@ -146,15 +147,25 @@ def test_run_agent_launch_body_multi_agent_xprompt_history_uses_input() -> None:
     assert args[0].segments == expanded_segments
 
 
-def test_run_agent_launch_body_direct_single_agent_refreshes_after_success() -> None:
+def test_run_agent_launch_body_direct_single_agent_schedules_delta_after_success() -> (
+    None
+):
     app = _LaunchBodyApp()
 
     _run_launch_body_with_common_patches(app, "plain single-agent prompt")
 
     assert len(app.launched) == 1
     scheduled_fns = [fn for fn, _ in app.scheduled]
-    assert scheduled_fns.count(app._schedule_agents_async_refresh) == 1
-    assert any(
-        callable(fn) and fn != app._schedule_agents_async_refresh
-        for fn in scheduled_fns
+    assert app._schedule_agents_async_refresh not in scheduled_fns
+    assert scheduled_fns.count(app._handle_launch_results_delta) == 1
+    fn, args = next(
+        (fn, args)
+        for fn, args in app.scheduled
+        if fn == app._handle_launch_results_delta
     )
+    fn(*args)
+    assert len(app.delta_artifact_dirs) == 1
+    assert app.delta_artifact_dirs[0][0].endswith(
+        "/projects/test/artifacts/ace-run/20ts"
+    )
+    assert app.refresh_count == 0

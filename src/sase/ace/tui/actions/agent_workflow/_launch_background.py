@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.agent.launch_types import AgentLaunchResult
+
 
 class BackgroundAgentLaunchMixin:
     """Mixin providing the TUI-to-runner subprocess bridge."""
@@ -24,7 +29,7 @@ class BackgroundAgentLaunchMixin:
         extra_env: dict[str, str] | None = None,
         local_xprompts_file: str | None = None,
         retry_transfer_from_pid: int | None = None,
-    ) -> None:
+    ) -> AgentLaunchResult:
         """Launch agent as background process.
 
         Args:
@@ -50,7 +55,7 @@ class BackgroundAgentLaunchMixin:
         """
         from sase.agent.launcher import spawn_agent_subprocess
 
-        spawn_agent_subprocess(
+        return spawn_agent_subprocess(
             cl_name=cl_name,
             project_file=project_file,
             workspace_dir=workspace_dir,

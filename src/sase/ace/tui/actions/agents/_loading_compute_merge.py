@@ -144,10 +144,13 @@ def merge_incomplete_load_after_complete_history(
 ) -> PreparedApplyData:
     """Treat post-reconcile Tier 1 loads as patches over full history."""
     load_state = snapshot.load_state
+    is_artifact_delta = (
+        load_state is not None and load_state.artifact_source == "artifact_delta"
+    )
     if (
         load_state is None
         or load_state.complete_history
-        or not snapshot.agents_seen_complete_history
+        or (not snapshot.agents_seen_complete_history and not is_artifact_delta)
     ):
         return prep
 
