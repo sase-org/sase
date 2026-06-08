@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.core.agent_scan_facade import scan_agent_artifacts
+from sase.core.agent_scan_facade import scan_agent_artifact_dirs, scan_agent_artifacts
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactScanOptionsWire,
@@ -65,6 +65,53 @@ def test_missing_root_returns_empty_snapshot(tmp_path: Path) -> None:
     assert snapshot.stats.projects_visited == 0
     assert snapshot.stats.artifact_dirs_visited == 0
     assert snapshot.stats.json_decode_errors == 0
+
+
+def test_scan_agent_artifact_dirs_reads_exact_unique_dirs(fixture_root: Path) -> None:
+    home_dir = fixture_root / "home" / "artifacts" / "ace-run" / TS_HOME_RUNNING
+    done_dir = fixture_root / "myproj" / "artifacts" / "ace-run" / TS_ACE_RUN_DONE
+    missing_dir = fixture_root / "myproj" / "artifacts" / "ace-run" / "20990101000000"
+    invalid_dir = fixture_root / "myproj" / "not-artifacts" / "ace-run" / TS_WAITING
+
+    snapshot = scan_agent_artifact_dirs(
+        fixture_root,
+        [done_dir, home_dir, done_dir, missing_dir, invalid_dir],
+    )
+
+    assert [record.timestamp for record in snapshot.records] == [
+        TS_HOME_RUNNING,
+        TS_ACE_RUN_DONE,
+    ]
+    assert snapshot.stats.projects_visited == 2
+    assert snapshot.stats.artifact_dirs_visited == 2
+
+
+def test_scan_agent_artifact_dirs_honors_project_and_workflow_filters(
+    fixture_root: Path,
+) -> None:
+    home_dir = fixture_root / "home" / "artifacts" / "ace-run" / TS_HOME_RUNNING
+    done_dir = fixture_root / "myproj" / "artifacts" / "ace-run" / TS_ACE_RUN_DONE
+    workflow_dir = (
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "workflow-three_phase"
+        / TS_WORKFLOW_ROOT
+    )
+
+    home_only = scan_agent_artifact_dirs(
+        fixture_root,
+        [home_dir, done_dir, workflow_dir],
+        AgentArtifactScanOptionsWire(only_projects=("home",)),
+    )
+    workflow_only = scan_agent_artifact_dirs(
+        fixture_root,
+        [home_dir, done_dir, workflow_dir],
+        AgentArtifactScanOptionsWire(only_workflow_dirs=("workflow-three_phase",)),
+    )
+
+    assert [record.timestamp for record in home_only.records] == [TS_HOME_RUNNING]
+    assert [record.timestamp for record in workflow_only.records] == [TS_WORKFLOW_ROOT]
 
 
 def test_options_round_trip_through_snapshot(fixture_root: Path) -> None:

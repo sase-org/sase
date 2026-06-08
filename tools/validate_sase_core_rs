@@ -16,6 +16,7 @@ REQUIRED_BINDINGS = (
     "parse_project_bytes",
     "parse_query",
     "scan_agent_artifacts",
+    "scan_agent_artifact_dirs",
     "plan_agent_cleanup",
     "save_dismissed_agents_index",
     "save_dismissed_bundle",

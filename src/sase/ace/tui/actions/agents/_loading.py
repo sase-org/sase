@@ -22,7 +22,11 @@ from ._loading_compute import (
 )
 from ._loading_disk import AgentLoadingDiskMixin
 from ._loading_filter import AgentLoadingFilterMixin
-from ._loading_helpers import DISMISSABLE_STATUSES, load_agents_from_disk_with_state
+from ._loading_helpers import (
+    DISMISSABLE_STATUSES,
+    load_agent_artifact_delta_from_disk_with_state,
+    load_agents_from_disk_with_state,
+)
 from ._loading_refresh import AgentLoadingRefreshMixin
 
 # Aliases preserved so `_loading._compute_loader_cleanup` and
@@ -41,6 +45,7 @@ __all__ = [
     "_compute_loader_cleanup",
     "_PreparedApplyData",
     "_PreparedApplySnapshot",
+    "load_agent_artifact_delta_from_disk_with_state",
     "load_agents_from_disk_with_state",
 ]
 

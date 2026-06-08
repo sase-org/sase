@@ -139,7 +139,7 @@ class ReproLoadState:
     tier: Literal["tier1", "tier2"]
     complete_history: bool
     complete_visible_inbox: bool
-    artifact_source: Literal["artifact_index", "source_scan"]
+    artifact_source: Literal["artifact_index", "source_scan", "artifact_delta"]
     used_artifact_index: bool
     index_error: str | None = None
     repair_recommended: bool = False
@@ -152,9 +152,10 @@ class ReproLoadState:
         if tier != "tier1" and tier != "tier2":
             raise ValueError("load_state.tier must be 'tier1' or 'tier2'")
         source = data.get("artifact_source")
-        if source != "artifact_index" and source != "source_scan":
+        if source not in {"artifact_index", "source_scan", "artifact_delta"}:
             raise ValueError(
-                "load_state.artifact_source must be 'artifact_index' or 'source_scan'"
+                "load_state.artifact_source must be 'artifact_index', "
+                "'source_scan', or 'artifact_delta'"
             )
         return cls(
             tier=tier,

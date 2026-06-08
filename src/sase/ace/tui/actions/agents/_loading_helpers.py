@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -131,6 +133,41 @@ def load_agents_from_disk_with_state(
         return result
 
 
+def load_agent_artifact_delta_from_disk_with_state(
+    dismissed_agents: set[tuple[AgentType, str, str | None]],
+    artifact_dirs: Sequence[Path | str],
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    source: str = "unknown",
+    update_index: bool = True,
+) -> _AgentDiskLoadResult:
+    """Load agents from exact artifact dirs and include the delta load state."""
+
+    with tui_trace(
+        "agents.load_artifact_delta_from_disk",
+        source=source or "unknown",
+        artifact_dirs=len(artifact_dirs),
+    ) as counters:
+        result = _load_agent_artifact_delta_from_disk_impl(
+            dismissed_agents,
+            artifact_dirs,
+            changespec_snapshot=changespec_snapshot,
+            update_index=update_index,
+        )
+        state = result.load_state
+        counters["data_cost"] = classify_agents_data_cost(artifact_delta=True)
+        counters["tier"] = state.tier
+        counters["artifact_source"] = state.artifact_source
+        counters["complete_history"] = state.complete_history
+        counters["complete_visible_inbox"] = state.complete_visible_inbox
+        counters["repair_recommended"] = state.repair_recommended
+        counters["repair_reason"] = state.repair_reason
+        counters["truncated"] = state.truncated
+        counters["used_artifact_index"] = state.used_artifact_index
+        counters["index_error"] = state.index_error
+        return result
+
+
 def hydrate_agent_attempt_history(agent: Agent) -> bool:
     """Populate prior-attempt history for one agent on demand.
 
@@ -155,19 +192,11 @@ def hydrate_agent_attempt_history(agent: Agent) -> bool:
     return True
 
 
-def _load_agents_from_disk_impl(
+def _apply_loaded_agent_disk_projections(
+    all_agents: list[Agent],
     dismissed_agents: set[tuple[AgentType, str, str | None]],
-    *,
-    changespec_snapshot: list[ChangeSpec] | None = None,
-    full_history: bool = False,
+    load_state: AgentLoadState,
 ) -> _AgentDiskLoadResult:
-    from ...models.agent_loader import load_tiered_agents
-
-    all_agents, load_state = load_tiered_agents(
-        changespec_snapshot=changespec_snapshot,
-        full_history=full_history,
-    )
-
     # Populate retry fields from retry_state.json for running agents.  Prior
     # attempt history is hydrated lazily by selected detail/search paths; doing
     # it here would list/stat artifacts/attempts/<N>/ for every row.
@@ -222,5 +251,45 @@ def _load_agents_from_disk_impl(
     return _AgentDiskLoadResult(
         all_agents=all_agents,
         dismissed_from_loader=dismissed_from_loader,
+        load_state=load_state,
+    )
+
+
+def _load_agents_from_disk_impl(
+    dismissed_agents: set[tuple[AgentType, str, str | None]],
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    full_history: bool = False,
+) -> _AgentDiskLoadResult:
+    from ...models.agent_loader import load_tiered_agents
+
+    all_agents, load_state = load_tiered_agents(
+        changespec_snapshot=changespec_snapshot,
+        full_history=full_history,
+    )
+    return _apply_loaded_agent_disk_projections(
+        all_agents,
+        dismissed_agents,
+        load_state,
+    )
+
+
+def _load_agent_artifact_delta_from_disk_impl(
+    dismissed_agents: set[tuple[AgentType, str, str | None]],
+    artifact_dirs: Sequence[Path | str],
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    update_index: bool = True,
+) -> _AgentDiskLoadResult:
+    from ...models.agent_loader import load_artifact_delta_agents
+
+    all_agents, load_state = load_artifact_delta_agents(
+        artifact_dirs,
+        changespec_snapshot=changespec_snapshot,
+        update_index=update_index,
+    )
+    return _apply_loaded_agent_disk_projections(
+        all_agents,
+        dismissed_agents,
         load_state=load_state,
     )

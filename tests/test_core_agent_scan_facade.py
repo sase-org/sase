@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from sase.core.agent_scan_facade import (
+    scan_agent_artifact_dirs,
     scan_agent_artifacts,
     verify_agent_artifact_index,
 )
@@ -153,6 +154,36 @@ def test_scan_agent_artifacts_calls_rust_binding(
     assert options_dict["include_project_states"] == []
 
 
+def test_scan_agent_artifact_dirs_calls_rust_binding(
+    fixture_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, list[str], dict[str, Any]]] = []
+    artifact_dir = fixture_root / "myproj" / "artifacts" / "ace-run" / "20260504121212"
+
+    def fake_scan_dirs(
+        projects_root: str,
+        artifact_dirs: list[str],
+        options: dict[str, Any],
+    ) -> dict[str, Any]:
+        calls.append((projects_root, artifact_dirs, options))
+        return minimal_snapshot(projects_root, [])
+
+    fake = install_fake_scan_module(
+        monkeypatch, lambda root, opts: minimal_snapshot(root, [])
+    )
+    fake.scan_agent_artifact_dirs = fake_scan_dirs  # type: ignore[attr-defined]
+
+    snapshot = scan_agent_artifact_dirs(fixture_root, [artifact_dir])
+
+    assert snapshot.records == []
+    assert len(calls) == 1
+    projects_root, artifact_dirs, options_dict = calls[0]
+    assert projects_root == str(fixture_root)
+    assert artifact_dirs == [str(artifact_dir)]
+    assert options_dict["include_prompt_step_markers"] is True
+    assert options_dict["include_raw_prompt_snippets"] is True
+
+
 def test_snapshot_workflow_hidden_maps_to_agent_hidden(tmp_path: Path) -> None:
     projects_root = tmp_path / "projects"
     record = minimal_record(projects_root, "20260514120000", "workflow-parent")
@@ -196,3 +227,12 @@ def test_scan_agent_artifacts_stale_wheel_raises_attributeerror(
     monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
     with pytest.raises(AttributeError, match="scan_agent_artifacts"):
         scan_agent_artifacts(fixture_root)
+
+
+def test_scan_agent_artifact_dirs_stale_wheel_raises_attributeerror(
+    fixture_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    with pytest.raises(AttributeError, match="scan_agent_artifact_dirs"):
+        scan_agent_artifact_dirs(fixture_root, [])

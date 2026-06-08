@@ -1,9 +1,9 @@
 """sase.core facade for the agent/artifact filesystem snapshot scan.
 
-:func:`scan_agent_artifacts` calls ``sase_core_rs.scan_agent_artifacts``
-directly through :func:`sase.core.rust.require_rust_binding` and rehydrates
-the returned dict into typed wire records. The Rust extension is a hard
-runtime dependency; a missing or stale wheel surfaces as
+:func:`scan_agent_artifacts` and :func:`scan_agent_artifact_dirs` call
+``sase_core_rs`` directly through :func:`sase.core.rust.require_rust_binding`
+and rehydrate returned dicts into typed wire records. The Rust extension is
+a hard runtime dependency; a missing or stale wheel surfaces as
 :class:`ImportError` / :class:`AttributeError`.
 
 The scanner is read-only: it does not check process liveness (that lives
@@ -84,6 +84,22 @@ def scan_agent_artifacts(
     opts = options or AgentArtifactScanOptionsWire()
     rust_scan = require_rust_binding("scan_agent_artifacts")
     payload: dict[str, Any] = rust_scan(str(projects_root), _options_to_dict(opts))
+    return agent_scan_wire_from_dict(payload)
+
+
+def scan_agent_artifact_dirs(
+    projects_root: Path | str,
+    artifact_dirs: Sequence[Path | str],
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> AgentArtifactScanWire:
+    """Return a scanner-shaped snapshot for exact artifact directories."""
+    opts = options or AgentArtifactScanOptionsWire()
+    rust_scan = require_rust_binding("scan_agent_artifact_dirs")
+    payload: dict[str, Any] = rust_scan(
+        str(projects_root),
+        [str(Path(path).expanduser()) for path in artifact_dirs],
+        _options_to_dict(opts),
+    )
     return agent_scan_wire_from_dict(payload)
 
 
@@ -276,6 +292,7 @@ __all__ = [
     "query_agent_artifact_index",
     "rebuild_agent_artifact_index",
     "replace_agent_artifact_index_dismissed_agents",
+    "scan_agent_artifact_dirs",
     "scan_agent_artifacts",
     "upsert_agent_artifact_index_row",
     "verify_agent_artifact_index",

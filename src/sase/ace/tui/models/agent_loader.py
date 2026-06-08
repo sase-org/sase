@@ -1,12 +1,14 @@
 """Functions for loading and aggregating agents from all sources."""
 
 from dataclasses import dataclass, replace
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     query_agent_artifact_index,
+    scan_agent_artifact_dirs,
     scan_agent_artifacts,
 )
 from sase.core.agent_scan_wire import (
@@ -79,7 +81,7 @@ class AgentLoadState:
 
     tier: Literal["tier1", "tier2"]
     complete_history: bool
-    artifact_source: Literal["artifact_index", "source_scan"]
+    artifact_source: Literal["artifact_index", "source_scan", "artifact_delta"]
     used_artifact_index: bool
     index_error: str | None = None
     complete_visible_inbox: bool = True
@@ -117,6 +119,18 @@ def _scan_artifacts_for_loader(
     """
     return scan_agent_artifacts(
         sase_projects_dir(),
+        options or _TUI_SCAN_OPTIONS,
+    )
+
+
+def _scan_artifact_dirs_for_loader(
+    artifact_dirs: Sequence[Path | str],
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> "AgentArtifactScanWire":
+    """Return a fresh exact artifact-dir snapshot for the TUI loader."""
+    return scan_agent_artifact_dirs(
+        sase_projects_dir(),
+        artifact_dirs,
         options or _TUI_SCAN_OPTIONS,
     )
 
@@ -239,6 +253,56 @@ def load_all_workflows() -> list[WorkflowEntry]:
     return workflows_with_time + workflows_without_time
 
 
+def _changespec_snapshot_for_loader(
+    changespec_snapshot: list[ChangeSpec] | None,
+) -> list[ChangeSpec]:
+    return (
+        changespec_snapshot
+        if changespec_snapshot is not None
+        else find_all_changespecs(include_states="all")
+    )
+
+
+def _changespec_agent_lookups(
+    all_changespecs: list[ChangeSpec],
+) -> tuple[dict[str, str | None], dict[str, str | None]]:
+    bug_by_cl_name: dict[str, str | None] = {}
+    cl_by_cl_name: dict[str, str | None] = {}
+    for cs in all_changespecs:
+        if cs.bug:
+            bug_id = cs.bug.removeprefix("http://b/")
+            bug_by_cl_name[cs.name] = f"http://b/{bug_id}"
+        if cs.cl:
+            cl_by_cl_name[cs.name] = cs.cl
+    return bug_by_cl_name, cl_by_cl_name
+
+
+def _load_agents_from_artifact_snapshot_sources(
+    artifact_snapshot: AgentArtifactScanWire,
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+) -> tuple[list[Agent], list[Agent]]:
+    """Load only artifact-backed agents from an exact scanner snapshot."""
+    all_changespecs = _changespec_snapshot_for_loader(changespec_snapshot)
+    bug_by_cl_name, cl_by_cl_name = _changespec_agent_lookups(all_changespecs)
+
+    agents: list[Agent] = []
+    agents.extend(
+        load_done_agents_from_snapshot(artifact_snapshot, bug_by_cl_name, cl_by_cl_name)
+    )
+    agents.extend(load_running_home_agents_from_snapshot(artifact_snapshot))
+    workflow_agent_steps, step_meta_by_parent = load_workflow_agent_steps_from_snapshot(
+        artifact_snapshot
+    )
+    agents.extend(
+        load_workflow_agents_from_snapshot(
+            artifact_snapshot,
+            step_meta_by_parent=step_meta_by_parent,
+        )
+    )
+    return agents, workflow_agent_steps
+
+
 def _load_agents_from_all_sources(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
@@ -267,21 +331,10 @@ def _load_agents_from_all_sources(
     # Load all ChangeSpecs early to build bug lookup. Caller-supplied
     # snapshots avoid re-globbing every project spec file when the TUI already
     # has a fresh cached snapshot in hand.
-    all_changespecs = (
-        changespec_snapshot
-        if changespec_snapshot is not None
-        else find_all_changespecs(include_states="all")
-    )
+    all_changespecs = _changespec_snapshot_for_loader(changespec_snapshot)
 
     # Build bug URL and CL number lookups by CL name (single pass)
-    bug_by_cl_name: dict[str, str | None] = {}
-    cl_by_cl_name: dict[str, str | None] = {}
-    for cs in all_changespecs:
-        if cs.bug:
-            bug_id = cs.bug.removeprefix("http://b/")
-            bug_by_cl_name[cs.name] = f"http://b/{bug_id}"
-        if cs.cl:
-            cl_by_cl_name[cs.name] = cs.cl
+    bug_by_cl_name, cl_by_cl_name = _changespec_agent_lookups(all_changespecs)
 
     # 1. Load from RUNNING field (snapshot-independent; reads project spec files).
     agents.extend(
@@ -375,6 +428,27 @@ def _filter_dead_pids(agents: list[Agent]) -> list[Agent]:
     return verified_agents
 
 
+def _normalize_loaded_agents(
+    agents: list[Agent],
+    workflow_agent_steps: list[Agent],
+) -> list[Agent]:
+    # Filter out agents with dead PIDs (but keep completed agents)
+    agents = _filter_dead_pids(agents)
+
+    # Deduplication pipeline
+    agents = dedup_axe_spawned_agents(agents)
+    agents = remove_vcs_workspace_claims(agents)
+    agents = dedup_workflow_entries(agents)
+    agents = dedup_running_vs_workflow(agents)
+    agents = dedup_by_pid(agents)
+
+    # Override statuses based on workflow relationships
+    _apply_status_overrides(agents, workflow_agent_steps)
+
+    # Sort and insert workflow steps
+    return _sort_and_reorder(agents, workflow_agent_steps)
+
+
 def load_all_agents(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
@@ -402,22 +476,7 @@ def load_all_agents(
         changespec_snapshot=changespec_snapshot,
         artifact_snapshot=artifact_snapshot,
     )
-
-    # Filter out agents with dead PIDs (but keep completed agents)
-    agents = _filter_dead_pids(agents)
-
-    # Deduplication pipeline
-    agents = dedup_axe_spawned_agents(agents)
-    agents = remove_vcs_workspace_claims(agents)
-    agents = dedup_workflow_entries(agents)
-    agents = dedup_running_vs_workflow(agents)
-    agents = dedup_by_pid(agents)
-
-    # Override statuses based on workflow relationships
-    _apply_status_overrides(agents, workflow_agent_steps)
-
-    # Sort and insert workflow steps
-    return _sort_and_reorder(agents, workflow_agent_steps)
+    return _normalize_loaded_agents(agents, workflow_agent_steps)
 
 
 def load_tiered_agents(
@@ -431,19 +490,52 @@ def load_tiered_agents(
         changespec_snapshot=changespec_snapshot,
         full_history=full_history,
     )
-    agents = result.agents
+    return (
+        _normalize_loaded_agents(result.agents, result.workflow_agent_steps),
+        result.state,
+    )
 
-    # Filter out agents with dead PIDs (but keep completed agents)
-    agents = _filter_dead_pids(agents)
 
-    # Deduplication pipeline
-    agents = dedup_axe_spawned_agents(agents)
-    agents = remove_vcs_workspace_claims(agents)
-    agents = dedup_workflow_entries(agents)
-    agents = dedup_running_vs_workflow(agents)
-    agents = dedup_by_pid(agents)
+def load_artifact_delta_agents(
+    artifact_dirs: Sequence[Path | str],
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    update_index: bool = True,
+) -> tuple[list[Agent], AgentLoadState]:
+    """Load normalized agents from an exact set of artifact directories."""
 
-    # Override statuses based on workflow relationships
-    _apply_status_overrides(agents, result.workflow_agent_steps)
+    unique_dirs: list[Path] = []
+    seen_dirs: set[str] = set()
+    for artifact_dir in artifact_dirs:
+        path = Path(artifact_dir).expanduser()
+        key = str(path)
+        if key in seen_dirs:
+            continue
+        seen_dirs.add(key)
+        unique_dirs.append(path)
 
-    return _sort_and_reorder(agents, result.workflow_agent_steps), result.state
+    snapshot = _scan_artifact_dirs_for_loader(unique_dirs)
+    if update_index and snapshot.records:
+        from sase.core.agent_artifact_index_lifecycle import (
+            upsert_agent_artifact_index_artifacts,
+        )
+
+        upsert_agent_artifact_index_artifacts(
+            record.artifact_dir for record in snapshot.records
+        )
+
+    repair_recommended = len(snapshot.records) != len(unique_dirs)
+    state = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        artifact_source="artifact_delta",
+        used_artifact_index=False,
+        complete_visible_inbox=True,
+        repair_recommended=repair_recommended,
+        repair_reason="artifact_delta_scan_incomplete" if repair_recommended else None,
+    )
+    agents, workflow_agent_steps = _load_agents_from_artifact_snapshot_sources(
+        snapshot,
+        changespec_snapshot=changespec_snapshot,
+    )
+    return _normalize_loaded_agents(agents, workflow_agent_steps), state
