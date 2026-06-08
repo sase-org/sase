@@ -248,3 +248,56 @@ def test_record_prunes_known_stale_project_prefix(
 
     assert result == ["#gh:valid"]
     assert json.loads(fake.read_text()) == {"entries": ["#gh:valid"]}
+
+
+class _FakeChangeSpec:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+def test_load_launchable_drops_refs_that_no_longer_resolve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ref that maps to neither a known project nor an active ChangeSpec is
+    dropped from the cyclable set; project/changespec refs are retained."""
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    workspace = tmp_path / "sase-ws"
+    workspace.mkdir()
+    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file.write_text(
+        json.dumps({"entries": ["#git:sase", "#git:somecs", "#git:gone"]})
+    )
+
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda *a, **k: {"sase": workspace},
+    )
+    monkeypatch.setattr(
+        "sase.ace.changespec.cache.find_all_changespecs_cached",
+        lambda *a, **k: [_FakeChangeSpec("somecs")],
+    )
+
+    result = load_launchable_vcs_xprompt_mru()
+
+    assert result == ["#git:sase", "#git:somecs"]
+    assert json.loads(mru_file.read_text()) == {"entries": ["#git:sase", "#git:somecs"]}
+
+
+def test_load_launchable_keeps_entries_when_resolution_index_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A transient failure building the resolvability snapshot keeps every
+    entry rather than nuking the MRU."""
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file.write_text(json.dumps({"entries": ["#git:sase", "#git:gone"]}))
+
+    def _boom(*_a: object, **_k: object) -> list[object]:
+        raise RuntimeError("transient resolution failure")
+
+    monkeypatch.setattr("sase.ace.changespec.cache.find_all_changespecs_cached", _boom)
+
+    result = load_launchable_vcs_xprompt_mru()
+
+    assert result == ["#git:sase", "#git:gone"]
+    assert json.loads(mru_file.read_text()) == {"entries": ["#git:sase", "#git:gone"]}

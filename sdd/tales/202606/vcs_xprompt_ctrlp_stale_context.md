@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-08 07:14:18
-status: wip
+status: done
 prompt: sdd/prompts/202606/vcs_xprompt_ctrlp_stale_context.md
 ---
 # Fix: `<ctrl+p>` VCS xprompt prefill launches in the wrong workspace / desyncs `<ctrl+space>`

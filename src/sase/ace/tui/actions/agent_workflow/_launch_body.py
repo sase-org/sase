@@ -189,6 +189,22 @@ class AgentLaunchBodyMixin:
             )
             return
 
+        from sase.xprompt._parsing import (
+            extract_project_from_vcs_tag,
+            extract_vcs_workflow_tag,
+        )
+
+        # Capture these *before* normalization/resolution can mutate them.
+        # ``entered_home_mode`` distinguishes a home-mode launch (where ctx is
+        # baked from the last selection) from a project/changespec launch.
+        # ``had_explicit_vcs_tag`` records whether the *user* wrote a VCS tag,
+        # so the unresolved-tag guard below does not fire for a plain prompt
+        # that normalization later decorates with the default ``#git:home``.
+        entered_home_mode = ctx.is_home_mode
+        had_explicit_vcs_tag = (
+            extract_vcs_workflow_tag(prompt.strip() + " ") is not None
+        )
+
         with timer.stage("prompt_normalize"):
             if ctx.is_home_mode:
                 prompt = normalize_default_vcs_workflow(prompt)
@@ -274,9 +290,40 @@ class AgentLaunchBodyMixin:
             if vcs_ref is not None:
                 record_resolved_vcs_xprompt_usage(vcs_ref, ctx.project_name)
 
-        # Save prompt to history after VCS resolution so project/branch are correct
         from sase.history.prompt import add_or_update_prompt
 
+        # A user-written, recognized leading VCS tag that resolved to nothing
+        # must NOT silently launch under the baked home-mode identity. This is
+        # the ``<ctrl+p>`` desync: the bar opens for one ref (ctx baked from the
+        # last selection) and the user cycles to a different ref that no longer
+        # resolves (e.g. a submitted/archived ``#gh:<changespec>``). Falling
+        # through here would launch in the *previous* ref's project/workspace
+        # and skip the replay/MRU updates. Abort loudly instead.
+        if entered_home_mode and had_explicit_vcs_tag and vcs_ref is None:
+            leading_tag = extract_vcs_workflow_tag(_vcs_prompt.strip() + " ")
+            if leading_tag is not None:
+                ref_label = (
+                    extract_project_from_vcs_tag(leading_tag) or leading_tag.strip()
+                )
+                # Re-label history off the literal cycled ref, never the
+                # unrelated baked project.
+                ctx.display_name = ref_label
+                ctx.history_sort_key = ref_label
+                add_or_update_prompt(
+                    prompt,
+                    project_name=ctx.project_name,
+                    branch_or_workspace=ctx.history_sort_key,
+                    cancelled=True,
+                )
+                self._prompt_context = None
+                timer.finish(dispatch="single", outcome="cancelled")
+                err_msg = f"Cannot resolve {leading_tag.strip()}; not launching"
+                self.call_later(  # type: ignore[attr-defined]
+                    lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
+                )
+                return
+
+        # Save prompt to history after VCS resolution so project/branch are correct
         with timer.stage("history_write"):
             try:
                 from sase.agent.launch_validation import validate_launch_name_requests

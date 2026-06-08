@@ -1,9 +1,12 @@
 """MRU tracking for VCS xprompt workflow prefixes."""
 
 import json
+import logging
 from pathlib import Path
 
 from sase.core.paths import sase_home, sase_projects_dir
+
+log = logging.getLogger(__name__)
 
 _MRU_FILE: Path | None = None
 _MAX_ENTRIES = 100
@@ -36,12 +39,28 @@ def load_launchable_vcs_xprompt_mru(
     *,
     prune: bool = True,
 ) -> list[str]:
-    """Load MRU prefixes, dropping stale entries for known non-launchable projects."""
+    """Load MRU prefixes, dropping entries that would no longer launch.
+
+    Two classes of stale entry are pruned so ``<ctrl+p>`` only ever cycles to
+    refs that will actually launch (and so the unresolved-ref launch guard is
+    never reachable through normal cycling):
+
+    - prefixes for a known but non-launchable project
+      (:func:`_is_stale_known_project_prefix`), and
+    - prefixes whose ref no longer resolves to any launch target at all
+      (:func:`_vcs_prefix_ref_is_gone`), e.g. a ``#gh:<changespec>`` whose
+      ChangeSpec has since been submitted/archived.
+    """
     entries = _load_vcs_xprompt_mru()
+    if not entries:
+        return entries
+
+    resolvable_refs = _resolvable_vcs_ref_index()
     filtered = [
         entry
         for entry in entries
         if not _is_stale_known_project_prefix(entry, projects_dir)
+        and not _vcs_prefix_ref_is_gone(entry, resolvable_refs)
     ]
     if prune and filtered != entries:
         _save_vcs_xprompt_mru(filtered)
@@ -103,3 +122,88 @@ def _project_name_from_vcs_prefix(prefix: str) -> str | None:
     from sase.xprompt._parsing import extract_project_from_vcs_tag
 
     return extract_project_from_vcs_tag(prefix)
+
+
+def _resolvable_vcs_ref_index() -> tuple[dict[str, Path], set[str]] | None:
+    """Snapshot the offline data needed to judge ref resolvability.
+
+    Returns ``(known_projects, active_changespec_names)`` computed once per
+    load (cheap, cached, offline), or ``None`` when the snapshot can't be
+    built — in which case callers keep every entry rather than risk nuking the
+    MRU on a transient error.
+    """
+    try:
+        from sase.ace.changespec.cache import find_all_changespecs_cached
+        from sase.xprompt.loader import get_known_project_workspaces
+
+        known_projects = get_known_project_workspaces()
+        changespec_names = {cs.name for cs in find_all_changespecs_cached()}
+        return known_projects, changespec_names
+    except Exception:
+        log.debug("VCS MRU resolvability index unavailable", exc_info=True)
+        return None
+
+
+def _workflow_and_ref_for_prefix(prefix: str) -> tuple[str, str] | None:
+    """Return ``(workflow_type, ref)`` for *prefix* using registered patterns.
+
+    Only refs for a currently-registered workflow provider match; an
+    unrecognized/unregistered tag (e.g. ``#gh`` when the GitHub plugin is not
+    loaded) returns ``None`` so the entry is left untouched.
+    """
+    from sase.workspace_provider import get_ref_patterns
+
+    text = prefix.strip() + " "
+    for workflow_type, pattern in get_ref_patterns().items():
+        match = pattern.search(text)
+        if match is not None:
+            ref = match.group(1) or match.group(2)
+            if ref:
+                return (workflow_type, ref)
+    return None
+
+
+def _vcs_prefix_ref_is_gone(
+    prefix: str,
+    index: tuple[dict[str, Path], set[str]] | None,
+) -> bool:
+    """Return whether *prefix*'s ref no longer resolves to any launch target.
+
+    Side-effect-free and offline. It mirrors the read-only resolution modes
+    the workspace providers use (known-project shorthand + active ChangeSpec
+    name) WITHOUT calling ``resolve_ref`` itself: the bare-git provider's
+    resolve path *creates* a project for a missing shorthand, so invoking it
+    here (on every ``<ctrl+p>``) would resurrect the very stale entries we
+    want to prune.
+
+    Returns ``True`` only when the ref is confidently gone. Structural,
+    path/owner-repo, non-workspace (``#cd``), unregistered, or
+    snapshot-unavailable cases all keep the entry.
+    """
+    if index is None:
+        return False
+    try:
+        parsed = _workflow_and_ref_for_prefix(prefix)
+        if parsed is None:
+            return False
+        workflow_type, ref = parsed
+
+        from sase.ace.tui.actions.agent_workflow._ref_resolution import (
+            is_non_workspace_workflow,
+        )
+
+        if is_non_workspace_workflow(workflow_type):
+            return False
+        if "/" in ref or ref.startswith("~") or ref == "home":
+            return False
+
+        known_projects, changespec_names = index
+
+        from sase.xprompt._parsing import resolve_known_project_ref
+
+        if resolve_known_project_ref(ref, known_projects) is not None:
+            return False
+        return ref not in changespec_names
+    except Exception:
+        log.debug("VCS MRU resolvability check failed for %r", prefix, exc_info=True)
+        return False
