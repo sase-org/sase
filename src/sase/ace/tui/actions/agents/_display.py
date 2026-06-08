@@ -27,6 +27,7 @@ from ._display_detail import DetailMixin
 from ._display_helpers import _MAIN_PANEL_ID, TabName, panel_widget_id
 from ._display_panels import PanelsMixin
 from ._loading import DISMISSABLE_STATUSES
+from ._refresh_trace import AgentRefreshDisplayCost, record_agents_refresh_trace
 from ._siblings import AgentSiblingMixin
 
 log = logging.getLogger(__name__)
@@ -144,11 +145,26 @@ class AgentDisplayMixin(AgentSiblingMixin, PanelsMixin, DetailMixin):
                 index moved (j/k navigation) — skip the expensive OptionList
                 clear-and-rebuild.
         """
+        source = getattr(self, "_agents_refresh_active_source", "unknown")
+        display_cost: AgentRefreshDisplayCost | None = (
+            "display_full_rebuild" if list_changed else None
+        )
+        if display_cost is not None:
+            record_agents_refresh_trace(
+                self,
+                stage="display",
+                source=source,
+                display_cost=display_cost,
+                agents=len(self._agents),
+                defer_detail=defer_detail,
+            )
         with tui_trace(
             "agents.refresh_display",
             agents=len(self._agents),
             list_changed=bool(list_changed),
             defer_detail=bool(defer_detail),
+            source=source,
+            display_cost=display_cost,
         ):
             self._refresh_agents_display_impl(
                 list_changed=list_changed, defer_detail=defer_detail

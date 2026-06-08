@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 from ...models.agent_status import DISMISSABLE_STATUSES
 from ...util.trace import tui_trace
+from ._refresh_trace import classify_agents_data_cost
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -114,6 +115,10 @@ def load_agents_from_disk_with_state(
             full_history=full_history,
         )
         state = result.load_state
+        counters["data_cost"] = classify_agents_data_cost(
+            full_history=full_history,
+            load_state=state,
+        )
         counters["tier"] = state.tier
         counters["artifact_source"] = state.artifact_source
         counters["complete_history"] = state.complete_history

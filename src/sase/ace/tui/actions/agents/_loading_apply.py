@@ -23,6 +23,7 @@ from ._loading_compute import (
 from ._dismiss_memory import trim_dismissed_agent_objects
 from ._loading_helpers import is_always_visible
 from ._loading_state import AgentLoadingStateMixin
+from ._refresh_trace import classify_agents_data_cost, record_agents_refresh_trace
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -243,10 +244,14 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         and panel refresh all happen in :meth:`_finalize_agent_list` on
         this thread.
         """
+        source = getattr(self, "_agents_refresh_active_source", "unknown")
+        data_cost = classify_agents_data_cost(load_state=load_state)
         with tui_trace(
             "agents.apply_loaded_agents_prepared",
             agents=len(prep.filtered_agents),
             complete=getattr(load_state, "complete_history", None),
+            source=source,
+            data_cost=data_cost,
         ):
             self._apply_loaded_agents_prepared_inner(
                 prep,
@@ -318,6 +323,14 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                         )
                 except Exception:
                     pass
+            else:
+                record_agents_refresh_trace(
+                    self,
+                    stage="fallback",
+                    source=getattr(self, "_agents_refresh_active_source", "unknown"),
+                    data_cost=classify_agents_data_cost(load_state=load_state),
+                    fallback_reason="persistence_error",
+                )
 
         preserved_revived = self._preserve_revived_agents_for_incomplete_load(
             prep, load_state

@@ -8,6 +8,11 @@ from typing import TYPE_CHECKING
 from ...models.agent_groups import GroupingMode
 from ._display_helpers import TabName, panel_widget_id
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
+from ._refresh_trace import (
+    AgentRefreshDisplayCost,
+    AgentRefreshFallbackReason,
+    record_agents_refresh_trace,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -27,6 +32,23 @@ class PanelPatchMixin:
     _panel_group: AgentPanelGroup
     _agents_first_load_done: bool
 
+    def _record_display_patch_trace(
+        self,
+        *,
+        display_cost: AgentRefreshDisplayCost,
+        fallback_reason: AgentRefreshFallbackReason | None = None,
+        count: int | None = None,
+    ) -> None:
+        """Record a structured row patch/remove result for tests and traces."""
+        record_agents_refresh_trace(
+            self,
+            stage="display_patch",
+            source=getattr(self, "_agents_refresh_active_source", "local_mutation"),
+            display_cost=display_cost,
+            fallback_reason=fallback_reason,
+            count=count,
+        )
+
     def _try_remove_agent_rows(
         self,
         removed_identities: set[tuple[AgentType, str, str | None]],
@@ -41,11 +63,21 @@ class PanelPatchMixin:
         if self.current_tab != "agents":
             return False
         if getattr(self, "_agent_search_query", ""):
+            self._record_display_patch_trace(
+                display_cost="row_remove",
+                fallback_reason="active_search",
+                count=len(removed_identities),
+            )
             return False
         if (
             getattr(self, "_grouping_mode", GroupingMode.STANDARD)
             is not GroupingMode.STANDARD
         ):
+            self._record_display_patch_trace(
+                display_cost="row_remove",
+                fallback_reason="unsupported_grouping",
+                count=len(removed_identities),
+            )
             return False
 
         if not hasattr(self, "query_one"):
@@ -53,6 +85,11 @@ class PanelPatchMixin:
         try:
             container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
         except NoMatches:
+            self._record_display_patch_trace(
+                display_cost="row_remove",
+                fallback_reason="panel_membership_change",
+                count=len(removed_identities),
+            )
             return False
 
         panel_widgets = [w for w in container.children if isinstance(w, AgentList)]
@@ -63,8 +100,18 @@ class PanelPatchMixin:
             if not overlap:
                 continue
             if overlap != removed_identities:
+                self._record_display_patch_trace(
+                    display_cost="row_remove",
+                    fallback_reason="panel_membership_change",
+                    count=len(removed_identities),
+                )
                 return False
             if target_widget is not None:
+                self._record_display_patch_trace(
+                    display_cost="row_remove",
+                    fallback_reason="panel_membership_change",
+                    count=len(removed_identities),
+                )
                 return False
             target_widget = widget
 
@@ -72,8 +119,17 @@ class PanelPatchMixin:
             return True
 
         if not target_widget.try_remove_rows(removed_identities):
+            self._record_display_patch_trace(
+                display_cost="row_remove",
+                fallback_reason="workflow_tree_change",
+                count=len(removed_identities),
+            )
             return False
 
+        self._record_display_patch_trace(
+            display_cost="row_remove",
+            count=len(removed_identities),
+        )
         return True
 
     def _patch_agent_runtime_rows(self) -> int:
@@ -111,6 +167,11 @@ class PanelPatchMixin:
         try:
             agent_idx = self._agents.index(agent)
         except ValueError:
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="panel_membership_change",
+                count=1,
+            )
             return False
 
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
@@ -122,22 +183,42 @@ class PanelPatchMixin:
                 target_panel_idx = idx
                 break
         if target_panel_idx is None:
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="panel_membership_change",
+                count=1,
+            )
             return False
 
         wid = panel_widget_id(target_panel_idx)
         try:
             widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
         except NoMatches:
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="panel_membership_change",
+                count=1,
+            )
             return False
 
         local_idx = panel_index.local_idx_for(agent_panel_key, agent_idx)
         if local_idx < 0:
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="panel_membership_change",
+                count=1,
+            )
             return False
 
         if (
             getattr(self, "_grouping_mode", GroupingMode.STANDARD)
             is GroupingMode.BY_STATUS
         ):
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="unsupported_grouping",
+                count=1,
+            )
             return False
 
         is_selected = (
@@ -153,6 +234,11 @@ class PanelPatchMixin:
             now=None,
         )
         if not ok:
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="width_growth",
+                count=1,
+            )
             return False
 
         slot = panel_index.slice_for(agent_panel_key)
@@ -167,4 +253,5 @@ class PanelPatchMixin:
             counts=counts,
         )
         self._update_agents_info_panel()  # type: ignore[attr-defined]
+        self._record_display_patch_trace(display_cost="row_patch", count=1)
         return True

@@ -13,6 +13,12 @@ from typing import Any
 
 from ...util.trace import trace_event, tui_trace
 from ._loading_state import AgentLoadingStateMixin
+from ._refresh_trace import (
+    classify_agents_data_cost,
+    infer_broad_load_fallback_reason,
+    normalize_refresh_source as _normalize_refresh_source,
+    record_agents_refresh_trace,
+)
 
 log = logging.getLogger(__name__)
 
@@ -32,10 +38,6 @@ def _marker_signature(path: Path) -> _StartingPollSignature:
     except FileNotFoundError:
         return None
     return (st.st_mtime_ns, st.st_size)
-
-
-def _normalize_refresh_source(source: str | None) -> str:
-    return source or "unknown"
 
 
 def _callable_accepts_kwarg(callback: Callable[..., object], name: str) -> bool:
@@ -142,11 +144,26 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         self._agents_refresh_scheduled_full_history_reason = (
             full_history_reason if full_history else None
         )
+        data_cost = classify_agents_data_cost(full_history=full_history)
+        fallback_reason = infer_broad_load_fallback_reason(
+            source=source,
+            full_history_reason=full_history_reason if full_history else None,
+        )
         trace_event(
             "agents.refresh_scheduled",
             source=source,
             full_history=full_history,
             full_history_reason=full_history_reason,
+            data_cost=data_cost,
+            fallback_reason=fallback_reason,
+        )
+        record_agents_refresh_trace(
+            self,
+            stage="scheduled",
+            source=source,
+            data_cost=data_cost,
+            fallback_reason=fallback_reason,
+            full_history=full_history,
         )
         self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
 
@@ -302,6 +319,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                     "agents.full_history_refresh",
                     reason=reason,
                     source=source,
+                    data_cost="tier2_full_history",
                 ):
                     await load_agents_async(**kwargs)
             else:

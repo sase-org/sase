@@ -18,6 +18,11 @@ from ._loading_compute import (
     prepare_loaded_agents_worker_boundary,
 )
 from ._loading_state import AgentLoadingStateMixin
+from ._refresh_trace import (
+    classify_agents_data_cost,
+    normalize_refresh_source,
+    record_agents_refresh_trace,
+)
 from ...util.trace import tui_trace
 
 if TYPE_CHECKING:
@@ -179,6 +184,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         """
         from ....changespec import find_all_changespecs_cached
 
+        source = normalize_refresh_source(source)
         on_agents_tab = self.current_tab == "agents"
 
         selected_identity: tuple[AgentType, str, str | None] | None = None
@@ -199,6 +205,22 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             full_history=full_history,
             source=source,
         )
+        data_cost = classify_agents_data_cost(
+            full_history=full_history,
+            load_state=load_result.load_state,
+        )
+        record_agents_refresh_trace(
+            self,
+            stage="data_loaded",
+            source=source,
+            data_cost=data_cost,
+            full_history=full_history,
+            agents=len(load_result.all_agents),
+            dismissed=len(load_result.dismissed_from_loader),
+            load_tier=load_result.load_state.tier,
+            artifact_source=load_result.load_state.artifact_source,
+            complete_history=load_result.load_state.complete_history,
+        )
         from ...repro.capture import record_agents_tab_loader_result
 
         record_agents_tab_loader_result(
@@ -210,13 +232,23 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             selected_identity=selected_identity,
             source="sync_load",
         )
-        self._apply_loaded_agents(
-            load_result.all_agents,
-            load_result.dismissed_from_loader,
-            on_agents_tab,
-            selected_identity,
-            load_state=load_result.load_state,
+        previous_active_source = getattr(
+            self, "_agents_refresh_active_source", "unknown"
         )
+        installed_active_source = previous_active_source == "unknown"
+        if installed_active_source:
+            self._agents_refresh_active_source = source
+        try:
+            self._apply_loaded_agents(
+                load_result.all_agents,
+                load_result.dismissed_from_loader,
+                on_agents_tab,
+                selected_identity,
+                load_state=load_result.load_state,
+            )
+        finally:
+            if installed_active_source:
+                self._agents_refresh_active_source = previous_active_source
 
     async def _load_agents_async(
         self, *, full_history: bool = False, source: str = "unknown"
@@ -235,6 +267,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
 
         from ....changespec import find_all_changespecs_cached
 
+        source = normalize_refresh_source(source)
         merge_result = await asyncio.to_thread(
             self._external_dismissal_merge_result, set(self._dismissed_agents)
         )
@@ -263,6 +296,23 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             load_result.load_state.tier,
             load_result.load_state.artifact_source,
             load_result.load_state.complete_history,
+        )
+        data_cost = classify_agents_data_cost(
+            full_history=full_history,
+            load_state=load_result.load_state,
+        )
+        record_agents_refresh_trace(
+            self,
+            stage="data_loaded",
+            source=source,
+            data_cost=data_cost,
+            full_history=full_history,
+            agents=len(all_agents),
+            dismissed=len(dismissed_from_loader),
+            disk_ms=disk_elapsed * 1000.0,
+            load_tier=load_result.load_state.tier,
+            artifact_source=load_result.load_state.artifact_source,
+            complete_history=load_result.load_state.complete_history,
         )
         cleanup_start = time.perf_counter()
         orphaned, cleaned_dirs = await asyncio.to_thread(
@@ -342,19 +392,29 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         # above; pass ``persist_dismissed=True`` so the prep-time deltas
         # (recovered + auto-dismissed) and the cleanup-time orphan removal
         # are flushed to disk in a single ``save_dismissed_agents`` call.
-        self._apply_loaded_agents_prepared(
-            prep,
-            on_agents_tab=on_agents_tab,
-            selected_identity=selected_identity,
-            load_state=load_result.load_state,
-            persist_dismissed_changes=bool(orphaned)
-            or bool(prep.recovered_bundle_identities)
-            or bool(prep.auto_dismissed_identities),
-            dismissed_changes_include_removals=bool(orphaned),
-            incomplete_merge_already_applied=True,
-            precomputed_boundary=boundary,
-            precomputed_fold_levels=worker_snapshot.fold_levels,
+        previous_active_source = getattr(
+            self, "_agents_refresh_active_source", "unknown"
         )
+        installed_active_source = previous_active_source == "unknown"
+        if installed_active_source:
+            self._agents_refresh_active_source = source
+        try:
+            self._apply_loaded_agents_prepared(
+                prep,
+                on_agents_tab=on_agents_tab,
+                selected_identity=selected_identity,
+                load_state=load_result.load_state,
+                persist_dismissed_changes=bool(orphaned)
+                or bool(prep.recovered_bundle_identities)
+                or bool(prep.auto_dismissed_identities),
+                dismissed_changes_include_removals=bool(orphaned),
+                incomplete_merge_already_applied=True,
+                precomputed_boundary=boundary,
+                precomputed_fold_levels=worker_snapshot.fold_levels,
+            )
+        finally:
+            if installed_active_source:
+                self._agents_refresh_active_source = previous_active_source
         log.debug("agents async load: apply=%.3fs", time.perf_counter() - apply_start)
 
     def _apply_loaded_agents(
