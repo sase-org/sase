@@ -1165,10 +1165,14 @@ guardrails, and current preview behavior.
 
 ## Agent Auto-Naming
 
-All agents are automatically assigned a short name (`1`, `2`, ..., `9`, `0`, `a`, ..., `z`, `11`, `12`, ...) when
-launched without an explicit `%name` directive. Names are permanent IDs: a name used by any existing agent state remains
-reserved until that agent is explicitly wiped or deleted. This enables the fork-by-name workflow: press `f` on a running
-named agent to queue a follow-up that waits for it to finish and then loads its conversation history.
+Agents launched without an explicit `%name` directive receive the lowest available name from the shared auto-name
+sequence (`0`, `1`, ..., `9`, `a`, ..., `z`, `00`, `01`, ...). The same allocator backs single-marker agent-name
+templates, so `%name:@`, `%name:@.cld`, `%name:build-@`, and `%name:research.@.final` all reserve concrete names from
+that sequence.
+
+Names are permanent IDs: a name used by any existing agent state remains reserved until that agent is explicitly wiped
+or deleted. This enables the fork-by-name workflow: press `f` on a running named agent to queue a follow-up that waits
+for it to finish and then loads its conversation history.
 
 ### Provider/Model Suffixes
 
