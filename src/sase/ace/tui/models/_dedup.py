@@ -200,16 +200,23 @@ def remove_vcs_workspace_claims(agents: list[Agent]) -> list[Agent]:
 
 
 def dedup_workflow_entries(agents: list[Agent]) -> list[Agent]:
-    """Deduplicate workflow entries: match by raw_suffix (timestamp).
+    """Deduplicate workflow entries: match by (project_file, raw_suffix).
 
     Prefer workflow_state.json entries (accurate status), but copy
     workspace_num and cl_name from RUNNING field entries.
+
+    The dedup key is project-scoped — two agents are only treated as
+    duplicates when they share the same project's artifact tree. A bare
+    ``raw_suffix`` (timestamp dir name) is only unique within one project,
+    so two unrelated projects whose runs launched in the same clock second
+    would otherwise collide and cross-contaminate status/pid/cl_name.
     """
-    seen_suffixes: dict[str, Agent] = {}
+    seen_suffixes: dict[tuple[str, str], Agent] = {}
     for agent in agents:
         if agent.agent_type == AgentType.WORKFLOW and agent.raw_suffix:
-            if agent.raw_suffix in seen_suffixes:
-                existing = seen_suffixes[agent.raw_suffix]
+            key = (agent.project_file, agent.raw_suffix)
+            if key in seen_suffixes:
+                existing = seen_suffixes[key]
                 # Copy workspace_num from RUNNING field entry
                 if existing.workspace_num is None and agent.workspace_num is not None:
                     existing.workspace_num = agent.workspace_num
@@ -232,15 +239,16 @@ def dedup_workflow_entries(agents: list[Agent]) -> list[Agent]:
                 if existing.agent_name is None and agent.agent_name is not None:
                     existing.agent_name = agent.agent_name
             else:
-                seen_suffixes[agent.raw_suffix] = agent
+                seen_suffixes[key] = agent
 
     # Filter out duplicates
     return [
         a
         for a in agents
         if a.agent_type != AgentType.WORKFLOW
-        or a.raw_suffix not in seen_suffixes
-        or seen_suffixes.get(a.raw_suffix) is a
+        or not a.raw_suffix
+        or (a.project_file, a.raw_suffix) not in seen_suffixes
+        or seen_suffixes.get((a.project_file, a.raw_suffix)) is a
     ]
 
 
@@ -250,11 +258,17 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
     From the same artifacts directory (matching raw_suffix / timestamp).
     RUNNING field uses "ace(run)" workflow; done.json uses "ace-run" (dir name).
     Prefer WORKFLOW (has step info / appears_as_agent), merge metadata from RUNNING.
+
+    The match key is project-scoped — a RUNNING ace-run agent only merges into
+    a WORKFLOW agent from the same project's artifact tree. A bare ``raw_suffix``
+    is only unique within one project, so without scoping a running agent in
+    project A could be conflated with a workflow agent in project B that happened
+    to launch in the same clock second.
     """
-    workflow_by_suffix: dict[str, Agent] = {}
+    workflow_by_suffix: dict[tuple[str, str], Agent] = {}
     for agent in agents:
         if agent.agent_type == AgentType.WORKFLOW and agent.raw_suffix:
-            workflow_by_suffix[agent.raw_suffix] = agent
+            workflow_by_suffix[(agent.project_file, agent.raw_suffix)] = agent
 
     deduped_agents: list[Agent] = []
     for agent in agents:
@@ -267,10 +281,10 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
                 or agent.workflow == "run"
             )
             and agent.raw_suffix
-            and agent.raw_suffix in workflow_by_suffix
+            and (agent.project_file, agent.raw_suffix) in workflow_by_suffix
         ):
             # Match found — merge metadata into the WORKFLOW agent
-            matched = workflow_by_suffix[agent.raw_suffix]
+            matched = workflow_by_suffix[(agent.project_file, agent.raw_suffix)]
             if matched.cl_name == "unknown" and agent.cl_name != "unknown":
                 matched.cl_name = agent.cl_name
             if matched.workspace_num is None and agent.workspace_num is not None:
