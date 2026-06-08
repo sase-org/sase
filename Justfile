@@ -2,8 +2,8 @@
 
 venv_dir := ".venv"
 venv_bin := venv_dir / "bin"
-venv_dir_abs := justfile_directory() / venv_dir
-venv_bin_abs := justfile_directory() / venv_bin
+venv_dir_abs := if venv_dir =~ "^/" { venv_dir } else { justfile_directory() / venv_dir }
+venv_bin_abs := venv_dir_abs / "bin"
 keep_sorted_version := "v0.8.0"
 keep_sorted_bin := venv_bin / "keep-sorted"
 prettier_bin := "node_modules/.bin/prettier"
@@ -29,13 +29,13 @@ _setup: _venv
     @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
         if ! {{ venv_bin }}/python tools/validate_sase_core_rs; then \
             printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
-            just rust-install; \
+            just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
             {{ venv_bin }}/python tools/validate_sase_core_rs; \
         fi; \
     fi
     @if ! {{ venv_bin }}/mypy --version > /dev/null 2>&1 || \
         ! {{ venv_bin }}/python tools/validate_editable_metadata; then \
-        uv pip install --no-sources --reinstall-package mypy -e ".[dev]"; \
+        uv pip install --python {{ venv_bin }}/python --no-sources --reinstall-package mypy -e ".[dev]"; \
     fi
 
 # Bootstrap keep-sorted into the project venv so lint/fix do not depend on a
@@ -78,38 +78,38 @@ _header NAME:
 install: _venv
     @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
         printf "[install] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
-        just rust-install; \
+        just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
-    uv pip install --no-sources -e ".[dev]"
+    uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev]"
 
 # Install in editable mode with dev and visual-test dependencies.
 install-visual: _venv
     @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
         printf "[install-visual] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
-        just rust-install; \
+        just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
-    uv pip install --no-sources -e ".[dev,visual]"
+    uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,visual]"
 
 # Bootstrap visual-test dependencies without making them part of the default
 # development install.
 _setup-visual: _setup
     @if ! {{ venv_bin }}/python -c "import cairosvg" > /dev/null 2>&1; then \
-        uv pip install --no-sources -e ".[dev,visual]"; \
+        uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,visual]"; \
     fi
 
 # Install in editable mode with dev and real-terminal smoke-test dependencies.
 install-terminal-smoke: _venv
     @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
         printf "[install-terminal-smoke] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
-        just rust-install; \
+        just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
-    uv pip install --no-sources -e ".[dev,terminal-smoke]"
+    uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,terminal-smoke]"
 
 # Bootstrap real-terminal smoke-test dependencies without making them part of
 # the default development install.
 _setup-terminal-smoke: _setup
     @if ! {{ venv_bin }}/python -c "import pexpect, pyte" > /dev/null 2>&1; then \
-        uv pip install --no-sources -e ".[dev,terminal-smoke]"; \
+        uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,terminal-smoke]"; \
     fi
 
 # Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted + SASE validation)
