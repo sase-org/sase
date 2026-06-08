@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sase"
-version = "0.1.1"
+version = "0.1.2"
 description = "Structured Agentic Software Engineering"
 requires-python = ">=3.12"
 license = "MIT"
