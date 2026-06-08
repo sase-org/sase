@@ -87,7 +87,9 @@ def test_launch_agents_from_cwd_xprompt_expanded_multi_model_fans_out(
     assert result == launched
     expand.assert_called_once_with("#stub_m Do work")
     launch_multi.assert_called_once()
-    assert launch_multi.call_args.kwargs["segments"] == [
+    assert launch_multi.call_args.kwargs["segments"] == ["#stub_m Do work"]
+    fanout_plan = launch_multi.call_args.kwargs["preplanned_fanout_plans"][0]
+    assert [slot.prompt for slot in fanout_plan.slots] == [
         "%name:ag.cld_opus\n%model:opus\nDo work",
         "%name:ag.cld_sonnet\n%model:sonnet\nDo work",
     ]

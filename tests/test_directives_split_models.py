@@ -3,9 +3,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import split_prompt_for_models
 from sase.xprompt.models import XPrompt
 from tests._agent_names_fixtures import make_agent as _make_agent
@@ -296,23 +293,21 @@ def test_split_prompt_for_models_resume_base_wins_over_wait(
 
 
 def test_split_prompt_for_models_multi_model_auto_generated_base() -> None:
-    """No %name with multi-model → auto-name is generated once and shared."""
-    with patch("sase.agent.names.get_next_auto_name", return_value="z"):
-        result = split_prompt_for_models("%m(opus,gpt-5.5)\nReview")
+    """No %name with multi-model injects grouped auto-name templates."""
+    result = split_prompt_for_models("%m(opus,gpt-5.5)\nReview")
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:z.cld\n%model:opus\nReview"
-    assert result[1] == "%name:z.cdx\n%model:gpt-5.5\nReview"
+    assert result[0] == "%name:@.cld\n%model:opus\nReview"
+    assert result[1] == "%name:@.cdx\n%model:gpt-5.5\nReview"
 
 
 def test_split_prompt_for_models_multi_model_bare_name_auto_generated() -> None:
-    """Bare %name with multi-model also auto-generates base once."""
-    with patch("sase.agent.names.get_next_auto_name", return_value="z"):
-        result = split_prompt_for_models("%name\n%m(opus,gpt-5.5)\nReview")
+    """Bare %name with multi-model behaves like an unnamed generated launch."""
+    result = split_prompt_for_models("%name\n%m(opus,gpt-5.5)\nReview")
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:z.cld\n%model:opus\nReview"
-    assert result[1] == "%name:z.cdx\n%model:gpt-5.5\nReview"
+    assert result[0] == "%name:@.cld\n%model:opus\nReview"
+    assert result[1] == "%name:@.cdx\n%model:gpt-5.5\nReview"
 
 
 def test_split_prompt_for_models_unknown_model_uses_default_provider() -> None:
@@ -505,10 +500,15 @@ def test_split_prompt_for_models_pure_alt_gets_planned_names() -> None:
     assert result[1] == "%name:foo.2\ny\nDo work"
 
 
-def test_split_prompt_for_models_rejects_indexed_name_template_base() -> None:
-    """Indexed templates are rejected before fan-out child names are generated."""
-    with pytest.raises(DirectiveError, match="indexed agent name template"):
-        split_prompt_for_models("%n:foo-@\n%alt(x,y)\nDo work")
+def test_split_prompt_for_models_allows_template_name_base() -> None:
+    """Template bases are preserved and extended for fan-out child names."""
+    result = split_prompt_for_models("%n:foo-@\n%alt(x,y)\nDo work")
+
+    assert result is not None
+    assert result == [
+        "%name:foo-@.1\nx\nDo work",
+        "%name:foo-@.2\ny\nDo work",
+    ]
 
 
 def test_split_prompt_for_models_named_shorthand_alt_ids() -> None:
@@ -522,27 +522,26 @@ def test_split_prompt_for_models_named_shorthand_alt_ids() -> None:
 
 
 def test_split_prompt_for_models_pure_alt_auto_generated_base() -> None:
-    """Pure alt fan-out without %name auto-generates one shared base."""
-    with patch("sase.agent.names.get_next_auto_name", return_value="z"):
-        result = split_prompt_for_models("%alt(x,y)\nDo work")
+    """Pure alt fan-out without %name injects grouped auto-name templates."""
+    result = split_prompt_for_models("%alt(x,y)\nDo work")
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:z.1\nx\nDo work"
-    assert result[1] == "%name:z.2\ny\nDo work"
+    assert result[0] == "%name:@.1\nx\nDo work"
+    assert result[1] == "%name:@.2\ny\nDo work"
 
 
-def test_split_prompt_for_models_pure_alt_auto_base_skips_active_names(
+def test_split_prompt_for_models_pure_alt_auto_base_stays_template_before_launch(
     tmp_path: Path,
 ) -> None:
-    """Auto base allocation skips occupied visible agents for pure %alt."""
+    """Pure splitting leaves generated-name collision checks to launch planning."""
     _make_agent(tmp_path, "proj", "run-0", "0", done=True)
 
     with patch.object(Path, "home", return_value=tmp_path):
         result = split_prompt_for_models("%alt(x,y)\nDo work")
 
     assert result is not None
-    assert result[0] == "%name:1.1\nx\nDo work"
-    assert result[1] == "%name:1.2\ny\nDo work"
+    assert result[0] == "%name:@.1\nx\nDo work"
+    assert result[1] == "%name:@.2\ny\nDo work"
 
 
 def test_split_prompt_for_models_pure_alt_resume_base(tmp_path: Path) -> None:

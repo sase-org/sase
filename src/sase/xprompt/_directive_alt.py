@@ -9,7 +9,7 @@ that disambiguates spawned agents per runtime.
 from __future__ import annotations
 
 import re
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from ._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
@@ -32,6 +32,12 @@ _ALT_DIRECTIVE_RE = re.compile(
     r"(%(?:alt)?)\(",
     re.MULTILINE,
 )
+
+
+@dataclass(frozen=True)
+class _NamedFanoutPrompt:
+    prompt: str
+    name_generated: bool
 
 
 def has_alt_directive(prompt: str) -> bool:
@@ -127,9 +133,13 @@ def plan_prompt_fanout_variants(
     if plan is None:
         return None
 
-    named_prompts = apply_fanout_naming(plan, extra_xprompts=extra_xprompts)
+    named_prompts = _apply_fanout_naming(plan, extra_xprompts=extra_xprompts)
     slots = [
-        replace(slot, prompt=named_prompt)
+        replace(
+            slot,
+            prompt=named_prompt.prompt,
+            name_generated=named_prompt.name_generated,
+        )
         for slot, named_prompt in zip(plan.slots, named_prompts, strict=True)
     ]
     plan = replace(plan, slots=slots)
@@ -463,6 +473,18 @@ def apply_fanout_naming(
     *,
     extra_xprompts: dict[str, XPrompt] | None = None,
 ) -> list[str]:
+    """Compatibility wrapper returning only per-slot fan-out prompt text."""
+    return [
+        named.prompt
+        for named in _apply_fanout_naming(plan, extra_xprompts=extra_xprompts)
+    ]
+
+
+def _apply_fanout_naming(
+    plan: LaunchFanoutPlanWire,
+    *,
+    extra_xprompts: dict[str, XPrompt] | None = None,
+) -> list[_NamedFanoutPrompt]:
     """Add ``%name:<base>.<id>`` to each named child of a fan-out plan.
 
     The base name is taken from the first explicit ``%name`` directive found
@@ -487,50 +509,55 @@ def apply_fanout_naming(
         distinct_label_models=distinct_label_models,
     )
     if all(suffix is None for suffix in suffixes):
-        return sub_prompts
+        return [
+            _NamedFanoutPrompt(prompt=sub, name_generated=False) for sub in sub_prompts
+        ]
 
     base: str | None = None
     for sub in sub_prompts:
-        _, value, _ = _extract_and_strip_name_directive(sub)
-        if value:
+        _, value, was_bare = _extract_and_strip_name_directive(sub)
+        if value and not was_bare:
             base = value
             break
-    if base:
-        from sase.agent.names import is_indexed_agent_name_template
 
-        if is_indexed_agent_name_template(base):
-            raise DirectiveError(
-                "Cannot combine indexed agent name template "
-                f"'%name:{base}' with launch fan-out; choose a concrete "
-                "fan-out base name or remove the fan-out directive."
-            )
+    name_generated = base is None
     if not base:
         from sase.agent.names import (
             agent_name_allocation_lock,
             allocate_resume_name,
             allocate_wait_name,
             first_resume_agent_name,
-            get_next_auto_name,
             single_wait_agent_name,
         )
 
         resume_target = first_resume_agent_name(sub_prompts[0])
         wait_target = None if resume_target else single_wait_agent_name(sub_prompts[0])
-        with agent_name_allocation_lock():
-            if resume_target:
-                base = allocate_resume_name(resume_target)
-            elif wait_target:
-                base = allocate_wait_name(wait_target)
-            else:
-                base = get_next_auto_name()
+        if resume_target or wait_target:
+            with agent_name_allocation_lock():
+                if resume_target:
+                    base = allocate_resume_name(resume_target)
+                else:
+                    assert wait_target is not None
+                    base = allocate_wait_name(wait_target)
+        else:
+            # No explicit, resume-derived, or wait-derived base exists. Treat
+            # the generated base as the generic auto-name template; parent-side
+            # launch planning will allocate the concrete token, and grouped
+            # fan-out slots can share that token atomically.
+            base = "@"
 
-    out: list[str] = []
+    out: list[_NamedFanoutPrompt] = []
     for sub, suffix in zip(sub_prompts, suffixes, strict=True):
         if suffix is None:
-            out.append(sub)
+            out.append(_NamedFanoutPrompt(prompt=sub, name_generated=False))
             continue
         stripped, _, _ = _extract_and_strip_name_directive(sub)
-        out.append(_inject_name_directive(stripped, f"{base}.{suffix}"))
+        out.append(
+            _NamedFanoutPrompt(
+                prompt=_inject_name_directive(stripped, f"{base}.{suffix}"),
+                name_generated=name_generated,
+            )
+        )
     return out
 
 

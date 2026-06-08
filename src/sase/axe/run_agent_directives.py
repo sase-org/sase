@@ -103,6 +103,8 @@ def extract_directives_and_write_meta(
 
     repeat_name = os.environ.get("SASE_REPEAT_NAME")
     planned_name = os.environ.get("SASE_AGENT_PLANNED_NAME")
+    generated_name = os.environ.get("SASE_AGENT_GENERATED_NAME") == "1"
+    name_user_explicit = directives.name_explicit and not generated_name
     name_requires_lock = bool(
         agent_name or repeat_name or resume_name or wait_name or not auto_dismiss
     )
@@ -158,17 +160,13 @@ def extract_directives_and_write_meta(
         )
         if agent_name_from_template:
             pass
-        elif not directives.name_explicit and planned_name_is_usable:
+        elif not name_user_explicit and planned_name_is_usable:
             agent_name = planned_name
-        elif not directives.name_explicit and resume_name is not None:
+        elif not name_user_explicit and resume_name is not None:
             from sase.agent.names import allocate_resume_name
 
             agent_name = allocate_resume_name(resume_name)
-        elif (
-            not directives.name_explicit
-            and repeat_name is None
-            and wait_name is not None
-        ):
+        elif not name_user_explicit and repeat_name is None and wait_name is not None:
             from sase.agent.names import allocate_wait_name
 
             agent_name = allocate_wait_name(wait_name)
@@ -225,7 +223,7 @@ def extract_directives_and_write_meta(
                 validate_user_agent_name,
             )
 
-            if directives.name_explicit and not internal_agent_name_bypass_enabled(
+            if name_user_explicit and not internal_agent_name_bypass_enabled(
                 os.environ
             ):
                 validate_user_agent_name(agent_name)
@@ -233,7 +231,7 @@ def extract_directives_and_write_meta(
             claim_agent_name(
                 agent_name,
                 artifacts_dir,
-                explicit=directives.name_explicit,
+                explicit=name_user_explicit,
                 force_reuse=directives.name_force_reuse,
             )
             os.environ["SASE_AGENT_NAME"] = agent_name

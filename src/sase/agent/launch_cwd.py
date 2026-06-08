@@ -413,14 +413,15 @@ def launch_agents_from_cwd(
             branch_or_workspace=alt_cl_name if alt_cl_name != project_name else None,
         )
         results = launch_multi_prompt_agents(
-            segments=[slot.prompt for slot in alt_plan.slots],
-            local_xprompts={},
+            segments=[query],
+            local_xprompts=multi.local_xprompts,
             cl_name=alt_cl_name,
             project_file=project_file,
             project_name=project_name,
             is_home_mode=is_home_mode,
             vcs_ref=alt_vcs_ref,
             extra_env=extra_env,
+            preplanned_fanout_plans=[alt_plan],
             allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
                 extra_env
             ),

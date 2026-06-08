@@ -13,6 +13,7 @@ from typing import Any
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_references import (
+    _GENERATED_AGENT_NAME_ENV,
     _PLANNED_AGENT_NAME_ENV,
     PlannedNameAllocator as _PlannedNameAllocator,
     extract_static_name_directive as _extract_static_name_directive,
@@ -121,6 +122,7 @@ def launch_multi_prompt_agents(
     on_agent_spawned: Callable[[], None] | None = None,
     extra_env: dict[str, str] | None = None,
     segment_extra_env: Sequence[dict[str, str] | None] | None = None,
+    preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None = None,
     allow_reserved_family_separator_names: bool = False,
     allow_hyphenated_names: bool | None = None,
     default_bare_segments_to_home: bool = False,
@@ -158,6 +160,7 @@ def launch_multi_prompt_agents(
             on_agent_spawned=on_agent_spawned,
             extra_env=extra_env,
             segment_extra_env=segment_extra_env,
+            preplanned_fanout_plans=preplanned_fanout_plans,
             allow_reserved_family_separator_names=allow_reserved_family_separator_names,
             default_bare_segments_to_home=default_bare_segments_to_home,
             timestamp_allocator=timestamp_allocator,
@@ -182,6 +185,7 @@ def _spawn_segments_into(
     on_agent_spawned: Callable[[], None] | None,
     extra_env: dict[str, str] | None,
     segment_extra_env: Sequence[dict[str, str] | None] | None,
+    preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None,
     allow_reserved_family_separator_names: bool,
     default_bare_segments_to_home: bool,
     timestamp_allocator: LaunchTimestampBatchAllocator,
@@ -213,6 +217,12 @@ def _spawn_segments_into(
     if segment_extra_env is not None and len(segment_extra_env) != len(segments):
         raise ValueError(
             "segment_extra_env must have one entry per multi-prompt segment"
+        )
+    if preplanned_fanout_plans is not None and len(preplanned_fanout_plans) != len(
+        segments
+    ):
+        raise ValueError(
+            "preplanned_fanout_plans must have one entry per multi-prompt segment"
         )
     from sase.agent.launch_validation import validate_launch_name_requests
 
@@ -260,12 +270,19 @@ def _spawn_segments_into(
         # Check for launch fan-out directives (e.g., %m(opus,sonnet) or %alt(a,b)).
         # Try the raw segment first; if no match and the segment contains
         # xprompt references, expand them and re-check.
+        preplanned_fanout_plan = (
+            None if preplanned_fanout_plans is None else preplanned_fanout_plans[i]
+        )
         with timer.stage("fanout_plan", segment_index=i, fanout_kind="prompt"):
-            fanout_plan = plan_prompt_fanout_variants(
-                segment,
-                extra_xprompts=segment_local_xprompts or None,
+            fanout_plan = (
+                preplanned_fanout_plan
+                if preplanned_fanout_plan is not None
+                else plan_prompt_fanout_variants(
+                    segment,
+                    extra_xprompts=segment_local_xprompts or None,
+                )
             )
-        if fanout_plan is None and "#" in segment:
+        if fanout_plan is None and preplanned_fanout_plan is None and "#" in segment:
             from sase.xprompt.processor import process_xprompt_references
 
             with timer.stage("xprompt_expand", segment_index=i):
@@ -290,6 +307,7 @@ def _spawn_segments_into(
         slot_planned_env: dict[int, dict[str, str]] = {}
         slot_local_xprompts_files: dict[int, str | None] = {}
         planned_names: dict[int, str | None] = {}
+        planned_env_names: dict[int, str | None] = {}
         explicit_templates: dict[int, str | None] = {}
         try:
             for slot in plan.slots:
@@ -335,32 +353,71 @@ def _spawn_segments_into(
                         else None
                     )
 
-                with timer.stage("name_plan", segment_index=i, slot_index=j):
-                    explicit_template = _extract_static_name_directive(sub_prompt)
-                    explicit_templates[j] = explicit_template
-                    planned_name, planned_env_name = (
-                        name_allocator.planned_name_for_prompt(
-                            sub_prompt,
-                            artifacts_dir=slot_artifacts_dirs[j],
+                explicit_templates[j] = _extract_static_name_directive(sub_prompt)
+
+            from sase.agent.names import is_agent_name_template
+
+            grouped_template_slots: list[tuple[int, str]] = []
+            if fanout_plan is not None and len(plan.slots) > 1:
+                for slot in plan.slots:
+                    template = explicit_templates.get(slot.slot_index)
+                    if template and is_agent_name_template(template):
+                        grouped_template_slots.append((slot.slot_index, template))
+
+            if len(grouped_template_slots) > 1:
+                with timer.stage("name_plan", segment_index=i, slot_index=-1):
+                    template_names = [
+                        template for _, template in grouped_template_slots
+                    ]
+                    artifacts_dirs = [
+                        slot_artifacts_dirs[slot_index]
+                        for slot_index, _ in grouped_template_slots
+                    ]
+                    grouped_names = name_allocator.planned_names_for_template_group(
+                        template_names,
+                        artifacts_dirs=artifacts_dirs,
+                        template_group=f"fanout:{i}",
+                    )
+                for (slot_index, _), planned_name in zip(
+                    grouped_template_slots,
+                    grouped_names,
+                    strict=True,
+                ):
+                    planned_names[slot_index] = planned_name
+                    planned_env_names[slot_index] = planned_name
+
+            for slot in plan.slots:
+                j = slot.slot_index
+                if j not in planned_names:
+                    sub_prompt = slot.prompt
+                    with timer.stage("name_plan", segment_index=i, slot_index=j):
+                        slot_planned_name, slot_planned_env_name = (
+                            name_allocator.planned_name_for_prompt(
+                                sub_prompt,
+                                artifacts_dir=slot_artifacts_dirs[j],
+                            )
                         )
-                    )
-                    planned_names[j] = planned_name
-                    # Inject SASE_AGENT_PLANNED_NAME whenever a planned name is
-                    # known (auto or explicit) so the launch result carries it
-                    # synchronously. The child runner ignores the env var when an
-                    # explicit %name directive is present, so explicit names are
-                    # safe to ship via env too.
-                    env_name_to_inject = (
-                        planned_env_name
-                        if planned_env_name is not None
-                        else planned_name
-                    )
-                    slot_env = dict(segment_env)
-                    if upstreams_json is not None:
-                        slot_env[SASE_AGENT_VAR_UPSTREAMS_ENV] = upstreams_json
-                    if env_name_to_inject is not None:
-                        slot_env[_PLANNED_AGENT_NAME_ENV] = env_name_to_inject
-                    slot_planned_env[j] = slot_env
+                    planned_names[j] = slot_planned_name
+                    planned_env_names[j] = slot_planned_env_name
+
+                # Inject SASE_AGENT_PLANNED_NAME whenever a planned name is
+                # known so the launch result carries it synchronously and
+                # template-originated names can use the parent allocation.
+                slot_planned_name = planned_names[j]
+                slot_planned_env_name = planned_env_names.get(j)
+                env_name_to_inject = (
+                    slot_planned_env_name
+                    if slot_planned_env_name is not None
+                    else slot_planned_name
+                )
+                slot_env = dict(segment_env)
+                if upstreams_json is not None:
+                    slot_env[SASE_AGENT_VAR_UPSTREAMS_ENV] = upstreams_json
+                if env_name_to_inject is not None:
+                    slot_env[_PLANNED_AGENT_NAME_ENV] = env_name_to_inject
+                if slot.name_generated:
+                    slot_env[_GENERATED_AGENT_NAME_ENV] = "1"
+                slot_planned_env[j] = slot_env
 
             with timer.stage(
                 "execute_launch_plan",
@@ -417,10 +474,10 @@ def _spawn_segments_into(
 
         results.extend(execution.results)
         for record in execution.records:
-            planned_name = planned_names.get(record.slot.slot_index)
+            record_planned_name = planned_names.get(record.slot.slot_index)
             explicit_template = explicit_templates.get(record.slot.slot_index)
             if (
-                planned_name is None
+                record_planned_name is None
                 or explicit_template is None
                 or segment_explicit_name is None
             ):
@@ -429,7 +486,7 @@ def _spawn_segments_into(
 
             upstreams.append(
                 build_agent_var_upstream_record(
-                    agent_name=planned_name,
+                    agent_name=record_planned_name,
                     agent_name_template=(
                         explicit_template
                         if is_agent_name_template(explicit_template)

@@ -1,6 +1,7 @@
 """Tests for multi-prompt local xprompt and model expansion behavior."""
 
 import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.agent.multi_prompt_launcher import (
@@ -8,6 +9,8 @@ from sase.agent.multi_prompt_launcher import (
     launch_multi_prompt_agents,
 )
 from sase.xprompt.models import XPrompt
+from tests._agent_names_fixtures import make_agent
+from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planned_name
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -195,6 +198,153 @@ def test_launch_multi_prompt_waits_on_last_multi_model_generated_name(
     assert mock_create_artifacts.call_count == 0
     assert mock_spawn.call_args_list[2].kwargs["prompt"] == (
         "%wait:ag.cld_sonnet\nReview"
+    )
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101, 102])
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None), ("/ws3", None)],
+)
+def test_launch_multi_prompt_generated_model_fanout_allocates_grouped_names(
+    mock_ws_dir: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Generated model fan-out templates share one allocated token."""
+    mock_spawn.side_effect = spawn_result_with_planned_name
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        results = launch_multi_prompt_agents(
+            segments=["%m(opus,gpt-5.5)\nBuild", "%wait\nReview"],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    assert [result.agent_name for result in results] == [
+        "0.cld",
+        "0.cdx",
+        "0.cdx.w1",
+    ]
+    prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
+    assert prompts == [
+        "%name:@.cld\n%model:opus\nBuild",
+        "%name:@.cdx\n%model:gpt-5.5\nBuild",
+        "%wait:0.cdx\nReview",
+    ]
+    envs = [c.kwargs["extra_env"] for c in mock_spawn.call_args_list]
+    assert [env["SASE_AGENT_PLANNED_NAME"] for env in envs] == [
+        "0.cld",
+        "0.cdx",
+        "0.cdx.w1",
+    ]
+    assert [env.get("SASE_AGENT_GENERATED_NAME") for env in envs] == [
+        "1",
+        "1",
+        None,
+    ]
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_generated_model_fanout_skips_colliding_token(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """A collision in one fan-out sibling advances the whole generated group."""
+    make_agent(tmp_path, "proj", "existing", "0.cdx", done=True)
+    mock_spawn.side_effect = spawn_result_with_planned_name
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        results = launch_multi_prompt_agents(
+            segments=["%m(opus,gpt-5.5)\nBuild"],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    assert [result.agent_name for result in results] == ["1.cld", "1.cdx"]
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_explicit_template_model_fanout_groups_token(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """An explicit template base fans out with one shared template token."""
+    mock_spawn.side_effect = spawn_result_with_planned_name
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        results = launch_multi_prompt_agents(
+            segments=["%name:review-@\n%m(opus,gpt-5.5)\nBuild"],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    assert [result.agent_name for result in results] == [
+        "review-0.cld",
+        "review-0.cdx",
+    ]
+    prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
+    assert prompts == [
+        "%name:review-@.cld\n%model:opus\nBuild",
+        "%name:review-@.cdx\n%model:gpt-5.5\nBuild",
+    ]
+    assert [
+        c.kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
+        for c in mock_spawn.call_args_list
+    ] == ["review-0.cld", "review-0.cdx"]
+    assert all(
+        "SASE_AGENT_GENERATED_NAME" not in c.kwargs["extra_env"]
+        for c in mock_spawn.call_args_list
     )
 
 

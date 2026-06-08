@@ -75,11 +75,15 @@ def test_run_agent_launch_body_dispatches_pure_alt_fanout() -> None:
     assert len(fanout_calls) == 1
     _, args = fanout_calls[0]
     assert args[0] == [
-        "%name:ag.sec\nsecurity pass\nReview",
-        "%name:ag.perf\nperformance pass\nReview",
+        "%n:ag\n%alt(sec=security pass,perf=performance pass)\nReview",
     ]
     assert args[4] == "alternatives"
     assert args[5] == {}
+    fanout_plan = args[7]
+    assert [slot.prompt for slot in fanout_plan.slots] == [
+        "%name:ag.sec\nsecurity pass\nReview",
+        "%name:ag.perf\nperformance pass\nReview",
+    ]
 
 
 def test_run_agent_launch_body_forwards_local_xprompts_to_fanout_worker() -> None:

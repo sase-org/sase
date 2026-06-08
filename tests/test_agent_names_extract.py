@@ -22,6 +22,7 @@ def _run_extract(
     *,
     env_auto_dismiss: bool = False,
     planned_name: str | None = None,
+    generated_name: bool = False,
     prompt: str = "do stuff",
     raw_resolved_prompt: str | None = None,
     cl_name: str | None = None,
@@ -42,6 +43,8 @@ def _run_extract(
         env_patch["SASE_AGENT_AUTO_DISMISS"] = "1"
     if planned_name is not None:
         env_patch["SASE_AGENT_PLANNED_NAME"] = planned_name
+    if generated_name:
+        env_patch["SASE_AGENT_GENERATED_NAME"] = "1"
 
     with (
         patch.dict(os.environ, env_patch, clear=False),
@@ -61,6 +64,8 @@ def _run_extract(
             os.environ.pop("SASE_AGENT_AUTO_DISMISS", None)
         if planned_name is None:
             os.environ.pop("SASE_AGENT_PLANNED_NAME", None)
+        if not generated_name:
+            os.environ.pop("SASE_AGENT_GENERATED_NAME", None)
         info = extract_directives_and_write_meta(
             prompt,
             workspace,
@@ -296,6 +301,25 @@ class TestExtractDirectivesAutoDismiss:
         assert result["info"].name == "7.cld"
         assert result["meta"]["name"] == "7.cld"
         assert result["meta"]["agent_name_template"] == "@.cld"
+
+    def test_generated_template_name_uses_planned_name_without_explicit_claim(
+        self, tmp_path: Path
+    ) -> None:
+        with (
+            patch.object(Path, "home", return_value=tmp_path),
+            patch("sase.agent.names.claim_agent_name") as claim,
+        ):
+            result = _run_extract(
+                tmp_path,
+                planned_name="7.cld",
+                generated_name=True,
+                prompt="%name:@.cld\nDo work",
+            )
+
+        assert result["info"].name == "7.cld"
+        assert result["meta"]["name"] == "7.cld"
+        assert result["meta"]["agent_name_template"] == "@.cld"
+        assert claim.call_args.kwargs["explicit"] is False
 
     def test_agent_name_template_suffix_shape_falls_back_without_planned_name(
         self, tmp_path: Path

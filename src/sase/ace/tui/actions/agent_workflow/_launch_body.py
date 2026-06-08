@@ -460,13 +460,14 @@ class AgentLaunchBodyMixin:
             )
             self.call_later(  # type: ignore[attr-defined]
                 self._launch_multi_model_agents,  # type: ignore[attr-defined]
-                fanout_prompts,
+                [dispatch_prompt],
                 ctx,
                 vcs_ref,
                 has_wait,
                 fanout_plan.launch_kind,
                 local_xprompts,
                 submitted_xprompt,
+                fanout_plan,
             )
             return
 

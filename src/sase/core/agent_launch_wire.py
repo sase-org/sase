@@ -78,6 +78,7 @@ class LaunchFanoutSlotWire:
     model: str | None = None
     repeat_name: str | None = None
     wait_for_previous: bool = False
+    name_generated: bool = False
 
 
 @dataclass(frozen=True)
@@ -170,6 +171,7 @@ def launch_fanout_plan_from_dict(data: dict[str, Any]) -> LaunchFanoutPlanWire:
                     else str(slot["repeat_name"])
                 ),
                 wait_for_previous=bool(slot.get("wait_for_previous", False)),
+                name_generated=bool(slot.get("name_generated", False)),
             )
             for slot in data.get("slots", [])
         ],

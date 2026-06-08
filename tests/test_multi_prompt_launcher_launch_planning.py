@@ -620,7 +620,7 @@ def test_planned_auto_names_reserve_registry_slots_from_stale_snapshots(
     )
     second_artifacts = first_artifacts.with_name("260501120001")
     stale_allocator = PlannedNameAllocator()
-    stale_allocator._auto_reserved = set()
+    stale_allocator._template_reserved = set()
 
     with patch.object(Path, "home", return_value=tmp_path):
         fresh_allocator = PlannedNameAllocator()

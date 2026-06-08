@@ -14,6 +14,7 @@ from sase.core.paths import sase_subdir
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from sase.core.agent_launch_wire import LaunchFanoutPlanWire
     from sase.xprompt.models import XPrompt
 
     from ._types import PromptContext
@@ -31,11 +32,12 @@ class MultiModelLaunchMixin:
         fanout_kind: str = "model",
         local_xprompts: dict[str, XPrompt] | None = None,
         submitted_xprompt: str | None = None,
+        fanout_plan: LaunchFanoutPlanWire | None = None,
     ) -> None:
         """Launch one agent per slot for a prompt fan-out directive.
 
-        Each prompt in *model_prompts* already has the fan-out directive
-        replaced with a child prompt and planned ``%name`` directive.
+        Each prompt in *model_prompts* is either a source prompt paired with
+        *fanout_plan* or a compatibility list of already-expanded slot prompts.
 
         Args:
             model_prompts: Per-slot prompts to launch.
@@ -59,9 +61,13 @@ class MultiModelLaunchMixin:
                 fanout_kind,
                 local_xprompts,
                 submitted_xprompt,
+                fanout_plan,
             )
 
-        self.notify(f"Launching {n} agent(s) for {snap.display_name}...")  # type: ignore[attr-defined]
+        slot_count = len(fanout_plan.slots) if fanout_plan is not None else n
+        self.notify(  # type: ignore[attr-defined]
+            f"Launching {slot_count} agent(s) for {snap.display_name}..."
+        )
         self.call_later(_runner)  # type: ignore[attr-defined]
 
     def _run_multi_model_launch(
@@ -73,15 +79,19 @@ class MultiModelLaunchMixin:
         fanout_kind: str = "model",
         local_xprompts: dict[str, XPrompt] | None = None,
         submitted_xprompt: str | None = None,
+        fanout_plan: LaunchFanoutPlanWire | None = None,
     ) -> None:
         """Worker-thread body for :meth:`_launch_multi_model_agents`."""
         from sase.agent.launch_timing import LaunchTimingRecorder
 
+        slot_count = (
+            len(fanout_plan.slots) if fanout_plan is not None else len(model_prompts)
+        )
         timer = LaunchTimingRecorder(
             "tui_agent_launch_fanout",
             {
                 "fanout_kind": fanout_kind,
-                "slot_count": len(model_prompts),
+                "slot_count": slot_count,
                 "project_name": ctx.project_name,
                 "home_mode": ctx.is_home_mode,
             },
@@ -94,7 +104,7 @@ class MultiModelLaunchMixin:
         try:
             with timer.stage(
                 "launch_multi_prompt_agents",
-                slot_count=len(model_prompts),
+                slot_count=slot_count,
                 deferred_workspace=has_wait,
             ):
                 results = launch_multi_prompt_agents(
@@ -106,6 +116,9 @@ class MultiModelLaunchMixin:
                     is_home_mode=ctx.is_home_mode,
                     vcs_ref=vcs_ref,
                     default_bare_segments_to_home=ctx.is_home_mode,
+                    preplanned_fanout_plans=(
+                        [fanout_plan] if fanout_plan is not None else None
+                    ),
                 )
 
             msg = f"Started {len(results)} agent(s) for {ctx.display_name}"
@@ -127,7 +140,7 @@ class MultiModelLaunchMixin:
                 vcs_ref=vcs_ref,
                 has_wait=has_wait,
                 fanout_kind=fanout_kind,
-                slot_count=len(model_prompts),
+                slot_count=slot_count,
                 submitted_xprompt=submitted_xprompt,
             )
             self.call_later(  # type: ignore[attr-defined]
@@ -149,7 +162,7 @@ class MultiModelLaunchMixin:
                 vcs_ref=vcs_ref,
                 has_wait=has_wait,
                 fanout_kind=fanout_kind,
-                slot_count=len(model_prompts),
+                slot_count=slot_count,
                 submitted_xprompt=submitted_xprompt,
             )
             self.call_later(  # type: ignore[attr-defined]

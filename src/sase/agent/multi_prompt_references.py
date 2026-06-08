@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
+_GENERATED_AGENT_NAME_ENV = "SASE_AGENT_GENERATED_NAME"
 
 
 @dataclass(frozen=True)
@@ -252,7 +253,6 @@ class PlannedNameAllocator:
     """Allocate parent-side names and resolve template references."""
 
     def __init__(self) -> None:
-        self._auto_reserved: set[str] | None = None
         self._resume_reserved: dict[str, set[str]] = {}
         self._wait_reserved: dict[str, set[str]] = {}
         self._template_reserved: set[str] | None = None
@@ -335,17 +335,7 @@ class PlannedNameAllocator:
                         break
             return name, name
 
-        from sase.agent.names import agent_name_allocation_lock, allocate_auto_names
-
-        with agent_name_allocation_lock():
-            if self._auto_reserved is None:
-                from sase.agent.names import get_reserved_agent_names
-
-                self._auto_reserved = get_reserved_agent_names()
-            while True:
-                name = allocate_auto_names(1, reserved=self._auto_reserved)[0]
-                if self._reserve_planned_name(name, artifacts_dir):
-                    break
+        name = self._allocate_template_name("@", artifacts_dir=artifacts_dir)
         return name, name
 
     def planned_names_for_template_group(
