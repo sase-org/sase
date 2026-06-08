@@ -39,11 +39,14 @@ def _rewrite_retry_prompt_name(raw_prompt: str, retry_name: str) -> str:
     return rewrite_retry_prompt_name(raw_prompt, retry_name)
 
 
-def _force_name_reuse_in_prompt(raw_prompt: str) -> str:
+def _force_name_reuse_in_prompt(
+    raw_prompt: str,
+    replacement_name: str | None = None,
+) -> str:
     """Mark an explicit top-level prompt name directive for forced reuse."""
     from sase.agent.retry_prompt import force_name_reuse_in_prompt
 
-    return force_name_reuse_in_prompt(raw_prompt)
+    return force_name_reuse_in_prompt(raw_prompt, replacement_name=replacement_name)
 
 
 class EntryPointsMixin:
@@ -510,7 +513,7 @@ class EntryPointsMixin:
             self.notify("No prompt found for this agent", severity="warning")  # type: ignore[attr-defined]
             return
 
-        raw_prompt = _force_name_reuse_in_prompt(raw_prompt)
+        raw_prompt = _force_name_reuse_in_prompt(raw_prompt, agent.agent_name)
 
         from ..agents._core import DISMISSABLE_STATUSES
 

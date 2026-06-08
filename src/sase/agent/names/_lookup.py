@@ -34,7 +34,7 @@ from sase.agent.names._common import (
     is_dismissed_prefixed,
     is_process_alive,
 )
-from sase.agent.names._indexed import resolve_indexed_agent_name_reference
+from sase.agent.names._templates import resolve_agent_name_template_reference
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
     agent_family_base,
@@ -271,7 +271,7 @@ def resolve_resume_agent_name(name: str) -> NamedAgent | None:
     recent successful member of the newest family generation, falling back to
     exact-name behavior when no family exists.
     """
-    name = resolve_indexed_agent_name_reference(name)
+    name = resolve_agent_name_template_reference(name)
     if not is_agent_family_member(name):
         family_member = most_recent_completed_family_member(name)
         if family_member is not None:

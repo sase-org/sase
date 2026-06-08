@@ -13,9 +13,9 @@ from sase.agent.names import (
     find_named_agent,
     get_most_recent_agent_name,
     get_reserved_agent_name_map,
-    is_indexed_agent_name_template,
-    require_latest_indexed_agent_name,
-    resolve_indexed_agent_name_reference,
+    is_agent_name_template,
+    require_latest_agent_name_template,
+    resolve_agent_name_template_reference,
 )
 
 
@@ -58,15 +58,15 @@ def _normalize_name(name: str | None) -> str | None:
     stripped = name.strip()
     if not stripped:
         return None
-    if is_indexed_agent_name_template(stripped):
-        return _resolve_indexed_name_excluding_current_agent(stripped)
-    return resolve_indexed_agent_name_reference(stripped)
+    if is_agent_name_template(stripped):
+        return _resolve_template_name_excluding_current_agent(stripped)
+    return resolve_agent_name_template_reference(stripped)
 
 
-def _resolve_indexed_name_excluding_current_agent(name: str) -> str:
+def _resolve_template_name_excluding_current_agent(name: str) -> str:
     current_artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not current_artifacts_dir:
-        return resolve_indexed_agent_name_reference(name)
+        return resolve_agent_name_template_reference(name)
 
     current = Path(current_artifacts_dir).expanduser().resolve(strict=False)
     reserved = {
@@ -74,7 +74,7 @@ def _resolve_indexed_name_excluding_current_agent(name: str) -> str:
         for agent_name, owner_path in get_reserved_agent_name_map().items()
         if Path(owner_path).expanduser().resolve(strict=False) != current
     }
-    return require_latest_indexed_agent_name(name, names=reserved)
+    return require_latest_agent_name_template(name, names=reserved)
 
 
 def _resolve_default_agent_name() -> str:

@@ -55,7 +55,7 @@ def test_explicit_completed_agent_uses_done_response_path(
     assert _resolve_agent_chat_path("alpha") == str(chat)
 
 
-def test_indexed_agent_name_resolves_latest_completed_agent(
+def test_agent_name_template_resolves_latest_completed_agent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -77,7 +77,29 @@ def test_indexed_agent_name_resolves_latest_completed_agent(
     assert _resolve_agent_chat_path("build-@") == str(newer_chat)
 
 
-def test_indexed_agent_name_excludes_current_agent(
+def test_agent_name_template_suffix_shape_resolves_latest_completed_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    older_chat = tmp_path / "older-chat.md"
+    newer_chat = tmp_path / "newer-chat.md"
+    _write_agent(
+        tmp_path,
+        "20260504010101",
+        "0.cld",
+        done={"response_path": str(older_chat), "outcome": "completed"},
+    )
+    _write_agent(
+        tmp_path,
+        "20260504020202",
+        "1.cld",
+        done={"response_path": str(newer_chat), "outcome": "completed"},
+    )
+
+    assert _resolve_agent_chat_path("@.cld") == str(newer_chat)
+
+
+def test_agent_name_template_excludes_current_agent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))

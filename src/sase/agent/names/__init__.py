@@ -105,6 +105,7 @@ from sase.agent.names._templates import (
     parse_agent_name_template,
     render_agent_name_template,
     require_latest_agent_name_template,
+    resolve_agent_name_template_reference,
 )
 from sase.agent.names._wipe import AgentNameWipeResult, wipe_agent_name_for_reuse
 
@@ -261,6 +262,7 @@ __all__ = [
     "parse_agent_name_template",
     "render_agent_name_template",
     "reserve_repeat_name_base",
+    "resolve_agent_name_template_reference",
     "resolve_indexed_agent_name_reference",
     "require_latest_agent_name_template",
     "rebuild_name_registry",

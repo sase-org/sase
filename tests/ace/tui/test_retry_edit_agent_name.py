@@ -71,6 +71,13 @@ def test_rewrite_retry_prompt_replaces_percent_n() -> None:
     )
 
 
+def test_rewrite_retry_prompt_replaces_template_name() -> None:
+    assert (
+        _rewrite_retry_prompt_name("%name:@.cld\nDo work", "0.cld.r1")
+        == "%name:0.cld.r1\nDo work"
+    )
+
+
 def test_rewrite_retry_prompt_ignores_fenced_and_disabled_name_directives() -> None:
     prompt = (
         "```\n%name:fenced\n```\n"
@@ -143,6 +150,18 @@ def test_force_name_reuse_leaves_already_forced_name_directive() -> None:
     assert _force_name_reuse_in_prompt("%name:!foo\nDo work") == "%name:!foo\nDo work"
 
 
+def test_force_name_reuse_leaves_template_without_replacement() -> None:
+    assert _force_name_reuse_in_prompt("%name:@.cld\nDo work") == (
+        "%name:@.cld\nDo work"
+    )
+
+
+def test_force_name_reuse_replaces_template_with_concrete_name() -> None:
+    assert _force_name_reuse_in_prompt("%name:@.cld\nDo work", "0.cld") == (
+        "%name:!0.cld\nDo work"
+    )
+
+
 def test_force_name_reuse_leaves_bare_and_missing_name_directives() -> None:
     assert _force_name_reuse_in_prompt("%name\nDo work") == "%name\nDo work"
     assert _force_name_reuse_in_prompt("Do work") == "Do work"
@@ -213,6 +232,20 @@ def test_kill_and_edit_agent_forces_name_reuse_for_done_agent() -> None:
 
     assert app.launched == (
         "%n:!foo\nDo work",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
+    assert app.notifications == []
+
+
+def test_kill_and_edit_agent_replaces_template_with_concrete_name() -> None:
+    app = _App(_Agent("%name:@.cld\nDo work", agent_name="0.cld"))
+
+    app._kill_and_edit_agent()
+
+    assert app.launched == (
+        "%name:!0.cld\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,

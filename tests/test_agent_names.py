@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.names import (
-    IndexedAgentNameNotFoundError,
+    AgentNameTemplateNotFoundError,
     NameCollisionError,
     allocate_retry_name,
     allocate_resume_name,
@@ -223,7 +223,7 @@ class TestResumeAgentNames:
     def test_first_resume_wins(self) -> None:
         assert first_resume_agent_name("#fork:first then #fork:second") == "first"
 
-    def test_indexed_resume_reference_resolves_latest_concrete_name(
+    def test_template_resume_reference_resolves_latest_concrete_name(
         self, tmp_path: Path
     ) -> None:
         _make_agent(tmp_path, "proj", "run1", "build-1")
@@ -232,6 +232,15 @@ class TestResumeAgentNames:
         with patch.object(Path, "home", return_value=tmp_path):
             assert first_resume_agent_name("#fork:build-@ do work") == "build-4"
             assert first_resume_agent_name("#resume(build-@) do work") == "build-4"
+
+    def test_template_suffix_resume_reference_resolves_latest_concrete_name(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(tmp_path, "proj", "run1", "0.cld")
+        _make_agent(tmp_path, "proj", "run2", "1.cld")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert first_resume_agent_name("#fork:@.cld do work") == "1.cld"
 
     def test_allocates_first_resume_slot(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -322,7 +331,7 @@ class TestResumeAgentNames:
         assert result is not None
         assert result.artifacts_dir == str(child_dir)
 
-    def test_resolve_resume_indexed_template_uses_latest_concrete_name(
+    def test_resolve_resume_template_uses_latest_concrete_name(
         self, tmp_path: Path
     ) -> None:
         _make_agent(
@@ -349,12 +358,39 @@ class TestResumeAgentNames:
         assert result.name == "build-3"
         assert result.artifacts_dir == str(latest_dir)
 
-    def test_first_resume_indexed_template_without_existing_name_raises(
+    def test_resolve_resume_template_suffix_uses_latest_concrete_name(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010101",
+            "0.cld",
+            done=True,
+            outcome="completed",
+        )
+        latest_dir = _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010202",
+            "1.cld",
+            done=True,
+            outcome="completed",
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = resolve_resume_agent_name("@.cld")
+
+        assert result is not None
+        assert result.name == "1.cld"
+        assert result.artifacts_dir == str(latest_dir)
+
+    def test_first_resume_template_without_existing_name_raises(
         self, tmp_path: Path
     ) -> None:
         with (
             patch.object(Path, "home", return_value=tmp_path),
-            pytest.raises(IndexedAgentNameNotFoundError, match="build-@"),
+            pytest.raises(AgentNameTemplateNotFoundError, match="build-@"),
         ):
             first_resume_agent_name("#fork:build-@")
 

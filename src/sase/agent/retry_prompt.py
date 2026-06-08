@@ -56,11 +56,16 @@ def rewrite_retry_prompt_name(
     return unprotect_fenced_blocks(protected, fenced)
 
 
-def force_name_reuse_in_prompt(raw_prompt: str) -> str:
+def force_name_reuse_in_prompt(
+    raw_prompt: str,
+    *,
+    replacement_name: str | None = None,
+) -> str:
     """Mark the first explicit top-level name directive for forced reuse."""
     if "%n" not in raw_prompt and "%name" not in raw_prompt:
         return raw_prompt
 
+    from sase.agent.names import is_agent_name_template
     from sase.xprompt._directive_types import (
         _DIRECTIVE_ALIASES,
         _DIRECTIVE_PATTERN,
@@ -86,6 +91,8 @@ def force_name_reuse_in_prompt(raw_prompt: str) -> str:
             continue
 
         insertion_index: int | None = None
+        directive_value: str | None = None
+        replacement_span: tuple[int, int] | None = None
         if match.group(2) is not None:
             paren_start = match.end() - 1
             paren_end = find_matching_paren_for_args(protected, paren_start)
@@ -95,6 +102,8 @@ def force_name_reuse_in_prompt(raw_prompt: str) -> str:
             positional_args, _ = parse_args(inner)
             if not positional_args or positional_args[0].startswith("!"):
                 break
+            directive_value = positional_args[0]
+            replacement_span = (match.start(), paren_end + 1)
             stripped_inner = inner.lstrip()
             if not stripped_inner:
                 break
@@ -110,11 +119,27 @@ def force_name_reuse_in_prompt(raw_prompt: str) -> str:
                 value = raw_arg[1:-1]
                 if value.startswith("!"):
                     break
+                directive_value = value
+                replacement_span = (match.start(), match.end())
                 insertion_index += 1
             elif raw_arg.startswith("!"):
                 break
+            else:
+                directive_value = raw_arg
+                replacement_span = (match.start(), match.end())
         else:
             break
+
+        if directive_value and is_agent_name_template(directive_value):
+            if replacement_name is None:
+                break
+            assert replacement_span is not None
+            start, end = replacement_span
+            rewritten = (
+                f"{protected[:start]}%{raw_name}:!{replacement_name}{protected[end:]}"
+            )
+            rewritten = unprotect_disabled_regions(rewritten, disabled)
+            return unprotect_fenced_blocks(rewritten, fenced)
 
         rewritten = (
             f"{protected[:insertion_index]}!{protected[insertion_index:]}"

@@ -171,6 +171,22 @@ def require_latest_agent_name_template(
     return latest
 
 
+def resolve_agent_name_template_reference(
+    name: str,
+    *,
+    names: Collection[str] | None = None,
+) -> str:
+    """Resolve a template reference to its latest concrete name.
+
+    Non-template names are returned unchanged. Template names use the generic
+    auto-token order, so legacy shapes such as ``build-@`` and newer shapes
+    such as ``@.cld`` share the same resolution path.
+    """
+    if not is_agent_name_template(name):
+        return name
+    return require_latest_agent_name_template(name, names=names)
+
+
 @cache
 def _core(name: str) -> Any:
     from sase.core.rust import require_rust_binding

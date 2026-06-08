@@ -72,9 +72,11 @@ def first_resume_agent_name(prompt: str | None) -> str | None:
     for match in _RESUME_REF_RE.finditer(protected):
         arg = _resume_reference_argument(protected, match)
         if arg:
-            from sase.agent.names._indexed import resolve_indexed_agent_name_reference
+            from sase.agent.names._templates import (
+                resolve_agent_name_template_reference,
+            )
 
-            return resolve_indexed_agent_name_reference(arg)
+            return resolve_agent_name_template_reference(arg)
     return None
 
 

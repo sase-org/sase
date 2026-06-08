@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 from sase.agent.names import (
     NameCollisionError,
-    is_indexed_agent_name_template,
+    is_agent_name_template,
     reserve_repeat_name_base,
 )
 from sase.agent.names import (
@@ -110,15 +110,13 @@ def spawn_repeat_batch(
         raise ValueError(
             f"repeat timestamp batch has {len(timestamps)} timestamps for {count} slots"
         )
-    indexed_base = _indexed_name_template_in_prompt(prompt)
-    if indexed_base is None and explicit_base is not None:
-        indexed_base = (
-            explicit_base if is_indexed_agent_name_template(explicit_base) else None
-        )
-    if indexed_base is not None:
+    template_base = _agent_name_template_in_prompt(prompt)
+    if template_base is None and explicit_base is not None:
+        template_base = explicit_base if is_agent_name_template(explicit_base) else None
+    if template_base is not None:
         raise DirectiveError(
-            "Cannot combine %repeat with indexed agent name template "
-            f"'%name:{indexed_base}'; choose a concrete repeat base name "
+            "Cannot combine %repeat with agent name template "
+            f"'%name:{template_base}'; choose a concrete repeat base name "
             "or remove %repeat."
         )
 
@@ -173,7 +171,7 @@ def spawn_repeat_batch(
     return specs
 
 
-def _indexed_name_template_in_prompt(prompt: str) -> str | None:
+def _agent_name_template_in_prompt(prompt: str) -> str | None:
     if "%n" not in prompt and "%name" not in prompt:
         return None
 
@@ -182,4 +180,4 @@ def _indexed_name_template_in_prompt(prompt: str) -> str | None:
     explicit_name = extract_static_name_directive(prompt)
     if explicit_name is None:
         return None
-    return explicit_name if is_indexed_agent_name_template(explicit_name) else None
+    return explicit_name if is_agent_name_template(explicit_name) else None

@@ -19,7 +19,7 @@ def _write_chat_file(tmpdir: str, name: str, content: str) -> str:
 def test_sanitize_strips_directives_refs_and_jinja() -> None:
     """Directives, #/#! references, and Jinja markers are all removed."""
     prompt = (
-        "%name:research.final-@ %wait:research.cdx-32 %g:research\n\n"
+        "%name:@.cld %wait:research.cdx-32 %g:research\n\n"
         "#git:home The two independent research agents have finished.\n\n"
         "{{ wait_chats }}\n\n"
         "Read both chat transcripts first."

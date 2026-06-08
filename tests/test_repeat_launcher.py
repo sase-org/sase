@@ -117,15 +117,29 @@ class TestSpawnRepeatBatch:
         assert "do Y" in specs[0].prompt
         assert "do Y" in specs[1].prompt
 
-    def test_indexed_name_template_with_repeat_is_rejected(
+    @pytest.mark.parametrize("template", ["aa-@", "@", "@.cld"])
+    def test_agent_name_template_with_repeat_is_rejected(
+        self, template: str, tmp_path: Path
+    ) -> None:
+        with (
+            patch.object(Path, "home", return_value=tmp_path),
+            pytest.raises(DirectiveError, match="agent name template"),
+        ):
+            spawn_repeat_batch(
+                f"%r:2 %n:{template} do Y",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+
+    def test_agent_name_template_with_repeat_is_rejected_after_repeat_stripping(
         self, tmp_path: Path
     ) -> None:
         with (
             patch.object(Path, "home", return_value=tmp_path),
-            pytest.raises(DirectiveError, match="indexed agent name template"),
+            pytest.raises(DirectiveError, match="agent name template"),
         ):
             spawn_repeat_batch(
-                "%r:2 %n:aa-@ do Y",
+                "%n:@.cld %r:2 do Y",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
