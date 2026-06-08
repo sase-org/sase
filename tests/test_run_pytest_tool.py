@@ -85,8 +85,53 @@ def test_fast_mode_selects_non_slow_marker_to_include_visual_tests() -> None:
 
     result = runner._pytest_command("fast", [])
 
+    assert "-n" in result
+    assert "--dist=loadfile" in result
     assert result[-2:] == ["-m", runner.FAST_MARKER_EXPRESSION]
     assert result[-1] == "not slow"
+
+
+def test_inline_snapshot_fix_disables_default_xdist() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._pytest_command(
+        "fast", ["--inline-snapshot=fix", "tests/test_run_pytest_tool.py"]
+    )
+
+    assert "-n" not in result
+    assert "--dist=loadfile" not in result
+    assert result[-2:] == ["--inline-snapshot=fix", "tests/test_run_pytest_tool.py"]
+
+
+def test_inline_snapshot_separate_value_disables_default_xdist() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._pytest_command(
+        "fast", ["--inline-snapshot", "short-report", "tests/test_run_pytest_tool.py"]
+    )
+
+    assert "-n" not in result
+    assert "--dist=loadfile" not in result
+
+
+def test_inline_snapshot_disable_preserves_default_xdist() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._pytest_command(
+        "fast", ["--inline-snapshot=disable", "tests/test_run_pytest_tool.py"]
+    )
+
+    assert "-n" in result
+    assert "--dist=loadfile" in result
+
+
+def test_inline_snapshot_fix_shortcut_disables_default_xdist() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._pytest_command("fast", ["--fix", "tests/test_run_pytest_tool.py"])
+
+    assert "-n" not in result
+    assert "--dist=loadfile" not in result
 
 
 def test_slow_mode_selects_slow_marker() -> None:
