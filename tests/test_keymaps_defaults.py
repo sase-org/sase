@@ -151,3 +151,11 @@ def test_binding_meta_matches_app_keymaps() -> None:
     meta_actions = {a for a, _, _ in _BINDING_META}
     field_names = {f.name for f in fields(AppKeymaps)}
     assert meta_actions == field_names
+
+
+def test_pr_facing_binding_meta_uses_pr_labels() -> None:
+    """Visible binding names should match the PR terminology used by ACE."""
+    meta_labels = {action: label for action, label, _priority in _BINDING_META}
+
+    assert meta_labels["start_agent_from_changespec"] == "Run Agent (PR)"
+    assert meta_labels["jump_to_agent_changespec"] == "Go to PR"

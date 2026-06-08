@@ -309,7 +309,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `u`                 | Clear all agent marks                                                                                         |
 | `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group                                 |
 | `X`                 | Open the cleanup panel for panel, global, tag, marked, group, or custom cleanup                               |
-| `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)                                                      |
+| `Enter` / `L`       | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                      |
 | `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                |
 | `E`                 | Edit panel content in editor                                                                                  |
 | `t`                 | Open tmux window in the focused agent's claimed workspace                                                     |

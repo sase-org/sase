@@ -58,11 +58,11 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Agent cleanup on Agents; clear output on AXE.
     Binding("X", "open_agent_cleanup_panel", "Agent Cleanup", show=False),
     Binding("Q", "stop_axe_and_quit", "Stop & Quit", show=False),
-    # Agent workflow (all tabs) - shows project/CL selection modals
+    # Agent workflow (all tabs) - shows project/PR selection modals
     Binding("at", "start_custom_agent", "Run Agent", show=False),
     Binding("space", "start_agent_home", "Run Agent (Home)", show=False),
-    # Run agent from ChangeSpec (CLs tab only)
-    Binding("ctrl+@", "start_agent_from_changespec", "Run Agent (CL)", show=False),
+    # Run agent from ChangeSpec (PRs tab only)
+    Binding("ctrl+@", "start_agent_from_changespec", "Run Agent (PR)", show=False),
     Binding(
         "ctrl+g",
         "start_last_vcs_xprompt_in_editor",
@@ -71,7 +71,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     ),
     # Bang mode prefix (all tabs) - !x = toggle axe, !! = run bgcmd
     Binding("exclamation_mark", "start_bang_mode", "Bang Mode", show=False),
-    # Marking (CLs tab only)
+    # Marking (PRs tab only)
     Binding("m", "toggle_mark", "Mark", show=False),
     Binding("n", "rename_cl", "Rename", show=False),
     Binding("u", "clear_marks", "Unmark All", show=False),
@@ -119,8 +119,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("E", "edit_panel", "Edit Panel", show=False),
     Binding("minus", "reset_file_trim", "Reset Trim", show=False),
     Binding("equals_sign", "show_all_file_lines", "Show All", show=False),
-    # Jump to CL from agent (agents tab)
-    Binding("enter", "jump_to_agent_changespec", "Go to CL", show=False),
+    # Jump to PR from agent (agents tab)
+    Binding("enter", "jump_to_agent_changespec", "Go to PR", show=False),
     Binding("V", "show_agent_run_log", "Agent Run Log", show=False),
     Binding("ctrl+l", "dismiss_toasts", "Dismiss Toasts", show=False),
 ]

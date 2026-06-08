@@ -136,6 +136,13 @@ def test_run_workflow_command_is_contextual_retry_on_agents() -> None:
     assert "retry" in spec.aliases
 
 
+def test_pr_sync_commands_use_pr_labels() -> None:
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+
+    assert by_id["app.rebase"].label == "Rebase PR"
+    assert by_id["app.start_rewind"].label == "Rewind PR / Revive agent"
+
+
 def test_bulk_change_status_command_is_changespec_only() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.bulk_change_status"]
