@@ -2,6 +2,8 @@
 create_time: 2026-06-09 11:52:44
 status: wip
 prompt: sdd/prompts/202606/doctor_command_mvp.md
+bead_id: sase-4i
+tier: epic
 ---
 # Plan: Ambitious MVP for `sase doctor`
 
