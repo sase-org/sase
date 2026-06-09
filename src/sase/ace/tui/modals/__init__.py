@@ -2,7 +2,10 @@
 
 from .agent_name_modal import AgentNameModal
 from .agent_sibling_modal import AgentSiblingChoice, AgentSiblingModal
-from .agent_artifacts_modal import AgentArtifactSelectionModal
+from .agent_artifacts_modal import (
+    AgentArtifactSelectionModal,
+    AgentArtifactSelectionResult,
+)
 from .agent_cleanup_modal import (
     AgentCleanupAction,
     AgentCleanupCustomModal,
@@ -119,6 +122,7 @@ __all__ = [
     "AgentSiblingChoice",
     "AgentSiblingModal",
     "AgentArtifactSelectionModal",
+    "AgentArtifactSelectionResult",
     "AgentCleanupAction",
     "AgentCleanupCustomModal",
     "AgentCleanupCustomResult",

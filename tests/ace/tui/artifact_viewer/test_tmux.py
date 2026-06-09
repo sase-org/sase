@@ -87,6 +87,78 @@ def test_tmux_pane_launch_invokes_split_window_with_module_entrypoint(
     ]
 
 
+def test_tmux_pane_launch_with_zoom_resizes_returned_pane(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    artifact = tmp_path / "artifact.png"
+    artifact.write_bytes(b"png")
+    calls: list[list[str]] = []
+    monkeypatch.setenv("TMUX", "/tmp/tmux")
+    monkeypatch.delenv("TMUX_PANE", raising=False)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if cmd[:2] == ["tmux", "split-window"]:
+            return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
+        if cmd[:2] == ["tmux", "resize-pane"]:
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        raise AssertionError(cmd)
+
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+
+    result = view_artifact_file_in_tmux_pane(artifact, kind="image", zoom=True)
+
+    assert result.ok is True
+    assert result.pane_id == "%7"
+    assert calls[0][:6] == [
+        "tmux",
+        "split-window",
+        "-h",
+        "-P",
+        "-F",
+        "#{pane_id}",
+    ]
+    assert calls[1] == ["tmux", "resize-pane", "-Z", "-t", "%7"]
+
+
+def test_tmux_pane_launch_with_zoom_failure_preserves_live_pane(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    artifact = tmp_path / "artifact.png"
+    artifact.write_bytes(b"png")
+    calls: list[list[str]] = []
+    monkeypatch.setenv("TMUX", "/tmp/tmux")
+    monkeypatch.delenv("TMUX_PANE", raising=False)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if cmd[:2] == ["tmux", "split-window"]:
+            return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
+        if cmd[:2] == ["tmux", "resize-pane"]:
+            return subprocess.CompletedProcess(cmd, 1, "", "no pane")
+        raise AssertionError(cmd)
+
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+
+    result = view_artifact_file_in_tmux_pane(artifact, kind="image", zoom=True)
+
+    assert result.ok is True
+    assert result.pane_id == "%7"
+    assert result.warning == "tmux resize-pane -Z failed with exit code 1: no pane"
+    assert result.warnings[0].code == "tmux_zoom_failed"
+    assert calls[1] == ["tmux", "resize-pane", "-Z", "-t", "%7"]
+
+
 def test_tmux_pane_launch_passes_return_pane_env_when_available(
     tmp_path: Path,
     monkeypatch,

@@ -10,6 +10,7 @@ from sase.ace.tui.graphics import (
     ArtifactViewerResult,
     TmuxPaneDecorationResult,
 )
+from sase.ace.tui.modals import AgentArtifactSelectionResult
 from sase.core.agent_artifact_facade import AgentArtifact
 
 from ._agent_artifact_image_helpers import _ImageActionApp, _decoration_state
@@ -151,6 +152,55 @@ def test_agents_open_artifacts_single_selection_uses_tmux_pane_without_suspend(
     assert app._artifact_tmux_decoration_state == _decoration_state()
     assert "-artifact-viewer-active" in app.content.classes
     same_pane_viewer.assert_not_called()
+    app.notify.assert_not_called()
+
+
+def test_agents_open_artifacts_zoomed_single_selection_passes_zoom_to_tmux(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    image = tmp_path / "visible.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    app = _ImageActionApp(str(image))
+    artifact = SimpleNamespace(path=str(image), kind="image", label="Image")
+    app._selected_agent = SimpleNamespace(status="DONE")
+    app._artifacts = [artifact]
+    calls: list[tuple[object, bool]] = []
+
+    def fake_tmux_viewer(
+        viewed_artifact,
+        *,
+        zoom: bool = False,
+    ) -> ArtifactViewerResult:
+        calls.append((viewed_artifact, zoom))
+        assert app.suspend_recorder.entered is False
+        return ArtifactViewerResult(True, pane_id="%7")
+
+    decorate = MagicMock(
+        return_value=TmuxPaneDecorationResult(True, state=_decoration_state())
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.artifact_tmux_pane_exists",
+        lambda _pane_id: True,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.view_agent_artifact_in_tmux_pane",
+        fake_tmux_viewer,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.decorate_artifact_tmux_panes", decorate)
+
+    app.action_open_agent_artifacts()
+    _modal, callback = app.pushed[0]
+    assert callback is not None
+
+    callback(AgentArtifactSelectionResult([artifact], zoom=True))
+
+    assert calls == [(artifact, True)]
+    assert app._artifact_tmux_pane_id == "%7"
+    decorate.assert_called_once_with("%7")
+    assert app._artifact_tmux_decoration_state == _decoration_state()
+    assert "-artifact-viewer-active" in app.content.classes
     app.notify.assert_not_called()
 
 
@@ -371,4 +421,54 @@ def test_agents_open_artifacts_modal_callback_opens_marked_sequence_in_tmux(
     assert app._artifact_tmux_decoration_state == _decoration_state()
     assert "-artifact-viewer-active" in app.content.classes
     same_pane_viewer.assert_not_called()
+    app.agent_list.focus.assert_called_once_with()
+
+
+def test_agents_open_artifacts_zoomed_marked_sequence_passes_zoom_to_tmux(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    app = _ImageActionApp(None)
+    app._selected_agent = SimpleNamespace(status="DONE")
+    artifacts = [
+        SimpleNamespace(path=str(tmp_path / "chat.md"), kind="chat", label="Chat"),
+        SimpleNamespace(path=str(tmp_path / "image.png"), kind="image", label="Image"),
+    ]
+    app._artifacts = artifacts
+    calls: list[tuple[list[object], bool]] = []
+
+    def fake_tmux_viewer(
+        selected_artifacts,
+        *,
+        zoom: bool = False,
+    ) -> ArtifactViewerResult:
+        calls.append((list(selected_artifacts), zoom))
+        assert app.suspend_recorder.entered is False
+        return ArtifactViewerResult(True, pane_id="%7")
+
+    decorate = MagicMock(
+        return_value=TmuxPaneDecorationResult(True, state=_decoration_state())
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.artifact_tmux_pane_exists",
+        lambda _pane_id: True,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.view_agent_artifacts_in_tmux_pane",
+        fake_tmux_viewer,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.decorate_artifact_tmux_panes", decorate)
+
+    app.action_open_agent_artifacts()
+    _modal, callback = app.pushed[0]
+    assert callback is not None
+
+    callback(AgentArtifactSelectionResult(artifacts, zoom=True))
+
+    assert calls == [(artifacts, True)]
+    assert app._artifact_tmux_pane_id == "%7"
+    decorate.assert_called_once_with("%7")
+    assert app._artifact_tmux_decoration_state == _decoration_state()
+    assert "-artifact-viewer-active" in app.content.classes
     app.agent_list.focus.assert_called_once_with()

@@ -403,7 +403,7 @@ class AgentPanelArtifactMixin:
             tuple(marker_stats),
         )
 
-    def _open_agent_artifact(self, artifact: Any) -> None:
+    def _open_agent_artifact(self, artifact: Any, *, zoom: bool = False) -> None:
         from ...graphics import (
             is_tmux_session,
             view_agent_artifact,
@@ -411,22 +411,36 @@ class AgentPanelArtifactMixin:
         )
 
         if is_tmux_session():
-            result = self._with_artifact_viewer_notify_pid(
-                lambda: view_agent_artifact_in_tmux_pane(artifact)
-            )
+
+            def tmux_callback() -> ArtifactViewerResult:
+                if zoom:
+                    return view_agent_artifact_in_tmux_pane(artifact, zoom=True)
+                return view_agent_artifact_in_tmux_pane(artifact)
+
+            result = self._with_artifact_viewer_notify_pid(tmux_callback)
             if result.ok and result.pane_id is not None:
                 self._track_artifact_tmux_pane(result.pane_id)
         else:
             with self.suspend():  # type: ignore[attr-defined]
                 result = view_agent_artifact(artifact)
+            if zoom:
+                self.notify(  # type: ignore[attr-defined]
+                    "Zoom open is only available inside tmux",
+                    severity="warning",
+                )
         if result.warning is not None:
             self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
 
-    def _open_agent_artifacts(self, artifacts: list[Any]) -> None:
+    def _open_agent_artifacts(
+        self,
+        artifacts: list[Any],
+        *,
+        zoom: bool = False,
+    ) -> None:
         if not artifacts:
             return
         if len(artifacts) == 1:
-            self._open_agent_artifact(artifacts[0])
+            self._open_agent_artifact(artifacts[0], zoom=zoom)
             return
 
         from ...graphics import (
@@ -436,14 +450,23 @@ class AgentPanelArtifactMixin:
         )
 
         if is_tmux_session():
-            result = self._with_artifact_viewer_notify_pid(
-                lambda: view_agent_artifacts_in_tmux_pane(artifacts)
-            )
+
+            def tmux_callback() -> ArtifactViewerResult:
+                if zoom:
+                    return view_agent_artifacts_in_tmux_pane(artifacts, zoom=True)
+                return view_agent_artifacts_in_tmux_pane(artifacts)
+
+            result = self._with_artifact_viewer_notify_pid(tmux_callback)
             if result.ok and result.pane_id is not None:
                 self._track_artifact_tmux_pane(result.pane_id)
         else:
             with self.suspend():  # type: ignore[attr-defined]
                 result = view_agent_artifacts(artifacts)
+            if zoom:
+                self.notify(  # type: ignore[attr-defined]
+                    "Zoom open is only available inside tmux",
+                    severity="warning",
+                )
         if result.warning is not None:
             self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
 
@@ -518,9 +541,11 @@ class AgentPanelArtifactMixin:
 
         def _open_selected(selection: Any) -> None:
             try:
-                selected_artifacts = self._normalize_agent_artifact_selection(selection)
+                selected_artifacts, zoom = self._normalize_agent_artifact_selection(
+                    selection
+                )
                 if selected_artifacts:
-                    self._open_agent_artifacts(selected_artifacts)
+                    self._open_agent_artifacts(selected_artifacts, zoom=zoom)
             finally:
                 self._focus_agent_list_after_artifact_modal()
 
@@ -565,12 +590,19 @@ class AgentPanelArtifactMixin:
 
         self.push_screen(AgentArtifactSelectionModal(artifacts), _open_selected)  # type: ignore[attr-defined]
 
-    def _normalize_agent_artifact_selection(self, selection: Any) -> list[Any]:
+    def _normalize_agent_artifact_selection(
+        self,
+        selection: Any,
+    ) -> tuple[list[Any], bool]:
+        from ...modals import AgentArtifactSelectionResult
+
         if selection is None:
-            return []
+            return [], False
+        if isinstance(selection, AgentArtifactSelectionResult):
+            return selection.artifacts, selection.zoom
         if isinstance(selection, list):
-            return selection
-        return [selection]
+            return selection, False
+        return [selection], False
 
     def action_view_image(self) -> None:
         """Compatibility wrapper for older keymaps."""

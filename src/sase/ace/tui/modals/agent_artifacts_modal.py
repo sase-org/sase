@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,7 @@ from .base import OptionListNavigationMixin
 
 
 _SELECTOR_KEYS = "1234567890abcdefghijklmnopqrstuvwxyz"
-_RESERVED_KEYS = {"j", "k", "m", "q", "y", "Y"}
+_RESERVED_KEYS = {"j", "k", "m", "q", "y", "Y", "z"}
 _MARKDOWN_SUFFIXES = {".md", ".markdown", ".mdown", ".mkd"}
 _MAX_LABEL_LEN = 54
 _MAX_AGENT_LABEL_LEN = 28
@@ -30,6 +31,14 @@ _MAX_PATH_LEN = 72
 def _artifact_selector_keys(count: int) -> list[str]:
     keys = [key for key in _SELECTOR_KEYS if key not in _RESERVED_KEYS]
     return keys[:count]
+
+
+@dataclass(frozen=True)
+class AgentArtifactSelectionResult:
+    """Explicit modal result for actions that carry open options."""
+
+    artifacts: list[Any]
+    zoom: bool = False
 
 
 def _short_text(value: object, *, max_len: int, from_end: bool = False) -> str:
@@ -256,6 +265,7 @@ class AgentArtifactSelectionModal(
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("m", "toggle_mark", "Mark"),
         ("A", "open_all", "Open All"),
+        ("z", "zoom_open", "Zoom Open"),
         ("y", "copy_contents", "Copy"),
         ("Y", "copy_path", "Copy path"),
         ("enter", "open_selected", "Open"),
@@ -349,19 +359,31 @@ class AgentArtifactSelectionModal(
         self._update_hints()
 
     def action_open_selected(self) -> None:
-        index = self._selected_index()
-        if index is None:
+        artifacts = self._selected_artifacts()
+        if artifacts is None:
             return
         if self._marked_indexes:
-            self.dismiss(
-                [
-                    artifact
-                    for artifact_index, artifact in enumerate(self._artifacts)
-                    if artifact_index in self._marked_indexes
-                ]
-            )
+            self.dismiss(artifacts)
             return
-        self.dismiss(self._artifacts[index])
+        self.dismiss(artifacts[0])
+
+    def action_zoom_open(self) -> None:
+        artifacts = self._selected_artifacts()
+        if artifacts is None:
+            return
+        self.dismiss(AgentArtifactSelectionResult(artifacts, zoom=True))
+
+    def _selected_artifacts(self) -> list[Any] | None:
+        index = self._selected_index()
+        if index is None:
+            return None
+        if self._marked_indexes:
+            return [
+                artifact
+                for artifact_index, artifact in enumerate(self._artifacts)
+                if artifact_index in self._marked_indexes
+            ]
+        return [self._artifacts[index]]
 
     def action_copy_contents(self) -> None:
         """Copy the highlighted Markdown artifact contents."""
@@ -452,7 +474,7 @@ class AgentArtifactSelectionModal(
 
     def _hint_text(self) -> str:
         base = (
-            "key/enter: open  y: copy  Y: path  m: mark  "
+            "key/enter: open  z: zoom open  y: copy  Y: path  m: mark  "
             "A: open all  j/k: navigate  q/esc: close"
         )
         mark_count = len(self._marked_indexes)

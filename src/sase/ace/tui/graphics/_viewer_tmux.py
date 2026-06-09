@@ -48,14 +48,20 @@ def view_artifact_file_in_tmux_pane(
     path: str | Path,
     *,
     kind: str | None = None,
+    zoom: bool = False,
 ) -> ArtifactViewerResult:
     """Launch the artifact viewer in a right-side tmux pane."""
 
-    return view_artifact_files_in_tmux_pane((ArtifactViewSpec(path, kind),))
+    return view_artifact_files_in_tmux_pane(
+        (ArtifactViewSpec(path, kind),),
+        zoom=zoom,
+    )
 
 
 def view_artifact_files_in_tmux_pane(
     artifacts: Sequence[ArtifactViewSpec],
+    *,
+    zoom: bool = False,
 ) -> ArtifactViewerResult:
     """Launch one or more artifacts in a right-side tmux pane."""
 
@@ -109,6 +115,27 @@ def view_artifact_files_in_tmux_pane(
         return viewer_result_from_warnings((warning,))
 
     pane_id = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else None
+    if zoom:
+        if pane_id is None:
+            warning = ArtifactViewerWarning(
+                "missing_tmux_pane",
+                "No tmux pane id to zoom",
+                tool="tmux",
+            )
+            return ArtifactViewerResult(
+                True,
+                warning=warning.message,
+                warnings=(warning,),
+                pane_id=pane_id,
+            )
+        zoom_result = toggle_artifact_tmux_pane_zoom(pane_id)
+        if not zoom_result.ok:
+            return ArtifactViewerResult(
+                True,
+                warning=zoom_result.warning,
+                warnings=zoom_result.warnings,
+                pane_id=pane_id,
+            )
     return ArtifactViewerResult(True, pane_id=pane_id)
 
 
@@ -221,7 +248,9 @@ def select_tmux_pane(pane_id: str) -> ArtifactViewerResult:
     return ArtifactViewerResult(True)
 
 
-def toggle_artifact_tmux_pane_zoom() -> ArtifactViewerResult:
+def toggle_artifact_tmux_pane_zoom(
+    pane_id: str | None = None,
+) -> ArtifactViewerResult:
     """Toggle tmux zoom for the current artifact viewer pane."""
 
     if not is_tmux_session():
@@ -240,8 +269,9 @@ def toggle_artifact_tmux_pane_zoom() -> ArtifactViewerResult:
         return viewer_result_from_warnings((warning,))
 
     tmux_command = ["tmux", "resize-pane", "-Z"]
-    if pane_id := os.environ.get("TMUX_PANE"):
-        tmux_command.extend(["-t", pane_id])
+    target_pane_id = pane_id if pane_id is not None else os.environ.get("TMUX_PANE")
+    if target_pane_id:
+        tmux_command.extend(["-t", target_pane_id])
     result = subprocess.run(
         tmux_command,
         check=False,

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-09 09:43:15
-status: wip
+status: done
 prompt: sdd/prompts/202606/artifact_panel_zoom_open.md
 ---
 # Plan: Artifact Panel Zoomed Tmux Open

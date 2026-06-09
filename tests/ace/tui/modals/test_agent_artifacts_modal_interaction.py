@@ -7,6 +7,7 @@ from textual.widgets import OptionList
 
 from sase.ace.tui.modals.agent_artifacts_modal import (
     AgentArtifactSelectionModal,
+    AgentArtifactSelectionResult,
     _artifact_selector_keys,
 )
 from tests.ace.tui.modals.agent_artifacts_modal_test_helpers import (
@@ -58,6 +59,7 @@ async def test_artifact_modal_letter_selector_skips_navigation_and_quit_keys() -
     assert "q" not in _artifact_selector_keys(16)
     assert "y" not in _artifact_selector_keys(35)
     assert "Y" not in _artifact_selector_keys(35)
+    assert "z" not in _artifact_selector_keys(35)
     assert result is artifacts[15]
 
 
@@ -125,6 +127,56 @@ async def test_artifact_modal_marks_return_in_list_order() -> None:
         await pilot.pause()
 
     assert result == [artifacts[0], artifacts[2]]
+
+
+async def test_artifact_modal_zoom_open_returns_highlighted_artifact() -> None:
+    artifacts = [_artifact(index) for index in range(4)]
+    result: object | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = AgentArtifactSelectionModal(artifacts)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-artifacts-list", OptionList)
+        option_list.highlighted = 2
+        await pilot.press("z")
+        await pilot.pause()
+
+    assert result == AgentArtifactSelectionResult([artifacts[2]], zoom=True)
+
+
+async def test_artifact_modal_zoom_open_returns_marks_in_list_order() -> None:
+    artifacts = [_artifact(index) for index in range(4)]
+    result: object | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = AgentArtifactSelectionModal(artifacts)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-artifacts-list", OptionList)
+        option_list.highlighted = 2
+        await pilot.press("m")
+        option_list.highlighted = 0
+        await pilot.press("m")
+        await pilot.press("z")
+        await pilot.pause()
+
+    assert result == AgentArtifactSelectionResult(
+        [artifacts[0], artifacts[2]],
+        zoom=True,
+    )
 
 
 async def test_artifact_modal_open_all_returns_all_artifacts_in_list_order() -> None:
@@ -214,6 +266,7 @@ async def test_artifact_modal_hint_includes_open_all_and_mark_count() -> None:
         await pilot.pause()
 
         assert "A: open all" in modal._hint_text()
+        assert "z: zoom open" in modal._hint_text()
         assert "y: copy" in modal._hint_text()
         assert "Y: path" in modal._hint_text()
         assert "marked:" not in modal._hint_text()
@@ -224,6 +277,7 @@ async def test_artifact_modal_hint_includes_open_all_and_mark_count() -> None:
         await pilot.pause()
 
         assert "A: open all" in modal._hint_text()
+        assert "z: zoom open" in modal._hint_text()
         assert "y: copy" in modal._hint_text()
         assert "Y: path" in modal._hint_text()
         assert modal._hint_text().endswith("marked: 1")

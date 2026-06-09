@@ -137,19 +137,26 @@ def view_agent_artifacts(
     )
 
 
-def view_agent_artifact_in_tmux_pane(artifact: ArtifactLike) -> ArtifactViewerResult:
+def view_agent_artifact_in_tmux_pane(
+    artifact: ArtifactLike,
+    *,
+    zoom: bool = False,
+) -> ArtifactViewerResult:
     """Open an agent artifact with the terminal page viewer in a tmux pane."""
 
-    return view_agent_artifacts_in_tmux_pane((artifact,))
+    return view_agent_artifacts_in_tmux_pane((artifact,), zoom=zoom)
 
 
 def view_agent_artifacts_in_tmux_pane(
     artifacts: Sequence[ArtifactLike],
+    *,
+    zoom: bool = False,
 ) -> ArtifactViewerResult:
     """Open one or more agent artifacts in a tmux pane."""
 
     return view_artifact_files_in_tmux_pane(
-        tuple(_agent_artifact_view_spec(artifact) for artifact in artifacts)
+        tuple(_agent_artifact_view_spec(artifact) for artifact in artifacts),
+        zoom=zoom,
     )
 
 
