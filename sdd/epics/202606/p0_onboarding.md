@@ -1,5 +1,7 @@
 ---
 create_time: 2026-06-09 18:41:43
+bead_id: sase-4j
+tier: epic
 status: wip
 prompt: sdd/prompts/202606/p0_onboarding.md
 ---
