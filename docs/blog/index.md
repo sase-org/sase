@@ -5,7 +5,10 @@ units, orchestration, provider-independent workflows, review state, and the coor
 
 ## Start Here
 
-The [SASE Blog Series](../series/agentic-software-engineering.md) begins with
+Start with [Hello, SASE: Your First 15 Minutes](posts/hello-sase-your-first-15-minutes.md) if you want the practical
+path: install, provider readiness, a safe first run, and the first visible agent record.
+
+The [SASE Blog Series](../series/agentic-software-engineering.md) also begins with
 [\[00\] Why Coding Agents Need Orchestration](posts/why-coding-agents-need-orchestration.md), the launch essay on why
 coding-agent work needs durable orchestration around plans, state, review, dependencies, retries, and handoff.
 

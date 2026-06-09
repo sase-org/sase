@@ -40,6 +40,9 @@ sase agents status
 If `sase doctor` reports a missing provider executable or authentication gap, install and authenticate one of the
 supported CLIs, then run `sase doctor` again.
 
+For the guided beginner path, follow the
+[15-minute quickstart](https://sase.sh/blog/posts/hello-sase-your-first-15-minutes/).
+
 ## Why sase
 
 Coding agents are useful one run at a time. Real engineering work needs coordination:

@@ -25,6 +25,9 @@ SASE calls that surrounding system **structured agentic software engineering**: 
 inside durable plans, work queues, review records, tests, commits, dependencies, and handoffs instead of only inside a
 chat transcript.
 
+If you want to try that system before reading the full argument, start with
+[\[01\] Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minutes.md).
+
 ## The Single-Agent Happy Path Is Too Small
 
 A one-off coding-agent prompt works well when the task is small, the repository is already checked out, and the result
@@ -132,6 +135,6 @@ has to make the work durable, reviewable, resumable, and transferable.
 This is [00] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
 - Previous: none.
-- Next: more series posts are forthcoming.
+- Next: [\[01\] Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minutes.md).
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).

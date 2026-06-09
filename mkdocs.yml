@@ -11,8 +11,10 @@ use_directory_urls: true
 
 nav:
   - Home: index.md
-  - The Basics:
+  - Getting Started:
+      - "Hello, SASE: Your First 15 Minutes": blog/posts/hello-sase-your-first-15-minutes.md
       - Initialization: init.md
+  - The Basics:
       - Memory: memory.md
       - Episodes: episodes.md
       - ACE TUI: ace.md
