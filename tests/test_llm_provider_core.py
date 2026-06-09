@@ -107,14 +107,13 @@ def test_get_provider_unknown_raises() -> None:
 
 @patch("sase.llm_provider.registry.shutil.which", return_value=None)
 @patch("sase.llm_provider.registry.get_llm_provider_config", return_value={})
-def test_get_default_provider_falls_back_to_gemini(
+def test_get_default_provider_errors_without_detectable_cli(
     mock_config: MagicMock,
     mock_which: MagicMock,
 ) -> None:
-    """Test that the default provider is 'gemini' when no CLI provider is on PATH."""
-    provider = get_provider()
-    assert isinstance(provider, LLMPluginManager)
-    assert provider.provider_name() == "gemini"
+    """No default provider is selected when no provider CLI is on PATH."""
+    with pytest.raises(RuntimeError, match="No LLM provider is available"):
+        get_provider()
 
 
 @patch("sase.llm_provider.registry.shutil.which", return_value="/usr/bin/claude")

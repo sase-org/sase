@@ -343,6 +343,28 @@ def test_registry_auto_detect_priority(
     assert get_default_provider_name() == "claude"
 
 
+@patch(
+    "sase.llm_provider.registry._llm_metadata_payload",
+    return_value={
+        "autodetect_candidates": [
+            {"priority": 30, "provider": "gemini", "cli_name": "gemini"}
+        ]
+    },
+)
+@patch("sase.llm_provider.registry.shutil.which", return_value=None)
+@patch("sase.llm_provider.registry.get_llm_provider_config", return_value={})
+def test_registry_auto_detect_does_not_select_missing_gemini_fallback(
+    mock_config: MagicMock,
+    mock_which: MagicMock,
+    mock_payload: MagicMock,
+) -> None:
+    """Gemini is not selected unless the Gemini CLI is discoverable."""
+    from sase.llm_provider.registry import get_default_provider_name
+
+    with pytest.raises(RuntimeError, match="No LLM provider is available"):
+        get_default_provider_name()
+
+
 @patch("sase.llm_provider.claude.stream_and_parse_json_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
 @patch("sase.llm_provider.claude.gemini_timer")

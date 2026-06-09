@@ -445,7 +445,19 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'run' subcommand parser."""
     run_parser = subparsers.add_parser(
         "run",
+        usage="sase run [-h] [-d] [-l] [-r [CONTINUE_HISTORY]] [PROMPT]",
         help="Run a workflow or execute a query directly (e.g., 'sase run \"Your question here\"')",
+        description=(
+            "Launch or resume a coding-agent run from a prompt, xprompt, "
+            "workflow, or history."
+        ),
+        epilog=(
+            "Examples:\n"
+            '  sase run "#cd:$(pwd) summarize what this repository does; do not change files"\n'
+            '  sase run -d "#cd:$(pwd) inspect pending work; do not change files"\n'
+            "  sase agents status"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     # Options for 'run' (keep sorted alphabetically by long option name)
@@ -468,4 +480,10 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
         nargs="?",
         const="",  # Empty string means "use most recent"
         help="Resume a previous conversation. Optionally specify history file basename or path (defaults to most recent).",
+    )
+    run_parser.add_argument(
+        "prompt",
+        nargs="?",
+        metavar="PROMPT",
+        help="Prompt, xprompt reference, workflow reference, or '.' for prompt history.",
     )

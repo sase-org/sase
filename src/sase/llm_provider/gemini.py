@@ -103,9 +103,8 @@ class GeminiProvider(LLMProvider):
         return 30
 
     @hookimpl
-    def llm_autodetect_cli_name(self) -> str | None:
-        # Gemini is the always-eligible fallback — no CLI presence check.
-        return None
+    def llm_autodetect_cli_name(self) -> str:
+        return "gemini"
 
     @hookimpl
     def llm_invoke(

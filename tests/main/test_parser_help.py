@@ -290,6 +290,24 @@ def test_root_full_help_short_flag_does_not_capture_subcommand_flags() -> None:
     assert args.state_dir == "/tmp/sase-mobile-state"
 
 
+def test_run_help_shows_prompt_positional_and_beginner_examples() -> None:
+    """``sase run --help`` advertises the prompt and first-run examples."""
+    run_help = _parser_for(("sase", "run")).format_help()
+    args = create_parser().parse_args(["run", "hello"])
+
+    assert "usage: sase run [-h] [-d] [-l] [-r [CONTINUE_HISTORY]] [PROMPT]" in run_help
+    assert "PROMPT" in run_help
+    assert (
+        'sase run "#cd:$(pwd) summarize what this repository does; do not change files"'
+        in run_help
+    )
+    assert (
+        'sase run -d "#cd:$(pwd) inspect pending work; do not change files"' in run_help
+    )
+    assert "sase agents status" in run_help
+    assert args.prompt == "hello"
+
+
 def test_memory_help_marks_primary_command_and_init_alias() -> None:
     """Memory help text points users to the new primary command surface."""
     memory_help = _flat_help(_parser_for(("sase", "memory")).format_help())

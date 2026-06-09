@@ -17,6 +17,40 @@ if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
 
 
+_PROVIDER_SETUP_HINTS: dict[str, dict[str, str]] = {
+    "claude": {
+        "tool": "Claude Code",
+        "install": "npm install -g @anthropic-ai/claude-code",
+        "auth": "run `claude` and complete the login flow",
+    },
+    "codex": {
+        "tool": "Codex CLI",
+        "install": "npm install -g @openai/codex",
+        "auth": "run `codex login`",
+    },
+    "gemini": {
+        "tool": "Gemini CLI",
+        "install": "npm install -g @google/gemini-cli",
+        "auth": "run `gemini` and complete the login flow",
+    },
+    "opencode": {
+        "tool": "OpenCode",
+        "install": "install from https://opencode.ai/docs",
+        "auth": "run `opencode auth login`",
+    },
+    "qwen": {
+        "tool": "Qwen Code",
+        "install": "npm install -g @qwen-code/qwen-code",
+        "auth": "run `qwen` and complete the login flow",
+    },
+}
+
+_AUTH_NOT_VERIFIED = (
+    "auth: not verified (doctor is read-only and does not call provider APIs)"
+)
+_RERUN_LLM_DEFAULT = "Rerun `sase doctor -C llm.default -v` before `sase run`."
+
+
 def provider_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
     """Return default LLM provider check specs."""
     return (
@@ -116,19 +150,33 @@ def _check_llm_default(context: DoctorContext) -> DiagnosticCheck:
     try:
         provider_name = llm_registry.get_default_provider_name()
     except Exception as exc:  # noqa: BLE001 - default resolution is diagnostic.
+        readiness = _provider_readiness_rows(providers, context.env)
         return DiagnosticCheck(
             id="llm.default",
             group="llm",
             status="ERROR",
             title="Default LLM provider",
-            summary="default LLM provider could not be resolved",
-            details=(f"{type(exc).__name__}: {exc}",),
+            summary="no usable default LLM provider executable was found",
+            details=(
+                f"selection source: {_format_selection(selection)}",
+                f"{type(exc).__name__}: {exc}",
+                *_format_readiness_details(readiness),
+                _AUTH_NOT_VERIFIED,
+            ),
             next_steps=(
-                "Set `llm_provider.provider` in sase.yml or install an autodetectable provider CLI.",
+                _first_provider_setup_step(readiness),
+                "Or set `llm_provider.provider` in sase.yml and ensure its executable is on PATH or in SASE_<PROVIDER>_PATH.",
+                _RERUN_LLM_DEFAULT,
             ),
             data={
+                "provider": None,
                 "selection": selection,
+                "selection_source": selection["reason"],
                 "registered_providers": sorted(providers),
+                "provider_readiness": readiness,
+                "setup_hints": _setup_hints_for(providers),
+                "auth_status": "not_verified",
+                "auth_verified": False,
                 "error": f"{type(exc).__name__}: {exc}",
             },
         )
@@ -151,16 +199,18 @@ def _check_llm_default(context: DoctorContext) -> DiagnosticCheck:
             },
         )
 
-    cli_name = _optional_str(metadata.get("autodetect_cli_name"))
-    env_var = _provider_path_env(provider_name)
-    configured_command = _optional_str(context.env.get(env_var))
-    command = configured_command or cli_name
-    executable = _resolve_executable(command) if command else None
+    selected_readiness = _provider_readiness(provider_name, metadata, context.env)
+    cli_name = selected_readiness["cli_name"]
+    env_var = selected_readiness["path_env"]
+    configured_command = selected_readiness["configured_command"]
+    command = selected_readiness["command"]
+    executable = selected_readiness["executable"]
     cli_required = command is not None
     status: CheckStatus = "OK"
     details: list[str] = [
-        f"provider: {provider_name}",
-        f"selection: {selection['reason']}",
+        f"selected provider: {provider_name}",
+        f"selection source: {_format_selection(selection)}",
+        _AUTH_NOT_VERIFIED,
     ]
     next_steps: list[str] = []
 
@@ -171,7 +221,10 @@ def _check_llm_default(context: DoctorContext) -> DiagnosticCheck:
 
     if cli_required and executable is None:
         status = "ERROR"
-        summary = f"{provider_name} selected; executable {command!r} was not found"
+        summary = (
+            f"{provider_name} selected from {selection['reason']}; "
+            f"executable {command!r} was not found"
+        )
         if configured_command:
             next_steps.append(
                 f"Fix `{env_var}` or unset it so PATH autodetection can be used."
@@ -180,11 +233,18 @@ def _check_llm_default(context: DoctorContext) -> DiagnosticCheck:
             next_steps.append(
                 f"Install the {provider_name} CLI or set `{env_var}` to its executable path."
             )
+        next_steps.append(_format_setup_hint(provider_name))
+        next_steps.append(_RERUN_LLM_DEFAULT)
     elif executable:
-        summary = f"{provider_name} selected; executable found on PATH"
-        details.append(f"executable: {executable}")
+        summary = (
+            f"{provider_name} selected from {selection['reason']}; executable found"
+        )
+        details.append(f"executable path: {executable}")
     else:
-        summary = f"{provider_name} selected; no required CLI metadata declared"
+        summary = (
+            f"{provider_name} selected from {selection['reason']}; "
+            "no required CLI metadata declared"
+        )
 
     return DiagnosticCheck(
         id="llm.default",
@@ -197,11 +257,17 @@ def _check_llm_default(context: DoctorContext) -> DiagnosticCheck:
         data={
             "provider": provider_name,
             "selection": selection,
+            "selection_source": selection["reason"],
+            "ready": status == "OK",
             "cli_required": cli_required,
             "cli_name": cli_name,
             "path_env": env_var,
             "configured_command": configured_command,
+            "command": command,
             "executable": executable,
+            "auth_status": "not_verified",
+            "auth_verified": False,
+            "setup_hint": _setup_hint(provider_name),
             "model_resolutions": metadata.get("model_resolutions", {}),
         },
     )
@@ -238,6 +304,92 @@ def _providers_from_payload(payload: dict[str, Any]) -> dict[str, dict[str, Any]
 
 def _metadata_list(value: Any) -> list[Any]:
     return list(value) if isinstance(value, list | tuple) else []
+
+
+def _provider_readiness_rows(
+    providers: dict[str, dict[str, Any]], env: dict[str, str]
+) -> list[dict[str, Any]]:
+    return [
+        _provider_readiness(provider_name, providers[provider_name], env)
+        for provider_name in sorted(providers)
+    ]
+
+
+def _provider_readiness(
+    provider_name: str,
+    metadata: dict[str, Any],
+    env: dict[str, str],
+) -> dict[str, Any]:
+    cli_name = _optional_str(metadata.get("autodetect_cli_name"))
+    env_var = _provider_path_env(provider_name)
+    configured_command = _optional_str(env.get(env_var))
+    command = configured_command or cli_name
+    executable = _resolve_executable(command) if command else None
+    return {
+        "provider": provider_name,
+        "cli_name": cli_name,
+        "path_env": env_var,
+        "configured_command": configured_command,
+        "command": command,
+        "executable": executable,
+        "ready": executable is not None if command else False,
+        "setup_hint": _setup_hint(provider_name),
+    }
+
+
+def _format_readiness_details(readiness: list[dict[str, Any]]) -> tuple[str, ...]:
+    if not readiness:
+        return ()
+    return tuple(
+        _format_readiness_detail(row)
+        for row in readiness
+        if row.get("command") is not None
+    )
+
+
+def _format_readiness_detail(row: dict[str, Any]) -> str:
+    executable = row.get("executable") or "missing"
+    return f"{row['provider']}: command {row['command']!r}, executable: {executable}"
+
+
+def _format_selection(selection: dict[str, Any]) -> str:
+    reason = selection["reason"]
+    if reason == "config":
+        return f"config (`llm_provider.provider={selection['provider']}`)"
+    if reason == "temporary_override":
+        source = selection.get("source") or "unknown"
+        model = selection.get("model") or "-"
+        return f"temporary override ({selection['provider']}/{model}, source={source})"
+    return "autodetect"
+
+
+def _setup_hint(provider_name: str) -> dict[str, str] | None:
+    hint = _PROVIDER_SETUP_HINTS.get(provider_name)
+    if hint is None:
+        return None
+    return dict(hint)
+
+
+def _setup_hints_for(providers: dict[str, dict[str, Any]]) -> dict[str, dict[str, str]]:
+    return {
+        name: hint
+        for name in sorted(providers)
+        if (hint := _setup_hint(name)) is not None
+    }
+
+
+def _format_setup_hint(provider_name: str) -> str:
+    hint = _setup_hint(provider_name)
+    if hint is None:
+        return f"Install and authenticate the {provider_name} CLI."
+    return f"{hint['tool']} setup: {hint['install']}; {hint['auth']}."
+
+
+def _first_provider_setup_step(readiness: list[dict[str, Any]]) -> str:
+    for row in readiness:
+        if row.get("setup_hint"):
+            return _format_setup_hint(str(row["provider"]))
+    return "Install and authenticate at least one SASE LLM provider CLI."
 
 
 def _optional_str(value: Any) -> str | None:
