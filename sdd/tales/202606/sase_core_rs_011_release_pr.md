@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-09 08:21:12
-status: wip
+status: done
 prompt: sdd/prompts/202606/sase_core_rs_011_release_pr.md
 ---
 # sase-core-rs 0.1.1 release PR plan
