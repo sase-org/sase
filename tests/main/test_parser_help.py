@@ -3,10 +3,24 @@
 from __future__ import annotations
 
 import argparse
+import re
+from io import StringIO
 
 import pytest
 
-from sase.main.parser import create_parser
+from sase.main.parser import (
+    _format_compact_root_help,
+    _print_compact_root_help,
+    create_parser,
+)
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+class _TtyStringIO(StringIO):
+    def isatty(self) -> bool:
+        return True
 
 
 def _walk_subparser_actions(
@@ -76,8 +90,12 @@ def _parse_and_capture_help(args: list[str], capsys: pytest.CaptureFixture[str])
     return capsys.readouterr().out
 
 
-def _compact_common_commands(help_text: str) -> set[str]:
-    commands: set[str] = set()
+def _strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text)
+
+
+def _compact_common_command_rows(help_text: str) -> list[str]:
+    commands: list[str] = []
     in_common_commands = False
     for line in help_text.splitlines():
         if line == "Common commands:":
@@ -86,8 +104,12 @@ def _compact_common_commands(help_text: str) -> set[str]:
         if in_common_commands and not line:
             break
         if in_common_commands:
-            commands.add(line.split(maxsplit=1)[0])
+            commands.append(line.split(maxsplit=1)[0])
     return commands
+
+
+def _compact_common_commands(help_text: str) -> set[str]:
+    return set(_compact_common_command_rows(help_text))
 
 
 def test_all_subparser_choices_are_sorted() -> None:
@@ -170,6 +192,7 @@ def test_agents_help_renders_sorted_subcommands() -> None:
 def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> None:
     """Root --help renders curated first-contact help."""
     help_text = _parse_and_capture_help(["--help"], capsys)
+    common_command_rows = _compact_common_command_rows(help_text)
     common_commands = _compact_common_commands(help_text)
 
     assert help_text.startswith("usage: sase [-h] [-H] <command> [args...]\n")
@@ -181,6 +204,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         in help_text
     )
     assert "Use `sase --full-help` to show every command." in help_text
+    assert common_command_rows == sorted(common_command_rows)
     assert common_commands == {
         "doctor",
         "init",
@@ -214,6 +238,47 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         "Inspect loaded memory, review proposals, and audit long-term memory activity."
         in help_text
     )
+
+
+def test_root_help_captured_output_is_plain(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Captured root --help output does not include ANSI escapes."""
+    help_text = _parse_and_capture_help(["--help"], capsys)
+
+    assert _ANSI_RE.search(help_text) is None
+
+
+def test_root_compact_help_colors_tty_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TTY compact help uses ANSI styling without changing the stripped text."""
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    parser = create_parser()
+    output = _TtyStringIO()
+
+    _print_compact_root_help(parser, output)
+    rendered_help = output.getvalue()
+
+    assert _ANSI_RE.search(rendered_help) is not None
+    assert _strip_ansi(rendered_help) == _format_compact_root_help(parser)
+
+
+def test_root_compact_help_honors_no_color_on_tty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TTY compact help stays plain when color is explicitly disabled."""
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setenv("TERM", "xterm-256color")
+    parser = create_parser()
+    output = _TtyStringIO()
+
+    _print_compact_root_help(parser, output)
+    rendered_help = output.getvalue()
+
+    assert _ANSI_RE.search(rendered_help) is None
+    assert rendered_help == _format_compact_root_help(parser)
 
 
 def test_root_short_help_matches_long_help(capsys: pytest.CaptureFixture[str]) -> None:

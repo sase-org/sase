@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-09 19:25:17
-status: wip
+status: done
 prompt: sdd/prompts/202606/help_output_sort_color.md
 ---
 # Plan: Colored, Sorted Root Help
