@@ -9,15 +9,26 @@ from __future__ import annotations
 
 from collections.abc import Collection, Sequence
 from contextlib import AbstractContextManager
-from datetime import UTC, datetime
 import json
 import os
 import tempfile
 from pathlib import Path
 from typing import Any
 
-from sase.agent.names._common import extract_auto_name_prefix
-from sase.core.paths import sase_home, sase_projects_dir, sase_subdir
+from sase.agent.names._registry_entries import (
+    dotted_namespace_prefixes as _dotted_namespace_prefixes,
+    entry_belongs_to_artifact as _entry_belongs_to_artifact,
+    entry_has_other_owner as _entry_has_other_owner,
+    entry_owner_missing as _entry_owner_missing,
+    owner_from_artifact_name as _owner_from_artifact_name,
+)
+from sase.agent.names._registry_scan import (
+    collect_artifact_entries as _collect_artifact_entries,
+    collect_dismissed_bundle_entries as _collect_dismissed_bundle_entries,
+    collect_planned_reservation_entries as _collect_planned_reservation_entries,
+    source_signature_paths,
+)
+from sase.core.paths import sase_home
 
 SCHEMA_VERSION = 1
 INDEX_FILENAME = "agent_name_registry.json"
@@ -227,28 +238,6 @@ def delete_registered_name(name: str) -> None:
         _save_entries(entries)
 
 
-def _entry_belongs_to_artifact(entry: dict[str, Any], artifact_dir: Path) -> bool:
-    existing_dir = entry.get("artifacts_dir")
-    if not isinstance(existing_dir, str) or not existing_dir:
-        return False
-    existing_path = Path(existing_dir).expanduser().resolve(strict=False)
-    return existing_path == artifact_dir
-
-
-def _entry_has_other_owner(entry: dict[str, Any], artifact_dir: Path) -> bool:
-    if not _entry_belongs_to_artifact(entry, artifact_dir):
-        return True
-    collision_owners = entry.get("collision_owners")
-    if not isinstance(collision_owners, list):
-        return False
-    for owner in collision_owners:
-        if isinstance(owner, dict) and not _entry_belongs_to_artifact(
-            owner, artifact_dir
-        ):
-            return True
-    return False
-
-
 def _raise_name_collision(name: str) -> None:
     from sase.agent.names._common import NameCollisionError
 
@@ -256,16 +245,6 @@ def _raise_name_collision(name: str) -> None:
     raise NameCollisionError(
         f"agent name '{name}' is already taken; try '{suggestion}'"
     )
-
-
-def _dotted_namespace_prefixes(name: str) -> set[str]:
-    """Return every dotted-segment prefix of *name* (including *name* itself).
-
-    Mirrors the in-memory namespace index helper. Kept local to this module to
-    avoid a circular import (``_templates`` already imports ``_registry``).
-    """
-    parts = name.split(".")
-    return {".".join(parts[: i + 1]) for i in range(len(parts))}
 
 
 def load_name_registry() -> dict[str, Any]:
@@ -287,7 +266,7 @@ def rebuild_name_registry() -> dict[str, Any]:
     """Rebuild the registry by scanning existing artifacts and dismissed bundles."""
     with _registry_mutation_lock():
         entries: dict[str, dict[str, Any]] = {}
-        _collect_planned_reservation_entries(entries)
+        _collect_planned_reservation_entries(entries, _read_registry(_registry_path()))
         _collect_artifact_entries(entries)
         _collect_dismissed_bundle_entries(entries)
         data = _registry_data(entries)
@@ -394,26 +373,6 @@ def _registry_file_is_stale(data: dict[str, Any]) -> bool:
     return False
 
 
-def _entry_owner_missing(entry: dict[str, Any]) -> bool:
-    if entry.get("reservation_kind") == "planned":
-        return False
-    source = entry.get("source")
-    if source == "artifact":
-        artifacts_dir = entry.get("artifacts_dir")
-        if isinstance(artifacts_dir, str) and not Path(artifacts_dir).exists():
-            return True
-    elif source == "dismissed_bundle":
-        bundle_path = entry.get("bundle_path")
-        if isinstance(bundle_path, str) and not Path(bundle_path).is_file():
-            return True
-    collision_owners = entry.get("collision_owners")
-    if isinstance(collision_owners, list):
-        for owner in collision_owners:
-            if isinstance(owner, dict) and _entry_owner_missing(owner):
-                return True
-    return False
-
-
 def _source_signature() -> dict[str, int]:
     paths = _source_signature_paths()
     count = 0
@@ -429,301 +388,9 @@ def _source_signature() -> dict[str, int]:
 
 
 def _source_signature_paths() -> list[Path]:
-    paths = [
-        sase_projects_dir(),
-        sase_home() / "dismissed_agents.json",
-        sase_subdir("dismissed_bundles"),
-    ]
-    projects_dir = sase_projects_dir()
-    try:
-        project_dirs = [p for p in projects_dir.iterdir() if p.is_dir()]
-    except OSError:
-        project_dirs = []
-    for project_dir in project_dirs:
-        artifacts_dir = project_dir / "artifacts"
-        paths.append(artifacts_dir)
-        try:
-            workflow_dirs = [p for p in artifacts_dir.iterdir() if p.is_dir()]
-        except OSError:
-            workflow_dirs = []
-        paths.extend(workflow_dirs)
-        for workflow_dir in workflow_dirs:
-            try:
-                paths.extend(p for p in workflow_dir.iterdir() if p.is_dir())
-            except OSError:
-                continue
-    return paths
+    return source_signature_paths()
 
 
 def _file_signature(path: Path) -> tuple[int, int]:
     stat = path.stat()
     return (stat.st_mtime_ns, stat.st_size)
-
-
-def _collect_artifact_entries(entries: dict[str, dict[str, Any]]) -> None:
-    projects_dir = sase_projects_dir()
-    if not projects_dir.is_dir():
-        return
-    dismissed_suffixes = _load_dismissed_suffixes()
-    try:
-        project_iter = projects_dir.iterdir()
-    except OSError:
-        return
-    for project_dir in project_iter:
-        artifacts_root = project_dir / "artifacts"
-        if not project_dir.is_dir() or not artifacts_root.is_dir():
-            continue
-        try:
-            workflow_iter = artifacts_root.iterdir()
-        except OSError:
-            continue
-        for workflow_dir in workflow_iter:
-            if not workflow_dir.is_dir():
-                continue
-            try:
-                artifact_iter = workflow_dir.iterdir()
-            except OSError:
-                continue
-            for artifact_dir in artifact_iter:
-                if not artifact_dir.is_dir():
-                    continue
-                meta = _read_json_object(artifact_dir / "agent_meta.json")
-                done = _read_json_object(artifact_dir / "done.json")
-                if meta is None and done is None:
-                    continue
-                state = "done" if done is not None else "active"
-                if artifact_dir.name in dismissed_suffixes:
-                    state = "dismissed"
-                owner = _artifact_owner(
-                    project_dir=project_dir,
-                    workflow_dir=workflow_dir,
-                    artifact_dir=artifact_dir,
-                    state=state,
-                )
-                names = _names_from_payloads(meta, done)
-                _add_owner_names(entries, names, owner)
-
-
-def _collect_dismissed_bundle_entries(entries: dict[str, dict[str, Any]]) -> None:
-    bundles_dir = sase_subdir("dismissed_bundles")
-    if not bundles_dir.is_dir():
-        return
-    try:
-        paths = list(bundles_dir.rglob("*.json"))
-    except OSError:
-        return
-    for path in paths:
-        if not path.is_file():
-            continue
-        bundle = _read_json_object(path)
-        if bundle is None:
-            continue
-        owner = _bundle_owner(path, bundle)
-        names = _names_from_payloads(bundle, None, bundle_name_keys=True)
-        _add_owner_names(entries, names, owner)
-
-
-def _collect_planned_reservation_entries(entries: dict[str, dict[str, Any]]) -> None:
-    existing = _read_registry(_registry_path())
-    if existing is None:
-        return
-    existing_entries = existing.get("entries")
-    if not isinstance(existing_entries, dict):
-        return
-    for name, entry in existing_entries.items():
-        if not isinstance(name, str) or not isinstance(entry, dict):
-            continue
-        if entry.get("reservation_kind") != "planned":
-            continue
-        entries[name] = dict(entry)
-
-
-def _add_owner_names(
-    entries: dict[str, dict[str, Any]],
-    names: set[str],
-    owner: dict[str, Any],
-) -> None:
-    for name in names:
-        _add_owner_name(entries, name, owner, reservation_kind="claimed")
-        prefix = extract_auto_name_prefix(name)
-        if prefix is not None and prefix not in names:
-            _add_owner_name(entries, prefix, owner, reservation_kind="auto_prefix")
-
-
-def _add_owner_name(
-    entries: dict[str, dict[str, Any]],
-    name: str,
-    owner: dict[str, Any],
-    *,
-    reservation_kind: str,
-) -> None:
-    entry = {**owner, "name": name, "reservation_kind": reservation_kind}
-    existing = entries.get(name)
-    if not isinstance(existing, dict):
-        entries[name] = entry
-        return
-    if _entry_owner_identity(existing) == _entry_owner_identity(entry):
-        return
-    collision_owners = existing.setdefault("collision_owners", [])
-    if not isinstance(collision_owners, list):
-        collision_owners = []
-        existing["collision_owners"] = collision_owners
-    new_identity = _entry_owner_identity(entry)
-    for owner_entry in collision_owners:
-        if (
-            isinstance(owner_entry, dict)
-            and _entry_owner_identity(owner_entry) == new_identity
-        ):
-            return
-    collision_owners.append(entry)
-
-
-def _entry_owner_identity(entry: dict[str, Any]) -> tuple[str, str] | None:
-    source = entry.get("source")
-    if source == "artifact":
-        artifacts_dir = entry.get("artifacts_dir")
-        if isinstance(artifacts_dir, str) and artifacts_dir:
-            return source, artifacts_dir
-    if source == "dismissed_bundle":
-        bundle_path = entry.get("bundle_path")
-        if isinstance(bundle_path, str) and bundle_path:
-            return source, bundle_path
-    return None
-
-
-def _names_from_payloads(
-    primary: dict[str, Any] | None,
-    secondary: dict[str, Any] | None,
-    *,
-    bundle_name_keys: bool = False,
-) -> set[str]:
-    names: set[str] = set()
-    keys = (
-        ("agent_name", "workflow_name")
-        if bundle_name_keys
-        else ("name", "workflow_name")
-    )
-    for payload in (primary, secondary):
-        if not isinstance(payload, dict):
-            continue
-        for key in keys:
-            value = payload.get(key)
-            if isinstance(value, str) and value:
-                names.add(value)
-    return names
-
-
-def _artifact_owner(
-    *,
-    project_dir: Path,
-    workflow_dir: Path,
-    artifact_dir: Path,
-    state: str,
-) -> dict[str, Any]:
-    return {
-        "source": "artifact",
-        "project_name": project_dir.name,
-        "workflow_dir": workflow_dir.name,
-        "raw_suffix": artifact_dir.name,
-        "artifacts_dir": str(artifact_dir),
-        "state": state,
-        "created_at": artifact_dir.name,
-    }
-
-
-def _owner_from_artifact_name(
-    artifact_dir: Path,
-    name: str,
-    *,
-    reservation_kind: str,
-    template_namespace: str | None = None,
-) -> dict[str, Any]:
-    workflow_dir = artifact_dir.parent
-    project_dir = (
-        workflow_dir.parent.parent if workflow_dir.parent.name == "artifacts" else None
-    )
-    entry: dict[str, Any] = {
-        "source": "artifact",
-        "name": name,
-        "project_name": project_dir.name if project_dir is not None else None,
-        "workflow_dir": workflow_dir.name,
-        "raw_suffix": artifact_dir.name,
-        "artifacts_dir": str(artifact_dir),
-        "state": (
-            "planned"
-            if reservation_kind == "planned"
-            else "done"
-            if (artifact_dir / "done.json").exists()
-            else "active"
-        ),
-        "created_at": artifact_dir.name,
-        "reservation_kind": reservation_kind,
-    }
-    if reservation_kind == "planned":
-        entry["reserved_at"] = datetime.now(UTC).isoformat()
-    if template_namespace is not None:
-        entry["template_namespace"] = template_namespace
-    return entry
-
-
-def _bundle_owner(path: Path, bundle: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "source": "dismissed_bundle",
-        "project_name": _project_name_from_bundle(bundle),
-        "workflow_dir": "ace-run",
-        "raw_suffix": _str_or_none(bundle.get("raw_suffix")) or path.stem,
-        "artifacts_dir": _str_or_none(bundle.get("artifacts_dir")),
-        "bundle_path": str(path),
-        "state": "dismissed",
-        "created_at": _str_or_none(bundle.get("raw_suffix")) or path.stem,
-    }
-
-
-def _project_name_from_bundle(bundle: dict[str, Any]) -> str | None:
-    project_file = bundle.get("project_file")
-    if isinstance(project_file, str) and project_file:
-        return Path(project_file).parent.name
-    artifacts_dir = bundle.get("artifacts_dir")
-    if isinstance(artifacts_dir, str) and artifacts_dir:
-        parts = Path(artifacts_dir).parts
-        try:
-            idx = parts.index("projects")
-        except ValueError:
-            return None
-        if idx + 1 < len(parts):
-            return parts[idx + 1]
-    return None
-
-
-def _str_or_none(value: object) -> str | None:
-    return value if isinstance(value, str) and value else None
-
-
-def _read_json_object(path: Path) -> dict[str, Any] | None:
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return None
-    return data if isinstance(data, dict) else None
-
-
-def _load_dismissed_suffixes() -> set[str]:
-    path = sase_home() / "dismissed_agents.json"
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return set()
-    if not isinstance(data, list):
-        return set()
-    suffixes: set[str] = set()
-    for entry in data:
-        raw_suffix: object | None = None
-        if isinstance(entry, list) and len(entry) == 3:
-            raw_suffix = entry[2]
-        elif isinstance(entry, dict):
-            raw_suffix = entry.get("raw_suffix")
-        if isinstance(raw_suffix, str):
-            suffixes.add(raw_suffix)
-    return suffixes
