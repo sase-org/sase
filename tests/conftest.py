@@ -130,6 +130,32 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
             monkeypatch.delenv(key)
 
 
+@pytest.fixture(scope="session")
+def _test_llm_bin(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Provide a harmless CLI stub for default-provider autodetection tests."""
+    bin_dir = tmp_path_factory.mktemp("llm-bin")
+    claude = bin_dir / "claude"
+    claude.write_text(
+        "#!/bin/sh\n"
+        'if [ "${1:-}" = "--version" ]; then\n'
+        "  printf 'Claude Code test stub\\n'\n"
+        "  exit 0\n"
+        "fi\n"
+        "printf 'Claude Code test stub\\n' >&2\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    claude.chmod(0o755)
+    return bin_dir
+
+
+@pytest.fixture(autouse=True)
+def _default_test_llm_cli(monkeypatch: pytest.MonkeyPatch, _test_llm_bin: Path) -> None:
+    """Keep tests deterministic on CI hosts without provider CLIs installed."""
+    path = os.environ.get("PATH", "")
+    monkeypatch.setenv("PATH", f"{_test_llm_bin}{os.pathsep}{path}")
+
+
 @pytest.fixture(autouse=True)
 def _mock_system_clipboard():
     """Prevent tests from touching the real system clipboard."""
