@@ -17,6 +17,9 @@ The following memory files contain core (always loaded) context:
 The below files contain detailed reference material. When working in their domain, you MUST use your `/sase_memory_read`
 skill to review their contents. Do not read canonical `memory/long/*.md` files directly.
 
+**`memory/long/cli_rules.md`**  
+Read anytime new CLI subcommands or options are added.
+
 **`memory/long/generated_skills.md`**  
 Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime.
 
