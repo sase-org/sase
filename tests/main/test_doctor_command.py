@@ -1,0 +1,135 @@
+"""Tests for the ``sase doctor`` command shell."""
+
+from __future__ import annotations
+
+import argparse
+import json
+
+from sase.diagnostics import (
+    CheckSpec,
+    DiagnosticCheck,
+    DiagnosticRegistry,
+    DiagnosticReport,
+)
+from sase.main import doctor_handler
+from sase.main.parser import create_parser
+
+
+def _report(status: str = "OK", *, strict: bool = False) -> DiagnosticReport:
+    return DiagnosticReport(
+        generated_at="2026-06-09T16:00:00Z",
+        cwd="/workspace",
+        project="sase",
+        sase_home="/home/user/.sase",
+        strict=strict,
+        checks=(
+            DiagnosticCheck(
+                id="runtime.version",
+                group="runtime",
+                status=status,  # type: ignore[arg-type]
+                title="Runtime version",
+                summary="runtime checked",
+            ),
+        ),
+    )
+
+
+def test_parser_accepts_doctor_flags_and_help_is_sorted() -> None:
+    parser = create_parser()
+
+    args = parser.parse_args(
+        [
+            "doctor",
+            "-j",
+            "-v",
+            "-D",
+            "-s",
+            "-L",
+            "-C",
+            "runtime",
+            "-C",
+            "config.sdd",
+            "-p",
+            "sase",
+        ]
+    )
+
+    assert args.command == "doctor"
+    assert args.json is True
+    assert args.verbose is True
+    assert args.deep is True
+    assert args.strict is True
+    assert args.list_checks is True
+    assert args.check == ["runtime", "config.sdd"]
+    assert args.project == "sase"
+
+    subparser_action = next(
+        action
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    commands = list(subparser_action.choices)
+    assert "doctor" in commands
+    assert commands == sorted(commands)
+
+
+def test_doctor_json_output_returns_report_exit_code(monkeypatch, capsys) -> None:
+    def fake_run_doctor(**kwargs: object) -> DiagnosticReport:
+        assert kwargs["selections"] == ("runtime",)
+        assert kwargs["deep"] is False
+        assert kwargs["strict"] is False
+        return _report("WARN")
+
+    monkeypatch.setattr(doctor_handler, "run_doctor", fake_run_doctor)
+    args = create_parser().parse_args(["doctor", "-j", "-C", "runtime"])
+
+    exit_code = doctor_handler.handle_doctor_command(args)
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["command"] == "doctor"
+    assert payload["status"] == "WARN"
+    assert payload["checks"][0]["id"] == "runtime.version"
+
+
+def test_doctor_strict_warning_exits_nonzero(monkeypatch, capsys) -> None:
+    def fake_run_doctor(**kwargs: object) -> DiagnosticReport:
+        return _report("WARN", strict=bool(kwargs["strict"]))
+
+    monkeypatch.setattr(doctor_handler, "run_doctor", fake_run_doctor)
+    args = create_parser().parse_args(["doctor", "-j", "-s"])
+
+    exit_code = doctor_handler.handle_doctor_command(args)
+
+    assert exit_code == 1
+    assert json.loads(capsys.readouterr().out)["strict"] is True
+
+
+def test_doctor_list_checks_outputs_registered_ids(monkeypatch, capsys) -> None:
+    registry = DiagnosticRegistry(
+        (
+            CheckSpec(
+                id="runtime.version",
+                group="runtime",
+                title="Runtime version",
+                runner=lambda: DiagnosticCheck(
+                    id="runtime.version",
+                    group="runtime",
+                    status="OK",
+                    title="Runtime version",
+                    summary="ok",
+                ),
+            ),
+        )
+    )
+    monkeypatch.setattr(
+        doctor_handler, "build_doctor_registry", lambda _context: registry
+    )
+    args = create_parser().parse_args(["doctor", "-L"])
+
+    exit_code = doctor_handler.handle_doctor_command(args)
+
+    assert exit_code == 0
+    assert (
+        "runtime.version\truntime\tdefault\tRuntime version" in capsys.readouterr().out
+    )

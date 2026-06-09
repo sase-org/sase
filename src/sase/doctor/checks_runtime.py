@@ -1,0 +1,437 @@
+"""Runtime, path, and VCS checks for ``sase doctor``."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any, TYPE_CHECKING
+
+from sase.config.core import CONFIG_DIR, load_merged_config
+from sase.core.health import HEALTH_OK, check_backend_health
+from sase.core.paths import sase_projects_dir
+from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
+from sase.version.inventory import VersionPackageRecord
+from sase.workspace_provider.store import WorkspaceStore
+
+if TYPE_CHECKING:
+    from sase.doctor.runner import DoctorContext
+
+_GIT_TIMEOUT_SECONDS = 1.0
+
+
+def runtime_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
+    """Return Phase 2 runtime check specs."""
+    return (
+        CheckSpec(
+            id="runtime.version",
+            group="runtime",
+            title="Runtime package inventory",
+            runner=lambda: _check_runtime_version(context),
+        ),
+        CheckSpec(
+            id="runtime.core",
+            group="runtime",
+            title="Rust core health",
+            runner=_check_runtime_core,
+        ),
+        CheckSpec(
+            id="runtime.environment",
+            group="runtime",
+            title="Runtime environment",
+            runner=lambda: _check_runtime_environment(context),
+        ),
+        CheckSpec(
+            id="state.paths",
+            group="state",
+            title="State and config paths",
+            runner=lambda: _check_state_paths(context),
+        ),
+        CheckSpec(
+            id="vcs.git",
+            group="vcs",
+            title="Git executable and identity",
+            runner=lambda: _check_vcs_git(context),
+        ),
+    )
+
+
+def _check_runtime_version(context: DoctorContext) -> DiagnosticCheck:
+    """Collect the active host/core/plugin runtime inventory."""
+    inventory = context.get_runtime_inventory()
+    package_warnings = [
+        f"{record.name}: {warning}"
+        for record in inventory.packages
+        for warning in record.warnings
+    ]
+    host = _record_by_role(inventory.packages, "host")
+    core = _record_by_role(inventory.packages, "core")
+    plugin_count = sum(1 for record in inventory.packages if record.role == "plugin")
+    status: CheckStatus = "WARN" if package_warnings else "OK"
+    summary = (
+        f"{len(inventory.packages)} packages detected; "
+        f"host={_display_record(host)}, core={_display_record(core)}, "
+        f"plugins={plugin_count}"
+    )
+    if package_warnings:
+        summary = f"{len(package_warnings)} package warning(s) found"
+
+    data: dict[str, Any] = {
+        "executable": inventory.executable,
+        "python_executable": inventory.python_executable,
+        "python_version": inventory.python_version,
+        "package_count": len(inventory.packages),
+        "packages": [
+            {
+                "name": record.name,
+                "role": record.role,
+                "display_version": record.display_version,
+                "install_type": record.install_type,
+                "source_root": record.source_root,
+                "code_directory": record.code_directory,
+            }
+            for record in inventory.packages
+        ],
+        "warnings": package_warnings,
+    }
+    if context.verbose:
+        data["inventory"] = inventory.to_dict()
+
+    return DiagnosticCheck(
+        id="runtime.version",
+        group="runtime",
+        status=status,
+        title="Runtime package inventory",
+        summary=summary,
+        details=tuple(package_warnings[:8]),
+        next_steps=("Run `sase version -v` for the full runtime package audit.",)
+        if package_warnings
+        else (),
+        data=data,
+    )
+
+
+def _check_runtime_core() -> DiagnosticCheck:
+    """Adapt ``sase core health`` into the shared doctor model."""
+    report = check_backend_health()
+    probes = report.extras.get("probes", {})
+    if not isinstance(probes, Mapping):
+        probes = {}
+    passed = sum(1 for ok in probes.values() if ok)
+    total = len(probes)
+    status: CheckStatus = "OK" if report.status == HEALTH_OK else "ERROR"
+    if status == "OK":
+        summary = (
+            f"{report.rust_extension_module} loaded; {passed}/{total} probes passed"
+        )
+    else:
+        summary = report.error or f"{report.rust_extension_module} health check failed"
+
+    details = [
+        f"python: {report.python_version}",
+        f"platform: {report.platform}",
+    ]
+    if report.rust_extension_path:
+        details.append(f"extension path: {report.rust_extension_path}")
+    if report.rust_extension_version:
+        details.append(f"extension version: {report.rust_extension_version}")
+    if report.error:
+        details.append(f"error: {report.error}")
+
+    return DiagnosticCheck(
+        id="runtime.core",
+        group="runtime",
+        status=status,
+        title="Rust core health",
+        summary=summary,
+        details=tuple(details),
+        next_steps=(
+            "Run `just install` in this workspace, then `sase core health -j`.",
+        )
+        if status == "ERROR"
+        else (),
+        data=report.to_dict(),
+    )
+
+
+def _check_runtime_environment(context: DoctorContext) -> DiagnosticCheck:
+    """Check Python support and editable/source-root drift."""
+    inventory = context.get_runtime_inventory()
+    details: list[str] = [
+        f"python: {inventory.python_version}",
+        f"python executable: {inventory.python_executable}",
+        f"sase executable: {inventory.executable}",
+    ]
+    next_steps: list[str] = []
+    warnings: list[str] = []
+    errors: list[str] = []
+
+    if _current_python_version() < (3, 12):
+        errors.append("Python 3.12 or newer is required.")
+        next_steps.append("Use a Python 3.12+ environment and rerun `just install`.")
+
+    host = _record_by_role(inventory.packages, "host")
+    checkout_root = _current_checkout_root(context.cwd)
+    host_root = _record_source_root(host)
+    if checkout_root is not None:
+        details.append(f"checkout root: {checkout_root}")
+    if host_root is not None:
+        details.append(f"host source root: {host_root}")
+
+    if (
+        host is not None
+        and host.install_type == "editable"
+        and checkout_root is not None
+        and host_root is not None
+        and _safe_resolve(checkout_root) != _safe_resolve(host_root)
+    ):
+        warnings.append(
+            "active sase import root differs from the current checkout root"
+        )
+        next_steps.append("Run `just install` in this workspace.")
+
+    status: CheckStatus = "ERROR" if errors else "WARN" if warnings else "OK"
+    summary = "runtime environment is consistent"
+    if errors:
+        summary = errors[0]
+    elif warnings:
+        summary = warnings[0]
+
+    return DiagnosticCheck(
+        id="runtime.environment",
+        group="runtime",
+        status=status,
+        title="Runtime environment",
+        summary=summary,
+        details=(*details, *errors, *warnings),
+        next_steps=tuple(dict.fromkeys(next_steps)),
+        data={
+            "python_version": inventory.python_version,
+            "python_executable": inventory.python_executable,
+            "sase_executable": inventory.executable,
+            "checkout_root": str(checkout_root) if checkout_root else None,
+            "host_source_root": str(host_root) if host_root else None,
+            "host_install_type": host.install_type if host else None,
+        },
+    )
+
+
+def _check_state_paths(context: DoctorContext) -> DiagnosticCheck:
+    """Check required SASE state, config, project, and workspace paths."""
+    path_rows: list[dict[str, Any]] = [
+        _directory_target("sase_home", context.sase_home),
+        _directory_target("config_dir", CONFIG_DIR),
+        _directory_target("projects_dir", sase_projects_dir()),
+    ]
+    workspace_error: str | None = None
+    try:
+        config = load_merged_config()
+        store = WorkspaceStore(str(context.cwd), config=config)
+        path_rows.append(_directory_target("workspace_root", Path(store.root_dir)))
+    except Exception as exc:  # noqa: BLE001 - report config/root resolution failures.
+        workspace_error = f"{type(exc).__name__}: {exc}"
+
+    errors = [
+        f"{row['label']}: {row['problem']}" for row in path_rows if row.get("problem")
+    ]
+    if workspace_error:
+        errors.append(f"workspace_root: {workspace_error}")
+
+    status: CheckStatus = "ERROR" if errors else "OK"
+    existing = sum(1 for row in path_rows if row["exists"])
+    creatable = sum(1 for row in path_rows if row["creatable"])
+    summary = (
+        f"{existing}/{len(path_rows)} paths exist; missing paths are creatable"
+        if status == "OK"
+        else f"{len(errors)} path problem(s) found"
+    )
+
+    return DiagnosticCheck(
+        id="state.paths",
+        group="state",
+        status=status,
+        title="State and config paths",
+        summary=summary,
+        details=tuple(errors),
+        next_steps=("Fix ownership/permissions for the reported paths.",)
+        if errors
+        else (),
+        data={
+            "paths": path_rows,
+            "creatable_count": creatable,
+            "workspace_error": workspace_error,
+        },
+    )
+
+
+def _check_vcs_git(context: DoctorContext) -> DiagnosticCheck:
+    """Check git availability, repo detection, and effective identity."""
+    git_path = shutil.which("git")
+    if git_path is None:
+        return DiagnosticCheck(
+            id="vcs.git",
+            group="vcs",
+            status="ERROR",
+            title="Git executable and identity",
+            summary="git executable was not found on PATH",
+            next_steps=("Install git and ensure it is available on PATH.",),
+            data={"git_executable": None},
+        )
+
+    repo = _git_result(context.cwd, "rev-parse", "--show-toplevel")
+    if repo is None or repo.returncode != 0 or not repo.stdout.strip():
+        return DiagnosticCheck(
+            id="vcs.git",
+            group="vcs",
+            status="SKIP",
+            title="Git executable and identity",
+            summary="git is available; current directory is not a git repository",
+            data={"git_executable": git_path, "repo_root": None},
+        )
+
+    repo_root = Path(repo.stdout.strip())
+    user_name = _git_config(repo_root, "user.name")
+    user_email = _git_config(repo_root, "user.email")
+    missing = []
+    if not user_name:
+        missing.append("user.name")
+    if not user_email:
+        missing.append("user.email")
+
+    status: CheckStatus = "WARN" if missing else "OK"
+    summary = (
+        f"git repo detected at {repo_root}; identity configured"
+        if not missing
+        else f"git repo detected; missing {', '.join(missing)}"
+    )
+    next_steps = []
+    if "user.name" in missing:
+        next_steps.append('Run `git config user.name "Your Name"` in this repo.')
+    if "user.email" in missing:
+        next_steps.append('Run `git config user.email "you@example.com"` in this repo.')
+
+    return DiagnosticCheck(
+        id="vcs.git",
+        group="vcs",
+        status=status,
+        title="Git executable and identity",
+        summary=summary,
+        details=(f"repo root: {repo_root}",),
+        next_steps=tuple(next_steps),
+        data={
+            "git_executable": git_path,
+            "repo_root": str(repo_root),
+            "user_name_configured": bool(user_name),
+            "user_email_configured": bool(user_email),
+        },
+    )
+
+
+def _record_by_role(
+    records: Sequence[VersionPackageRecord], role: str
+) -> VersionPackageRecord | None:
+    return next((record for record in records if record.role == role), None)
+
+
+def _display_record(record: VersionPackageRecord | None) -> str:
+    if record is None:
+        return "missing"
+    return f"{record.name} {record.display_version}"
+
+
+def _record_source_root(record: VersionPackageRecord | None) -> Path | None:
+    if record is None:
+        return None
+    for value in (record.source_root, record.code_directory, record.import_path):
+        if value:
+            return Path(value)
+    return None
+
+
+def _current_checkout_root(cwd: Path) -> Path | None:
+    result = _git_result(cwd, "rev-parse", "--show-toplevel")
+    if result is not None and result.returncode == 0 and result.stdout.strip():
+        return Path(result.stdout.strip())
+    return _find_ancestor_with(cwd, "pyproject.toml")
+
+
+def _find_ancestor_with(start: Path, filename: str) -> Path | None:
+    for candidate in (start, *start.parents):
+        if (candidate / filename).is_file():
+            return candidate
+    return None
+
+
+def _git_config(repo_root: Path, key: str) -> str | None:
+    result = _git_result(repo_root, "config", key)
+    if result is None or result.returncode != 0:
+        return None
+    value = result.stdout.strip()
+    return value or None
+
+
+def _git_result(cwd: Path, *args: str) -> subprocess.CompletedProcess[str] | None:
+    try:
+        return subprocess.run(
+            ["git", "-C", str(cwd), *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def _directory_target(label: str, path: Path) -> dict[str, Any]:
+    expanded = path.expanduser()
+    exists = expanded.exists()
+    is_dir = expanded.is_dir()
+    problem: str | None = None
+    creatable = False
+
+    if exists and not is_dir:
+        problem = f"{expanded} exists but is not a directory"
+    elif exists:
+        if not os.access(expanded, os.W_OK | os.X_OK):
+            problem = f"{expanded} is not writable"
+        else:
+            creatable = True
+    else:
+        parent = _nearest_existing_parent(expanded)
+        if parent is None or not os.access(parent, os.W_OK | os.X_OK):
+            problem = f"{expanded} does not exist and parent is not writable"
+        else:
+            creatable = True
+
+    return {
+        "label": label,
+        "path": str(expanded),
+        "exists": exists,
+        "is_dir": is_dir,
+        "creatable": creatable,
+        "problem": problem,
+    }
+
+
+def _nearest_existing_parent(path: Path) -> Path | None:
+    for candidate in (path.parent, *path.parents):
+        if candidate.exists():
+            return candidate if candidate.is_dir() else None
+    return None
+
+
+def _safe_resolve(path: Path) -> Path:
+    return path.expanduser().resolve(strict=False)
+
+
+def _current_python_version() -> tuple[int, int]:
+    return (sys.version_info.major, sys.version_info.minor)
+
+
+__all__ = [
+    "runtime_check_specs",
+]

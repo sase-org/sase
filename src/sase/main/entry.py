@@ -147,6 +147,12 @@ def main() -> NoReturn:
 
         handle_core_command(args)
 
+    # --- doctor ---
+    if args.command == "doctor":
+        from .doctor_handler import handle_doctor_command
+
+        sys.exit(handle_doctor_command(args))
+
     # --- editor ---
     if args.command == "editor":
         from .editor_handler import handle_editor_command

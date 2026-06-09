@@ -379,12 +379,43 @@ class _ConfigLayer:
     keys: list[str] = field(default_factory=list)
     data: dict[str, Any] = field(default_factory=dict)
     unsupported_keys: list[str] = field(default_factory=list)
+    present: bool | None = None
+    error: str | None = None
+
+    @property
+    def loaded(self) -> bool:
+        """Return whether this layer contributed config data."""
+        return self.exists
 
 
 def _collect_unsupported_keys(data: dict[str, Any] | None) -> list[str]:
     if not data:
         return []
     return sorted(key for key in data if key in UNSUPPORTED_TOP_LEVEL_KEYS)
+
+
+def _load_yaml_file_with_metadata(
+    path: Path,
+) -> tuple[bool, dict[str, Any] | None, str | None]:
+    """Load a YAML mapping and keep missing/invalid metadata separate."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except FileNotFoundError:
+        return False, None, None
+    except Exception as exc:
+        log.debug("Failed to load YAML file: %s", path, exc_info=True)
+        return True, None, f"{type(exc).__name__}: {exc}"
+
+    if data is None:
+        return True, {}, None
+    if isinstance(data, dict):
+        return True, data, None
+    return (
+        True,
+        None,
+        f"top-level YAML value is {type(data).__name__}, expected mapping",
+    )
 
 
 def load_config_layers() -> list[_ConfigLayer]:
@@ -409,6 +440,7 @@ def load_config_layers() -> list[_ConfigLayer]:
             keys=list(default_data.keys()),
             data=default_data,
             unsupported_keys=_collect_unsupported_keys(default_data),
+            present=True,
         )
     )
 
@@ -430,6 +462,7 @@ def load_config_layers() -> list[_ConfigLayer]:
                             keys=list(data.keys()),
                             data=data,
                             unsupported_keys=_collect_unsupported_keys(data),
+                            present=True,
                         )
                     )
             except Exception:
@@ -439,12 +472,14 @@ def load_config_layers() -> list[_ConfigLayer]:
                         path=None,
                         exists=False,
                         list_strategy="concatenate",
+                        present=True,
+                        error="failed to load plugin default_config.yml",
                     )
                 )
 
     # 3. User config
     base_path = CONFIG_DIR / "sase.yml"
-    user_data = _load_yaml_file(base_path)
+    user_present, user_data, user_error = _load_yaml_file_with_metadata(base_path)
     layers.append(
         _ConfigLayer(
             name="user",
@@ -454,12 +489,16 @@ def load_config_layers() -> list[_ConfigLayer]:
             keys=list(user_data.keys()) if user_data else [],
             data=user_data or {},
             unsupported_keys=_collect_unsupported_keys(user_data),
+            present=user_present,
+            error=user_error,
         )
     )
 
     # 4. Overlay files
     for overlay_path in _get_overlay_paths():
-        overlay_data = _load_yaml_file(overlay_path)
+        overlay_present, overlay_data, overlay_error = _load_yaml_file_with_metadata(
+            overlay_path
+        )
         layers.append(
             _ConfigLayer(
                 name=f"overlay:{overlay_path.name}",
@@ -469,13 +508,17 @@ def load_config_layers() -> list[_ConfigLayer]:
                 keys=list(overlay_data.keys()) if overlay_data else [],
                 data=overlay_data or {},
                 unsupported_keys=_collect_unsupported_keys(overlay_data),
+                present=overlay_present,
+                error=overlay_error,
             )
         )
 
     # 5. Local config
     local_path = _get_local_config_path()
     if local_path:
-        local_data = _load_yaml_file(local_path)
+        local_present, local_data, local_error = _load_yaml_file_with_metadata(
+            local_path
+        )
         layers.append(
             _ConfigLayer(
                 name="local",
@@ -485,6 +528,8 @@ def load_config_layers() -> list[_ConfigLayer]:
                 keys=list(local_data.keys()) if local_data else [],
                 data=local_data or {},
                 unsupported_keys=_collect_unsupported_keys(local_data),
+                present=local_present,
+                error=local_error,
             )
         )
     else:
@@ -494,6 +539,7 @@ def load_config_layers() -> list[_ConfigLayer]:
                 path=str(Path.cwd() / "sase.yml"),
                 exists=False,
                 list_strategy="concatenate",
+                present=False,
             )
         )
 
