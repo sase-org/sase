@@ -12,7 +12,33 @@ flow.
 
 **Full documentation: [sase.sh](https://sase.sh/).**
 
-<img src="docs/images/sase_overview.png" alt="Overview of SASE coordinating parallel coding agents, isolated workspaces, and durable workflow state" width="800">
+## Quick start
+
+Prerequisites:
+
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/)
+- One authenticated coding-agent CLI: Claude Code, Codex, Gemini CLI, Qwen Code, or OpenCode
+
+SASE orchestrates an existing provider CLI; it does not replace that provider's install or authentication flow. Install
+SASE from PyPI, then run `sase doctor` as the readiness gate before launching your first agent:
+
+```bash
+uv tool install sase --python 3.12
+sase version
+sase doctor
+```
+
+After `sase doctor` reports a usable provider, try a read-only run from the repository or directory you want the agent
+to inspect:
+
+```bash
+sase run "#cd:$(pwd) summarize what this repository does; do not change files"
+sase agents status
+```
+
+If `sase doctor` reports a missing provider executable or authentication gap, install and authenticate one of the
+supported CLIs, then run `sase doctor` again.
 
 ## Why sase
 
@@ -36,6 +62,8 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 | [Qwen Code](https://github.com/QwenLM/qwen-code)              | **Supported** |
 | [OpenCode](https://opencode.ai/)                              | **Supported** |
 
+<img src="docs/images/sase_overview.png" alt="Overview of SASE coordinating parallel coding agents, isolated workspaces, and durable workflow state" width="800">
+
 ## Core pieces
 
 - **ACE** - The interactive TUI for ChangeSpecs, live agents, notifications, automation, comments, and review.
@@ -53,58 +81,16 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 - **Editor integration** - An xprompt LSP and JSON helper bridge for completions, snippets, hover, diagnostics, and
   jump-to-definition in companion editors.
 
-## Quick start
-
-Requirements:
-
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/)
-- [just](https://github.com/casey/just)
+## Common commands
 
 ```bash
-uv venv .venv
-source .venv/bin/activate
-just install
-sase core health
-sase ace
-```
-
-Useful first commands after activating the virtualenv:
-
-```bash
-sase doctor              # first troubleshooting report for install, config, project, provider, and state issues
-sase doctor -v           # human-readable support artifact; use -j for stable JSON
-sase core health          # verify the required Rust backend before launching agents
-sase version              # inspect the exact SASE packages loaded by this environment
-sase init -c              # read-only drift report for AMD, memory, SDD, and skills
-sase amd list             # inspect project, home, and chezmoi AGENTS.md surfaces
-sase amd init --check     # read-only AGENTS.md/provider-shim drift report
-sase memory init --check  # read-only memory drift report
-sase memory init --no-commit  # write memory files; skip only the project commit/push
-sase memory list         # inspect loaded, referenced, available, and missing memory files
-sase memory review --list  # human review of pending long-term memory proposals
-sase memory log          # summarize audited long-term memory reads
-sase memory log --include proposals  # include memory proposal/review events
-sase memory episodes build -n <agent-name>  # store a source-linked episode from completed work
-sase memory episodes auto -p <project> -l 50  # one checkpointed maintenance pass over new completed runs
-sase memory episodes build -s 2026-05-01 -u 2026-05-26 --split  # backfill connected components
-sase memory episodes recall -q "retry feedback"  # search stored episode evidence by topic
-sase memory episodes export -s 2026-05-01 -u 2026-05-26 -b high -j  # read-only event-readiness summaries
-sase init sdd             # enable version-controlled SDD and refresh generated guides
-sase skills list          # inspect generated skill sources, targets, and drift
-sase skills init --dry-run  # preview provider skill files before deploying them
-sase plugin doctor        # diagnose installed plugin entry points and chop scripts
+sase doctor -v           # readable install, config, project, provider, and state report
+sase version             # inspect the exact SASE packages loaded by this environment
 sase ace                  # open the interactive control surface; press ,p for project lifecycle management
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
-sase agents index status  # check ACE's fast Agents-tab artifact index
-sase project list         # inspect projects shown by default launch and discovery lists
-sase project deactivate <project>  # hide a dormant project from default launch lists
-sase project activate <project>  # make inactive work launchable again
 sase bead onboard         # see the bead issue-tracking quick start
-sase workspace list       # inspect the current project's numbered workspace view
-sase workspace path 10    # preview where managed workspace #10 would live
-sase workspace open 10    # create/refresh workspace #10, then print its path
+sase workspace list       # inspect numbered workspaces for the current project
 ```
 
 When asking for help, attach `sase doctor -v` for a readable report or `sase doctor -j` when a machine-readable support
@@ -206,6 +192,29 @@ The `docs/` directory is a MkDocs Material site configured by [mkdocs.yml](mkdoc
 strict docs build and `just docs-pdf-check` for the handbook PDF validation.
 
 ## Development
+
+### Install from source
+
+Requirements:
+
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/)
+- [just](https://github.com/casey/just)
+
+```bash
+git clone https://github.com/sase-org/sase
+cd sase
+uv venv .venv
+source .venv/bin/activate
+just install
+sase core health
+sase ace
+```
+
+`just install` installs SASE in editable mode with development dependencies. When a sibling `../sase-core` checkout is
+present and `cargo` is available, it also builds and installs the local `sase_core_rs` extension.
+
+### Verification
 
 ```bash
 just install       # Install with dev deps
