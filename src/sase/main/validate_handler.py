@@ -28,6 +28,11 @@ _CHECKS = (
     _ValidationCheck("sdd validate", ("sdd", "validate")),
 )
 
+_SUPPORT_HINT = (
+    "For broader diagnostics, run `sase doctor -v` or `sase doctor -j` "
+    "and attach the output when asking for help."
+)
+
 
 def handle_validate_command(args: argparse.Namespace) -> NoReturn:
     """Run validation checks and exit with the aggregate status."""
@@ -76,6 +81,9 @@ def _print_results(results: list[_ValidationResult]) -> None:
         if result.returncode == 0:
             continue
         _print_failure(result)
+    if any(result.returncode != 0 for result in results):
+        print()
+        print(_SUPPORT_HINT)
 
 
 def _print_failure(result: _ValidationResult) -> None:

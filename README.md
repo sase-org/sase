@@ -72,6 +72,8 @@ sase ace
 Useful first commands after activating the virtualenv:
 
 ```bash
+sase doctor              # first troubleshooting report for install, config, project, provider, and state issues
+sase doctor -v           # human-readable support artifact; use -j for stable JSON
 sase core health          # verify the required Rust backend before launching agents
 sase version              # inspect the exact SASE packages loaded by this environment
 sase init -c              # read-only drift report for AMD, memory, SDD, and skills
@@ -104,6 +106,9 @@ sase workspace list       # inspect the current project's numbered workspace vie
 sase workspace path 10    # preview where managed workspace #10 would live
 sase workspace open 10    # create/refresh workspace #10, then print its path
 ```
+
+When asking for help, attach `sase doctor -v` for a readable report or `sase doctor -j` when a machine-readable support
+artifact is easier to share.
 
 SASE-launched agents use `sase memory read ... -r/--reason ...` and `sase memory write ...` when they need audited
 long-term memory access. Those commands require agent identity in the environment, so a normal human shell should start

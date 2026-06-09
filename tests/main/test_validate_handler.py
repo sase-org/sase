@@ -105,6 +105,7 @@ def test_validate_runs_both_checks_when_first_fails(
     assert "stderr:\ninit stderr\n" in out
     assert "sdd success stdout" not in out
     assert "sdd success stderr" not in out
+    assert "run `sase doctor -v` or `sase doctor -j`" in out
 
 
 def test_validate_prints_output_for_each_failed_check(
@@ -138,6 +139,7 @@ def test_validate_prints_output_for_each_failed_check(
     assert "stderr:\ninit broken\n" in out
     assert "sdd validate failed (exit 3)" in out
     assert "stdout:\nsdd broken\n" in out
+    assert "run `sase doctor -v` or `sase doctor -j`" in out
 
 
 def test_entry_dispatches_validate_command(monkeypatch: pytest.MonkeyPatch) -> None:

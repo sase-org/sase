@@ -165,6 +165,7 @@ GitHub pull requests, and other provider plugins.
 
 | Command                        | Purpose                                                                                                 | Details                                                      |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `sase doctor`                  | Run read-only install, config, provider, project, and state diagnostics for support.                    | [Doctor support reports](#doctor-support-reports)            |
 | `sase config layers`           | Show the configuration merge chain.                                                                     | [Configuration](configuration.md)                            |
 | `sase config show`             | Dump the final merged configuration, optionally filtered by key.                                        | [Configuration](configuration.md)                            |
 | `sase config mentor-match`     | Trace mentor profile matching for a ChangeSpec.                                                         | [Mentors](mentors.md)                                        |
@@ -197,3 +198,29 @@ GitHub pull requests, and other provider plugins.
 
 Operational commands are intentionally narrow. Helper bridges expose fixed JSON operations for editor and mobile
 clients; they are not general shell or filesystem APIs.
+
+### Doctor Support Reports
+
+`sase doctor` is the first command to run when SASE behaves unexpectedly. It is read-only by default: it does not launch
+agents, call LLM APIs, repair state, run tests, or scan full artifact history. The human output is grouped by subsystem
+and puts next-step commands beside warnings and errors.
+
+Common forms:
+
+```bash
+sase doctor                 # compact human report
+sase doctor -v              # include every check plus bounded details
+sase doctor -j              # stable JSON report for scripts or support bundles
+sase doctor -D              # add slower read-only deep checks
+sase doctor -C runtime      # run one group
+sase doctor -C llm.default  # run one check
+```
+
+Exit codes are designed for support-first use. `OK`, `WARN`, and all-skipped reports exit `0`; `ERROR` exits `1`. Use
+`sase doctor -s` / `--strict` when automation should treat warnings as failures.
+
+The JSON report uses `schema_version: 1` and stable top-level fields such as `status`, `counts`, `selected_checks`, and
+`checks`. Individual check `data` payloads stay bounded and may gain additional keys over time, so scripts should key
+off check ids and statuses rather than assuming every nested field is permanent.
+
+When asking for help, attach `sase doctor -v` for a readable report or `sase doctor -j` for a machine-readable report.

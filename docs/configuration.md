@@ -1548,6 +1548,25 @@ prints one status line per check, and exits non-zero if any check fails. Because
 memory and skill deployment surfaces, this command can fail on user/home initialization drift even when repository-local
 SDD validation passes.
 
+### `sase doctor`
+
+Runs the read-only support diagnostics bundle for the active runtime, configuration, provider setup, project/workspace
+state, bead store, agent index, and telemetry when configured. Default mode is bounded and safe to run before asking for
+help; deep mode adds slower read-only checks.
+
+| Flag                  | Values   | Default | Description                                                             |
+| --------------------- | -------- | ------- | ----------------------------------------------------------------------- |
+| `-j`, `--json`        | flag     | -       | Emit the `schema_version: 1` JSON support report.                       |
+| `-v`, `--verbose`     | flag     | -       | Show every check plus bounded details in human output.                  |
+| `-D`, `--deep`        | flag     | -       | Include slower read-only deep checks.                                   |
+| `-s`, `--strict`      | flag     | -       | Exit non-zero for warnings as well as errors.                           |
+| `-L`, `--list-checks` | flag     | -       | List registered default and deep check ids without running them.        |
+| `-C`, `--check`       | id/group | repeat  | Run only the selected check id or group; may be passed multiple times.  |
+| `-p`, `--project`     | string   | infer   | Inspect a named project when doctor cannot infer one from the checkout. |
+
+Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. Attach `sase doctor -v` or
+`sase doctor -j` when asking for help.
+
 ### `sase version`
 
 `sase version` reports the local runtime that the current `sase` process is using. It does not query PyPI, GitHub, or

@@ -73,6 +73,17 @@ def test_parser_accepts_doctor_flags_and_help_is_sorted() -> None:
     assert "doctor" in commands
     assert commands == sorted(commands)
 
+    help_text = subparser_action.choices["doctor"].format_help()
+    assert "-j, --json" in help_text
+    assert "-v, --verbose" in help_text
+    assert "-D, --deep" in help_text
+    assert "-s, --strict" in help_text
+    assert "-L, --list-checks" in help_text
+    assert "-C, --check ID_OR_GROUP" in help_text
+    assert "-p, --project PROJECT" in help_text
+    assert "sase doctor -D -j" in help_text
+    assert "OK, WARN, and SKIP exit 0" in help_text
+
 
 def test_doctor_json_output_returns_report_exit_code(monkeypatch, capsys) -> None:
     def fake_run_doctor(**kwargs: object) -> DiagnosticReport:

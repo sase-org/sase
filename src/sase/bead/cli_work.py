@@ -183,7 +183,8 @@ def _handle_epic_bead_work(
         )
     except Exception as e:
         print(
-            f"Error: agent launch failed for epic {epic_id}: {e}",
+            f"Error: agent launch failed for epic {epic_id}: {e}\n"
+            "For broader diagnostics, run `sase doctor -v`.",
             file=sys.stderr,
         )
         launched_pids = [r.pid for r in getattr(e, "results", [])]
@@ -304,7 +305,8 @@ def _handle_legend_bead_work(
         )
     except Exception as e:
         print(
-            f"Error: agent launch failed for legend {legend_id}: {e}",
+            f"Error: agent launch failed for legend {legend_id}: {e}\n"
+            "For broader diagnostics, run `sase doctor -v`.",
             file=sys.stderr,
         )
         launched_pids = [r.pid for r in getattr(e, "results", [])]

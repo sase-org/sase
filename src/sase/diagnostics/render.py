@@ -40,7 +40,7 @@ def render_diagnostic_report(
 ) -> None:
     """Render a compact grouped Rich report."""
     target = console or Console()
-    renderables: list[RenderableType] = [_summary_panel(report)]
+    renderables: list[RenderableType] = [_summary_panel(report, verbose=verbose)]
     grouped = _group_checks(_visible_checks(tuple(report.checks), verbose=verbose))
     if grouped:
         for group, checks in grouped.items():
@@ -57,14 +57,20 @@ def render_diagnostic_report(
     target.print(Group(*renderables))
 
 
-def _summary_panel(report: DiagnosticReport) -> Panel:
+def _summary_panel(report: DiagnosticReport, *, verbose: bool) -> Panel:
     table = Table.grid(padding=(0, 2))
     table.add_column(style="bold", no_wrap=True)
     table.add_column(overflow="fold")
     table.add_row("Status", _status_text(report.status))
     table.add_row("Project", Text(report.project or "-", overflow="fold"))
-    table.add_row("CWD", Text(redact_string(report.cwd), overflow="fold"))
-    table.add_row("SASE home", Text(redact_string(report.sase_home), overflow="fold"))
+    if verbose:
+        table.add_row("Generated", Text(report.generated_at, overflow="fold"))
+        table.add_row("CWD", Text(redact_string(report.cwd), overflow="fold"))
+        table.add_row(
+            "SASE home", Text(redact_string(report.sase_home), overflow="fold")
+        )
+        table.add_row("Deep", "yes" if report.deep else "no")
+        table.add_row("Strict", "yes" if report.strict else "no")
     table.add_row("Checks", str(len(report.checks)))
     return Panel(table, title=f"SASE Doctor {report.status}", border_style="cyan")
 

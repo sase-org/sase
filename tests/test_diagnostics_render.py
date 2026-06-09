@@ -79,6 +79,8 @@ def test_compact_human_rendering_groups_checks_and_hides_extra_ok_rows() -> None
     assert "install codex or update provider config" in output
     assert "ops.telemetry_status" in output
     assert "Summary: OK: 2, WARN: 1, ERROR: 0, SKIP: 1" in output
+    assert "CWD" not in output
+    assert "/workspace" not in output
 
 
 def test_verbose_human_rendering_includes_all_ok_rows_details_and_durations() -> None:
@@ -87,6 +89,8 @@ def test_verbose_human_rendering_includes_all_ok_rows_details_and_durations() ->
     assert "runtime.environment" in output
     assert "python 3.12" in output
     assert "host editable install" in output
+    assert "CWD" in output
+    assert "/workspace" in output
     assert "ms" in output
 
 
