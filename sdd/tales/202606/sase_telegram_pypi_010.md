@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-09 16:26:03
-status: wip
+status: done
 prompt: sdd/prompts/202606/sase_telegram_pypi_010.md
 ---
 # Plan: release sase-telegram 0.1.0 to PyPI
