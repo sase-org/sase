@@ -1,16 +1,21 @@
 """Planned-name allocation for multi-prompt launches."""
 
+from __future__ import annotations
+
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from sase.agent.multi_prompt_reference_directives import extract_static_name_directive
 from sase.agent.multi_prompt_reference_resume import (
     _RESUME_REF_RE,
     has_non_resume_xprompt_reference,
 )
+
+if TYPE_CHECKING:
+    from sase.agent.names import AgentNameNamespaceReservationIndex
 
 
 @dataclass(frozen=True)
@@ -33,7 +38,7 @@ class PlannedNameAllocator:
         self._resume_reserved: dict[str, set[str]] = {}
         self._wait_reserved: dict[str, set[str]] = {}
         self._template_reserved: set[str] | None = None
-        self._template_index: Any | None = None
+        self._template_index: AgentNameNamespaceReservationIndex | None = None
         self._template_latest: dict[str, str] = {}
         self._template_group_tokens: dict[str, str] = {}
         self._template_group_names: dict[str, set[str]] = {}
@@ -135,6 +140,7 @@ class PlannedNameAllocator:
 
         from sase.agent.names import (
             agent_name_allocation_lock,
+            agent_name_template_namespace_template,
             get_reserved_agent_names,
             iter_agent_name_template_tokens,
         )
@@ -146,10 +152,16 @@ class PlannedNameAllocator:
                 self._template_index = None
             index = self._template_reservation_index()
             self._ensure_unique_group_render_shapes(templates)
+            templates_with_namespaces = [
+                (template, agent_name_template_namespace_template(template))
+                for template in templates
+            ]
 
             existing_token = self._template_group_tokens.get(group.key)
             if existing_token is not None:
-                candidates = _template_candidates(templates, existing_token)
+                candidates = _template_candidates(
+                    templates_with_namespaces, existing_token
+                )
                 candidate_names = [name for name, _ in candidates]
                 namespaces = [namespace for _, namespace in candidates]
                 if self._template_candidates_available(
@@ -171,7 +183,7 @@ class PlannedNameAllocator:
                 index.update_names(candidate_names)
 
             for token in iter_agent_name_template_tokens():
-                candidates = _template_candidates(templates, token)
+                candidates = _template_candidates(templates_with_namespaces, token)
                 candidate_names = [name for name, _ in candidates]
                 namespaces = [namespace for _, namespace in candidates]
                 if not self._template_candidates_available(candidates, group):
@@ -470,9 +482,9 @@ class PlannedNameAllocator:
     ) -> str:
         from sase.agent.names import (
             agent_name_allocation_lock,
+            agent_name_template_namespace_template,
             get_reserved_agent_names,
             iter_agent_name_template_tokens,
-            render_agent_name_template_namespace,
             render_agent_name_template,
         )
 
@@ -482,12 +494,13 @@ class PlannedNameAllocator:
                 self._template_reserved = get_reserved_agent_names()
                 self._template_index = None
             index = self._template_reservation_index()
+            namespace_template = agent_name_template_namespace_template(template)
 
             existing_token = self._template_group_tokens.get(group.key)
             if existing_token is not None:
                 candidate = render_agent_name_template(template, existing_token)
-                namespace = render_agent_name_template_namespace(
-                    template,
+                namespace = render_agent_name_template(
+                    namespace_template,
                     existing_token,
                 )
                 if self._template_candidate_available(
@@ -505,7 +518,7 @@ class PlannedNameAllocator:
 
             for token in iter_agent_name_template_tokens():
                 candidate = render_agent_name_template(template, token)
-                namespace = render_agent_name_template_namespace(template, token)
+                namespace = render_agent_name_template(namespace_template, token)
                 if not self._template_candidate_available(candidate, namespace, group):
                     continue
                 if not self._reserve_planned_template_names(
@@ -522,7 +535,7 @@ class PlannedNameAllocator:
                 return candidate
         raise AssertionError("unreachable")
 
-    def _template_reservation_index(self) -> Any:
+    def _template_reservation_index(self) -> AgentNameNamespaceReservationIndex:
         from sase.agent.names import AgentNameNamespaceReservationIndex
 
         if self._template_reserved is None:
@@ -619,20 +632,17 @@ def _unquote_backtick_arg(arg: str) -> str:
 
 
 def _template_candidates(
-    templates: Sequence[str],
+    templates_with_namespaces: Sequence[tuple[str, str]],
     token: str,
 ) -> list[tuple[str, str]]:
-    from sase.agent.names import (
-        render_agent_name_template,
-        render_agent_name_template_namespace,
-    )
+    from sase.agent.names import render_agent_name_template
 
     return [
         (
             render_agent_name_template(template, token),
-            render_agent_name_template_namespace(template, token),
+            render_agent_name_template(namespace_template, token),
         )
-        for template in templates
+        for template, namespace_template in templates_with_namespaces
     ]
 
 

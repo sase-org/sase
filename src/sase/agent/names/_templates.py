@@ -173,20 +173,27 @@ def allocate_agent_name_template(
     template: str,
     *,
     reserved: set[str] | None = None,
+    index: AgentNameNamespaceReservationIndex | None = None,
 ) -> str:
     """Allocate the lowest available concrete name for *template*.
 
     The provided reservation set is mutated in place. When omitted, the durable
-    agent-name registry supplies the initial reservations.
+    agent-name registry supplies the initial reservations. A caller allocating
+    several names from one snapshot may pass a shared *index* (kept in sync with
+    *reserved*) so it is built once instead of per call.
     """
     # Validate the template before loading the registry so syntax errors stay
     # independent of local agent state.
     parse_agent_name_template(template)
     pool = _reserved_names() if reserved is None else reserved
-    index = AgentNameNamespaceReservationIndex.from_names(pool)
+    if index is None:
+        index = AgentNameNamespaceReservationIndex.from_names(pool)
+    # The namespace template depends only on *template*, so derive it once and
+    # render the per-token namespace from it inside the loop.
+    namespace_template = agent_name_template_namespace_template(template)
     for token in iter_agent_name_template_tokens():
         candidate = render_agent_name_template(template, token)
-        namespace = render_agent_name_template_namespace(template, token)
+        namespace = render_agent_name_template(namespace_template, token)
         if index.candidate_available(candidate, namespace):
             pool.add(candidate)
             index.add_name(candidate)

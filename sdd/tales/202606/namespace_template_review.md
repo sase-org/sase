@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-09 11:53:23
-status: wip
+status: done
 prompt: sdd/prompts/202606/namespace_template_review.md
 ---
 # Review & Objective Improvements: Namespace-Aware Agent Name Templates

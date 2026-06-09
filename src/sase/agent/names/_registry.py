@@ -162,6 +162,16 @@ def reserve_registered_template_names(
     allowed = set(allowed_existing_names)
     with _registry_mutation_lock():
         entries = dict(load_name_registry()["entries"])
+        # Build the occupied-namespace set once from the existing entries so each
+        # reservation is a set-membership check instead of a full scan. A batch
+        # is checked against the pre-batch entries, so same-batch siblings may
+        # still share a namespace.
+        occupied_namespaces = {
+            prefix
+            for existing_name in entries
+            if existing_name not in allowed
+            for prefix in _dotted_namespace_prefixes(existing_name)
+        }
         materialized = [
             (
                 name,
@@ -176,12 +186,7 @@ def reserve_registered_template_names(
                 existing, artifact_dir
             ):
                 _raise_name_collision(name)
-            conflict = _namespace_conflict_name(
-                entries,
-                namespace,
-                allowed_existing_names=allowed,
-            )
-            if conflict is not None:
+            if namespace in occupied_namespaces:
                 _raise_name_collision(name)
 
         for name, namespace, artifact_dir in materialized:
@@ -253,18 +258,14 @@ def _raise_name_collision(name: str) -> None:
     )
 
 
-def _namespace_conflict_name(
-    entries: dict[str, Any],
-    namespace: str,
-    *,
-    allowed_existing_names: set[str],
-) -> str | None:
-    for existing_name in entries:
-        if existing_name in allowed_existing_names:
-            continue
-        if existing_name == namespace or existing_name.startswith(f"{namespace}."):
-            return existing_name
-    return None
+def _dotted_namespace_prefixes(name: str) -> set[str]:
+    """Return every dotted-segment prefix of *name* (including *name* itself).
+
+    Mirrors the in-memory namespace index helper. Kept local to this module to
+    avoid a circular import (``_templates`` already imports ``_registry``).
+    """
+    parts = name.split(".")
+    return {".".join(parts[: i + 1]) for i in range(len(parts))}
 
 
 def load_name_registry() -> dict[str, Any]:
