@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass
+from typing import Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -185,6 +186,34 @@ def _overall_status(results: list[_SubsystemHealth]) -> str:
     return OK
 
 
+def build_telemetry_health_payload(source: str = "auto") -> dict[str, Any]:
+    """Return structured telemetry health without rendering or exiting."""
+    url = _resolve_source(source)
+    if url is None:
+        return {
+            "status": "unreachable",
+            "source": source,
+            "url": None,
+            "sample_count": 0,
+            "subsystems": [],
+        }
+
+    samples = scrape(url)
+    cfg = get_telemetry_config()
+    results = _assess_health(samples, cfg.health_thresholds)
+    overall = _overall_status(results)
+    return {
+        "status": overall.lower(),
+        "source": source,
+        "url": url,
+        "sample_count": len(samples),
+        "subsystems": [
+            {"name": item.name, "status": item.status.lower(), "detail": item.detail}
+            for item in results
+        ],
+    }
+
+
 def _status_indicator(status: str) -> Text:
     """Return a colored bullet indicator for a health status."""
     if status == CRITICAL:
@@ -209,10 +238,11 @@ def handle_telemetry_health(args: argparse.Namespace) -> None:
     use_json: bool = getattr(args, "json", False)
     console = Console()
 
-    url = _resolve_source(source)
-    if url is None:
+    payload = build_telemetry_health_payload(source)
+    status = str(payload["status"])
+    if status == "unreachable":
         if use_json:
-            console.print(json.dumps({"status": "unreachable", "subsystems": []}))
+            console.print(json.dumps(payload))
         else:
             console.print(
                 "[red]No metric source is reachable.[/red]\n"
@@ -220,29 +250,21 @@ def handle_telemetry_health(args: argparse.Namespace) -> None:
             )
         sys.exit(EXIT_CRITICAL)
 
-    samples = scrape(url)
-    cfg = get_telemetry_config()
-    results = _assess_health(samples, cfg.health_thresholds)
-    overall = _overall_status(results)
-
     if use_json:
-        data = {
-            "status": overall.lower(),
-            "subsystems": [
-                {"name": r.name, "status": r.status.lower(), "detail": r.detail}
-                for r in results
-            ],
-        }
-        console.print(json.dumps(data, indent=2))
+        console.print(json.dumps(payload, indent=2))
     else:
         lines = Text()
-        for r in results:
-            indicator = _status_indicator(r.status)
+        for item in payload["subsystems"]:
+            item_status = str(item["status"]).upper()
+            indicator = _status_indicator(item_status)
             lines.append_text(Text("  "))
             lines.append_text(indicator)
-            lines.append(f" {r.name:<16s}{r.status:<8s}({r.detail})\n")
+            lines.append(
+                f" {str(item['name']):<16s}{item_status:<8s}({item['detail']})\n"
+            )
 
         lines.append("\n  Overall: ")
+        overall = status.upper()
         lines.append_text(_status_indicator(overall))
         lines.append(" ")
         lines.append_text(_overall_label(overall))
@@ -251,6 +273,7 @@ def handle_telemetry_health(args: argparse.Namespace) -> None:
         panel = Panel(lines, title="Health Check", border_style="cyan")
         console.print(panel)
 
+    overall = status.upper()
     if overall == CRITICAL:
         sys.exit(EXIT_CRITICAL)
     elif overall == WARN:

@@ -53,11 +53,16 @@ def default_doctor_context(
 def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
     """Return the default doctor registry in stable order."""
     from sase.doctor.checks_agent_index import agent_index_check_specs
+    from sase.doctor.checks_beads import bead_check_specs
     from sase.doctor.checks_config import config_check_specs
+    from sase.doctor.checks_deep import deep_check_specs
+    from sase.doctor.checks_memory import memory_check_specs
     from sase.doctor.checks_plugins import plugin_check_specs
     from sase.doctor.checks_project import project_check_specs
     from sase.doctor.checks_providers import provider_check_specs
     from sase.doctor.checks_runtime import runtime_check_specs
+    from sase.doctor.checks_telemetry import telemetry_check_specs
+    from sase.doctor.checks_tools import tools_check_specs
     from sase.doctor.checks_workspace import workspace_check_specs
 
     return DiagnosticRegistry(
@@ -69,6 +74,11 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
             *project_check_specs(context),
             *workspace_check_specs(context),
             *agent_index_check_specs(context),
+            *bead_check_specs(context),
+            *telemetry_check_specs(context),
+            *memory_check_specs(context),
+            *deep_check_specs(context),
+            *tools_check_specs(context),
         )
     )
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import urllib.error
 import urllib.request
+from typing import Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -22,12 +23,49 @@ def _check_reachable(url: str, timeout: float = 2.0) -> bool:
         return False
 
 
+def build_telemetry_status_payload(*, timeout: float = 2.0) -> dict[str, Any]:
+    """Return structured telemetry status without rendering Rich output."""
+    cfg = get_telemetry_config()
+    catalog = get_catalog()
+    kind_counts: dict[str, int] = {}
+    for metric in catalog:
+        kind_counts[metric.kind] = kind_counts.get(metric.kind, 0) + 1
+
+    pushgateway_url = f"http://{cfg.pushgateway_url}/metrics"
+    exposition_url = f"http://localhost:{cfg.exposition_port}/metrics"
+    payload: dict[str, Any] = {
+        "enabled": cfg.enabled,
+        "metric_count": len(catalog),
+        "metric_kind_counts": kind_counts,
+        "pushgateway": {
+            "configured_url": cfg.pushgateway_url,
+            "metrics_url": pushgateway_url,
+            "reachable": None,
+        },
+        "exposition": {
+            "configured_port": cfg.exposition_port,
+            "metrics_url": exposition_url,
+            "reachable": None,
+        },
+    }
+    if not cfg.enabled:
+        return payload
+
+    payload["pushgateway"]["reachable"] = _check_reachable(
+        pushgateway_url, timeout=timeout
+    )
+    payload["exposition"]["reachable"] = _check_reachable(
+        exposition_url, timeout=timeout
+    )
+    return payload
+
+
 def handle_telemetry_status() -> None:
     """Render the telemetry status panel."""
-    cfg = get_telemetry_config()
+    payload = build_telemetry_status_payload()
     console = Console()
 
-    if not cfg.enabled:
+    if not payload["enabled"]:
         panel = Panel(
             "[dim]Telemetry is disabled.\n\n"
             "Enable it in your sase.yml:\n"
@@ -39,19 +77,13 @@ def handle_telemetry_status() -> None:
         console.print(panel)
         return
 
-    catalog = get_catalog()
-    kind_counts: dict[str, int] = {}
-    for m in catalog:
-        kind_counts[m.kind] = kind_counts.get(m.kind, 0) + 1
-
-    total = len(catalog)
+    total = int(payload["metric_count"])
+    kind_counts = payload["metric_kind_counts"]
     breakdown = ", ".join(f"{v} {k}s" for k, v in sorted(kind_counts.items()))
-
-    pushgateway_url = f"http://{cfg.pushgateway_url}/metrics"
-    exposition_url = f"http://localhost:{cfg.exposition_port}/metrics"
-
-    pg_ok = _check_reachable(pushgateway_url)
-    expo_ok = _check_reachable(exposition_url)
+    pushgateway = payload["pushgateway"]
+    exposition = payload["exposition"]
+    pg_ok = bool(pushgateway["reachable"])
+    expo_ok = bool(exposition["reachable"])
 
     lines = Text()
     lines.append("  Enabled      ")
@@ -61,14 +93,14 @@ def handle_telemetry_status() -> None:
     lines.append(f" ({breakdown})")
 
     lines.append("\n\n  Push Gateway ")
-    lines.append(f"{cfg.pushgateway_url:<20s}")
+    lines.append(f"{pushgateway['configured_url']:<20s}")
     if pg_ok:
         lines.append("● reachable", style="green")
     else:
         lines.append("○ not reachable", style="red")
 
     lines.append("\n  Exposition   ")
-    lines.append(f"localhost:{cfg.exposition_port:<10d}")
+    lines.append(f"localhost:{int(exposition['configured_port']):<10d}")
     if expo_ok:
         lines.append("● running", style="green")
     else:

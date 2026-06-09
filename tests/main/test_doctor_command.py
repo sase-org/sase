@@ -136,11 +136,12 @@ def test_doctor_list_checks_outputs_registered_ids(monkeypatch, capsys) -> None:
     )
 
 
-def test_doctor_registry_includes_phase3_default_checks(tmp_path) -> None:
+def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
     context = DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
     registry = build_doctor_registry(context)
 
     ids = {spec.id for spec in registry.list_default_checks()}
+    deep_ids = {spec.id for spec in registry.list_deep_checks()}
 
     assert {
         "llm.registry",
@@ -149,4 +150,14 @@ def test_doctor_registry_includes_phase3_default_checks(tmp_path) -> None:
         "project.current",
         "workspace.registry",
         "state.agent_index",
+        "project.beads",
+        "ops.telemetry_status",
     } <= ids
+    assert {
+        "state.agent_index_verify",
+        "memory.episodes",
+        "ops.telemetry_health",
+        "ops.axe",
+        "providers.cli_version",
+        "tools.optional",
+    } <= deep_ids
