@@ -44,6 +44,7 @@ REQUIRED_BINDINGS = (
     "is_agent_name_template",
     "parse_agent_name_template",
     "render_agent_name_template",
+    "agent_name_template_namespace_template",
     "match_agent_name_template",
     "compare_agent_name_template_tokens",
     "agent_name_template_tokens_after",
