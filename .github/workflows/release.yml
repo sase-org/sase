@@ -38,6 +38,8 @@ jobs:
         run: uv python install 3.12
       - name: Build package
         run: uv build
+      - name: Validate package metadata
+        run: uvx --from twine twine check dist/*
       - uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -62,6 +64,51 @@ jobs:
           uv pip install --python /tmp/smoke-venv/bin/python dist/sase-*.whl
       - name: Health check (Rust extension loadable)
         run: /tmp/smoke-venv/bin/sase core health --json
+      - name: Smoke public install commands
+        run: |
+          set -euo pipefail
+
+          /tmp/smoke-venv/bin/sase version
+
+          doctor_json="$(mktemp)"
+          doctor_status=0
+          clean_home="$(mktemp -d)"
+          SASE_HOME="$clean_home" HOME="$clean_home" PATH="/tmp/smoke-venv/bin:/usr/bin:/bin" \
+            /tmp/smoke-venv/bin/sase doctor -C llm.default -j > "$doctor_json" || doctor_status=$?
+          cat "$doctor_json"
+          /tmp/smoke-venv/bin/python - "$doctor_json" "$doctor_status" <<'PY'
+          import json
+          import sys
+
+          path = sys.argv[1]
+          doctor_status = int(sys.argv[2])
+          with open(path, encoding="utf-8") as fp:
+              payload = json.load(fp)
+
+          checks = payload.get("checks", [])
+          summary = checks[0].get("summary", "") if checks else ""
+          expected_missing_provider = (
+              payload.get("status") == "ERROR"
+              and "no usable default LLM provider executable was found" in summary
+          )
+
+          if doctor_status == 0 and payload.get("status") == "OK":
+              print("Provider readiness smoke passed.")
+          elif doctor_status == 1 and expected_missing_provider:
+              print("Provider readiness smoke produced the expected CI diagnostic.")
+          else:
+              print(
+                  "Unexpected provider readiness result: "
+                  f"exit={doctor_status}, status={payload.get('status')!r}, summary={summary!r}",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          PY
+
+          /tmp/smoke-venv/bin/sase run --help | tee /tmp/sase-run-help.txt
+          grep -Fq "[PROMPT]" /tmp/sase-run-help.txt
+          grep -Fq 'sase run "#cd:$(pwd) summarize what this repository does; do not change files"' /tmp/sase-run-help.txt
+          grep -Fq "sase agents status" /tmp/sase-run-help.txt
       # Surface platform / extension version details when the smoke
       # step above fails so the build log is enough to diagnose a
       # missing-wheel or ABI-mismatch issue without a manual repro step.
