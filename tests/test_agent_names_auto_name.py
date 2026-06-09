@@ -24,18 +24,10 @@ class TestGetNextAutoName:
         allocate.assert_called_once_with("@")
 
     def test_batch_allocation_delegates_to_template_allocator(self) -> None:
-        reserved: set[str] = set()
-        with patch(
-            "sase.agent.names._auto.allocate_agent_name_template",
-            side_effect=["0", "1"],
-        ) as allocate:
-            assert allocate_auto_names(2, reserved=reserved) == ["0", "1"]
+        reserved = {"0.cdx"}
 
-        assert [call.args for call in allocate.call_args_list] == [("@",), ("@",)]
-        assert [call.kwargs for call in allocate.call_args_list] == [
-            {"reserved": reserved},
-            {"reserved": reserved},
-        ]
+        assert allocate_auto_names(2, reserved=reserved) == ["1", "2"]
+        assert reserved == {"0.cdx", "1", "2"}
 
     def test_returns_0_when_no_agents(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -145,6 +137,11 @@ class TestGetNextAutoName:
             _make_agent(tmp_path, "proj", f"run-{char}", char, pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "n"
+
+    def test_numeric_descendant_reserves_auto_namespace(self, tmp_path: Path) -> None:
+        _make_agent(tmp_path, "proj", "run1", "0.cdx", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "1"
 
     def test_multi_segment_dotted_suffix_reserves_prefix(self, tmp_path: Path) -> None:
         """``m.claude.plan`` with workflow ``m.claude`` reserves ``m`` too."""

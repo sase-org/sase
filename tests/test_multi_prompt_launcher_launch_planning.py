@@ -394,6 +394,152 @@ def test_launch_agents_from_cwd_resolves_template_refs_after_multi_xprompt_expan
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.history.prompt.add_or_update_prompt")
+@patch(
+    "sase.main.utils.ensure_project_file_and_get_workspace_num",
+    return_value=(None, None, None),
+)
+def test_launch_agents_from_cwd_groups_xprompt_template_names_by_invocation(
+    mock_project: MagicMock,
+    mock_history: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Template names from one multi-agent xprompt invocation share a namespace."""
+    from sase.agent.launcher import launch_agents_from_cwd
+    from sase.agent.names import _registry
+
+    del mock_project, mock_history, mock_timestamp
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    _registry._CACHE_PATH = None
+    _registry._CACHE_SIGNATURE = None
+    _registry._CACHE_DATA = None
+    marker = tmp_path / ".sase" / "agent_name_auto_migration.json"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(
+        '{"schema_version": 1, "completed": true, "migrated_count": 0}\n',
+        encoding="utf-8",
+    )
+    make_agent(tmp_path, "proj", "existing", "research.0.any", done=True)
+    mock_spawn.side_effect = spawn_result_with_planned_name
+    catalog = {
+        "swarm": XPrompt(
+            name="swarm",
+            content=(
+                "%name:research.@.cdx\nCDX\n"
+                "---\n"
+                "%name:research.@.cld\nCLD\n"
+                "---\n"
+                "%name:research.@.final\nFinal\n"
+                "---\n"
+                "%name:research.@.image\nImage"
+            ),
+        )
+    }
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch("sase.agent.multi_agent_xprompt.get_all_xprompts", return_value=catalog),
+        patch(
+            "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
+            return_value=None,
+        ),
+        patch(
+            "sase.running_field.claim_next_axe_workspace",
+            side_effect=[100, 101, 102, 103],
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            side_effect=[
+                ("/ws1", None),
+                ("/ws2", None),
+                ("/ws3", None),
+                ("/ws4", None),
+            ],
+        ),
+    ):
+        results = launch_agents_from_cwd("#!swarm")
+
+    assert [result.agent_name for result in results] == [
+        "research.1.cdx",
+        "research.1.cld",
+        "research.1.final",
+        "research.1.image",
+    ]
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch(
+    "sase.running_field.claim_next_axe_workspace",
+    side_effect=[100, 101, 102, 103],
+)
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[
+        ("/ws1", None),
+        ("/ws2", None),
+        ("/ws3", None),
+        ("/ws4", None),
+    ],
+)
+def test_launch_multi_prompt_distinguishes_two_xprompt_template_groups(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Two xprompt invocations in one submitted prompt get distinct namespaces."""
+    del mock_ws_dir, mock_first_ws, mock_timestamp
+    mock_spawn.side_effect = spawn_result_with_planned_name
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        results = launch_multi_prompt_agents(
+            segments=[
+                "%name:research.@.cdx\nA",
+                "%name:research.@.cld\nB",
+                "%name:research.@.cdx\nC",
+                "%name:research.@.cld\nD",
+            ],
+            segment_template_groups=[
+                "xprompt:swarm:0",
+                "xprompt:swarm:0",
+                "xprompt:swarm:1",
+                "xprompt:swarm:1",
+            ],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    assert [result.agent_name for result in results] == [
+        "research.0.cdx",
+        "research.0.cld",
+        "research.1.cdx",
+        "research.1.cld",
+    ]
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp")
 @patch("sase.artifacts.create_artifacts_directory")
 @patch("sase.running_field.get_workspace_directory")
@@ -454,6 +600,31 @@ def test_template_group_allocates_shared_token_for_generic_shapes(
         )
 
     assert names == ["1.cld", "1.cdx"]
+
+
+def test_template_group_allows_later_sibling_under_owned_namespace(
+    tmp_path: Path,
+) -> None:
+    artifacts_root = tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run"
+    allocator = PlannedNameAllocator()
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        first = allocator.planned_names_for_template_group(
+            ["research.@.cdx", "research.@.cld"],
+            artifacts_dirs=[
+                artifacts_root / "260501120000",
+                artifacts_root / "260501120001",
+            ],
+            template_group="xprompt:research:0",
+        )
+        second, _ = allocator.planned_name_for_prompt(
+            "%name:research.@.final\nFinal",
+            artifacts_dir=artifacts_root / "260501120002",
+            template_group="xprompt:research:0",
+        )
+
+    assert first == ["research.0.cdx", "research.0.cld"]
+    assert second == "research.0.final"
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -637,3 +808,37 @@ def test_planned_auto_names_reserve_registry_slots_from_stale_snapshots(
         assert (second_name, second_env) == ("1", "1")
         assert lookup_registered_name("0")["artifacts_dir"] == str(first_artifacts)
         assert lookup_registered_name("1")["artifacts_dir"] == str(second_artifacts)
+
+
+def test_planned_template_names_reserve_namespaces_from_stale_snapshots(
+    tmp_path: Path,
+) -> None:
+    """A stale allocator must not use token 0 after 0.* was freshly planned."""
+    first_artifacts = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "260501120000"
+    )
+    second_artifacts = first_artifacts.with_name("260501120001")
+    stale_allocator = PlannedNameAllocator()
+    stale_allocator._template_reserved = set()
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        fresh_allocator = PlannedNameAllocator()
+        first_name, first_env = fresh_allocator.planned_name_for_prompt(
+            "%name:@.cdx\nfirst prompt",
+            artifacts_dir=first_artifacts,
+        )
+        second_name, second_env = stale_allocator.planned_name_for_prompt(
+            "%name:@.cld\nsecond prompt",
+            artifacts_dir=second_artifacts,
+        )
+
+        assert (first_name, first_env) == ("0.cdx", "0.cdx")
+        assert (second_name, second_env) == ("1.cld", "1.cld")
+        assert lookup_registered_name("0.cdx")["artifacts_dir"] == str(first_artifacts)
+        assert lookup_registered_name("1.cld")["artifacts_dir"] == str(second_artifacts)

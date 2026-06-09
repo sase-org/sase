@@ -11,7 +11,11 @@ from sase.agent.names._common import (
     is_process_alive,
 )
 from sase.agent.names._registry import get_reserved_agent_names
-from sase.agent.names._templates import allocate_agent_name_template
+from sase.agent.names._templates import (
+    AgentNameNamespaceReservationIndex,
+    allocate_agent_name_template,
+    iter_agent_name_template_tokens,
+)
 from sase.core.paths import sase_projects_dir
 
 
@@ -29,10 +33,17 @@ def allocate_auto_names(count: int, *, reserved: set[str] | None = None) -> list
     if count <= 0:
         raise ValueError(f"count must be positive, got {count}")
     used = get_reserved_agent_names() if reserved is None else reserved
+    index = AgentNameNamespaceReservationIndex.from_names(used)
     names: list[str] = []
     for _ in range(count):
-        name = allocate_agent_name_template("@", reserved=used)
-        names.append(name)
+        for token in iter_agent_name_template_tokens():
+            name = token
+            if not index.candidate_available(name, namespace=name):
+                continue
+            used.add(name)
+            index.add_name(name)
+            names.append(name)
+            break
     return names
 
 

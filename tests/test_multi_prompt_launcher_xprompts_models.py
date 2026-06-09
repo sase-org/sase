@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.agent.multi_prompt_launcher import (
     deserialize_local_xprompts,
     launch_multi_prompt_agents,
@@ -270,6 +272,7 @@ def test_launch_multi_prompt_generated_model_fanout_allocates_grouped_names(
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],
 )
+@pytest.mark.parametrize("existing_name", ["0", "0.cld", "0.cdx", "0.any"])
 def test_launch_multi_prompt_generated_model_fanout_skips_colliding_token(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
@@ -278,9 +281,10 @@ def test_launch_multi_prompt_generated_model_fanout_skips_colliding_token(
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
     tmp_path: Path,
+    existing_name: str,
 ) -> None:
     """A collision in one fan-out sibling advances the whole generated group."""
-    make_agent(tmp_path, "proj", "existing", "0.cdx", done=True)
+    make_agent(tmp_path, "proj", "existing", existing_name, done=True)
     mock_spawn.side_effect = spawn_result_with_planned_name
 
     with patch.object(Path, "home", return_value=tmp_path):

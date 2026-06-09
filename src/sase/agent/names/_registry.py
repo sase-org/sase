@@ -7,6 +7,7 @@ agent history.
 
 from __future__ import annotations
 
+from collections.abc import Collection, Sequence
 from contextlib import AbstractContextManager
 from datetime import UTC, datetime
 import json
@@ -121,6 +122,79 @@ def reserve_registered_name(name: str, claiming_dir: str | Path) -> None:
         _save_entries(entries)
 
 
+def reserve_registered_template_name(
+    name: str,
+    namespace: str,
+    claiming_dir: str | Path,
+    *,
+    allowed_existing_names: Collection[str] = (),
+) -> None:
+    """Reserve a template-allocated *name* after checking *namespace*."""
+    reserve_registered_template_names(
+        [(name, namespace, claiming_dir)],
+        allowed_existing_names=allowed_existing_names,
+    )
+
+
+def reserve_registered_template_names(
+    reservations: Sequence[tuple[str, str, str | Path]],
+    *,
+    allowed_existing_names: Collection[str] = (),
+) -> None:
+    """Reserve template-allocated names atomically with namespace checks.
+
+    Names in the same batch may share a namespace, but an existing registry
+    entry blocks a namespace when it is exactly that namespace or a dotted
+    descendant of it. ``allowed_existing_names`` lets one parent-side template
+    group add later siblings beneath namespaces it already reserved.
+    """
+    if not reservations:
+        return
+
+    names = [name for name, _, _ in reservations]
+    if len(set(names)) != len(names):
+        from sase.agent.names._common import NameCollisionError
+
+        raise NameCollisionError(
+            "template allocation group rendered duplicate concrete names"
+        )
+
+    allowed = set(allowed_existing_names)
+    with _registry_mutation_lock():
+        entries = dict(load_name_registry()["entries"])
+        materialized = [
+            (
+                name,
+                namespace,
+                Path(claiming_dir).expanduser().resolve(strict=False),
+            )
+            for name, namespace, claiming_dir in reservations
+        ]
+        for name, namespace, artifact_dir in materialized:
+            existing = entries.get(name)
+            if isinstance(existing, dict) and _entry_has_other_owner(
+                existing, artifact_dir
+            ):
+                _raise_name_collision(name)
+            conflict = _namespace_conflict_name(
+                entries,
+                namespace,
+                allowed_existing_names=allowed,
+            )
+            if conflict is not None:
+                _raise_name_collision(name)
+
+        for name, namespace, artifact_dir in materialized:
+            entry = _owner_from_artifact_name(
+                artifact_dir,
+                name,
+                reservation_kind="planned",
+                template_namespace=namespace,
+            )
+            entries[name] = entry
+        _save_entries(entries)
+
+
 def release_planned_registered_name(name: str, claiming_dir: str | Path) -> None:
     """Remove a still-planned reservation for *name* owned by *claiming_dir*."""
     with _registry_mutation_lock():
@@ -168,6 +242,29 @@ def _entry_has_other_owner(entry: dict[str, Any], artifact_dir: Path) -> bool:
         ):
             return True
     return False
+
+
+def _raise_name_collision(name: str) -> None:
+    from sase.agent.names._common import NameCollisionError
+
+    suggestion = lowest_name_suggestion(name)
+    raise NameCollisionError(
+        f"agent name '{name}' is already taken; try '{suggestion}'"
+    )
+
+
+def _namespace_conflict_name(
+    entries: dict[str, Any],
+    namespace: str,
+    *,
+    allowed_existing_names: set[str],
+) -> str | None:
+    for existing_name in entries:
+        if existing_name in allowed_existing_names:
+            continue
+        if existing_name == namespace or existing_name.startswith(f"{namespace}."):
+            return existing_name
+    return None
 
 
 def load_name_registry() -> dict[str, Any]:
@@ -538,6 +635,7 @@ def _owner_from_artifact_name(
     name: str,
     *,
     reservation_kind: str,
+    template_namespace: str | None = None,
 ) -> dict[str, Any]:
     workflow_dir = artifact_dir.parent
     project_dir = (
@@ -562,6 +660,8 @@ def _owner_from_artifact_name(
     }
     if reservation_kind == "planned":
         entry["reserved_at"] = datetime.now(UTC).isoformat()
+    if template_namespace is not None:
+        entry["template_namespace"] = template_namespace
     return entry
 
 

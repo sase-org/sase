@@ -71,6 +71,7 @@ class MultiPromptLaunchMixin:
                 is_home_mode=ctx.is_home_mode,
                 vcs_ref=vcs_ref,
                 default_bare_segments_to_home=ctx.is_home_mode,
+                segment_template_groups=getattr(multi, "template_groups", None),
             )
             self.call_later(  # type: ignore[attr-defined]
                 self._handle_launch_results_delta,  # type: ignore[attr-defined]

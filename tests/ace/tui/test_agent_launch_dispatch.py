@@ -13,6 +13,7 @@ in ``test_agent_launch_vcs.py``.
 from __future__ import annotations
 
 import threading
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from tests.ace.tui._agent_launch_helpers import (
@@ -122,8 +123,11 @@ def test_run_agent_launch_body_multi_agent_xprompt_history_uses_input() -> None:
         patch("sase.workspace_provider.get_ref_patterns", return_value={}),
         patch("sase.workspace_provider.get_workflow_names", return_value=set()),
         patch(
-            "sase.agent.multi_agent_xprompt.expand_multi_agent_xprompts",
-            return_value=expanded_segments,
+            "sase.agent.multi_agent_xprompt.expand_multi_agent_xprompts_with_metadata",
+            return_value=[
+                SimpleNamespace(prompt=segment, template_group=None)
+                for segment in expanded_segments
+            ],
         ),
         patch("sase.history.prompt.add_or_update_prompt") as save_history,
         patch(

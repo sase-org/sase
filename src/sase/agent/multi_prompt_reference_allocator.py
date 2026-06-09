@@ -4,6 +4,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from sase.agent.multi_prompt_reference_directives import extract_static_name_directive
 from sase.agent.multi_prompt_reference_resume import (
@@ -32,8 +33,11 @@ class PlannedNameAllocator:
         self._resume_reserved: dict[str, set[str]] = {}
         self._wait_reserved: dict[str, set[str]] = {}
         self._template_reserved: set[str] | None = None
+        self._template_index: Any | None = None
         self._template_latest: dict[str, str] = {}
         self._template_group_tokens: dict[str, str] = {}
+        self._template_group_names: dict[str, set[str]] = {}
+        self._template_group_namespaces: dict[str, set[str]] = {}
         self._planned_reservations: list[_PlannedNameReservation] = []
         self._committed_reservations: set[_PlannedNameReservation] = set()
 
@@ -133,49 +137,62 @@ class PlannedNameAllocator:
             agent_name_allocation_lock,
             get_reserved_agent_names,
             iter_agent_name_template_tokens,
-            render_agent_name_template,
         )
 
         group = _normalize_template_group(template_group, templates[0])
         with agent_name_allocation_lock():
             if self._template_reserved is None:
                 self._template_reserved = get_reserved_agent_names()
-            reserved = self._template_reserved
+                self._template_index = None
+            index = self._template_reservation_index()
+            self._ensure_unique_group_render_shapes(templates)
 
             existing_token = self._template_group_tokens.get(group.key)
             if existing_token is not None:
-                candidates = [
-                    render_agent_name_template(template, existing_token)
-                    for template in templates
-                ]
-                if (
-                    len(set(candidates)) == len(candidates)
-                    and not any(candidate in reserved for candidate in candidates)
-                    and self._reserve_planned_names(candidates, artifacts_dirs)
+                candidates = _template_candidates(templates, existing_token)
+                candidate_names = [name for name, _ in candidates]
+                namespaces = [namespace for _, namespace in candidates]
+                if self._template_candidates_available(
+                    candidates, group
+                ) and self._reserve_planned_template_names(
+                    candidate_names,
+                    namespaces,
+                    artifacts_dirs,
+                    group,
                 ):
-                    reserved.update(candidates)
-                    for template, candidate in zip(templates, candidates, strict=True):
+                    self._record_template_group_names(group, candidates)
+                    for template, candidate in zip(
+                        templates,
+                        candidate_names,
+                        strict=True,
+                    ):
                         self._template_latest[template] = candidate
-                    return candidates
-                reserved.update(candidates)
+                    return candidate_names
+                index.update_names(candidate_names)
 
             for token in iter_agent_name_template_tokens():
-                candidates = [
-                    render_agent_name_template(template, token)
-                    for template in templates
-                ]
-                if len(set(candidates)) != len(candidates):
+                candidates = _template_candidates(templates, token)
+                candidate_names = [name for name, _ in candidates]
+                namespaces = [namespace for _, namespace in candidates]
+                if not self._template_candidates_available(candidates, group):
                     continue
-                if any(candidate in reserved for candidate in candidates):
+                if not self._reserve_planned_template_names(
+                    candidate_names,
+                    namespaces,
+                    artifacts_dirs,
+                    group,
+                ):
+                    index.update_names(candidate_names)
                     continue
-                if not self._reserve_planned_names(candidates, artifacts_dirs):
-                    reserved.update(candidates)
-                    continue
-                reserved.update(candidates)
+                self._record_template_group_names(group, candidates)
                 self._template_group_tokens[group.key] = token
-                for template, candidate in zip(templates, candidates, strict=True):
+                for template, candidate in zip(
+                    templates,
+                    candidate_names,
+                    strict=True,
+                ):
                     self._template_latest[template] = candidate
-                return candidates
+                return candidate_names
         raise AssertionError("unreachable")
 
     def _rewrite_template_wait_directives(self, prompt: str) -> str:
@@ -389,6 +406,54 @@ class PlannedNameAllocator:
             return False
         return True
 
+    def _reserve_planned_template_names(
+        self,
+        names: Sequence[str],
+        namespaces: Sequence[str],
+        artifacts_dirs: Sequence[str | Path | None],
+        group: _TemplateGroup,
+    ) -> bool:
+        materialized: list[tuple[str, str, Path]] = []
+        for name, namespace, artifacts_dir in zip(
+            names,
+            namespaces,
+            artifacts_dirs,
+            strict=True,
+        ):
+            if artifacts_dir is None:
+                continue
+            materialized.append(
+                (
+                    name,
+                    namespace,
+                    Path(artifacts_dir).expanduser().resolve(strict=False),
+                )
+            )
+        if not materialized:
+            return True
+
+        from sase.agent.names import (
+            NameCollisionError,
+            reserve_registered_template_names,
+        )
+
+        try:
+            reserve_registered_template_names(
+                materialized,
+                allowed_existing_names=self._template_group_names.get(group.key, set()),
+            )
+        except NameCollisionError:
+            return False
+
+        for name, _, artifacts_path in materialized:
+            self._planned_reservations.append(
+                _PlannedNameReservation(
+                    name=name,
+                    artifacts_dir=str(artifacts_path),
+                )
+            )
+        return True
+
     def _release_planned_reservations_from(self, start: int) -> None:
         from sase.agent.names import release_planned_registered_name
 
@@ -407,6 +472,7 @@ class PlannedNameAllocator:
             agent_name_allocation_lock,
             get_reserved_agent_names,
             iter_agent_name_template_tokens,
+            render_agent_name_template_namespace,
             render_agent_name_template,
         )
 
@@ -414,31 +480,111 @@ class PlannedNameAllocator:
         with agent_name_allocation_lock():
             if self._template_reserved is None:
                 self._template_reserved = get_reserved_agent_names()
-            reserved = self._template_reserved
+                self._template_index = None
+            index = self._template_reservation_index()
 
             existing_token = self._template_group_tokens.get(group.key)
             if existing_token is not None:
                 candidate = render_agent_name_template(template, existing_token)
-                if candidate not in reserved and self._reserve_planned_name(
-                    candidate, artifacts_dir
+                namespace = render_agent_name_template_namespace(
+                    template,
+                    existing_token,
+                )
+                if self._template_candidate_available(
+                    candidate, namespace, group
+                ) and self._reserve_planned_template_names(
+                    [candidate],
+                    [namespace],
+                    [artifacts_dir],
+                    group,
                 ):
-                    reserved.add(candidate)
+                    self._record_template_group_names(group, [(candidate, namespace)])
                     self._template_latest[template] = candidate
                     return candidate
-                reserved.add(candidate)
+                index.add_name(candidate)
 
             for token in iter_agent_name_template_tokens():
                 candidate = render_agent_name_template(template, token)
-                if candidate in reserved:
+                namespace = render_agent_name_template_namespace(template, token)
+                if not self._template_candidate_available(candidate, namespace, group):
                     continue
-                if not self._reserve_planned_name(candidate, artifacts_dir):
-                    reserved.add(candidate)
+                if not self._reserve_planned_template_names(
+                    [candidate],
+                    [namespace],
+                    [artifacts_dir],
+                    group,
+                ):
+                    index.add_name(candidate)
                     continue
-                reserved.add(candidate)
+                self._record_template_group_names(group, [(candidate, namespace)])
                 self._template_group_tokens[group.key] = token
                 self._template_latest[template] = candidate
                 return candidate
         raise AssertionError("unreachable")
+
+    def _template_reservation_index(self) -> Any:
+        from sase.agent.names import AgentNameNamespaceReservationIndex
+
+        if self._template_reserved is None:
+            from sase.agent.names import get_reserved_agent_names
+
+            self._template_reserved = get_reserved_agent_names()
+            self._template_index = None
+        if self._template_index is None:
+            self._template_index = AgentNameNamespaceReservationIndex.from_names(
+                self._template_reserved
+            )
+        return self._template_index
+
+    def _template_candidate_available(
+        self,
+        name: str,
+        namespace: str,
+        group: _TemplateGroup,
+    ) -> bool:
+        return self._template_reservation_index().candidate_available(
+            name,
+            namespace,
+            owned_namespaces=self._template_group_namespaces.get(group.key, set()),
+        )
+
+    def _template_candidates_available(
+        self,
+        candidates: Sequence[tuple[str, str]],
+        group: _TemplateGroup,
+    ) -> bool:
+        names = [name for name, _ in candidates]
+        if len(set(names)) != len(names):
+            return False
+        return all(
+            self._template_candidate_available(name, namespace, group)
+            for name, namespace in candidates
+        )
+
+    def _record_template_group_names(
+        self,
+        group: _TemplateGroup,
+        candidates: Sequence[tuple[str, str]],
+    ) -> None:
+        names = self._template_group_names.setdefault(group.key, set())
+        namespaces = self._template_group_namespaces.setdefault(group.key, set())
+        index = self._template_reservation_index()
+        for name, namespace in candidates:
+            names.add(name)
+            namespaces.add(namespace)
+            if self._template_reserved is not None:
+                self._template_reserved.add(name)
+            index.add_name(name)
+
+    def _ensure_unique_group_render_shapes(self, templates: Sequence[str]) -> None:
+        from sase.agent.names import render_agent_name_template
+
+        sample = [render_agent_name_template(template, "0") for template in templates]
+        if len(set(sample)) != len(sample):
+            raise ValueError(
+                "template group rendered duplicate concrete names; "
+                "split duplicate templates into separate groups"
+            )
 
     def _latest_template_name(self, template: str) -> str:
         from sase.agent.names import (
@@ -470,6 +616,24 @@ def _unquote_backtick_arg(arg: str) -> str:
     if arg.startswith("`") and arg.endswith("`"):
         return arg[1:-1]
     return arg
+
+
+def _template_candidates(
+    templates: Sequence[str],
+    token: str,
+) -> list[tuple[str, str]]:
+    from sase.agent.names import (
+        render_agent_name_template,
+        render_agent_name_template_namespace,
+    )
+
+    return [
+        (
+            render_agent_name_template(template, token),
+            render_agent_name_template_namespace(template, token),
+        )
+        for template in templates
+    ]
 
 
 def _normalize_template_group(

@@ -176,7 +176,7 @@ def launch_agents_from_cwd(
     assert project_name is not None
 
     # --- Multi-prompt detection ---
-    from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
+    from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts_with_metadata
     from sase.agent.multi_prompt import parse_multi_prompt
     from sase.xprompt._parsing import (
         normalize_default_vcs_workflow,
@@ -190,23 +190,31 @@ def launch_agents_from_cwd(
 
     activate_known_project_vcs_refs_for_launch_prompt("\n---\n".join(multi.segments))
     expanded_segment_extra_env: list[dict[str, str] | None] | None = None
+    expanded_segment_template_groups: list[str | None] = []
     if segment_extra_env is not None:
         if len(segment_extra_env) != len(multi.segments):
             raise ValueError(
                 "segment_extra_env must have one entry per multi-prompt segment"
             )
-        expanded_segments = []
+        expanded_segments: list[str] = []
         expanded_segment_extra_env = []
         for segment, env in zip(multi.segments, segment_extra_env, strict=True):
-            segment_expansions = expand_multi_agent_xprompts(
+            segment_expansions = expand_multi_agent_xprompts_with_metadata(
                 [segment], multi.local_xprompts
             )
-            expanded_segments.extend(segment_expansions)
+            expanded_segments.extend(record.prompt for record in segment_expansions)
             expanded_segment_extra_env.extend([env] * len(segment_expansions))
+            expanded_segment_template_groups.extend(
+                record.template_group for record in segment_expansions
+            )
     else:
-        expanded_segments = expand_multi_agent_xprompts(
+        expanded_records = expand_multi_agent_xprompts_with_metadata(
             multi.segments, multi.local_xprompts
         )
+        expanded_segments = [record.prompt for record in expanded_records]
+        expanded_segment_template_groups = [
+            record.template_group for record in expanded_records
+        ]
 
     if not expanded_segments:
         return []
@@ -282,6 +290,7 @@ def launch_agents_from_cwd(
             vcs_ref=mp_vcs_ref,
             extra_env=extra_env,
             segment_extra_env=expanded_segment_extra_env,
+            segment_template_groups=expanded_segment_template_groups,
             allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
                 extra_env,
                 expanded_segment_extra_env,

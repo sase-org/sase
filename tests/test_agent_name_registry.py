@@ -22,6 +22,8 @@ from sase.agent.names import (
     lowest_name_suggestion,
     rebuild_name_registry,
     reserve_registered_name,
+    reserve_registered_template_name,
+    reserve_registered_template_names,
 )
 from sase.agent.names import _registry
 
@@ -245,6 +247,42 @@ def test_planned_reservation_survives_rebuild_until_child_claims(
         claimed = lookup_registered_name("research.cdx-1")
         assert claimed["reservation_kind"] == "claimed"
         assert claimed["artifacts_dir"] == str(artifacts_dir)
+
+
+def test_template_reservation_rejects_existing_namespace_descendant(
+    tmp_path: Path,
+) -> None:
+    artifacts_root = tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run"
+    first_dir = artifacts_root / "20260501120000"
+    second_dir = artifacts_root / "20260501120001"
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        reserve_registered_name("0.cdx", first_dir)
+        with pytest.raises(NameCollisionError):
+            reserve_registered_template_name("0.cld", "0", second_dir)
+
+
+def test_template_reservation_batch_allows_shared_namespace(
+    tmp_path: Path,
+) -> None:
+    artifacts_root = tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run"
+    first_dir = artifacts_root / "20260501120000"
+    second_dir = artifacts_root / "20260501120001"
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        reserve_registered_template_names(
+            [
+                ("research.0.cdx", "research.0", first_dir),
+                ("research.0.cld", "research.0", second_dir),
+            ]
+        )
+
+        assert lookup_registered_name("research.0.cdx")["template_namespace"] == (
+            "research.0"
+        )
+        assert lookup_registered_name("research.0.cld")["template_namespace"] == (
+            "research.0"
+        )
 
 
 def test_failed_claim_registered_name_does_not_mutate_cached_registry(

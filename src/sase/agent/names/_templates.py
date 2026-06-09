@@ -51,6 +51,42 @@ class AgentNameTemplate:
     suffix: str
 
 
+@dataclass
+class AgentNameNamespaceReservationIndex:
+    """Exact-name and dotted-namespace reservation index."""
+
+    exact_names: set[str]
+    occupied_namespaces: set[str]
+
+    @classmethod
+    def from_names(cls, names: Collection[str]) -> AgentNameNamespaceReservationIndex:
+        index = cls(exact_names=set(names), occupied_namespaces=set())
+        for name in names:
+            index.occupied_namespaces.update(_dotted_namespace_prefixes(name))
+        return index
+
+    def add_name(self, name: str) -> None:
+        self.exact_names.add(name)
+        self.occupied_namespaces.update(_dotted_namespace_prefixes(name))
+
+    def update_names(self, names: Collection[str]) -> None:
+        for name in names:
+            self.add_name(name)
+
+    def candidate_available(
+        self,
+        name: str,
+        namespace: str,
+        *,
+        owned_namespaces: Collection[str] = (),
+    ) -> bool:
+        if name in self.exact_names:
+            return False
+        return (
+            namespace not in self.occupied_namespaces or namespace in owned_namespaces
+        )
+
+
 def is_agent_name_template(value: str) -> bool:
     """Return whether *value* contains exactly one ``@`` marker."""
     return bool(_core("is_agent_name_template")(value))
@@ -88,6 +124,20 @@ def render_agent_name_template(template: str, token: str) -> str:
         return str(_core("render_agent_name_template")(template, token))
     except ValueError as exc:
         raise _value_error(template, token, exc) from exc
+
+
+def agent_name_template_namespace_template(template: str) -> str:
+    """Return the namespace template used to reserve *template* tokens."""
+    try:
+        return str(_core("agent_name_template_namespace_template")(template))
+    except ValueError as exc:
+        raise _template_error(template, exc) from exc
+
+
+def render_agent_name_template_namespace(template: str, token: str) -> str:
+    """Render the namespace reserved by *template* for *token*."""
+    namespace_template = agent_name_template_namespace_template(template)
+    return render_agent_name_template(namespace_template, token)
 
 
 def match_agent_name_template(template: str, concrete: str) -> str | None:
@@ -133,10 +183,13 @@ def allocate_agent_name_template(
     # independent of local agent state.
     parse_agent_name_template(template)
     pool = _reserved_names() if reserved is None else reserved
+    index = AgentNameNamespaceReservationIndex.from_names(pool)
     for token in iter_agent_name_template_tokens():
         candidate = render_agent_name_template(template, token)
-        if candidate not in pool:
+        namespace = render_agent_name_template_namespace(template, token)
+        if index.candidate_available(candidate, namespace):
             pool.add(candidate)
+            index.add_name(candidate)
             return candidate
     raise AssertionError("unreachable")
 
@@ -198,6 +251,11 @@ def _reserved_names() -> set[str]:
     from sase.agent.names._registry import get_reserved_agent_names
 
     return get_reserved_agent_names()
+
+
+def _dotted_namespace_prefixes(name: str) -> set[str]:
+    parts = name.split(".")
+    return {".".join(parts[: i + 1]) for i in range(len(parts))}
 
 
 def _value_error(

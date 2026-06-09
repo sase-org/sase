@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from itertools import count
+from collections.abc import Iterator
 
 from sase.agent.multi_prompt import split_segments_protecting_fences
 from sase.xprompt._disabled_regions import (
@@ -71,6 +73,14 @@ class _LeadingDirectiveSplit:
     directives: list[str]
     prefix: str
     body: str
+
+
+@dataclass(frozen=True)
+class _ExpandedMultiAgentXPromptSegment:
+    """Expanded segment plus optional template-allocation group metadata."""
+
+    prompt: str
+    template_group: str | None = None
 
 
 def _directive_tokens(text: str) -> list[str]:
@@ -401,7 +411,9 @@ def _expand_embedded_multi_agent_reference(
     catalog: dict[str, XPrompt],
     local_xprompts: dict[str, XPrompt] | None,
     max_depth: int,
-) -> list[str]:
+    template_group: str | None,
+    group_counter: Iterator[int],
+) -> list[_ExpandedMultiAgentXPromptSegment]:
     if max_depth <= 0:
         raise _MultiAgentXPromptDepthError(
             f"multi-agent xprompt expansion exceeded max depth at "
@@ -409,21 +421,28 @@ def _expand_embedded_multi_agent_reference(
         )
 
     call = _build_xprompt_call(ref, [])
+    group = template_group or _next_template_group(call.name, group_counter)
     sub_segments = _render_multi_agent_xprompt(
         catalog[call.name], call.positional_args, call.named_args
     )
     if not sub_segments:
         reconstructed = segment[: ref.start] + segment[ref.end :]
-        return [reconstructed] if reconstructed.strip() else []
+        return (
+            [_ExpandedMultiAgentXPromptSegment(reconstructed, group)]
+            if reconstructed.strip()
+            else []
+        )
 
     first = segment[: ref.start] + sub_segments[0] + segment[ref.end :]
     follow_ups = _prepend_inherited_vcs_ref(
         sub_segments[1:], _leading_vcs_ref_text(segment)
     )
-    return expand_multi_agent_xprompts(
+    return _expand_multi_agent_xprompts_with_metadata(
         [first, *follow_ups],
         local_xprompts=local_xprompts,
         max_depth=max_depth - 1,
+        template_group=group,
+        group_counter=group_counter,
     )
 
 
@@ -434,6 +453,25 @@ def expand_multi_agent_xprompts(
     max_depth: int = 8,
     _strict_segment_check: bool = True,
 ) -> list[str]:
+    """Expand any multi-agent xprompt references in *segments* into sub-segments."""
+    return [
+        segment.prompt
+        for segment in expand_multi_agent_xprompts_with_metadata(
+            segments,
+            local_xprompts=local_xprompts,
+            max_depth=max_depth,
+            _strict_segment_check=_strict_segment_check,
+        )
+    ]
+
+
+def expand_multi_agent_xprompts_with_metadata(
+    segments: list[str],
+    local_xprompts: dict[str, XPrompt] | None = None,
+    *,
+    max_depth: int = 8,
+    _strict_segment_check: bool = True,
+) -> list[_ExpandedMultiAgentXPromptSegment]:
     """Expand any multi-agent xprompt references in *segments* into sub-segments.
 
     For each segment:
@@ -455,9 +493,29 @@ def expand_multi_agent_xprompts(
             reference but isn't a sole top-level reference to it.
         ValueError: Recursive expansion exceeded *max_depth*.
     """
+    return _expand_multi_agent_xprompts_with_metadata(
+        segments,
+        local_xprompts=local_xprompts,
+        max_depth=max_depth,
+        strict_segment_check=_strict_segment_check,
+        group_counter=count(),
+    )
+
+
+def _expand_multi_agent_xprompts_with_metadata(
+    segments: list[str],
+    *,
+    local_xprompts: dict[str, XPrompt] | None,
+    max_depth: int,
+    strict_segment_check: bool = True,
+    template_group: str | None = None,
+    group_counter: Iterator[int],
+) -> list[_ExpandedMultiAgentXPromptSegment]:
     # Fast path: if no segment contains '#', no xprompt reference is possible.
     if not any("#" in seg for seg in segments):
-        return list(segments)
+        return [
+            _ExpandedMultiAgentXPromptSegment(seg, template_group) for seg in segments
+        ]
 
     catalog: dict[str, XPrompt] = dict(get_all_xprompts())
     if local_xprompts:
@@ -468,7 +526,7 @@ def expand_multi_agent_xprompts(
         name for name, xp in catalog.items() if xprompt_has_segment_separators(xp)
     }
 
-    expanded: list[str] = []
+    expanded: list[_ExpandedMultiAgentXPromptSegment] = []
     for segment in segments:
         call = _extract_top_level_xprompt_reference(segment, available)
         if call is not None and call.name in multi_agent_names:
@@ -477,6 +535,7 @@ def expand_multi_agent_xprompts(
                     f"multi-agent xprompt expansion exceeded max depth at "
                     f"#!{call.name} (possible self-reference)"
                 )
+            group = template_group or _next_template_group(call.name, group_counter)
             xp = catalog[call.name]
             sub_segments = _render_multi_agent_xprompt(
                 xp, call.positional_args, call.named_args
@@ -490,10 +549,13 @@ def expand_multi_agent_xprompts(
             )
             if call.leading_directive_prefix:
                 sub_segments[0] = f"{call.leading_directive_prefix}{sub_segments[0]}"
-            recursively_expanded = expand_multi_agent_xprompts(
+            recursively_expanded = _expand_multi_agent_xprompts_with_metadata(
                 sub_segments,
                 local_xprompts=local_xprompts,
                 max_depth=max_depth - 1,
+                strict_segment_check=strict_segment_check,
+                template_group=group,
+                group_counter=group_counter,
             )
             expanded.extend(recursively_expanded)
         elif call is not None and call.marker is XPromptReferenceMarker.STANDALONE:
@@ -517,7 +579,7 @@ def expand_multi_agent_xprompts(
                     _invalid_explicit_xprompt_message(invalid_standalone)
                 )
 
-            if _strict_segment_check:
+            if strict_segment_check:
                 multi_agent_refs = _multi_agent_references(segment, multi_agent_names)
                 if len(multi_agent_refs) > 1:
                     raise _MultiAgentXPromptUsageError(
@@ -531,16 +593,23 @@ def expand_multi_agent_xprompts(
                             catalog,
                             local_xprompts,
                             max_depth,
+                            template_group,
+                            group_counter,
                         )
                     )
                     continue
-            expanded.append(segment)
+            expanded.append(_ExpandedMultiAgentXPromptSegment(segment, template_group))
 
     return expanded
 
 
+def _next_template_group(name: str, group_counter: Iterator[int]) -> str:
+    return f"xprompt:{name}:{next(group_counter)}"
+
+
 __all__ = [
     "expand_multi_agent_xprompts",
+    "expand_multi_agent_xprompts_with_metadata",
     "_extract_top_level_xprompt_reference",
     "xprompt_has_segment_separators",
 ]

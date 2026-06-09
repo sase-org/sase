@@ -122,6 +122,7 @@ def launch_multi_prompt_agents(
     on_agent_spawned: Callable[[], None] | None = None,
     extra_env: dict[str, str] | None = None,
     segment_extra_env: Sequence[dict[str, str] | None] | None = None,
+    segment_template_groups: Sequence[str | None] | None = None,
     preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None = None,
     allow_reserved_family_separator_names: bool = False,
     allow_hyphenated_names: bool | None = None,
@@ -160,6 +161,7 @@ def launch_multi_prompt_agents(
             on_agent_spawned=on_agent_spawned,
             extra_env=extra_env,
             segment_extra_env=segment_extra_env,
+            segment_template_groups=segment_template_groups,
             preplanned_fanout_plans=preplanned_fanout_plans,
             allow_reserved_family_separator_names=allow_reserved_family_separator_names,
             default_bare_segments_to_home=default_bare_segments_to_home,
@@ -185,6 +187,7 @@ def _spawn_segments_into(
     on_agent_spawned: Callable[[], None] | None,
     extra_env: dict[str, str] | None,
     segment_extra_env: Sequence[dict[str, str] | None] | None,
+    segment_template_groups: Sequence[str | None] | None,
     preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None,
     allow_reserved_family_separator_names: bool,
     default_bare_segments_to_home: bool,
@@ -224,6 +227,12 @@ def _spawn_segments_into(
         raise ValueError(
             "preplanned_fanout_plans must have one entry per multi-prompt segment"
         )
+    if segment_template_groups is not None and len(segment_template_groups) != len(
+        segments
+    ):
+        raise ValueError(
+            "segment_template_groups must have one entry per multi-prompt segment"
+        )
     from sase.agent.launch_validation import validate_launch_name_requests
 
     validate_launch_name_requests(
@@ -236,6 +245,9 @@ def _spawn_segments_into(
     upstreams: list[dict[str, Any]] = []
     for i, segment in enumerate(segments):
         segment = canonicalize_project_aliases_in_prompt(segment)
+        segment_template_group = (
+            None if segment_template_groups is None else segment_template_groups[i]
+        )
         segment_env = (
             dict(segment_extra_env[i] or {}) if segment_extra_env is not None else {}
         )
@@ -376,7 +388,7 @@ def _spawn_segments_into(
                     grouped_names = name_allocator.planned_names_for_template_group(
                         template_names,
                         artifacts_dirs=artifacts_dirs,
-                        template_group=f"fanout:{i}",
+                        template_group=segment_template_group or f"fanout:{i}",
                     )
                 for (slot_index, _), planned_name in zip(
                     grouped_template_slots,
@@ -395,6 +407,7 @@ def _spawn_segments_into(
                             name_allocator.planned_name_for_prompt(
                                 sub_prompt,
                                 artifacts_dir=slot_artifacts_dirs[j],
+                                template_group=segment_template_group,
                             )
                         )
                     planned_names[j] = slot_planned_name

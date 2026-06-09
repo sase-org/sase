@@ -11,6 +11,7 @@ import pytest
 from sase.agent.multi_agent_xprompt import (
     _MultiAgentXPromptUsageError,
     expand_multi_agent_xprompts,
+    expand_multi_agent_xprompts_with_metadata,
 )
 from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
 from sase.xprompt.models import InputArg, InputType
@@ -47,6 +48,38 @@ def test_expand_three_segment_xprompt() -> None:
     with patch_catalog(catalog):
         out = expand_multi_agent_xprompts(["#!three"])
     assert out == ["phase A", "phase B", "phase C"]
+
+
+def test_expand_three_segment_xprompt_metadata_groups_one_invocation() -> None:
+    catalog = {"three": xp("three", "phase A\n---\nphase B\n---\nphase C")}
+    with patch_catalog(catalog):
+        out = expand_multi_agent_xprompts_with_metadata(["#!three"])
+
+    assert [record.prompt for record in out] == ["phase A", "phase B", "phase C"]
+    assert [record.template_group for record in out] == [
+        "xprompt:three:0",
+        "xprompt:three:0",
+        "xprompt:three:0",
+    ]
+
+
+def test_expand_two_xprompt_invocations_get_distinct_metadata_groups() -> None:
+    catalog = {"two": xp("two", "phase A\n---\nphase B")}
+    with patch_catalog(catalog):
+        out = expand_multi_agent_xprompts_with_metadata(["#!two", "#!two"])
+
+    assert [record.prompt for record in out] == [
+        "phase A",
+        "phase B",
+        "phase A",
+        "phase B",
+    ]
+    assert [record.template_group for record in out] == [
+        "xprompt:two:0",
+        "xprompt:two:0",
+        "xprompt:two:1",
+        "xprompt:two:1",
+    ]
 
 
 def test_bare_multi_agent_xprompt_expands_as_sole_segment() -> None:

@@ -105,7 +105,9 @@ class AgentLaunchBodyMixin:
         # Detect multi-agent xprompts before injecting the default workspace
         # ref; a multi-agent xprompt must still look like the sole top-level
         # reference in its segment.
-        from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
+        from sase.agent.multi_agent_xprompt import (
+            expand_multi_agent_xprompts_with_metadata,
+        )
         from sase.agent.multi_prompt import parse_multi_prompt
 
         with timer.stage("prompt_parse"):
@@ -120,9 +122,13 @@ class AgentLaunchBodyMixin:
         with timer.stage(
             "multi_agent_xprompt_expand", segment_count=len(multi.segments)
         ):
-            multi.segments = expand_multi_agent_xprompts(
+            expanded_records = expand_multi_agent_xprompts_with_metadata(
                 multi.segments, multi.local_xprompts
             )
+            multi.segments = [record.prompt for record in expanded_records]
+            multi.template_groups = [
+                record.template_group for record in expanded_records
+            ]
         if len(multi.segments) > 1:
             if ctx.is_home_mode:
                 multi.segments = [
