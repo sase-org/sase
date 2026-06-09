@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-09 08:33:03
-status: wip
+status: done
 prompt: sdd/prompts/202606/sase_core_rs_0_1_1_release_pr.md
 ---
 # Plan: release `sase-core-rs` 0.1.1 via the recovery PR
