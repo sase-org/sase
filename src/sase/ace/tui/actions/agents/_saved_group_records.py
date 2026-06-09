@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from ...models import Agent
 
 SavedAgentGroupSource = Literal["marked_agents", "recent_dismissal"]
+_PROMPT_PREVIEW_MAX_CHARS = 120
 
 
 def utc_wire_timestamp(value: datetime) -> str:
@@ -169,6 +170,21 @@ def _bundle_path_for_agent(
     return None if path is None else str(path)
 
 
+def _prompt_preview_for_agent(agent: Agent) -> str | None:
+    try:
+        raw_prompt = agent.get_raw_xprompt_content()
+    except Exception:
+        return None
+    if raw_prompt is None:
+        return None
+    preview = " ".join(raw_prompt.strip().split())
+    if not preview:
+        return None
+    if len(preview) > _PROMPT_PREVIEW_MAX_CHARS:
+        preview = preview[: _PROMPT_PREVIEW_MAX_CHARS - 3].rstrip() + "..."
+    return preview
+
+
 def _saved_group_ref_for_agent(
     agent: Agent, *, resolve_bundle_paths: bool = True
 ) -> SavedAgentGroupRefWire:
@@ -188,4 +204,5 @@ def _saved_group_ref_for_agent(
         model=agent.model,
         llm_provider=agent.llm_provider,
         tag=agent.tag,
+        prompt_preview=_prompt_preview_for_agent(agent),
     )

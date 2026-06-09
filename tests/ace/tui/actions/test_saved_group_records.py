@@ -58,6 +58,39 @@ def test_recent_dismissed_group_build_skips_disk_probe() -> None:
     assert group.agent_refs[0].bundle_path is None
 
 
+def test_saved_group_captures_normalized_truncated_prompt_preview() -> None:
+    agent = _make_agent(raw_suffix="20240101120000")
+    prompt = "  Review\n\n" + ("backend " * 30) + "cleanup  "
+    agent.__dict__["get_raw_xprompt_content"] = lambda: prompt
+
+    group = build_saved_agent_group([agent], resolve_bundle_paths=False)
+
+    preview = group.agent_refs[0].prompt_preview
+    assert preview is not None
+    assert "\n" not in preview
+    assert len(preview) == 120
+    assert preview.endswith("...")
+    assert preview.startswith("Review backend backend")
+
+
+def test_saved_group_prompt_preview_missing_or_failing_is_none() -> None:
+    missing = _make_agent(raw_suffix="20240101120000")
+    missing.__dict__["get_raw_xprompt_content"] = lambda: None
+    failing = _make_agent(raw_suffix="20240101120001")
+
+    def fail_read() -> str | None:
+        raise OSError("prompt cache unavailable")
+
+    failing.__dict__["get_raw_xprompt_content"] = fail_read
+
+    group = build_saved_agent_group(
+        [missing, failing],
+        resolve_bundle_paths=False,
+    )
+
+    assert [ref.prompt_preview for ref in group.agent_refs] == [None, None]
+
+
 def test_resolve_bundle_paths_default_uses_helper() -> None:
     """Default (True) preserves disk resolution for off-UI-thread callers."""
     agent = _make_agent(raw_suffix="20240101120000")

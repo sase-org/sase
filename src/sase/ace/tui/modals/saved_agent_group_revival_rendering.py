@@ -166,12 +166,17 @@ def build_saved_group_preview(
         preview.append("\nSelect this group to revive it.", style="dim")
         return preview
 
+    root_refs = tuple(ref for ref in refs if not ref.is_workflow_child)
     preview.append("\nIncluded agents", style="bold")
     preview.append("\n")
-    for idx, ref in enumerate(refs[:12], 1):
+    if not root_refs:
+        preview.append("  No root agent refs found\n", style="dim")
+        return preview
+
+    for idx, ref in enumerate(root_refs[:12], 1):
         _append_ref_line(preview, idx, ref)
-    if len(refs) > 12:
-        preview.append(f"  ... {len(refs) - 12} more\n", style="dim")
+    if len(root_refs) > 12:
+        preview.append(f"  ... {len(root_refs) - 12} more root agents\n", style="dim")
     return preview
 
 
@@ -227,6 +232,10 @@ def _append_ref_line(
         preview.append("  ")
         preview.append(runtime, style="dim italic")
     preview.append("\n")
+    if ref.prompt_preview:
+        preview.append("      prompt: ", style="dim")
+        preview.append(ref.prompt_preview, style="dim")
+        preview.append("\n")
 
 
 def _append_status_counts(text: Text, status_counts: dict[str, int]) -> None:

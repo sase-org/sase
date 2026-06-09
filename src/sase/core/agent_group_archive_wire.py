@@ -25,6 +25,7 @@ class SavedAgentGroupRefWire:
     model: str | None = None
     llm_provider: str | None = None
     tag: str | None = None
+    prompt_preview: str | None = None
 
 
 @dataclass(frozen=True)
@@ -113,6 +114,9 @@ def _saved_agent_group_ref_from_dict(data: dict[str, Any]) -> SavedAgentGroupRef
             None if data.get("llm_provider") is None else str(data["llm_provider"])
         ),
         tag=None if data.get("tag") is None else str(data["tag"]),
+        prompt_preview=(
+            None if data.get("prompt_preview") is None else str(data["prompt_preview"])
+        ),
     )
 
 

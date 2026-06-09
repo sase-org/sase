@@ -49,6 +49,7 @@ def test_saved_agent_group_facade_round_trip(tmp_path: Path) -> None:
     assert loaded.name == "Backend batch"
     assert loaded.agent_refs[0].bundle_path == str(missing_bundle)
     assert loaded.agent_refs[0].tag == "backend"
+    assert loaded.agent_refs[0].prompt_preview == "Restore this backend worker."
     assert not missing_bundle.exists()
 
 
@@ -134,8 +135,10 @@ def test_saved_agent_group_python_fallback_when_binding_missing(
     assert page.groups[0].name is None
 
 
-def test_saved_agent_group_missing_name_loads_as_none(tmp_path: Path) -> None:
-    """Legacy saved-group records without name remain readable."""
+def test_saved_agent_group_missing_optional_fields_load_as_none(
+    tmp_path: Path,
+) -> None:
+    """Legacy saved-group records without optional fields remain readable."""
 
     groups_dir = tmp_path / "groups"
     groups_dir.mkdir()
@@ -143,6 +146,7 @@ def test_saved_agent_group_missing_name_loads_as_none(tmp_path: Path) -> None:
         _group("legacy", "2026-05-27T12:00:00Z")
     )
     payload.pop("name", None)
+    payload["agent_refs"][0].pop("prompt_preview", None)
     (groups_dir / "legacy.json").write_text(json.dumps(payload), encoding="utf-8")
 
     with patch("sase.ace.dismissed_agents._DISMISSED_AGENT_GROUPS_DIR", groups_dir):
@@ -151,6 +155,7 @@ def test_saved_agent_group_missing_name_loads_as_none(tmp_path: Path) -> None:
 
     assert loaded is not None
     assert loaded.name is None
+    assert loaded.agent_refs[0].prompt_preview is None
     assert page.groups[0].name is None
 
 
@@ -249,6 +254,7 @@ def _group(
     *,
     bundle_path: str | None = None,
     name: str | None = None,
+    prompt_preview: str | None = "Restore this backend worker.",
 ) -> SavedAgentGroupWire:
     return SavedAgentGroupWire(
         group_id=group_id,
@@ -274,6 +280,7 @@ def _group(
                 model="gpt",
                 llm_provider="codex",
                 tag="backend",
+                prompt_preview=prompt_preview,
             ),
         ),
     )

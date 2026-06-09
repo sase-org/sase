@@ -171,6 +171,62 @@ def test_preview_rendering_includes_stable_time_and_status_text() -> None:
     assert "codex/gpt-5" in text
 
 
+def test_preview_rendering_shows_only_roots_with_prompt_preview() -> None:
+    summary = SavedAgentGroupSummaryWire(
+        group_id="group-root-preview",
+        created_at="2026-05-27T12:00:00Z",
+        source="marked_agents",
+        title="2 agents from backend",
+        agent_count=2,
+        top_level_agent_count=1,
+        status_counts={"DONE": 2},
+        project_names=("sase",),
+        cl_names=("backend",),
+    )
+    group = SavedAgentGroupWire(
+        group_id="group-root-preview",
+        created_at="2026-05-27T12:00:00Z",
+        source="marked_agents",
+        title="2 agents from backend",
+        agent_count=2,
+        top_level_agent_count=1,
+        status_counts={"DONE": 2},
+        project_names=("sase",),
+        cl_names=("backend",),
+        agent_refs=(
+            SavedAgentGroupRefWire(
+                agent_type="run",
+                cl_name="backend",
+                raw_suffix="20260527120000",
+                display_name="root-worker",
+                agent_name="backend.1",
+                status="DONE",
+                model="gpt-5",
+                llm_provider="codex",
+                prompt_preview="Restore only the root worker.",
+            ),
+            SavedAgentGroupRefWire(
+                agent_type="workflow",
+                cl_name="backend",
+                raw_suffix="20260527120001",
+                is_workflow_child=True,
+                display_name="child-worker",
+                agent_name="backend.child",
+                status="DONE",
+                prompt_preview="This child should be implicit.",
+            ),
+        ),
+    )
+    text = build_saved_group_preview(summary, group).plain
+
+    assert "2 agents" in text
+    assert "(1 top-level)" in text
+    assert "root-worker" in text
+    assert "prompt: Restore only the root worker." in text
+    assert "child-worker" not in text
+    assert "This child should be implicit." not in text
+
+
 def test_named_preview_uses_name_with_generated_summary_context() -> None:
     text = build_saved_group_preview(
         _summary(0, name="Backend batch"),
@@ -262,6 +318,7 @@ def _group(group_id: str) -> SavedAgentGroupWire:
                 status="DONE",
                 model="gpt-5",
                 llm_provider="codex",
+                prompt_preview="Restore this backend worker.",
             ),
         ),
     )

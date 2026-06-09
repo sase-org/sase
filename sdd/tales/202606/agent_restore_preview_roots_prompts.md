@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-09 13:07:26
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_restore_preview_roots_prompts.md
 ---
 # Plan: Agent Restore Root-Only Preview With Prompt Snippets
