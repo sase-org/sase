@@ -135,11 +135,66 @@ def mark_bundles_revived_by_suffixes(
     *,
     revived_at: str | None = None,
 ) -> int:
-    """Preserve dismissed bundles after revive without archive lifecycle markers."""
+    """Purge the dismissed bundles for revived agents.
+
+    Revive restores the live on-disk artifacts, so the dismissed bundle is
+    redundant. Worse, the artifact-index dismissed projection unions the
+    in-memory dismissed set with *every* dismissed-bundle summary, so a
+    lingering bundle re-hides the revived agent on the next projection rebuild
+    (``sase agents index gc``, cold-start archive maintenance, or a
+    drift-triggered non-authoritative sync). Delete both the bundle files and
+    their summary index rows -- mirroring the name-wipe path
+    (``agent/names/_wipe.py``) -- so the projection stops re-deriving the
+    revived identities. If the user re-dismisses, the dismiss flow writes a
+    fresh bundle.
+
+    Returns the number of bundle files removed.
+    """
     del revived_at
     if not suffixes:
         return 0
-    return len(ctx._bundle_paths_for_suffixes(suffixes))
+
+    from .dismissed_bundle_index import delete_bundle_summaries_for_suffixes
+
+    removed = 0
+    for path in ctx._bundle_paths_for_suffixes(suffixes):
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            continue
+        removed += 1
+
+    delete_bundle_summaries_for_suffixes(ctx.dismissed_bundles_dir(), suffixes)
+    return removed
+
+
+def purge_revived_dismissed_bundles(ctx: Any) -> int:
+    """Purge dismissed bundles whose identities are no longer dismissed.
+
+    One-time reconciliation for archives that accumulated stale bundles before
+    revive learned to purge them. A bundle whose ``raw_suffix`` is absent from
+    every identity in ``dismissed_agents.json`` belongs to an already-revived
+    agent; its lingering summary keeps re-feeding the dismissed projection.
+    Purging by suffix is parent/child safe: a suffix is treated as orphaned
+    only when *no* dismissed identity still references it, so bundles for
+    agents that remain dismissed are preserved.
+
+    Returns the number of bundle files removed.
+    """
+    from .dismissed_agents_state import load_dismissed_agents
+
+    dismissed = load_dismissed_agents(ctx._dismissed_agents_file())
+    dismissed_suffixes = {raw_suffix for (_, _, raw_suffix) in dismissed if raw_suffix}
+
+    orphan_suffixes: set[str] = set()
+    for summary in load_dismissed_bundle_summaries(ctx, limit=None):
+        raw_suffix = getattr(summary, "raw_suffix", None)
+        if raw_suffix and raw_suffix not in dismissed_suffixes:
+            orphan_suffixes.add(raw_suffix)
+
+    return mark_bundles_revived_by_suffixes(ctx, orphan_suffixes)
 
 
 def bundle_paths_for_suffixes(ctx: Any, suffixes: set[str]) -> list[Path]:

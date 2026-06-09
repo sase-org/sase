@@ -100,6 +100,16 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                 self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
 
                 if save_dismissed_agents(self._dismissed_agents):
+                    # Purge the revived agents' dismissed bundles *before*
+                    # syncing the artifact index. The dismissed projection
+                    # unions the in-memory set with every dismissed-bundle
+                    # summary, so a lingering bundle re-hides the revived agent
+                    # on the next projection rebuild; purging first also makes
+                    # the recorded projection signature reflect the post-purge
+                    # bundle index so a later drift rebuild cannot re-add them.
+                    stage = "bundle_marking"
+                    mark_bundles_revived_by_suffixes(revived_suffixes)
+                    stage = "dismissed_set_update"
                     try:
                         sync_dismissed_agent_artifact_index(
                             self._dismissed_agents,
@@ -113,8 +123,6 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
 
             stage = "artifact_index"
             upsert_agent_artifact_index_artifacts(revived_artifact_dirs)
-            stage = "bundle_marking"
-            mark_bundles_revived_by_suffixes(revived_suffixes)
             self._record_revived_agent_suffixes(revived_suffixes)
         except Exception as exc:
             log_revive_failure(
@@ -284,6 +292,13 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
 
             # Phase 3: Single disk write for dismissed set
             if save_dismissed_agents(self._dismissed_agents):
+                # Purge the revived agents' dismissed bundles *before* syncing
+                # the artifact index so the projection stops re-deriving the
+                # revived identities and the recorded signature reflects the
+                # post-purge bundle index (see _do_revive_agent for details).
+                stage = "bundle_marking"
+                mark_bundles_revived_by_suffixes(succeeded_suffixes)
+                stage = "dismissed_set_update"
                 try:
                     sync_dismissed_agent_artifact_index(
                         self._dismissed_agents,
@@ -309,24 +324,6 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             return False
 
         upsert_agent_artifact_index_artifacts(revived_artifact_dirs)
-
-        try:
-            mark_bundles_revived_by_suffixes(succeeded_suffixes)
-        except Exception as exc:
-            for agent in succeeded:
-                log_revive_failure(
-                    stage="bundle_marking",
-                    agent=agent,
-                    error=exc,
-                    batch_size=batch_size,
-                    selection_scope=scope,
-                    group_id=group_id,
-                    group_title=group_title,
-                )
-            self.notify(  # type: ignore[attr-defined]
-                f"Failed to mark revived archive bundles: {exc}", severity="error"
-            )
-            return False
 
         for agent in succeeded:
             log_revive_success(

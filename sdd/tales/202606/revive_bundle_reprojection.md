@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-09 15:30:20
-status: wip
+status: done
 prompt: sdd/prompts/202606/revive_bundle_reprojection.md
 ---
 # Plan: Revived agents get re-hidden by stale dismissed bundles

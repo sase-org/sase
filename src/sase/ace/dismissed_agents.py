@@ -18,6 +18,7 @@ from .dismissed_agents_bundles import (
     load_dismissed_bundle_summaries as _load_dismissed_bundle_summaries_impl,
     load_dismissed_bundles as _load_dismissed_bundles_impl,
     mark_bundles_revived_by_suffixes as _mark_bundles_revived_by_suffixes_impl,
+    purge_revived_dismissed_bundles as _purge_revived_dismissed_bundles_impl,
     rebuild_dismissed_bundle_index as _rebuild_dismissed_bundle_index_impl,
     save_dismissed_bundle as _save_dismissed_bundle_impl,
     save_dismissed_bundle_python as _save_dismissed_bundle_python_impl,
@@ -245,6 +246,10 @@ def mark_bundles_revived_by_suffixes(
     return _mark_bundles_revived_by_suffixes_impl(
         _ctx(), suffixes, revived_at=revived_at
     )
+
+
+def purge_revived_dismissed_bundles() -> int:
+    return _purge_revived_dismissed_bundles_impl(_ctx())
 
 
 def _bundle_paths_for_suffixes(suffixes: set[str]) -> list[Path]:

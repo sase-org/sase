@@ -158,6 +158,16 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Emit a machine-readable JSON object",
     )
+    gc_parser.add_argument(
+        "-r",
+        "--purge-revived-bundles",
+        action="store_true",
+        help=(
+            "Before rebuilding, purge dismissed-bundle files and summary rows "
+            "for already-revived agents (suffixes absent from "
+            "dismissed_agents.json) so they stop re-hiding on rebuild"
+        ),
+    )
     rebuild_parser = index_sub.add_parser(
         "rebuild",
         help="Rebuild the persistent agent artifact index from artifacts",

@@ -332,6 +332,13 @@ that does not scan source artifacts, `sase agents index verify` to compare the i
 `sase agents index gc` to rebuild the index and dismissed projection. Use the Agents-tab leader command `,y` when you
 want an immediate full-history refresh from source artifacts.
 
+The dismissed projection that hides agents from the visible inbox is rebuilt from the in-memory dismissed set _unioned
+with every dismissed-bundle summary_. Reviving an agent now purges its dismissed bundle, so a revived agent stays
+visible. For archives that accumulated stale bundles before that fix, plain `sase agents index gc` is **not** a repair
+on its own -- it rebuilds the projection _from_ those lingering bundles and re-hides the revived agents. Run
+`sase agents index gc --purge-revived-bundles` (`-r`) to first delete dismissed-bundle files and summary rows for
+suffixes that are no longer present in `dismissed_agents.json`, then rebuild the corrected projection.
+
 When one or more agents are marked, `e` edits the marked set instead of only the focused row. ACE opens editable
 completed transcripts in visible row order, deduplicates repeated paths, skips live marked rows that are still running
 or have no chat file, and reports that live skip count. Stale marks are ignored for this action, and marks remain in
