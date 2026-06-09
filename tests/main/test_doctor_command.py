@@ -11,6 +11,7 @@ from sase.diagnostics import (
     DiagnosticRegistry,
     DiagnosticReport,
 )
+from sase.doctor.runner import DoctorContext, build_doctor_registry
 from sase.main import doctor_handler
 from sase.main.parser import create_parser
 
@@ -133,3 +134,19 @@ def test_doctor_list_checks_outputs_registered_ids(monkeypatch, capsys) -> None:
     assert (
         "runtime.version\truntime\tdefault\tRuntime version" in capsys.readouterr().out
     )
+
+
+def test_doctor_registry_includes_phase3_default_checks(tmp_path) -> None:
+    context = DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
+    registry = build_doctor_registry(context)
+
+    ids = {spec.id for spec in registry.list_default_checks()}
+
+    assert {
+        "llm.registry",
+        "llm.default",
+        "plugins.doctor",
+        "project.current",
+        "workspace.registry",
+        "state.agent_index",
+    } <= ids

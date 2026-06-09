@@ -21,6 +21,7 @@ class DoctorContext:
     project: str | None
     sase_home: Path
     verbose: bool = False
+    env: dict[str, str] = field(default_factory=dict)
     _runtime_inventory: RuntimeVersionInventory | None = field(
         default=None, init=False, repr=False
     )
@@ -38,21 +39,37 @@ def default_doctor_context(
     verbose: bool = False,
 ) -> DoctorContext:
     """Build the default doctor context from the current process."""
+    import os
+
     return DoctorContext(
         cwd=Path.cwd(),
         project=project,
         sase_home=sase_home(),
         verbose=verbose,
+        env=dict(os.environ),
     )
 
 
 def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
-    """Return the Phase 2 doctor registry in stable order."""
+    """Return the default doctor registry in stable order."""
+    from sase.doctor.checks_agent_index import agent_index_check_specs
     from sase.doctor.checks_config import config_check_specs
+    from sase.doctor.checks_plugins import plugin_check_specs
+    from sase.doctor.checks_project import project_check_specs
+    from sase.doctor.checks_providers import provider_check_specs
     from sase.doctor.checks_runtime import runtime_check_specs
+    from sase.doctor.checks_workspace import workspace_check_specs
 
     return DiagnosticRegistry(
-        (*runtime_check_specs(context), *config_check_specs(context))
+        (
+            *runtime_check_specs(context),
+            *config_check_specs(context),
+            *provider_check_specs(context),
+            *plugin_check_specs(context),
+            *project_check_specs(context),
+            *workspace_check_specs(context),
+            *agent_index_check_specs(context),
+        )
     )
 
 

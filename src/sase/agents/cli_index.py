@@ -59,6 +59,19 @@ def _agent_index_paths(args: argparse.Namespace) -> tuple[Path, Path]:
     return projects_root, index_path
 
 
+def build_agent_index_status_payload(
+    *,
+    projects_root: Path | str | None = None,
+    index_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """Return lightweight visible-inbox index diagnostics without scanning sources."""
+    resolved_projects_root = Path(projects_root or sase_projects_dir()).expanduser()
+    resolved_index_path = Path(
+        index_path or default_agent_artifact_index_path()
+    ).expanduser()
+    return _agent_index_status_payload(resolved_projects_root, resolved_index_path)
+
+
 def _handle_agents_index_rebuild(args: argparse.Namespace) -> None:
     """Rebuild the artifact summary index from source artifacts."""
     projects_root, index_path = _agent_index_paths(args)
@@ -91,7 +104,10 @@ def _handle_agents_index_status(args: argparse.Namespace) -> None:
     """Inspect the normal visible-inbox index path without a source scan."""
     projects_root, index_path = _agent_index_paths(args)
 
-    payload = _agent_index_status_payload(projects_root, index_path)
+    payload = build_agent_index_status_payload(
+        projects_root=projects_root,
+        index_path=index_path,
+    )
     if getattr(args, "json", False):
         print(json.dumps(payload, sort_keys=True))
         return

@@ -123,6 +123,11 @@ def _llm_metadata_payload() -> dict[str, Any]:
     return _direct_llm_metadata_payload()
 
 
+def get_llm_metadata_payload() -> dict[str, Any]:
+    """Return cached LLM provider metadata for diagnostics and UI callers."""
+    return _llm_metadata_payload()
+
+
 def model_to_provider_map() -> dict[str, str]:
     """Build a ``{model_name → provider_name}`` map from plugin metadata."""
     return _str_dict(_llm_metadata_payload().get("model_to_provider"))
