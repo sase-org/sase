@@ -56,6 +56,40 @@ def _flat_help(help_text: str) -> str:
     return " ".join(help_text.split())
 
 
+def _root_subparser_action(
+    parser: argparse.ArgumentParser,
+) -> argparse._SubParsersAction:
+    return next(
+        action
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+
+
+def _parse_and_capture_help(args: list[str], capsys: pytest.CaptureFixture[str]) -> str:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(args)
+
+    assert exc_info.value.code == 0
+    return capsys.readouterr().out
+
+
+def _compact_common_commands(help_text: str) -> set[str]:
+    commands: set[str] = set()
+    in_common_commands = False
+    for line in help_text.splitlines():
+        if line == "Common commands:":
+            in_common_commands = True
+            continue
+        if in_common_commands and not line:
+            break
+        if in_common_commands:
+            commands.add(line.split(maxsplit=1)[0])
+    return commands
+
+
 def test_all_subparser_choices_are_sorted() -> None:
     """Every subcommand group keeps usage metavars sorted alphabetically."""
     parser = create_parser()
@@ -131,6 +165,129 @@ def test_agents_help_renders_sorted_subcommands() -> None:
 
     assert help_commands == sorted(expected_commands)
     assert "{archive,index,kill,names,show,status,tag}" in agents_parser.format_help()
+
+
+def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> None:
+    """Root --help renders curated first-contact help."""
+    help_text = _parse_and_capture_help(["--help"], capsys)
+    common_commands = _compact_common_commands(help_text)
+
+    assert help_text.startswith("usage: sase [-h] [-H] <command> [args...]\n")
+    assert "SASE - Structured Agentic Software Engineering" in help_text
+    assert "Common commands:" in help_text
+    assert "Examples:" in help_text
+    assert (
+        'sase run "#cd:$(pwd) summarize this repository; do not change files"'
+        in help_text
+    )
+    assert "Use `sase --full-help` to show every command." in help_text
+    assert common_commands == {
+        "doctor",
+        "init",
+        "version",
+        "ace",
+        "run",
+        "agents",
+        "memory",
+        "bead",
+        "project",
+        "workspace",
+    }
+    assert (
+        "Run read-only install, config, provider, project, and state diagnostics."
+        in help_text
+    )
+    assert "Check or initialize AGENTS.md, memory, SDD guides, and skills." in help_text
+    assert (
+        "Show the exact SASE host, Rust core, and plugin packages loaded by this process."
+        in help_text
+    )
+    assert (
+        "Open the interactive control surface for agents, projects, notifications, "
+        "automation, and ChangeSpecs."
+    ) in help_text
+    assert (
+        "Launch or resume a coding-agent run from a prompt, xprompt, workflow, or history."
+        in help_text
+    )
+    assert (
+        "Inspect loaded memory, review proposals, and audit long-term memory activity."
+        in help_text
+    )
+
+
+def test_root_short_help_matches_long_help(capsys: pytest.CaptureFixture[str]) -> None:
+    """Root -h and --help render identical compact help."""
+    long_help = _parse_and_capture_help(["--help"], capsys)
+    short_help = _parse_and_capture_help(["-h"], capsys)
+
+    assert short_help == long_help
+
+
+def test_root_compact_help_omits_representative_secondary_commands(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Compact root help leaves lower-level commands to --full-help."""
+    help_text = _parse_and_capture_help(["--help"], capsys)
+    common_commands = _compact_common_commands(help_text)
+
+    assert {"artifact", "mobile", "telemetry", "questions", "var"}.isdisjoint(
+        common_commands
+    )
+
+
+def test_root_full_help_renders_every_top_level_command(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Root --full-help preserves the exhaustive argparse command inventory."""
+    parser = create_parser()
+    expected_commands = set(_root_subparser_action(parser).choices)
+
+    help_text = _parse_and_capture_help(["--full-help"], capsys)
+    help_commands = set(_help_subcommand_rows(help_text, expected_commands))
+
+    assert "-h, --help" in help_text
+    assert "-H, --full-help" in help_text
+    assert expected_commands <= help_commands
+
+
+def test_root_short_full_help_matches_long_full_help(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Root -H and --full-help render identical exhaustive help."""
+    long_help = _parse_and_capture_help(["--full-help"], capsys)
+    short_help = _parse_and_capture_help(["-H"], capsys)
+
+    assert short_help == long_help
+
+
+def test_non_compact_root_commands_still_parse() -> None:
+    """Commands omitted from compact help remain registered and parseable."""
+    parser = create_parser()
+
+    artifact_args = parser.parse_args(["artifact", "create", "--path", "out.txt"])
+    mobile_args = parser.parse_args(["mobile", "agent-bridge", "list-agents"])
+    telemetry_args = parser.parse_args(["telemetry", "status"])
+    questions_args = parser.parse_args(["questions", "[]"])
+    var_args = parser.parse_args(["var", "set", "answer=42"])
+
+    assert artifact_args.command == "artifact"
+    assert mobile_args.command == "mobile"
+    assert telemetry_args.command == "telemetry"
+    assert questions_args.command == "questions"
+    assert var_args.command == "var"
+
+
+def test_root_full_help_short_flag_does_not_capture_subcommand_flags() -> None:
+    """Subcommand -H flags keep their existing meaning after a subcommand."""
+    args = create_parser().parse_args(
+        ["mobile", "gateway", "start", "-H", "/tmp/sase-mobile-state"]
+    )
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "gateway"
+    assert args.mobile_gateway_subcommand == "start"
+    assert args.state_dir == "/tmp/sase-mobile-state"
 
 
 def test_memory_help_marks_primary_command_and_init_alias() -> None:

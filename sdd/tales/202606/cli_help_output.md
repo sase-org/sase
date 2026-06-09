@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-09 18:15:06
-status: wip
+status: done
 prompt: sdd/prompts/202606/cli_help_output.md
 ---
 # Improve `sase` Command Line Help Output

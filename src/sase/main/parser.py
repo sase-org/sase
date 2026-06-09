@@ -1,6 +1,9 @@
 """Argument parser creation for the SASE CLI tool."""
 
 import argparse
+import sys
+from dataclasses import dataclass
+from typing import Any
 
 from sase.main.parser_ace import register_ace_parser, register_axe_parser
 from sase.main.parser_agents import register_agents_parser
@@ -45,6 +48,161 @@ from sase.main.parser_var import register_var_parser
 from sase.main.parser_version import register_version_parser
 from sase.main.parser_workspace import register_workspace_parser
 from sase.main.parser_xprompt import register_xprompt_parser
+
+
+@dataclass(frozen=True)
+class _CompactRootCommand:
+    name: str
+    summary: str
+
+
+_COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
+    _CompactRootCommand(
+        "doctor",
+        "Run read-only install, config, provider, project, and state diagnostics.",
+    ),
+    _CompactRootCommand(
+        "init",
+        "Check or initialize AGENTS.md, memory, SDD guides, and skills.",
+    ),
+    _CompactRootCommand(
+        "version",
+        "Show the exact SASE host, Rust core, and plugin packages loaded by this process.",
+    ),
+    _CompactRootCommand(
+        "ace",
+        "Open the interactive control surface for agents, projects, notifications, "
+        "automation, and ChangeSpecs.",
+    ),
+    _CompactRootCommand(
+        "run",
+        "Launch or resume a coding-agent run from a prompt, xprompt, workflow, or history.",
+    ),
+    _CompactRootCommand(
+        "agents",
+        "List, inspect, tag, or stop active and recent agent runs.",
+    ),
+    _CompactRootCommand(
+        "memory",
+        "Inspect loaded memory, review proposals, and audit long-term memory activity.",
+    ),
+    _CompactRootCommand(
+        "bead",
+        "Manage git-portable issues, dependencies, planning beads, and executable epics.",
+    ),
+    _CompactRootCommand(
+        "project",
+        "List active projects and hide or reactivate dormant work.",
+    ),
+    _CompactRootCommand(
+        "workspace",
+        "Inspect, prepare, and repair numbered checkouts used by parallel agents.",
+    ),
+)
+
+_COMPACT_ROOT_EXAMPLES: tuple[str, ...] = (
+    "sase doctor",
+    "sase init -c",
+    'sase run "#cd:$(pwd) summarize this repository; do not change files"',
+    "sase ace",
+    "sase agents status",
+    "sase --full-help",
+)
+
+
+class _CompactRootHelpAction(argparse.Action):
+    """Print curated root help and exit."""
+
+    def __init__(self, option_strings: list[str], dest: str, **kwargs: Any) -> None:
+        super().__init__(
+            option_strings=option_strings,
+            dest=dest,
+            nargs=0,
+            default=argparse.SUPPRESS,
+            **kwargs,
+        )
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        del namespace, values, option_string
+        parser._print_message(_format_compact_root_help(parser), sys.stdout)
+        parser.exit()
+
+
+class _FullRootHelpAction(argparse.Action):
+    """Print exhaustive argparse root help and exit."""
+
+    def __init__(self, option_strings: list[str], dest: str, **kwargs: Any) -> None:
+        super().__init__(
+            option_strings=option_strings,
+            dest=dest,
+            nargs=0,
+            default=argparse.SUPPRESS,
+            **kwargs,
+        )
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        del namespace, values, option_string
+        parser.print_help()
+        parser.exit()
+
+
+def _root_subparser_action(
+    parser: argparse.ArgumentParser,
+) -> argparse._SubParsersAction:
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return action
+    msg = "root parser has no subparser action"
+    raise AssertionError(msg)
+
+
+def _format_compact_root_help(parser: argparse.ArgumentParser) -> str:
+    subparser_action = _root_subparser_action(parser)
+    missing_commands = [
+        command.name
+        for command in _COMPACT_ROOT_COMMANDS
+        if command.name not in subparser_action.choices
+    ]
+    if missing_commands:
+        joined_commands = ", ".join(missing_commands)
+        msg = f"compact root help references unknown command(s): {joined_commands}"
+        raise AssertionError(msg)
+
+    command_width = max(len(command.name) for command in _COMPACT_ROOT_COMMANDS)
+    command_rows = [
+        f"  {command.name:<{command_width}}  {command.summary}"
+        for command in _COMPACT_ROOT_COMMANDS
+    ]
+    example_rows = [f"  {example}" for example in _COMPACT_ROOT_EXAMPLES]
+    return "\n".join(
+        [
+            "usage: sase [-h] [-H] <command> [args...]",
+            "",
+            "SASE - Structured Agentic Software Engineering",
+            "",
+            "Common commands:",
+            *command_rows,
+            "",
+            "Examples:",
+            *example_rows,
+            "",
+            "Use `sase <command> --help` for command-specific flags.",
+            "Use `sase --full-help` to show every command.",
+            "",
+        ]
+    )
 
 
 def _sort_subcommand_help(parser: argparse.ArgumentParser) -> None:
@@ -114,7 +272,21 @@ def _default_list_subcommands(parser: argparse.ArgumentParser) -> None:
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser with subcommands."""
     parser = argparse.ArgumentParser(
-        description="SASE - Structured Agentic Software Engineering", prog="sase"
+        add_help=False,
+        description="SASE - Structured Agentic Software Engineering",
+        prog="sase",
+    )
+    parser.add_argument(
+        "-h",
+        "--help",
+        action=_CompactRootHelpAction,
+        help="show compact help and exit",
+    )
+    parser.add_argument(
+        "-H",
+        "--full-help",
+        action=_FullRootHelpAction,
+        help="show full command inventory and exit",
     )
 
     # Top-level subparsers
