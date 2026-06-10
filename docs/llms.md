@@ -258,8 +258,9 @@ assistant reply text and per-cycle usage totals, and writes normalized tool-call
 
 ### Default Model
 
-The Gemini provider uses `gemini-3-flash-preview` as its default model. This can be overridden per-prompt using the
-`%model` directive (e.g., `%model:gemini-2.5-flash`).
+The Gemini provider uses `gemini-3-flash-preview` as its default model. The Gemini provider does not vary models by tier
+— both `large` and `small` resolve to this default. It can be overridden per-prompt using the `%model` directive (e.g.,
+`%model:gemini-2.5-flash`).
 
 ### Environment Variables
 
@@ -574,7 +575,7 @@ Known model names are automatically mapped to their provider:
 
 | Model Name                                                                                                                                                | Provider |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `opus`, `sonnet`, `haiku`                                                                                                                                 | claude   |
+| `opus`, `sonnet`, `haiku`, `claude-fable-5`                                                                                                               | claude   |
 | `gpt-5.5`, `gpt-5.3-codex`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                           | codex    |
 | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.0-flash`                            | gemini   |
 | `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                             | qwen     |
@@ -582,9 +583,26 @@ Known model names are automatically mapped to their provider:
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()` hook.
 
-For unrecognized model names, the default provider is used.
+For unrecognized model names, the default provider is used and a warning is logged.
 
 Source: `src/sase/llm_provider/registry.py`
+
+### Model Short Aliases
+
+Providers also declare compact display shorthands for long model ids via the `llm_model_short_aliases()` hook. These
+shorthands appear in multi-model agent name suffixes on the Agents tab and act as filter terms in the coder model
+picker. They are display-only: `%model` resolution uses known model names and
+[configured model aliases](#configured-model-aliases), not these shorthands.
+
+| Provider | Shorthands                                                                                                                                                                                                                  |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| claude   | `claude-fable-5` → `fable`                                                                                                                                                                                                  |
+| codex    | `codex-mini-latest` → `mini`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex` → `gpt53`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                 |
+| gemini   | `gemini-3-flash-preview` → `flash3`, `gemini-3.1-pro-preview` → `pro31p`, `gemini-3.1-pro` → `pro31`, `gemini-2.5-flash` → `flash25`, `gemini-2.5-pro` → `pro25`, `gemini-2.0-flash` → `flash20`                            |
+| qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                 |
+| opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp` |
+
+Source: `llm_model_short_aliases()` in each provider module under `src/sase/llm_provider/`
 
 ## Model Tier System
 
@@ -976,6 +994,8 @@ After execution completes, retry metadata is written to `done.json` in the agent
   "used_fallback": false
 }
 ```
+
+When `used_fallback` is `true`, the metadata also includes the `fallback_model` that served the final attempt.
 
 Source: `src/sase/llm_provider/retry_config.py`, `src/sase/axe/run_agent_exec.py`
 

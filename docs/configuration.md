@@ -135,12 +135,13 @@ ace:
             shell: "just test"
 ```
 
-| Field               | Type         | Default   | Description                                                             |
-| ------------------- | ------------ | --------- | ----------------------------------------------------------------------- |
-| `inactive_seconds`  | int          | `600`     | Seconds of inactivity before the IDLE badge appears in the TUI top bar. |
-| `keymaps`           | dict         | -         | Configurable keybindings (see below).                                   |
-| `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                 |
-| `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.    |
+| Field               | Type         | Default   | Description                                                                                                      |
+| ------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------- |
+| `inactive_seconds`  | int          | `600`     | Seconds of inactivity before the IDLE badge appears in the TUI top bar.                                          |
+| `keymaps`           | dict         | -         | Configurable keybindings (see below).                                                                            |
+| `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                          |
+| `repro_output_dir`  | str          | `""`      | Base directory for Agents-tab reproduction bundles. Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
+| `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                             |
 
 The IDLE indicator can also be triggered manually via the leader-mode `,I` keybinding. External tools can query idle
 status via `sase.ace.tui_activity.is_idle()`.

@@ -1120,7 +1120,9 @@ built-in xprompt (see [sase/xprompts/coder.md](https://github.com/sase-org/sase/
 `#coder` takes the approved plan file as its `plan_file` input, injects it with `@`, and instructs the agent to
 implement the plan. By default the coder does _not_ inherit the planner's chat transcript — the plan file is the
 hand-off artifact. Set `SASE_CODER_INHERIT_PLANNER_CHAT=1` to restore the old behavior, in which case a
-`#fork:<planner_name>` reference is prepended to the coder prompt so it resumes the planner's session.
+`#fork:<planner_name>` reference is prepended to the coder prompt so it resumes the planner's session. The coder prompt
+carries a `%model:` directive — the coder model chosen at approval time, or the planner's own model with its provider
+qualification preserved so the provider/model pair stays routable.
 
 ### Epic Directive
 

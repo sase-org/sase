@@ -1199,9 +1199,10 @@ When the same base name is shared by multiple co-launched agents (e.g. multi-mod
 the rendered display name carries a short `.<provider>` or `.<provider>(<model>)` suffix so each row is distinguishable.
 Provider suffixes are supplied by the LLM provider plugins via the `llm_provider_short_name` hook (built-in defaults:
 `cld` for Claude, `cdx` for Codex, `gem` for Gemini). Additional provider plugins can contribute their own short names.
-Model-name shorthands come from the `llm_model_short_aliases` hook (e.g. `opus`, `sonnet`, `haiku`) and are resolved
-against the configured model so the suffix stays compact regardless of how the model was spelled in the prompt or
-config. Single-runtime spawns omit the suffix.
+Model-name shorthands come from the `llm_model_short_aliases` hook (e.g. `fable` for `claude-fable-5`, `gpt55` for
+`gpt-5.5`; see [Model Short Aliases](llms.md#model-short-aliases)) and are resolved against the configured model so the
+suffix stays compact regardless of how the model was spelled in the prompt or config. Single-runtime spawns omit the
+suffix.
 
 An explicit `%name:<name>` launch fails before spawning if `<name>` is already reserved. The prompt is saved as a
 cancelled history entry and the error suggests the lowest free numeric suffix, such as `<name>1`. To deliberately reuse
@@ -1503,7 +1504,9 @@ The dialog keeps the custom coder prompt and model controls:
 - **Coder model** — Select an LLM model for the coder agent instead of inheriting the planner's model. Shows all
   registered models grouped by provider (Claude, Codex, Gemini, Qwen, OpenCode) with a "Custom..." option for freeform
   input. Type to filter by provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to
-  select, `Esc` to clear the filter or cancel, and `'` for jump hints over the visible selectable rows.
+  select, `Esc` to clear the filter or cancel, and `'` for jump hints over the visible selectable rows. When no coder
+  model is selected, the coder inherits the planner's model with its provider qualification preserved, so the
+  provider/model pair stays routable across the handoff.
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
 commit location and follow-up behavior.
@@ -1616,7 +1619,6 @@ markdown syntax highlighting for prompt content (headings, bold, italic, code bl
 | `Ctrl+A` | Move to start of line (jumps to previous line start if already at col 0)                      |
 | `Ctrl+E` | Move to end of line (jumps to next line end if already at end)                                |
 | `Ctrl+G` | Open full prompt in `$EDITOR`                                                                 |
-| `Ctrl+I` | Load a prompt from history                                                                    |
 | `Ctrl+T` | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
 | `Ctrl+R` | Recursive fuzzy file finder using the same prompt-aware path root as file completion          |
 | `Tab`    | Snippet expansion (see below)                                                                 |
@@ -1783,7 +1785,7 @@ or contains only a workspace prefix.
 | -------- | --------------------------------------------- |
 | `Enter`  | Submit the highlighted prompt directly        |
 | `Ctrl+G` | Edit first — load prompt into editor          |
-| `Ctrl+I` | Load prompt into the input widget for editing |
+| `Tab`    | Load prompt into the input widget for editing |
 | `Ctrl+X` | Toggle visibility of cancelled prompts        |
 | `Ctrl+Y` | Copy prompt to clipboard                      |
 | `Esc`    | Close modal                                   |
