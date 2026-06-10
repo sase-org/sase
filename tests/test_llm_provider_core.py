@@ -150,6 +150,10 @@ def test_resolve_model_provider_implicit_mapping() -> None:
     assert resolve_model_provider("o3") == ("codex", "o3")
     assert resolve_model_provider("opus") == ("claude", "opus")
     assert resolve_model_provider("sonnet") == ("claude", "sonnet")
+    assert resolve_model_provider("claude-fable-5") == (
+        "claude",
+        "claude-fable-5",
+    )
     assert resolve_model_provider("gpt-5.5") == ("codex", "gpt-5.5")
     assert resolve_model_provider("gpt-5.3-codex") == ("codex", "gpt-5.3-codex")
     assert resolve_model_provider("gemini-2.5-pro") == ("gemini", "gemini-2.5-pro")
@@ -184,6 +188,12 @@ def test_model_short_alias_map_contains_codex_entries() -> None:
     aliases = model_short_alias_map()
     assert aliases.get("codex-mini-latest") == "mini"
     assert aliases.get("gpt-5.5") == "gpt55"
+
+
+def test_model_short_alias_map_contains_claude_entries() -> None:
+    """The aggregated alias map carries the claude plugin's entries."""
+    aliases = model_short_alias_map()
+    assert aliases.get("claude-fable-5") == "fable"
 
 
 def test_model_short_alias_map_omits_short_models() -> None:

@@ -6,7 +6,7 @@ from ..models.agent import Agent, AgentType
 def short_model_name(model: str) -> str:
     """Extract short display name from a model string."""
     model_lower = model.lower()
-    for keyword in ("flash", "opus", "sonnet", "haiku", "pro"):
+    for keyword in ("flash", "fable", "opus", "sonnet", "haiku", "pro"):
         if keyword in model_lower:
             return keyword
     parts = model.split("-")

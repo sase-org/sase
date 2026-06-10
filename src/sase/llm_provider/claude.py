@@ -68,11 +68,11 @@ class ClaudeCodeProvider(LLMProvider):
 
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
-        return ["opus", "sonnet", "haiku"]
+        return ["opus", "sonnet", "haiku", "claude-fable-5"]
 
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
-        return {}
+        return {"claude-fable-5": "fable"}
 
     @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:

@@ -54,6 +54,7 @@ def test_build_model_options_has_known_models() -> None:
     ids = {o.id for o in options if o is not None}
     assert "opus" in ids
     assert "sonnet" in ids
+    assert "claude-fable-5" in ids
     assert "o3" in ids
     assert "gpt-5.5" in ids
     assert "gemini-2.5-pro" in ids
@@ -107,6 +108,23 @@ def test_model_picker_model_rows_include_alias_as_dim_secondary_text() -> None:
     assert option.prompt.plain.startswith("   anthropic/claude-sonnet-4-5")
     assert "sonnet45" in option.prompt.plain
     assert any(span.style == "dim #E6D18A" for span in option.prompt.spans)
+
+
+def test_model_picker_claude_fable_row_includes_alias() -> None:
+    """Claude Fable 5 should appear in the claude group with its short alias."""
+    rows = _build_model_rows()
+    row = next(row for row in rows if row.option_id == "claude-fable-5")
+    option = _rows_to_options([row])[0]
+
+    assert row.provider == "claude"
+    assert row.model_id == "claude-fable-5"
+    assert row.alias == "fable"
+    assert row.label == "    claude-fable-5  (fable)"
+    assert option is not None
+    assert isinstance(option.prompt, Text)
+    assert "claude-fable-5" in option.prompt.plain
+    assert "fable" in option.prompt.plain
+    assert any(span.style == "dim #D7AF87" for span in option.prompt.spans)
 
 
 async def test_model_picker_returns_none_for_default() -> None:
