@@ -6,11 +6,11 @@ input:
     description: Research topic or question for the swarm to investigate.
 ---
 
-%name:research.@.cdx %model:codex/gpt-5.5 %g:research {{ prompt }} #research
+%name:research.@.cdx #m_codex %g:research {{ prompt }} #research
 
 ---
 
-%name:research.@.cld %model:claude/opus %g:research {{ prompt }} #research
+%name:research.@.cld #m_fable %g:research {{ prompt }} #research
 
 ---
 
@@ -36,4 +36,4 @@ Research request:
 
 ---
 
-%name:research.@.image %wait:research.@.final %g:research #fork:research.@.final #research/image %m:gpt-5.5
+%name:research.@.image #m_codex %wait:research.@.final %g:research #fork:research.@.final #research/image
