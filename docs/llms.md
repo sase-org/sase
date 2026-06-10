@@ -583,16 +583,18 @@ Known model names are automatically mapped to their provider:
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()` hook.
 
-For unrecognized model names, the default provider is used and a warning is logged.
+For unrecognized model names, the prompt falls back to the default provider and a warning is logged at invocation time.
 
-Source: `src/sase/llm_provider/registry.py`
+Source: `src/sase/llm_provider/registry.py`, `src/sase/llm_provider/_invoke.py`
 
 ### Model Short Aliases
 
 Providers also declare compact display shorthands for long model ids via the `llm_model_short_aliases()` hook. These
-shorthands appear in multi-model agent name suffixes on the Agents tab and act as filter terms in the coder model
-picker. They are display-only: `%model` resolution uses known model names and
-[configured model aliases](#configured-model-aliases), not these shorthands.
+shorthands appear in [provider/model agent-name suffixes](ace.md#providermodel-suffixes) on the Agents tab and act as
+filter terms in the coder model picker. They are display-only: `%model` resolution uses known model names and
+[configured model aliases](#configured-model-aliases), not these shorthands. For example, `%model:fable` does _not_
+select `claude-fable-5` — it falls back to the default provider (with a warning) unless you define `fable` as a
+configured model alias yourself.
 
 | Provider | Shorthands                                                                                                                                                                                                                  |
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -985,7 +987,8 @@ The ACE Agents tab reflects retry state (see [Retry/Fallback Display](ace.md#ret
 
 ### Metadata Tracking
 
-After execution completes, retry metadata is written to `done.json` in the agent's artifacts directory:
+If any retries occurred or a fallback model was used, retry metadata is written to `done.json` in the agent's artifacts
+directory after execution completes (runs that succeed on the first attempt omit these fields):
 
 ```json
 {
@@ -997,7 +1000,7 @@ After execution completes, retry metadata is written to `done.json` in the agent
 
 When `used_fallback` is `true`, the metadata also includes the `fallback_model` that served the final attempt.
 
-Source: `src/sase/llm_provider/retry_config.py`, `src/sase/axe/run_agent_exec.py`
+Source: `src/sase/llm_provider/retry_config.py`, `src/sase/axe/run_agent_exec_finalize.py`
 
 ### Spawn-on-Retry
 

@@ -1504,9 +1504,10 @@ The dialog keeps the custom coder prompt and model controls:
 - **Coder model** — Select an LLM model for the coder agent instead of inheriting the planner's model. Shows all
   registered models grouped by provider (Claude, Codex, Gemini, Qwen, OpenCode) with a "Custom..." option for freeform
   input. Type to filter by provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to
-  select, `Esc` to clear the filter or cancel, and `'` for jump hints over the visible selectable rows. When no coder
-  model is selected, the coder inherits the planner's model with its provider qualification preserved, so the
-  provider/model pair stays routable across the handoff.
+  select, `Esc` to clear the filter or cancel, and `'` for jump hints over the visible selectable rows. Leaving the
+  default "Same as planner" row selected inherits the planner's model: the coder is launched with a provider-qualified
+  `%model:<provider>/<model>` directive (e.g. `%model:claude/claude-fable-5`), so it runs on the same provider as the
+  planner even when the bare model name alone would not resolve to that provider.
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
 commit location and follow-up behavior.

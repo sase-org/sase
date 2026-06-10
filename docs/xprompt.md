@@ -1121,8 +1121,9 @@ built-in xprompt (see [sase/xprompts/coder.md](https://github.com/sase-org/sase/
 implement the plan. By default the coder does _not_ inherit the planner's chat transcript — the plan file is the
 hand-off artifact. Set `SASE_CODER_INHERIT_PLANNER_CHAT=1` to restore the old behavior, in which case a
 `#fork:<planner_name>` reference is prepended to the coder prompt so it resumes the planner's session. The coder prompt
-carries a `%model:` directive — the coder model chosen at approval time, or the planner's own model with its provider
-qualification preserved so the provider/model pair stays routable.
+also carries a `%model:` directive: the coder model chosen at approval time or, when none was chosen, the planner's own
+model qualified with its provider (e.g. `%model:claude/claude-fable-5`) so the coder runs on the same provider as the
+planner.
 
 ### Epic Directive
 
