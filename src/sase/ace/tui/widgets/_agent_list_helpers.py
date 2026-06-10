@@ -1,5 +1,7 @@
 """Pure helper functions for the agent list widget."""
 
+from datetime import datetime
+
 from ..models.agent import Agent, AgentType
 
 
@@ -27,6 +29,43 @@ def step_role_suffix(agent: Agent) -> str:
     if agent.step_type == "agent":
         return agent.role_suffix
     return ""
+
+
+def _normalized_provider(provider: str | None) -> str | None:
+    if provider is None:
+        return None
+    normalized = provider.strip().lower()
+    return normalized or None
+
+
+def _row_launch_time(agent: Agent) -> datetime:
+    return agent.run_start_time or agent.start_time or datetime.min
+
+
+def ordered_row_providers(agent: Agent) -> tuple[str, ...]:
+    """Return distinct row provider names in first-launch order."""
+    candidates: list[Agent] = []
+
+    def collect(current: Agent, seen: set[int]) -> None:
+        current_id = id(current)
+        if current_id in seen:
+            return
+        candidates.append(current)
+        child_seen = seen | {current_id}
+        for child in getattr(current, "runtime_children", ()):
+            collect(child, child_seen)
+
+    collect(agent, set())
+
+    providers: list[str] = []
+    seen_providers: set[str] = set()
+    for candidate in sorted(candidates, key=_row_launch_time):
+        provider = _normalized_provider(candidate.llm_provider)
+        if provider is None or provider in seen_providers:
+            continue
+        providers.append(provider)
+        seen_providers.add(provider)
+    return tuple(providers)
 
 
 def _is_foldable_parent(agent: Agent) -> bool:

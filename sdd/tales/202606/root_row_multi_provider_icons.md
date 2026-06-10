@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-10 10:23:49
-status: wip
+status: done
 prompt: sdd/prompts/202606/root_row_multi_provider_icons.md
 ---
 # Show All Child LLM Provider Icons on Root Agent Rows

@@ -173,6 +173,73 @@ def test_render_key_changes_when_llm_provider_changes() -> None:
     assert k1 != k2
 
 
+def test_render_key_changes_when_runtime_child_provider_changes() -> None:
+    a = _agent()
+    child = _agent(
+        cl_name="demo.plan",
+        raw_suffix="20260425143100",
+    )
+    child.llm_provider = "claude"
+    a.runtime_children.append(child)
+
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+    child.llm_provider = "codex"
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    assert k1 != k2
+
+
+def test_render_key_changes_when_provider_child_is_attached() -> None:
+    a = _agent()
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    child = _agent(
+        cl_name="demo.code",
+        raw_suffix="20260425143100",
+    )
+    child.llm_provider = "codex"
+    a.runtime_children.append(child)
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    assert k1 != k2
+
+
 def test_render_key_changes_when_bead_agent_name_changes() -> None:
     a = _agent(agent_name="sase-x.3")
     k1 = agent_render_key(

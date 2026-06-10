@@ -12,7 +12,11 @@ from sase.xprompt.workflow_output import get_substep_suffix
 from ..provider_styles import provider_emoji_badge
 from ..models.agent import Agent, AgentType, format_compact_duration
 from ..models.agent_bead import derive_agent_bead_id
-from ._agent_list_helpers import short_model_name, step_role_suffix
+from ._agent_list_helpers import (
+    ordered_row_providers,
+    short_model_name,
+    step_role_suffix,
+)
 from ._agent_list_render_cache import AgentRenderCache, agent_render_key
 from ._agent_list_render_layout import (
     build_activity_suffix,
@@ -146,13 +150,11 @@ def format_agent_option(
         else:
             text.append(f"[{dt}] ", style=f"bold {color}")
 
-    emoji_badge = (
-        provider_emoji_badge(agent.llm_provider)
-        if _should_render_provider_badge(agent)
-        else None
-    )
-    if emoji_badge:
-        text.append(f"{emoji_badge} ")
+    if _should_render_provider_badge(agent):
+        for provider in ordered_row_providers(agent):
+            emoji_badge = provider_emoji_badge(provider)
+            if emoji_badge:
+                text.append(f"{emoji_badge} ")
     if _has_file_change_hint(agent):
         text.append(_FILE_CHANGE_GLYPH, style=_FILE_CHANGE_GLYPH_STYLE)
         text.append(" ")

@@ -17,6 +17,7 @@ from ..models.agent import Agent
 from ..models.agent_bead import derive_agent_bead_id
 from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import runtime_suffix_ticks
+from ._agent_list_helpers import ordered_row_providers
 
 _AGENT_CACHE_MAX = 512
 _BANNER_CACHE_MAX = 128
@@ -131,7 +132,7 @@ def agent_render_key(
         agent.agent_name,
         bool(agent.diff_path),
         derive_agent_bead_id(agent),
-        agent.llm_provider,
+        ordered_row_providers(agent),
         agent.hidden,
         agent.retry_attempt,
         agent.is_workflow_child,

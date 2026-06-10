@@ -145,6 +145,101 @@ class TestStartingStatusRendering:
 
 
 class TestAgentListProviderEmojiBadges:
+    def test_root_row_renders_child_provider_emojis_before_name(self) -> None:
+        root = make_agent(
+            cl_name="root-agent",
+            llm_provider=None,
+            start_time=datetime(2024, 1, 1, 14, 0, 0),
+        )
+        planner = make_agent(
+            cl_name="planner",
+            llm_provider="claude",
+            start_time=datetime(2024, 1, 1, 14, 1, 0),
+        )
+        coder = make_agent(
+            cl_name="coder",
+            llm_provider="codex",
+            start_time=datetime(2024, 1, 1, 14, 5, 0),
+        )
+        root.runtime_children.extend([planner, coder])
+
+        left, _, _ = format_agent_option(root, 0, is_selected=False)
+
+        assert "🎭 🤖 root-agent (RUNNING)" in left.plain
+
+    def test_root_row_provider_order_follows_first_run_time(self) -> None:
+        root = make_agent(
+            cl_name="root-agent",
+            llm_provider=None,
+            start_time=datetime(2024, 1, 1, 14, 0, 0),
+        )
+        gemini = make_agent(
+            cl_name="gemini",
+            llm_provider="gemini",
+            start_time=datetime(2024, 1, 1, 14, 6, 0),
+        )
+        codex = make_agent(
+            cl_name="codex",
+            llm_provider="codex",
+            start_time=datetime(2024, 1, 1, 14, 3, 0),
+        )
+        claude = make_agent(
+            cl_name="claude",
+            llm_provider="claude",
+            start_time=datetime(2024, 1, 1, 14, 1, 0),
+        )
+        root.runtime_children.extend([gemini, codex, claude])
+
+        left, _, _ = format_agent_option(root, 0, is_selected=False)
+
+        assert "🎭 🤖 ♊ root-agent (RUNNING)" in left.plain
+
+    def test_root_row_deduplicates_provider_emojis(self) -> None:
+        root = make_agent(
+            cl_name="root-agent",
+            llm_provider="claude",
+            start_time=datetime(2024, 1, 1, 14, 0, 0),
+        )
+        planner = make_agent(
+            cl_name="planner",
+            llm_provider="claude",
+            start_time=datetime(2024, 1, 1, 14, 1, 0),
+        )
+        coder = make_agent(
+            cl_name="coder",
+            llm_provider="codex",
+            start_time=datetime(2024, 1, 1, 14, 5, 0),
+        )
+        root.runtime_children.extend([planner, coder])
+
+        left, _, _ = format_agent_option(root, 0, is_selected=False)
+
+        assert "🎭 🤖 root-agent (RUNNING)" in left.plain
+        assert left.plain.count("🎭") == 1
+
+    def test_root_row_skips_providerless_child_and_includes_grandchild(self) -> None:
+        root = make_agent(
+            cl_name="root-agent",
+            llm_provider="claude",
+            start_time=datetime(2024, 1, 1, 14, 0, 0),
+        )
+        child = make_agent(
+            cl_name="child",
+            llm_provider=None,
+            start_time=datetime(2024, 1, 1, 14, 1, 0),
+        )
+        grandchild = make_agent(
+            cl_name="grandchild",
+            llm_provider="gemini",
+            start_time=datetime(2024, 1, 1, 14, 2, 0),
+        )
+        child.runtime_children.append(grandchild)
+        root.runtime_children.append(child)
+
+        left, _, _ = format_agent_option(root, 0, is_selected=False)
+
+        assert "🎭 ♊ root-agent (RUNNING)" in left.plain
+
     def test_root_row_renders_opencode_provider_emoji_before_name(self) -> None:
         agent = make_agent(cl_name="root-agent", llm_provider="opencode")
 
