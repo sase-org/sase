@@ -1,5 +1,6 @@
 """Tests for llm_provider invoke_agent orchestration."""
 
+import logging
 import os
 from unittest.mock import MagicMock, patch
 
@@ -129,6 +130,54 @@ def test_invoke_agent_resolves_model_alias_for_provider_and_model(
         suppress_output=True,
         model_override="opus",
     )
+
+
+def test_invoke_agent_warns_when_model_override_falls_back_to_default_provider(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unresolved %model override logs the default-provider fallback."""
+    mock_provider = MagicMock()
+    mock_provider.invoke.return_value = InvokeResult(content="response")
+
+    with (
+        patch(
+            "sase.llm_provider._invoke.resolve_model_provider",
+            return_value=(None, "unregistered-model"),
+        ) as mock_resolve,
+        patch(
+            "sase.llm_provider._invoke.get_default_provider_name",
+            return_value="codex",
+        ) as mock_default_provider,
+        patch(
+            "sase.llm_provider._invoke.get_provider",
+            return_value=mock_provider,
+        ) as mock_get_provider,
+        patch("sase.llm_provider._invoke.postprocess_success"),
+        patch(
+            "sase.llm_provider._invoke.run_commit_finalizer",
+            side_effect=lambda **kw: kw["invoke_result"],
+        ),
+        caplog.at_level(logging.WARNING, logger="sase.llm_provider._invoke"),
+    ):
+        invoke_agent(
+            "prompt",
+            agent_type="test",
+            suppress_output=True,
+            skip_preprocessing=True,
+            directives=PromptDirectives(model="unregistered-model"),
+        )
+
+    mock_resolve.assert_called_once_with("unregistered-model")
+    mock_default_provider.assert_called_once_with()
+    mock_get_provider.assert_called_once_with("codex")
+    mock_provider.invoke.assert_called_once_with(
+        "prompt",
+        model_tier="large",
+        suppress_output=True,
+        model_override="unregistered-model",
+    )
+    assert "unregistered-model" in caplog.text
+    assert "codex" in caplog.text
 
 
 @patch("sase.llm_provider._invoke.get_provider")

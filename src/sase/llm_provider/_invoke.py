@@ -5,6 +5,7 @@ This replaces the old ``gemini_wrapper.invoke_agent()`` and
 layer that delegates the actual LLM call to a pluggable provider.
 """
 
+import logging
 import os
 import subprocess
 import time
@@ -38,6 +39,8 @@ from .types import (
     LoggingContext,
     ModelTier,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def invoke_agent(
@@ -138,9 +141,18 @@ def invoke_agent(
 
     # Resolve provider from model override (e.g. "o3" → codex, "codex/o3" → codex)
     if model_override and not provider_name:
+        original_model_override = model_override
         resolved_provider, model_override = resolve_model_provider(model_override)
         if resolved_provider:
             provider_name = resolved_provider
+        else:
+            provider_name = get_default_provider_name()
+            logger.warning(
+                "Model override %r did not resolve to an LLM provider; "
+                "falling back to default provider %r.",
+                original_model_override,
+                provider_name,
+            )
 
     # Apply active temporary override only when neither an explicit
     # %model directive nor an explicit provider_name was supplied.

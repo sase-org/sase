@@ -25,8 +25,19 @@ def patch_plan_deps():
 class TestPlanFollowupPromptConstruction:
     """Verify plan approval follow-up prompts."""
 
-    def _run(self, tmp_path, *, action: str, agent_model: str | None):
-        ctx = make_ctx(tmp_path, agent_model=agent_model)
+    def _run(
+        self,
+        tmp_path,
+        *,
+        action: str,
+        agent_model: str | None,
+        agent_llm_provider: str | None = "anthropic",
+    ):
+        ctx = make_ctx(
+            tmp_path,
+            agent_model=agent_model,
+            agent_llm_provider=agent_llm_provider,
+        )
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
@@ -47,7 +58,39 @@ class TestPlanFollowupPromptConstruction:
 
     def test_coder_prompt_includes_model_when_set(self, tmp_path) -> None:
         state = self._run(tmp_path, action="approve", agent_model="opus")
+        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+
+    def test_coder_prompt_preserves_unregistered_provider_model_pair(
+        self, tmp_path
+    ) -> None:
+        state = self._run(
+            tmp_path,
+            action="approve",
+            agent_model="claude-fable-5",
+            agent_llm_provider="claude",
+        )
+        assert state.current_prompt.startswith("%model:claude/claude-fable-5\n")
+
+    def test_coder_prompt_uses_bare_model_when_provider_missing(self, tmp_path) -> None:
+        state = self._run(
+            tmp_path,
+            action="approve",
+            agent_model="opus",
+            agent_llm_provider=None,
+        )
         assert state.current_prompt.startswith("%model:opus\n")
+
+    def test_coder_prompt_does_not_double_prefix_qualified_model(
+        self, tmp_path
+    ) -> None:
+        state = self._run(
+            tmp_path,
+            action="approve",
+            agent_model="anthropic/opus",
+            agent_llm_provider="anthropic",
+        )
+        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+        assert not state.current_prompt.startswith("%model:anthropic/anthropic/")
 
     def test_coder_prompt_no_model_when_none(self, tmp_path) -> None:
         state = self._run(tmp_path, action="approve", agent_model=None)
@@ -55,7 +98,7 @@ class TestPlanFollowupPromptConstruction:
 
     def test_epic_prompt_includes_model_when_set(self, tmp_path) -> None:
         state = self._run(tmp_path, action="epic", agent_model="opus")
-        assert state.current_prompt.startswith("%model:opus\n")
+        assert state.current_prompt.startswith("%model:anthropic/opus\n")
 
     def test_epic_prompt_no_model_when_none(self, tmp_path) -> None:
         state = self._run(tmp_path, action="epic", agent_model=None)
@@ -247,7 +290,7 @@ class TestPlanFollowupPromptConstruction:
             ),
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        assert not state.current_prompt.startswith("%model:opus")
+        assert not state.current_prompt.startswith("%model:")
         assert "%m:sonnet" in state.current_prompt
 
     def test_coder_prompt_without_model_inherits(self, tmp_path) -> None:
@@ -273,7 +316,7 @@ class TestPlanFollowupPromptConstruction:
             ),
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        assert state.current_prompt.startswith("%model:opus\n")
+        assert state.current_prompt.startswith("%model:anthropic/opus\n")
         assert "be concise" in state.current_prompt
 
     def test_approve_prompt_includes_custom_extra_text(self, tmp_path) -> None:
@@ -308,7 +351,7 @@ class TestPlanFollowupPromptConstruction:
         assert "#fork:" not in state.current_prompt
         plan_ref = "@plan.md"
         assert plan_ref in state.current_prompt
-        assert state.current_prompt.startswith("%model:opus\n")
+        assert state.current_prompt.startswith("%model:anthropic/opus\n")
 
     def test_coder_prompt_preserves_resume_when_env_set(
         self, tmp_path, monkeypatch
@@ -317,7 +360,9 @@ class TestPlanFollowupPromptConstruction:
         monkeypatch.setenv("SASE_CODER_INHERIT_PLANNER_CHAT", "1")
         state = self._run(tmp_path, action="approve", agent_model="opus")
         assert "#fork:test_agent--plan " in state.current_prompt
-        assert state.current_prompt.startswith("%model:opus\n#fork:test_agent--plan ")
+        assert state.current_prompt.startswith(
+            "%model:anthropic/opus\n#fork:test_agent--plan "
+        )
 
     def test_coder_prompt_qa_round_excludes_resume_by_default(self, tmp_path) -> None:
         """Q&A round (agent_step > 2) also drops #fork by default."""

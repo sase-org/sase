@@ -7,7 +7,12 @@ from unittest.mock import patch
 from sase.axe.run_agent_exec import AgentExecContext, LoopState
 
 
-def make_ctx(tmp_path, *, agent_model: str | None = None) -> AgentExecContext:
+def make_ctx(
+    tmp_path,
+    *,
+    agent_model: str | None = None,
+    agent_llm_provider: str | None = "anthropic",
+) -> AgentExecContext:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
     return AgentExecContext(
@@ -25,7 +30,7 @@ def make_ctx(tmp_path, *, agent_model: str | None = None) -> AgentExecContext:
         vcs_tag="#gh:sase ",
         agent_name="test_agent",
         agent_model=agent_model,
-        agent_llm_provider="anthropic",
+        agent_llm_provider=agent_llm_provider,
         agent_vcs_provider="github",
         agent_hidden=False,
         agent_meta={"model": agent_model or "default"},

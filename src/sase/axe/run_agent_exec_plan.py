@@ -395,7 +395,12 @@ def handle_plan_marker(
     if plan_result.coder_model:
         model_prefix = f"%model:{plan_result.coder_model}\n"
     elif ctx.agent_model:
-        model_prefix = f"%model:{ctx.agent_model}\n"
+        inherited_model = ctx.agent_model
+        if ctx.agent_llm_provider and not inherited_model.startswith(
+            f"{ctx.agent_llm_provider}/"
+        ):
+            inherited_model = f"{ctx.agent_llm_provider}/{inherited_model}"
+        model_prefix = f"%model:{inherited_model}\n"
     else:
         model_prefix = ""
 
