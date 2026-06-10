@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-10 10:01:29
-status: wip
+status: done
 prompt: sdd/prompts/202606/tui_perf_background_tasks.md
 ---
 # Mention tracked background tasks in `memory/long/tui_perf.md`
