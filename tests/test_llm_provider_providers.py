@@ -10,7 +10,11 @@ import pytest
 from sase.llm_provider._subprocess import stream_process_output
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.claude import ClaudeCodeProvider
-from sase.llm_provider.config import _get_model_aliases, resolve_model_alias
+from sase.llm_provider.config import (
+    _get_model_aliases,
+    get_configured_worker_model,
+    resolve_model_alias,
+)
 from sase.llm_provider.registry import resolve_model_provider
 from sase.llm_provider.gemini import GeminiProvider
 from sase.llm_provider.types import InvokeResult, ModelTier
@@ -57,6 +61,33 @@ def test_model_aliases_ignore_invalid_entries(mock_config: MagicMock) -> None:
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
+@pytest.mark.parametrize(
+    "cfg",
+    [
+        {},
+        {"worker_model": ""},
+        {"worker_model": "   "},
+        {"worker_model": 123},
+        {"worker_model": ["codex/gpt-5.5"]},
+    ],
+)
+def test_get_configured_worker_model_tolerates_missing_blank_and_non_string(
+    mock_config: MagicMock,
+    cfg: dict[str, object],
+) -> None:
+    mock_config.return_value = cfg
+
+    assert get_configured_worker_model() is None
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_get_configured_worker_model_strips_value(mock_config: MagicMock) -> None:
+    mock_config.return_value = {"worker_model": " codex/gpt-5.5 "}
+
+    assert get_configured_worker_model() == "codex/gpt-5.5"
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
 def test_resolve_model_alias_handles_chains_and_cycles(
     mock_config: MagicMock,
 ) -> None:
@@ -93,6 +124,40 @@ def test_resolve_model_provider_resolves_bare_alias(
     mock_config.return_value = {"model_aliases": {"other": "opus"}}
 
     assert resolve_model_provider("other") == ("claude", "opus")
+
+
+def test_worker_alias_resolves_effective_worker_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "worker_model": "codex/gpt-5.5"},
+    )
+
+    assert resolve_model_provider("worker") == ("codex", "gpt-5.5")
+
+
+def test_worker_alias_shadows_configured_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "worker_model": "codex/gpt-5.5",
+            "model_aliases": {"worker": "claude/sonnet"},
+        },
+    )
+
+    assert resolve_model_provider("worker") == ("codex", "gpt-5.5")
+
+
+def test_worker_alias_falls_through_to_primary_default_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    assert resolve_model_provider("worker") == ("claude", "opus")
 
 
 # --- "other" alias override-aware tests ---

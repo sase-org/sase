@@ -47,11 +47,23 @@ def _get_model_aliases() -> dict[str, str]:
     return cleaned
 
 
+def get_configured_worker_model() -> str | None:
+    """Return the optional configured worker-lane model, if set."""
+    value = get_llm_provider_config().get("worker_model")
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
 def resolve_model_alias(model: str) -> str:
     """Resolve a configured model alias to its final configured target.
 
     Unknown aliases return *model* unchanged.  Cycles and overly deep chains
     also fall back to the original input so a bad config cannot crash launches.
+
+    The literal alias ``"worker"`` is reserved: it short-circuits to the
+    effective worker-lane model and shadows ``model_aliases.worker``.
 
     The literal alias ``"other"`` is reserved: when a temporary LLM override
     is active, ``"other"`` short-circuits to the ``(provider, model)`` that
@@ -61,7 +73,16 @@ def resolve_model_alias(model: str) -> str:
     (or the override predates the snapshot field), behavior falls through
     to the normal ``model_aliases.other`` target.
     """
-    if model.strip() == "other":
+    cleaned_model = model.strip()
+    if cleaned_model == "worker":
+        # Lazy import to avoid an import cycle: temporary_override imports
+        # resolve_model_provider from registry, which imports this module.
+        from .temporary_override import resolve_effective_worker_provider_model
+
+        provider, worker_model = resolve_effective_worker_provider_model()
+        return f"{provider}/{worker_model}"
+
+    if cleaned_model == "other":
         # Lazy import to avoid an import cycle: temporary_override imports
         # resolve_model_provider from registry, which imports this module.
         from .temporary_override import get_active_temporary_override

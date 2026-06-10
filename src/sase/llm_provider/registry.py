@@ -274,6 +274,32 @@ def format_provider_model_label(
     return "Agent"
 
 
+def get_configured_default_provider_name() -> str:
+    """Get the configured/autodetected provider without temporary overrides."""
+    config = get_llm_provider_config()
+    provider = config.get("provider")
+    if isinstance(provider, str) and provider:
+        return provider
+
+    candidates = _llm_metadata_payload().get("autodetect_candidates")
+    if not isinstance(candidates, list):
+        candidates = []
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("provider"))
+        cli_name = item.get("cli_name")
+        if cli_name is not None:
+            cli_name = str(cli_name)
+        if cli_name is None or shutil.which(cli_name):
+            return name
+
+    raise RuntimeError(
+        "No LLM provider is available. Install a provider plugin "
+        "or set llm_provider.provider explicitly."
+    )
+
+
 def get_default_provider_name() -> str:
     """Get the effective default provider name.
 
@@ -298,28 +324,7 @@ def get_default_provider_name() -> str:
     if override is not None:
         return override.provider
 
-    config = get_llm_provider_config()
-    provider = config.get("provider")
-    if provider:
-        return provider
-
-    candidates = _llm_metadata_payload().get("autodetect_candidates")
-    if not isinstance(candidates, list):
-        candidates = []
-    for item in candidates:
-        if not isinstance(item, dict):
-            continue
-        name = str(item.get("provider"))
-        cli_name = item.get("cli_name")
-        if cli_name is not None:
-            cli_name = str(cli_name)
-        if cli_name is None or shutil.which(cli_name):
-            return name
-
-    raise RuntimeError(
-        "No LLM provider is available. Install a provider plugin "
-        "or set llm_provider.provider explicitly."
-    )
+    return get_configured_default_provider_name()
 
 
 def _llm_metadata_cache_policy() -> dict[str, Any]:

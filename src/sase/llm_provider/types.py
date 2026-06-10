@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 ModelTier = Literal["large", "small"]
+ModelRole = Literal["primary", "worker"]
 
 
 class LLMInvocationError(Exception):

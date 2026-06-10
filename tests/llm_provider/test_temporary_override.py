@@ -13,6 +13,7 @@ from sase.llm_provider.temporary_override import (
     get_active_temporary_override,
     parse_override_duration,
     resolve_effective_default_provider_model,
+    resolve_effective_worker_provider_model,
     set_temporary_override,
 )
 
@@ -58,6 +59,16 @@ def test_parse_override_duration_invalid(value: str) -> None:
 # ---------------------------------------------------------------------------
 # set / get / clear
 # ---------------------------------------------------------------------------
+
+
+def _mock_provider_config(
+    monkeypatch: pytest.MonkeyPatch, cfg: dict[str, object]
+) -> None:
+    """Patch the config lookup at every module that imported it directly."""
+    monkeypatch.setattr("sase.llm_provider.config.get_llm_provider_config", lambda: cfg)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config", lambda: cfg
+    )
 
 
 def test_get_when_no_state_returns_none() -> None:
@@ -130,6 +141,53 @@ def test_clear_when_none_returns_false() -> None:
     assert clear_temporary_override() is False
 
 
+def test_worker_override_uses_separate_state_file() -> None:
+    primary = set_temporary_override("claude/opus", 3600.0, source="test")
+    worker = set_temporary_override(
+        "codex/gpt-5.5", 3600.0, source="test", role="worker"
+    )
+
+    assert _state_path().name == "llm_override.json"
+    assert _state_path(role="worker").name == "llm_worker_override.json"
+    assert _state_path().exists()
+    assert _state_path(role="worker").exists()
+    assert primary.provider == "claude"
+    assert worker.provider == "codex"
+
+    fetched_primary = get_active_temporary_override()
+    fetched_worker = get_active_temporary_override(role="worker")
+    assert fetched_primary is not None
+    assert fetched_worker is not None
+    assert fetched_primary.model == "opus"
+    assert fetched_worker.model == "gpt-5.5"
+
+
+def test_clear_worker_override_does_not_touch_primary() -> None:
+    set_temporary_override("claude/opus", 3600.0, source="test")
+    set_temporary_override("codex/o3", 3600.0, source="test", role="worker")
+
+    assert clear_temporary_override(role="worker") is True
+
+    assert get_active_temporary_override(role="worker") is None
+    primary = get_active_temporary_override()
+    assert primary is not None
+    assert primary.provider == "claude"
+    assert primary.model == "opus"
+
+
+def test_clear_primary_override_does_not_touch_worker() -> None:
+    set_temporary_override("claude/opus", 3600.0, source="test")
+    set_temporary_override("codex/o3", 3600.0, source="test", role="worker")
+
+    assert clear_temporary_override() is True
+
+    assert get_active_temporary_override() is None
+    worker = get_active_temporary_override(role="worker")
+    assert worker is not None
+    assert worker.provider == "codex"
+    assert worker.model == "o3"
+
+
 # ---------------------------------------------------------------------------
 # Expiry
 # ---------------------------------------------------------------------------
@@ -143,6 +201,17 @@ def test_expired_override_returns_none_and_deletes_file() -> None:
     future = time.time() + 3600
     assert get_active_temporary_override(now=future) is None
     assert not path.exists()
+
+
+def test_worker_expiry_deletes_only_worker_file() -> None:
+    set_temporary_override("claude/opus", 3600.0, source="test")
+    worker = set_temporary_override("codex/o3", 60.0, source="test", role="worker")
+
+    assert worker.expires_at is not None
+    assert get_active_temporary_override(now=worker.expires_at, role="worker") is None
+    assert not _state_path(role="worker").exists()
+    assert _state_path().exists()
+    assert get_active_temporary_override() is not None
 
 
 def test_expiry_at_exact_boundary_is_expired() -> None:
@@ -259,6 +328,12 @@ def test_state_file_lives_under_sase_home() -> None:
     assert _state_path().exists()
 
 
+def test_worker_state_file_lives_under_sase_home() -> None:
+    set_temporary_override("codex/o3", 60.0, source="ace", role="worker")
+    assert _state_path(role="worker").name == "llm_worker_override.json"
+    assert _state_path(role="worker").exists()
+
+
 # ---------------------------------------------------------------------------
 # resolve_effective_default_provider_model
 # ---------------------------------------------------------------------------
@@ -289,6 +364,129 @@ def test_resolve_effective_default_ignores_expired_override() -> None:
     assert provider != "codex" or _ != "o3"
     # And the stale state file is cleaned up by the read.
     assert not path.exists()
+
+
+# ---------------------------------------------------------------------------
+# resolve_effective_worker_provider_model
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_effective_worker_prefers_worker_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "worker_model": "gemini/gemini-2.5-pro"},
+    )
+    set_temporary_override("codex/o3", 3600.0, source="ace")
+    set_temporary_override("codex/gpt-5.5", 3600.0, source="ace", role="worker")
+
+    provider, model = resolve_effective_worker_provider_model()
+    assert (provider, model) == ("codex", "gpt-5.5")
+
+
+def test_resolve_effective_worker_uses_configured_provider_syntax(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "worker_model": "codex/gpt-5.5"},
+    )
+    set_temporary_override("claude/sonnet", 3600.0, source="ace")
+
+    provider, model = resolve_effective_worker_provider_model()
+    assert (provider, model) == ("codex", "gpt-5.5")
+
+
+def test_resolve_effective_worker_uses_configured_known_bare_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "worker_model": "gpt-5.5"},
+    )
+
+    provider, model = resolve_effective_worker_provider_model()
+    assert (provider, model) == ("codex", "gpt-5.5")
+
+
+def test_resolve_effective_worker_uses_configured_alias_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "worker_model": "fast-worker",
+            "model_aliases": {"fast-worker": "codex/gpt-5.5"},
+        },
+    )
+
+    provider, model = resolve_effective_worker_provider_model()
+    assert (provider, model) == ("codex", "gpt-5.5")
+
+
+def test_resolve_effective_worker_unknown_config_model_uses_config_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "worker_model": "custom-worker-model"},
+    )
+    set_temporary_override("codex/o3", 3600.0, source="ace")
+
+    provider, model = resolve_effective_worker_provider_model()
+    assert (provider, model) == ("claude", "custom-worker-model")
+
+
+def test_resolve_effective_worker_falls_through_to_primary_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(monkeypatch, {"provider": "claude"})
+    set_temporary_override("codex/o3", 3600.0, source="ace")
+
+    provider, model = resolve_effective_worker_provider_model()
+    assert (provider, model) == ("codex", "o3")
+
+
+def test_resolve_effective_worker_without_worker_state_matches_primary_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    assert resolve_effective_worker_provider_model() == (
+        resolve_effective_default_provider_model()
+    )
+
+
+def test_resolve_effective_worker_self_reference_treated_as_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "worker_model": "worker"},
+    )
+    set_temporary_override("codex/o3", 3600.0, source="ace")
+
+    provider, model = resolve_effective_worker_provider_model()
+    assert (provider, model) == ("codex", "o3")
+
+
+def test_worker_override_captures_worker_lane_pre_override_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "worker_model": "codex/gpt-5.5"},
+    )
+
+    override = set_temporary_override(
+        "claude/sonnet", 3600.0, source="ace", role="worker"
+    )
+
+    assert override.pre_override_provider == "codex"
+    assert override.pre_override_model == "gpt-5.5"
+    assert override.pre_override_raw_model == "gpt-5.5"
 
 
 # ---------------------------------------------------------------------------

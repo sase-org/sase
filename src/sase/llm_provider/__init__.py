@@ -29,15 +29,17 @@ from .temporary_override import (
     get_active_temporary_override,
     parse_override_duration,
     resolve_effective_default_provider_model,
+    resolve_effective_worker_provider_model,
     set_temporary_override,
 )
-from .types import LLMInvocationError, LoggingContext, ModelTier
+from .types import LLMInvocationError, LoggingContext, ModelRole, ModelTier
 
 __all__ = [
     "FileRefMode",
     "LLMInvocationError",
     "LLMProvider",
     "LoggingContext",
+    "ModelRole",
     "ModelTier",
     "PreprocessResult",
     "ProviderRetryConfig",
@@ -56,6 +58,7 @@ __all__ = [
     "preprocess_prompt_early",
     "preprocess_prompt_late",
     "resolve_effective_default_provider_model",
+    "resolve_effective_worker_provider_model",
     "save_prompt_to_file",
     "set_temporary_override",
     "stream_process_output",

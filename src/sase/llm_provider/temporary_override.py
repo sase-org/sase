@@ -26,17 +26,27 @@ from pathlib import Path
 
 from sase.core.paths import sase_home
 
-from .types import ModelTier
+from .types import ModelRole, ModelTier
 
-_STATE_FILENAME = "llm_override.json"
+_STATE_FILENAME_BY_ROLE: dict[ModelRole, str] = {
+    "primary": "llm_override.json",
+    "worker": "llm_worker_override.json",
+}
 
 
-def _state_path() -> Path:
+def _state_filename(role: ModelRole) -> str:
+    try:
+        return _STATE_FILENAME_BY_ROLE[role]
+    except KeyError:
+        raise ValueError(f"unknown model role: {role!r}") from None
+
+
+def _state_path(role: ModelRole = "primary") -> Path:
     """Return the absolute path to the override state file.
 
     Resolved lazily so ``$SASE_HOME`` and test redirection are honored per-call.
     """
-    return sase_home() / _STATE_FILENAME
+    return sase_home() / _state_filename(role)
 
 
 @dataclass(frozen=True)
@@ -130,23 +140,23 @@ def _atomic_write_json(path: Path, data: dict) -> None:
         raise
 
 
-def _delete_state_best_effort() -> None:
+def _delete_state_best_effort(role: ModelRole = "primary") -> None:
     try:
-        _state_path().unlink()
+        _state_path(role).unlink()
     except FileNotFoundError:
         pass
     except OSError:
         pass
 
 
-def _load_state() -> dict | None:
+def _load_state(role: ModelRole = "primary") -> dict | None:
     """Load and validate the state file.
 
     Returns the parsed dict on success, or ``None`` if the file is
     missing, unreadable, malformed, or missing required fields.
     Malformed files are deleted best-effort.
     """
-    path = _state_path()
+    path = _state_path(role)
     try:
         raw = path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -157,29 +167,29 @@ def _load_state() -> dict | None:
     try:
         data = json.loads(raw)
     except (ValueError, TypeError):
-        _delete_state_best_effort()
+        _delete_state_best_effort(role)
         return None
 
     if not isinstance(data, dict):
-        _delete_state_best_effort()
+        _delete_state_best_effort(role)
         return None
 
     required = ("provider", "model", "raw_model", "created_at", "source")
     if not all(k in data for k in required):
-        _delete_state_best_effort()
+        _delete_state_best_effort(role)
         return None
     if not all(
         isinstance(data[k], str) for k in ("provider", "model", "raw_model", "source")
     ):
-        _delete_state_best_effort()
+        _delete_state_best_effort(role)
         return None
     if not isinstance(data["created_at"], (int, float)):
-        _delete_state_best_effort()
+        _delete_state_best_effort(role)
         return None
 
     expires_at = data.get("expires_at")
     if expires_at is not None and not isinstance(expires_at, (int, float)):
-        _delete_state_best_effort()
+        _delete_state_best_effort(role)
         return None
 
     for key in (
@@ -201,13 +211,15 @@ def _load_state() -> dict | None:
 
 def get_active_temporary_override(
     now: float | None = None,
+    *,
+    role: ModelRole = "primary",
 ) -> TemporaryLLMOverride | None:
     """Return the active override, or ``None`` if none/expired.
 
     Expired or malformed state files are deleted best-effort so callers
     don't need to wait for a TUI session to clean them up.
     """
-    data = _load_state()
+    data = _load_state(role)
     if data is None:
         return None
 
@@ -215,7 +227,7 @@ def get_active_temporary_override(
     if expires_at is not None:
         current = time.time() if now is None else now
         if current >= expires_at:
-            _delete_state_best_effort()
+            _delete_state_best_effort(role)
             return None
 
     return TemporaryLLMOverride(
@@ -236,6 +248,7 @@ def set_temporary_override(
     duration_seconds: float | None,
     *,
     source: str,
+    role: ModelRole = "primary",
 ) -> TemporaryLLMOverride:
     """Write a temporary override for *raw_model* lasting *duration_seconds*.
 
@@ -262,15 +275,18 @@ def set_temporary_override(
 
     # Lazy import to avoid an import cycle (registry imports from this
     # module's siblings via __init__.py).
-    from .registry import get_default_provider_name, resolve_model_provider
+    from .registry import resolve_model_provider
 
     # Snapshot the model that's effectively active right now, BEFORE we
     # overwrite the state file. If a prior override is on disk it's
     # honored (via resolve_effective_default_provider_model); otherwise
     # the configured default is captured. The "other" alias resolves
     # against this snapshot for the duration of the new override.
-    prior = get_active_temporary_override()
-    snap_provider, snap_model = resolve_effective_default_provider_model()
+    prior = get_active_temporary_override(role=role)
+    if role == "worker":
+        snap_provider, snap_model = resolve_effective_worker_provider_model()
+    else:
+        snap_provider, snap_model = resolve_effective_default_provider_model()
     pre_override_provider: str | None = snap_provider
     pre_override_model: str | None = snap_model
     pre_override_raw_model: str | None = (
@@ -279,7 +295,7 @@ def set_temporary_override(
 
     resolved_provider, resolved_model = resolve_model_provider(cleaned)
     if resolved_provider is None:
-        resolved_provider = get_default_provider_name()
+        resolved_provider = snap_provider
 
     now = time.time()
     expires_at = now + duration_seconds if duration_seconds is not None else None
@@ -295,16 +311,16 @@ def set_temporary_override(
         pre_override_model=pre_override_model,
         pre_override_raw_model=pre_override_raw_model,
     )
-    _atomic_write_json(_state_path(), asdict(override))
+    _atomic_write_json(_state_path(role), asdict(override))
     return override
 
 
-def clear_temporary_override() -> bool:
+def clear_temporary_override(*, role: ModelRole = "primary") -> bool:
     """Remove the override state file.
 
     Returns ``True`` if a file was removed, ``False`` if none existed.
     """
-    path = _state_path()
+    path = _state_path(role)
     try:
         path.unlink()
     except FileNotFoundError:
@@ -332,3 +348,32 @@ def resolve_effective_default_provider_model(
     provider_name = get_default_provider_name()
     provider = get_provider(provider_name)
     return provider_name, provider.resolve_model_name(model_tier)
+
+
+def resolve_effective_worker_provider_model(
+    model_tier: ModelTier = "large",
+) -> tuple[str, str]:
+    """Return the ``(provider_name, model_name)`` for worker-lane launches.
+
+    Worker-specific state wins first. If no worker override or configured
+    worker model exists, the worker lane falls through to the primary lane.
+    """
+    override = get_active_temporary_override(role="worker")
+    if override is not None:
+        return override.provider, override.model
+
+    from .config import get_configured_worker_model
+    from .registry import (
+        get_configured_default_provider_name,
+        resolve_model_provider,
+    )
+
+    configured = get_configured_worker_model()
+    if configured is not None and configured.strip() != "worker":
+        resolved_provider, resolved_model = resolve_model_provider(configured)
+        if resolved_model.strip() != "worker":
+            if resolved_provider is None:
+                resolved_provider = get_configured_default_provider_name()
+            return resolved_provider, resolved_model
+
+    return resolve_effective_default_provider_model(model_tier)

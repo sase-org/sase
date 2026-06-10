@@ -266,6 +266,7 @@ axe:
 
 llm_provider:
   provider: ""
+  # worker_model: ""
   retry:
     gemini:
       max_retries: 3
