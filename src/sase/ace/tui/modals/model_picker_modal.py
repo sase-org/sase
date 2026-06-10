@@ -74,7 +74,7 @@ def _build_model_rows(*, include_default_option: bool = True) -> list[_ModelPick
         rows.append(
             _ModelPickerRow(
                 kind="default",
-                label="Same as planner",
+                label="Worker model (default)",
                 option_id=_DEFAULT_SENTINEL,
             )
         )
@@ -215,9 +215,9 @@ def _build_model_options(*, include_default_option: bool = True) -> list[Option 
 
     Args:
         include_default_option: If True (default), prepend the
-            ``"Same as planner"`` option that returns ``None``.
+            ``"Worker model (default)"`` option that returns ``None``.
             Callers like the temporary-override modal that have no
-            "use planner default" semantics pass ``False`` to omit it.
+            "use worker default" semantics pass ``False`` to omit it.
     """
     return _rows_to_options(
         _build_model_rows(include_default_option=include_default_option)
@@ -290,8 +290,8 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
     Args:
         title: Heading shown above the list.
         include_default_option: If True (default), include the
-            ``"Same as planner"`` option whose selection dismisses with
-            ``None``.  Pass ``False`` for callers (e.g. the temporary
+            ``"Worker model (default)"`` option whose selection dismisses
+            with ``None``.  Pass ``False`` for callers (e.g. the temporary
             override modal) where ``None`` only ever means *cancel*.
     """
 

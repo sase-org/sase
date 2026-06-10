@@ -94,12 +94,23 @@ def _update_coder_model_meta(
     ctx: AgentExecContext,
     state: LoopState,
 ) -> None:
-    """Update the coder's ``agent_meta.json`` if the picker model differs from the planner's."""
-    if not plan_result.coder_model or plan_result.coder_model == ctx.agent_model:
-        return
+    """Record the model the follow-up agent actually runs with in its ``agent_meta.json``.
+
+    With a picker model (``plan_result.coder_model``), write its resolution
+    when it differs from the planner's model. Without one, the follow-up is
+    handed to the worker lane (``%model:worker``), so write the resolved
+    worker provider/model instead of the inherited planner values.
+    """
     from sase.llm_provider.registry import resolve_model_provider
 
-    resolved_provider, resolved_model = resolve_model_provider(plan_result.coder_model)
+    if plan_result.coder_model:
+        if plan_result.coder_model == ctx.agent_model:
+            return
+        resolved_provider, resolved_model = resolve_model_provider(
+            plan_result.coder_model
+        )
+    else:
+        resolved_provider, resolved_model = resolve_model_provider("worker")
     update_meta_field(state.current_artifacts_dir, "model", resolved_model)
     if resolved_provider:
         update_meta_field(
@@ -391,18 +402,11 @@ def handle_plan_marker(
     embedded_refs = get_embedded_workflow_refs(state.current_artifacts_dir, ctx.vcs_tag)
 
     # Use coder_model override from plan approval if provided,
-    # otherwise inherit the planner's model.
+    # otherwise hand the implementation off to the worker lane.
     if plan_result.coder_model:
         model_prefix = f"%model:{plan_result.coder_model}\n"
-    elif ctx.agent_model:
-        inherited_model = ctx.agent_model
-        if ctx.agent_llm_provider and not inherited_model.startswith(
-            f"{ctx.agent_llm_provider}/"
-        ):
-            inherited_model = f"{ctx.agent_llm_provider}/{inherited_model}"
-        model_prefix = f"%model:{inherited_model}\n"
     else:
-        model_prefix = ""
+        model_prefix = "%model:worker\n"
 
     if plan_result.action in ("epic", "legend"):
         # Ensure beads are initialized before spawning epic agent

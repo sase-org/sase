@@ -56,53 +56,64 @@ class TestPlanFollowupPromptConstruction:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         return state
 
-    def test_coder_prompt_includes_model_when_set(self, tmp_path) -> None:
-        state = self._run(tmp_path, action="approve", agent_model="opus")
-        assert state.current_prompt.startswith("%model:anthropic/opus\n")
-
-    def test_coder_prompt_preserves_unregistered_provider_model_pair(
-        self, tmp_path
+    @pytest.mark.parametrize(
+        ("agent_model", "agent_llm_provider"),
+        [
+            ("opus", "anthropic"),
+            ("claude-fable-5", "claude"),
+            ("opus", None),
+            ("anthropic/opus", "anthropic"),
+            (None, "anthropic"),
+        ],
+    )
+    def test_coder_prompt_routes_to_worker_lane(
+        self,
+        tmp_path,
+        agent_model: str | None,
+        agent_llm_provider: str | None,
     ) -> None:
+        """The coder uses the worker lane regardless of the planner's model."""
         state = self._run(
             tmp_path,
             action="approve",
-            agent_model="claude-fable-5",
-            agent_llm_provider="claude",
+            agent_model=agent_model,
+            agent_llm_provider=agent_llm_provider,
         )
-        assert state.current_prompt.startswith("%model:claude/claude-fable-5\n")
+        assert state.current_prompt.startswith("%model:worker\n")
 
-    def test_coder_prompt_uses_bare_model_when_provider_missing(self, tmp_path) -> None:
-        state = self._run(
-            tmp_path,
-            action="approve",
-            agent_model="opus",
-            agent_llm_provider=None,
-        )
-        assert state.current_prompt.startswith("%model:opus\n")
-
-    def test_coder_prompt_does_not_double_prefix_qualified_model(
-        self, tmp_path
+    @pytest.mark.parametrize("agent_model", ["opus", None])
+    def test_epic_prompt_routes_to_worker_lane(
+        self, tmp_path, agent_model: str | None
     ) -> None:
-        state = self._run(
-            tmp_path,
+        """The epic follow-up uses the worker lane regardless of the planner's model."""
+        state = self._run(tmp_path, action="epic", agent_model=agent_model)
+        assert state.current_prompt.startswith("%model:worker\n")
+
+    def test_coder_prompt_picker_model_wins_over_worker(self, tmp_path) -> None:
+        """An explicit approval-dialog coder model suppresses the worker default."""
+        ctx = make_ctx(tmp_path, agent_model="opus")
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
             action="approve",
-            agent_model="anthropic/opus",
-            agent_llm_provider="anthropic",
+            plan_file=plan_file,
+            coder_model="sonnet",
         )
-        assert state.current_prompt.startswith("%model:anthropic/opus\n")
-        assert not state.current_prompt.startswith("%model:anthropic/anthropic/")
-
-    def test_coder_prompt_no_model_when_none(self, tmp_path) -> None:
-        state = self._run(tmp_path, action="approve", agent_model=None)
-        assert not state.current_prompt.startswith("%model:")
-
-    def test_epic_prompt_includes_model_when_set(self, tmp_path) -> None:
-        state = self._run(tmp_path, action="epic", agent_model="opus")
-        assert state.current_prompt.startswith("%model:anthropic/opus\n")
-
-    def test_epic_prompt_no_model_when_none(self, tmp_path) -> None:
-        state = self._run(tmp_path, action="epic", agent_model=None)
-        assert not state.current_prompt.startswith("%model:")
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert state.current_prompt.startswith("%model:sonnet\n")
+        assert "%model:worker" not in state.current_prompt
 
     def test_feedback_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
         """Plan feedback follow-up exposes the rebuilt prompt as an artifact."""
@@ -293,8 +304,8 @@ class TestPlanFollowupPromptConstruction:
         assert not state.current_prompt.startswith("%model:")
         assert "%m:sonnet" in state.current_prompt
 
-    def test_coder_prompt_without_model_inherits(self, tmp_path) -> None:
-        """Custom prompt without model directive still inherits planner model."""
+    def test_coder_prompt_without_model_directive_uses_worker(self, tmp_path) -> None:
+        """Custom prompt without model directive still gets the worker prefix."""
         ctx = make_ctx(tmp_path, agent_model="opus")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
@@ -316,7 +327,7 @@ class TestPlanFollowupPromptConstruction:
             ),
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+        assert state.current_prompt.startswith("%model:worker\n")
         assert "be concise" in state.current_prompt
 
     def test_approve_prompt_includes_custom_extra_text(self, tmp_path) -> None:
@@ -351,7 +362,7 @@ class TestPlanFollowupPromptConstruction:
         assert "#fork:" not in state.current_prompt
         plan_ref = "@plan.md"
         assert plan_ref in state.current_prompt
-        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+        assert state.current_prompt.startswith("%model:worker\n")
 
     def test_coder_prompt_preserves_resume_when_env_set(
         self, tmp_path, monkeypatch
@@ -360,9 +371,7 @@ class TestPlanFollowupPromptConstruction:
         monkeypatch.setenv("SASE_CODER_INHERIT_PLANNER_CHAT", "1")
         state = self._run(tmp_path, action="approve", agent_model="opus")
         assert "#fork:test_agent--plan " in state.current_prompt
-        assert state.current_prompt.startswith(
-            "%model:anthropic/opus\n#fork:test_agent--plan "
-        )
+        assert state.current_prompt.startswith("%model:worker\n#fork:test_agent--plan ")
 
     def test_coder_prompt_qa_round_excludes_resume_by_default(self, tmp_path) -> None:
         """Q&A round (agent_step > 2) also drops #fork by default."""

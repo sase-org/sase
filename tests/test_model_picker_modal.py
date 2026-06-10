@@ -34,10 +34,11 @@ def _highlighted_id(option_list: OptionList) -> str | None:
 
 
 def test_build_model_options_has_default() -> None:
-    """The option list should start with 'Same as planner'."""
+    """The option list should start with 'Worker model (default)'."""
     options = _build_model_options()
     assert options[0] is not None
     assert options[0].id == "__default__"
+    assert str(options[0].prompt) == "Worker model (default)"
 
 
 def test_build_model_options_has_custom() -> None:
@@ -128,7 +129,7 @@ def test_model_picker_claude_fable_row_includes_alias() -> None:
 
 
 async def test_model_picker_returns_none_for_default() -> None:
-    """Selecting 'Same as planner' returns None."""
+    """Selecting 'Worker model (default)' returns None."""
     result: str | None = "sentinel"
 
     async with _TestApp().run_test() as pilot:
@@ -141,7 +142,7 @@ async def test_model_picker_returns_none_for_default() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        # First option is "Same as planner" — select it
+        # First option is "Worker model (default)" — select it
         await pilot.press("enter")
         await pilot.pause()
 

@@ -1,5 +1,7 @@
 """Coder-model tests for the custom approval modal."""
 
+from unittest.mock import patch
+
 from textual.widgets import Static
 
 from sase.ace.tui.modals.approve_options_modal import (
@@ -85,16 +87,20 @@ async def test_initial_model_restoration() -> None:
         assert "CLAUDE(opus)" in display_text
 
 
-async def test_default_model_shows_same_as_planner() -> None:
-    """No coder_model should display 'Same as planner'."""
-    async with ApproveOptionsApp().run_test() as pilot:
-        modal = ApproveOptionsModal()
-        pilot.app.push_screen(modal)
-        await pilot.pause()
+async def test_default_model_shows_worker_label() -> None:
+    """No coder_model should display the resolved worker-lane model."""
+    with patch(
+        "sase.llm_provider.resolve_effective_worker_provider_model",
+        return_value=("claude", "opus"),
+    ):
+        async with ApproveOptionsApp().run_test() as pilot:
+            modal = ApproveOptionsModal()
+            pilot.app.push_screen(modal)
+            await pilot.pause()
 
-        model_display = modal.query_one("#coder-model-display", Static)
-        display_text = str(model_display.render())
-        assert "Same as planner" in display_text
+            model_display = modal.query_one("#coder-model-display", Static)
+            display_text = str(model_display.render())
+            assert "Worker — CLAUDE(opus)" in display_text
 
 
 async def test_approve_with_no_model_returns_none() -> None:

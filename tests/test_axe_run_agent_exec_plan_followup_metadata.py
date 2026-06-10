@@ -132,7 +132,7 @@ class TestPlanFollowupMetadata:
         approval = PlanApprovalResult(
             action="approve",
             plan_file=plan_file,
-            coder_model=None,
+            coder_model="opus",
         )
         with (
             patch(
@@ -150,3 +150,45 @@ class TestPlanFollowupMetadata:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert "model" not in meta_updates
+
+    def test_coder_meta_resolves_worker_lane_when_no_picker_model(
+        self, tmp_path
+    ) -> None:
+        """Without a picker model, agent_meta.json records the worker lane."""
+        ctx = make_ctx(tmp_path, agent_model="opus")
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        meta_updates: dict[str, str] = {}
+
+        def track_meta(artifacts_dir, key, value):
+            meta_updates[key] = value
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_model=None,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan.update_meta_field",
+                side_effect=track_meta,
+            ),
+            patch(
+                "sase.llm_provider.registry.resolve_model_provider",
+                return_value=("workerprov", "worker-model"),
+            ) as resolve_mock,
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        resolve_mock.assert_called_once_with("worker")
+        assert meta_updates.get("model") == "worker-model"
+        assert meta_updates.get("llm_provider") == "workerprov"

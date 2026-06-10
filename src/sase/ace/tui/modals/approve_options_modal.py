@@ -42,12 +42,16 @@ _CHOICE_CONSEQUENCES: dict[PlanApprovalChoice, str] = {
 
 def _model_display_label(coder_model: str | None) -> str:
     """Format the coder model for display in the modal."""
-    if coder_model is None:
-        return "Same as planner"
     from sase.llm_provider.registry import (
         format_provider_model_label,
         resolve_model_provider,
     )
+
+    if coder_model is None:
+        from sase.llm_provider import resolve_effective_worker_provider_model
+
+        worker_provider, worker_model = resolve_effective_worker_provider_model()
+        return f"Worker — {format_provider_model_label(worker_provider, worker_model)}"
 
     provider, model = resolve_model_provider(coder_model)
     return format_provider_model_label(provider, model)
@@ -267,9 +271,9 @@ class ApproveOptionsModal(
                 # A known model was selected (result is the model id)
                 self._coder_model = result
                 self._update_model_display()
-            # result is None means "Same as planner" was selected or cancel
+            # result is None means "Worker model (default)" was selected or cancel
             # For cancel (escape), result is None via OptionListNavigationMixin.action_cancel
-            # For "Same as planner", result is also None via ModelPickerModal
+            # For "Worker model (default)", result is also None via ModelPickerModal
 
         self.app.push_screen(ModelPickerModal(), on_picker_dismiss)
 

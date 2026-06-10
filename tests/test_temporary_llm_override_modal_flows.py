@@ -23,7 +23,7 @@ from tests._temporary_llm_override_helpers import TemporaryOverrideTestApp
 
 
 def test_override_modal_picker_options_omit_same_as_planner() -> None:
-    """The override flow does not include the Same as planner option id."""
+    """The override flow does not include the worker-default option id."""
     items = _build_model_options(include_default_option=False)
     ids = {opt.id for opt in items if opt is not None}
     assert "__default__" not in ids
