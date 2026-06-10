@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-09 20:14:04
-status: wip
+status: done
 prompt: sdd/prompts/202606/fast_ace_tui_startup.md
 ---
 # Plan: Make `sase ace` Startup Fast (Eliminate Pre-Paint Dismissed-Index Sync)

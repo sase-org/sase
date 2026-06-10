@@ -272,9 +272,60 @@ class StartupMixin(StateInitMixin):
         except Exception:
             log.exception("Failed to schedule startup axe init")
         try:
+            self.run_worker(  # type: ignore[attr-defined]
+                cast(Any, self._run_dismissed_index_startup_sync),
+                thread=False,
+                exclusive=False,
+                group="startup-loads",
+            )
+        except Exception:
+            log.exception("Failed to schedule startup dismissed-index sync")
+        try:
             self._start_artifact_watcher()
         except Exception:
             log.exception("Failed to start artifact inotify watcher")
+
+    async def _run_dismissed_index_startup_sync(self) -> None:
+        """Run dismissed-projection index maintenance off the paint path.
+
+        ``_init_app_state`` only captures the cheap in-memory dismissed
+        state; the artifact-index sync — O(archive) on signature drift and
+        unbounded when the index is corrupt — runs here in a thread so
+        first paint never waits on it. A projection rewrite means
+        dismissed visibility may have drifted out-of-band since the last
+        session, so nudge an agents refresh to reconcile shortly after
+        first paint; a heal additionally gets a user-visible notification.
+        """
+        import asyncio
+
+        from sase.core.agent_artifact_index_lifecycle import (
+            DismissedProjectionSyncReport,
+            sync_dismissed_agent_artifact_index_report,
+        )
+
+        # Snapshot on the UI thread: dismiss/revive actions may mutate
+        # ``_dismissed_agents`` while the worker thread iterates it.
+        dismissed_snapshot = set(self._dismissed_agents)  # type: ignore[attr-defined]
+        try:
+            report: DismissedProjectionSyncReport = await asyncio.to_thread(
+                sync_dismissed_agent_artifact_index_report,
+                dismissed_snapshot,
+            )
+        except Exception:
+            log.exception("Startup dismissed-index sync failed")
+            return
+        if report.healed:
+            quarantined = report.quarantined_path
+            suffix = f" (old copy: {quarantined.name})" if quarantined else ""
+            self.notify(  # type: ignore[attr-defined]
+                f"Agent artifact index was corrupt; rebuilt it{suffix}",
+                severity="warning",
+                timeout=10,
+            )
+        if report.changed:
+            self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+                source="dismissed_index_sync"
+            )
 
     def _start_artifact_watcher(self) -> None:
         """Spin up an inotify watcher on ``~/.sase/projects/`` if supported.

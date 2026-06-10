@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from types import SimpleNamespace
 from pathlib import Path
 
 from sase.ace.tui.models.agent import AgentType
 from sase.core.agent_artifact_index_lifecycle import (
     _DISMISSED_PROJECTION_META_KEY,
     _projects_root_for_artifact_dir,
+    _quarantine_corrupt_index,
     build_dismissed_agent_projection_inputs,
     delete_agent_artifact_index_artifacts,
     sync_dismissed_agent_artifact_index,
+    sync_dismissed_agent_artifact_index_report,
     update_agent_artifact_index_for_marker_mutation,
     upsert_agent_artifact_index_artifacts,
 )
@@ -63,8 +64,8 @@ def test_sync_dismissed_agent_artifact_index_serializes_identities(
         lambda: {"ok": True},
     )
     monkeypatch.setattr(
-        "sase.ace.dismissed_agents.load_dismissed_bundle_summaries",
-        lambda *, limit=None: [],
+        "sase.ace.dismissed_agents.load_dismissed_bundle_identities",
+        set,
     )
 
     assert sync_dismissed_agent_artifact_index(
@@ -96,8 +97,8 @@ def test_build_dismissed_projection_inputs_reads_json_only(monkeypatch) -> None:
         lambda: {(AgentType.RUNNING, "json", "20260501010101")},
     )
     monkeypatch.setattr(
-        "sase.ace.dismissed_agents.load_dismissed_bundle_summaries",
-        lambda *, limit=None: [],
+        "sase.ace.dismissed_agents.load_dismissed_bundle_identities",
+        set,
     )
 
     projection = build_dismissed_agent_projection_inputs()
@@ -110,11 +111,6 @@ def test_build_dismissed_projection_inputs_reads_json_only(monkeypatch) -> None:
 
 
 def test_build_dismissed_projection_inputs_reads_bundle_only(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    summary = SimpleNamespace(
-        agent_type="workflow",
-        cl_name="bundle",
-        raw_suffix="20260502020202",
-    )
     monkeypatch.setattr(
         "sase.ace.dismissed_agents.dismissed_agents_file_signature",
         lambda: None,
@@ -129,8 +125,8 @@ def test_build_dismissed_projection_inputs_reads_bundle_only(monkeypatch) -> Non
     )
     monkeypatch.setattr("sase.ace.dismissed_agents.load_dismissed_agents", set)
     monkeypatch.setattr(
-        "sase.ace.dismissed_agents.load_dismissed_bundle_summaries",
-        lambda *, limit=None: [summary],
+        "sase.ace.dismissed_agents.load_dismissed_bundle_identities",
+        lambda: {("workflow", "bundle", "20260502020202")},
     )
 
     projection = build_dismissed_agent_projection_inputs()
@@ -141,10 +137,10 @@ def test_build_dismissed_projection_inputs_reads_bundle_only(monkeypatch) -> Non
 
 
 def test_build_dismissed_projection_inputs_combines_sources(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    summaries = [
-        SimpleNamespace(agent_type="run", cl_name="", raw_suffix="20260503030303"),
-        SimpleNamespace(agent_type="run", cl_name="json", raw_suffix="20260501010101"),
-    ]
+    bundle_identities = {
+        ("run", "unknown", "20260503030303"),
+        ("run", "json", "20260501010101"),
+    }
     monkeypatch.setattr(
         "sase.ace.dismissed_agents.dismissed_agents_file_signature",
         lambda: (10, 20),
@@ -162,8 +158,8 @@ def test_build_dismissed_projection_inputs_combines_sources(monkeypatch) -> None
         lambda: {(AgentType.RUNNING, "json", "20260501010101")},
     )
     monkeypatch.setattr(
-        "sase.ace.dismissed_agents.load_dismissed_bundle_summaries",
-        lambda *, limit=None: summaries,
+        "sase.ace.dismissed_agents.load_dismissed_bundle_identities",
+        lambda: bundle_identities,
     )
 
     projection = build_dismissed_agent_projection_inputs()
@@ -265,11 +261,6 @@ def test_sync_dismissed_projection_writes_metadata(
 ) -> None:  # type: ignore[no-untyped-def]
     index = tmp_path / "agent_artifact_index.sqlite"
     index.touch()
-    summary = SimpleNamespace(
-        agent_type="workflow",
-        cl_name="bundle",
-        raw_suffix="20260502020202",
-    )
     calls: list[tuple[Path, list[object]]] = []
 
     monkeypatch.setattr(
@@ -285,8 +276,8 @@ def test_sync_dismissed_projection_writes_metadata(
         lambda: {"ok": True},
     )
     monkeypatch.setattr(
-        "sase.ace.dismissed_agents.load_dismissed_bundle_summaries",
-        lambda *, limit=None: [summary],
+        "sase.ace.dismissed_agents.load_dismissed_bundle_identities",
+        lambda: {("workflow", "bundle", "20260502020202")},
     )
 
     def fake_replace(index_path: Path, identities: list[object]) -> object:
@@ -318,6 +309,169 @@ def test_sync_dismissed_projection_writes_metadata(
     assert metadata["dismissed_agents_signature"] == [10, 20]
     assert metadata["dismissed_bundle_index_signature"] == [1, 30, 40, 1]
     assert metadata["projected_identity_count"] == 2
+
+
+def _patch_projection_sources(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Pin the dismissed-state source signatures used by the sync path."""
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.dismissed_agents_file_signature",
+        lambda: (10, 20),
+    )
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.dismissed_bundle_index_signature",
+        lambda: (1, 30, 40, 2),
+    )
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.verify_dismissed_bundle_index",
+        lambda: {"ok": True},
+    )
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.load_dismissed_bundle_identities",
+        set,
+    )
+
+
+def _fake_replace_update(index_path: Path, identities: list[object]) -> object:
+    return AgentArtifactIndexUpdateWire(
+        schema_version=1,
+        index_path=str(index_path),
+        projects_root="",
+        rows_indexed=len(identities),
+    )
+
+
+def test_corrupt_index_quarantined_rebuilt_and_resynced(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    """A malformed index is quarantined, rebuilt, force-synced, and reported."""
+    index = tmp_path / "agent_artifact_index.sqlite"
+    index.write_bytes(b"this is not a sqlite database " * 64)
+    stale_quarantine = tmp_path / (
+        "agent_artifact_index.sqlite.corrupt-20200101T000000Z"
+    )
+    stale_quarantine.write_bytes(b"older corrupt copy")
+    _patch_projection_sources(monkeypatch)
+
+    def fake_rebuild(index_path: Path, projects_root: Path) -> object:
+        del projects_root
+        with sqlite3.connect(index_path) as conn:
+            conn.execute("CREATE TABLE artifacts (artifact_dir TEXT PRIMARY KEY)")
+        return AgentArtifactIndexUpdateWire(
+            schema_version=1,
+            index_path=str(index_path),
+            projects_root="",
+            rows_indexed=0,
+        )
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle.rebuild_agent_artifact_index",
+        fake_rebuild,
+    )
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "replace_agent_artifact_index_dismissed_agents",
+        _fake_replace_update,
+    )
+
+    report = sync_dismissed_agent_artifact_index_report(
+        {(AgentType.RUNNING, "feature", "20260501010101")},
+        index_path=index,
+    )
+
+    assert report.synced
+    assert report.changed
+    assert report.healed
+    assert report.quarantined_path is not None
+    assert report.quarantined_path.read_bytes().startswith(b"this is not")
+    quarantines = sorted(tmp_path.glob("agent_artifact_index.sqlite.corrupt-*"))
+    assert quarantines == [report.quarantined_path]
+    assert _read_projection_meta(index)["projected_identity_count"] == 1
+
+    # The healed index's metadata must satisfy the fast path on the next
+    # sync — the pre-fix failure mode was a full rescan on every launch.
+    def fail_replace(*args: object, **kwargs: object) -> object:
+        raise AssertionError("fast path should have skipped the projection")
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "replace_agent_artifact_index_dismissed_agents",
+        fail_replace,
+    )
+    second = sync_dismissed_agent_artifact_index_report(index_path=index)
+    assert second.synced
+    assert not second.changed
+    assert not second.healed
+
+
+def test_corruption_reported_by_replace_triggers_heal(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    """Rust-facade corruption errors (RuntimeError) also trigger the heal."""
+    index = tmp_path / "agent_artifact_index.sqlite"
+    index.touch()
+    _patch_projection_sources(monkeypatch)
+    replace_calls: list[int] = []
+
+    def flaky_replace(index_path: Path, identities: list[object]) -> object:
+        replace_calls.append(1)
+        if len(replace_calls) == 1:
+            raise RuntimeError("database disk image is malformed (11)")
+        return _fake_replace_update(index_path, identities)
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "replace_agent_artifact_index_dismissed_agents",
+        flaky_replace,
+    )
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle.rebuild_agent_artifact_index",
+        lambda index_path, projects_root: index_path.touch(),
+    )
+
+    report = sync_dismissed_agent_artifact_index_report(
+        {(AgentType.RUNNING, "feature", "20260501010101")},
+        index_path=index,
+    )
+
+    assert report.synced
+    assert report.healed
+    assert len(replace_calls) == 2
+
+
+def test_transient_lock_errors_do_not_quarantine(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    """Lock/busy errors fail the sync quietly without touching the index."""
+    index = tmp_path / "agent_artifact_index.sqlite"
+    index.touch()
+    _patch_projection_sources(monkeypatch)
+
+    def locked_replace(*args: object, **kwargs: object) -> object:
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "replace_agent_artifact_index_dismissed_agents",
+        locked_replace,
+    )
+
+    report = sync_dismissed_agent_artifact_index_report(
+        {(AgentType.RUNNING, "feature", "20260501010101")},
+        index_path=index,
+    )
+
+    assert not report.synced
+    assert not report.healed
+    assert index.is_file()
+    assert list(tmp_path.glob("agent_artifact_index.sqlite.corrupt-*")) == []
+
+
+def test_quarantine_race_loser_skips(tmp_path: Path) -> None:
+    """When another process already renamed the index, the heal is skipped."""
+    assert _quarantine_corrupt_index(tmp_path / "missing.sqlite") is None
 
 
 def test_delete_agent_artifact_index_artifacts_is_best_effort(

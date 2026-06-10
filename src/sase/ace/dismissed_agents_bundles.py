@@ -119,6 +119,21 @@ def load_dismissed_bundle_summaries(
         return []
 
 
+def load_dismissed_bundle_identities(ctx: Any) -> set[tuple[str, str, str | None]]:
+    """Load distinct dismissed-bundle identities, rebuilding if needed."""
+    try:
+        from .dismissed_bundle_index import query_summary_identities
+
+        bundles_dir = ctx.dismissed_bundles_dir()
+        identities = query_summary_identities(bundles_dir)
+        if identities is not None:
+            return identities
+        ctx.rebuild_dismissed_bundle_index()
+        return query_summary_identities(bundles_dir) or set()
+    except (OSError, ValueError, sqlite3.Error):
+        return set()
+
+
 def ensure_dismissed_archive_ready(ctx: Any) -> None:
     """Run cold-start dismissed-bundle setup (migrations + index build)."""
     from .dismissed_bundle_index import archive_index_exists, rebuild_index

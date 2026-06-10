@@ -15,6 +15,7 @@ from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     delete_agent_artifact_index_row,
+    rebuild_agent_artifact_index,
     replace_agent_artifact_index_dismissed_agents,
     upsert_agent_artifact_index_row,
 )
@@ -42,6 +43,34 @@ _INDEX_ERRORS = (
 _DISMISSED_PROJECTION_META_KEY = "dismissed_projection"
 _DISMISSED_PROJECTION_META_VERSION = 1
 
+# SQLite error messages that indicate on-disk corruption (as opposed to
+# transient lock/timeout failures, which must never trigger a quarantine).
+_CORRUPTION_MARKERS = (
+    "database disk image is malformed",
+    "file is not a database",
+    "malformed database schema",
+    "database corruption",
+)
+
+
+class _CorruptArtifactIndexError(Exception):
+    """Internal signal that the artifact index reported on-disk corruption."""
+
+
+def _is_corruption_error(error: BaseException) -> bool:
+    """Return whether *error* signals on-disk corruption.
+
+    Matches the ``sqlite3.DatabaseError`` malformed-database family plus
+    corruption messages surfaced through the Rust facade's ``RuntimeError``.
+    Transient errors (locked/busy timeouts) never match.
+    """
+    if isinstance(error, sqlite3.Error) and not isinstance(
+        error, sqlite3.DatabaseError
+    ):
+        return False
+    message = " ".join(str(arg) for arg in getattr(error, "args", ())).lower()
+    return any(marker in message for marker in _CORRUPTION_MARKERS)
+
 
 @dataclass(frozen=True)
 class _DismissedProjectionInputs:
@@ -51,6 +80,23 @@ class _DismissedProjectionInputs:
     dismissed_agents_signature: DismissedAgentsSignature
     dismissed_bundle_index_signature: DismissedBundleIndexSignature
     skipped_bundle_rows: int = 0
+
+
+@dataclass(frozen=True)
+class DismissedProjectionSyncReport:
+    """Outcome of one dismissed-projection sync pass.
+
+    ``changed`` is True when the projection rows were actually rewritten
+    (i.e. the signature fast path did not hit), so callers can decide
+    whether dismissed-visibility state may have drifted. ``healed`` is
+    True when a corrupt index was quarantined and rebuilt during the
+    sync; ``quarantined_path`` then points at the preserved corrupt copy.
+    """
+
+    synced: bool
+    changed: bool = False
+    healed: bool = False
+    quarantined_path: Path | None = None
 
 
 def _default_projects_root(sase_home: Path | str | None = None) -> Path:
@@ -77,6 +123,27 @@ def sync_dismissed_agent_artifact_index(
 ) -> bool:
     """Best-effort sync of dismissed identities into the SQLite artifact index.
 
+    Bool-returning wrapper around
+    :func:`sync_dismissed_agent_artifact_index_report` for callers that
+    only care about success.
+    """
+    return sync_dismissed_agent_artifact_index_report(
+        dismissed,
+        added=added,
+        index_path=index_path,
+        force=force,
+    ).synced
+
+
+def sync_dismissed_agent_artifact_index_report(
+    dismissed: Iterable[AgentIdentityLike] | None = None,
+    *,
+    added: Iterable[AgentIdentityLike] | None = None,
+    index_path: Path | str | None = None,
+    force: bool = False,
+) -> DismissedProjectionSyncReport:
+    """Sync dismissed identities into the artifact index, reporting outcome.
+
     When ``added`` is provided, the caller asserts that ``dismissed`` is the
     full authoritative set of dismissed identities for this session. The
     expensive bundle-summary scan and bundle-index verify pass are skipped:
@@ -84,6 +151,11 @@ def sync_dismissed_agent_artifact_index(
     SQLite-side replace is still issued in one transaction so the on-disk
     rows match the in-memory set; ``added`` is a perf hint, not a
     correctness shortcut. On signature drift the full path remains.
+
+    A corrupt index (e.g. ``database disk image is malformed``) is
+    quarantined to ``<index>.corrupt-<UTC timestamp>``, rebuilt from
+    source artifacts, and re-synced; transient lock errors never trigger
+    that heal.
     """
     index = (
         Path(index_path).expanduser()
@@ -91,8 +163,22 @@ def sync_dismissed_agent_artifact_index(
         else default_agent_artifact_index_path()
     )
     if not index.is_file():
-        return False
+        return DismissedProjectionSyncReport(synced=False)
 
+    try:
+        return _sync_projection(index, dismissed, added=added, force=force)
+    except _CorruptArtifactIndexError:
+        return _heal_corrupt_index_and_resync(index, dismissed)
+
+
+def _sync_projection(
+    index: Path,
+    dismissed: Iterable[AgentIdentityLike] | None,
+    *,
+    added: Iterable[AgentIdentityLike] | None,
+    force: bool,
+) -> DismissedProjectionSyncReport:
+    """Run one projection sync pass, raising on index corruption."""
     authoritative = added is not None and dismissed is not None
     dismissed_agents_signature, dismissed_bundle_index_signature = (
         _current_projection_source_metadata()
@@ -106,7 +192,7 @@ def sync_dismissed_agent_artifact_index(
             dismissed_bundle_index_signature,
         )
     ):
-        return True
+        return DismissedProjectionSyncReport(synced=True, changed=False)
 
     if authoritative:
         assert dismissed is not None
@@ -120,10 +206,72 @@ def sync_dismissed_agent_artifact_index(
     try:
         replace_agent_artifact_index_dismissed_agents(index, projection.identities)
         _write_projection_metadata(index, projection)
-    except _INDEX_ERRORS:
+    except _INDEX_ERRORS as error:
+        if _is_corruption_error(error):
+            raise _CorruptArtifactIndexError from error
         log.debug("agent artifact index dismissed sync failed", exc_info=True)
-        return False
-    return True
+        return DismissedProjectionSyncReport(synced=False)
+    return DismissedProjectionSyncReport(synced=True, changed=True)
+
+
+def _heal_corrupt_index_and_resync(
+    index: Path,
+    dismissed: Iterable[AgentIdentityLike] | None,
+) -> DismissedProjectionSyncReport:
+    """Quarantine a corrupt artifact index, rebuild it, and force a resync."""
+    quarantined = _quarantine_corrupt_index(index)
+    if quarantined is None:
+        # Another process won the quarantine race (or the rename failed);
+        # a missing index is skipped harmlessly, exactly like today.
+        return DismissedProjectionSyncReport(synced=False)
+    log.warning(
+        "agent artifact index corrupt; quarantined to %s and rebuilding",
+        quarantined,
+    )
+    try:
+        rebuild_agent_artifact_index(index, _default_projects_root())
+        report = _sync_projection(index, dismissed, added=None, force=True)
+    except (_CorruptArtifactIndexError, *_INDEX_ERRORS):
+        log.exception("agent artifact index rebuild after quarantine failed")
+        return DismissedProjectionSyncReport(
+            synced=False, healed=True, quarantined_path=quarantined
+        )
+    return DismissedProjectionSyncReport(
+        synced=report.synced,
+        changed=report.changed,
+        healed=True,
+        quarantined_path=quarantined,
+    )
+
+
+def _quarantine_corrupt_index(index: Path) -> Path | None:
+    """Atomically move a corrupt index aside; first renamer wins.
+
+    The atomic rename doubles as the cross-process heal lock: a
+    concurrent healer that loses the race sees a missing index and skips.
+    At most one quarantine copy is kept; stale SQLite sidecar files are
+    removed so they cannot bleed into the rebuilt database.
+    """
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    quarantined = index.with_name(f"{index.name}.corrupt-{timestamp}")
+    try:
+        index.rename(quarantined)
+    except OSError:
+        log.debug("agent artifact index quarantine rename failed", exc_info=True)
+        return None
+    for sidecar_suffix in ("-wal", "-shm"):
+        try:
+            Path(f"{index}{sidecar_suffix}").unlink(missing_ok=True)
+        except OSError:
+            log.debug("agent artifact index sidecar cleanup failed", exc_info=True)
+    for stale in index.parent.glob(f"{index.name}.corrupt-*"):
+        if stale == quarantined:
+            continue
+        try:
+            stale.unlink()
+        except OSError:
+            log.debug("stale quarantine copy cleanup failed", exc_info=True)
+    return quarantined
 
 
 def _projection_inputs_from_dismissed_only(
@@ -154,7 +302,7 @@ def build_dismissed_agent_projection_inputs(
         dismissed_agents_file_signature,
         dismissed_bundle_index_signature,
         load_dismissed_agents,
-        load_dismissed_bundle_summaries,
+        load_dismissed_bundle_identities,
         rebuild_dismissed_bundle_index,
         verify_dismissed_bundle_index,
     )
@@ -172,8 +320,14 @@ def build_dismissed_agent_projection_inputs(
         log.debug("dismissed bundle index verification failed", exc_info=True)
 
     identities = {_identity_to_wire(identity) for identity in dismissed_identities}
-    for summary in load_dismissed_bundle_summaries(limit=None):
-        identities.add(_dismissed_summary_identity(summary))
+    for agent_type, cl_name, raw_suffix in load_dismissed_bundle_identities():
+        identities.add(
+            AgentCleanupIdentityWire(
+                agent_type=agent_type,
+                cl_name=cl_name,
+                raw_suffix=raw_suffix,
+            )
+        )
 
     return _DismissedProjectionInputs(
         identities=sorted(identities),
@@ -274,16 +428,6 @@ def _identity_to_wire(identity: AgentIdentityLike) -> AgentCleanupIdentityWire:
     )
 
 
-def _dismissed_summary_identity(summary: Any) -> AgentCleanupIdentityWire:
-    """Convert one dismissed bundle summary into an artifact-index identity."""
-
-    return AgentCleanupIdentityWire(
-        agent_type=str(summary.agent_type),
-        cl_name=str(summary.cl_name or "unknown"),
-        raw_suffix=str(summary.raw_suffix) if summary.raw_suffix else None,
-    )
-
-
 def _current_projection_source_metadata() -> tuple[
     DismissedAgentsSignature,
     DismissedBundleIndexSignature,
@@ -331,7 +475,12 @@ def _read_projection_metadata(index_path: Path) -> dict[str, object] | None:
                 "SELECT value FROM meta WHERE key = ?",
                 (_DISMISSED_PROJECTION_META_KEY,),
             ).fetchone()
-    except sqlite3.Error:
+    except sqlite3.Error as error:
+        # Don't conflate corruption with "no metadata": a missing-table or
+        # transient lock error just misses the fast path, but a malformed
+        # database must surface so the sync entry point can heal it.
+        if _is_corruption_error(error):
+            raise _CorruptArtifactIndexError from error
         return None
     if row is None:
         return None
@@ -373,9 +522,11 @@ def _json_signature(signature: tuple[int, ...] | None) -> list[int] | None:
 
 
 __all__ = [
+    "DismissedProjectionSyncReport",
     "build_dismissed_agent_projection_inputs",
     "delete_agent_artifact_index_artifacts",
     "sync_dismissed_agent_artifact_index",
+    "sync_dismissed_agent_artifact_index_report",
     "update_agent_artifact_index_for_marker_mutation",
     "upsert_agent_artifact_index_artifacts",
 ]

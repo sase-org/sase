@@ -175,10 +175,49 @@ def rebuild_index(root: Path) -> DismissedBundleIndexRebuildResult:
     )
 
 
-def verify_index(root: Path) -> DismissedBundleIndexVerifyResult:
-    """Compare the index to source bundle files without mutating rows."""
+def query_summary_identities(root: Path) -> set[tuple[str, str, str | None]] | None:
+    """Return distinct ``(agent_type, cl_name, raw_suffix)`` identity rows.
 
-    indexed_paths: set[str] = set()
+    Dedicated projection query for callers that only need identities (the
+    artifact-index dismissed projection), so they never materialize every
+    summary object. Applies the same normalization as the summary path:
+    blank ``cl_name`` becomes ``'unknown'`` and blank ``raw_suffix``
+    becomes ``None``. Returns ``None`` when no usable index exists.
+    """
+
+    db_path = index_path_for_root(root)
+    if not db_path.is_file():
+        return None
+
+    sql = (
+        "SELECT DISTINCT agent_type, "
+        "CASE WHEN cl_name = '' THEN 'unknown' ELSE cl_name END, "
+        "NULLIF(raw_suffix, '') "
+        "FROM dismissed_bundle_summaries"
+    )
+    try:
+        with connection(root) as conn:
+            rows = conn.execute(sql).fetchall()
+    except sqlite3.Error:
+        return None
+    return {
+        (str(row[0]), str(row[1]), None if row[2] is None else str(row[2]))
+        for row in rows
+    }
+
+
+def verify_index(root: Path) -> DismissedBundleIndexVerifyResult:
+    """Compare the index to source bundle files without mutating rows.
+
+    Verification is signature-based: indexed rows are checked against
+    ``stat()`` signatures and the on-disk path set, so the cost is one
+    stat per bundle instead of a JSON parse per bundle. Only files absent
+    from the index are parsed — without that, a corrupt unindexed file
+    would read as permanently "missing" and trigger a full rebuild on
+    every verify. JSON validity of indexed rows is rebuild's job.
+    """
+
+    indexed: dict[str, tuple[int, int]] = {}
     stale_rows = 0
     if index_path_for_root(root).is_file():
         try:
@@ -188,34 +227,38 @@ def verify_index(root: Path) -> DismissedBundleIndexVerifyResult:
                     "FROM dismissed_bundle_summaries"
                 ).fetchall()
             for row in rows:
-                bundle_path = str(row["bundle_path"])
-                indexed_paths.add(bundle_path)
-                path = Path(bundle_path)
-                try:
-                    mtime_ns, size_bytes = file_signature(path)
-                except OSError:
-                    stale_rows += 1
-                    continue
-                if mtime_ns != row["mtime_ns"] or size_bytes != row["size_bytes"]:
-                    stale_rows += 1
+                indexed[str(row["bundle_path"])] = (
+                    int(row["mtime_ns"]),
+                    int(row["size_bytes"]),
+                )
         except sqlite3.Error:
             stale_rows = 1
 
-    valid_paths: set[str] = set()
+    for bundle_path, signature in indexed.items():
+        try:
+            if file_signature(Path(bundle_path)) != signature:
+                stale_rows += 1
+        except OSError:
+            stale_rows += 1
+
+    disk_paths = {str(path): path for path in iter_bundle_paths(root)}
+    missing = 0
     corrupt = 0
-    for path in iter_bundle_paths(root):
+    for path_str, path in disk_paths.items():
+        if path_str in indexed:
+            continue
         try:
             read_bundle(path)
-            valid_paths.add(str(path))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, ValueError):
             corrupt += 1
+            continue
+        missing += 1
 
-    missing = len(valid_paths - indexed_paths)
     ok = stale_rows == 0 and missing == 0
     return DismissedBundleIndexVerifyResult(
         ok=ok,
-        indexed_rows=len(indexed_paths),
-        valid_bundles=len(valid_paths),
+        indexed_rows=len(indexed),
+        valid_bundles=len(disk_paths) - corrupt,
         corrupt_bundles=corrupt,
         stale_rows=stale_rows,
         missing_rows=missing,

@@ -399,9 +399,6 @@ class StateInitMixin:
             dismissed_agents_file_signature,
             load_dismissed_agents,
         )
-        from sase.core.agent_artifact_index_lifecycle import (
-            sync_dismissed_agent_artifact_index,
-        )
 
         self._last_unread_ids: set[str] = set()
         self._notification_snapshot_cache: Any | None = None
@@ -416,7 +413,11 @@ class StateInitMixin:
         self._dismissed_agents_disk_signature = dismissed_agents_file_signature()
         self._dismissed_agents_disk_identities = set(self._dismissed_agents)
         self._dismissed_agents_disk_signature_initialized = True
-        sync_dismissed_agent_artifact_index(self._dismissed_agents)
+        # The artifact-index dismissed-projection sync is deliberately NOT
+        # run here: it is O(archive) on signature drift (and unbounded on
+        # a corrupt index), and __init__ runs before Textual ever paints.
+        # The post-mount startup worker runs it in a thread instead
+        # (StartupMixin._run_dismissed_index_startup_sync).
         self._dismissed_agent_objects: list[Agent] = []
         # The recent dismissed-agent group cache is intentionally left empty at
         # startup: the revive modal (`_revive_agent`) re-reads the recent store

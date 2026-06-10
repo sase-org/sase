@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from sase.ace.dismissed_agents import (
     ensure_dismissed_archive_ready,
+    load_dismissed_bundle_identities,
     load_dismissed_bundle_summaries,
     load_dismissed_bundles,
     rebuild_dismissed_bundle_index,
@@ -217,6 +218,122 @@ def test_dismissed_bundle_verify_reports_stale_and_missing_rows(
     assert result["valid_bundles"] == 2
     assert result["stale_rows"] == 1
     assert result["missing_rows"] == 1
+
+
+def test_dismissed_bundle_verify_skips_json_parse_of_indexed_bundles(
+    tmp_path: Path,
+) -> None:
+    """Verify is signature-based: indexed bundles are never JSON-parsed."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        save_dismissed_bundle(make_agent(cl_name="cl", raw_suffix="20250615100000"))
+        assert rebuild_dismissed_bundle_index() == (1, 0)
+
+        def fail_read(path: Path) -> dict[str, object]:
+            raise AssertionError(f"verify parsed an indexed bundle: {path}")
+
+        with patch("sase.ace.dismissed_bundle_index._api.read_bundle", fail_read):
+            result = verify_dismissed_bundle_index()
+
+    assert result["ok"] is True
+    assert result["indexed_rows"] == 1
+
+
+def test_dismissed_bundle_verify_detects_changed_file_signature(
+    tmp_path: Path,
+) -> None:
+    """A rewritten bundle (mtime/size drift) is reported as a stale row."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = make_agent(cl_name="cl", raw_suffix="20250615100000")
+        save_dismissed_bundle(agent)
+        assert rebuild_dismissed_bundle_index() == (1, 0)
+        bundle_path = bundles_dir / "202506" / "20250615100000.json"
+        bundle = json.loads(bundle_path.read_text())
+        bundle["status"] = "REWRITTEN_WITH_A_DIFFERENT_SIZE"
+        bundle_path.write_text(json.dumps(bundle))
+
+        result = verify_dismissed_bundle_index()
+
+    assert result["ok"] is False
+    assert result["stale_rows"] == 1
+    assert result["missing_rows"] == 0
+
+
+def test_dismissed_bundle_verify_treats_unindexed_corrupt_file_as_corrupt(
+    tmp_path: Path,
+) -> None:
+    """A corrupt unindexed file counts as corrupt, not missing.
+
+    Flagging it missing would make every verify fail and trigger a full
+    rebuild on every sync, since rebuild rightly skips corrupt files.
+    """
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        save_dismissed_bundle(make_agent(cl_name="cl", raw_suffix="20250615100000"))
+        assert rebuild_dismissed_bundle_index() == (1, 0)
+        (bundles_dir / "202506" / "20250615110000.json").write_text("{not json")
+
+        result = verify_dismissed_bundle_index()
+
+    assert result["ok"] is True
+    assert result["corrupt_bundles"] == 1
+    assert result["missing_rows"] == 0
+
+
+def test_load_dismissed_bundle_identities_matches_summary_projection(
+    tmp_path: Path,
+) -> None:
+    """The SQL identity projection equals the old summary-derived identity set."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        parent = make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="indexed_cl",
+            raw_suffix="20250615100000",
+            workflow="wf",
+        )
+        child = make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="indexed_cl",
+            raw_suffix="20250615100000",
+            parent_workflow="wf",
+            parent_timestamp="20250615100000",
+            step_index=0,
+        )
+        other = make_agent(cl_name="other_cl", raw_suffix="20250615110000")
+        for agent in (parent, child, other):
+            save_dismissed_bundle(agent)
+        assert rebuild_dismissed_bundle_index() == (3, 0)
+
+        identities = load_dismissed_bundle_identities()
+        summaries = load_dismissed_bundle_summaries(limit=None)
+
+    expected = {
+        (
+            str(summary.agent_type),
+            str(summary.cl_name or "unknown"),
+            str(summary.raw_suffix) if summary.raw_suffix else None,
+        )
+        for summary in summaries
+    }
+    assert identities == expected
+    assert identities == {
+        ("workflow", "indexed_cl", "20250615100000"),
+        ("run", "other_cl", "20250615110000"),
+    }
 
 
 def test_load_dismissed_bundles_by_suffix_uses_legacy_index(tmp_path: Path) -> None:

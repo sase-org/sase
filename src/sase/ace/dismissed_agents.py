@@ -15,6 +15,7 @@ from .dismissed_agents_bundles import (
     fsync_dir as _fsync_dir_impl,
     has_dismissed_bundle as _has_dismissed_bundle_impl,
     load_bundle_file as _load_bundle_file_impl,
+    load_dismissed_bundle_identities as _load_dismissed_bundle_identities_impl,
     load_dismissed_bundle_summaries as _load_dismissed_bundle_summaries_impl,
     load_dismissed_bundles as _load_dismissed_bundles_impl,
     mark_bundles_revived_by_suffixes as _mark_bundles_revived_by_suffixes_impl,
@@ -164,6 +165,10 @@ def load_dismissed_bundle_summaries(
         top_level_only=top_level_only,
         limit=limit,
     )
+
+
+def load_dismissed_bundle_identities() -> set[tuple[str, str, str | None]]:
+    return _load_dismissed_bundle_identities_impl(_ctx())
 
 
 def ensure_dismissed_archive_ready() -> None:
