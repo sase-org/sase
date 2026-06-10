@@ -13,6 +13,7 @@ from sase.plan_chain import (
 )
 
 from .agent import Agent, AgentType
+from ._diff_badge import diff_has_real_edits
 
 
 _APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "legend", "commit"})
@@ -253,6 +254,13 @@ def _copy_missing_display_metadata(parent: Agent, child: Agent) -> None:
         parent.workspace_dir = child.workspace_dir
 
 
+def _classify_diff_badges(agents: list[Agent]) -> None:
+    for agent in agents:
+        agent.diff_has_real_edits = (
+            diff_has_real_edits(agent.diff_path) if agent.diff_path else None
+        )
+
+
 def _ensure_synthetic_planner_children(
     agents: list[Agent],
     all_agents: list[Agent],
@@ -436,8 +444,12 @@ def apply_status_overrides(
 
                 # Propagate diff_path from follow-up child to parent so the
                 # file panel can display the code diff (more relevant than
-                # the planner's own diff).
-                if agent.diff_path:
+                # the planner's own diff). Planner rows only fill a missing
+                # parent diff; synthetic planner rows copy the parent diff and
+                # must not clobber a coder diff propagated earlier in the pass.
+                if agent.diff_path and (
+                    role_suffix != PLAN_CHAIN_PLAN_SUFFIX or not parent.diff_path
+                ):
                     parent.diff_path = agent.diff_path
 
     # Override DONE -> QUESTION for agents whose last question was never answered.
@@ -527,3 +539,5 @@ def apply_status_overrides(
             agent.retry_chain_siblings.sort(
                 key=lambda a: a.retry_attempt or 0,
             )
+
+    _classify_diff_badges(all_agents)

@@ -17,7 +17,11 @@ from ._agent_list_helpers import (
     short_model_name,
     step_role_suffix,
 )
-from ._agent_list_render_cache import AgentRenderCache, agent_render_key
+from ._agent_list_render_cache import (
+    AgentRenderCache,
+    agent_file_change_hint,
+    agent_render_key,
+)
 from ._agent_list_render_layout import (
     build_activity_suffix,
     build_runtime_suffix,
@@ -44,7 +48,7 @@ def _should_render_provider_badge(agent: Agent) -> bool:
 
 
 def _has_file_change_hint(agent: Agent) -> bool:
-    return bool(agent.diff_path)
+    return agent_file_change_hint(agent)
 
 
 def format_agent_option(

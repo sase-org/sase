@@ -77,6 +77,28 @@ class TestAgentListFileChangePencil:
 
         assert "✏️ test_cl (RUNNING)" in left.plain
 
+    def test_row_with_classified_real_diff_renders_pencil(self) -> None:
+        agent = make_agent(
+            diff_path="/tmp/sase/demo.diff",
+            diff_has_real_edits=True,
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "✏️ test_cl (RUNNING)" in left.plain
+
+    def test_row_with_classified_bookkeeping_diff_omits_pencil(self) -> None:
+        agent = make_agent(
+            diff_path="/tmp/sase/demo.diff",
+            diff_has_real_edits=False,
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "✏️" not in left.plain
+
     def test_row_without_diff_path_omits_pencil(self) -> None:
         agent = make_agent()
 

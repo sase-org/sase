@@ -91,7 +91,8 @@ _HIDDEN_ICON = "◌"
 _BEAD_GLYPH = "◆"
 _BEAD_GLYPH_STYLE = "bold #5FD7AF"
 
-# File-change badge for agents with a persisted diff artifact.
+# File-change badge for agents whose persisted diff includes reviewable edits.
+# Plan/prompt bookkeeping-only diffs are classified at load time and omitted.
 _FILE_CHANGE_GLYPH = "✏️"
 _FILE_CHANGE_GLYPH_STYLE = "bold #FFD75F"
 

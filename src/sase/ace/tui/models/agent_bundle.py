@@ -20,6 +20,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             "followup_agents",
             "runtime_children",
             "attempt_history",
+            "diff_has_real_edits",
             "_loaded_from_dismissed_bundle",
             "_dismissed_bundle_path",
         ):

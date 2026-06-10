@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from collections.abc import Callable
 
+from sase.diff_paths import changed_files_from_diff
 from sase.vcs_provider import get_vcs_provider
 from sase.vcs_provider._registry import detect_vcs
 
@@ -159,47 +160,6 @@ def _resolve_commit_skill_name(project_dir: str) -> str:
     return f"/sase_{provider_token}_commit"
 
 
-def _normalize_diff_path(path: str) -> str | None:
-    p = path.strip()
-    if not p or p == "/dev/null":
-        return None
-    if p.startswith("a/") or p.startswith("b/"):
-        p = p[2:]
-    return p or None
-
-
-def _changed_files_from_diff(diff_text: str) -> list[str]:
-    files: set[str] = set()
-
-    for line in diff_text.splitlines():
-        if line.startswith("diff --git "):
-            parts = line.split()
-            if len(parts) >= 4:
-                candidate = _normalize_diff_path(parts[3])
-                if candidate:
-                    files.add(candidate)
-            continue
-
-        if line.startswith("rename to "):
-            candidate = _normalize_diff_path(line.removeprefix("rename to "))
-            if candidate:
-                files.add(candidate)
-            continue
-
-        if line.startswith("+++ "):
-            candidate = _normalize_diff_path(line.removeprefix("+++ "))
-            if candidate:
-                files.add(candidate)
-            continue
-
-        if line.startswith("Index: "):
-            candidate = _normalize_diff_path(line.removeprefix("Index: "))
-            if candidate:
-                files.add(candidate)
-
-    return sorted(files)
-
-
 def _get_changed_files_for_commit(project_dir: str) -> tuple[bool, list[str]]:
     try:
         provider = get_vcs_provider(project_dir)
@@ -218,7 +178,7 @@ def _get_changed_files_for_commit(project_dir: str) -> tuple[bool, list[str]]:
     except Exception:
         diff_text = None
 
-    changed_files = _changed_files_from_diff(diff_text or "")
+    changed_files = changed_files_from_diff(diff_text or "")
     if changed_files:
         return (True, changed_files)
 

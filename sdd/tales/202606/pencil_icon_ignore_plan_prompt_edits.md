@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-10 10:54:44
-status: wip
+status: done
 prompt: sdd/prompts/202606/pencil_icon_ignore_plan_prompt_edits.md
 ---
 # Plan: Don't Count Plan/Prompt Files as Edits for the Agents-Tab Pencil Icon

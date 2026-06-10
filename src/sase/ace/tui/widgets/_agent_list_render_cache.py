@@ -55,6 +55,13 @@ def _quantize_now(now: datetime | None) -> tuple[int, int, int, int, int, int] |
     return (now.year, now.month, now.day, now.hour, now.minute, now.second)
 
 
+def agent_file_change_hint(agent: Agent) -> bool:
+    classified = agent.diff_has_real_edits
+    if classified is not None:
+        return classified
+    return bool(agent.diff_path)
+
+
 def _runtime_signature(
     agent: Agent, now: datetime | None, _seen: set[int] | None = None
 ) -> tuple[Any, ...]:
@@ -130,7 +137,7 @@ def agent_render_key(
         agent.auto_approve_plan_action,
         agent.tag,
         agent.agent_name,
-        bool(agent.diff_path),
+        agent_file_change_hint(agent),
         derive_agent_bead_id(agent),
         ordered_row_providers(agent),
         agent.hidden,

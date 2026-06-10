@@ -1,10 +1,24 @@
 """Tests for _apply_status_overrides tale plan action decisions."""
 
 from datetime import datetime
+from pathlib import Path
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
+
+
+def _write_git_diff(path: Path, changed_path: str) -> None:
+    path.write_text(
+        f"""diff --git a/{changed_path} b/{changed_path}
+--- a/{changed_path}
++++ b/{changed_path}
+@@ -1 +1 @@
+-old
++new
+""",
+        encoding="utf-8",
+    )
 
 
 def test_apply_status_overrides_active_code_child_with_tale_plan_action_is_tale_approved() -> (
@@ -265,6 +279,88 @@ def test_apply_status_overrides_active_tale_code_child_backfills_root_badge_meta
 
     left, _, _ = format_agent_option(parent, 0, is_selected=False)
     assert "🤖 a5n (TALE APPROVED)" in left.plain
+
+
+def test_apply_status_overrides_suppresses_sdd_only_diff_badge_for_tale_root(
+    tmp_path: Path,
+) -> None:
+    """TALE APPROVED roots do not show a pencil for plan/prompt-only diffs."""
+    diff_path = tmp_path / "commit_diff.diff"
+    _write_git_diff(diff_path, "sdd/tales/202606/change.md")
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="a5n",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 23, 11, 43, 3),
+        raw_suffix="20260523114303",
+        role_suffix="-plan",
+        diff_path=str(diff_path),
+        agent_name="a5n",
+        agent_family="a5n",
+        agent_family_role="root",
+        plan_chain_root=True,
+        plan_action="tale",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="a5n-code",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 23, 11, 46, 30),
+        parent_timestamp="20260523114303",
+        role_suffix="-code",
+    )
+
+    _apply_status_overrides([parent, code_child])
+
+    assert parent.status == "TALE APPROVED"
+    assert parent.diff_has_real_edits is False
+    left, _, _ = format_agent_option(parent, 0, is_selected=False)
+    assert "✏️" not in left.plain
+
+
+def test_apply_status_overrides_shows_badge_after_coder_real_diff_propagates(
+    tmp_path: Path,
+) -> None:
+    """A coder diff still wins over the planner's plan/prompt-only diff."""
+    plan_diff = tmp_path / "commit_diff.diff"
+    code_diff = tmp_path / "code.diff"
+    _write_git_diff(plan_diff, "sdd/tales/202606/change.md")
+    _write_git_diff(code_diff, "src/app.py")
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="a5n",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 23, 11, 43, 3),
+        raw_suffix="20260523114303",
+        role_suffix="-plan",
+        diff_path=str(plan_diff),
+        agent_name="a5n",
+        agent_family="a5n",
+        agent_family_role="root",
+        plan_chain_root=True,
+        plan_action="tale",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="a5n-code",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 23, 11, 46, 30),
+        parent_timestamp="20260523114303",
+        role_suffix="-code",
+        diff_path=str(code_diff),
+    )
+
+    _apply_status_overrides([parent, code_child])
+
+    assert parent.status == "TALE APPROVED"
+    assert parent.diff_path == str(code_diff)
+    assert parent.diff_has_real_edits is True
+    left, _, _ = format_agent_option(parent, 0, is_selected=False)
+    assert "✏️ a5n (TALE APPROVED)" in left.plain
 
 
 def test_apply_status_overrides_child_metadata_does_not_overwrite_root_metadata() -> (

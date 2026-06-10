@@ -75,6 +75,10 @@ class Agent:
     # Diff file path for completed agents
     diff_path: str | None = None
 
+    # Precomputed badge classification for ``diff_path``. None means the row
+    # has not gone through the loader classification pass yet.
+    diff_has_real_edits: bool | None = field(default=None, compare=False)
+
     # Additional file paths (plans, etc.) for multi-file panel display
     extra_files: list[str] = field(default_factory=list)
 
