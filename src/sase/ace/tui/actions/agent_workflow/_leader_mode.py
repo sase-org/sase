@@ -256,7 +256,7 @@ class LeaderModeMixin:
         return True
 
     def _open_temporary_llm_override_modal(self) -> None:
-        """Open the Temporary LLM Override modal (leader ``,o`` by default)."""
+        """Open the Model Overrides modal (leader ``,o`` by default)."""
         from ...modals import TemporaryLLMOverrideModal, TemporaryOverrideResult
         from ...widgets import LLMOverrideIndicator
 
@@ -278,7 +278,8 @@ class LeaderModeMixin:
             if result.action in ("set", "cleared"):
                 _refresh_indicator()
             if result.action == "cleared":
-                self.notify("Cleared temporary LLM override")  # type: ignore[attr-defined]
+                role_label = "worker" if result.role == "worker" else "primary"
+                self.notify(f"Cleared {role_label} model override")  # type: ignore[attr-defined]
 
         self.push_screen(  # type: ignore[attr-defined]
             TemporaryLLMOverrideModal(),

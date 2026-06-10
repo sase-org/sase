@@ -511,7 +511,7 @@ TemporaryLLMOverrideModal {
 }
 
 #override-container {
-    width: 52;
+    width: 68;
     height: auto;
     border: double $primary;
     background: $surface;
@@ -529,13 +529,14 @@ TemporaryLLMOverrideModal {
     height: auto;
 }
 
-#override-state-line {
+.override-lane-row {
     height: auto;
-    margin-bottom: 1;
+    margin-bottom: 0;
 }
 
 .override-action-row {
     height: 1;
+    color: $text;
 }
 
 .override-spacer {

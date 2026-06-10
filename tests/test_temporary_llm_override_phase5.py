@@ -120,13 +120,13 @@ def _flatten_help_keys(sections: list[tuple[str, list[tuple[str, str]]]]) -> set
 def test_help_modal_includes_temporary_override_on_main_tabs(
     build_sections,
 ) -> None:
-    """``,o`` "Temporary model override" appears in the changespecs and
+    """``,o`` "Model overrides" appears in the changespecs and
     agents help-modal sections (the two tabs that show leader-mode
     bindings)."""
     reg = _full_registry()
     sections = build_sections(reg)
     flat = _flatten_help_keys(sections)
-    assert ",o|Temporary model override" in flat
+    assert ",o|Model overrides" in flat
 
 
 def test_help_modal_axe_tab_includes_temporary_override() -> None:
@@ -134,7 +134,7 @@ def test_help_modal_axe_tab_includes_temporary_override() -> None:
     reg = _full_registry()
     sections = axe_bindings(reg)
     flat = _flatten_help_keys(sections)
-    assert ",o|Temporary model override" in flat
+    assert ",o|Model overrides" in flat
 
 
 def test_help_modal_keybinding_uses_configured_leader_prefix() -> None:
@@ -144,7 +144,7 @@ def test_help_modal_keybinding_uses_configured_leader_prefix() -> None:
     )
     sections = cls_bindings(reg)
     flat = _flatten_help_keys(sections)
-    assert ";o|Temporary model override" in flat
+    assert ";o|Model overrides" in flat
 
 
 def test_help_modal_keybinding_uses_configured_temporary_key() -> None:
@@ -160,11 +160,11 @@ def test_help_modal_keybinding_uses_configured_temporary_key() -> None:
     )
     sections = cls_bindings(reg)
     flat = _flatten_help_keys(sections)
-    assert ",T|Temporary model override" in flat
+    assert ",T|Model overrides" in flat
 
 
 def test_footer_leader_bindings_include_temporary_override() -> None:
-    """``update_leader_bindings`` puts ``o temporary model`` in the footer."""
+    """``update_leader_bindings`` puts ``o model overrides`` in the footer."""
     footer = KeybindingFooter()
     captured: list[tuple[list[tuple[str, str]], str | None]] = []
     footer._update_display = MagicMock(  # type: ignore[method-assign]
@@ -178,7 +178,7 @@ def test_footer_leader_bindings_include_temporary_override() -> None:
     assert captured, "footer never updated"
     bindings, mode_label = captured[-1]
     assert mode_label == "LEADER"
-    assert any(label == "temporary model" for _, label in bindings)
+    assert any(label == "model overrides" for _, label in bindings)
 
 
 @pytest.mark.parametrize("tab", ["changespecs", "agents", "axe"])
@@ -196,7 +196,7 @@ def test_footer_leader_bindings_present_on_every_tab(tab: str) -> None:
     footer.update_leader_bindings(current_tab=tab)
 
     bindings, _ = captured[-1]
-    assert any(label == "temporary model" for _, label in bindings)
+    assert any(label == "model overrides" for _, label in bindings)
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +269,7 @@ async def test_top_modal_x_with_no_active_dismisses_cancelled() -> None:
 
 
 async def test_top_modal_s_pushes_model_picker_when_inactive() -> None:
-    """Pressing ``s`` from the inactive state pushes the model picker."""
+    """Pressing ``s`` from the inactive state pushes the primary picker."""
     async with _TestApp().run_test() as pilot:
         modal = TemporaryLLMOverrideModal()
         pilot.app.push_screen(modal)
@@ -282,10 +282,11 @@ async def test_top_modal_s_pushes_model_picker_when_inactive() -> None:
         top = pilot.app.screen
         assert isinstance(top, ModelPickerModal)
         assert top._include_default_option is False
+        assert top._title == "Pick Primary Model"
 
 
 async def test_top_modal_c_pushes_model_picker_when_active() -> None:
-    """Pressing ``c`` (Change override) from the active state pushes
+    """Pressing ``c`` (Change primary) from the active state pushes
     the model picker — same as the inactive ``s`` flow."""
     set_temporary_override("codex/o3", 3600.0, source="test")
     async with _TestApp().run_test() as pilot:
@@ -298,6 +299,7 @@ async def test_top_modal_c_pushes_model_picker_when_active() -> None:
 
         top = pilot.app.screen
         assert isinstance(top, ModelPickerModal)
+        assert top._title == "Pick Primary Model"
 
 
 async def test_full_set_flow_writes_state_and_dismisses_with_set() -> None:
@@ -335,6 +337,7 @@ async def test_full_set_flow_writes_state_and_dismisses_with_set() -> None:
 
     assert result is not None
     assert result.action == "set"
+    assert result.role == "primary"
     assert result.override is not None
     assert result.override.provider == "codex"
     assert result.override.model == "o3"
@@ -378,11 +381,101 @@ async def test_full_change_flow_overwrites_existing_state() -> None:
 
     assert result is not None
     assert result.action == "set"
+    assert result.role == "primary"
     fetched = get_active_temporary_override()
     assert fetched is not None
     assert fetched.provider == "codex"
     assert fetched.model == "o3"
     assert fetched.expires_at is None
+
+
+async def test_top_modal_w_pushes_worker_model_picker() -> None:
+    """Pressing ``w`` opens the worker-lane picker."""
+    async with _TestApp().run_test() as pilot:
+        modal = TemporaryLLMOverrideModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("w")
+        await pilot.pause()
+
+        top = pilot.app.screen
+        assert isinstance(top, ModelPickerModal)
+        assert top._include_default_option is False
+        assert top._title == "Pick Worker Model"
+
+
+async def test_full_worker_set_flow_writes_worker_state_only() -> None:
+    """The worker flow writes ``llm_worker_override.json`` and leaves
+    the primary override untouched."""
+    assert get_active_temporary_override() is None
+    assert get_active_temporary_override(role="worker") is None
+    result: TemporaryOverrideResult | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: TemporaryOverrideResult | None) -> None:
+            nonlocal result
+            result = value
+
+        pilot.app.push_screen(TemporaryLLMOverrideModal(), callback=on_dismiss)
+        await pilot.pause()
+
+        await pilot.press("w")
+        await pilot.pause()
+
+        picker = pilot.app.screen
+        assert isinstance(picker, ModelPickerModal)
+        option_list = picker.query_one("#model-picker-list", OptionList)
+        option_list.highlighted = option_list.get_option_index("o3")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, _DurationPickerModal)
+        await pilot.press("3")
+        await pilot.pause()
+
+    assert result is not None
+    assert result.action == "set"
+    assert result.role == "worker"
+    assert result.override is not None
+    assert result.override.provider == "codex"
+    assert result.override.model == "o3"
+
+    assert get_active_temporary_override() is None
+    fetched = get_active_temporary_override(role="worker")
+    assert fetched is not None
+    assert fetched.provider == "codex"
+    assert fetched.model == "o3"
+
+
+async def test_worker_clear_flow_removes_worker_state_only() -> None:
+    """``W`` clears the worker override without touching primary state."""
+    set_temporary_override("claude/opus", 3600.0, source="seed")
+    set_temporary_override("codex/o3", 3600.0, source="seed", role="worker")
+    result: TemporaryOverrideResult | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: TemporaryOverrideResult | None) -> None:
+            nonlocal result
+            result = value
+
+        pilot.app.push_screen(TemporaryLLMOverrideModal(), callback=on_dismiss)
+        await pilot.pause()
+        await pilot.press("W")
+        await pilot.pause()
+
+    assert result is not None
+    assert result.action == "cleared"
+    assert result.role == "worker"
+    assert get_active_temporary_override(role="worker") is None
+
+    primary = get_active_temporary_override()
+    assert primary is not None
+    assert primary.provider == "claude"
+    assert primary.model == "opus"
 
 
 async def test_set_flow_picker_cancel_keeps_modal_open() -> None:
@@ -481,13 +574,14 @@ async def test_duration_modal_valid_custom_dismisses_with_seconds() -> None:
 
 
 def test_render_state_line_until_cleared_shows_no_expiry() -> None:
-    """An override with no expiry renders ``no expiry`` rather than a
+    """An override with no expiry renders ``until cleared`` rather than a
     countdown."""
     set_temporary_override("opus", None, source="test")
     modal = TemporaryLLMOverrideModal()
     line = modal._render_state_line()
-    assert "Active" in line
-    assert "no expiry" in line
+    assert "PRIMARY" in line
+    assert "override" in line
+    assert "until cleared" in line
 
 
 def test_render_state_line_inactive_uses_resolved_default() -> None:
@@ -496,10 +590,56 @@ def test_render_state_line_inactive_uses_resolved_default() -> None:
     assert get_active_temporary_override() is None
     modal = TemporaryLLMOverrideModal()
     line = modal._render_state_line()
-    assert "Default" in line
+    assert "PRIMARY" in line
+    assert "default" in line
     # format_provider_model_label produces "PROVIDER(model)"; the
     # parentheses are the giveaway that we resolved the model too.
     assert "(" in line and ")" in line
+
+
+def test_lane_rows_render_default_source_tags() -> None:
+    """Idle primary and worker lanes show default source tags."""
+    modal = TemporaryLLMOverrideModal()
+
+    assert "default" in modal._render_lane_row("primary")
+    assert "default" in modal._render_lane_row("worker")
+
+
+def test_lane_rows_render_config_source_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A configured worker model shows ``config`` in the worker row."""
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.temporary_llm_override_modal.get_configured_worker_model",
+        lambda: "codex/gpt-5.5",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.temporary_llm_override_modal."
+        "resolve_effective_worker_provider_model",
+        lambda: ("codex", "gpt-5.5"),
+    )
+
+    modal = TemporaryLLMOverrideModal()
+
+    assert "config" in modal._render_lane_row("worker")
+
+
+def test_lane_rows_render_follows_primary_source_tag() -> None:
+    """Worker falls through to the active primary override when unset."""
+    set_temporary_override("codex/o3", 3600.0, source="test")
+    modal = TemporaryLLMOverrideModal()
+
+    assert "follows primary" in modal._render_lane_row("worker")
+
+
+def test_lane_rows_render_override_source_tag_for_worker() -> None:
+    """An active worker override has the override source tag."""
+    set_temporary_override("codex/o3", 3600.0, source="test", role="worker")
+    modal = TemporaryLLMOverrideModal()
+
+    row = modal._render_lane_row("worker")
+    assert "WORKER" in row
+    assert "override" in row
 
 
 # ---------------------------------------------------------------------------
@@ -664,10 +804,31 @@ def test_temporary_override_dismiss_clear_refreshes_top_bar_indicator() -> None:
     LeaderModeMixin._open_temporary_llm_override_modal(cast(LeaderModeMixin, mixin))
 
     callback = mixin.push_screen.call_args.kwargs["callback"]
-    callback(TemporaryOverrideResult(action="cleared"))
+    callback(TemporaryOverrideResult(action="cleared", role="primary"))
 
     mixin.query_one.assert_called_once_with(
         "#llm-override-indicator", LLMOverrideIndicator
     )
     indicator.refresh.assert_called_once()
-    mixin.notify.assert_called_once_with("Cleared temporary LLM override")
+    mixin.notify.assert_called_once_with("Cleared primary model override")
+
+
+def test_temporary_override_dismiss_worker_clear_toast() -> None:
+    """The leader callback names worker clears distinctly."""
+    from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
+    from sase.ace.tui.widgets import LLMOverrideIndicator
+
+    mixin = MagicMock()
+    indicator = MagicMock(spec=LLMOverrideIndicator)
+    mixin.query_one.return_value = indicator
+
+    LeaderModeMixin._open_temporary_llm_override_modal(cast(LeaderModeMixin, mixin))
+
+    callback = mixin.push_screen.call_args.kwargs["callback"]
+    callback(TemporaryOverrideResult(action="cleared", role="worker"))
+
+    mixin.query_one.assert_called_once_with(
+        "#llm-override-indicator", LLMOverrideIndicator
+    )
+    indicator.refresh.assert_called_once()
+    mixin.notify.assert_called_once_with("Cleared worker model override")

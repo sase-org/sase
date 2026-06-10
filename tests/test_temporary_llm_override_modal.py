@@ -105,7 +105,7 @@ def test_action_cancel_dismisses_with_cancelled() -> None:
 
 def test_action_clear_with_no_active_dismisses_cancelled() -> None:
     modal = _make_top_modal()
-    assert modal._active is None
+    assert modal._active_primary is None
     modal.action_clear()
     (arg,), _ = modal.dismiss.call_args
     assert arg.action == "cancelled"
@@ -116,28 +116,45 @@ def test_action_clear_with_active_clears_state_and_dismisses_cleared() -> None:
     assert get_active_temporary_override() is not None
 
     modal = _make_top_modal()
-    assert modal._active is not None
+    assert modal._active_primary is not None
     modal.action_clear()
 
     assert get_active_temporary_override() is None
     (arg,), _ = modal.dismiss.call_args
     assert arg.action == "cleared"
     assert arg.override is None
+    assert arg.role == "primary"
+
+
+def test_action_clear_worker_clears_worker_state_only() -> None:
+    set_temporary_override("claude/opus", 3600.0, source="test")
+    set_temporary_override("codex/o3", 3600.0, source="test", role="worker")
+
+    modal = _make_top_modal()
+    assert modal._active_worker is not None
+    modal.action_clear_worker()
+
+    assert get_active_temporary_override(role="worker") is None
+    assert get_active_temporary_override() is not None
+    (arg,), _ = modal.dismiss.call_args
+    assert arg.action == "cleared"
+    assert arg.role == "worker"
 
 
 def test_render_state_line_active() -> None:
     set_temporary_override("codex/o3", 3600.0, source="test")
     modal = TemporaryLLMOverrideModal()
     line = modal._render_state_line()
-    assert "Active" in line
+    assert "PRIMARY" in line
     assert "CODEX" in line
-    assert "expires in" in line
+    assert "override" in line
 
 
 def test_render_state_line_inactive_shows_default() -> None:
     modal = TemporaryLLMOverrideModal()
     line = modal._render_state_line()
-    assert "Default" in line
+    assert "PRIMARY" in line
+    assert "default" in line
 
 
 def test_render_action_lines_active_shows_change_and_clear() -> None:
@@ -145,14 +162,16 @@ def test_render_action_lines_active_shows_change_and_clear() -> None:
     modal = TemporaryLLMOverrideModal()
     lines = modal._render_action_lines()
     assert any("Change" in line for line in lines)
-    assert any("Clear" in line for line in lines)
+    assert any("Clear primary" in line for line in lines)
+    assert any("Set worker" in line for line in lines)
 
 
 def test_render_action_lines_inactive_shows_set_only() -> None:
     modal = TemporaryLLMOverrideModal()
     lines = modal._render_action_lines()
-    assert len(lines) == 1
-    assert "Set override" in lines[0]
+    assert len(lines) == 2
+    assert "Set primary override" in lines[0]
+    assert "Set worker override" in lines[1]
 
 
 # ---------------------------------------------------------------------------

@@ -412,7 +412,7 @@ _LEADER_LABELS: dict[str, str] = {
     "agent_run_log": "Agent run log",
     "jump_to_notification": "Jump to notification",
     "projects": "Open project management panel",
-    "temporary_llm_override": "Temporary model override",
+    "temporary_llm_override": "Model overrides",
     "capture_agents_repro": "Capture Agents-tab repro bundle",
     "toggle_agents_repro_checks": "Toggle Agents-tab repro checks",
 }

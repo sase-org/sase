@@ -600,7 +600,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         bindings.append((k("task_queue"), "task queue"))
         bindings.append((k("activity_info"), "activity"))
         bindings.append((k("projects"), "projects"))
-        bindings.append((k("temporary_llm_override"), "temporary model"))
+        bindings.append((k("temporary_llm_override"), "model overrides"))
         bindings.append((k("mark_inactive"), "mark idle"))
         self._update_display(bindings, mode_label="LEADER")
 

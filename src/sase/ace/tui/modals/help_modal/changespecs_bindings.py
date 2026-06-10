@@ -213,7 +213,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'temporary_llm_override'))}",
-                    "Temporary model override",
+                    "Model overrides",
                 ),
             ],
         ),
