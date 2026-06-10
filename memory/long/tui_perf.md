@@ -6,7 +6,6 @@ description:
 
 # TUI Performance Gotchas
 
-Read this before changing anything that affects `sase ace` TUI responsiveness (navigation, refresh, rendering, startup).
 Nearly every TUI perf regression has had the same root cause — synchronous work on the Textual event loop — and the
 fixes below are established patterns in this codebase. Reuse them; don't invent new paths.
 
