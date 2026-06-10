@@ -1,0 +1,153 @@
+"""Tracked background task submission for TUI agent kills."""
+
+from __future__ import annotations
+
+import logging
+import time
+from typing import TYPE_CHECKING
+
+from ._cleanup_tasks import CleanupTaskOutcome
+from ._kill_persistence import AgentIdentity, BulkKillItem, KillKind
+
+if TYPE_CHECKING:
+    from ...models import Agent
+    from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
+    from sase.core.agent_group_archive_wire import SavedAgentGroupWire
+
+log = logging.getLogger(__name__)
+
+
+class AgentKillPersistenceTaskMixin:
+    """Mixin for submitting kill persistence as tracked cleanup tasks."""
+
+    _agents_with_children: list[Agent]
+    _dismissed_agents: set[AgentIdentity]
+    _kill_persistence_inflight: set[AgentIdentity]
+
+    def _submit_bulk_kill_persistence_task(
+        self,
+        kill_items: list[BulkKillItem],
+        dismissable: list[Agent],
+        dismissed_snapshot: set[AgentIdentity],
+        agents_with_children_snapshot: list[Agent],
+        cleanup_plan: object | None = None,
+        recent_group: SavedAgentGroupWire | None = None,
+    ) -> None:
+        """Submit bulk kill/dismiss persistence as a tracked background task."""
+        from . import _killing as killing_compat
+
+        inflight = {item.agent.identity for item in kill_items}
+        if inflight & self._kill_persistence_inflight:
+            return
+        self._kill_persistence_inflight.update(inflight)
+
+        killed_count = len(kill_items)
+        dismissed_count = len(dismissable)
+
+        def _worker() -> CleanupTaskOutcome:
+            started = time.perf_counter()
+            try:
+                killing_compat._persist_bulk_kill_transaction(
+                    kill_items,
+                    dismissable,
+                    dismissed_snapshot,
+                    agents_with_children_snapshot,
+                    cleanup_plan,
+                    recent_group,
+                )
+            except Exception as exc:
+                return CleanupTaskOutcome(
+                    message=f"Bulk kill cleanup failed: {exc}",
+                    severity="error",
+                    notify=True,
+                    schedule_agents_refresh_source="kill_error_recovery",
+                )
+            finally:
+                self._kill_persistence_inflight.difference_update(inflight)
+                log.debug(
+                    "bulk agent kill persistence: killed=%d dismissed=%d elapsed=%.3fs",
+                    killed_count,
+                    dismissed_count,
+                    time.perf_counter() - started,
+                )
+            return CleanupTaskOutcome(
+                message=killing_compat._bulk_kill_summary(
+                    killed_count, dismissed_count
+                ),
+                refresh_notifications=True,
+            )
+
+        if not self._submit_cleanup_task(  # type: ignore[attr-defined]
+            task_type="kill",
+            display_name=killing_compat._bulk_kill_task_display_name(
+                killed_count, dismissed_count
+            ),
+            cl_name="",
+            project_file="",
+            task_callable=_worker,
+        ):
+            self._kill_persistence_inflight.difference_update(inflight)
+
+    def _submit_kill_persistence_task(
+        self,
+        agent: Agent,
+        kind: KillKind,
+        agents_with_children_snapshot: list[Agent] | None = None,
+        dismissed_snapshot: set[AgentIdentity] | None = None,
+        cleanup_plan: AgentCleanupPlanWire | None = None,
+    ) -> None:
+        """Submit single-agent kill persistence as a tracked background task."""
+        identity = agent.identity
+        if identity in self._kill_persistence_inflight:
+            return
+        self._kill_persistence_inflight.add(identity)
+
+        if agents_with_children_snapshot is None:
+            agents_with_children_snapshot = list(self._agents_with_children)
+        if dismissed_snapshot is None:
+            dismissed_snapshot = set(self._dismissed_agents)
+        related_agents = self._agents_related_to_kill(  # type: ignore[attr-defined]
+            agent, agents_with_children_snapshot
+        )
+
+        def _worker() -> CleanupTaskOutcome:
+            from . import _killing as killing_compat
+
+            started = time.perf_counter()
+            try:
+                killing_compat._persist_single_kill_transaction(
+                    agent,
+                    kind,
+                    agents_with_children_snapshot,
+                    dismissed_snapshot,
+                    cleanup_plan,
+                    related_agents,
+                )
+            except Exception as exc:
+                return CleanupTaskOutcome(
+                    message=f"Kill cleanup failed for {agent.display_name}: {exc}",
+                    severity="error",
+                    notify=True,
+                    schedule_agents_refresh_source="kill_error_recovery",
+                )
+            finally:
+                self._kill_persistence_inflight.discard(identity)
+                log.debug(
+                    "agent kill persistence: kind=%s identity=%s elapsed=%.3fs",
+                    kind,
+                    identity,
+                    time.perf_counter() - started,
+                )
+            return CleanupTaskOutcome(
+                message=f"Killed {agent.display_name}",
+                refresh_notifications=True,
+            )
+
+        if not self._submit_cleanup_task(  # type: ignore[attr-defined]
+            task_type="kill",
+            display_name=f"kill {agent.display_name}",
+            cl_name=agent.cl_name,
+            project_file=agent.project_file,
+            task_callable=_worker,
+        ):
+            self._kill_persistence_inflight.discard(identity)
