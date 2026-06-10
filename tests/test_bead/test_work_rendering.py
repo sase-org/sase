@@ -16,6 +16,7 @@ from sase.bead.work import (
     render_multi_prompt,
 )
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
+from sase.llm_provider.registry import resolve_model_provider
 from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.workflow_models import Workflow
 
@@ -208,6 +209,7 @@ class TestChangeSpecRendering:
             "#git:sase #pr:feature_epic\n"
             "%name:!p1\n"
             "%group:e1\n"
+            "%model:worker\n"
             "%approve\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
@@ -246,12 +248,14 @@ class TestChangeSpecRendering:
             "#gh:sase #pr:feature_epic\n"
             "%name:!p1\n"
             "%group:e1\n"
+            "%model:worker\n"
             "%approve\n"
             "#custom/work:p1\n"
             "---\n"
             "#gh:feature_epic\n"
             "%name:!p2\n"
             "%group:e1\n"
+            "%model:worker\n"
             "%approve\n"
             "%w:p1\n"
             "#custom/work:p2\n"
@@ -259,6 +263,7 @@ class TestChangeSpecRendering:
             "#gh:feature_epic\n"
             "%name:!p3\n"
             "%group:e1\n"
+            "%model:worker\n"
             "%approve\n"
             "%w:p2\n"
             "#custom/work:p3\n"
@@ -335,7 +340,7 @@ class TestModelDirective:
         )
         assert "%model" not in land_segment
 
-    def test_phase_model_empty_renders_no_directive(
+    def test_phase_model_empty_renders_worker_directive(
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1")])
@@ -347,7 +352,9 @@ class TestModelDirective:
             land_epic_xprompt=Workflow(name="bd/land_epic"),
         )
 
-        assert "%model" not in rendered
+        phase_segment, land_segment = rendered.split("\n---\n")
+        assert "%model:worker" in phase_segment
+        assert "%model" not in land_segment
 
     def test_mixed_phase_models_only_decorate_set_phases(
         self, conn: sqlite3.Connection
@@ -375,7 +382,7 @@ class TestModelDirective:
         p3_seg = next(s for s in segments if "%name:!p3\n" in s)
         land_seg = segments[-1]
         assert "%model:codex/gpt-5.5" in p1_seg
-        assert "%model" not in p2_seg
+        assert "%model:worker" in p2_seg
         assert "%model:#pro" in p3_seg
         assert "%model" not in land_seg
 
@@ -393,16 +400,24 @@ class TestModelDirective:
 
         segments = rendered.split("\n---\n")
         phase_segment, land_segment = segments
-        assert "%model" not in phase_segment
+        assert "%model:worker" in phase_segment
         assert land_segment == (
             "%name:!e1\n%group:e1\n%model:claude/opus\n%approve\n%w:p1\n#bd/land_epic:e1"
         )
 
     def test_no_model_renders_byte_identical_to_pre_model_baseline(
-        self, conn: sqlite3.Connection
+        self, conn: sqlite3.Connection, monkeypatch
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
         plan = _build_epic_work_plan(conn, "e1")
+        monkeypatch.setattr(
+            "sase.llm_provider.config.get_llm_provider_config",
+            lambda: {"provider": "claude"},
+        )
+        monkeypatch.setattr(
+            "sase.llm_provider.registry.get_llm_provider_config",
+            lambda: {"provider": "claude"},
+        )
 
         rendered = render_multi_prompt(
             plan,
@@ -410,7 +425,7 @@ class TestModelDirective:
             land_epic_xprompt=Workflow(name="bd/land_epic"),
         )
 
-        expected = (
+        pre_worker_baseline = (
             "%name:!p1\n"
             "%group:e1\n"
             "%approve\n"
@@ -427,7 +442,8 @@ class TestModelDirective:
             "%w:p1,p2\n"
             "#bd/land_epic:e1"
         )
-        assert rendered == expected
+        assert rendered.replace("%model:worker\n", "") == pre_worker_baseline
+        assert resolve_model_provider("worker") == ("claude", "opus")
 
     def test_model_does_not_inject_extra_directives(
         self, conn: sqlite3.Connection

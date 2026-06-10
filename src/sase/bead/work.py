@@ -340,6 +340,8 @@ def render_multi_prompt(
             lines.append(_group_directive(plan.launch_tag_id))
             if assignment.model:
                 lines.append(f"%model:{assignment.model}")
+            else:
+                lines.append("%model:worker")
             lines.append("%approve")
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
