@@ -574,6 +574,11 @@
           "description": "Name of the LLM provider to use (e.g., 'gemini', 'claude')",
           "default": "gemini"
         },
+        "worker_model": {
+          "type": "string",
+          "description": "Optional secondary default model for worker-lane launches. Accepts bare known models, aliases, or explicit provider/model syntax.",
+          "default": ""
+        },
         "model_tier_map": {
           "type": "object",
           "description": "Mapping from model tiers to specific model identifiers",

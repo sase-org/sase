@@ -18,6 +18,7 @@ a shared orchestration layer that handles preprocessing, invocation, and postpro
 - [Configuration](#configuration)
 - [Per-Prompt Provider Switching](#per-prompt-provider-switching)
 - [Model Tier System](#model-tier-system)
+- [Worker Model](#worker-model)
 - [Temporary Default Override](#temporary-default-override)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
@@ -46,27 +47,28 @@ Key design principles:
 
 ### Source Layout
 
-| File                                        | Purpose                                             |
-| ------------------------------------------- | --------------------------------------------------- |
-| `src/sase/llm_provider/__init__.py`         | Public API exports                                  |
-| `src/sase/llm_provider/base.py`             | `LLMProvider` abstract base class                   |
-| `src/sase/llm_provider/_hookspec.py`        | Pluggy hook specifications (`LLMHookSpec`)          |
-| `src/sase/llm_provider/_plugin_manager.py`  | Plugin manager wrapping pluggy (`LLMPluginManager`) |
-| `src/sase/llm_provider/claude.py`           | Claude Code provider implementation                 |
-| `src/sase/llm_provider/codex.py`            | Codex CLI provider implementation                   |
-| `src/sase/llm_provider/gemini.py`           | Gemini CLI provider implementation                  |
-| `src/sase/llm_provider/qwen.py`             | Qwen Code provider implementation                   |
-| `src/sase/llm_provider/opencode.py`         | OpenCode provider implementation                    |
-| `src/sase/llm_provider/registry.py`         | Provider registration and lookup                    |
-| `src/sase/llm_provider/config.py`           | Config file reader (`sase.yml`)                     |
-| `src/sase/llm_provider/commit_finalizer.py` | Provider-neutral dirty-workspace finalizer          |
-| `src/sase/llm_provider/types.py`            | `ModelTier`, `InvokeResult`, `LoggingContext` types |
-| `src/sase/llm_provider/_invoke.py`          | `invoke_agent()` orchestrator                       |
-| `src/sase/llm_provider/_subprocess.py`      | Provider stream-parser compatibility exports        |
-| `src/sase/llm_provider/_plan_utils.py`      | Shared plan utilities                               |
-| `src/sase/llm_provider/preprocessing.py`    | Shared prompt preprocessing pipeline                |
-| `src/sase/llm_provider/postprocessing.py`   | Logging, chat history, audio                        |
-| `src/sase/llm_provider/retry_config.py`     | `ProviderRetryConfig` (per-provider retry defaults) |
+| File                                          | Purpose                                                |
+| --------------------------------------------- | ------------------------------------------------------ |
+| `src/sase/llm_provider/__init__.py`           | Public API exports                                     |
+| `src/sase/llm_provider/base.py`               | `LLMProvider` abstract base class                      |
+| `src/sase/llm_provider/_hookspec.py`          | Pluggy hook specifications (`LLMHookSpec`)             |
+| `src/sase/llm_provider/_plugin_manager.py`    | Plugin manager wrapping pluggy (`LLMPluginManager`)    |
+| `src/sase/llm_provider/claude.py`             | Claude Code provider implementation                    |
+| `src/sase/llm_provider/codex.py`              | Codex CLI provider implementation                      |
+| `src/sase/llm_provider/gemini.py`             | Gemini CLI provider implementation                     |
+| `src/sase/llm_provider/qwen.py`               | Qwen Code provider implementation                      |
+| `src/sase/llm_provider/opencode.py`           | OpenCode provider implementation                       |
+| `src/sase/llm_provider/registry.py`           | Provider registration and lookup                       |
+| `src/sase/llm_provider/config.py`             | Config file reader (`sase.yml`)                        |
+| `src/sase/llm_provider/temporary_override.py` | Primary/worker temporary override state and resolution |
+| `src/sase/llm_provider/commit_finalizer.py`   | Provider-neutral dirty-workspace finalizer             |
+| `src/sase/llm_provider/types.py`              | `ModelTier`, `InvokeResult`, `LoggingContext` types    |
+| `src/sase/llm_provider/_invoke.py`            | `invoke_agent()` orchestrator                          |
+| `src/sase/llm_provider/_subprocess.py`        | Provider stream-parser compatibility exports           |
+| `src/sase/llm_provider/_plan_utils.py`        | Shared plan utilities                                  |
+| `src/sase/llm_provider/preprocessing.py`      | Shared prompt preprocessing pipeline                   |
+| `src/sase/llm_provider/postprocessing.py`     | Logging, chat history, audio                           |
+| `src/sase/llm_provider/retry_config.py`       | `ProviderRetryConfig` (per-provider retry defaults)    |
 
 ## Provider Architecture
 
@@ -489,6 +491,7 @@ The LLM provider reads its configuration from `~/.config/sase/sase.yml` under th
 ```yaml
 llm_provider:
   provider: claude # or "qwen", "opencode", "gemini" (default: auto-detect)
+  worker_model: codex/gpt-5.5 # optional secondary default for delegated work
   model_tier_map:
     large: opus
     small: sonnet
@@ -498,12 +501,13 @@ llm_provider:
 
 ### Config Fields
 
-| Field                               | Type   | Default     | Description                                                                                                                                          |
-| ----------------------------------- | ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini.          |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                |
-| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths. |
+| Field                               | Type   | Default     | Description                                                                                                                                            |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini.            |
+| `llm_provider.worker_model`         | string | unset       | Optional secondary default model for worker-lane launches such as epic phase agents. Accepts bare known models, aliases, or explicit `provider/model`. |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                  |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                  |
+| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths.   |
 
 ## Per-Prompt Provider Switching
 
@@ -543,6 +547,14 @@ under `llm_provider.model_aliases.other` (or the literal model name `other` if n
 This makes `%m(other, …)` always pair "the alternate model" with the current default, even when the user has temporarily
 switched their default via the ACE `,o` chord. Without the snapshot, `%m(other, …)` on an override-displaced default
 could otherwise launch the override's model side-by-side with itself.
+
+#### Reserved alias: `worker`
+
+The literal alias name `worker` is reserved for the worker lane. `%model:worker` and `%m(worker)` resolve to the current
+effective worker provider/model and shadow any `llm_provider.model_aliases.worker` entry.
+
+This alias is how delegated launch sites opt into worker-lane selection without hardcoding a concrete model. For
+example, `sase bead work` emits `%model:worker` for phase agents that do not have an explicit per-bead model.
 
 ### Explicit Provider/Model Syntax
 
@@ -608,11 +620,60 @@ use the specified tier regardless of what the caller requests.
 3. `--model-tier` / `--model-size` CLI flag (sets the env var)
 4. Caller's `model_tier` parameter (default: `"large"`)
 
+## Worker Model
+
+The worker model is an optional secondary default for delegated execution work. It is currently used by `sase bead work`
+phase agents that do not have an explicit per-bead model. Planning and landing agents stay on the primary default unless
+their prompt or bead explicitly asks for a different model.
+
+Configure it under `llm_provider.worker_model`:
+
+```yaml
+llm_provider:
+  provider: claude
+  worker_model: codex/gpt-5.5
+```
+
+The value accepts the same syntax as `%model`: a bare known model (`gpt-5.5`), a configured alias, an explicit
+`provider/model` pair (`codex/gpt-5.5`), or a nested provider-local model path.
+
+### Lane Precedence
+
+Primary launches and worker launches resolve through separate lanes. The worker lane falls through to the primary lane
+only when no worker-specific setting exists:
+
+```text
+Primary lane:
+1. explicit %model directive
+2. active primary temporary override (~/.sase/llm_override.json)
+3. llm_provider.provider + requested model tier
+4. provider auto-detection
+
+Worker lane:
+1. explicit %model directive or per-bead model
+2. active worker temporary override (~/.sase/llm_worker_override.json)
+3. llm_provider.worker_model
+4. primary lane steps 2-4
+```
+
+Because of that fallthrough, leaving `worker_model` unset preserves the old behavior: worker launches use the same
+effective default that a normal launch would have used.
+
+### TUI Controls
+
+Press `,o` in ACE to open the **Model Overrides** panel. The panel shows both lanes, their current effective model, and
+the source of that model (`override`, `config`, `follows primary`, or `default`). Use `s`/`c`/`x` for primary override
+set/change/clear and `w`/`W` for worker override set/change/clear. Active temporary worker overrides also appear as a
+compact `W ...` chip in the top bar; permanent `worker_model` config is visible in the modal instead.
+
+The worker override state file is `~/.sase/llm_worker_override.json`. It uses the same JSON format, expiry behavior, and
+atomic writes as the primary override file.
+
 ## Temporary Default Override
 
 In addition to the tier-based global override, sase supports a **concrete** provider/model override that acts as a
-temporary session-level default. This is the override the ACE `,o` chord writes (see
-[docs/ace.md](ace.md#temporary-model-override) for the TUI flow).
+temporary session-level default. The ACE `,o` chord opens the dual-lane Model Overrides panel for primary and worker
+overrides (see [docs/ace.md](ace.md#model-overrides) for the TUI flow).
 
 The temporary override only changes the _default_ provider/model selection for new agent launches. It does **not**
 override:
@@ -629,7 +690,7 @@ requested.
 
 When no `%model` directive and no explicit `provider_name` are present, the default is resolved as:
 
-1. **Active temporary override** at `~/.sase/llm_override.json` (if not expired).
+1. **Active primary temporary override** at `~/.sase/llm_override.json` (if not expired).
 2. `llm_provider.provider` from the merged `sase.yml` config.
 3. Auto-detection by plugin-declared priority (built-ins: claude, codex, qwen, opencode, then gemini).
 
@@ -686,13 +747,14 @@ persists until the user clears it from the TUI or another sase process clears th
 
 The override primitives live in `src/sase/llm_provider/temporary_override.py`:
 
-| Function                                     | Purpose                                                          |
-| -------------------------------------------- | ---------------------------------------------------------------- |
-| `get_active_temporary_override(now=None)`    | Read the active override (auto-deletes expired/malformed files). |
-| `set_temporary_override(raw, dur, source=)`  | Write a new override, replacing any existing one.                |
-| `clear_temporary_override()`                 | Remove the override file. Safe to call when nothing is active.   |
-| `parse_override_duration(value)`             | Parse a user-facing duration string into seconds (or `None`).    |
-| `resolve_effective_default_provider_model()` | Centralized helper used by metadata pre-resolution paths.        |
+| Function                                              | Purpose                                                                            |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `get_active_temporary_override(now=None, role=...)`   | Read the active primary or worker override (auto-deletes expired/malformed files). |
+| `set_temporary_override(raw, dur, source=, role=...)` | Write a new primary or worker override, replacing any existing one for that lane.  |
+| `clear_temporary_override(role=...)`                  | Remove the lane's override file. Safe to call when nothing is active.              |
+| `parse_override_duration(value)`                      | Parse a user-facing duration string into seconds (or `None`).                      |
+| `resolve_effective_default_provider_model()`          | Centralized helper used by metadata pre-resolution paths.                          |
+| `resolve_effective_worker_provider_model()`           | Resolve the worker lane: worker override, `worker_model`, then primary fallback.   |
 
 ### Examples
 
@@ -703,6 +765,8 @@ The override primitives live in `src/sase/llm_provider/temporary_override.py`:
 - ACE chord `,o`, pick `sonnet`, duration `30m` → known bare model; provider resolves to claude via plugin metadata.
 - ACE chord `,o`, choose **Clear override** → `~/.sase/llm_override.json` is removed; defaults revert to permanent
   config / autodetect.
+- ACE chord `,o`, set worker override to `codex/gpt-5.5` for `1h` → `~/.sase/llm_worker_override.json` is written; new
+  `%model:worker` launches use CODEX(gpt-5.5) until the override expires or is cleared.
 
 ## Environment Variables
 

@@ -597,8 +597,17 @@ def test_render_state_line_inactive_uses_resolved_default() -> None:
     assert "(" in line and ")" in line
 
 
-def test_lane_rows_render_default_source_tags() -> None:
+def test_lane_rows_render_default_source_tags(monkeypatch: pytest.MonkeyPatch) -> None:
     """Idle primary and worker lanes show default source tags."""
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.temporary_llm_override_modal.get_configured_worker_model",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.temporary_llm_override_modal."
+        "resolve_effective_worker_provider_model",
+        lambda: ("claude", "opus"),
+    )
     modal = TemporaryLLMOverrideModal()
 
     assert "default" in modal._render_lane_row("primary")
@@ -624,8 +633,19 @@ def test_lane_rows_render_config_source_tag(
     assert "config" in modal._render_lane_row("worker")
 
 
-def test_lane_rows_render_follows_primary_source_tag() -> None:
+def test_lane_rows_render_follows_primary_source_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Worker falls through to the active primary override when unset."""
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.temporary_llm_override_modal.get_configured_worker_model",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.temporary_llm_override_modal."
+        "resolve_effective_worker_provider_model",
+        lambda: ("codex", "o3"),
+    )
     set_temporary_override("codex/o3", 3600.0, source="test")
     modal = TemporaryLLMOverrideModal()
 

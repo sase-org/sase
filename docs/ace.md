@@ -209,7 +209,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,m`       | Review mentors (opens Mentor Review modal)                                                    |
 | `,M`       | Kill running mentors                                                                          |
 | `,p`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
-| `,o`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
+| `,o`       | Open model overrides (see [Model Overrides](#model-overrides))                                |
 | `,r`       | Show runners info                                                                             |
 | `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))                             |
 | `,<space>` | Run agent from current PR (skips project selection)                                           |
@@ -638,7 +638,7 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,u`       | Mark all loaded unread completed agents as read                                               |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
 | `,p`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
-| `,o`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
+| `,o`       | Open model overrides (see [Model Overrides](#model-overrides))                                |
 | `,R`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation             |
 | `,x`       | Kill agent & edit prompt                                                                      |
@@ -775,7 +775,7 @@ numerical identity.
 | `,,` | Repeat the last leader command                                                                |
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,p` | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
-| `,o` | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
+| `,o` | Open model overrides (see [Model Overrides](#model-overrides))                                |
 | `,r` | Show runners info                                                                             |
 
 ### Bang Mode (`!` prefix)
@@ -922,28 +922,34 @@ entire SASE project directory: ProjectSpecs, project-local config, artifacts, an
 `~/.sase/projects/<project>/`. Deletion is refused while the project still has `RUNNING` claims or live artifact
 markers. It does not delete workspace checkouts, and system-managed projects such as `home` are excluded from the panel.
 
-## Temporary Model Override
+## Model Overrides
 
-Press `,o` from any tab to open the **Temporary Model Override** modal. It sets a session-level default provider/model
-for new agent launches without editing `~/.config/sase/sase.yml`.
+Press `,o` from any tab to open the **Model Overrides** modal. It manages temporary primary and worker provider/model
+overrides for new agent launches without editing `~/.config/sase/sase.yml`.
 
-**When no override is active**, the modal shows the current resolved default (e.g. `Default: CLAUDE(opus)`) and offers a
-**Set override** action. Pick a known model from the provider-grouped picker, or use **Custom...** to enter a freeform
-`provider/model` (e.g. `codex/o3` or `opencode/anthropic/claude-sonnet-4-5`). Then choose a duration — quick options are
-`15m`, `30m`, `1h`, `2h`, `4h`, or `Until cleared` — or type a custom duration like `45m`, `1h30m`, `90m`. Confirming
-writes the override and shows a toast like `Temporary LLM override: CODEX(o3) for 1h`.
+The modal shows two lanes:
 
-**When an override is active**, the modal shows an active badge (`Active: CODEX(o3) expires in 47m`) and offers **Change
-override** and **Clear override**. Clearing removes the active state immediately, even if the override was created by a
-different ACE instance, an earlier session, or another sase process.
+- **Primary** — the normal default lane for launches without an explicit `%model` directive.
+- **Worker** — the secondary lane used by delegated work such as `sase bead work` phase agents that do not have an
+  explicit per-bead model.
+
+Each row shows the current effective model and its source: `override`, `config`, `follows primary`, or `default`. Set or
+change the primary override with `s`/`c`, clear it with `x`, set or change the worker override with `w`, and clear the
+worker override with `W`. Both lanes use the same provider-grouped picker and duration choices: `15m`, `30m`, `1h`,
+`2h`, `4h`, `Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`.
+
+When a worker override is active, the top bar includes a compact `W ...` chip next to the primary override indicator.
+Permanent `llm_provider.worker_model` config is visible in the modal, not the top bar.
 
 ### Behavior
 
-- The override applies only to the **default** provider/model. Explicit prompt directives (`%model:codex/o3`,
-  `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win.
+- The overrides apply only to default lane selection. Explicit prompt directives (`%model:codex/o3`,
+  `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win. `%model:worker`
+  explicitly opts into the worker lane.
 - Already-running agents keep their current provider/model. Only **new** launches use the override.
-- The override is persisted to `~/.sase/llm_override.json` so all sase processes on the same machine see it. Reads are
-  best-effort self-cleaning: expired or malformed state files are deleted on next access.
+- The primary override is persisted to `~/.sase/llm_override.json`; the worker override is persisted to
+  `~/.sase/llm_worker_override.json`. All sase processes on the same machine see those files. Reads are best-effort
+  self-cleaning: expired or malformed state files are deleted on next access.
 - `Until cleared` is a no-expiry mode — convenient, but still a _temporary_ state, not a permanent config edit.
 - The temporary override is independent of `SASE_MODEL_TIER_OVERRIDE`. A concrete temporary model override takes the
   full provider/model path; the tier override only applies when no concrete override is active.
@@ -953,6 +959,7 @@ different ACE instance, an earlier session, or another sase process.
 - `codex/o3` for `1h` — switch to Codex `o3` for the next hour, then revert to the configured default.
 - `opencode/anthropic/claude-sonnet-4-5` for `1h` — switch to an OpenCode provider/model pair.
 - `sonnet` for `30m` — known bare model name; the provider is inferred from plugin metadata.
+- Worker `codex/gpt-5.5` for `1h` — route `%model:worker` launches through Codex for the next hour.
 - `Until cleared` — leave the override active across sessions; clear it later from the same `,o` modal.
 
 See [docs/llms.md](llms.md#temporary-default-override) for the resolution order and state-file format.
