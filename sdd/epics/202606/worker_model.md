@@ -2,6 +2,8 @@
 create_time: 2026-06-09 20:36:35
 status: wip
 prompt: sdd/prompts/202606/worker_model.md
+bead_id: sase-4k
+tier: epic
 ---
 # Worker Model: A Secondary Default LLM Model for Delegated Work
 
