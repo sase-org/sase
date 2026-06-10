@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import asyncio
-
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._kill_persistence import BulkKillItem
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.notification_store_wire import NotificationUpdateOutcomeWire
+
+from tests._agent_cleanup_task_helpers import (
+    TrackedTaskRecorderMixin,
+    run_tracked_task,
+)
 
 
 def _user_kill_result(
@@ -22,8 +25,9 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
     """Bulk kill should remove all rows immediately with one refresh/task."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(AgentsMixin):
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
+            self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
             self.current_tab = "agents"
             self.current_idx = 0
@@ -113,18 +117,23 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
     # Phase 1: notification count refresh is now done in the async worker,
     # not synchronously in _do_bulk_kill_agents.
     assert app.notification_refreshes == 0
-    assert len(app._scheduled) == 1
-    callback, args = app._scheduled[0]
-    assert callback == app._run_bulk_kill_persistence_async
-    assert len(args[0]) == 2
+    # Persistence is submitted as one tracked background task; no ad hoc
+    # call_later coroutine remains.
+    assert app._scheduled == []
+    assert len(app.tracked_tasks) == 1
+    task = app.tracked_tasks[0]
+    assert task["task_type"] == "kill"
+    assert task["display_name"] == "kill 2 agents"
+    assert app._kill_persistence_inflight == {a1.identity, a2.identity}
 
 
 def test_do_bulk_kill_agents_removes_workflow_children_immediately() -> None:
     """Killing a workflow parent should hide its step rows in the same refresh."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(AgentsMixin):
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
+            self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
             self.current_tab = "agents"
             self.current_idx = 0
@@ -200,8 +209,9 @@ def test_do_bulk_kill_agents_failed_pid_stays_visible() -> None:
     """A failed process-group kill should not remove that agent."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(AgentsMixin):
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
+            self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
             self.current_tab = "agents"
             self.current_idx = 0
@@ -284,15 +294,20 @@ def test_run_bulk_kill_persistence_does_not_refresh_on_success() -> None:
     """Successful bulk cleanup should not schedule a redundant full reload."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(AgentsMixin):
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
+            self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
             self._kill_persistence_inflight = set()
+            self._scheduled: list[tuple[object, tuple[object, ...]]] = []
             self.refresh_schedules = 0
             self.async_count_refreshes = 0
 
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
+
+        def call_later(self, callback: object, *args: object) -> None:
+            self._scheduled.append((callback, args))
 
         def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
             del source
@@ -318,11 +333,8 @@ def test_run_bulk_kill_persistence_does_not_refresh_on_success() -> None:
     with patch(
         "sase.ace.tui.actions.agents._killing.persist_bulk_kill_side_effects"
     ) as mock_persist:
-        asyncio.run(
-            app._run_bulk_kill_persistence_async(
-                [item], [], dismissed_snapshot, [agent]
-            )
-        )
+        app._submit_bulk_kill_persistence_task([item], [], dismissed_snapshot, [agent])
+        run_tracked_task(app, app.tracked_tasks[0])
 
     mock_persist.assert_called_once_with([item], [], dismissed_snapshot, [agent])
     assert app.refresh_schedules == 0
@@ -335,15 +347,20 @@ def test_run_bulk_kill_persistence_refreshes_on_failure() -> None:
     """Failed bulk cleanup still schedules a reload to reconcile with disk."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(AgentsMixin):
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
+            self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
             self._kill_persistence_inflight = set()
+            self._scheduled: list[tuple[object, tuple[object, ...]]] = []
             self.refresh_schedules = 0
             self.async_count_refreshes = 0
 
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
+
+        def call_later(self, callback: object, *args: object) -> None:
+            self._scheduled.append((callback, args))
 
         def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
             del source
@@ -370,11 +387,8 @@ def test_run_bulk_kill_persistence_refreshes_on_failure() -> None:
         "sase.ace.tui.actions.agents._killing.persist_bulk_kill_side_effects",
         side_effect=RuntimeError("boom"),
     ) as mock_persist:
-        asyncio.run(
-            app._run_bulk_kill_persistence_async(
-                [item], [], dismissed_snapshot, [agent]
-            )
-        )
+        app._submit_bulk_kill_persistence_task([item], [], dismissed_snapshot, [agent])
+        run_tracked_task(app, app.tracked_tasks[0])
 
     mock_persist.assert_called_once_with([item], [], dismissed_snapshot, [agent])
     assert app.refresh_schedules == 1

@@ -10,10 +10,14 @@ See ``sdd/tales/202604/tui_perf_v2.md`` (Phase 1).
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
+
+from tests._agent_cleanup_task_helpers import (
+    TrackedTaskRecorderMixin,
+    run_tracked_task,
+)
 
 
 def _make_running_agent(cl_name: str = "feature_one", pid: int = 111) -> Agent:
@@ -33,8 +37,9 @@ def test_kill_immediate_does_no_notification_io() -> None:
     """The kill immediate (UI-thread) stage must not touch notifications/dismissed-set storage."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(AgentsMixin):
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
+            self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
             self.current_tab = "agents"
             self.current_idx = 0
@@ -93,11 +98,12 @@ def test_kill_immediate_does_no_notification_io() -> None:
 
 
 def test_kill_schedules_one_persistence_task() -> None:
-    """One ``_run_kill_persistence_async`` task per ``_do_kill_agent``; agent removed before worker runs."""
+    """One tracked persistence task per ``_do_kill_agent``; agent removed before worker runs."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(AgentsMixin):
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
+            self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
             self.current_tab = "agents"
             self.current_idx = 0
@@ -137,29 +143,32 @@ def test_kill_schedules_one_persistence_task() -> None:
 
     # Agent gone from the in-memory list before any worker runs.
     assert app._agents == []
-    # Exactly one persistence task scheduled.
-    persistence_calls = [
-        c for c, _ in app._scheduled if c == app._run_kill_persistence_async
-    ]
-    assert len(persistence_calls) == 1
+    # Exactly one tracked persistence task submitted.
+    assert app._scheduled == []
+    assert [task["task_type"] for task in app.tracked_tasks] == ["kill"]
 
 
 def test_kill_persistence_refreshes_count_async() -> None:
     """``_refresh_notification_count_async`` is awaited exactly once per successful worker run."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(AgentsMixin):
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
+            self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
             self._kill_persistence_inflight = set()
             self._dismissed_agents = set()
             self._agents_with_children = []
+            self._scheduled: list[tuple[object, tuple[object, ...]]] = []
             self.refresh_schedules = 0
             self.async_count_refreshes = 0
             self.sync_count_refreshes = 0
 
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
+
+        def call_later(self, callback: object, *args: object) -> None:
+            self._scheduled.append((callback, args))
 
         def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
             del source
@@ -180,9 +189,8 @@ def test_kill_persistence_refreshes_count_async() -> None:
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
         patch("sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents"),
     ):
-        asyncio.run(
-            app._run_kill_persistence_async(agent, "running", [agent], {agent.identity})
-        )
+        app._submit_kill_persistence_task(agent, "running", [agent], {agent.identity})
+        run_tracked_task(app, app.tracked_tasks[0])
 
     assert app.async_count_refreshes == 1
     # The synchronous version (which would block on disk I/O) must not be used.
@@ -193,15 +201,20 @@ def test_kill_persistence_uses_captured_dismissed_snapshot() -> None:
     """Worker writes the snapshot captured on the UI thread, not a fresh read."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(AgentsMixin):
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
+            self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
             self._kill_persistence_inflight = set()
             self._dismissed_agents = set()
             self._agents_with_children = []
+            self._scheduled: list[tuple[object, tuple[object, ...]]] = []
 
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
+
+        def call_later(self, callback: object, *args: object) -> None:
+            self._scheduled.append((callback, args))
 
         def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
             del source
@@ -223,9 +236,8 @@ def test_kill_persistence_uses_captured_dismissed_snapshot() -> None:
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
         patch("sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents"),
     ):
-        asyncio.run(
-            app._run_kill_persistence_async(agent, "running", [agent], snapshot)
-        )
+        app._submit_kill_persistence_task(agent, "running", [agent], snapshot)
+        run_tracked_task(app, app.tracked_tasks[0])
 
     mock_save.assert_called_once_with(snapshot)
 
@@ -234,8 +246,9 @@ def test_bulk_kill_no_sync_count_refresh() -> None:
     """``_do_bulk_kill_agents`` must not synchronously refresh the notification count."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(AgentsMixin):
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
+            self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
             self.current_tab = "agents"
             self.current_idx = 0
@@ -281,19 +294,24 @@ def test_bulk_kill_no_sync_count_refresh() -> None:
 
 
 def test_bulk_kill_persistence_refreshes_count_async() -> None:
-    """The bulk-kill worker awaits ``_refresh_notification_count_async`` once on success."""
+    """The bulk-kill worker triggers ``_refresh_notification_count_async`` once on success."""
     from sase.ace.tui.actions.agents import AgentsMixin
     from sase.ace.tui.actions.agents._kill_persistence import BulkKillItem
 
-    class MockApp(AgentsMixin):
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
+            self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
             self._kill_persistence_inflight = set()
+            self._scheduled: list[tuple[object, tuple[object, ...]]] = []
             self.refresh_schedules = 0
             self.async_count_refreshes = 0
 
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
+
+        def call_later(self, callback: object, *args: object) -> None:
+            self._scheduled.append((callback, args))
 
         def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
             del source
@@ -307,8 +325,7 @@ def test_bulk_kill_persistence_refreshes_count_async() -> None:
     item = BulkKillItem(agent=agent, kind="running", identities={agent.identity})
 
     with patch("sase.ace.tui.actions.agents._killing.persist_bulk_kill_side_effects"):
-        asyncio.run(
-            app._run_bulk_kill_persistence_async([item], [], {agent.identity}, [agent])
-        )
+        app._submit_bulk_kill_persistence_task([item], [], {agent.identity}, [agent])
+        run_tracked_task(app, app.tracked_tasks[0])
 
     assert app.async_count_refreshes == 1

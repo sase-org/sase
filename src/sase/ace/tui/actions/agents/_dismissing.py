@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from typing import TYPE_CHECKING
@@ -17,6 +16,7 @@ if TYPE_CHECKING:
 # in attribute declarations (not just in function signatures).
 from ....changespec import ChangeSpec
 
+from ._cleanup_tasks import CleanupTaskMixin, CleanupTaskOutcome
 from ._dismiss_cleanup import (
     AgentIdentity,
     agent_identity_from_wire,
@@ -54,7 +54,7 @@ _plan_dismissal_side_effects = plan_dismissal_side_effects
 _agents_related_to_dismissal = agents_related_to_dismissal
 
 
-class AgentDismissingMixin(AgentDismissMemoryMixin):
+class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
     """Mixin providing agent dismissal methods.
 
     Type hints below declare attributes that are defined at runtime by AceApp.
@@ -168,8 +168,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         # before the agents list rebuild blocks the UI tick.
         self.call_later(self._apply_dismissal_in_memory, list(agents))  # type: ignore[attr-defined]
 
-        self.call_later(  # type: ignore[attr-defined]
-            self._run_bulk_dismiss_persistence_async,
+        self._submit_bulk_dismiss_persistence_task(
             list(agents),
             set(self._dismissed_agents),
             agents_with_children_snapshot,
@@ -178,7 +177,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
             recent_group,
         )
 
-    async def _run_bulk_dismiss_persistence_async(
+    def _submit_bulk_dismiss_persistence_task(
         self,
         agents: list[Agent],
         dismissed_snapshot: set[AgentIdentity],
@@ -187,43 +186,56 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         added: set[AgentIdentity] | None = None,
         recent_group: SavedAgentGroupWire | None = None,
     ) -> None:
-        """Persist a batch dismissal's filesystem side effects in a worker."""
+        """Submit a batch dismissal's persistence as a tracked background task."""
         identities = {a.identity for a in agents}
         if identities & self._dismiss_persistence_inflight:
             return
         self._dismiss_persistence_inflight.update(identities)
 
-        started = time.perf_counter()
-        success = True
-        try:
-            await asyncio.to_thread(
-                _persist_bulk_dismiss_transaction,
-                agents,
-                dismissed_snapshot,
-                agents_with_children_snapshot,
-                cleanup_plan,
-                added,
-                recent_group,
+        count = len(agents)
+        s = "s" if count != 1 else ""
+
+        def _worker() -> CleanupTaskOutcome:
+            started = time.perf_counter()
+            try:
+                _persist_bulk_dismiss_transaction(
+                    agents,
+                    dismissed_snapshot,
+                    agents_with_children_snapshot,
+                    cleanup_plan,
+                    added,
+                    recent_group,
+                )
+            except Exception as exc:
+                return CleanupTaskOutcome(
+                    message=(
+                        f"Dismissed {count} agent{s} in memory, but cleanup "
+                        f"failed: {exc}. Refresh recommended."
+                    ),
+                    severity="error",
+                    notify=True,
+                    schedule_agents_refresh_source="dismiss_error_recovery",
+                )
+            finally:
+                self._dismiss_persistence_inflight.difference_update(identities)
+                log.debug(
+                    "bulk agent dismiss persistence: count=%d elapsed=%.3fs",
+                    count,
+                    time.perf_counter() - started,
+                )
+            return CleanupTaskOutcome(
+                message=f"Dismissed {count} agent{s}",
+                refresh_notifications=True,
             )
-        except Exception as exc:
-            success = False
-            count = len(agents)
-            s = "s" if count != 1 else ""
-            self.notify(  # type: ignore[attr-defined]
-                f"Dismissed {count} agent{s} in memory, but cleanup failed: "
-                f"{exc}. Refresh recommended.",
-                severity="error",
-            )
-            self._schedule_agents_async_refresh(source="dismiss_error_recovery")  # type: ignore[attr-defined]
-        finally:
+
+        if not self._submit_cleanup_task(
+            task_type="dismiss",
+            display_name=f"dismiss {count} agent{s}",
+            cl_name="",
+            project_file="",
+            task_callable=_worker,
+        ):
             self._dismiss_persistence_inflight.difference_update(identities)
-            log.debug(
-                "bulk agent dismiss persistence: count=%d elapsed=%.3fs",
-                len(agents),
-                time.perf_counter() - started,
-            )
-            if success:
-                await self._refresh_notification_count_async()  # type: ignore[attr-defined]
 
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent."""
@@ -268,8 +280,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         else:
             self._notify_after_refresh(f"Dismissed agent for {agent.cl_name}")
         self._apply_dismissal_in_memory([agent])
-        self.call_later(  # type: ignore[attr-defined]
-            self._run_dismiss_persistence_async,
+        self._submit_dismiss_persistence_task(
             agent,
             set(self._dismissed_agents),
             agents_with_children_snapshot,
@@ -278,7 +289,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
             recent_group,
         )
 
-    async def _run_dismiss_persistence_async(
+    def _submit_dismiss_persistence_task(
         self,
         agent: Agent,
         dismissed_snapshot: set[AgentIdentity],
@@ -287,43 +298,54 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         added: set[AgentIdentity] | None = None,
         recent_group: SavedAgentGroupWire | None = None,
     ) -> None:
-        """Persist single-agent dismiss side effects in a worker thread."""
+        """Submit single-agent dismiss persistence as a tracked background task."""
         identity = agent.identity
         if identity in self._dismiss_persistence_inflight:
             return
         self._dismiss_persistence_inflight.add(identity)
 
-        started = time.perf_counter()
-        success = True
-        try:
-            await asyncio.to_thread(
-                _persist_single_dismiss_transaction,
-                agent,
-                dismissed_snapshot,
-                agents_with_children_snapshot,
-                cleanup_plan,
-                added,
-                recent_group,
+        def _worker() -> CleanupTaskOutcome:
+            started = time.perf_counter()
+            try:
+                _persist_single_dismiss_transaction(
+                    agent,
+                    dismissed_snapshot,
+                    agents_with_children_snapshot,
+                    cleanup_plan,
+                    added,
+                    recent_group,
+                )
+            except Exception as exc:
+                return CleanupTaskOutcome(
+                    message=(
+                        f"Dismissed {agent.display_name} in memory, but cleanup "
+                        f"failed: {exc}. Refresh recommended."
+                    ),
+                    severity="error",
+                    notify=True,
+                    refresh_notifications=True,
+                    schedule_agents_refresh_source="dismiss_error_recovery",
+                )
+            finally:
+                self._dismiss_persistence_inflight.discard(identity)
+                log.debug(
+                    "agent dismiss persistence: identity=%s elapsed=%.3fs",
+                    identity,
+                    time.perf_counter() - started,
+                )
+            return CleanupTaskOutcome(
+                message=f"Dismissed {agent.display_name}",
+                refresh_notifications=True,
             )
-        except Exception as exc:
-            success = False
-            self.notify(  # type: ignore[attr-defined]
-                f"Dismissed {agent.display_name} in memory, but cleanup "
-                f"failed: {exc}. Refresh recommended.",
-                severity="error",
-            )
-        finally:
+
+        if not self._submit_cleanup_task(
+            task_type="dismiss",
+            display_name=f"dismiss {agent.display_name}",
+            cl_name=agent.cl_name,
+            project_file=agent.project_file,
+            task_callable=_worker,
+        ):
             self._dismiss_persistence_inflight.discard(identity)
-            log.debug(
-                "agent dismiss persistence: identity=%s elapsed=%.3fs",
-                identity,
-                time.perf_counter() - started,
-            )
-            if success:
-                await self._refresh_notification_count_async()  # type: ignore[attr-defined]
-            else:
-                self._refresh_notification_count()  # type: ignore[attr-defined]
-                self._schedule_agents_async_refresh(source="dismiss_error_recovery")  # type: ignore[attr-defined]
 
 
 def _persist_single_dismiss_transaction(

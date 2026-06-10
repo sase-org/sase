@@ -178,12 +178,14 @@ def test_dismiss_done_agent_is_optimistic_and_schedules_once(tmp_path) -> None: 
     assert agent.identity in app._dismissed_agents
     assert agent in app._dismissed_agent_objects
     assert app._agents_with_children == []
-    assert len(app._scheduled) == 1
-    callback, args = app._scheduled[0]
-    assert callback == app._run_dismiss_persistence_async
-    assert args[0] == agent
-    assert agent.identity in args[1]
-    assert args[2] == [agent]
+    # Persistence is submitted as exactly one tracked background task; no ad
+    # hoc call_later coroutine remains.
+    assert app._scheduled == []
+    assert len(app.tracked_tasks) == 1
+    task = app.tracked_tasks[0]
+    assert task["task_type"] == "dismiss"
+    assert task["display_name"] == f"dismiss {agent.display_name}"
+    assert agent.identity in app._dismiss_persistence_inflight
 
 
 def test_dismiss_done_workflow_parent_removes_children(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -232,8 +234,9 @@ def test_dismiss_done_workflow_parent_removes_children(tmp_path) -> None:  # typ
     assert parent.identity in app._dismissed_agents
     assert child.identity in app._dismissed_agents
     assert app._agents_with_children == []
-    assert len(app._scheduled) == 1
-    assert app._scheduled[0][1][2] == [parent, child]
+    assert app._scheduled == []
+    assert len(app.tracked_tasks) == 1
+    assert app.tracked_tasks[0]["task_type"] == "dismiss"
     assert len(app._recent_dismissed_agent_groups) == 1
     recent = app._recent_dismissed_agent_groups[0]
     assert recent.source == "recent_dismissal"
@@ -264,7 +267,8 @@ def test_dismiss_done_changespec_agent_does_not_full_reload() -> None:
     assert app.load_count == 0
     assert app.refilter_count == 1
     assert agent.identity in app._dismissed_agents
-    assert len(app._scheduled) == 1
+    assert app._scheduled == []
+    assert len(app.tracked_tasks) == 1
 
 
 def test_do_dismiss_all_batch_does_not_full_reload() -> None:
@@ -285,7 +289,7 @@ def test_do_dismiss_all_batch_does_not_full_reload() -> None:
     assert app.notification_refreshes == 0
     assert a1.identity in app._dismissed_agents
     assert a2.identity in app._dismissed_agents
-    assert len(app._scheduled) == 2
+    assert len(app._scheduled) == 1
 
     refilter_callback, refilter_args = app._scheduled[0]
     assert refilter_callback == app._apply_dismissal_in_memory
@@ -293,12 +297,12 @@ def test_do_dismiss_all_batch_does_not_full_reload() -> None:
     assert app.refilter_count == 1
     assert app._agents_with_children == []
 
-    persist_callback, persist_args = app._scheduled[1]
-    assert persist_callback == app._run_bulk_dismiss_persistence_async
-    assert persist_args[0] == [a1, a2]
-    dismissed_ids = persist_args[1]
-    assert isinstance(dismissed_ids, set)
-    assert {a1.identity, a2.identity}.issubset(dismissed_ids)
+    # Persistence rides a tracked background task, not a second call_later.
+    assert len(app.tracked_tasks) == 1
+    task = app.tracked_tasks[0]
+    assert task["task_type"] == "dismiss"
+    assert task["display_name"] == "dismiss 2 agents"
+    assert {a1.identity, a2.identity}.issubset(app._dismiss_persistence_inflight)
 
 
 def test_bulk_dismiss_transaction_uses_one_notification_update() -> None:

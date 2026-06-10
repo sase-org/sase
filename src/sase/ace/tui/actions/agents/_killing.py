@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import time
@@ -24,6 +23,7 @@ from ._killing_utils import (
     dismiss_notifications_for_agents,
 )
 
+from ._cleanup_tasks import CleanupTaskOutcome
 from ._dismiss_cleanup import (
     agent_identity_from_wire,
     dismissed_identities_from_plan,
@@ -118,6 +118,105 @@ def _plan_single_agent_kill_cleanup(
         agents_to_cleanup_targets(agents_with_children_snapshot),
         request,
     )
+
+
+def _persist_single_kill_transaction(
+    agent: Agent,
+    kind: KillKind,
+    agents_with_children_snapshot: list[Agent],
+    dismissed_snapshot: set[AgentIdentity],
+    cleanup_plan: AgentCleanupPlanWire | None,
+    related_agents: list[Agent],
+) -> None:
+    """Persist all side effects for one optimistic kill operation."""
+    from ....dismissed_agents import save_dismissed_agents
+
+    if cleanup_plan is None:
+        consumed_intents_result = persist_kill_side_effects(
+            agent,
+            kind,
+            agents_with_children_snapshot,
+        )
+    else:
+        consumed_intents_result = persist_kill_side_effects(
+            agent,
+            kind,
+            agents_with_children_snapshot,
+            cleanup_plan,
+        )
+    consumed_intents = consumed_intents_result is True
+    # Persist the dismissed-set snapshot captured on the UI thread, then
+    # rewrite the notifications file (single read+write) for this agent and
+    # any workflow-child rows hidden alongside it.
+    save_dismissed_agents(dismissed_snapshot)
+    sync_dismissed_agent_artifact_index(dismissed_snapshot)
+    if not consumed_intents:
+        dismiss_notifications_for_agents(related_agents)
+
+
+def _persist_bulk_kill_transaction(
+    kill_items: list[BulkKillItem],
+    dismissable: list[Agent],
+    dismissed_snapshot: set[AgentIdentity],
+    agents_with_children_snapshot: list[Agent],
+    cleanup_plan: object | None,
+    recent_group: SavedAgentGroupWire | None,
+) -> None:
+    """Persist all side effects for one optimistic bulk kill/dismiss operation."""
+    if cleanup_plan is None:
+        if recent_group is None:
+            persist_bulk_kill_side_effects(
+                kill_items,
+                dismissable,
+                dismissed_snapshot,
+                agents_with_children_snapshot,
+            )
+        else:
+            persist_bulk_kill_side_effects(
+                kill_items,
+                dismissable,
+                dismissed_snapshot,
+                agents_with_children_snapshot,
+                None,
+                recent_group,
+            )
+        return
+    persist_bulk_kill_side_effects(
+        kill_items,
+        dismissable,
+        dismissed_snapshot,
+        agents_with_children_snapshot,
+        cleanup_plan,
+        recent_group,
+    )
+
+
+def _bulk_kill_task_display_name(killed_count: int, dismissed_count: int) -> str:
+    """Return the Task Queue label for a bulk kill/dismiss persistence task."""
+    if killed_count and dismissed_count:
+        return f"kill {killed_count} + dismiss {dismissed_count} agents"
+    if killed_count:
+        return f"kill {killed_count} agent{'s' if killed_count != 1 else ''}"
+    return f"dismiss {dismissed_count} agent{'s' if dismissed_count != 1 else ''}"
+
+
+def _bulk_kill_summary(killed_count: int, dismissed_count: int) -> str:
+    """Return the completion message for a bulk kill/dismiss persistence task."""
+    kill_msg = (
+        f"Killed {killed_count} agent{'s' if killed_count != 1 else ''}"
+        if killed_count
+        else ""
+    )
+    dismiss_msg = (
+        f"dismissed {dismissed_count} agent{'s' if dismissed_count != 1 else ''}"
+        if dismissed_count
+        else ""
+    )
+    if killed_count and dismissed_count:
+        return f"{kill_msg} and {dismiss_msg}"
+    if killed_count:
+        return kill_msg
+    return dismiss_msg.capitalize()
 
 
 class AgentKillingMixin(AgentDismissingMixin):
@@ -356,8 +455,7 @@ class AgentKillingMixin(AgentDismissingMixin):
         dismissed_snapshot.update(immediate_identities)
         self._apply_killed_agents_in_memory(immediate_identities)
 
-        self.call_later(  # type: ignore[attr-defined]
-            self._run_kill_persistence_async,
+        self._submit_kill_persistence_task(
             agent,
             kind,
             agents_with_children_snapshot,
@@ -454,8 +552,7 @@ class AgentKillingMixin(AgentDismissingMixin):
             self._notify_after_refresh(dismiss_msg.capitalize())
 
         if kill_items or dismiss_candidates:
-            self.call_later(  # type: ignore[attr-defined]
-                self._run_bulk_kill_persistence_async,
+            self._submit_bulk_kill_persistence_task(
                 kill_items,
                 dismiss_candidates,
                 set(self._dismissed_agents),
@@ -470,7 +567,7 @@ class AgentKillingMixin(AgentDismissingMixin):
             time.perf_counter() - started,
         )
 
-    async def _run_bulk_kill_persistence_async(
+    def _submit_bulk_kill_persistence_task(
         self,
         kill_items: list[BulkKillItem],
         dismissable: list[Agent],
@@ -479,37 +576,19 @@ class AgentKillingMixin(AgentDismissingMixin):
         cleanup_plan: object | None = None,
         recent_group: SavedAgentGroupWire | None = None,
     ) -> None:
-        """Persist bulk kill/dismiss side effects in a worker thread."""
+        """Submit bulk kill/dismiss persistence as a tracked background task."""
         inflight = {item.agent.identity for item in kill_items}
         if inflight & self._kill_persistence_inflight:
             return
         self._kill_persistence_inflight.update(inflight)
 
-        started = time.perf_counter()
-        success = True
-        try:
-            if cleanup_plan is None:
-                if recent_group is None:
-                    await asyncio.to_thread(
-                        persist_bulk_kill_side_effects,
-                        kill_items,
-                        dismissable,
-                        dismissed_snapshot,
-                        agents_with_children_snapshot,
-                    )
-                else:
-                    await asyncio.to_thread(
-                        persist_bulk_kill_side_effects,
-                        kill_items,
-                        dismissable,
-                        dismissed_snapshot,
-                        agents_with_children_snapshot,
-                        None,
-                        recent_group,
-                    )
-            else:
-                await asyncio.to_thread(
-                    persist_bulk_kill_side_effects,
+        killed_count = len(kill_items)
+        dismissed_count = len(dismissable)
+
+        def _worker() -> CleanupTaskOutcome:
+            started = time.perf_counter()
+            try:
+                _persist_bulk_kill_transaction(
                     kill_items,
                     dismissable,
                     dismissed_snapshot,
@@ -517,23 +596,34 @@ class AgentKillingMixin(AgentDismissingMixin):
                     cleanup_plan,
                     recent_group,
                 )
-        except Exception as exc:
-            success = False
-            self.notify(  # type: ignore[attr-defined]
-                f"Bulk kill cleanup failed: {exc}",
-                severity="error",
+            except Exception as exc:
+                return CleanupTaskOutcome(
+                    message=f"Bulk kill cleanup failed: {exc}",
+                    severity="error",
+                    notify=True,
+                    schedule_agents_refresh_source="kill_error_recovery",
+                )
+            finally:
+                self._kill_persistence_inflight.difference_update(inflight)
+                log.debug(
+                    "bulk agent kill persistence: killed=%d dismissed=%d elapsed=%.3fs",
+                    killed_count,
+                    dismissed_count,
+                    time.perf_counter() - started,
+                )
+            return CleanupTaskOutcome(
+                message=_bulk_kill_summary(killed_count, dismissed_count),
+                refresh_notifications=True,
             )
-            self._schedule_agents_async_refresh(source="kill_error_recovery")  # type: ignore[attr-defined]
-        finally:
+
+        if not self._submit_cleanup_task(
+            task_type="kill",
+            display_name=_bulk_kill_task_display_name(killed_count, dismissed_count),
+            cl_name="",
+            project_file="",
+            task_callable=_worker,
+        ):
             self._kill_persistence_inflight.difference_update(inflight)
-            log.debug(
-                "bulk agent kill persistence: killed=%d dismissed=%d elapsed=%.3fs",
-                len(kill_items),
-                len(dismissable),
-                time.perf_counter() - started,
-            )
-            if success:
-                await self._refresh_notification_count_async()  # type: ignore[attr-defined]
 
     def _notify_killed_agent(self, agent: Agent, kind: KillKind) -> None:
         """Emit kill notification message for an already-signaled process."""
@@ -553,7 +643,7 @@ class AgentKillingMixin(AgentDismissingMixin):
             return
         self.notify(f"Killed agent (PID {agent.pid})")  # type: ignore[attr-defined]
 
-    async def _run_kill_persistence_async(
+    def _submit_kill_persistence_task(
         self,
         agent: Agent,
         kind: KillKind,
@@ -561,67 +651,59 @@ class AgentKillingMixin(AgentDismissingMixin):
         dismissed_snapshot: set[AgentIdentity] | None = None,
         cleanup_plan: AgentCleanupPlanWire | None = None,
     ) -> None:
-        """Persist kill side effects in a worker thread."""
+        """Submit single-agent kill persistence as a tracked background task."""
         identity = agent.identity
         if identity in self._kill_persistence_inflight:
             return
         self._kill_persistence_inflight.add(identity)
 
-        started = time.perf_counter()
         if agents_with_children_snapshot is None:
             agents_with_children_snapshot = list(self._agents_with_children)
         if dismissed_snapshot is None:
             dismissed_snapshot = set(self._dismissed_agents)
+        related_agents = self._agents_related_to_kill(
+            agent, agents_with_children_snapshot
+        )
 
-        success = True
-        try:
-            if cleanup_plan is None:
-                consumed_intents_result = await asyncio.to_thread(
-                    persist_kill_side_effects,
+        def _worker() -> CleanupTaskOutcome:
+            started = time.perf_counter()
+            try:
+                _persist_single_kill_transaction(
                     agent,
                     kind,
                     agents_with_children_snapshot,
-                )
-            else:
-                consumed_intents_result = await asyncio.to_thread(
-                    persist_kill_side_effects,
-                    agent,
-                    kind,
-                    agents_with_children_snapshot,
+                    dismissed_snapshot,
                     cleanup_plan,
+                    related_agents,
                 )
-            consumed_intents = consumed_intents_result is True
-            # Persist the dismissed-set snapshot captured on the UI thread,
-            # then rewrite the notifications file (single read+write) for
-            # this agent and any workflow-child rows hidden alongside it.
-            from ....dismissed_agents import save_dismissed_agents
+            except Exception as exc:
+                return CleanupTaskOutcome(
+                    message=f"Kill cleanup failed for {agent.display_name}: {exc}",
+                    severity="error",
+                    notify=True,
+                    schedule_agents_refresh_source="kill_error_recovery",
+                )
+            finally:
+                self._kill_persistence_inflight.discard(identity)
+                log.debug(
+                    "agent kill persistence: kind=%s identity=%s elapsed=%.3fs",
+                    kind,
+                    identity,
+                    time.perf_counter() - started,
+                )
+            return CleanupTaskOutcome(
+                message=f"Killed {agent.display_name}",
+                refresh_notifications=True,
+            )
 
-            await asyncio.to_thread(save_dismissed_agents, dismissed_snapshot)
-            await asyncio.to_thread(
-                sync_dismissed_agent_artifact_index, dismissed_snapshot
-            )
-            if not consumed_intents:
-                related = self._agents_related_to_kill(
-                    agent, agents_with_children_snapshot
-                )
-                await asyncio.to_thread(dismiss_notifications_for_agents, related)
-        except Exception as exc:
-            success = False
-            self.notify(  # type: ignore[attr-defined]
-                f"Kill cleanup failed for {agent.display_name}: {exc}",
-                severity="error",
-            )
-            self._schedule_agents_async_refresh(source="kill_error_recovery")  # type: ignore[attr-defined]
-        finally:
+        if not self._submit_cleanup_task(
+            task_type="kill",
+            display_name=f"kill {agent.display_name}",
+            cl_name=agent.cl_name,
+            project_file=agent.project_file,
+            task_callable=_worker,
+        ):
             self._kill_persistence_inflight.discard(identity)
-            log.debug(
-                "agent kill persistence: kind=%s identity=%s elapsed=%.3fs",
-                kind,
-                identity,
-                time.perf_counter() - started,
-            )
-            if success:
-                await self._refresh_notification_count_async()  # type: ignore[attr-defined]
 
     def _kill_and_dismiss_all_agents(self) -> None:
         """Kill all running agents and dismiss all done agents (double-confirm)."""

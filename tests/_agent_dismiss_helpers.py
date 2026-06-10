@@ -7,6 +7,8 @@ from unittest.mock import patch
 from sase.ace.tui.actions.agents._dismissing import AgentDismissingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 
+from tests._agent_cleanup_task_helpers import TrackedTaskRecorderMixin
+
 
 def make_agent(**overrides: object) -> Agent:
     """Create a minimal Agent for dismiss tests."""
@@ -22,10 +24,11 @@ def make_agent(**overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-class FakeDismissApp(AgentDismissingMixin):
+class FakeDismissApp(TrackedTaskRecorderMixin, AgentDismissingMixin):
     """Minimal app implementing just what the dismiss flow touches."""
 
     def __init__(self) -> None:
+        self._init_tracked_task_recorder()
         self.current_tab = "agents"
         self.current_idx = 0
         self.changespecs = []  # type: ignore[assignment]

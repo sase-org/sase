@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
+from typing import Any
 from unittest.mock import patch
 
 from sase.ace.tui.models.agent import AgentType
 
+from tests._agent_cleanup_task_helpers import run_tracked_task
 from tests._agent_dismiss_helpers import FakeDismissApp, make_agent
 
 
@@ -39,8 +40,7 @@ def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # t
             "sase.ace.dismissed_agents.record_recent_dismissed_agent_group"
         ) as mock_record_recent,
     ):
-        callback, args = app._scheduled[0]
-        asyncio.run(callback(*args))  # type: ignore[misc]
+        run_tracked_task(app, app.tracked_tasks[0])
 
     mock_persist_intents.assert_called_once()
     assert mock_persist_intents.call_args[0][1] == [agent]
@@ -70,11 +70,12 @@ def test_dismiss_persistence_callback_reloads_on_failure(tmp_path) -> None:  # t
         "sase.ace.tui.actions.agents._dismissing._persist_single_dismiss_transaction",
         side_effect=RuntimeError("boom"),
     ):
-        callback, args = app._scheduled[0]
-        asyncio.run(callback(*args))  # type: ignore[misc]
+        run_tracked_task(app, app.tracked_tasks[0])
 
-    assert app.notification_refreshes == 1
-    assert app.notification_refreshes_async == 0
+    # The failure-path notification-count refresh now rides the same
+    # off-thread async path as success.
+    assert app.notification_refreshes_async == 1
+    assert app.notification_refreshes == 0
     assert app.async_refreshes == 1
     assert any(sev == "error" for _, sev in app.notifications)
 
@@ -114,8 +115,7 @@ def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
         patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
     ):
-        callback, args = app._scheduled[0]
-        asyncio.run(callback(*args))  # type: ignore[misc]
+        run_tracked_task(app, app.tracked_tasks[0])
 
     mock_persist_intents.assert_called_once()
     assert mock_persist_intents.call_args[0][1] == [parent, child]
@@ -126,13 +126,14 @@ def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
     assert app.async_refreshes == 0
 
 
-def _find_bulk_persistence_callback(
-    app: FakeDismissApp,
-) -> tuple[object, tuple[object, ...]]:
-    for callback, args in app._scheduled:
-        if getattr(callback, "__name__", "") == "_run_bulk_dismiss_persistence_async":
-            return callback, args
-    raise AssertionError("bulk dismiss persistence not scheduled")
+def _find_bulk_persistence_task(app: FakeDismissApp) -> dict[str, Any]:
+    for task in app.tracked_tasks:
+        display_name = task["display_name"] or ""
+        if task["task_type"] == "dismiss" and display_name.endswith(
+            ("agent", "agents")
+        ):
+            return task
+    raise AssertionError("bulk dismiss persistence task not submitted")
 
 
 def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
@@ -156,8 +157,7 @@ def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
         patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
     ):
-        callback, args = _find_bulk_persistence_callback(app)
-        asyncio.run(callback(*args))  # type: ignore[misc]
+        run_tracked_task(app, _find_bulk_persistence_task(app))
 
     mock_persist_intents.assert_called_once()
     assert mock_persist_intents.call_args[0][1] == [a1, a2]
@@ -181,8 +181,7 @@ def test_do_dismiss_all_persistence_failure_notifies_and_refreshes() -> None:
         "sase.ace.tui.actions.agents._dismissing._persist_bulk_dismiss_transaction",
         side_effect=RuntimeError("boom"),
     ):
-        callback, args = _find_bulk_persistence_callback(app)
-        asyncio.run(callback(*args))  # type: ignore[misc]
+        run_tracked_task(app, _find_bulk_persistence_task(app))
 
     assert app.async_refreshes == 1
     assert app.notification_refreshes_async == 0
@@ -309,8 +308,7 @@ def test_bulk_dismiss_passes_added_to_artifact_index_sync() -> None:
         ) as mock_sync_index,
         patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
     ):
-        callback, args = _find_bulk_persistence_callback(app)
-        asyncio.run(callback(*args))  # type: ignore[misc]
+        run_tracked_task(app, _find_bulk_persistence_task(app))
 
     mock_sync_index.assert_called_once()
     kwargs = mock_sync_index.call_args.kwargs
