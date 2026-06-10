@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sase.axe.run_agent_exec_plan import _commit_sdd_files
+from sase.axe.run_agent_exec_plan_accept import _commit_sdd_files
 from sase.sdd.files import commit_sdd_files
 
 
@@ -146,7 +146,9 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
             captured_msg_content.append(msg_path.read_text(encoding="utf-8"))
             return subprocess.CompletedProcess(cmd, 0)
 
-        with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
+        with patch(
+            "sase.axe.run_agent_exec_plan_accept.subprocess.run", side_effect=fake_run
+        ):
             assert _commit_sdd_files(ws, "my_plan") is True
 
         assert len(captured_msg_content) == 1
@@ -177,7 +179,9 @@ def test_commit_sdd_files_passes_f_flags() -> None:
             captured_cmd.append(list(cmd))
             return subprocess.CompletedProcess(cmd, 0)
 
-        with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
+        with patch(
+            "sase.axe.run_agent_exec_plan_accept.subprocess.run", side_effect=fake_run
+        ):
             assert _commit_sdd_files(ws, "my_plan") is True
 
         cmd = captured_cmd[0]
@@ -207,7 +211,9 @@ def test_commit_sdd_files_finds_canonical_sdd_paths() -> None:
             captured_cmd.append(list(cmd))
             return subprocess.CompletedProcess(cmd, 0)
 
-        with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
+        with patch(
+            "sase.axe.run_agent_exec_plan_accept.subprocess.run", side_effect=fake_run
+        ):
             assert _commit_sdd_files(ws, "my_epic", plan_kind="epics") is True
 
         f_values = [
@@ -233,7 +239,9 @@ def test_commit_sdd_files_prompt_only() -> None:
             captured_cmd.append(list(cmd))
             return subprocess.CompletedProcess(cmd, 0)
 
-        with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
+        with patch(
+            "sase.axe.run_agent_exec_plan_accept.subprocess.run", side_effect=fake_run
+        ):
             assert _commit_sdd_files(ws, "only_prompt") is True
 
         assert len(captured_cmd) == 1
@@ -246,7 +254,7 @@ def test_commit_sdd_files_noop_no_files() -> None:
     """No-op when neither spec nor plan file exists."""
     with tempfile.TemporaryDirectory() as tmpdir:
         mock_run = MagicMock()
-        with patch("sase.axe.run_agent_exec_plan.subprocess.run", mock_run):
+        with patch("sase.axe.run_agent_exec_plan_accept.subprocess.run", mock_run):
             assert _commit_sdd_files(tmpdir, "nonexistent") is True
         mock_run.assert_not_called()
 
@@ -265,8 +273,11 @@ def test_commit_sdd_files_logs_failure() -> None:
             return subprocess.CompletedProcess(cmd, 1, stderr="boom")
 
         with (
-            patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run),
-            patch("sase.axe.run_agent_exec_plan.logger") as mock_logger,
+            patch(
+                "sase.axe.run_agent_exec_plan_accept.subprocess.run",
+                side_effect=fake_run,
+            ),
+            patch("sase.axe.run_agent_exec_plan_accept.logger") as mock_logger,
         ):
             assert _commit_sdd_files(ws, "fail") is False
 

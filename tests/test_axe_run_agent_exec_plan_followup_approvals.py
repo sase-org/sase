@@ -5,7 +5,7 @@ from unittest.mock import call, patch
 
 import pytest
 
-from sase.axe import run_agent_exec_plan as plan_mod
+from sase.axe import run_agent_exec_plan_accept as accept_mod
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
@@ -46,10 +46,10 @@ class TestPlanFollowupApprovals:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
         assert call(plan_artifacts_dir, "plan_approved", True) in (
-            plan_mod.update_meta_field.call_args_list
+            accept_mod.update_meta_field.call_args_list
         )
         assert call(plan_artifacts_dir, "plan_action", "epic") in (
-            plan_mod.update_meta_field.call_args_list
+            accept_mod.update_meta_field.call_args_list
         )
 
     def test_plan_approval_initializes_sdd_before_writing_files(self, tmp_path) -> None:
@@ -105,7 +105,9 @@ class TestPlanFollowupApprovals:
                     sdd_plan,
                 ),
             ) as write_sdd_files,
-            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files"
+            ) as mock_commit,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
@@ -144,7 +146,9 @@ class TestPlanFollowupApprovals:
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
             ),
-            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files"
+            ) as mock_commit,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
@@ -175,13 +179,15 @@ class TestPlanFollowupApprovals:
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
             ),
-            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files"
+            ) as mock_commit,
         ):
             outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert outcome == "plan_committed"
         mock_commit.assert_called_once()
         assert call(state.current_artifacts_dir, "plan_committed", True) in (
-            plan_mod.update_meta_field.call_args_list
+            accept_mod.update_meta_field.call_args_list
         )
 
     def test_approve_no_coder_commit_false_skips_commit(self, tmp_path) -> None:
@@ -206,13 +212,15 @@ class TestPlanFollowupApprovals:
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
             ),
-            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files"
+            ) as mock_commit,
         ):
             outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert outcome == "plan_committed"
         mock_commit.assert_not_called()
         assert call(state.current_artifacts_dir, "plan_committed", False) in (
-            plan_mod.update_meta_field.call_args_list
+            accept_mod.update_meta_field.call_args_list
         )
 
     def test_approve_followup_propagates_plan_committed_flag(self, tmp_path) -> None:
@@ -243,7 +251,7 @@ class TestPlanFollowupApprovals:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        relationships = plan_mod.create_followup_artifacts.call_args.kwargs[
+        relationships = accept_mod.create_followup_artifacts.call_args.kwargs[
             "relationships"
         ]
         assert relationships["plan_committed"] is True
@@ -349,7 +357,7 @@ class TestPlanFollowupApprovals:
                 ),
             ),
             patch(
-                "sase.axe.run_agent_exec_plan._commit_sdd_files",
+                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files",
                 return_value=False,
             ),
         ):
@@ -358,12 +366,12 @@ class TestPlanFollowupApprovals:
         assert f"@{archived_plan}" in state.current_prompt
         assert "@sdd/tales/202605/scratch_plan.md" not in state.current_prompt
         assert os.environ["SASE_PLAN"] == str(archived_plan)
-        relationships = plan_mod.create_followup_artifacts.call_args.kwargs[
+        relationships = accept_mod.create_followup_artifacts.call_args.kwargs[
             "relationships"
         ]
         assert relationships["plan_committed"] is False
         assert call(str(tmp_path / "artifacts"), "plan_committed", False) in (
-            plan_mod.update_meta_field.call_args_list
+            accept_mod.update_meta_field.call_args_list
         )
 
     @pytest.mark.parametrize(
@@ -409,7 +417,7 @@ class TestPlanFollowupApprovals:
                 ),
             ),
             patch(
-                "sase.axe.run_agent_exec_plan._commit_sdd_files",
+                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files",
                 return_value=False,
             ),
         ):
@@ -417,7 +425,7 @@ class TestPlanFollowupApprovals:
 
         assert f"#{xprompt_name}:{archived_plan}" in state.current_prompt
         assert f"sdd/{plan_kind}/202605/{action}_plan.md" not in state.current_prompt
-        relationships = plan_mod.create_followup_artifacts.call_args.kwargs[
+        relationships = accept_mod.create_followup_artifacts.call_args.kwargs[
             "relationships"
         ]
         assert relationships["plan_committed"] is False

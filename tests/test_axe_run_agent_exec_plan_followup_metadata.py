@@ -4,10 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.axe.run_agent_exec_plan import (
-    _accepted_plan_action_for_meta,
-    handle_plan_marker,
-)
+from sase.axe.run_agent_exec_plan import handle_plan_marker
+from sase.axe.run_agent_exec_plan_accept import _accepted_plan_action_for_meta
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
@@ -53,7 +51,7 @@ class TestPlanFollowupMetadata:
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
             ),
             patch(
-                "sase.axe.run_agent_exec_plan.update_meta_field",
+                "sase.axe.run_agent_exec_plan_accept.update_meta_field",
                 side_effect=track_meta,
             ),
             patch(
@@ -144,7 +142,7 @@ class TestPlanFollowupMetadata:
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
             ),
             patch(
-                "sase.axe.run_agent_exec_plan.update_meta_field",
+                "sase.axe.run_agent_exec_plan_accept.update_meta_field",
                 side_effect=track_meta,
             ),
         ):
@@ -180,7 +178,7 @@ class TestPlanFollowupMetadata:
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
             ),
             patch(
-                "sase.axe.run_agent_exec_plan.update_meta_field",
+                "sase.axe.run_agent_exec_plan_accept.update_meta_field",
                 side_effect=track_meta,
             ),
             patch(

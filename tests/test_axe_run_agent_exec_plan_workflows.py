@@ -2,7 +2,7 @@
 
 import json
 
-from sase.axe.run_agent_exec_plan import _get_embedded_workflow_refs
+from sase.axe.run_agent_exec_plan_artifacts import get_embedded_workflow_refs
 
 
 def test_get_embedded_workflow_refs_excludes_vcs_when_tag_set(tmp_path) -> None:
@@ -17,7 +17,7 @@ def test_get_embedded_workflow_refs_excludes_vcs_when_tag_set(tmp_path) -> None:
         )
     )
 
-    result = _get_embedded_workflow_refs(str(tmp_path), "#gh:sase ")
+    result = get_embedded_workflow_refs(str(tmp_path), "#gh:sase ")
     assert "#gh" not in result
     assert "#propose" in result
 
@@ -34,6 +34,6 @@ def test_get_embedded_workflow_refs_includes_vcs_when_tag_none(tmp_path) -> None
         )
     )
 
-    result = _get_embedded_workflow_refs(str(tmp_path), None)
+    result = get_embedded_workflow_refs(str(tmp_path), None)
     assert "#gh:sase" in result
     assert "#propose" in result

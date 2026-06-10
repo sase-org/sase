@@ -6,7 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.axe.run_agent_exec_plan import _build_epic_plan_ref, handle_plan_marker
+from sase.axe.run_agent_exec_plan import handle_plan_marker
+from sase.axe.run_agent_exec_plan_sdd import build_epic_plan_ref
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
@@ -271,7 +272,7 @@ class TestEpicPlanRefs:
         sdd_plan_path.write_text("# Plan", encoding="utf-8")
 
         assert (
-            _build_epic_plan_ref(
+            build_epic_plan_ref(
                 sdd_plan_path=sdd_plan_path,
                 sdd_dir=workspace_dir,
                 workspace_dir=str(workspace_dir),
@@ -287,7 +288,7 @@ class TestEpicPlanRefs:
 
         with patch("sase.sdd.files.get_yyyymm", return_value="202604"):
             assert (
-                _build_epic_plan_ref(
+                build_epic_plan_ref(
                     sdd_plan_path=workspace_dir
                     / "sdd"
                     / "epics"

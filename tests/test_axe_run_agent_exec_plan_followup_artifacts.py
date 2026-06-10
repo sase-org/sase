@@ -31,10 +31,10 @@ def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
         patch("sase.axe.run_agent_exec_plan.was_killed", return_value=False),
         patch("sase.axe.run_agent_exec_plan._write_plan_path_artifact"),
         patch("sase.axe.run_agent_exec_plan.update_step_marker_chat_path"),
-        patch("sase.axe.run_agent_exec_plan.promote_to_workflow"),
-        patch("sase.axe.run_agent_exec_plan._commit_sdd_files"),
+        patch("sase.axe.run_agent_exec_plan_accept.promote_to_workflow"),
+        patch("sase.axe.run_agent_exec_plan_accept._commit_sdd_files"),
         patch(
-            "sase.axe.run_agent_exec_plan.create_followup_artifacts",
+            "sase.axe.run_agent_exec_plan_accept.create_followup_artifacts",
             return_value=str(followup),
         ),
         patch(

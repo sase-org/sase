@@ -6,7 +6,9 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe import run_agent_exec_plan as plan_mod
-from sase.axe.run_agent_exec_plan import handle_plan_marker, handle_questions_marker
+from sase.axe import run_agent_exec_questions as questions_mod
+from sase.axe.run_agent_exec_plan import handle_plan_marker
+from sase.axe.run_agent_exec_questions import handle_questions_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
@@ -165,7 +167,7 @@ class TestPlanFollowupPromptConstruction:
         }
 
         with patch(
-            "sase.axe.run_agent_exec_plan.handle_questions_flow",
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
             return_value=response,
         ):
             outcome = handle_questions_marker({"questions": questions}, ctx, state)
@@ -174,13 +176,13 @@ class TestPlanFollowupPromptConstruction:
         assert "Which API?" in state.current_prompt
         assert "REST" in state.current_prompt
         assert "Keep it simple" in state.current_prompt
-        plan_mod._store_followup_prompt_artifact.assert_called_once_with(
+        questions_mod._store_followup_prompt_artifact.assert_called_once_with(
             "/tmp/followup",
             state.current_prompt,
             label="Full question prompt",
         )
         assert state.current_role_suffix == "--2"
-        assert plan_mod.create_followup_artifacts.call_args.args[2] == "--2"
+        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--2"
 
     def test_question_followup_second_round_uses_next_numeric_suffix(
         self, tmp_path
@@ -192,14 +194,14 @@ class TestPlanFollowupPromptConstruction:
         state.current_role_suffix = "-2"
 
         with patch(
-            "sase.axe.run_agent_exec_plan.handle_questions_flow",
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
             return_value={"answers": [], "global_note": ""},
         ):
             outcome = handle_questions_marker({"questions": []}, ctx, state)
 
         assert outcome is None
         assert state.current_role_suffix == "--3"
-        assert plan_mod.create_followup_artifacts.call_args.args[2] == "--3"
+        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--3"
 
     def test_multiple_question_rounds_merge_into_one_section(self, tmp_path) -> None:
         """Two question rounds produce one merged Q&A section with continuous numbering."""
@@ -247,7 +249,7 @@ class TestPlanFollowupPromptConstruction:
         }
 
         with patch(
-            "sase.axe.run_agent_exec_plan.handle_questions_flow",
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
             return_value=round1_response,
         ):
             handle_questions_marker({"questions": round1_questions}, ctx, state)
@@ -259,7 +261,7 @@ class TestPlanFollowupPromptConstruction:
         assert len(state.qa_rounds) == 1
 
         with patch(
-            "sase.axe.run_agent_exec_plan.handle_questions_flow",
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
             return_value=round2_response,
         ):
             handle_questions_marker({"questions": round2_questions}, ctx, state)

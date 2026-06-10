@@ -12,10 +12,11 @@ from sase.axe.run_agent_exec_markers import (
     publish_phase_env as _publish_phase_env,
     write_done_marker_and_update_index as _write_done_marker_and_update_index,
 )
-from sase.axe.run_agent_exec_plan import (
+from sase.axe.run_agent_exec_plan import handle_plan_marker
+from sase.axe.run_agent_exec_plan_artifacts import (
     get_embedded_workflow_refs as _get_embedded_workflow_refs,
 )
-from sase.axe.run_agent_exec_plan import handle_plan_marker, handle_questions_marker
+from sase.axe.run_agent_exec_questions import handle_questions_marker
 from sase.axe.run_agent_exec_retry import RetryTracker, handle_workflow_error
 from sase.axe.run_agent_exec_types import (
     AgentExecContext,

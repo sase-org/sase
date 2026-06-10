@@ -64,8 +64,23 @@ PLAN_PATCHES = {
         "/tmp/followup"
     ),
     "sase.axe.run_agent_exec_plan.promote_to_workflow": None,
-    "sase.axe.run_agent_exec_plan._commit_sdd_files": None,
     "sase.axe.run_agent_exec_plan._store_followup_prompt_artifact": None,
+    "sase.axe.run_agent_exec_plan_accept.update_meta_field": None,
+    "sase.axe.run_agent_exec_plan_accept.create_followup_artifacts": lambda *a, **kw: (
+        "/tmp/followup"
+    ),
+    "sase.axe.run_agent_exec_plan_accept.promote_to_workflow": None,
+    "sase.axe.run_agent_exec_plan_accept._commit_sdd_files": None,
+    "sase.axe.run_agent_exec_questions.normalize_handoff_interruption_state": None,
+    "sase.axe.run_agent_exec_questions.update_meta_suffix": None,
+    "sase.axe.run_agent_exec_questions.update_meta_field": None,
+    "sase.axe.run_agent_exec_questions.reset_killed": None,
+    "sase.axe.run_agent_exec_questions.update_step_marker_chat_path": None,
+    "sase.axe.run_agent_exec_questions.create_followup_artifacts": lambda *a, **kw: (
+        "/tmp/followup"
+    ),
+    "sase.axe.run_agent_exec_questions.promote_to_workflow": None,
+    "sase.axe.run_agent_exec_questions._store_followup_prompt_artifact": None,
     "sase.llm_provider._plan_utils.handle_plan_approval": None,
     "sase.history.chat.save_chat_history": lambda **kw: "/fake/chat",
     "sase.history.chat_extras.format_extra_sections": lambda *a: "",
