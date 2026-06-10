@@ -138,6 +138,58 @@ def test_create_followup_inherits_name_without_override(tmp_path) -> None:
     assert "workflow_name" not in meta
 
 
+def test_create_followup_inherits_workspace_dir(tmp_path) -> None:
+    """Follow-up agents inherit the parent's workspace_dir.
+
+    Numbered-workspace follow-up children (the live-diff source) must persist
+    the workspace they run in so the TUI can resolve the diff directly from
+    agent_meta.json instead of re-deriving the path.
+    """
+    new_dir = tmp_path / "new"
+    new_dir.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(new_dir),
+    ):
+        create_followup_artifacts(
+            "proj",
+            {
+                "name": "a",
+                "model": "test",
+                "workspace_dir": "/managed/ws/proj_3/",
+            },
+            ".code",
+            "20260326120000",
+            workspace_num=3,
+        )
+
+    meta = json.loads((new_dir / "agent_meta.json").read_text())
+    assert meta["workspace_dir"] == "/managed/ws/proj_3/"
+    assert meta["workspace_num"] == 3
+
+
+def test_create_followup_without_workspace_dir_omits_key(tmp_path) -> None:
+    """No workspace_dir in base_meta leaves the key absent (graceful)."""
+    new_dir = tmp_path / "new"
+    new_dir.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(new_dir),
+    ):
+        create_followup_artifacts(
+            "proj",
+            {"name": "a", "model": "test"},
+            ".code",
+            "20260326120000",
+            workspace_num=3,
+        )
+
+    meta = json.loads((new_dir / "agent_meta.json").read_text())
+    assert "workspace_dir" not in meta
+
+
 def test_create_followup_artifacts_updates_artifact_index(tmp_path) -> None:
     """Follow-up agent meta + workflow marker creation refreshes once."""
     followup = tmp_path / "followup"

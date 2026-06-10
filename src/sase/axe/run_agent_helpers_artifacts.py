@@ -303,6 +303,10 @@ def create_followup_artifacts(
         "model",
         "llm_provider",
         "vcs_provider",
+        # Inherit the workspace the parent ran in: follow-up agents run in the
+        # same workspace, and persisting it lets the TUI resolve the live diff
+        # directly from agent_meta.json instead of re-deriving the path.
+        "workspace_dir",
         "name",
         "approve",
         "changespec_name",

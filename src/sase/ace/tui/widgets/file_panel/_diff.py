@@ -26,7 +26,9 @@ from datetime import datetime
 from pathlib import Path
 from threading import Lock
 
+from sase.config.core import load_merged_config
 from sase.vcs_provider import VCSProviderNotFoundError, get_vcs_provider
+from sase.workspace_provider.store import WorkspaceStore
 from sase.workspace_provider.utils import parse_workspace_dir
 
 from ...models.agent import Agent
@@ -53,6 +55,13 @@ DiffCacheKey = tuple[
 
 _diff_cache: dict[DiffCacheKey, str | None] = {}
 _diff_cache_lock = Lock()
+
+# Constructing a ``WorkspaceStore`` may shell out (``git remote``) to derive
+# the project key, so we memoize one per primary workspace dir to keep diff
+# fetches cheap.  Resolution itself is pure (creates no directories).  Mirrors
+# the ``_diff_cache`` locking discipline above.
+_workspace_store_cache: dict[str, WorkspaceStore] = {}
+_workspace_store_cache_lock = Lock()
 
 _ACTIVE_DIFF_SOURCE_STATUSES = frozenset(
     {
@@ -99,19 +108,45 @@ def _existing_workspace_dir(workspace_dir: str | None) -> str | None:
     if not workspace_dir:
         return None
     expanded = os.path.expanduser(workspace_dir)
-    return expanded if os.path.isdir(expanded) else None
+    if not os.path.isdir(expanded):
+        return None
+    # Normalize so a trailing slash (the ``WorkspaceStore`` checkout
+    # convention and how some agent_meta.json paths are stored) does not
+    # produce a distinct diff-cache key from the same workspace reached via
+    # ``agent.workspace_dir``.
+    return os.path.normpath(expanded)
 
 
-def _derive_workspace_dir_from_primary(
+def _get_workspace_store(primary_workspace_dir: str) -> WorkspaceStore:
+    """Return a cached ``WorkspaceStore`` for *primary_workspace_dir*."""
+    with _workspace_store_cache_lock:
+        cached = _workspace_store_cache.get(primary_workspace_dir)
+    if cached is not None:
+        return cached
+    store = WorkspaceStore(primary_workspace_dir, config=load_merged_config())
+    with _workspace_store_cache_lock:
+        return _workspace_store_cache.setdefault(primary_workspace_dir, store)
+
+
+def _resolve_managed_workspace_dir(
     primary_workspace_dir: str,
     workspace_num: int | None,
 ) -> str | None:
-    if workspace_num is None or workspace_num <= 1:
+    """Resolve a workspace checkout via the canonical ``WorkspaceStore``.
+
+    Delegates to the same resolver the runner/CLI use so the TUI honors the
+    configured ``workspace.root`` policy (``xdg-state`` default, ``adjacent``
+    legacy, absolute / ``SASE_WORKSPACE_ROOT`` override) and can never drift
+    from a private heuristic again.  Resolution is pure: it never clones or
+    materializes a workspace just to render a diff.
+    """
+    if workspace_num is None:
         return primary_workspace_dir
-    primary_base = primary_workspace_dir.rstrip(os.sep)
-    if not primary_base:
+    try:
+        store = _get_workspace_store(primary_workspace_dir)
+        return store.resolve(workspace_num).checkout_dir
+    except Exception:
         return None
-    return f"{primary_base}_{workspace_num}"
 
 
 def _resolve_workspace_dir(agent: Agent) -> str | None:
@@ -122,7 +157,7 @@ def _resolve_workspace_dir(agent: Agent) -> str | None:
     if primary_workspace is None:
         return None
 
-    derived_workspace = _derive_workspace_dir_from_primary(
+    derived_workspace = _resolve_managed_workspace_dir(
         primary_workspace,
         agent.workspace_num,
     )
