@@ -23,5 +23,5 @@ Read anytime new CLI subcommands or options are added.
 **`memory/long/generated_skills.md`**  
 Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime.
 
-**`memory/long/tui_jk_baseline.md`**  
-Baseline j/k key-to-paint latency data and reproduction steps.
+**`memory/long/tui_perf.md`**  
+Read before changing anything that affects TUI performance or responsiveness (navigation, refresh, rendering, startup).

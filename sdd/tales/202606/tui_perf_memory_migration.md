@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-10 09:04:08
-status: wip
+status: done
 prompt: sdd/prompts/202606/tui_perf_memory_migration.md
 ---
 # Migrate `memory/long/tui_jk_baseline.md` → `memory/long/tui_perf.md`
