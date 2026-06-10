@@ -4,17 +4,54 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker, WorkerState
 
-from ..task_queue import TaskQueue, capture_output
+from ..task_queue import TaskInfo, TaskQueue, capture_output
 from ..widgets.task_indicator import TaskIndicator
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class TrackedTaskResult[T]:
+    """Result returned by a tracked background task body."""
+
+    success: bool
+    message: str
+    payload: T | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class TrackedTaskCompletion[T]:
+    """UI-thread completion record for a tracked background task."""
+
+    task_info: TaskInfo
+    success: bool
+    message: str
+    output: str
+    payload: T | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class _TaskWorkerResult[T]:
+    task_id: str
+    result: TrackedTaskResult[T]
+    output: str
+
+
+@dataclass(frozen=True)
+class _TaskCallbackConfig:
+    on_complete: Callable[[TrackedTaskCompletion[Any]], None] | None
+    reload_on_complete: bool
+    notify_on_complete: bool
 
 
 class TaskActionsMixin:
@@ -31,6 +68,7 @@ class TaskActionsMixin:
         """
         self._task_queue = TaskQueue()
         self._task_workers: dict[str, Worker[Any]] = {}
+        self._task_completion_callbacks: dict[str, _TaskCallbackConfig] = {}
 
     def _update_task_indicator(self) -> None:
         """Update the top-bar task indicator with the current running count."""
@@ -54,16 +92,74 @@ class TaskActionsMixin:
         The callable should return (success, message).
         Output capture (stdout/stderr redirect) is handled automatically.
         """
-        # Per-CL deduplication
-        existing = self._task_queue.get_running_for_cl(cl_name)
-        if existing is not None:
-            self.notify(  # type: ignore[attr-defined]
-                f"A {existing.task_type} task is already running for {cl_name}",
-                severity="warning",
-            )
-            return False
 
-        task_info = self._task_queue.submit(task_type, cl_name, project_file)
+        def _callable() -> TrackedTaskResult[None]:
+            success, message = task_callable()
+            return TrackedTaskResult(
+                success=success,
+                message=message,
+                error=message if not success else None,
+            )
+
+        def _on_complete(completion: TrackedTaskCompletion[None]) -> None:
+            if not completion.success or on_success is None:
+                return
+            on_success()
+
+        task_info = self._submit_tracked_task(
+            task_type,
+            cl_name,
+            project_file,
+            _callable,
+            on_complete=_on_complete if on_success is not None else None,
+        )
+        return task_info is not None
+
+    def _submit_tracked_task[T](
+        self,
+        task_type: str,
+        cl_name: str,
+        project_file: str,
+        task_callable: Callable[[], TrackedTaskResult[T]],
+        *,
+        display_name: str | None = None,
+        dedup_key: str | None = None,
+        duplicate_message: str | None = None,
+        on_complete: Callable[[TrackedTaskCompletion[T]], None] | None = None,
+        reload_on_complete: bool = True,
+        notify_on_complete: bool = True,
+    ) -> TaskInfo | None:
+        """Submit a typed task to run in a Textual worker thread.
+
+        Returns None if a running task already exists for the dedup scope.
+        Existing ChangeSpec actions keep using :meth:`_submit_background_task`;
+        launch and other non-CL work can provide ``display_name`` and
+        ``dedup_key`` for clean task-queue rows.
+        """
+        if not hasattr(self, "_task_completion_callbacks"):
+            self._task_completion_callbacks = {}
+        if not hasattr(self, "_task_workers"):
+            self._task_workers = {}
+
+        existing = (
+            self._task_queue.get_running_for_key(dedup_key)
+            if dedup_key is not None
+            else self._task_queue.get_running_for_cl(cl_name)
+        )
+        if existing is not None:
+            msg = duplicate_message or (
+                f"A {existing.task_type} task is already running for {cl_name}"
+            )
+            self.notify(msg, severity="warning")  # type: ignore[attr-defined]
+            return None
+
+        task_info = self._task_queue.submit(
+            task_type,
+            cl_name,
+            project_file,
+            display_name=display_name,
+            dedup_key=dedup_key,
+        )
         task_id = task_info.task_id
 
         # Create the buffer up-front so the modal can read partial output
@@ -72,28 +168,32 @@ class TaskActionsMixin:
         live_buf = io.StringIO()
         task_info._live_buffer = live_buf
 
-        def _wrapped() -> tuple[str, bool, str, str]:
-            """Run the callable with captured output. Returns (task_id, success, message, output)."""
+        def _wrapped() -> _TaskWorkerResult[T]:
+            """Run the callable with captured output."""
             with capture_output(live_buf) as buf:
                 try:
-                    success, message = task_callable()
+                    result = task_callable()
                 except Exception as exc:
                     log.exception("Background task %s failed", task_id)
-                    return (task_id, False, str(exc), buf.getvalue())
-            return (task_id, success, message, buf.getvalue())
+                    result = TrackedTaskResult(
+                        success=False,
+                        message=str(exc),
+                        error=str(exc),
+                    )
+            return _TaskWorkerResult(task_id, result, buf.getvalue())
 
-        # Store on_success callback so the state-changed handler can invoke it
-        if not hasattr(self, "_task_success_callbacks"):
-            self._task_success_callbacks: dict[str, Callable[[], None]] = {}
-        if on_success is not None:
-            self._task_success_callbacks[task_id] = on_success
+        self._task_completion_callbacks[task_id] = _TaskCallbackConfig(
+            on_complete=on_complete,  # type: ignore[arg-type]
+            reload_on_complete=reload_on_complete,
+            notify_on_complete=notify_on_complete,
+        )
 
         worker: Worker[Any] = self.run_worker(  # type: ignore[attr-defined]
             _wrapped, thread=True
         )
         self._task_workers[task_id] = worker
         self._update_task_indicator()
-        return True
+        return task_info
 
     def _on_task_worker_completed(
         self,
@@ -108,34 +208,69 @@ class TaskActionsMixin:
         if result is None:
             return
 
-        task_id, success, message, output = result
+        if not isinstance(result, _TaskWorkerResult):
+            task_id, success, message, output = result
+            result = _TaskWorkerResult(
+                task_id,
+                TrackedTaskResult(
+                    success=success,
+                    message=message,
+                    error=message if not success else None,
+                ),
+                output,
+            )
+
+        task_id = result.task_id
+        task_result = result.result
 
         # Update TaskQueue
         self._task_queue.complete(
             task_id,
-            success=success,
-            message=message,
-            output=output,
-            error=message if not success else None,
+            success=task_result.success,
+            message=task_result.message,
+            output=result.output,
+            error=task_result.error,
+        )
+        task_info = self._task_queue.get(task_id)
+        if task_info is None:
+            return
+        config = self._task_completion_callbacks.pop(
+            task_id,
+            _TaskCallbackConfig(
+                on_complete=None,
+                reload_on_complete=True,
+                notify_on_complete=True,
+            ),
         )
 
         # Notify user
-        if success:
-            self.notify(message)  # type: ignore[attr-defined]
-        else:
-            self.notify(  # type: ignore[attr-defined]
-                f"Task failed: {message}",
-                severity="error",
-            )
+        if config.notify_on_complete:
+            if task_result.success:
+                self.notify(task_result.message)  # type: ignore[attr-defined]
+            else:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Task failed: {task_result.message}",
+                    severity="error",
+                )
 
-        # Fire on_success callback if provided
-        if success:
-            cb = getattr(self, "_task_success_callbacks", {}).pop(task_id, None)
-            if cb is not None:
-                cb()
+        if config.on_complete is not None:
+            try:
+                config.on_complete(
+                    TrackedTaskCompletion(
+                        task_info=task_info,
+                        success=task_result.success,
+                        message=task_result.message,
+                        output=result.output,
+                        payload=task_result.payload,
+                        error=task_result.error,
+                    )
+                )
+            except Exception:
+                log.exception("Background task %s completion callback failed", task_id)
 
         # Reload the TUI
-        self._reload_and_reposition()  # type: ignore[attr-defined]
+        if config.reload_on_complete:
+            self._reload_and_reposition()  # type: ignore[attr-defined]
 
         # Clean up worker tracking
         self._task_workers.pop(task_id, None)
@@ -157,23 +292,52 @@ class TaskActionsMixin:
                 task_id = tid
                 break
 
+        config = _TaskCallbackConfig(
+            on_complete=None,
+            reload_on_complete=True,
+            notify_on_complete=True,
+        )
         if task_id is not None:
             error_msg = str(worker.error) if worker.error else "Unknown error"
+            task_info = self._task_queue.get(task_id)
+            output = task_info.get_live_output() if task_info is not None else ""
             self._task_queue.complete(
                 task_id,
                 success=False,
                 message=error_msg,
-                output="",
+                output=output,
                 error=error_msg,
             )
-            self.notify(  # type: ignore[attr-defined]
-                f"Task failed: {error_msg}",
-                severity="error",
+            if task_info is None:
+                task_info = self._task_queue.get(task_id)
+            config = self._task_completion_callbacks.pop(
+                task_id,
+                config,
             )
+            if config.notify_on_complete:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Task failed: {error_msg}",
+                    severity="error",
+                )
+            if config.on_complete is not None and task_info is not None:
+                try:
+                    config.on_complete(
+                        TrackedTaskCompletion(
+                            task_info=task_info,
+                            success=False,
+                            message=error_msg,
+                            output=output,
+                            error=error_msg,
+                        )
+                    )
+                except Exception:
+                    log.exception(
+                        "Background task %s completion callback failed", task_id
+                    )
             self._task_workers.pop(task_id, None)
-            getattr(self, "_task_success_callbacks", {}).pop(task_id, None)
 
-        self._reload_and_reposition()  # type: ignore[attr-defined]
+        if task_id is None or config.reload_on_complete:
+            self._reload_and_reposition()  # type: ignore[attr-defined]
         self._update_task_indicator()
 
     def _kill_background_task(self, task_id: str) -> bool:
@@ -198,7 +362,7 @@ class TaskActionsMixin:
 
         # Clean up tracking
         self._task_workers.pop(task_id, None)
-        getattr(self, "_task_success_callbacks", {}).pop(task_id, None)
+        self._task_completion_callbacks.pop(task_id, None)
 
         self._update_task_indicator()
         return True

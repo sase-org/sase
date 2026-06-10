@@ -529,7 +529,7 @@ def test_run_agent_launch_body_aborts_unresolvable_home_mode_vcs_tag() -> None:
             patch("sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage")
         )
 
-        app._run_agent_launch_body("#git:stale do work")
+        outcome = app._run_agent_launch_body("#git:stale do work")
 
     # Nothing launched; context cleared; replay selection + MRU untouched.
     assert app.launched == []
@@ -546,10 +546,6 @@ def test_run_agent_launch_body_aborts_unresolvable_home_mode_vcs_tag() -> None:
     assert kwargs["project_name"] == "sase"
     assert kwargs["branch_or_workspace"] == "stale"
 
-    # The error toast names the cycled ref, not the baked project.
-    for fn, args in app.scheduled:
-        fn(*args)
-    assert (
-        "Cannot resolve #git:stale; not launching",
-        "error",
-    ) in app.notifications
+    # The error outcome names the cycled ref, not the baked project.
+    assert outcome.message == "Cannot resolve #git:stale; not launching"
+    assert outcome.severity == "error"

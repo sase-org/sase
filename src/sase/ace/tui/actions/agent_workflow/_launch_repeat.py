@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 import logging
 from typing import TYPE_CHECKING
+
+from ._launch_tasks import LaunchTaskOutcome, launch_results_tuple
 
 log = logging.getLogger(__name__)
 
@@ -44,13 +45,15 @@ class RepeatLaunchMixin:
         """
         snap = dataclasses.replace(ctx)
 
-        async def _runner() -> None:
-            await asyncio.to_thread(
-                self._run_repeat_launch, prompt, snap, vcs_ref, has_wait
-            )
-
         self.notify(f"Launching repeat agents for {snap.display_name}...")  # type: ignore[attr-defined]
-        self.call_later(_runner)  # type: ignore[attr-defined]
+        self._submit_launch_task(  # type: ignore[attr-defined]
+            display_name=f"launch repeat {snap.display_name}",
+            cl_name=snap.display_name,
+            project_file=snap.project_file,
+            task_callable=lambda: self._run_repeat_launch(
+                prompt, snap, vcs_ref, has_wait
+            ),
+        )
 
     def _run_repeat_launch(
         self,
@@ -58,7 +61,7 @@ class RepeatLaunchMixin:
         ctx: PromptContext,
         vcs_ref: tuple[str, str] | None,
         has_wait: bool,
-    ) -> None:
+    ) -> LaunchTaskOutcome:
         """Worker-thread body for :meth:`_launch_repeat_agents`."""
         from sase.agent.repeat_launcher import (
             NameCollisionError,
@@ -172,20 +175,16 @@ class RepeatLaunchMixin:
 
             msg = f"Started {len(specs)} repeat agent(s) for {ctx.display_name}"
             timer.finish(outcome="ok", launched=len(specs))
-            self.call_later(  # type: ignore[attr-defined]
-                self._handle_launch_results_delta,  # type: ignore[attr-defined]
-                execution.results,
+            return LaunchTaskOutcome(
+                msg,
+                results=launch_results_tuple(execution.results),
             )
-            self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
         except NameCollisionError as e:
             err_msg = str(e)
-            self.call_later(  # type: ignore[attr-defined]
-                lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
-            )
+            return LaunchTaskOutcome(err_msg, severity="error")
         except Exception:
             log.exception("Repeat launch failed")
-            self.call_later(  # type: ignore[attr-defined]
-                lambda: self.notify(  # type: ignore[attr-defined]
-                    "Repeat launch failed (see log)", severity="error"
-                )
+            return LaunchTaskOutcome(
+                "Repeat launch failed (see log)",
+                severity="error",
             )

@@ -47,9 +47,9 @@ class AgentLaunchStartMixin:
 
         Unmounts the prompt bar immediately, then runs the heavy launch
         work (VCS resolution, history writes, xprompt expansion, subprocess
-        spawn) in a worker thread via ``asyncio.to_thread`` so the Textual
-        event loop stays responsive to keystrokes (notably ``j``/``k``)
-        during the blocking I/O portion of the launch.
+        spawn) in a tracked Textual worker thread so the Textual event loop
+        stays responsive to keystrokes (notably ``j``/``k``) during the
+        blocking I/O portion of the launch.
 
         Args:
             prompt: The user's prompt for the agent.
@@ -93,4 +93,10 @@ class AgentLaunchStartMixin:
             f"Launching agent for {_launch_toast_label(prompt, ctx.display_name)}..."
         )
 
-        self.call_later(self._run_agent_launch_body_async, prompt)  # type: ignore[attr-defined]
+        self._submit_launch_task(  # type: ignore[attr-defined]
+            display_name=f"launch {ctx.display_name}",
+            cl_name=ctx.display_name,
+            project_file=ctx.project_file,
+            dedup_key=f"launch:{ctx.workflow_name}",
+            task_callable=lambda: self._run_agent_launch_body(prompt),  # type: ignore[attr-defined]
+        )

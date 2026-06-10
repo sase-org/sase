@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-09 19:40:02
-status: wip
+status: done
 prompt: sdd/prompts/202606/nonblocking_tui_agent_launch_tasks.md
 ---
 # Nonblocking TUI Agent Launch Tasks

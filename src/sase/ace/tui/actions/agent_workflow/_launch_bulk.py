@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import time
 from typing import TYPE_CHECKING
+
+from ._launch_tasks import LaunchSeverity, LaunchTaskOutcome, launch_results_tuple
 
 log = logging.getLogger(__name__)
 
@@ -49,13 +50,17 @@ class BulkLaunchMixin:
 
         n = len(changespecs)
 
-        async def _runner() -> None:
-            await asyncio.to_thread(self._run_bulk_launch, prompt, changespecs)
-
         self.notify(f"Launching {n} agent(s)...")  # type: ignore[attr-defined]
-        self.call_later(_runner)  # type: ignore[attr-defined]
+        self._submit_launch_task(  # type: ignore[attr-defined]
+            display_name=f"launch bulk {n} CLs",
+            cl_name=f"bulk {n} CLs",
+            project_file="",
+            task_callable=lambda: self._run_bulk_launch(prompt, changespecs),
+        )
 
-    def _run_bulk_launch(self, prompt: str, changespecs: list[ChangeSpec]) -> None:
+    def _run_bulk_launch(
+        self, prompt: str, changespecs: list[ChangeSpec]
+    ) -> LaunchTaskOutcome:
         """Worker-thread body for :meth:`_launch_bulk_agents`."""
         try:
             from sase.agent.launch_timing import LaunchTimingRecorder
@@ -130,22 +135,19 @@ class BulkLaunchMixin:
 
             if failed_count > 0:
                 msg = f"Started {launched_count} agent(s), {failed_count} failed"
-                self.call_later(  # type: ignore[attr-defined]
-                    lambda: self.notify(msg, severity="warning")  # type: ignore[attr-defined]
-                )
+                severity: LaunchSeverity | None = "warning"
             else:
                 msg = f"Started {launched_count} agent(s)"
-                self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
-            if launch_results:
-                self.call_later(  # type: ignore[attr-defined]
-                    self._handle_launch_results_delta,  # type: ignore[attr-defined]
-                    launch_results,
-                )
+                severity = None
             timer.finish(outcome="ok", launched=launched_count, failed=failed_count)
+            return LaunchTaskOutcome(
+                msg,
+                results=launch_results_tuple(launch_results),
+                severity=severity,
+            )
         except Exception:
             log.exception("Bulk launch failed")
-            self.call_later(  # type: ignore[attr-defined]
-                lambda: self.notify(  # type: ignore[attr-defined]
-                    "Bulk launch failed (see log)", severity="error"
-                )
+            return LaunchTaskOutcome(
+                "Bulk launch failed (see log)",
+                severity="error",
             )

@@ -6,11 +6,10 @@ Its blocking I/O (VCS resolution, history writes, xprompt expansion,
 workflow dispatch) swallowed rapid ``j``/``k`` keystrokes entered right
 after a launch submit.
 
-The fix routes the body through ``_run_agent_launch_body_async``, which
-pushes the synchronous work to ``asyncio.to_thread`` and marshals
-UI-touching calls back via ``call_later``. These tests exercise the async
-wrapper directly and verify the event loop stays responsive while the
-body runs.
+The direct compatibility wrapper still routes the body through
+``asyncio.to_thread``. The prompt-submit path now hands the body to the
+central Textual task queue, which runs it in a worker thread and makes the
+launch visible in the task indicator and Task Queue modal.
 
 Dispatch routing and VCS-ref resolution paths through the body live in
 ``test_agent_launch_dispatch.py`` and ``test_agent_launch_vcs.py``.
@@ -86,23 +85,25 @@ async def test_launch_body_exception_surfaces_as_error_notification() -> None:
 def test_finish_agent_launch_schedules_async_body_not_inline_call() -> None:
     """``_finish_agent_launch`` must schedule the body on the loop, not run it.
 
-    The body must go through ``call_later(self._run_agent_launch_body_async, ...)``
-    so it runs in a worker thread via the async wrapper. Inline invocation
-    would re-introduce the event-loop block.
+    The body must be handed to a tracked launch task. Inline invocation would
+    re-introduce the event-loop block.
     """
     app = _FakeApp()
 
     app._finish_agent_launch("the prompt")
 
-    # The unmount happens immediately; then a single call_later is made
-    # with the async wrapper as its target.
-    assert len(app.scheduled) == 1
-    fn, args = app.scheduled[0]
-    assert fn == app._run_agent_launch_body_async
-    assert args == ("the prompt",)
+    # The unmount happens immediately; then a tracked launch task is submitted.
+    assert app.scheduled == []
+    assert len(app.launch_tasks) == 1
+    task = app.launch_tasks[0]
+    assert task["display_name"] == "launch test"
+    assert task["cl_name"] == "test"
+    assert task["project_file"] == "/tmp/test.sase"
     # The body itself was NOT called synchronously.
     assert app.body_calls == []
     assert app.notifications == [("Launching agent for test...", None)]
+    task["task_callable"]()
+    assert app.body_calls == ["the prompt"]
 
 
 def test_finish_agent_launch_force_reuse_wipes_and_schedules_rewritten_prompt() -> None:
@@ -120,15 +121,17 @@ def test_finish_agent_launch_force_reuse_wipes_and_schedules_rewritten_prompt() 
 
     wipe_names.assert_called_once_with(["foo"])
     assert app.pushed_screens == []
-    assert len(app.scheduled) == 1
-    fn, args = app.scheduled[0]
-    assert fn == app._run_agent_launch_body_async
-    assert args == ("%name:foo\nDo work",)
+    assert app.scheduled == []
+    assert len(app.launch_tasks) == 1
+    task = app.launch_tasks[0]
+    assert task["display_name"] == "launch test"
     assert app.body_calls == []
     assert app.notifications == [("Launching agent for test...", None)]
     assert app._prompt_context is not None
     assert app._prompt_context.timestamp == "forced-ts"
     assert app._prompt_context.workflow_name == "ace(run)-forced-ts"
+    task["task_callable"]()
+    assert app.body_calls == ["%name:foo\nDo work"]
 
 
 def test_finish_agent_launch_force_reuse_wipe_failure_does_not_schedule() -> None:

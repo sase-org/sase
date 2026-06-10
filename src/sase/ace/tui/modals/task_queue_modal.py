@@ -115,8 +115,7 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
         icon, icon_style = _STATUS_DISPLAY.get(task.status, ("?", "dim"))
         text = Text()
         text.append(f"{icon} ", style=icon_style)
-        text.append(task.task_type, style="bold")
-        text.append(f" {task.cl_name}", style="")
+        text.append(task.label, style="bold")
         time_ref = task.finished_at or task.started_at
         text.append(f"  {_relative_time(time_ref)}", style="dim")
         return text
@@ -146,7 +145,7 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
             content.update("")
             return
 
-        title.update(f"Output — {task.task_type} {task.cl_name}")
+        title.update(f"Output — {task.label}")
 
         out = Text()
         if task.status == "running":
@@ -299,12 +298,12 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
                     min(highlighted or 0, len(self._tasks) - 1) if self._tasks else None
                 )
                 self._rebuild_list(highlight_index=new_idx)
-                self.notify(f"Killed: {task.task_type} {task.cl_name}")
+                self.notify(f"Killed: {task.label}")
 
         self.app.push_screen(
             ConfirmActionModal(
                 title="Kill Task",
-                message=f"Kill running task: {task.task_type} {task.cl_name}?",
+                message=f"Kill running task: {task.label}?",
             ),
             _on_confirm,
         )
@@ -339,9 +338,9 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
             self.notify("No output available", severity="warning")
             return
 
-        safe_cl_name = task.cl_name.replace("/", "_")
+        safe_label = task.label.replace("/", "_").replace(" ", "_")
         fd, path = tempfile.mkstemp(
-            suffix=".log", prefix=f"task_{task.task_type}_{safe_cl_name}_"
+            suffix=".log", prefix=f"task_{task.task_type}_{safe_label}_"
         )
         try:
             os.write(fd, output.encode())

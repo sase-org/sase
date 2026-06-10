@@ -11,6 +11,7 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow import _launch_repeat
 from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
+from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskOutcome
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 
 
@@ -34,11 +35,26 @@ class _FakeApp(AgentLaunchMixin):
         if not callable(fn):
             return
         result = fn(*args, **kwargs)
-        # The fan-out entry now schedules an ``asyncio.to_thread`` runner
-        # via ``call_later``; drive that coroutine to completion so the
-        # downstream launch path runs synchronously inside the test.
+        # Compatibility for helpers that still schedule coroutines.
         if asyncio.iscoroutine(result):
             asyncio.run(result)
+
+    def _submit_launch_task(
+        self,
+        *,
+        display_name: str,
+        cl_name: str,
+        project_file: str,
+        task_callable: object,
+        dedup_key: str | None = None,
+    ) -> bool:
+        del display_name, cl_name, project_file, dedup_key
+        if not callable(task_callable):
+            return False
+        outcome = task_callable()
+        if isinstance(outcome, LaunchTaskOutcome) and outcome.notify:
+            self.notify(outcome.message, severity=outcome.severity)
+        return True
 
     def request_agents_refresh(
         self,

@@ -5,7 +5,14 @@ from __future__ import annotations
 import io
 import sys
 import threading
+from types import SimpleNamespace
+from typing import Any
 
+from sase.ace.tui.actions.task_actions import (
+    TaskActionsMixin,
+    TrackedTaskCompletion,
+    TrackedTaskResult,
+)
 from sase.ace.tui.task_queue import TaskInfo, TaskQueue, capture_output
 
 
@@ -30,6 +37,20 @@ class TestTaskQueueSubmit:
         a = q.submit("sync", "CL-1", "/proj.sase")
         b = q.submit("mail", "CL-2", "/proj.sase")
         assert a.task_id != b.task_id
+
+    def test_submit_accepts_display_name_and_dedup_key(self) -> None:
+        q = TaskQueue()
+        info = q.submit(
+            "launch",
+            "foo",
+            "/proj.sase",
+            display_name="launch fanout foo",
+            dedup_key="launch:foo:1",
+        )
+
+        assert info.display_name == "launch fanout foo"
+        assert info.label == "launch fanout foo"
+        assert info.dedup_key == "launch:foo:1"
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +111,26 @@ class TestTaskQueueDedup:
         q = TaskQueue()
         q.submit("sync", "CL-1", "/proj.sase")
         assert q.get_running_for_cl("CL-2") is None
+
+    def test_returns_running_task_for_generic_key(self) -> None:
+        q = TaskQueue()
+        info = q.submit(
+            "launch",
+            "foo",
+            "/proj.sase",
+            display_name="launch foo",
+            dedup_key="launch:foo",
+        )
+
+        assert q.get_running_for_key("launch:foo") is info
+        assert q.get_running_for_key("launch:bar") is None
+
+    def test_generic_key_returns_none_after_completion(self) -> None:
+        q = TaskQueue()
+        info = q.submit("launch", "foo", "/proj.sase", dedup_key="launch:foo")
+        q.complete(info.task_id, success=True, message="ok", output="")
+
+        assert q.get_running_for_key("launch:foo") is None
 
 
 # ---------------------------------------------------------------------------
@@ -180,3 +221,61 @@ class TestCaptureOutput:
     def test_buffer_is_stringio(self) -> None:
         with capture_output() as buf:
             assert isinstance(buf, io.StringIO)
+
+
+class _TaskActionsHarness(TaskActionsMixin):
+    def __init__(self) -> None:
+        self._init_task_queue()
+        self.notifications: list[tuple[str, str | None]] = []
+        self.reloads = 0
+        self.workers: list[Any] = []
+
+    def run_worker(self, fn: Any, *, thread: bool = False) -> Any:
+        assert thread is True
+        worker = SimpleNamespace(result=fn(), error=None, cancelled=False)
+
+        def _cancel() -> None:
+            worker.cancelled = True
+
+        worker.cancel = _cancel
+        self.workers.append(worker)
+        return worker
+
+    def notify(self, msg: str, *, severity: str | None = None) -> None:
+        self.notifications.append((msg, severity))
+
+    def query_one(self, *_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("no DOM")
+
+    def _reload_and_reposition(self) -> None:
+        self.reloads += 1
+
+
+def test_submit_tracked_task_completes_queue_and_typed_callback() -> None:
+    app = _TaskActionsHarness()
+    completions: list[TrackedTaskCompletion[str]] = []
+
+    info = app._submit_tracked_task(
+        "launch",
+        "foo",
+        "/proj.sase",
+        lambda: TrackedTaskResult(True, "done", payload="payload"),
+        display_name="launch foo",
+        dedup_key="launch:foo",
+        on_complete=completions.append,
+        reload_on_complete=False,
+        notify_on_complete=False,
+    )
+
+    assert info is not None
+    assert info.status == "running"
+    assert app._task_queue.running_count == 1
+
+    app._on_task_worker_completed(app.workers[0])
+
+    assert info.status == "success"
+    assert info.message == "done"
+    assert app._task_queue.running_count == 0
+    assert [completion.payload for completion in completions] == ["payload"]
+    assert app.notifications == []
+    assert app.reloads == 0

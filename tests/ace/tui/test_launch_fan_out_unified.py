@@ -11,7 +11,6 @@ one deferred refresh.
 from __future__ import annotations
 
 import asyncio
-import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -29,6 +28,7 @@ from sase.ace.tui.actions.agent_workflow._launch_multi_prompt import (
     MultiPromptLaunchMixin,
 )
 from sase.ace.tui.actions.agent_workflow._launch_repeat import RepeatLaunchMixin
+from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskOutcome
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
 from sase.ace.tui.util.nav_gate import NavigationGate
@@ -185,6 +185,7 @@ class _FanOutHarness:
         self.scheduled: list[tuple[Any, tuple[Any, ...]]] = []
         self.refresh_requests: list[str] = []
         self.launch_delta_batches: list[list[AgentLaunchResult]] = []
+        self.launch_tasks: list[dict[str, Any]] = []
         self.launched: list[dict[str, Any]] = []
         self.refresh_display_calls: int = 0
         self.notification_refresh_count: int = 0
@@ -211,6 +212,41 @@ class _FanOutHarness:
 
     def _refresh_notification_count(self) -> None:
         self.notification_refresh_count += 1
+
+    def _submit_launch_task(
+        self,
+        *,
+        display_name: str,
+        cl_name: str,
+        project_file: str,
+        task_callable: Callable[[], LaunchTaskOutcome],
+        dedup_key: str | None = None,
+    ) -> bool:
+        self.launch_tasks.append(
+            {
+                "display_name": display_name,
+                "cl_name": cl_name,
+                "project_file": project_file,
+                "task_callable": task_callable,
+                "dedup_key": dedup_key,
+            }
+        )
+        return True
+
+    def _apply_launch_outcome(self, outcome: LaunchTaskOutcome) -> None:
+        if outcome.results:
+            self._handle_launch_results_delta(list(outcome.results))
+        if outcome.request_agents_refresh:
+            self.request_agents_refresh("launch")
+        if outcome.refresh_notifications:
+            self._refresh_notification_count()
+        if outcome.notify:
+            self.notify(outcome.message, severity=outcome.severity)
+
+    def _run_submitted_launch_tasks(self) -> None:
+        while self.launch_tasks:
+            task = self.launch_tasks.pop(0)
+            self._apply_launch_outcome(task["task_callable"]())
 
     def _launch_background_agent(self, **kwargs: Any) -> AgentLaunchResult:
         self.launched.append(kwargs)
@@ -330,58 +366,23 @@ def test_launch_delta_handler_missing_result_falls_back_to_broad_refresh() -> No
     )
 
 
-@pytest.mark.asyncio
-async def test_multi_prompt_launch_uses_to_thread_not_threading_thread() -> None:
-    """The multi-prompt fan-out must not spawn raw threading.Thread objects."""
+def test_multi_prompt_launch_submits_tracked_task_not_inline_worker() -> None:
+    """The multi-prompt fan-out appears as one tracked launch task."""
     app = _MultiPromptApp()
     multi = _FakeMultiPrompt(["one", "two", "three"])
 
-    spawned_threads: list[Any] = []
+    with patch("sase.agent.multi_prompt.MultiPrompt", _FakeMultiPrompt, create=True):
+        with patch("sase.agent.multi_prompt_launcher.launch_multi_prompt_agents"):
+            app._launch_multi_prompt_agents(multi, _ctx(), None)
 
-    real_thread_init = threading.Thread.__init__
-
-    def _spy_init(self: Any, *a: Any, **kw: Any) -> None:
-        spawned_threads.append(self)
-        real_thread_init(self, *a, **kw)
-
-    with patch.object(threading.Thread, "__init__", _spy_init):
-        with patch(
-            "sase.agent.multi_prompt.MultiPrompt", _FakeMultiPrompt, create=True
-        ):
-            with patch("sase.agent.multi_prompt_launcher.launch_multi_prompt_agents"):
-                app._launch_multi_prompt_agents(multi, _ctx(), None)
-                # Run the async runner that was scheduled.
-                runners = [
-                    fn for fn, _ in app.scheduled if asyncio.iscoroutinefunction(fn)
-                ]
-                assert runners, "expected an async runner on call_later"
-                # Drain all scheduled callbacks.
-                while app.scheduled:
-                    fn, args = app.scheduled.pop(0)
-                    result = fn(*args)
-                    if asyncio.iscoroutine(result):
-                        await result
-
-    # The fan-out body lives in asyncio.to_thread; that uses a default
-    # ProactorEventLoop / executor thread but does NOT call
-    # threading.Thread() directly from the helper. Anything created here
-    # is from the executor pool startup, not from a hand-rolled Thread.
-    user_created = [
-        t for t in spawned_threads if not getattr(t, "name", "").startswith("asyncio")
-    ]
-    # Phase 5: the fan-out helper itself must not instantiate Thread.
-    # asyncio.to_thread's executor thread name format is implementation
-    # specific; the strict guarantee is that no daemon Thread is created
-    # by name patterns the launch helpers historically used.
-    assert all(
-        not (getattr(t, "daemon", False) and getattr(t, "_target", None) is not None)
-        or getattr(t, "name", "").startswith(("asyncio", "ThreadPoolExecutor"))
-        for t in user_created
-    ), "launch helper must not spawn its own daemon thread"
+    assert app.scheduled == []
+    assert len(app.launch_tasks) == 1
+    task = app.launch_tasks[0]
+    assert task["display_name"] == "launch multi-prompt cl"
+    assert task["cl_name"] == "cl"
 
 
-@pytest.mark.asyncio
-async def test_multi_prompt_burst_collapses_to_single_refresh() -> None:
+def test_multi_prompt_burst_collapses_to_single_refresh() -> None:
     """5 spawned agents across one fan-out become one artifact-delta batch."""
     app = _MultiPromptApp()
     segments = ["a", "b", "c", "d", "e"]
@@ -396,13 +397,7 @@ async def test_multi_prompt_burst_collapses_to_single_refresh() -> None:
             side_effect=_fake_launch,
         ):
             app._launch_multi_prompt_agents(multi, _ctx(), None)
-
-            # Drain the async runner -> worker -> call_later chain.
-            while app.scheduled:
-                fn, args = app.scheduled.pop(0)
-                result = fn(*args)
-                if asyncio.iscoroutine(result):
-                    await result
+            app._run_submitted_launch_tasks()
 
     assert app.refresh_requests == []
     assert len(app.launch_delta_batches) == 1
@@ -435,14 +430,7 @@ def test_multi_prompt_launch_context_is_immutable_snapshot() -> None:
             app._launch_multi_prompt_agents(multi, ctx, None)
             # Mutate the original ctx; the worker must not see this.
             ctx.display_name = "MUTATED"
-            # Run the worker body directly so we observe what it captured.
-            app._run_multi_prompt_launch(
-                multi,
-                # Worker receives the snapshot value, not the live ctx.
-                # Recover the snapshot the dispatch path took:
-                __import__("dataclasses").replace(_ctx()),
-                None,
-            )
+            app._run_submitted_launch_tasks()
     assert captured["display_name"] == "cl"
 
 
@@ -456,7 +444,7 @@ def test_multi_model_launch_uses_canonical_multi_prompt_launcher() -> None:
         "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
         return_value=launched,
     ) as launch_multi:
-        app._run_multi_model_launch(
+        outcome = app._run_multi_model_launch(
             ["%model:a p", "%model:b p"],
             ctx,
             ("git", "proj"),
@@ -476,14 +464,11 @@ def test_multi_model_launch_uses_canonical_multi_prompt_launcher() -> None:
     assert kwargs["vcs_ref"] == ("git", "proj")
     assert kwargs["default_bare_segments_to_home"] is False
     assert "on_agent_spawned" not in kwargs
-    while app.scheduled:
-        fn, args = app.scheduled.pop(0)
-        fn(*args)
+    app._apply_launch_outcome(outcome)
     assert app.launch_delta_batches == [launched]
 
 
-@pytest.mark.asyncio
-async def test_multi_model_dispatch_snapshots_xprompts_without_broad_refresh() -> None:
+def test_multi_model_dispatch_snapshots_xprompts_without_broad_refresh() -> None:
     app = _MultiModelApp()
     ctx = _ctx()
     local_xprompts = {"_epic": XPrompt(name="_epic", content="Epic")}
@@ -500,16 +485,17 @@ async def test_multi_model_dispatch_snapshots_xprompts_without_broad_refresh() -
     local_xprompts["_late"] = XPrompt(name="_late", content="Late")
 
     assert app.refresh_requests == []
-    runners = [fn for fn, _ in app.scheduled if asyncio.iscoroutinefunction(fn)]
-    assert runners, "expected an async runner via call_later"
-    app.scheduled.clear()
+    assert len(app.launch_tasks) == 1
 
-    async def _capture_to_thread(fn: Any, *args: Any, **kwargs: Any) -> None:
-        del fn, kwargs
-        captured["local_xprompts"] = args[5]
+    def _capture_launch(**kwargs: Any) -> list[AgentLaunchResult]:
+        captured["local_xprompts"] = kwargs["local_xprompts"]
+        return []
 
-    with patch("asyncio.to_thread", side_effect=_capture_to_thread):
-        await runners[0]()
+    with patch(
+        "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+        side_effect=_capture_launch,
+    ):
+        app._run_submitted_launch_tasks()
 
     assert set(captured["local_xprompts"]) == {"_epic"}
 
@@ -549,7 +535,7 @@ def test_multi_model_failure_records_toast_and_persistent_notification() -> None
         ),
         patch("sase.notifications.append_notification") as append_notification,
     ):
-        app._run_multi_model_launch(
+        outcome = app._run_multi_model_launch(
             ["%name:ag.1\n#plan", "%name:ag.2\n#epic"],
             ctx,
             ("git", "proj"),
@@ -565,9 +551,7 @@ def test_multi_model_failure_records_toast_and_persistent_notification() -> None
     assert notification.action_data["fanout_kind"] == "alternatives"
     assert "workspace claim failed" in notification.notes[1]
 
-    while app.scheduled:
-        fn, args = app.scheduled.pop(0)
-        fn(*args)
+    app._apply_launch_outcome(outcome)
 
     assert app.notification_refresh_count == 1
     assert (
@@ -647,12 +631,12 @@ def test_repeat_launch_runs_off_main_thread_and_batches_delta() -> None:
                         "sase.agent.repeat_launcher.spawn_repeat_batch",
                         side_effect=_fake_batch,
                     ):
-                        app._run_repeat_launch("p %r:3", ctx, None, has_wait=False)
+                        outcome = app._run_repeat_launch(
+                            "p %r:3", ctx, None, has_wait=False
+                        )
 
     assert len(app.launched) == 3
-    while app.scheduled:
-        fn, args = app.scheduled.pop(0)
-        fn(*args)
+    app._apply_launch_outcome(outcome)
     assert app.refresh_requests == []
     assert len(app.launch_delta_batches) == 1
     assert [result.timestamp for result in app.launch_delta_batches[0]] == [
@@ -681,6 +665,6 @@ def test_bulk_launch_takes_changespec_snapshot() -> None:
     # subsequent mutation is impossible.  The worker received its own
     # local copy.
     assert app._bulk_changespecs is None
-    # An async runner was scheduled to drive the worker.
-    runners = [fn for fn, _ in app.scheduled if asyncio.iscoroutinefunction(fn)]
-    assert runners, "expected an async runner via call_later"
+    # A tracked launch task was submitted to drive the worker.
+    assert len(app.launch_tasks) == 1
+    assert app.launch_tasks[0]["display_name"] == "launch bulk 2 CLs"

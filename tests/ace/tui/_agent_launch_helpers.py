@@ -13,6 +13,7 @@ from typing import Any
 from unittest.mock import patch
 
 from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
+from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskOutcome
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.agent.launch_types import AgentLaunchResult
 from sase.workspace_provider._hookspec import WorkflowMetadata
@@ -27,6 +28,7 @@ class _FakeApp(AgentLaunchMixin):
         self.pushed_screens: list[tuple[Any, Any]] = []
         self.body_calls: list[str] = []
         self.unmount_calls: list[str] = []
+        self.launch_tasks: list[dict[str, Any]] = []
         self._prompt_context: PromptContext | None = _fake_context()
         self._bulk_changespecs = None
         self._last_custom_agent_selection = None
@@ -47,8 +49,29 @@ class _FakeApp(AgentLaunchMixin):
     def _unmount_prompt_bar_after_submit(self) -> None:
         self.unmount_calls.append("submit")
 
-    def _run_agent_launch_body(self, prompt: str) -> None:
+    def _run_agent_launch_body(self, prompt: str) -> LaunchTaskOutcome:
         self.body_calls.append(prompt)
+        return LaunchTaskOutcome("done", notify=False)
+
+    def _submit_launch_task(
+        self,
+        *,
+        display_name: str,
+        cl_name: str,
+        project_file: str,
+        task_callable: Any,
+        dedup_key: str | None = None,
+    ) -> bool:
+        self.launch_tasks.append(
+            {
+                "display_name": display_name,
+                "cl_name": cl_name,
+                "project_file": project_file,
+                "dedup_key": dedup_key,
+                "task_callable": task_callable,
+            }
+        )
+        return True
 
 
 class _LaunchBodyApp(AgentLaunchMixin):
@@ -136,7 +159,9 @@ def _launch_body_context() -> PromptContext:
     return ctx
 
 
-def _run_launch_body_with_common_patches(app: _LaunchBodyApp, prompt: str) -> None:
+def _run_launch_body_with_common_patches(
+    app: _LaunchBodyApp, prompt: str
+) -> LaunchTaskOutcome:
     with ExitStack() as stack:
         stack.enter_context(
             patch(
@@ -178,7 +203,7 @@ def _run_launch_body_with_common_patches(app: _LaunchBodyApp, prompt: str) -> No
                 return_value=("/tmp/ws100", None),
             )
         )
-        app._run_agent_launch_body(prompt)
+        return app._run_agent_launch_body(prompt)
 
 
 def _cd_metadata() -> tuple[WorkflowMetadata, ...]:

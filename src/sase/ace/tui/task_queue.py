@@ -28,10 +28,21 @@ class TaskInfo:
     status: str  # "running", "success", "error"
     message: str
     started_at: datetime
+    display_name: str | None = None
+    dedup_key: str | None = None
     finished_at: datetime | None = None
     output: str = ""
     error: str | None = None
     _live_buffer: io.StringIO | None = field(default=None, repr=False)
+
+    @property
+    def label(self) -> str:
+        """Return the user-facing task label."""
+        if self.display_name:
+            return self.display_name
+        if self.cl_name:
+            return f"{self.task_type} {self.cl_name}"
+        return self.task_type
 
     def get_live_output(self) -> str:
         """Return live output from the buffer if running, otherwise the final output."""
@@ -52,12 +63,16 @@ class TaskQueue:
         task_type: str,
         cl_name: str,
         project_file: str,
+        *,
+        display_name: str | None = None,
+        dedup_key: str | None = None,
     ) -> TaskInfo:
         """Create and register a new running task.
 
         Returns the new TaskInfo. Callers should check get_running_for_cl()
         first to enforce deduplication.
         """
+        label = display_name or f"{task_type} {cl_name}".strip()
         task_id = uuid.uuid4().hex
         info = TaskInfo(
             task_id=task_id,
@@ -65,8 +80,10 @@ class TaskQueue:
             cl_name=cl_name,
             project_file=project_file,
             status="running",
-            message=f"{task_type} started for {cl_name}",
+            message=f"{label} started",
             started_at=datetime.now(),
+            display_name=display_name,
+            dedup_key=dedup_key if dedup_key is not None else cl_name,
         )
         with self._lock:
             self._tasks[task_id] = info
@@ -99,6 +116,19 @@ class TaskQueue:
                 if info.cl_name == cl_name and info.status == "running":
                     return info
         return None
+
+    def get_running_for_key(self, dedup_key: str) -> TaskInfo | None:
+        """Return the running task for *dedup_key*, or None."""
+        with self._lock:
+            for info in self._tasks.values():
+                if info.dedup_key == dedup_key and info.status == "running":
+                    return info
+        return None
+
+    def get(self, task_id: str) -> TaskInfo | None:
+        """Return a task by id, or None."""
+        with self._lock:
+            return self._tasks.get(task_id)
 
     @property
     def running_count(self) -> int:

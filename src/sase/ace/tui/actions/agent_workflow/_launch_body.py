@@ -10,6 +10,7 @@ from ._launch_history import (
     record_resolved_vcs_xprompt_usage,
     save_replayable_vcs_selection,
 )
+from ._launch_tasks import LaunchTaskOutcome, launch_results_tuple
 from ._ref_resolution import is_non_workspace_workflow, strip_all_vcs_refs
 from ._types import PromptContext
 
@@ -39,26 +40,44 @@ class AgentLaunchBodyMixin:
         import asyncio
 
         try:
-            await asyncio.to_thread(self._run_agent_launch_body, prompt)
+            outcome = await asyncio.to_thread(self._run_agent_launch_body, prompt)
         except Exception:
             log.exception("Agent launch body failed")
             self.notify(  # type: ignore[attr-defined]
                 "Agent launch failed (see log)", severity="error"
             )
+            return
+        if outcome is None:
+            return
+        if outcome.results:
+            self._handle_launch_results_delta(outcome.results)  # type: ignore[attr-defined]
+        if outcome.request_agents_refresh:
+            self.request_agents_refresh("launch")  # type: ignore[attr-defined]
+        if outcome.schedule_agents_refresh:
+            self._schedule_agents_async_refresh(source="launch")  # type: ignore[attr-defined]
+        if outcome.refresh_notifications:
+            refresh = getattr(self, "_refresh_notification_count", None)
+            if callable(refresh):
+                refresh()
+        if outcome.notify and outcome.message:
+            self.notify(outcome.message, severity=outcome.severity)  # type: ignore[attr-defined]
 
-    def _run_agent_launch_body(self, prompt: str) -> None:
+    def _run_agent_launch_body(self, prompt: str) -> LaunchTaskOutcome:
         """Heavy body of ``_finish_agent_launch``, run in a worker thread.
 
         Executes blocking I/O (VCS resolution, history writes, xprompt
         expansion, workflow dispatch) off the Textual event-loop thread.
-        UI-touching calls (``self.notify``, sub-launch helpers that mutate
-        widget state) are marshalled back to the main thread via
-        ``self.call_later``.
+        UI-touching sub-launch helpers that mutate widget state are marshalled
+        back to the main thread via ``self.call_later``. Direct completion
+        effects are returned for the task-queue completion callback.
         """
         if self._prompt_context is None:
             # Context was cleared between the submit and the worker tick
             # (e.g. another launch path ran); nothing to do.
-            return
+            return LaunchTaskOutcome(
+                "Launch skipped: prompt context is no longer available",
+                severity="warning",
+            )
         from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
         prompt = canonicalize_project_aliases_in_prompt(prompt)
@@ -83,17 +102,14 @@ class AgentLaunchBodyMixin:
             from sase.agent.multi_prompt import is_multi_prompt
 
             if is_multi_prompt(prompt):
-                self.call_later(  # type: ignore[attr-defined]
-                    lambda: self.notify(  # type: ignore[attr-defined]
-                        "Multi-prompt is not supported with bulk launch",
-                        severity="error",
-                    )
-                )
                 self._bulk_changespecs = None
                 self._prompt_context = None
-                return
+                return LaunchTaskOutcome(
+                    "Multi-prompt is not supported with bulk launch",
+                    severity="error",
+                )
             self.call_later(self._launch_bulk_agents, prompt)  # type: ignore[attr-defined]
-            return
+            return LaunchTaskOutcome("Bulk launch queued", notify=False)
 
         from sase.workspace_provider import get_ref_patterns, get_workflow_names
         from sase.xprompt.directives import has_deferred_start_directive
@@ -174,12 +190,9 @@ class AgentLaunchBodyMixin:
                         cancelled=True,
                         allow_short=True,
                     )
-                    self.call_later(  # type: ignore[attr-defined]
-                        lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
-                    )
                     self._prompt_context = None
                     timer.finish(dispatch="multi_prompt", outcome="cancelled")
-                    return
+                    return LaunchTaskOutcome(err_msg, severity="error")
                 add_or_update_prompt(
                     submitted_xprompt,
                     project_name=ctx.project_name,
@@ -195,7 +208,10 @@ class AgentLaunchBodyMixin:
                 ctx,
                 mp_vcs_ref,
             )
-            return
+            return LaunchTaskOutcome(
+                f"Multi-prompt launch queued for {ctx.display_name}",
+                notify=False,
+            )
 
         from sase.xprompt._parsing import (
             extract_project_from_vcs_tag,
@@ -326,10 +342,7 @@ class AgentLaunchBodyMixin:
                 self._prompt_context = None
                 timer.finish(dispatch="single", outcome="cancelled")
                 err_msg = f"Cannot resolve {leading_tag.strip()}; not launching"
-                self.call_later(  # type: ignore[attr-defined]
-                    lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
-                )
-                return
+                return LaunchTaskOutcome(err_msg, severity="error")
 
         # Save prompt to history after VCS resolution so project/branch are correct
         with timer.stage("history_write"):
@@ -347,10 +360,7 @@ class AgentLaunchBodyMixin:
                 )
                 self._prompt_context = None
                 timer.finish(dispatch="single", outcome="cancelled")
-                self.call_later(  # type: ignore[attr-defined]
-                    lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
-                )
-                return
+                return LaunchTaskOutcome(err_msg, severity="error")
             add_or_update_prompt(
                 prompt,
                 project_name=ctx.project_name,
@@ -409,8 +419,11 @@ class AgentLaunchBodyMixin:
                 # Full workflow executed successfully
                 self._prompt_context = None
                 timer.finish(dispatch="workflow")
-                self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
-                return
+                return LaunchTaskOutcome(
+                    "Workflow launch queued",
+                    notify=False,
+                    schedule_agents_refresh=True,
+                )
             elif vcs_ref is None and isinstance(workflow_result, str):
                 # Simple xprompt expanded inline - use as regular prompt
                 # (with VCS refs, expansion happens in agent runner instead)
@@ -475,7 +488,10 @@ class AgentLaunchBodyMixin:
                 submitted_xprompt,
                 fanout_plan,
             )
-            return
+            return LaunchTaskOutcome(
+                f"Prompt fan-out launch queued for {ctx.display_name}",
+                notify=False,
+            )
 
         # Check for repeat directive (e.g., %r:3). Fan out into N independent
         # top-level agents, each with its own workspace and agent_meta.json.
@@ -492,7 +508,10 @@ class AgentLaunchBodyMixin:
                 vcs_ref,
                 has_wait,
             )
-            return
+            return LaunchTaskOutcome(
+                f"Repeat launch queued for {ctx.display_name}",
+                notify=False,
+            )
 
         # For agents with %wait directives, override workspace to deferred
         # (workspace_num=0) so no real workspace is claimed until dependencies
@@ -558,17 +577,14 @@ class AgentLaunchBodyMixin:
                     base_timestamp=ctx.timestamp,
                 )
             timer.finish(dispatch="single")
-            self.call_later(  # type: ignore[attr-defined]
-                self._handle_launch_results_delta,  # type: ignore[attr-defined]
-                execution.results,
+            return LaunchTaskOutcome(
+                f"Agent started for {display_name}",
+                results=launch_results_tuple(execution.results),
             )
-            msg = f"Agent started for {display_name}"
-            self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
         except Exception:
             timer.finish(dispatch="single", outcome="error")
             log.exception("Agent launch failed")
-            self.call_later(  # type: ignore[attr-defined]
-                lambda: self.notify(  # type: ignore[attr-defined]
-                    "Agent launch failed (see log)", severity="error"
-                )
+            return LaunchTaskOutcome(
+                "Agent launch failed (see log)",
+                severity="error",
             )
