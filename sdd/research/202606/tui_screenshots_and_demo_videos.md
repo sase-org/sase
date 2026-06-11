@@ -5,248 +5,250 @@ status: research
 
 # TUI Screenshots and Demo Videos
 
+Consolidated from two independent research passes on the same question (2026-06-11).
+
 ## Question
 
-How should SASE capture high-quality screenshots of the ACE TUI and create demo videos that show how SASE works?
+How should SASE capture high-quality screenshots of the ACE TUI and create demo videos/GIFs that show people how sase
+works — for the README, docs, and sharing?
 
 ## Recommendation
 
-Use a three-lane media workflow:
+Use a four-lane media workflow:
 
-1. **Static screenshots and bug evidence:** use SASE's existing Textual-native SVG and PNG pipeline. It is already
-   deterministic, headless, and close to the app internals.
-2. **Repeatable product/demo clips:** use Charm VHS tape scripts for polished terminal videos. VHS turns terminal actions
-   into code, supports GIF/MP4/WebM outputs, can capture PNG screenshots, and can hide setup/cleanup commands.
-3. **Narrated walkthroughs:** use OBS or a browser-hosted Textual session for human-guided videos where voiceover,
-   window compositing, or live explanation matters more than byte-for-byte repeatability.
+1. **Static screenshots:** reuse the existing Textual-native SVG/PNG visual snapshot machinery via a small standalone
+   script. Deterministic, headless, regenerable, and leaks no real project data. Commit SVGs as well as PNGs — GitHub
+   renders SVG natively in READMEs and it is Textual's highest-fidelity output.
+2. **Repeatable demo clips (README/docs):** Charm VHS `.tape` scripts committed to the repo — demos-as-code,
+   regenerated whenever the TUI changes, output MP4 + GIF.
+3. **Long-form/lightweight casts:** asciinema 3.x recordings embedded via the SVG-preview-link pattern, rendered to
+   GIF with agg when needed.
+4. **Narrated walkthroughs:** OBS (or a browser-hosted Textual session) for human-guided videos with voiceover.
 
-Keep asciinema as the lightweight documentation/archive lane: it is excellent for small, text-native terminal recordings
-and embeddable casts, but it is not the best first choice for polished SASE launch media.
+Skip terminalizer, ttygif, svg-term-cli, and termtosvg — all stale or dead as of June 2026.
 
-## Current SASE Context
+## What the Repo Already Provides
 
-SASE already has more capture infrastructure than the older May research implied:
+The PNG visual snapshot suite is effectively a production-ready screenshot factory; it already solves deterministic
+rendering, fonts, and app-state seeding:
 
-- `AcePage.export_svg()` exposes Textual's `export_screenshot()` through the in-process test DSL
-  (`src/sase/ace/testing/__init__.py:207`).
-- Agents-tab repro capture writes plain text plus `screen.svg` through Textual screenshot export
-  (`src/sase/ace/tui/repro/capture.py:457`).
-- `sase repro replay ... --write-artifacts <dir>` writes replay screen and screenshot artifacts
-  (`src/sase/ace/tui/repro/cli.py:42`, `src/sase/main/parser_repro.py:74`).
-- The PNG visual suite rasterizes SVG with CairoSVG (`tests/ace/tui/visual/png_diff.py:146`) and pins fontconfig/Fira
-  Code for stable glyph metrics (`tests/ace/tui/visual/conftest.py:14`).
-- The `visual` extra already includes `cairosvg>=2.7,<3`, and `terminal-smoke` includes `pexpect` and `pyte`
-  (`pyproject.toml:73`).
-- `just test-visual` is the dedicated PNG snapshot lane (`Justfile:202`), and the local memory instructions say markdown
-  files under `sdd/research/` do not require `just check`.
+- **SVG export:** `AcePage.export_svg()` (`src/sase/ace/testing/__init__.py:207`) exposes Textual's
+  `export_screenshot()` through the in-process test DSL. Textual renders via its own compositor, so output is
+  pixel-perfect regardless of terminal emulator.
+- **SVG → PNG:** `render_svg_to_png()` (`tests/ace/tui/visual/png_diff.py:146`) via CairoSVG; the `visual` extra pins
+  `cairosvg>=2.7,<3` (`pyproject.toml:74`).
+- **Deterministic app state:** `AcePage` wraps `AceApp.run_test(size=...)` (headless Pilot), and
+  `tests/ace/tui/visual/_ace_png_snapshot_helpers.py` provides realistic mock data (`changespecs()`, `agents()`,
+  `project_records()`, `axe_collected_data()`), `patch_startup_loaders()` to swap background loaders for mocks, and
+  `wait_for_startup()` / `wait_for_visual_idle()` to settle layout before capture.
+- **Hermetic rendering:** `tests/ace/tui/visual/conftest.py` pins bundled Fira Code via fontconfig, forces color, and
+  pins the PID for byte-identical output. `just test-visual` is the dedicated snapshot lane (`Justfile:202`).
+- **Existing goldens:** `tests/ace/tui/visual/snapshots/png/` holds 30 representative 120x40 shots
+  (`changespec_initial_120x40.png`, `agents_list_120x40.png`, ...) — usable demo material today.
+- **Repro evidence capture:** the Agents-tab repro harness writes a text screen dump plus `screen.svg` per replay step
+  (`src/sase/ace/tui/repro/capture.py:469`) via
+  `sase repro replay <fixture> --assert-stable --json --write-artifacts <dir>` (`src/sase/main/parser_repro.py:75`).
 
-Local PATH check in this workspace:
+There is no screenshot CLI command and no asciinema/VHS/demo-video infrastructure yet; the README has a single static
+image (`docs/images/sase_overview.png`). Prior related research: `sdd/research/202605/tui_pixel_snapshot_testing.md`
+(the snapshot-suite epic), `sdd/research/202605/tui_agent_screenshot_automation.md`, and
+`sdd/research/202605/textual_serve_ace_web_access.md`.
 
-| Tool | Installed here? | Note |
-| --- | --- | --- |
-| `ffmpeg` | yes | Needed by most video pipelines. |
-| `tmux` | yes | Useful fallback for manual capture and scripted panes. |
-| `textual` | yes | Required for Textual devtools and `textual serve`. |
-| `vhs` | no | Best candidate for repeatable demo clips. |
-| `freeze` | no | Useful for one-off terminal screenshots from ANSI output. |
-| `asciinema` | no | Good lightweight terminal recording format. |
-| `agg` | no | Converts asciinema casts to GIF. |
-| `ttyd` | no | Required by VHS unless using Docker; also useful for browser terminal demos. |
-| `obs` | no | Best free/open human-narrated recording tool. |
+Local PATH check (this workspace): `ffmpeg`, `tmux`, and `textual` are installed; `vhs`, `ttyd`, `asciinema`, `agg`,
+`freeze`, and `obs` are not. VHS needs `ttyd` + `ffmpeg` on PATH (or its official Docker image).
 
-## Lane 1: Textual-Native Static Screenshots
+## Lane 1: Screenshots
 
-Textual is the right primitive for deterministic stills because ACE is a Textual app. Textual documents `run_test()` as
-a headless context that returns a `Pilot` for keyboard and mouse interaction, and `save_screenshot()` saves SVG
-screenshots of the current screen. Sources: [Textual testing guide](https://textual.textualize.io/guide/testing/) and
-[Textual App API](https://textual.textualize.io/api/app/).
+### Recommended: standalone script reusing the snapshot machinery
 
-Best uses:
+Write a small script (e.g. `scripts/take_demo_screenshots.py` or a `just screenshots` recipe) that imports `AcePage`,
+the mock-data helpers, and `render_svg_to_png()`, then walks a list of (name, setup-keys, size) scenarios and writes
+SVG+PNG into `docs/images/`. Essentially each visual test minus the assertion:
 
-- README/docs screenshots.
-- Visual evidence attached to bugs and SDD research.
-- Regression fixtures where the captured state should be deterministic.
-- Agent-readable visual artifacts generated without a desktop session.
-
-Current usable command for repro evidence:
-
-```bash
-sase repro replay tests/ace/tui/repro/fixtures/agents_tab_disappear_reappear_v1.json \
-  --assert-stable \
-  --json \
-  --write-artifacts /tmp/sase-agents-tab-repro-artifacts
+```python
+async with AcePage(query='"visual"', changespecs=changespecs(), size=(120, 40)) as page:
+    await wait_for_startup(page)
+    await wait_for_visual_idle(page)
+    svg = page.export_svg()
+    Path("docs/images/changespecs_tab.svg").write_text(svg)
+    Path("docs/images/changespecs_tab.png").write_bytes(render_svg_to_png(svg))
 ```
 
-This writes one text screen dump and one SVG screenshot per replay step, according to `tests/ace/tui/repro/README.md`.
+Fully deterministic, scripted key presses via Pilot, regenerable on demand (CI-able), and built on mock data — so no
+real project names, paths, prompts, or chat snippets can leak. Note that `AcePage` patches ChangeSpec discovery to
+fixture data by design; a future production `sase ace screenshot` command should make the fixture-vs-live data choice
+an explicit flag.
 
-Useful next implementation:
+Output-format notes:
 
-- Add a small production-oriented `sase ace screenshot` or `sase media screenshot` wrapper around the existing
-  Textual-native path.
-- Let it choose between fixture/demo data and live project data explicitly.
-- Emit both SVG and PNG, reusing the existing CairoSVG renderer and pinned-font approach rather than inventing a second
-  rasterization pipeline.
+- Commit the SVGs too: GitHub renders SVG natively in READMEs; it is sharp at any zoom and small.
+- CairoSVG's text rendering is the weak link (no `@font-face` support); the hermetic fontconfig setup works around it
+  and is fine for snapshots. For hero/marketing images, rendering the SVG with headless Chromium (Playwright
+  `page.screenshot()` at `deviceScaleFactor=2`) or `rsvg-convert` gives noticeably better text.
 
-Important caveat: `AcePage` is a test DSL and currently patches ChangeSpec discovery to deterministic fixture data. That
-is useful for docs and tests, but a live product screenshot command should drive production data intentionally, with a
-separate `--demo-fixture` mode for sanitized examples.
+### Live-session capture
+
+- **Ctrl+P command palette → "Save screenshot"** — built into every Textual app, zero work, saves SVG.
+- **`textual run --screenshot DELAY -c sase ace`** — textual-dev can auto-capture after a delay.
+- A dedicated keybinding calling `self.save_screenshot()` is a ~5-line addition if Ctrl+P feels clunky, but per CLI
+  conventions it needs config + `default_config.yml` entries — only worth it if live captures become frequent.
+
+### One-off command output
+
+Charm Freeze generates PNG/SVG/WebP from ANSI output (`--execute`, or pipe in `tmux capture-pane`). Good for static
+command examples and log snippets; not the first choice for full-screen ACE shots since Textual already exports SVG.
+
+## Demo Video Tool Landscape (verified June 2026)
+
+| Tool | Latest | Status | Output | Role |
+|---|---|---|---|---|
+| VHS (charmbracelet) | v0.11.0, Mar 2026 | Active | GIF/MP4/WebM/PNG | Scripted, reproducible tapes; CI-friendly |
+| asciinema | 3.2.0, Mar 2026 | Active (Rust rewrite since 3.0) | `.cast` | Live recording; web player embeds |
+| agg | v1.9.0, May 2026 | Active | GIF from `.cast` | High-quality GIF render (gifski-based) |
+| t-rec | pushed Jun 2026 | Active | GIF | Screenshots the real terminal window (X11/macOS) |
+| terminalizer | Aug 2024 | Stale | GIF | Avoid |
+| ttygif / svg-term-cli / termtosvg | 2024 or earlier | Dead/dormant | — | Avoid |
 
 ## Lane 2: VHS for Repeatable Demo Clips
 
-Charm VHS is the strongest fit for reusable SASE demos. Its README describes it as writing terminal GIFs as code for
-integration testing and demos. Tape files set terminal width/height, font size, theme, typing speed, waits, screenshots,
-and output formats. It supports multiple outputs such as GIF, MP4, WebM, and a PNG frame directory, plus a `Screenshot`
-command for a PNG of the current frame. It also supports `Wait`, `Hide`, `Show`, and `Require`, which are exactly the
-controls needed for stable demos. Source: [Charm VHS README](https://github.com/charmbracelet/vhs).
+[VHS](https://github.com/charmbracelet/vhs) runs a scripted `.tape` file through ttyd + a headless browser + ffmpeg
+and emits GIF/MP4/WebM plus `Screenshot` PNGs of the current frame. Tapes are plain text committed to the repo (e.g.
+`demos/*.tape`) and regenerated whenever the TUI changes — the same philosophy as the golden snapshots, but for
+motion. Best for README/homepage clips, "SASE in 30 seconds" flows, and CI-regenerated media.
 
-Best uses:
-
-- README and homepage clips.
-- Short social/demo videos where the exact flow should be repeatable.
-- "SASE in 30 seconds" scenarios with scripted setup and sanitized state.
-- CI-regenerated media, if the project decides to commit tape files and rendered artifacts.
-
-Why it fits SASE:
-
-- Demo scripts can live in the repo as reviewable `.tape` files.
-- Hidden setup commands can create a clean temporary SASE home/project, then show only the user-facing interaction.
-- `Wait+Screen /.../` is better than blind sleeps when the TUI needs time to load agents or background status.
-- `Screenshot path.png` can produce stills from the same scene used for the video.
-
-Example shape:
-
-```text
-Output docs/media/sase_agents_tab.mp4
-Output docs/media/sase_agents_tab.gif
+```tape
+Output demos/sase_ace_tour.mp4
+Output demos/sase_ace_tour.gif
 
 Require sase
 Set Shell "bash"
+Set FontFamily "Fira Code"
 Set FontSize 22
 Set Width 1280
 Set Height 720
-Set Theme "Catppuccin Frappe"
-Set TypingSpeed 35ms
+Set Theme "github-dark"
+Set TypingSpeed 75ms
 
 Hide
 Type "export SASE_HOME=/tmp/sase-demo-home"
 Enter
-Type "sase demo seed agents-tab && clear"
+Type "sase demo seed agents-tab && clear"   # hypothetical seeder
 Enter
 Show
 
 Type "sase ace"
 Enter
+Sleep 3s                       # let the alt-screen app paint fully
 Wait+Screen /Agents/
-Sleep 1s
-Tab
-Wait+Screen /RUNNING|DONE|FAILED/
-Screenshot docs/media/sase_agents_tab.png
+Down Down Enter
+Sleep 2s
+Type "l"                       # reveal child agent entries
+Screenshot demos/sase_agents_tab.png
 Sleep 2s
 Ctrl+C
 ```
 
-Dependencies to plan for:
+Key controls: `TypingSpeed 50–100ms` for human-feel typing; `Hide`/`Show` to cut setup out of the recording;
+`Wait+Screen /regex/` instead of blind sleeps where possible; `WindowBar` for polished chrome; `Require` to fail fast
+on missing binaries. Set `FontFamily "Fira Code"` to match the snapshot suite (the font must be installed on the
+recording machine).
 
-- VHS requires `ttyd` and `ffmpeg` on PATH, or the official Docker image can run with dependencies included.
-- This workspace already has `ffmpeg` but not `vhs` or `ttyd`.
+Caveats: always sleep 1–3s after launching a full-screen TUI before `Show`; VHS has known rendering discrepancies
+between real terminals and its ttyd/xterm.js layer (issues
+[#344](https://github.com/charmbracelet/vhs/issues/344), [#412](https://github.com/charmbracelet/vhs/issues/412)) —
+inspect output and adjust. Playback is fully scripted; no ad-libbing.
 
-## Lane 3: Asciinema for Lightweight Terminal Casts
+**Demo data wrinkle:** VHS records a real session, so a good demo needs a populated workspace. Options in increasing
+effort: (1) record against a real project with innocuous data; (2) seed a throwaway demo project/`SASE_HOME` first
+(can itself be a `Hide` section in the tape); (3) add a `sase ace` demo/fixture mode reusing
+`patch_startup_loaders()`-style mock data outside tests — the most work, fully deterministic, only worth it if demos
+become a maintained CI artifact.
 
-Asciinema records terminal output into lightweight `.cast` files rather than heavyweight video. Its docs describe
-recording with `asciinema rec demo.cast`, replaying locally, embedding with the player, and optional upload/self-hosting.
-The `agg` tool converts asciicast files to animated GIF. Sources:
-[asciinema CLI docs](https://docs.asciinema.org/manual/cli/),
-[asciinema quick start](https://docs.asciinema.org/manual/cli/quick-start/), and
-[agg docs](https://docs.asciinema.org/manual/agg/).
+## Lane 3: asciinema for Lightweight/Long-Form Casts
 
-Best uses:
+[asciinema](https://github.com/asciinema/asciinema) 3.x records real interactive sessions into tiny text-native
+`.cast` files (asciicast v3): `asciinema rec demo.cast` with a fixed window size (e.g. 120x36) and
+`--idle-time-limit 2` to cap dead air. One recording serves two outputs:
 
-- Longer technical walkthroughs where text fidelity and small file size matter.
-- Docs pages that can embed an interactive terminal player.
-- Low-friction capture during development.
+- **Web embed:** upload to asciinema.org or self-host — selectable text, crisp at any size. GitHub READMEs can't embed
+  the JS player; use the SVG-preview-link pattern:
+  `[![asciicast](https://asciinema.org/a/<id>.svg)](https://asciinema.org/a/<id>)`.
+- **GIF:** `agg demo.cast demo.gif --font-family "Fira Code" --theme github-dark`.
 
-Weaknesses for launch media:
+Alt-screen caveat: a cast of a full-screen TUI garbles if replayed in a terminal smaller than the recorded cols×rows;
+when embedding, set the player's `cols`/`rows` to match the cast header. Recommended role: long-form technical
+walkthroughs and docs embeds — not the primary launch-media pipeline (no voiceover or composition, and visual polish
+depends on the player).
 
-- It is a terminal event recording, not a composed product video.
-- It has no voiceover or browser/window composition.
-- Visual polish depends on the player and terminal dimensions.
-- The docs recommend replaying in a terminal at least as large as the recording size, which matters for full-screen TUIs.
+## Lane 4: Narrated / Screen-Recorded Walkthroughs
 
-Recommended role: keep as an optional archival/docs format, not the primary launch-video pipeline.
+For narrated, marketing-style videos, record a real terminal with OBS Studio (free, cross-platform; scenes composite
+window capture, browser, webcam, and audio) — or Screen Studio on macOS for paid auto-zoom polish. This captures true
+font rendering and allows voiceover, but is manual and non-reproducible — the wrong tool for README assets that need
+refreshing as the TUI evolves.
 
-## Lane 4: Browser-Hosted or Human-Narrated Recording
-
-For narrated demos, use a conventional screen recorder. OBS is free/open source and built for video recording and live
-streaming on Windows, macOS, and Linux. It supports scenes with window capture, browser windows, images, text, webcams,
-and audio sources. Source: [OBS Studio](https://obsproject.com/).
-
-Two useful SASE patterns:
+Two useful patterns:
 
 1. **Terminal window recording:** run `sase ace` in a clean terminal profile and record only that window.
-2. **Browser-hosted TUI recording:** use Textual devtools to serve the app in a browser, then record the browser window.
-   Textual documents `textual serve "textual keys"` and other commands for serving apps in a browser. Source:
-   [Textual devtools](https://textual.textualize.io/guide/devtools/).
+2. **Browser-hosted TUI:** `textual serve` hosts the app in a browser for cleaner capture boundaries. Exposure
+   warning: `textual-web -t` serves a terminal through a random public URL — do not share it with anyone you would not
+   trust with machine access.
 
-Browser-hosted recording can produce cleaner capture boundaries and makes it easier to use browser/video tooling. Be
-careful with exposure: `textual-web -t` can serve a terminal through a random public URL, and its README explicitly warns
-not to share that URL with anyone you would not trust with machine access. Sources:
-[textual-web README](https://github.com/textualize/textual-web) and [ttyd README](https://github.com/tsl0922/ttyd).
+## GitHub README Media Constraints
 
-## One-Off Terminal Screenshots
-
-Charm Freeze is useful when the source is a command's ANSI output or a captured pane, not a live interactive app. It can
-generate PNG, SVG, and WebP images of code or terminal output, and can run a command with `--execute`. Source:
-[Charm Freeze README](https://github.com/charmbracelet/freeze).
-
-Recommended role:
-
-- Good for static command examples and log snippets.
-- Useful with `tmux capture-pane` when you want a quick image of the current terminal contents.
-- Not the first choice for full-screen ACE screenshots because Textual already exports SVG directly and SASE already has
-  a PNG rasterization lane.
-
-## Lower-Priority Option: Terminalizer
-
-Terminalizer records terminal sessions to YAML, can replay them, and renders GIF output. Its README also says GIF
-compression is not implemented and recommends an external compressor. Source:
-[Terminalizer README](https://github.com/faressoft/terminalizer).
-
-Recommended role: do not start here. VHS gives SASE more useful scripting controls, output formats, waits, screenshots,
-and setup hiding for demos-as-code.
+- Images/GIFs: **10 MB max**. GIFs autoplay/loop (best attention-grabber) but are 256-color and heavy.
+- Video: drag-and-drop an **H.264 MP4** into the README editor → GitHub renders an inline video player (10 MB free /
+  100 MB paid). Better quality-per-byte than GIF; doesn't autoplay.
+- Static SVG renders directly in READMEs — highest fidelity, smallest size for stills.
+- GIF slimming: ffmpeg two-pass `palettegen`/`paletteuse`, then `gifsicle -O3 --lossy=80` (typically halves terminal
+  GIFs). Lower framerates (VHS `Set Framerate`) and trimmed idle time matter more than codec tweaks.
+- Render at ~2x display size (README column ≈ 830px wide) so retina screens look sharp.
 
 ## Demo Hygiene
 
-SASE demos can leak useful but private context unless capture is deliberately isolated. Use these rules for every public
-or semi-public artifact:
+For every public or semi-public artifact:
 
-- Capture from a fresh temporary `SASE_HOME` or a committed demo fixture, not Bryan's live home/project state.
-- Use commit-safe repro bundles when sharing bug evidence.
+- Capture from a fresh temporary `SASE_HOME` or a committed demo fixture, not live home/project state.
 - Redact or synthesize project names, branch names, prompts, chat snippets, file paths, and notification text.
-- Pin terminal size, theme, font, and font size for every screenshot/video.
+- Pin terminal size, theme, font, and font size for every shot/video.
 - Disable desktop notifications and avoid full-desktop capture.
-- Prefer MP4/WebM for videos and GIF only for README/social fallbacks.
-- Keep source scripts (`.tape`, seed commands, fixture bundles) in repo so demos can be regenerated after UI changes.
+- Prefer MP4/WebM for videos; GIF only as README/social fallback.
+- Keep source scripts (`.tape` files, seed commands, fixture bundles) in repo so media can be regenerated after UI
+  changes.
 
 ## Proposed Near-Term Plan
 
-1. Add a `tools/demo/` or `docs/demo/` directory with one small demo data seeder and one VHS `.tape` file.
-2. Add a SASE CLI screenshot wrapper that can write `svg`, `png`, and `json` metadata from a chosen ACE state.
-3. Reuse existing CairoSVG/fontconfig conventions for PNG output.
-4. Render one canonical Agents-tab still, one Changespec-tab still, and one 20-30 second VHS clip.
-5. Use OBS only for the longer narrated "what is SASE?" walkthrough after the scripted clips exist.
+1. Add a screenshots script/`just` recipe reusing `AcePage` + the visual-test helpers; emit named SVG+PNG shots into
+   `docs/images/`. Use the existing goldens in the meantime.
+2. Install `vhs` + `ttyd`; add a `demos/` directory with a small demo-data seeder and one `.tape` file; render one
+   Agents-tab still, one ChangeSpec-tab still, and one 20–30s clip (MP4 for inline README video + <10 MB GIF fallback).
+3. Publish long-form walkthroughs as asciinema casts (SVG-preview links in the README), with agg for GIF renders of
+   the same casts.
+4. Use OBS only for the longer narrated "what is SASE?" video after the scripted clips exist.
+5. Optionally add a production `sase ace screenshot` CLI wrapper with an explicit fixture-vs-live data flag, reusing
+   the existing CairoSVG/fontconfig conventions rather than a second rasterization pipeline.
 
 ## Sources
 
-- Textual App API: <https://textual.textualize.io/api/app/>
-- Textual testing guide: <https://textual.textualize.io/guide/testing/>
-- Textual devtools serve docs: <https://textual.textualize.io/guide/devtools/>
-- pytest-textual-snapshot: <https://github.com/Textualize/pytest-textual-snapshot>
-- Charm VHS: <https://github.com/charmbracelet/vhs>
+- Textual: app API <https://textual.textualize.io/api/app/>, testing guide
+  <https://textual.textualize.io/guide/testing/>, devtools <https://textual.textualize.io/guide/devtools/>,
+  docs-image pipeline (`take_svg_screenshot`)
+  <https://github.com/Textualize/textual/blob/main/src/textual/_doc.py>
+- textual-dev `--screenshot`: <https://pypi.org/project/textual-dev/>
+- textual-web: <https://github.com/textualize/textual-web>; ttyd: <https://github.com/tsl0922/ttyd>
+- VHS: <https://github.com/charmbracelet/vhs> (v0.11.0); TUI rendering issues
+  [#344](https://github.com/charmbracelet/vhs/issues/344), [#412](https://github.com/charmbracelet/vhs/issues/412)
 - Charm Freeze: <https://github.com/charmbracelet/freeze>
-- asciinema CLI: <https://docs.asciinema.org/manual/cli/>
-- asciinema quick start: <https://docs.asciinema.org/manual/cli/quick-start/>
-- agg: <https://docs.asciinema.org/manual/agg/>
-- textual-web: <https://github.com/textualize/textual-web>
-- ttyd: <https://github.com/tsl0922/ttyd>
+- asciinema: 3.0 rewrite <https://blog.asciinema.org/post/three-point-o/>, CLI docs
+  <https://docs.asciinema.org/manual/cli/>, embedding <https://docs.asciinema.org/manual/server/embedding/>, player
+  options <https://docs.asciinema.org/manual/player/options/>
+- agg: <https://github.com/asciinema/agg> (v1.9.0), <https://docs.asciinema.org/manual/agg/>
+- CairoSVG limitations: <https://cairosvg.org/documentation/>
+- GitHub README media limits:
+  <https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files>
+- GIF optimization: <https://blog.pkh.me/p/21-high-quality-gif-with-ffmpeg.html>; gifski
+  <https://github.com/ImageOptim/gifski/releases>
 - OBS Studio: <https://obsproject.com/>
-- Terminalizer: <https://github.com/faressoft/terminalizer>
+- Stale/dead tools: terminalizer <https://github.com/faressoft/terminalizer>, ttygif
+  <https://github.com/icholy/ttygif>, svg-term-cli <https://github.com/marionebl/svg-term-cli>, termtosvg
+  <https://github.com/nbedos/termtosvg> (archived)
