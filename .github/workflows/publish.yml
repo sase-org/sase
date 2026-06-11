@@ -148,3 +148,7 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Re-runs after a partial upload (e.g. wheel accepted, sdist
+          # rejected) must not fail on the files that already made it up.
+          skip-existing: true

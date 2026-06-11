@@ -129,6 +129,12 @@ cd = "sase.workspace_provider.plugins.cd_workspace:CdWorkspacePlugin"
 [tool.hatch.build.targets.wheel]
 packages = ["src/sase"]
 
+# Without an explicit sdist file list, hatchling packs the whole repo
+# (including ~161 MB of sdd/research PNGs), which exceeds PyPI's 100 MB
+# per-file upload limit.
+[tool.hatch.build.targets.sdist]
+only-include = ["src/sase"]
+
 # --- Ruff ---
 [tool.ruff]
 target-version = "py312"
