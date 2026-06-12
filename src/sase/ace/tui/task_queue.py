@@ -110,10 +110,19 @@ class TaskQueue:
             info.finished_at = datetime.now()
 
     def get_running_for_cl(self, cl_name: str) -> TaskInfo | None:
-        """Return the running task for *cl_name*, or None."""
+        """Return the running per-CL-deduped task for *cl_name*, or None.
+
+        Tasks submitted with a custom dedup key (agent launches, kill/dismiss
+        cleanup) opt out of per-CL dedup and are never returned here, so they
+        cannot block ChangeSpec actions for the same CL.
+        """
         with self._lock:
             for info in self._tasks.values():
-                if info.cl_name == cl_name and info.status == "running":
+                if (
+                    info.cl_name == cl_name
+                    and info.dedup_key == cl_name
+                    and info.status == "running"
+                ):
                     return info
         return None
 

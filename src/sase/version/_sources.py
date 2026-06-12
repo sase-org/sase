@@ -157,11 +157,12 @@ def source_root(
             )
         return None
 
-    candidates = [
-        direct_url.source_root if direct_url else None,
-        import_resolution.code_directory,
-        distribution_location,
-    ]
+    candidates = [direct_url.source_root if direct_url else None]
+    if install_type == "editable":
+        # Only editable installs may climb from the import/distribution
+        # location; for wheels those live under site-packages and the walk
+        # could adopt an unrelated ancestor Cargo.toml as the source root.
+        candidates.extend([import_resolution.code_directory, distribution_location])
     for candidate in candidates:
         if candidate is None:
             continue

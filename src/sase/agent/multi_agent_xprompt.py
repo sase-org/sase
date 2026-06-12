@@ -471,6 +471,7 @@ def expand_multi_agent_xprompts_with_metadata(
     *,
     max_depth: int = 8,
     _strict_segment_check: bool = True,
+    group_counter: Iterator[int] | None = None,
 ) -> list[_ExpandedMultiAgentXPromptSegment]:
     """Expand any multi-agent xprompt references in *segments* into sub-segments.
 
@@ -492,13 +493,18 @@ def expand_multi_agent_xprompts_with_metadata(
         _MultiAgentXPromptUsageError: A segment contains a multi-agent xprompt
             reference but isn't a sole top-level reference to it.
         ValueError: Recursive expansion exceeded *max_depth*.
+
+    ``group_counter`` lets callers that expand segments one call at a time
+    (e.g. per-segment ``segment_extra_env`` launches) share one invocation
+    counter so distinct invocations of the same xprompt never collide on a
+    template group.
     """
     return _expand_multi_agent_xprompts_with_metadata(
         segments,
         local_xprompts=local_xprompts,
         max_depth=max_depth,
         strict_segment_check=_strict_segment_check,
-        group_counter=count(),
+        group_counter=group_counter if group_counter is not None else count(),
     )
 
 

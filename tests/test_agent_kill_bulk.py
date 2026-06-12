@@ -462,3 +462,50 @@ def test_persist_bulk_kill_side_effects_uses_one_notification_update() -> None:
         ("feature_one", "20260501010101"),
         ("feature_two", "20260501020202"),
     ]
+
+
+def test_single_kill_transaction_skips_artifact_index_when_save_skipped() -> None:
+    """A stale or failed dismissed-set save must not sync stale index state."""
+    from sase.ace.tui.actions.agents._kill_transactions import (
+        persist_single_kill_transaction,
+    )
+
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature_one",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix-hook",
+        pid=111,
+        raw_suffix="20260501010101",
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._killing.persist_kill_side_effects",
+            return_value=True,
+        ),
+        patch(
+            "sase.ace.dismissed_agents.save_dismissed_agents",
+            return_value=False,
+        ) as mock_save,
+        patch(
+            "sase.ace.tui.actions.agents._killing.sync_dismissed_agent_artifact_index"
+        ) as mock_sync_index,
+        patch(
+            "sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents"
+        ) as mock_dismiss_notifications,
+    ):
+        persist_single_kill_transaction(
+            agent,
+            "running",
+            [agent],
+            {agent.identity},
+            None,
+            [agent],
+        )
+
+    mock_save.assert_called_once_with({agent.identity})
+    mock_sync_index.assert_not_called()
+    mock_dismiss_notifications.assert_not_called()

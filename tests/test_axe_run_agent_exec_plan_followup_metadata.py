@@ -7,6 +7,7 @@ import pytest
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_exec_plan_accept import _accepted_plan_action_for_meta
 from sase.llm_provider._plan_utils import PlanApprovalResult
+from sase.xprompt._exceptions import DirectiveError
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
@@ -190,3 +191,87 @@ class TestPlanFollowupMetadata:
         resolve_mock.assert_called_once_with("worker")
         assert meta_updates.get("model") == "worker-model"
         assert meta_updates.get("llm_provider") == "workerprov"
+
+    def test_coder_prompt_model_directive_updates_meta(self, tmp_path) -> None:
+        """A custom prompt %model directive records the model that launch will use."""
+        ctx = make_ctx(tmp_path, agent_model="opus")
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        meta_updates: dict[str, str] = {}
+
+        def track_meta(artifacts_dir, key, value):
+            meta_updates[key] = value
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_prompt="%m:sonnet\nUse the reviewed plan.",
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan_accept.update_meta_field",
+                side_effect=track_meta,
+            ),
+            patch(
+                "sase.llm_provider.registry.resolve_model_provider",
+                return_value=("anthropic", "claude-sonnet-4-5"),
+            ) as resolve_mock,
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        resolve_mock.assert_called_once_with("sonnet")
+        assert meta_updates.get("model") == "claude-sonnet-4-5"
+        assert meta_updates.get("llm_provider") == "anthropic"
+
+    def test_coder_prompt_model_directive_parse_error_is_not_swallowed(
+        self, tmp_path
+    ) -> None:
+        """Directive parse failures must not fall back to recording worker meta."""
+        ctx = make_ctx(tmp_path, agent_model="opus")
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        meta_updates: dict[str, str] = {}
+
+        def track_meta(artifacts_dir, key, value):
+            meta_updates[key] = value
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_prompt="%m:sonnet %group\nUse the reviewed plan.",
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan_accept.update_meta_field",
+                side_effect=track_meta,
+            ),
+            patch(
+                "sase.llm_provider.registry.resolve_model_provider",
+                return_value=("workerprov", "worker-model"),
+            ) as resolve_mock,
+            pytest.raises(DirectiveError),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        resolve_mock.assert_not_called()
+        assert "model" not in meta_updates

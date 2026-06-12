@@ -70,17 +70,24 @@ def _update_coder_model_meta(
     plan_result: Any,
     ctx: AgentExecContext,
     state: LoopState,
+    *,
+    model_override: str | None = None,
 ) -> None:
     """Record the model the follow-up agent actually runs with in its ``agent_meta.json``.
 
-    With a picker model (``plan_result.coder_model``), write its resolution
-    when it differs from the planner's model. Without one, the follow-up is
-    handed to the worker lane (``%model:worker``), so write the resolved
+    With ``model_override`` (a ``%model``/``%m`` directive embedded in a
+    custom coder prompt), write its resolution: the directive supersedes
+    both the picker model and the worker lane at launch time. Otherwise,
+    with a picker model (``plan_result.coder_model``), write its resolution
+    when it differs from the planner's model. Without either, the follow-up
+    is handed to the worker lane (``%model:worker``), so write the resolved
     worker provider/model instead of the inherited planner values.
     """
     from sase.llm_provider.registry import resolve_model_provider
 
-    if plan_result.coder_model:
+    if model_override:
+        resolved_provider, resolved_model = resolve_model_provider(model_override)
+    elif plan_result.coder_model:
         if plan_result.coder_model == ctx.agent_model:
             return
         resolved_provider, resolved_model = resolve_model_provider(
@@ -349,17 +356,33 @@ def handle_accepted_plan(
                 ),
             },
         )
-        _update_coder_model_meta(plan_result, ctx, state)
         coder_extra = ""
+        coder_prompt_model: str | None = None
         if plan_result.coder_prompt:
             coder_extra = f"\n\nAdditional instructions:\n{plan_result.coder_prompt}"
             # If the custom prompt contains its own %model/%m directive,
-            # skip the inherited model prefix to avoid a duplicate error.
+            # skip the inherited model prefix to avoid a duplicate error and
+            # record that directive's model in the follow-up meta below: it
+            # is what the coder actually runs with.
             if model_prefix:
-                from sase.xprompt.directives import has_model_directive
+                from sase.xprompt._exceptions import DirectiveError
+                from sase.xprompt.directives import (
+                    extract_prompt_directives,
+                    has_model_directive,
+                )
 
                 if has_model_directive(plan_result.coder_prompt):
+                    coder_prompt_model = extract_prompt_directives(
+                        plan_result.coder_prompt
+                    )[1].model
+                    if not coder_prompt_model:
+                        raise DirectiveError(
+                            "Custom coder prompt model directive requires a model"
+                        )
                     model_prefix = ""
+        _update_coder_model_meta(
+            plan_result, ctx, state, model_override=coder_prompt_model
+        )
         # By default the coder starts with a fresh context window; the plan
         # file itself is the hand-off artifact. Set SASE_CODER_INHERIT_PLANNER_CHAT=1
         # to prepend #fork:<base>--plan so the coder inherits the planner's

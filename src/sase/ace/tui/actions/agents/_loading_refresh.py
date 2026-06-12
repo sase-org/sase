@@ -305,11 +305,19 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 pending_source = _normalize_refresh_source(
                     getattr(self, "_agents_refresh_pending_source", source)
                 )
+                pending_full_history = getattr(
+                    self, "_agents_refresh_pending_full_history", False
+                )
+                pending_full_history_reason = getattr(
+                    self, "_agents_refresh_pending_full_history_reason", None
+                )
                 self._agents_refresh_pending_source = "unknown"
                 self._agents_refresh_pending_full_history = False
                 self._agents_refresh_pending_full_history_reason = None
                 self._schedule_agents_async_refresh(
                     source=pending_source,
+                    full_history=pending_full_history,
+                    full_history_reason=pending_full_history_reason,
                     on_complete=on_complete if needs_broad_fallback else None,
                 )
 

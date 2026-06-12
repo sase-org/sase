@@ -478,3 +478,21 @@ def test_get_agent_diff_runs_in_managed_workspace_not_stale(
 
     assert result == "diff for call 1"
     assert provider.cwd_calls == [str(managed)]
+
+
+def test_resolve_managed_workspace_dir_one_is_primary(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # Legacy metadata uses 0 and 1 interchangeably for the primary checkout.
+    # Under the default xdg-state policy resolve(1) would return a managed
+    # clone path, so the resolver must normalize 1 -> 0 exactly like the
+    # runner-side resolvers do.
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.delenv("SASE_WORKSPACE_ROOT", raising=False)
+    diff_mod._workspace_store_cache.clear()
+
+    with patch.object(diff_mod, "load_merged_config", return_value=_xdg_state_config()):
+        resolved = diff_mod._resolve_managed_workspace_dir("/proj/primary", 1)
+
+    assert resolved is not None
+    assert resolved.rstrip("/") == "/proj/primary"

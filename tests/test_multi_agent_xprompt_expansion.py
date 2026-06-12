@@ -470,3 +470,33 @@ def test_vcs_prefixed_multi_agent_xprompt_with_prose_inherits_vcs() -> None:
     with patch_catalog(catalog), patch_vcs_patterns():
         out = expand_multi_agent_xprompts(["#gh:sase please #!three"])
     assert out == ["#gh:sase please a", "#gh:sase b", "#gh:sase c"]
+
+
+def test_shared_group_counter_keeps_invocations_distinct_across_calls() -> None:
+    """Per-segment expansion calls sharing a counter never collide on groups.
+
+    Regression test for the ``segment_extra_env`` launch path, which expands
+    one segment per call: without a shared counter the per-call counter reset
+    to 0 and two invocations of the same xprompt merged into one template
+    group (and thus one shared name namespace).
+    """
+    from itertools import count
+
+    catalog = {"two": xp("two", "phase A\n---\nphase B")}
+    shared_counter = count()
+    with patch_catalog(catalog):
+        first = expand_multi_agent_xprompts_with_metadata(
+            ["#!two"], group_counter=shared_counter
+        )
+        second = expand_multi_agent_xprompts_with_metadata(
+            ["#!two"], group_counter=shared_counter
+        )
+
+    assert [record.template_group for record in first] == [
+        "xprompt:two:0",
+        "xprompt:two:0",
+    ]
+    assert [record.template_group for record in second] == [
+        "xprompt:two:1",
+        "xprompt:two:1",
+    ]

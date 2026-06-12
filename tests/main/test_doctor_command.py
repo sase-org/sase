@@ -172,3 +172,35 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "providers.cli_version",
         "tools.optional",
     } <= deep_ids
+
+
+def test_doctor_deep_only_selection_suggests_deep_flag(capsys) -> None:
+    """Selecting a deep-only check without -D names the fix, not "unknown".
+
+    ``sase doctor -L`` lists deep checks, so rejecting an explicit selection
+    of one as "unknown diagnostic check or group" was factually wrong.
+    """
+    args = create_parser().parse_args(["doctor", "-C", "tools.optional"])
+
+    exit_code = doctor_handler.handle_doctor_command(args)
+
+    err = capsys.readouterr().err
+    assert exit_code == 2
+    assert "tools.optional" in err
+    assert "-D/--deep" in err
+    assert "unknown diagnostic check" not in err
+
+
+def test_doctor_mixed_unknown_and_deep_only_selection_reports_both(capsys) -> None:
+    """A deep-only hint must not hide a genuinely unknown selection."""
+    args = create_parser().parse_args(
+        ["doctor", "-C", "bogus.check", "-C", "tools.optional"]
+    )
+
+    exit_code = doctor_handler.handle_doctor_command(args)
+
+    err = capsys.readouterr().err
+    assert exit_code == 2
+    assert "unknown diagnostic check or group: bogus.check" in err
+    assert "tools.optional selects deep checks only" in err
+    assert "-D/--deep" in err

@@ -323,6 +323,12 @@ def main() -> NoReturn:
 
         handle_revert_command(args)
 
+    # --- run ---
+    if args.command == "run":
+        from .query_handler.special_cases import run_parsed_prompt
+
+        run_parsed_prompt(args)
+
     # --- sdd ---
     if args.command == "sdd":
         from .sdd_handler import handle_sdd_command

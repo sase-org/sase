@@ -168,9 +168,11 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
         # before the agents list rebuild blocks the UI tick.
         self.call_later(self._apply_dismissal_in_memory, list(agents))  # type: ignore[attr-defined]
 
+        from ....dismissed_agents import snapshot_dismissed_agents
+
         self._submit_bulk_dismiss_persistence_task(
             list(agents),
-            set(self._dismissed_agents),
+            snapshot_dismissed_agents(self._dismissed_agents),
             agents_with_children_snapshot,
             cleanup_plan,
             new_identities,
@@ -280,9 +282,12 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
         else:
             self._notify_after_refresh(f"Dismissed agent for {agent.cl_name}")
         self._apply_dismissal_in_memory([agent])
+
+        from ....dismissed_agents import snapshot_dismissed_agents
+
         self._submit_dismiss_persistence_task(
             agent,
-            set(self._dismissed_agents),
+            snapshot_dismissed_agents(self._dismissed_agents),
             agents_with_children_snapshot,
             cleanup_plan,
             new_identities,
