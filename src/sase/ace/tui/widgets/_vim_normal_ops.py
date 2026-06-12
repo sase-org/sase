@@ -65,6 +65,10 @@ class VimNormalOpsMixin(_MixinBase):
                 if self._pending_operator_count > 1:
                     indicator += str(self._pending_operator_count)
                 indicator += self._pending_operator
+            if self._pending_keys:
+                if self._pending_count is not None:
+                    indicator += str(self._pending_count)
+                indicator += self._pending_keys
             if self._count_prefix:
                 indicator += self._count_prefix
             if indicator:
@@ -175,6 +179,30 @@ class VimNormalOpsMixin(_MixinBase):
         else:
             self.read_only = was_readonly
         self.cursor_location = start
+
+    def _replace_chars(self, count: int, replacement: str) -> None:
+        """Replace *count* characters at the cursor with *replacement*."""
+        if len(replacement) != 1:
+            return
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+        end_col = col + count
+        if col >= len(line) or end_col > len(line):
+            return
+
+        was_readonly = self.read_only
+        self.read_only = False
+        self._replace_via_keyboard(replacement * count, (row, col), (row, end_col))
+        self.read_only = was_readonly
+        self.cursor_location = (row, end_col - 1)
+        self._record_mutation()
+
+    def _redo(self) -> None:
+        """Redo the most recently undone TextArea edit."""
+        was_readonly = self.read_only
+        self.read_only = False
+        self.redo()
+        self.read_only = was_readonly
 
     def _execute_linewise_operator(
         self,

@@ -13,7 +13,9 @@ from sase.ace.tui.widgets._vim_motions import (
     find_next_word_start,
     find_next_WORD_end,
     find_next_WORD_start,
+    find_prev_word_end,
     find_prev_word_start,
+    find_prev_WORD_end,
     find_prev_WORD_start,
 )
 from sase.ace.tui.widgets._vim_normal_ops import VimNormalOpsMixin
@@ -49,7 +51,9 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             self._update_count_display()
             return True
 
-        # Handle pending key sequences (gg) ----------------------------------
+        doc = self.document
+
+        # Handle pending key sequences (gg, ge/gE, f/F/t/T, r{char}) ----------
         if self._pending_keys:
             pending = self._pending_keys
             self._pending_keys = ""
@@ -74,6 +78,24 @@ class VimNormalModeMixin(VimNormalOpsMixin):
                     self._update_count_display()
                 else:
                     self.cursor_location = (target, 0)
+            elif pending == "g" and key in "eE":
+                motion_count = pending_count if pending_count is not None else 1
+                op_info = self._consume_pending_operator(motion_count)
+                eff = op_info[1] if op_info else motion_count
+                r, c = self.cursor_location
+                finder = find_prev_word_end if key == "e" else find_prev_WORD_end
+                for _ in range(eff):
+                    r, c = finder(doc, r, c)
+                if op_info:
+                    end_row, end_col = self.cursor_location
+                    line = doc.get_line(end_row)
+                    if end_col < len(line):
+                        end_col += 1
+                    self._execute_charwise_operator(
+                        (r, c), (end_row, end_col), op_info[0]
+                    )
+                else:
+                    self.cursor_location = (r, c)
             elif pending in "fFtT":
                 # Character search: key is the target character.
                 target_char = key
@@ -81,6 +103,12 @@ class VimNormalModeMixin(VimNormalOpsMixin):
                 op_info = self._consume_pending_operator(motion_count)
                 self._last_char_search = (pending, target_char)
                 self._execute_char_search(pending, target_char, motion_count, op_info)
+            elif pending == "r":
+                if event.character is not None and len(event.character) == 1:
+                    self._replace_chars(
+                        pending_count if pending_count is not None else 1,
+                        event.character,
+                    )
             elif pending == "a" and key == "e":
                 # "ae" text object: entire buffer
                 if self._pending_operator:
@@ -118,6 +146,7 @@ class VimNormalModeMixin(VimNormalOpsMixin):
                             sr, sc, er, ec = find_a_word(self.document, row, col, eff)
                     self._execute_charwise_operator((sr, sc), (er, ec), op)
                     self._update_count_display()
+            self._update_count_display()
             return True
 
         # Count prefix accumulation: 1-9 starts, 0 appends to existing
@@ -213,14 +242,20 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             return True
 
         # Word motions
-        doc = self.document
         if key == "w":
             op_info = self._consume_pending_operator(count)
             eff = op_info[1] if op_info else count
             r, c = self.cursor_location
+            use_change_end = False
+            if op_info and op_info[0] == "c":
+                line = doc.get_line(r)
+                use_change_end = c < len(line) and not line[c].isspace()
+            finder = find_next_word_end if use_change_end else find_next_word_start
             for _ in range(eff):
-                r, c = find_next_word_start(doc, r, c)
+                r, c = finder(doc, r, c)
             if op_info:
+                if use_change_end:
+                    c += 1
                 self._execute_charwise_operator(
                     self.cursor_location, (r, c), op_info[0]
                 )
@@ -231,9 +266,16 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             op_info = self._consume_pending_operator(count)
             eff = op_info[1] if op_info else count
             r, c = self.cursor_location
+            use_change_end = False
+            if op_info and op_info[0] == "c":
+                line = doc.get_line(r)
+                use_change_end = c < len(line) and not line[c].isspace()
+            finder = find_next_WORD_end if use_change_end else find_next_WORD_start
             for _ in range(eff):
-                r, c = find_next_WORD_start(doc, r, c)
+                r, c = finder(doc, r, c)
             if op_info:
+                if use_change_end:
+                    c += 1
                 self._execute_charwise_operator(
                     self.cursor_location, (r, c), op_info[0]
                 )
@@ -339,6 +381,7 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             self._pending_keys = "g"
             self._pending_count = count if has_count else None
             # Keep pending operator for gg resolution
+            self._update_count_display()
             return True
         if key == "G":
             op_info = self._consume_pending_operator(1)
@@ -366,6 +409,7 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             self._pending_keys = key
             self._pending_count = count if has_count else None
             # Keep pending operator for resolution
+            self._update_count_display()
             return True
 
         # Repeat last character search (; = same direction, , = reverse)
@@ -391,6 +435,7 @@ class VimNormalModeMixin(VimNormalOpsMixin):
         if key in "ai" and self._pending_operator:
             self._pending_keys = key
             self._pending_count = count if has_count else None
+            self._update_count_display()
             return True
 
         # Cancel pending operator on unrecognized motion key
@@ -417,6 +462,9 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             self.read_only = False
             self.undo()
             self.read_only = was_readonly
+            return True
+        if event.key == "ctrl+r":
+            self._redo()
             return True
 
         # Mode switching
@@ -475,6 +523,11 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             op = "c" if key == "C" else "d"
             self._execute_charwise_operator((row, col), (row, len(line)), op)
             return True
+        if key == "S":
+            cur_row = self.cursor_location[0]
+            last_row = min(cur_row + count - 1, self.document.line_count - 1)
+            self._execute_linewise_operator(cur_row, last_row, "c")
+            return True
 
         # Paste from the internal register (p/P)
         if key in ("p", "P"):
@@ -488,6 +541,16 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             end_col = min(col + count, len(line))
             op = "c" if key == "s" else "d"
             self._execute_charwise_operator((row, col), (row, end_col), op)
+            return True
+        if key == "X":
+            row, col = self.cursor_location
+            start_col = max(0, col - count)
+            self._execute_charwise_operator((row, start_col), (row, col), "d")
+            return True
+        if key == "r":
+            self._pending_keys = "r"
+            self._pending_count = count if has_count else None
+            self._update_count_display()
             return True
 
         # Toggle case (~)

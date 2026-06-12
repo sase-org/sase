@@ -192,6 +192,55 @@ def find_next_WORD_end(doc: Any, row: int, col: int) -> tuple[int, int]:
     return (row, col)
 
 
+def find_prev_word_end(doc: Any, row: int, col: int) -> tuple[int, int]:
+    """Find end of previous word (vim 'ge')."""
+    line = doc.get_line(row)
+    original_col = min(col, len(line))
+
+    col -= 1
+    if original_col < len(line) and not line[original_col].isspace():
+        current_class = _char_class(line[original_col])
+        while col >= 0 and _char_class(line[col]) == current_class:
+            col -= 1
+
+    while True:
+        while col >= 0 and line[col].isspace():
+            col -= 1
+        if col >= 0:
+            return (row, col)
+        row -= 1
+        if row < 0:
+            return (0, 0)
+        line = doc.get_line(row)
+        col = len(line) - 1
+        if col < 0:
+            return (row, 0)
+
+
+def find_prev_WORD_end(doc: Any, row: int, col: int) -> tuple[int, int]:
+    """Find end of previous WORD (vim 'gE')."""
+    line = doc.get_line(row)
+    original_col = min(col, len(line))
+
+    col -= 1
+    if original_col < len(line) and not line[original_col].isspace():
+        while col >= 0 and not line[col].isspace():
+            col -= 1
+
+    while True:
+        while col >= 0 and line[col].isspace():
+            col -= 1
+        if col >= 0:
+            return (row, col)
+        row -= 1
+        if row < 0:
+            return (0, 0)
+        line = doc.get_line(row)
+        col = len(line) - 1
+        if col < 0:
+            return (row, 0)
+
+
 def find_inner_word(
     doc: Any, row: int, col: int, count: int = 1
 ) -> tuple[int, int, int, int]:

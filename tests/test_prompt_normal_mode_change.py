@@ -26,11 +26,11 @@ async def test_cc_changes_current_line() -> None:
 
 
 async def test_cw_changes_word() -> None:
-    """cw deletes to next word start and enters insert mode."""
+    """cw changes through the current word without consuming trailing whitespace."""
     async with PromptPage("one two three") as page:
         await page.press("c", "w")
         assert page.mode == "insert"
-        assert page.text == "two three"
+        assert page.text == " two three"
         assert page.cursor == (0, 0)
 
 
@@ -153,17 +153,17 @@ async def test_u_undoes_cw() -> None:
     async with PromptPage("one two three") as page:
         await page.press("c", "w")
         assert page.mode == "insert"
-        assert page.text == "two three"
+        assert page.text == " two three"
 
         # Type replacement text
         await page.press("X", "X", "X", " ")
-        assert page.text == "XXX two three"
+        assert page.text == "XXX  two three"
 
         # Back to normal mode, then undo
         await page.press("escape")
         await page.press("u")
         # Undo the typed text first
-        assert page.text == "two three"
+        assert page.text == " two three"
         await page.press("u")
         # Undo the deletion
         assert page.text == "one two three"

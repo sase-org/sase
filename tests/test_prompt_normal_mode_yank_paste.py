@@ -160,13 +160,13 @@ async def test_change_writes_charwise_register_for_paste() -> None:
     async with PromptPage("one two") as page:
         await page.press("c", "w")
         assert page.mode == "insert"
-        assert page.ta._vim_register.text == "one "
+        assert page.ta._vim_register.text == "one"
         assert page.ta._vim_register.kind == "charwise"
 
         await page.press("escape")
         page.cursor = (0, len(page.text))
         await page.press("p")
-        assert page.text == "twoone "
+        assert page.text == " twoone"
 
 
 async def test_dd_register_pastes_back_into_empty_buffer() -> None:

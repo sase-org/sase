@@ -1727,6 +1727,7 @@ to relative numbering (current line shows absolute, others show offset).
 | `w` / `W`         | Next word / WORD start        |
 | `e` / `E`         | Next word / WORD end          |
 | `b` / `B`         | Previous word / WORD start    |
+| `ge` / `gE`       | Previous word / WORD end      |
 | `f{c}` / `F{c}`   | Find char forward / backward  |
 | `t{c}` / `T{c}`   | Till char forward / backward  |
 | `;` / `,`         | Repeat / reverse last f/F/t/T |
@@ -1739,38 +1740,42 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 
 #### Operators
 
-| Key   | Action                                                  |
-| ----- | ------------------------------------------------------- |
-| `d`   | Delete (takes a motion, e.g. `dw`); copies to clipboard |
-| `c`   | Change (takes a motion, e.g. `cw`); copies to clipboard |
-| `y`   | Yank (takes a motion, e.g. `yw`); copies to clipboard   |
-| `D`   | Delete to end of line                                   |
-| `C`   | Change to end of line                                   |
-| `Y`   | Yank entire line                                        |
-| `dd`  | Delete entire line                                      |
-| `cc`  | Change entire line                                      |
-| `yy`  | Yank entire line                                        |
-| `dae` | Delete entire buffer (copies to clipboard)              |
-| `cae` | Change entire buffer (copies to clipboard)              |
-| `yae` | Yank entire buffer (copies to clipboard)                |
+| Key   | Action                                                                                       |
+| ----- | -------------------------------------------------------------------------------------------- |
+| `d`   | Delete (takes a motion, e.g. `dw`); copies to clipboard                                      |
+| `c`   | Change (takes a motion, e.g. `cw`); `cw`/`cW` stop at the word/WORD end; copies to clipboard |
+| `y`   | Yank (takes a motion, e.g. `yw`); copies to clipboard                                        |
+| `D`   | Delete to end of line                                                                        |
+| `C`   | Change to end of line                                                                        |
+| `S`   | Change entire line                                                                           |
+| `Y`   | Yank entire line                                                                             |
+| `dd`  | Delete entire line                                                                           |
+| `cc`  | Change entire line                                                                           |
+| `yy`  | Yank entire line                                                                             |
+| `dae` | Delete entire buffer (copies to clipboard)                                                   |
+| `cae` | Change entire buffer (copies to clipboard)                                                   |
+| `yae` | Yank entire buffer (copies to clipboard)                                                     |
 
 #### Other Commands
 
-| Key | Action                                                       |
-| --- | ------------------------------------------------------------ |
-| `i` | Enter INSERT mode                                            |
-| `a` | Append after cursor                                          |
-| `A` | Append at end of line                                        |
-| `I` | Insert at line start                                         |
-| `o` | Open line below                                              |
-| `O` | Open line above                                              |
-| `u` | Undo                                                         |
-| `x` | Delete character                                             |
-| `p` | Paste after cursor / below line from the internal register   |
-| `P` | Paste before cursor / above line from the internal register  |
-| `~` | Toggle case of character(s) at cursor (supports count: `5~`) |
-| `.` | Repeat last mutation (supports count: `3.`)                  |
-| `J` | Join current line with next (supports count: `5J`)           |
+| Key      | Action                                                       |
+| -------- | ------------------------------------------------------------ |
+| `i`      | Enter INSERT mode                                            |
+| `a`      | Append after cursor                                          |
+| `A`      | Append at end of line                                        |
+| `I`      | Insert at line start                                         |
+| `o`      | Open line below                                              |
+| `O`      | Open line above                                              |
+| `u`      | Undo                                                         |
+| `Ctrl+R` | Redo                                                         |
+| `x`      | Delete character                                             |
+| `X`      | Delete character before cursor                               |
+| `r{c}`   | Replace character(s) at cursor (supports count: `3rx`)       |
+| `p`      | Paste after cursor / below line from the internal register   |
+| `P`      | Paste before cursor / above line from the internal register  |
+| `~`      | Toggle case of character(s) at cursor (supports count: `5~`) |
+| `.`      | Repeat last mutation (supports count: `3.`)                  |
+| `J`      | Join current line with next (supports count: `5J`)           |
 
 The border subtitle shows pending operators and counts (e.g., `2d` when a delete with count 2 is pending).
 
