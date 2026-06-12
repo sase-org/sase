@@ -1761,6 +1761,8 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 | Key      | Action                                                       |
 | -------- | ------------------------------------------------------------ |
 | `i`      | Enter INSERT mode                                            |
+| `v`      | Enter charwise VISUAL mode                                   |
+| `V`      | Enter linewise V-LINE mode                                   |
 | `a`      | Append after cursor                                          |
 | `A`      | Append at end of line                                        |
 | `I`      | Insert at line start                                         |
@@ -1778,6 +1780,25 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 | `J`      | Join current line with next (supports count: `5J`)           |
 
 The border subtitle shows pending operators and counts (e.g., `2d` when a delete with count 2 is pending).
+
+### Visual Mode
+
+Press `v` in NORMAL mode for charwise VISUAL mode, or `V` for linewise V-LINE mode. The border title shows `[VISUAL]` or
+`[V-LINE]`. `Escape` returns to NORMAL mode, and `o` swaps the active selection end.
+
+Visual mode supports the NORMAL-mode motions and counts listed above, including word motions, line motions,
+`f`/`F`/`t`/`T` with `;`/`,` repeats, `gg`/`G`, `Ctrl+D`/`Ctrl+U`, and the existing `iw`/`aw`/`iW`/`aW`/`ae` text
+objects. `v` exits charwise VISUAL mode; `V` exits V-LINE mode; pressing the other visual key switches selection kind.
+
+| Key       | Action                                                       |
+| --------- | ------------------------------------------------------------ |
+| `d` / `x` | Delete selection and copy it to the internal register        |
+| `c` / `s` | Change selection and enter INSERT mode                       |
+| `y`       | Yank selection to the internal register and system clipboard |
+| `p`       | Replace selection with the internal register                 |
+| `~`       | Toggle case in the selection                                 |
+
+V-LINE operators always apply to whole selected lines regardless of the cursor column.
 
 ## Prompt History Modal
 

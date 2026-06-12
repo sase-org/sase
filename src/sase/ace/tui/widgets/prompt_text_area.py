@@ -94,6 +94,8 @@ class PromptTextArea(
         self._replaying_dot: bool = False
         self._last_char_search: tuple[str, str] | None = None
         self._vim_register: VimRegister = VimRegister()
+        self._visual_anchor: tuple[int, int] | None = None
+        self._visual_cursor: tuple[int, int] | None = None
         self._snippet_tabstops: list[int] = []
         self._snippet_end_from_doc_end: int = 0
         self._file_completion_candidates: list[CompletionCandidate] = []
@@ -225,6 +227,7 @@ class PromptTextArea(
 
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
+        self._clear_visual_state()
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
         self._vcs_mru_index = None
@@ -243,6 +246,7 @@ class PromptTextArea(
 
     def _enter_insert_mode(self) -> None:
         """Switch to vim INSERT mode."""
+        self._clear_visual_state()
         self._vim_mode = "insert"
         self._pending_operator = ""
         self._pending_operator_count = 1
@@ -275,6 +279,12 @@ class PromptTextArea(
             bar = self._find_prompt_bar()
             if bar:
                 bar.action_cancel()
+            return
+
+        if self._vim_mode in {"visual", "visual_line"}:
+            if self._handle_visual_mode_key(event):
+                event.stop()
+                event.prevent_default()
             return
 
         if self._vim_mode == "normal":

@@ -18,10 +18,10 @@ from sase.ace.tui.widgets._vim_motions import (
     find_prev_WORD_end,
     find_prev_WORD_start,
 )
-from sase.ace.tui.widgets._vim_normal_ops import VimNormalOpsMixin
+from sase.ace.tui.widgets._vim_visual import VimVisualModeMixin
 
 
-class VimNormalModeMixin(VimNormalOpsMixin):
+class VimNormalModeMixin(VimVisualModeMixin):
     """Mixin providing vim normal-mode key handling.
 
     Mixed into :class:`~sase.ace.tui.widgets.prompt_text_area.PromptTextArea`.
@@ -468,6 +468,12 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             return True
 
         # Mode switching
+        if key == "v":
+            self._enter_visual_mode("charwise")
+            return True
+        if key == "V":
+            self._enter_visual_mode("linewise")
+            return True
         if key == "i":
             self._enter_insert_mode()
             return True
