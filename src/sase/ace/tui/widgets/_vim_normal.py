@@ -23,6 +23,12 @@ from sase.ace.tui.widgets._vim_motions import (
     find_prev_paragraph_boundary,
     is_blank_line,
 )
+from sase.ace.tui.widgets._vim_text_objects import (
+    find_matching_bracket,
+    find_quote_or_bracket_text_object,
+    is_quote_or_bracket_text_object_key,
+    location_after_char,
+)
 from sase.ace.tui.widgets._vim_visual import VimVisualModeMixin
 
 
@@ -162,6 +168,29 @@ class VimNormalModeMixin(VimVisualModeMixin):
                                 sr, sc, er, ec = find_a_word(
                                     self.document, row, col, eff
                                 )
+                        self._execute_charwise_operator((sr, sc), (er, ec), op)
+                    self._update_count_display()
+            elif pending in "ai" and is_quote_or_bracket_text_object_key(key):
+                if self._pending_operator:
+                    motion_count = pending_count if pending_count is not None else 1
+                    op = self._pending_operator
+                    op_count = self._pending_operator_count
+                    self._pending_operator = ""
+                    self._pending_operator_count = 1
+                    eff = op_count * motion_count
+                    row, col = self.cursor_location
+                    text_object = find_quote_or_bracket_text_object(
+                        self.document,
+                        row,
+                        col,
+                        pending,
+                        key,
+                        eff,
+                    )
+                    if text_object is None:
+                        self._mutation_key_buffer.clear()
+                    else:
+                        sr, sc, er, ec = text_object
                         self._execute_charwise_operator((sr, sc), (er, ec), op)
                     self._update_count_display()
             self._update_count_display()
@@ -479,7 +508,32 @@ class VimNormalModeMixin(VimVisualModeMixin):
             )
             return True
 
-        # Text object prefix (a/i + e/w/W/p)
+        if key == "%":
+            op_info = self._consume_pending_operator(count)
+            match_info = find_matching_bracket(doc, *self.cursor_location)
+            if match_info is None:
+                return True
+            _bracket_location, match_location = match_info
+            if op_info:
+                op = op_info[0]
+                cursor = self.cursor_location
+                if cursor <= match_location:
+                    self._execute_charwise_operator(
+                        cursor,
+                        location_after_char(doc, match_location),
+                        op,
+                    )
+                else:
+                    self._execute_charwise_operator(
+                        match_location,
+                        location_after_char(doc, cursor),
+                        op,
+                    )
+            else:
+                self.cursor_location = match_location
+            return True
+
+        # Text object prefix (a/i + e/w/W/p plus quote/bracket objects)
         if key in "ai" and self._pending_operator:
             self._pending_keys = key
             self._pending_count = count if has_count else None

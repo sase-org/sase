@@ -73,6 +73,25 @@ async def test_visual_text_object_selects_inner_word_for_yank() -> None:
         assert page.cursor == (0, 6)
 
 
+async def test_visual_text_object_selects_inner_parentheses_for_yank() -> None:
+    """Visual i( selects the innermost parenthesized content."""
+    async with PromptPage("call(foo(bar), baz)", cursor=(0, 9)) as page:
+        await page.press("v", "i", "(", "y")
+
+        assert page.ta._vim_register.text == "bar"
+        assert page.ta._vim_register.kind == "charwise"
+        assert page.cursor == (0, 9)
+
+
+async def test_visual_text_object_selects_a_quote_for_delete() -> None:
+    """Visual a\" selects quotes and trailing whitespace."""
+    async with PromptPage('foo "bar" baz', cursor=(0, 6)) as page:
+        await page.press("v", "a", '"', "d")
+
+        assert page.text == "foo baz"
+        assert page.ta._vim_register.text == '"bar" '
+
+
 async def test_visual_change_enters_insert_mode() -> None:
     """c changes the visual selection and enters INSERT mode."""
     async with PromptPage("abcde") as page:

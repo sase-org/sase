@@ -28,6 +28,11 @@ from sase.ace.tui.widgets._vim_motions import (
 )
 from sase.ace.tui.widgets._vim_normal_ops import VimNormalOpsMixin
 from sase.ace.tui.widgets._vim_registers import VimRegister, first_non_blank_col
+from sase.ace.tui.widgets._vim_text_objects import (
+    find_matching_bracket,
+    find_quote_or_bracket_text_object,
+    is_quote_or_bracket_text_object_key,
+)
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -422,6 +427,21 @@ class VimVisualModeMixin(VimNormalOpsMixin):
                 self._select_visual_char_range((sr, sc), (er, ec))
             return True
 
+        if pending in "ai" and is_quote_or_bracket_text_object_key(key):
+            row, col = self._visual_cursor or self.cursor_location
+            text_object = find_quote_or_bracket_text_object(
+                self.document,
+                row,
+                col,
+                pending,
+                key,
+                motion_count,
+            )
+            if text_object is not None:
+                sr, sc, er, ec = text_object
+                self._select_visual_char_range((sr, sc), (er, ec))
+            return True
+
         return True
 
     def _execute_visual_char_search(
@@ -591,6 +611,13 @@ class VimVisualModeMixin(VimNormalOpsMixin):
             self._execute_visual_char_search(
                 motion, target_char, count, col_offset=col_offset
             )
+            return True
+
+        if key == "%":
+            match_info = find_matching_bracket(doc, row, col)
+            if match_info is not None:
+                _bracket_location, match_location = match_info
+                self._move_visual_cursor(match_location)
             return True
 
         if key in "ai":

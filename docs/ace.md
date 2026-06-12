@@ -1731,6 +1731,7 @@ to relative numbering (current line shows absolute, others show offset).
 | `f{c}` / `F{c}`   | Find char forward / backward       |
 | `t{c}` / `T{c}`   | Till char forward / backward       |
 | `;` / `,`         | Repeat / reverse last f/F/t/T      |
+| `%`               | Matching bracket                   |
 | `0` / `$`         | Line start / end                   |
 | `^`               | First non-blank character          |
 | `{` / `}`         | Previous / next paragraph boundary |
@@ -1761,12 +1762,19 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 
 Text objects compose with `d`, `c`, and `y`.
 
-| Key       | Action                                                  |
-| --------- | ------------------------------------------------------- |
-| `iw`/`aw` | Inner / a word                                          |
-| `iW`/`aW` | Inner / a WORD                                          |
-| `ip`/`ap` | Inner / a paragraph; `ap` includes adjacent blank lines |
-| `ae`      | Entire buffer                                           |
+| Key                  | Action                                                  |
+| -------------------- | ------------------------------------------------------- |
+| `iw` / `aw`          | Inner / a word                                          |
+| `iW` / `aW`          | Inner / a WORD                                          |
+| `i"` / `a"`          | Inner / a double-quoted string                          |
+| `i'` / `a'`          | Inner / a single-quoted string                          |
+| `` i` `` / `` a` ``  | Inner / a backtick-quoted string                        |
+| `i(`/`a(`, `ib`/`ab` | Inner / a parenthesized block                           |
+| `i[` / `a[`          | Inner / a square-bracket block                          |
+| `i{`/`a{`, `iB`/`aB` | Inner / a brace block                                   |
+| `i<` / `a<`          | Inner / an angle-bracket block                          |
+| `ip` / `ap`          | Inner / a paragraph; `ap` includes adjacent blank lines |
+| `ae`                 | Entire buffer                                           |
 
 #### Other Commands
 
@@ -1799,9 +1807,8 @@ Press `v` in NORMAL mode for charwise VISUAL mode, or `V` for linewise V-LINE mo
 `[V-LINE]`. `Escape` returns to NORMAL mode, and `o` swaps the active selection end.
 
 Visual mode supports the NORMAL-mode motions and counts listed above, including word motions, paragraph motions, line
-motions, `f`/`F`/`t`/`T` with `;`/`,` repeats, `gg`/`G`, `Ctrl+D`/`Ctrl+U`, and the existing
-`iw`/`aw`/`iW`/`aW`/`ip`/`ap`/`ae` text objects. `v` exits charwise VISUAL mode; `V` exits V-LINE mode; pressing the
-other visual key switches selection kind.
+motions, `f`/`F`/`t`/`T` with `;`/`,` repeats, `%`, `gg`/`G`, `Ctrl+D`/`Ctrl+U`, and the NORMAL-mode text objects. `v`
+exits charwise VISUAL mode; `V` exits V-LINE mode; pressing the other visual key switches selection kind.
 
 | Key       | Action                                                       |
 | --------- | ------------------------------------------------------------ |
