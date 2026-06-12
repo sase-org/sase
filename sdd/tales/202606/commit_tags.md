@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-12 12:11:48
-status: wip
+status: done
 prompt: sdd/prompts/202606/commit_tags.md
 ---
 # Plan: Expand Conventional Commit Tag Guidance in `sase_git_commit` Skill
