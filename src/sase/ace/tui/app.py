@@ -253,6 +253,10 @@ class AceApp(
         if action == "save_marked_agents":
             if self.current_tab != "agents":
                 return False
+        if action == "start_fold_mode" and self.current_tab == "agents":
+            return False
+        if action == "zoom_panel" and self.current_tab != "agents":
+            return False
         return super().check_action(action, parameters)
 
     def compose(self) -> ComposeResult:

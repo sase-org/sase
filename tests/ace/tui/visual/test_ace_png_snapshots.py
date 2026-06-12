@@ -7,6 +7,7 @@ Shared fixtures live in ``_ace_png_snapshot_helpers``.
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from textual.widgets import OptionList
@@ -150,6 +151,97 @@ async def test_agents_selected_row_png_snapshot(
             page,
             "agents_selected_row_120x40",
             title="ACE agents selected row",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+def _zoom_agent(tmp_path: Path) -> Agent:
+    diff_path = tmp_path / "visual_zoom.diff"
+    diff_path.write_text(
+        "\n".join(
+            [
+                "diff --git a/src/app.py b/src/app.py",
+                "index 1111111..2222222 100644",
+                "--- a/src/app.py",
+                "+++ b/src/app.py",
+                "@@ -1,5 +1,8 @@",
+                " def render_dashboard():",
+                "-    return old_summary()",
+                "+    summary = build_zoom_summary()",
+                "+    summary.enable_live_refresh = True",
+                "+    return summary",
+                "",
+                " def footer_hints():",
+                "+    return 'j/k scroll  q close'",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-zoom",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 9, 10, 20, 0),
+        stop_time=datetime(2026, 5, 9, 10, 28, 45),
+        raw_suffix="20260509-102000-zoom",
+        agent_name="zoom.snapshot.agent",
+        llm_provider="codex",
+        model="gpt-5",
+        diff_path=str(diff_path),
+    )
+
+
+async def test_agents_file_zoom_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_zoom_agent(tmp_path)])
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+        await page.press("z")
+        await page.expect_modal("ZoomPanelModal")
+        await page.pause()
+        await page.pause()
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_file_zoom_modal_120x40",
+            title="ACE agents file zoom modal",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_agents_metadata_zoom_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_zoom_agent(tmp_path)])
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+        await page.press("p")
+        await page.press("z")
+        await page.expect_modal("ZoomPanelModal")
+        await page.pause()
+        await page.pause()
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_metadata_zoom_modal_120x40",
+            title="ACE agents metadata zoom modal",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

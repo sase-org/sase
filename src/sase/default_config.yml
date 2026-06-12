@@ -139,6 +139,7 @@ ace:
       start_sibling_mode: "~"
       # Mode activation prefixes
       start_fold_mode: "z"
+      zoom_panel: "z"
       start_leader_mode: "comma"
       start_bang_mode: "exclamation_mark"
       copy_tab_content: "percent_sign"

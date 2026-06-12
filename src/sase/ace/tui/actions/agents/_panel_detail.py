@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ...models.agent_status import is_resumable_done_status
 from ._panel_types import TabName
@@ -158,6 +158,104 @@ class AgentPanelDetailMixin:
             return
 
         agent_detail.toggle_layout()
+
+    def action_zoom_panel(self) -> None:
+        """Open a near-fullscreen zoom popup for the dominant detail panel."""
+        if self.current_tab != "agents":
+            return
+
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from ...modals import ZoomPanelModal
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        target = self._zoom_target_for_detail(agent_detail)
+        seed = self._zoom_seed_from_detail(agent_detail)
+        agent_identity = agent.identity
+
+        def agent_provider() -> Agent | None:
+            for candidate in list(getattr(self, "_agents", [])) + list(
+                getattr(self, "_agents_with_children", [])
+            ):
+                if candidate.identity == agent_identity:
+                    return candidate
+            return None
+
+        self.push_screen(  # type: ignore[attr-defined]
+            ZoomPanelModal(
+                agent_provider=agent_provider,
+                initial_agent=agent,
+                initial_target=target,
+                seed=seed,
+                refresh_interval=getattr(self, "refresh_interval", 10),
+            )
+        )
+
+    def _zoom_target_for_detail(self, agent_detail: Any) -> Any:
+        """Choose the initial zoom target from the base Agents detail state."""
+        from ...modals import ZoomPanelTarget
+
+        if getattr(self, "current_attempt_number", None) is not None:
+            return ZoomPanelTarget.METADATA
+        if agent_detail.is_info_mode():
+            return ZoomPanelTarget.METADATA
+        if agent_detail.is_layout_swapped():
+            return ZoomPanelTarget.METADATA
+        if agent_detail.is_tools_visible():
+            return ZoomPanelTarget.TOOLS
+        if agent_detail.is_file_visible():
+            return ZoomPanelTarget.FILE
+        return ZoomPanelTarget.METADATA
+
+    def _zoom_seed_from_detail(self, agent_detail: Any) -> Any:
+        """Capture lightweight render state for the zoom modal's first paint."""
+        from ...modals import ZoomPanelSeed
+        from ...widgets.file_panel import AgentFilePanel
+        from ...widgets.prompt_panel import AgentPromptPanel
+        from ...widgets.tools_panel import AgentToolsPanel
+
+        prompt_panel = agent_detail.query_one("#agent-prompt-panel", AgentPromptPanel)
+        file_panel = agent_detail.query_one("#agent-file-panel", AgentFilePanel)
+        tools_panel = agent_detail.query_one("#agent-tools-panel", AgentToolsPanel)
+        file_list = tuple(getattr(file_panel, "_file_list", ()))
+        return ZoomPanelSeed(
+            metadata_renderable=getattr(prompt_panel, "renderable", None),
+            file_renderable=getattr(file_panel, "renderable", None),
+            tools_renderable=getattr(tools_panel, "renderable", None),
+            metadata_subtitle=self._zoom_border_subtitle(
+                agent_detail, "#agent-prompt-scroll"
+            ),
+            file_subtitle=self._zoom_border_subtitle(
+                agent_detail, "#agent-file-scroll"
+            ),
+            tools_subtitle=self._zoom_border_subtitle(
+                agent_detail, "#agent-tools-scroll"
+            ),
+            file_list=file_list,
+            file_index=getattr(file_panel, "current_file_index", 0),
+            has_file_content=bool(
+                agent_detail.is_file_visible()
+                or getattr(agent_detail, "_has_file_content", False)
+            ),
+            has_tools_content=bool(
+                agent_detail.is_tools_visible()
+                or getattr(agent_detail, "_has_tools_content", False)
+            ),
+            attempt_view_mode=getattr(agent_detail, "attempt_view_mode", "merged"),
+            attempt_number=getattr(self, "current_attempt_number", None),
+        )
+
+    def _zoom_border_subtitle(self, agent_detail: Any, selector: str) -> Any:
+        """Return a base detail scroll subtitle, if that scroll exists."""
+        try:
+            scroll = agent_detail.query_one(selector)
+        except Exception:
+            return None
+        return getattr(scroll, "border_subtitle", None)
 
     def action_edit_panel(self) -> None:
         """Open the visible panel's content in $EDITOR."""

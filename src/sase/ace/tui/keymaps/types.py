@@ -50,6 +50,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("hooks_or_collapse_all", "Hooks / Collapse All", False),
     ("edit_hooks", "Edit Hooks", False),
     ("start_fold_mode", "Fold", False),
+    ("zoom_panel", "Zoom", False),
     ("accept_proposal", "Accept", False),
     ("rebase", "Rebase", False),
     ("start_rewind", "Rewind", False),
@@ -345,6 +346,7 @@ class AppKeymaps:
     start_sibling_mode: str
     # Mode activation prefixes
     start_fold_mode: str
+    zoom_panel: str
     start_leader_mode: str
     start_bang_mode: str
     copy_tab_content: str

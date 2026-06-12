@@ -201,6 +201,7 @@ _APP_COMMAND_META: tuple[
         _AGENTS_ONLY,
         ("go to pr",),
     ),
+    ("zoom_panel", "Zoom largest panel", "Display", _AGENTS_ONLY, ("zoom",)),
     ("edit_panel", "Edit panel file", "Agents", _AGENTS_ONLY, ()),
     (
         "open_agent_artifacts",

@@ -1998,6 +1998,78 @@ TaskQueueModal #task-queue-hints {
     margin-top: 1;
 }
 
+/* ===== Zoom Panel Modal Styling ===== */
+
+ZoomPanelModal {
+    align: center middle;
+}
+
+ZoomPanelModal > #zoom-panel-container {
+    width: 98%;
+    height: 96%;
+    border: thick $accent;
+    background: $surface;
+    padding: 0 1;
+}
+
+ZoomPanelModal #zoom-panel-header {
+    height: 3;
+    width: 100%;
+    background: $accent 25%;
+    margin-bottom: 1;
+    padding: 0 1;
+}
+
+ZoomPanelModal #zoom-panel-title {
+    width: 1fr;
+    height: 100%;
+    content-align: left middle;
+    text-style: bold;
+    color: $text;
+}
+
+ZoomPanelModal #zoom-panel-agent {
+    width: auto;
+    max-width: 45%;
+    height: 100%;
+    content-align: right middle;
+    text-align: right;
+}
+
+ZoomPanelModal .zoom-scroll {
+    height: 1fr;
+    width: 100%;
+    border: solid $secondary;
+    padding: 1 2;
+    scrollbar-gutter: stable;
+    border-subtitle-align: center;
+}
+
+ZoomPanelModal #zoom-file-scroll {
+    border: solid green;
+}
+
+ZoomPanelModal #zoom-tools-scroll {
+    border: solid #87D7FF;
+}
+
+ZoomPanelModal .zoom-scroll.hidden {
+    display: none;
+}
+
+ZoomPanelModal #zoom-metadata-panel,
+ZoomPanelModal #zoom-file-panel,
+ZoomPanelModal #zoom-tools-panel {
+    height: auto;
+}
+
+ZoomPanelModal #zoom-panel-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
 /* ===== Tag Input Modal Styling ===== */
 
 TagInputModal {

@@ -79,6 +79,7 @@ from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
 from .activity_modal import ActivityModal
 from .task_queue_modal import TaskQueueModal
+from .zoom_panel_modal import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
 from .temporary_llm_override_modal import (
     TemporaryLLMOverrideModal,
     TemporaryOverrideResult,
@@ -200,4 +201,7 @@ __all__ = [
     "WorkflowHITLModal",
     "WorkflowSelectModal",
     "WorkspaceInputModal",
+    "ZoomPanelModal",
+    "ZoomPanelSeed",
+    "ZoomPanelTarget",
 ]

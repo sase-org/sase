@@ -164,6 +164,18 @@ def test_save_marked_agents_command_covers_agent_save_flow() -> None:
     assert "saved group name" in spec.aliases
 
 
+def test_zoom_panel_command_is_agents_only_display_command() -> None:
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.zoom_panel"]
+
+    assert spec.label == "Zoom largest panel"
+    assert spec.category == "Display"
+    assert spec.tabs == ("agents",)
+    assert spec.key_sequence == ("z",)
+    assert spec.key_display == "z"
+    assert "zoom" in spec.aliases
+
+
 # --- Digit commands ---
 
 

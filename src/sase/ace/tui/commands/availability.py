@@ -83,6 +83,7 @@ _REQUIRES_AGENT: frozenset[str] = frozenset(
         "app.toggle_agent_unread",
         "app.start_agent_from_changespec",
         "app.jump_to_agent_changespec",
+        "app.zoom_panel",
     }
 )
 
