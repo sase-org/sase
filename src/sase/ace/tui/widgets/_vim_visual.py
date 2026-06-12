@@ -9,17 +9,21 @@ from textual.events import Key
 
 from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
 from sase.ace.tui.widgets._vim_motions import (
+    find_a_paragraph_rows,
     find_a_WORD,
     find_a_word,
     find_char_backward,
     find_char_forward,
     find_inner_WORD,
+    find_inner_paragraph_rows,
     find_inner_word,
     find_next_WORD_end,
     find_next_WORD_start,
+    find_next_paragraph_boundary,
     find_next_word_end,
     find_next_word_start,
     find_prev_WORD_start,
+    find_prev_paragraph_boundary,
     find_prev_word_start,
 )
 from sase.ace.tui.widgets._vim_normal_ops import VimNormalOpsMixin
@@ -387,24 +391,35 @@ class VimVisualModeMixin(VimNormalOpsMixin):
             self._select_visual_line_range(0, self.document.line_count - 1)
             return True
 
-        if pending in "ai" and key in "wW":
-            is_inner = pending == "i"
-            is_WORD = key == "W"
+        if pending in "ai" and key in "wWp":
             row, col = self._visual_cursor or self.cursor_location
-            if is_inner:
-                if is_WORD:
-                    sr, sc, er, ec = find_inner_WORD(
-                        self.document, row, col, motion_count
+            if key == "p":
+                if pending == "i":
+                    first, last = find_inner_paragraph_rows(
+                        self.document, row, motion_count
                     )
                 else:
-                    sr, sc, er, ec = find_inner_word(
-                        self.document, row, col, motion_count
+                    first, last = find_a_paragraph_rows(
+                        self.document, row, motion_count
                     )
-            elif is_WORD:
-                sr, sc, er, ec = find_a_WORD(self.document, row, col, motion_count)
+                self._select_visual_line_range(first, last)
             else:
-                sr, sc, er, ec = find_a_word(self.document, row, col, motion_count)
-            self._select_visual_char_range((sr, sc), (er, ec))
+                is_inner = pending == "i"
+                is_WORD = key == "W"
+                if is_inner:
+                    if is_WORD:
+                        sr, sc, er, ec = find_inner_WORD(
+                            self.document, row, col, motion_count
+                        )
+                    else:
+                        sr, sc, er, ec = find_inner_word(
+                            self.document, row, col, motion_count
+                        )
+                elif is_WORD:
+                    sr, sc, er, ec = find_a_WORD(self.document, row, col, motion_count)
+                else:
+                    sr, sc, er, ec = find_a_word(self.document, row, col, motion_count)
+                self._select_visual_char_range((sr, sc), (er, ec))
             return True
 
         return True
@@ -521,6 +536,14 @@ class VimVisualModeMixin(VimNormalOpsMixin):
         if key == "E":
             for _ in range(count):
                 row, col = find_next_WORD_end(doc, row, col)
+            self._move_visual_cursor((row, col))
+            return True
+        if key == "}":
+            row, col = find_next_paragraph_boundary(doc, row, count)
+            self._move_visual_cursor((row, col))
+            return True
+        if key == "{":
+            row, col = find_prev_paragraph_boundary(doc, row, count)
             self._move_visual_cursor((row, col))
             return True
 

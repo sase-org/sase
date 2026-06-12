@@ -5,18 +5,23 @@ from __future__ import annotations
 from textual.events import Key
 
 from sase.ace.tui.widgets._vim_motions import (
+    find_a_paragraph_rows,
     find_a_word,
     find_a_WORD,
     find_inner_word,
     find_inner_WORD,
+    find_inner_paragraph_rows,
     find_next_word_end,
     find_next_word_start,
     find_next_WORD_end,
     find_next_WORD_start,
+    find_next_paragraph_boundary,
     find_prev_word_end,
     find_prev_word_start,
     find_prev_WORD_end,
     find_prev_WORD_start,
+    find_prev_paragraph_boundary,
+    is_blank_line,
 )
 from sase.ace.tui.widgets._vim_visual import VimVisualModeMixin
 
@@ -118,11 +123,9 @@ class VimNormalModeMixin(VimVisualModeMixin):
                     last_row = self.document.line_count - 1
                     self._execute_linewise_operator(0, last_row, op)
                     self._update_count_display()
-            elif pending in "ai" and key in "wW":
-                # Word text objects: aw, aW, iw, iW
+            elif pending in "ai" and key in "wWp":
+                # Text objects: aw, aW, iw, iW, ap, ip
                 if self._pending_operator:
-                    is_inner = pending == "i"
-                    is_WORD = key == "W"
                     motion_count = pending_count if pending_count is not None else 1
                     op = self._pending_operator
                     op_count = self._pending_operator_count
@@ -130,21 +133,36 @@ class VimNormalModeMixin(VimVisualModeMixin):
                     self._pending_operator_count = 1
                     eff = op_count * motion_count
                     row, col = self.cursor_location
-                    if is_inner:
-                        if is_WORD:
-                            sr, sc, er, ec = find_inner_WORD(
-                                self.document, row, col, eff
+                    if key == "p":
+                        if pending == "i":
+                            first, last = find_inner_paragraph_rows(
+                                self.document, row, eff
                             )
                         else:
-                            sr, sc, er, ec = find_inner_word(
-                                self.document, row, col, eff
-                            )
+                            first, last = find_a_paragraph_rows(self.document, row, eff)
+                        self._execute_linewise_operator(first, last, op)
                     else:
-                        if is_WORD:
-                            sr, sc, er, ec = find_a_WORD(self.document, row, col, eff)
+                        is_inner = pending == "i"
+                        is_WORD = key == "W"
+                        if is_inner:
+                            if is_WORD:
+                                sr, sc, er, ec = find_inner_WORD(
+                                    self.document, row, col, eff
+                                )
+                            else:
+                                sr, sc, er, ec = find_inner_word(
+                                    self.document, row, col, eff
+                                )
                         else:
-                            sr, sc, er, ec = find_a_word(self.document, row, col, eff)
-                    self._execute_charwise_operator((sr, sc), (er, ec), op)
+                            if is_WORD:
+                                sr, sc, er, ec = find_a_WORD(
+                                    self.document, row, col, eff
+                                )
+                            else:
+                                sr, sc, er, ec = find_a_word(
+                                    self.document, row, col, eff
+                                )
+                        self._execute_charwise_operator((sr, sc), (er, ec), op)
                     self._update_count_display()
             self._update_count_display()
             return True
@@ -337,6 +355,36 @@ class VimNormalModeMixin(VimVisualModeMixin):
                 self.cursor_location = (r, c)
             return True
 
+        # Paragraph motions
+        if key == "}":
+            op_info = self._consume_pending_operator(count)
+            eff = op_info[1] if op_info else count
+            row, col = self.cursor_location
+            target_row, target_col = find_next_paragraph_boundary(doc, row, eff)
+            if op_info:
+                if is_blank_line(doc, target_row) and target_row > row:
+                    end = (target_row, 0)
+                else:
+                    end = (target_row, len(doc.get_line(target_row)))
+                self._execute_charwise_operator((row, col), end, op_info[0])
+            else:
+                self.cursor_location = (target_row, target_col)
+            return True
+        if key == "{":
+            op_info = self._consume_pending_operator(count)
+            eff = op_info[1] if op_info else count
+            row, col = self.cursor_location
+            target_row, target_col = find_prev_paragraph_boundary(doc, row, eff)
+            if op_info:
+                if is_blank_line(doc, target_row) and target_row < row:
+                    start = (min(target_row + 1, doc.line_count - 1), 0)
+                else:
+                    start = (target_row, 0)
+                self._execute_charwise_operator(start, (row, col), op_info[0])
+            else:
+                self.cursor_location = (target_row, target_col)
+            return True
+
         # Line position motions
         if key == "0":
             op_info = self._consume_pending_operator(count)
@@ -431,7 +479,7 @@ class VimNormalModeMixin(VimVisualModeMixin):
             )
             return True
 
-        # Text object prefix (a/i + e/w/W)
+        # Text object prefix (a/i + e/w/W/p)
         if key in "ai" and self._pending_operator:
             self._pending_keys = key
             self._pending_count = count if has_count else None

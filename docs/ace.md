@@ -1720,21 +1720,22 @@ to relative numbering (current line shows absolute, others show offset).
 
 #### Motions
 
-| Key               | Action                        |
-| ----------------- | ----------------------------- |
-| `h` / `l`         | Move left / right             |
-| `j` / `k`         | Move down / up (actual lines) |
-| `w` / `W`         | Next word / WORD start        |
-| `e` / `E`         | Next word / WORD end          |
-| `b` / `B`         | Previous word / WORD start    |
-| `ge` / `gE`       | Previous word / WORD end      |
-| `f{c}` / `F{c}`   | Find char forward / backward  |
-| `t{c}` / `T{c}`   | Till char forward / backward  |
-| `;` / `,`         | Repeat / reverse last f/F/t/T |
-| `0` / `$`         | Line start / end              |
-| `^`               | First non-blank character     |
-| `gg` / `G`        | Top / bottom of document      |
-| `Ctrl+D`/`Ctrl+U` | Half-page down / up           |
+| Key               | Action                             |
+| ----------------- | ---------------------------------- |
+| `h` / `l`         | Move left / right                  |
+| `j` / `k`         | Move down / up (actual lines)      |
+| `w` / `W`         | Next word / WORD start             |
+| `e` / `E`         | Next word / WORD end               |
+| `b` / `B`         | Previous word / WORD start         |
+| `ge` / `gE`       | Previous word / WORD end           |
+| `f{c}` / `F{c}`   | Find char forward / backward       |
+| `t{c}` / `T{c}`   | Till char forward / backward       |
+| `;` / `,`         | Repeat / reverse last f/F/t/T      |
+| `0` / `$`         | Line start / end                   |
+| `^`               | First non-blank character          |
+| `{` / `}`         | Previous / next paragraph boundary |
+| `gg` / `G`        | Top / bottom of document           |
+| `Ctrl+D`/`Ctrl+U` | Half-page down / up                |
 
 All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 
@@ -1755,6 +1756,17 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 | `dae` | Delete entire buffer (copies to clipboard)                                                   |
 | `cae` | Change entire buffer (copies to clipboard)                                                   |
 | `yae` | Yank entire buffer (copies to clipboard)                                                     |
+
+#### Text Objects
+
+Text objects compose with `d`, `c`, and `y`.
+
+| Key       | Action                                                  |
+| --------- | ------------------------------------------------------- |
+| `iw`/`aw` | Inner / a word                                          |
+| `iW`/`aW` | Inner / a WORD                                          |
+| `ip`/`ap` | Inner / a paragraph; `ap` includes adjacent blank lines |
+| `ae`      | Entire buffer                                           |
 
 #### Other Commands
 
@@ -1786,9 +1798,10 @@ The border subtitle shows pending operators and counts (e.g., `2d` when a delete
 Press `v` in NORMAL mode for charwise VISUAL mode, or `V` for linewise V-LINE mode. The border title shows `[VISUAL]` or
 `[V-LINE]`. `Escape` returns to NORMAL mode, and `o` swaps the active selection end.
 
-Visual mode supports the NORMAL-mode motions and counts listed above, including word motions, line motions,
-`f`/`F`/`t`/`T` with `;`/`,` repeats, `gg`/`G`, `Ctrl+D`/`Ctrl+U`, and the existing `iw`/`aw`/`iW`/`aW`/`ae` text
-objects. `v` exits charwise VISUAL mode; `V` exits V-LINE mode; pressing the other visual key switches selection kind.
+Visual mode supports the NORMAL-mode motions and counts listed above, including word motions, paragraph motions, line
+motions, `f`/`F`/`t`/`T` with `;`/`,` repeats, `gg`/`G`, `Ctrl+D`/`Ctrl+U`, and the existing
+`iw`/`aw`/`iW`/`aW`/`ip`/`ap`/`ae` text objects. `v` exits charwise VISUAL mode; `V` exits V-LINE mode; pressing the
+other visual key switches selection kind.
 
 | Key       | Action                                                       |
 | --------- | ------------------------------------------------------------ |

@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 
+def is_blank_line(doc: Any, row: int) -> bool:
+    """Return whether *row* is a paragraph-separating blank line."""
+    return doc.get_line(row).strip() == ""
+
+
 def _char_class(ch: str) -> str:
     """Classify a character for vim word motions."""
     if ch.isalnum() or ch == "_":
@@ -467,3 +472,118 @@ def find_char_backward(line: str, col: int, char: str, count: int = 1) -> int | 
             if found == count:
                 return i
     return None
+
+
+def find_next_paragraph_boundary(
+    doc: Any,
+    row: int,
+    count: int = 1,
+) -> tuple[int, int]:
+    """Find the next paragraph boundary for vim ``}``.
+
+    Boundaries are contiguous blank-line blocks. Counts treat a blank block as
+    one boundary, so repeated ``}`` motions move paragraph-by-paragraph instead
+    of stepping through every blank line in a multi-line separator.
+    """
+    line_count = doc.line_count
+    if line_count <= 0:
+        return (0, 0)
+    target = max(0, min(row, line_count - 1))
+    for _ in range(max(1, count)):
+        search = target + 1
+        if is_blank_line(doc, target):
+            while search < line_count and is_blank_line(doc, search):
+                search += 1
+        while search < line_count and not is_blank_line(doc, search):
+            search += 1
+        if search >= line_count:
+            return (line_count - 1, 0)
+        target = search
+    return (target, 0)
+
+
+def find_prev_paragraph_boundary(
+    doc: Any,
+    row: int,
+    count: int = 1,
+) -> tuple[int, int]:
+    """Find the previous paragraph boundary for vim ``{``."""
+    line_count = doc.line_count
+    if line_count <= 0:
+        return (0, 0)
+    target = max(0, min(row, line_count - 1))
+    for _ in range(max(1, count)):
+        search = target - 1
+        if is_blank_line(doc, target):
+            while search >= 0 and is_blank_line(doc, search):
+                search -= 1
+        while search >= 0 and not is_blank_line(doc, search):
+            search -= 1
+        if search < 0:
+            return (0, 0)
+        target = search
+    return (target, 0)
+
+
+def _paragraph_block_at(doc: Any, row: int) -> tuple[int, int, bool]:
+    """Return the contiguous same-blankness block containing *row*."""
+    line_count = doc.line_count
+    row = max(0, min(row, line_count - 1))
+    blank = is_blank_line(doc, row)
+    first = row
+    while first > 0 and is_blank_line(doc, first - 1) == blank:
+        first -= 1
+    last = row
+    while last + 1 < line_count and is_blank_line(doc, last + 1) == blank:
+        last += 1
+    return (first, last, blank)
+
+
+def find_inner_paragraph_rows(
+    doc: Any,
+    row: int,
+    count: int = 1,
+) -> tuple[int, int]:
+    """Find the linewise ``ip`` text object.
+
+    Returns inclusive ``(first_row, last_row)``. On non-blank text, this is the
+    contiguous paragraph. On a blank line, it is the contiguous blank block.
+    """
+    line_count = doc.line_count
+    if line_count <= 0:
+        return (0, 0)
+    first, last, blank = _paragraph_block_at(doc, row)
+    for _ in range(max(1, count) - 1):
+        search = last + 1
+        if search >= line_count:
+            break
+        if not blank:
+            while search < line_count and is_blank_line(doc, search):
+                search += 1
+            if search >= line_count:
+                break
+        _next_first, last, _next_blank = _paragraph_block_at(doc, search)
+    return (first, last)
+
+
+def find_a_paragraph_rows(
+    doc: Any,
+    row: int,
+    count: int = 1,
+) -> tuple[int, int]:
+    """Find the linewise ``ap`` text object.
+
+    Extends ``ip`` with trailing blank lines when available, otherwise leading
+    blank lines.
+    """
+    line_count = doc.line_count
+    if line_count <= 0:
+        return (0, 0)
+    first, last = find_inner_paragraph_rows(doc, row, count)
+    original_last = last
+    while last + 1 < line_count and is_blank_line(doc, last + 1):
+        last += 1
+    if last == original_last:
+        while first > 0 and is_blank_line(doc, first - 1):
+            first -= 1
+    return (first, last)
