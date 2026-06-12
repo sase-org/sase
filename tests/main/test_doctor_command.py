@@ -189,3 +189,18 @@ def test_doctor_deep_only_selection_suggests_deep_flag(capsys) -> None:
     assert "tools.optional" in err
     assert "-D/--deep" in err
     assert "unknown diagnostic check" not in err
+
+
+def test_doctor_mixed_unknown_and_deep_only_selection_reports_both(capsys) -> None:
+    """A deep-only hint must not hide a genuinely unknown selection."""
+    args = create_parser().parse_args(
+        ["doctor", "-C", "bogus.check", "-C", "tools.optional"]
+    )
+
+    exit_code = doctor_handler.handle_doctor_command(args)
+
+    err = capsys.readouterr().err
+    assert exit_code == 2
+    assert "unknown diagnostic check or group: bogus.check" in err
+    assert "tools.optional selects deep checks only" in err
+    assert "-D/--deep" in err

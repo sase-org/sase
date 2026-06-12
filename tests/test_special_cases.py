@@ -244,3 +244,26 @@ def test_run_parsed_prompt_dispatches_fallthrough_namespace() -> None:
 
     assert excinfo.value.code == 0
     mock_run.assert_called_once_with("known_prompt_name")
+
+
+def test_entry_run_known_prompt_falls_through_to_run_branch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Known prompt names declined by special cases still dispatch via entry.py."""
+    import sys
+
+    from sase.main import entry
+
+    monkeypatch.setattr(sys, "argv", ["sase", "run", "known_prompt_name"])
+    with (
+        patch(
+            "sase.xprompt.get_all_prompts",
+            MagicMock(return_value={"known_prompt_name": object()}),
+        ),
+        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        entry.main()
+
+    assert excinfo.value.code == 0
+    mock_run.assert_called_once_with("known_prompt_name")

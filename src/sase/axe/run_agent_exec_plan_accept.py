@@ -365,20 +365,21 @@ def handle_accepted_plan(
             # record that directive's model in the follow-up meta below: it
             # is what the coder actually runs with.
             if model_prefix:
-                from sase.xprompt.directives import has_model_directive
+                from sase.xprompt._exceptions import DirectiveError
+                from sase.xprompt.directives import (
+                    extract_prompt_directives,
+                    has_model_directive,
+                )
 
                 if has_model_directive(plan_result.coder_prompt):
-                    model_prefix = ""
-                    try:
-                        from sase.xprompt.directives import (
-                            extract_prompt_directives,
+                    coder_prompt_model = extract_prompt_directives(
+                        plan_result.coder_prompt
+                    )[1].model
+                    if not coder_prompt_model:
+                        raise DirectiveError(
+                            "Custom coder prompt model directive requires a model"
                         )
-
-                        coder_prompt_model = extract_prompt_directives(
-                            plan_result.coder_prompt
-                        )[1].model
-                    except Exception:
-                        coder_prompt_model = None
+                    model_prefix = ""
         _update_coder_model_meta(
             plan_result, ctx, state, model_override=coder_prompt_model
         )

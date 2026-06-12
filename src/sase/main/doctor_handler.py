@@ -38,7 +38,10 @@ def handle_doctor_command(args: argparse.Namespace) -> int:
     except UnknownCheckSelection as exc:
         # A selection can be registered but deep-only; `-L` lists those, so
         # calling them "unknown" would be wrong. Point at -D/--deep instead.
-        deep_only = _deep_only_selections(registry, selections)
+        deep_only = _deep_only_selections(registry, exc.selections)
+        unknown = [item for item in exc.selections if item not in set(deep_only)]
+        if unknown:
+            print(f"error: {UnknownCheckSelection(unknown)}", file=sys.stderr)
         if deep_only:
             joined = ", ".join(deep_only)
             print(
@@ -47,7 +50,6 @@ def handle_doctor_command(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 2
-        print(f"error: {exc}", file=sys.stderr)
         return 2
 
     if getattr(args, "json", False):

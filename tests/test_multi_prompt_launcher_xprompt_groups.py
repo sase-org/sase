@@ -151,6 +151,59 @@ def test_launch_agents_from_cwd_groups_xprompt_template_names_by_invocation(
     assert mock_create_artifacts.call_count == 0
 
 
+@patch("sase.history.prompt.add_or_update_prompt")
+@patch(
+    "sase.main.utils.ensure_project_file_and_get_workspace_num",
+    return_value=(None, None, None),
+)
+def test_launch_agents_from_cwd_segment_extra_env_shares_xprompt_group_counter(
+    mock_project: MagicMock,
+    mock_history: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Per-segment expansion with env still separates xprompt invocations."""
+    from sase.agent.launcher import launch_agents_from_cwd
+
+    del mock_project, mock_history
+    catalog = {
+        "swarm": XPrompt(
+            name="swarm",
+            content="%name:research.@.cdx\nCDX\n---\n%name:research.@.cld\nCLD",
+        )
+    }
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch("sase.agent.multi_agent_xprompt.get_all_xprompts", return_value=catalog),
+        patch(
+            "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
+            return_value=None,
+        ),
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            return_value=[],
+        ) as launch_multi,
+    ):
+        launch_agents_from_cwd(
+            "#!swarm\n---\n#!swarm",
+            segment_extra_env=({"SLOT": "one"}, {"SLOT": "two"}),
+        )
+
+    kwargs = launch_multi.call_args.kwargs
+    assert kwargs["segment_extra_env"] == [
+        {"SLOT": "one"},
+        {"SLOT": "one"},
+        {"SLOT": "two"},
+        {"SLOT": "two"},
+    ]
+    assert kwargs["segment_template_groups"] == [
+        "xprompt:swarm:0",
+        "xprompt:swarm:0",
+        "xprompt:swarm:1",
+        "xprompt:swarm:1",
+    ]
+
+
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
