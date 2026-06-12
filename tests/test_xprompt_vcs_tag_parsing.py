@@ -6,6 +6,8 @@ from unittest.mock import patch
 from sase.xprompt._parsing import (
     extract_vcs_workflow_tag,
     find_vcs_workflow_tag,
+    find_vcs_workflow_tag_prepend_offset,
+    find_vcs_workflow_tag_span,
     normalize_launch_xprompt_at_refs,
     normalize_vcs_underscore_refs,
     replace_ref_in_vcs_tag,
@@ -179,6 +181,27 @@ def test_find_vcs_workflow_tag_hitl_suffix() -> None:
     with _patch_embedded_vcs_pattern():
         result = find_vcs_workflow_tag("intro #hg!!:cl Fix it")
         assert result == "#hg!!:cl "
+
+
+def test_find_vcs_workflow_tag_span_matches_tag_at_end() -> None:
+    """Span matching uses a sentinel space so end-of-text tags are found."""
+    prompt = "fix #gh:sase"
+    with _patch_embedded_vcs_pattern():
+        assert find_vcs_workflow_tag_span(prompt) == (len("fix "), len(prompt))
+
+
+def test_find_vcs_workflow_tag_span_excludes_trailing_newline() -> None:
+    """The returned span excludes the pattern's required whitespace."""
+    prompt = "#gh:sase\nFix it"
+    with _patch_embedded_vcs_pattern():
+        assert find_vcs_workflow_tag_span(prompt) == (0, len("#gh:sase"))
+
+
+def test_prepend_offset_preserves_frontmatter_directives() -> None:
+    prompt = "---\nxprompts: {}\n---\n  %n:a %wait Fix it"
+    assert find_vcs_workflow_tag_prepend_offset(prompt) == len(
+        "---\nxprompts: {}\n---\n  %n:a %wait "
+    )
 
 
 def test_replace_ref_in_vcs_tag_colon() -> None:

@@ -1777,8 +1777,9 @@ history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter the list.
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit workspace reference appears with the
 default `#git:home` prefix. Use `#cd:~` for direct home-directory runs with no VCS workspace management. Explicit
-workspace prefixes, including `#cd:<path>`, also feed the `Ctrl+N` / `Ctrl+P` MRU cycle when the prompt input is empty
-or contains only a workspace prefix.
+workspace prefixes, including `#cd:<path>`, also feed the `Ctrl+N` / `Ctrl+P` MRU cycle. In the prompt input, `Ctrl+P` /
+`Ctrl+N` replaces the first workspace prefix in the text; when no prefix is present, it prepends the selected MRU prefix
+before the prompt body.
 
 ### Keybindings
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from textual.events import Key
 from textual.screen import ModalScreen
@@ -13,6 +13,10 @@ from sase.ace.tui.widgets._line_rendering import LineRenderingMixin
 from sase.ace.tui.widgets._prompt_soft_completion import PromptSoftCompletionMixin
 from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
+from sase.ace.tui.widgets._vcs_mru_cycling import (
+    VcsMruCycleKey,
+    VcsMruCyclingMixin,
+)
 from sase.ace.tui.widgets._xprompt_arg_hints import XPromptArgHintMixin
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
@@ -55,6 +59,7 @@ class PromptTextArea(
     PromptSoftCompletionMixin,
     XPromptArgHintMixin,
     SnippetExpansionMixin,
+    VcsMruCyclingMixin,
     LineRenderingMixin,
     TextArea,
 ):
@@ -338,45 +343,12 @@ class PromptTextArea(
             event.prevent_default()
             return
 
-        # VCS MRU cycling: ctrl+n/ctrl+p when prompt is empty or VCS-only
-        if not self._file_completion_active and event.key in ("ctrl+n", "ctrl+p"):
-            from sase.xprompt._parsing import extract_vcs_workflow_tag
-
-            text = self.text
-            stripped = text.strip()
-            is_vcs_only = not stripped
-            current_prefix: str | None = None
-
-            if stripped:
-                # Append space for pattern matching (VCS pattern requires trailing \s)
-                tag = extract_vcs_workflow_tag(stripped + " ")
-                if tag is not None and stripped == tag.strip():
-                    is_vcs_only = True
-                    current_prefix = stripped
-
-            if is_vcs_only:
-                from sase.history.vcs_xprompt_mru import (
-                    load_launchable_vcs_xprompt_mru,
-                )
-
-                mru = load_launchable_vcs_xprompt_mru()
-                if mru:
-                    direction = -1 if event.key == "ctrl+n" else 1
-                    if self._vcs_mru_index is not None:
-                        new_index = (self._vcs_mru_index + direction) % len(mru)
-                    elif current_prefix is not None and current_prefix in mru:
-                        base = mru.index(current_prefix)
-                        new_index = (base + direction) % len(mru)
-                    else:
-                        new_index = 0 if direction == 1 else len(mru) - 1
-
-                    self._vcs_mru_index = new_index
-                    new_text = mru[new_index] + " "
-                    self.text = new_text
-                    self.move_cursor((0, len(new_text)))
-                    event.stop()
-                    event.prevent_default()
-                    return
+        if event.key in ("ctrl+n", "ctrl+p") and self._handle_vcs_mru_cycle_key(
+            cast(VcsMruCycleKey, event.key)
+        ):
+            event.stop()
+            event.prevent_default()
+            return
 
         # Ctrl+T in INSERT mode: trigger file path completion
         if event.key == "ctrl+t":

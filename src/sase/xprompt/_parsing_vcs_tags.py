@@ -68,6 +68,19 @@ def find_vcs_workflow_tag(prompt: str) -> str | None:
     return None
 
 
+def find_vcs_workflow_tag_span(prompt: str) -> tuple[int, int] | None:
+    """Return the span of the first VCS workflow tag in *prompt*.
+
+    The embedded VCS tag pattern requires trailing whitespace, so matching is
+    done against a sentinel-space suffix. The returned span excludes that
+    trailing whitespace, preserving spaces and newlines around the tag.
+    """
+    match = _get_embedded_vcs_tag_pattern().search(f"{prompt} ")
+    if match is None:
+        return None
+    return match.start(), match.end() - 1
+
+
 def _prompt_segment_has_vcs_workflow_ref(segment: str) -> bool:
     """Return whether *segment* contains any registered workspace workflow ref."""
     from sase.workspace_provider import get_ref_patterns
@@ -186,6 +199,28 @@ def _split_frontmatter_block(prompt: str) -> tuple[str, str]:
             return "".join(lines[: i + 1]), "".join(lines[i + 1 :])
 
     return "", prompt
+
+
+def find_vcs_workflow_tag_prepend_offset(prompt: str) -> int:
+    """Return where a leading VCS workflow tag should be inserted.
+
+    The insertion point follows the same placement rules as VCS workflow
+    normalization: after a leading YAML frontmatter block, leading whitespace,
+    and leading ``%directive`` tokens.
+    """
+    frontmatter, body = _split_frontmatter_block(prompt)
+    offset = len(frontmatter)
+
+    leading_ws_match = re.match(r"\s*", body)
+    assert leading_ws_match is not None
+    offset += leading_ws_match.end()
+    body_after_ws = body[leading_ws_match.end() :]
+
+    directive_match = _DIRECTIVE_PREFIX_RE.match(body_after_ws)
+    if directive_match is not None:
+        offset += directive_match.end()
+
+    return offset
 
 
 def normalize_default_vcs_workflow(prompt: str) -> str:
@@ -331,6 +366,8 @@ __all__ = [
     "extract_project_from_vcs_tag",
     "extract_vcs_workflow_tag",
     "find_vcs_workflow_tag",
+    "find_vcs_workflow_tag_prepend_offset",
+    "find_vcs_workflow_tag_span",
     "inherit_vcs_workflow_tag",
     "normalize_default_vcs_workflow",
     "normalize_default_vcs_workflow_segment",

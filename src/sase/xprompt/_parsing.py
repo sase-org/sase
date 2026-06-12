@@ -189,6 +189,14 @@ def find_vcs_workflow_tag(prompt: str) -> str | None:
     return None
 
 
+def find_vcs_workflow_tag_span(prompt: str) -> tuple[int, int] | None:
+    """Return the span of the first VCS workflow tag in *prompt*."""
+    match = _get_embedded_vcs_tag_pattern().search(f"{prompt} ")
+    if match:
+        return match.start(), match.end() - 1
+    return None
+
+
 def normalize_default_vcs_workflow_segment(
     segment: str,
     *,
@@ -202,6 +210,11 @@ def normalize_default_vcs_workflow_segment(
     )
     _sync_vcs_ref_caches_from_impl()
     return result
+
+
+def find_vcs_workflow_tag_prepend_offset(prompt: str) -> int:
+    """Return where a leading VCS workflow tag should be inserted."""
+    return _vcs_tags.find_vcs_workflow_tag_prepend_offset(prompt)
 
 
 def inherit_vcs_workflow_tag(prompt: str, inherited_vcs_tag: str | None) -> str:
@@ -269,6 +282,8 @@ __all__ = [
     "find_matching_paren_for_args",
     "find_shorthand_text_end",
     "find_vcs_workflow_tag",
+    "find_vcs_workflow_tag_prepend_offset",
+    "find_vcs_workflow_tag_span",
     "inherit_vcs_workflow_tag",
     "iter_known_project_vcs_refs",
     "iter_xprompt_references",
