@@ -1743,12 +1743,16 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 | ----- | ------------------------------------------------------- |
 | `d`   | Delete (takes a motion, e.g. `dw`); copies to clipboard |
 | `c`   | Change (takes a motion, e.g. `cw`); copies to clipboard |
+| `y`   | Yank (takes a motion, e.g. `yw`); copies to clipboard   |
 | `D`   | Delete to end of line                                   |
 | `C`   | Change to end of line                                   |
+| `Y`   | Yank entire line                                        |
 | `dd`  | Delete entire line                                      |
 | `cc`  | Change entire line                                      |
+| `yy`  | Yank entire line                                        |
 | `dae` | Delete entire buffer (copies to clipboard)              |
 | `cae` | Change entire buffer (copies to clipboard)              |
+| `yae` | Yank entire buffer (copies to clipboard)                |
 
 #### Other Commands
 
@@ -1762,7 +1766,8 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 | `O` | Open line above                                              |
 | `u` | Undo                                                         |
 | `x` | Delete character                                             |
-| `p` | Paste                                                        |
+| `p` | Paste after cursor / below line from the internal register   |
+| `P` | Paste before cursor / above line from the internal register  |
 | `~` | Toggle case of character(s) at cursor (supports count: `5~`) |
 | `.` | Repeat last mutation (supports count: `3.`)                  |
 | `J` | Join current line with next (supports count: `5J`)           |

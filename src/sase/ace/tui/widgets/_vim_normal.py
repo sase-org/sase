@@ -141,7 +141,7 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             self._replay_dot(count)
             return True
 
-        # Operator doubling (dd, cc) -----------------------------------------
+        # Operator doubling (dd, cc, yy) -------------------------------------
         if self._pending_operator and key == self._pending_operator:
             op = self._pending_operator
             op_count = self._pending_operator_count
@@ -154,8 +154,8 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             self._update_count_display()
             return True
 
-        # Start operator-pending mode (d, c) ---------------------------------
-        if key in ("d", "c") and not self._pending_operator:
+        # Start operator-pending mode (d, c, y) ------------------------------
+        if key in ("d", "c", "y") and not self._pending_operator:
             self._pending_operator = key
             self._pending_operator_count = count
             self._update_count_display()
@@ -462,12 +462,23 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             self.cursor_location = (row, 0)
             return True
 
-        # Shortcut operators (C = c$, D = d$)
+        # Shortcut operators (C = c$, D = d$, Y = yy)
+        if key == "Y":
+            cur_row = self.cursor_location[0]
+            last_row = min(cur_row + count - 1, self.document.line_count - 1)
+            self._execute_linewise_operator(cur_row, last_row, "y")
+            return True
+
         if key in ("C", "D"):
             row, col = self.cursor_location
             line = doc.get_line(row)
             op = "c" if key == "C" else "d"
             self._execute_charwise_operator((row, col), (row, len(line)), op)
+            return True
+
+        # Paste from the internal register (p/P)
+        if key in ("p", "P"):
+            self._paste_vim_register(before=key == "P", count=count)
             return True
 
         # Character shortcuts (x = dl, s = cl)

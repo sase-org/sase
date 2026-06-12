@@ -13,6 +13,7 @@ from sase.ace.tui.widgets._line_rendering import LineRenderingMixin
 from sase.ace.tui.widgets._prompt_soft_completion import PromptSoftCompletionMixin
 from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
+from sase.ace.tui.widgets._vim_registers import VimRegister
 from sase.ace.tui.widgets._vcs_mru_cycling import (
     VcsMruCycleKey,
     VcsMruCyclingMixin,
@@ -92,6 +93,7 @@ class PromptTextArea(
         self._last_mutation_keys: list[str] = []
         self._replaying_dot: bool = False
         self._last_char_search: tuple[str, str] | None = None
+        self._vim_register: VimRegister = VimRegister()
         self._snippet_tabstops: list[int] = []
         self._snippet_end_from_doc_end: int = 0
         self._file_completion_candidates: list[CompletionCandidate] = []

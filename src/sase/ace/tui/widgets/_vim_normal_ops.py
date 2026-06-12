@@ -11,6 +11,11 @@ from sase.ace.tui.widgets._vim_motions import (
     find_char_backward,
     find_char_forward,
 )
+from sase.ace.tui.widgets._vim_registers import (
+    VimRegister,
+    VimRegisterKind,
+    first_non_blank_col,
+)
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -37,6 +42,7 @@ class VimNormalOpsMixin(_MixinBase):
         _last_mutation_keys: list[str]
         _replaying_dot: bool
         _last_char_search: tuple[str, str] | None
+        _vim_register: VimRegister
 
         def _find_prompt_bar(self) -> Any: ...
 
@@ -127,23 +133,40 @@ class VimNormalOpsMixin(_MixinBase):
         parts.append(doc.get_line(end[0])[: end[1]])
         return "\n".join(parts)
 
+    def _store_vim_register(self, text: str, kind: VimRegisterKind) -> None:
+        """Store text in the internal unnamed Vim register."""
+        self._vim_register = VimRegister(text=text, kind=kind)
+
     def _execute_charwise_operator(
         self,
         start: tuple[int, int],
         end: tuple[int, int],
         op: str,
     ) -> None:
-        """Execute a charwise ``d``/``c`` operator over *start*..*end*."""
-        self._record_mutation()
+        """Execute a charwise ``d``/``c``/``y`` operator over *start*..*end*."""
         if start > end:
             start, end = end, start
         if start == end:
             if op == "c":
+                self._record_mutation()
                 self._enter_insert_mode()
+            elif op != "y":
+                self._record_mutation()
+            else:
+                self._mutation_key_buffer.clear()
             return
-        deleted = self._get_text_in_range(start, end)
-        if deleted:
-            copy_to_system_clipboard(deleted)
+        text = self._get_text_in_range(start, end)
+        if op == "y":
+            self._store_vim_register(text, "charwise")
+            if text:
+                copy_to_system_clipboard(text)
+            self.cursor_location = start
+            self._mutation_key_buffer.clear()
+            return
+        self._record_mutation()
+        self._store_vim_register(text, "charwise")
+        if text:
+            copy_to_system_clipboard(text)
         was_readonly = self.read_only
         self.read_only = False
         self.delete(start, end)
@@ -159,15 +182,23 @@ class VimNormalOpsMixin(_MixinBase):
         last_row: int,
         op: str,
     ) -> None:
-        """Execute a linewise ``d``/``c`` operator on rows *first_row* .. *last_row*."""
-        self._record_mutation()
+        """Execute a linewise operator on rows *first_row* .. *last_row*."""
         doc = self.document
         first_row = max(0, first_row)
         last_row = min(last_row, doc.line_count - 1)
 
         lines = [doc.get_line(row) for row in range(first_row, last_row + 1)]
+        text = "\n".join(lines)
+        self._store_vim_register(text, "linewise")
+        if op == "y":
+            if lines:
+                copy_to_system_clipboard(text)
+            self._mutation_key_buffer.clear()
+            return
+
+        self._record_mutation()
         if lines:
-            copy_to_system_clipboard("\n".join(lines))
+            copy_to_system_clipboard(text)
 
         was_readonly = self.read_only
         self.read_only = False
@@ -196,6 +227,103 @@ class VimNormalOpsMixin(_MixinBase):
                 self.delete((first_row, 0), (last_row + 1, 0))
                 self.cursor_location = (first_row, 0)
             self.read_only = was_readonly
+
+    def _last_char_location_after_insert(
+        self,
+        start: tuple[int, int],
+        text: str,
+    ) -> tuple[int, int]:
+        """Return the location of the last inserted character for charwise paste."""
+        row, col = start
+        if not text:
+            return start
+        lines = text.split("\n")
+        if len(lines) == 1:
+            return (row, col + len(text) - 1)
+        last_line = lines[-1]
+        last_row = row + len(lines) - 1
+        if last_line:
+            return (last_row, len(last_line) - 1)
+        return (last_row, 0)
+
+    def _paste_vim_register(self, *, before: bool, count: int) -> None:
+        """Paste the internal unnamed Vim register."""
+        register = self._vim_register
+        count = max(1, count)
+        if register.kind == "charwise":
+            self._paste_charwise_register(register.text, before=before, count=count)
+        else:
+            self._paste_linewise_register(register.text, before=before, count=count)
+
+    def _paste_charwise_register(
+        self,
+        text: str,
+        *,
+        before: bool,
+        count: int,
+    ) -> None:
+        """Paste charwise register text before or after the cursor."""
+        insert_text = text * count
+        if not insert_text:
+            self._mutation_key_buffer.clear()
+            return
+
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+        if before or col >= len(line):
+            insert_at = (row, col)
+        else:
+            insert_at = (row, col + 1)
+
+        self._record_mutation()
+        was_readonly = self.read_only
+        self.read_only = False
+        self._replace_via_keyboard(insert_text, insert_at, insert_at)
+        self.read_only = was_readonly
+        self.cursor_location = self._last_char_location_after_insert(
+            insert_at, insert_text
+        )
+
+    def _paste_linewise_register(
+        self,
+        text: str,
+        *,
+        before: bool,
+        count: int,
+    ) -> None:
+        """Paste linewise register text above or below the cursor."""
+        register_lines = text.split("\n") * count
+        insert_text = "\n".join(register_lines)
+        doc = self.document
+        row = self.cursor_location[0]
+
+        if doc.line_count == 1 and doc.get_line(0) == "":
+            insert_at = (0, 0)
+            start_row = 0
+            payload = insert_text
+        elif before:
+            insert_at = (row, 0)
+            start_row = row
+            payload = insert_text + "\n"
+        elif row >= doc.line_count - 1:
+            line = doc.get_line(row)
+            insert_at = (row, len(line))
+            start_row = row + 1
+            payload = "\n" + insert_text
+        else:
+            insert_at = (row + 1, 0)
+            start_row = row + 1
+            payload = insert_text + "\n"
+
+        self._record_mutation()
+        was_readonly = self.read_only
+        self.read_only = False
+        self._replace_via_keyboard(payload, insert_at, insert_at)
+        self.read_only = was_readonly
+        self.cursor_location = (
+            start_row,
+            first_non_blank_col(register_lines[0] if register_lines else ""),
+        )
 
     def _toggle_case(self, count: int) -> None:
         """Toggle case of *count* characters at cursor (vim ``~``).
