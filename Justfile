@@ -237,6 +237,18 @@ check: _setup
     @tools/run_silent "SASE validation"     just validate
     @tools/run_silent "test"               just test
 
+# Run the PyPI release smoke harness in a fresh Docker Compose environment.
+pypi_smoke_compose := "docker compose --project-directory smoke/pypi -f smoke/pypi/docker-compose.yml"
+
+pypi-smoke:
+    {{ pypi_smoke_compose }} run --build --rm smoke check
+
+pypi-smoke-shell:
+    {{ pypi_smoke_compose }} run --build --rm smoke shell
+
+pypi-smoke-clean:
+    {{ pypi_smoke_compose }} down -v --rmi all --remove-orphans
+
 # Build the MkDocs Material site with strict warnings-as-errors behavior.
 # This target installs only docs tooling, because the docs build does not
 # import the Python package and should not need the Rust core checkout.

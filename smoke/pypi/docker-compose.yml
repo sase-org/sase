@@ -1,0 +1,29 @@
+name: sase-pypi-smoke
+
+services:
+  smoke:
+    build:
+      context: .
+      args:
+        GROUP_ID: ${GROUP_ID:-1000}
+        USER_ID: ${USER_ID:-1000}
+    image: sase-pypi-smoke:python3.12
+    working_dir: /work
+    stdin_open: true
+    tty: true
+    volumes:
+      - home:/home/tester
+      - ./results:/results
+    environment:
+      COLORTERM: ${COLORTERM:-truecolor}
+      GH_TOKEN: ${GH_TOKEN:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      SASE_CORE_RS_SPEC: ${SASE_CORE_RS_SPEC:-}
+      SASE_GITHUB_SPEC: ${SASE_GITHUB_SPEC:-sase-github}
+      SASE_SPEC: ${SASE_SPEC:-sase}
+      SASE_TELEGRAM_SPEC: ${SASE_TELEGRAM_SPEC:-sase-telegram}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TERM: ${TERM:-xterm-256color}
+
+volumes:
+  home:

@@ -90,3 +90,7 @@ sdd/tales/202604/perf_artifacts/local_only/
 
 # local claude settings
 .claude/settings.local.json
+
+# PyPI release smoke-test reports
+smoke/pypi/results/*
+!smoke/pypi/results/.gitignore
