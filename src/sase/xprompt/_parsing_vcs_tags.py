@@ -74,11 +74,18 @@ def find_vcs_workflow_tag_span(prompt: str) -> tuple[int, int] | None:
     The embedded VCS tag pattern requires trailing whitespace, so matching is
     done against a sentinel-space suffix. The returned span excludes that
     trailing whitespace, preserving spaces and newlines around the tag.
+    Tags inside fenced code blocks are quoted content, not workflow refs,
+    and are skipped.
     """
-    match = _get_embedded_vcs_tag_pattern().search(f"{prompt} ")
-    if match is None:
-        return None
-    return match.start(), match.end() - 1
+    from sase.xprompt._fenced_blocks import fenced_block_ranges
+
+    fenced = fenced_block_ranges(prompt)
+    for match in _get_embedded_vcs_tag_pattern().finditer(f"{prompt} "):
+        start = match.start()
+        if any(fence_start <= start < fence_end for fence_start, fence_end in fenced):
+            continue
+        return start, match.end() - 1
+    return None
 
 
 def _prompt_segment_has_vcs_workflow_ref(segment: str) -> bool:

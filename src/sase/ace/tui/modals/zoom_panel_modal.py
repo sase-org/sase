@@ -323,7 +323,13 @@ class ZoomPanelModal(ModalScreen[None]):
             panel.set_file_list(files, start_index=start_index)
         else:
             panel.update_display(agent, stale_threshold_seconds=self._refresh_interval)
-        self.call_after_refresh(panel.reset_trim)
+        # Initial renders can happen before the modal is laid out (hidden
+        # container -> trim size 0), so retry the default trim until the
+        # panel has a measured viewport. Once a trim size is established,
+        # leave it alone: re-trimming every tick would revert the user's
+        # show-all (=) / reset (-) adjustments.
+        if panel._base_trim_size <= 0:
+            self.call_after_refresh(panel.reset_trim)
 
     def _refresh_tools(self, agent: Agent, *, force: bool) -> None:
         panel = self.query_one("#zoom-tools-panel", _ZoomToolsPanel)

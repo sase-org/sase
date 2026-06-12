@@ -38,14 +38,17 @@ class _FilterActionApp(AgentFilterActionsMixin):
         self.pushed_callback = callback
 
 
-def test_filter_toggle_refilters_without_async_agents_refresh() -> None:
+def test_filter_toggle_refilters_and_schedules_async_refresh() -> None:
     app = _FilterActionApp()
 
     app._toggle_hide_non_run_agents()
 
     assert app.hide_non_run_agents is True
     assert app.refilter_calls == 1
-    assert app.async_refresh_calls == []
+    # The hide filter is only applied by the disk-load pipeline — the cached
+    # agent list was built with the previous flag value — so the toggle must
+    # also schedule a reload to take effect.
+    assert app.async_refresh_calls == ["filter"]
 
 
 def test_agent_search_query_refilters_without_async_agents_refresh() -> None:

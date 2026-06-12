@@ -147,7 +147,10 @@ class BulkLaunchMixin:
             )
         except Exception:
             log.exception("Bulk launch failed")
+            # A mid-loop failure may have already spawned earlier CLs;
+            # without results, only a refresh makes them visible.
             return LaunchTaskOutcome(
                 "Bulk launch failed (see log)",
                 severity="error",
+                request_agents_refresh=True,
             )

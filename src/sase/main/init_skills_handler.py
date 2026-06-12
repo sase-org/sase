@@ -36,6 +36,10 @@ _PRETTIER_FORMAT_ARGS = [
     "--print-width=120",
     "--parser=markdown",
 ]
+# Bound the prettier subprocess: skill planning runs inside `sase doctor`
+# (config.init), which promises bounded checks — a hung prettier shim must
+# degrade to unformatted output instead of hanging the report.
+_PRETTIER_TIMEOUT_SECONDS = 10.0
 
 
 @dataclass(frozen=True)
@@ -269,6 +273,7 @@ def _format_unique_skill_outputs_batch(outputs: Sequence[str]) -> list[str]:
             capture_output=True,
             text=True,
             check=True,
+            timeout=_PRETTIER_TIMEOUT_SECONDS,
         )
         return [
             _unescape_prettier_underscores(path.read_text(encoding="utf-8"))
@@ -292,7 +297,7 @@ def _format_skill_outputs(outputs: Sequence[str], *, use_prettier: bool) -> list
 
     try:
         formatted_unique_outputs = _format_unique_skill_outputs_batch(unique_outputs)
-    except (OSError, subprocess.CalledProcessError):
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         formatted_unique_outputs = [
             _format_skill_output(output, use_prettier=True) for output in unique_outputs
         ]

@@ -12,6 +12,9 @@ fi
 : "${SASE_GITHUB_SPEC:=sase-github}"
 : "${SASE_TELEGRAM_SPEC:=sase-telegram}"
 : "${SASE_CORE_RS_SPEC:=}"
+# The defaults above only set shell variables; the exec'd check script reads
+# these from its environment (and runs under `set -u`), so export them.
+export SASE_SPEC SASE_GITHUB_SPEC SASE_TELEGRAM_SPEC SASE_CORE_RS_SPEC
 
 wipe_sase_state() {
     rm -rf "$HOME/.sase" "$HOME/.config/sase"

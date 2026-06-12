@@ -103,7 +103,11 @@ def extract_directives_and_write_meta(
 
     repeat_name = os.environ.get("SASE_REPEAT_NAME")
     planned_name = os.environ.get("SASE_AGENT_PLANNED_NAME")
-    generated_name = os.environ.get("SASE_AGENT_GENERATED_NAME") == "1"
+    # Pop: the marker describes this launch only. Leaving it in the
+    # environment makes nested launches from this agent treat their own
+    # explicit %name directives as generated, silently skipping name
+    # collision checks.
+    generated_name = os.environ.pop("SASE_AGENT_GENERATED_NAME", None) == "1"
     name_user_explicit = directives.name_explicit and not generated_name
     name_requires_lock = bool(
         agent_name or repeat_name or resume_name or wait_name or not auto_dismiss

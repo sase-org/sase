@@ -48,7 +48,8 @@ def _check_project_beads(context: DoctorContext) -> DiagnosticCheck:
         )
 
     messages = rust_beads.doctor(beads_dir)
-    if not bead_state_is_clean(beads_dir):
+    sync_clean = _bead_sync_clean(beads_dir)
+    if sync_clean is False:
         ok_message = "OK: no issues found"
         if messages == [ok_message]:
             messages = []
@@ -73,9 +74,21 @@ def _check_project_beads(context: DoctorContext) -> DiagnosticCheck:
             "beads_dir": str(beads_dir),
             "messages": messages,
             "stats": stats,
-            "sync_clean": bead_state_is_clean(beads_dir),
+            "sync_clean": sync_clean,
         },
     )
+
+
+def _bead_sync_clean(beads_dir: Path) -> bool | None:
+    """Return bead sync cleanliness, or ``None`` when git is unusable.
+
+    ``bead_state_is_clean`` shells out to git; a missing or non-executable
+    git must degrade this check, not crash the whole doctor report.
+    """
+    try:
+        return bead_state_is_clean(beads_dir)
+    except OSError:
+        return None
 
 
 def _find_existing_beads_dir(context: DoctorContext) -> Path | None:

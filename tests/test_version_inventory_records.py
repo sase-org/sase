@@ -163,6 +163,14 @@ def test_derive_display_version_for_git_states() -> None:
         distance=None,
         dirty=False,
     )
+    unknown_distance = inv.GitVersionMetadata(
+        root="/repo",
+        commit="abcdef123456",
+        short_commit="abcdef123",
+        tag="v0.2.3",
+        distance=None,
+        dirty=False,
+    )
 
     assert inv.derive_display_version("0.2.3", exact) == "0.2.3"
     assert inv.derive_display_version("0.2.3", ahead) == "0.2.3+2.gabcdef123"
@@ -170,6 +178,11 @@ def test_derive_display_version_for_git_states() -> None:
         inv.derive_display_version("0.2.3", dirty_exact) == "0.2.3+0.gabcdef123.dirty"
     )
     assert inv.derive_display_version("9.9.9", untagged) == "9.9.9+untagged.gabcdef123"
+    # A failed distance probe must not be mistaken for an exact release.
+    assert (
+        inv.derive_display_version("0.2.3", unknown_distance)
+        == "0.2.3+unknown.gabcdef123"
+    )
 
 
 def test_collect_package_record_falls_back_when_git_is_missing(

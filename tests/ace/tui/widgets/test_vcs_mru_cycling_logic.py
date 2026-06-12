@@ -109,6 +109,14 @@ def test_prepends_when_prompt_has_no_tag() -> None:
     assert edit.mru_index == 0
 
 
+def test_tag_inside_fenced_block_is_not_replaced() -> None:
+    """Quoted tags in code blocks must be preserved; cycling prepends instead."""
+    text = "Fix the launcher:\n```\nsase run #git:quoted do thing\n```\n"
+    edit = _cycle(text)
+    assert edit.text.startswith("#git:foo ")
+    assert "#git:quoted" in edit.text
+
+
 def test_second_prepend_press_continues_from_previous_index() -> None:
     first = _cycle("fix the bug", mru=["#git:foo", "#git:bar"])
     second = _cycle(
