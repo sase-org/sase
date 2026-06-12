@@ -185,3 +185,45 @@ async def test_linewise_visual_toggle_case_preserves_line_boundaries() -> None:
         assert page.cursor == (1, 0)
         assert page.ta._vim_register.text == "bbb\nccc"
         assert page.ta._vim_register.kind == "linewise"
+
+
+async def test_charwise_visual_indent_applies_to_selected_lines() -> None:
+    """Visual > indents every line touched by the selection."""
+    async with PromptPage("aaa\nbbb\nccc") as page:
+        await page.press("v", "j", ">")
+
+        assert page.text == "  aaa\n  bbb\nccc"
+        assert page.mode == "normal"
+        assert page.cursor == (0, 2)
+
+
+async def test_linewise_visual_dedent() -> None:
+    """V-line < dedents whole selected lines."""
+    async with PromptPage("  aaa\n    bbb\nccc") as page:
+        await page.press("V", "j", "<")
+
+        assert page.text == "aaa\n  bbb\nccc"
+        assert page.mode == "normal"
+        assert page.cursor == (0, 0)
+
+
+async def test_visual_lowercase_selection() -> None:
+    """Visual u lowercases selected characters."""
+    async with PromptPage("ABcd") as page:
+        await page.press("v", "l", "u")
+
+        assert page.text == "abcd"
+        assert page.mode == "normal"
+        assert page.ta._vim_register.text == "AB"
+        assert page.ta._vim_register.kind == "charwise"
+
+
+async def test_visual_uppercase_selection() -> None:
+    """Visual U uppercases selected characters."""
+    async with PromptPage("abCD") as page:
+        await page.press("v", "l", "U")
+
+        assert page.text == "ABCD"
+        assert page.mode == "normal"
+        assert page.ta._vim_register.text == "ab"
+        assert page.ta._vim_register.kind == "charwise"

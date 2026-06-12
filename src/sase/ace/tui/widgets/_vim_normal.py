@@ -64,14 +64,20 @@ class VimNormalModeMixin(VimVisualModeMixin):
 
         doc = self.document
 
-        # Handle pending key sequences (gg, ge/gE, f/F/t/T, r{char}) ----------
+        # Handle pending key sequences (gg, ge/gE, gu/gU/g~, f/F/t/T, r{char})
         if self._pending_keys:
             pending = self._pending_keys
             self._pending_keys = ""
             pending_count = self._pending_count
             self._pending_count = None
             self._clear_count_prefix()
-            if pending == "g" and key == "g":
+            if pending == "g" and key in "uU~":
+                self._pending_operator = f"g{key}"
+                self._pending_operator_count = (
+                    pending_count if pending_count is not None else 1
+                )
+                self._update_count_display()
+            elif pending == "g" and key == "g":
                 if pending_count is not None:
                     target = max(
                         0, min(pending_count - 1, self.document.line_count - 1)
@@ -217,8 +223,10 @@ class VimNormalModeMixin(VimVisualModeMixin):
             self._replay_dot(count)
             return True
 
-        # Operator doubling (dd, cc, yy) -------------------------------------
-        if self._pending_operator and key == self._pending_operator:
+        # Operator line forms (dd, cc, yy, >>, <<, guu, gUU, g~~) -------------
+        if self._pending_operator and self._is_line_repeat_key(
+            self._pending_operator, key
+        ):
             op = self._pending_operator
             op_count = self._pending_operator_count
             self._pending_operator = ""
@@ -230,8 +238,8 @@ class VimNormalModeMixin(VimVisualModeMixin):
             self._update_count_display()
             return True
 
-        # Start operator-pending mode (d, c, y) ------------------------------
-        if key in ("d", "c", "y") and not self._pending_operator:
+        # Start operator-pending mode (d, c, y, >, <) ------------------------
+        if key in ("d", "c", "y", ">", "<") and not self._pending_operator:
             self._pending_operator = key
             self._pending_operator_count = count
             self._update_count_display()

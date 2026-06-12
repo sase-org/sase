@@ -1747,6 +1747,11 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 | `d`   | Delete (takes a motion, e.g. `dw`); copies to clipboard                                      |
 | `c`   | Change (takes a motion, e.g. `cw`); `cw`/`cW` stop at the word/WORD end; copies to clipboard |
 | `y`   | Yank (takes a motion, e.g. `yw`); copies to clipboard                                        |
+| `>`   | Indent lines covered by a motion by two spaces                                               |
+| `<`   | Dedent lines covered by a motion by up to two spaces                                         |
+| `gu`  | Lowercase text covered by a motion or text object                                            |
+| `gU`  | Uppercase text covered by a motion or text object                                            |
+| `g~`  | Toggle case for text covered by a motion or text object                                      |
 | `D`   | Delete to end of line                                                                        |
 | `C`   | Change to end of line                                                                        |
 | `S`   | Change entire line                                                                           |
@@ -1754,6 +1759,11 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 | `dd`  | Delete entire line                                                                           |
 | `cc`  | Change entire line                                                                           |
 | `yy`  | Yank entire line                                                                             |
+| `>>`  | Indent current line; count indents multiple lines                                            |
+| `<<`  | Dedent current line; count dedents multiple lines                                            |
+| `guu` | Lowercase current line; count lowercases multiple lines                                      |
+| `gUU` | Uppercase current line; count uppercases multiple lines                                      |
+| `g~~` | Toggle case on current line; count toggles multiple lines                                    |
 | `dae` | Delete entire buffer (copies to clipboard)                                                   |
 | `cae` | Change entire buffer (copies to clipboard)                                                   |
 | `yae` | Yank entire buffer (copies to clipboard)                                                     |
@@ -1816,6 +1826,8 @@ exits charwise VISUAL mode; `V` exits V-LINE mode; pressing the other visual key
 | `c` / `s` | Change selection and enter INSERT mode                       |
 | `y`       | Yank selection to the internal register and system clipboard |
 | `p`       | Replace selection with the internal register                 |
+| `>` / `<` | Indent / dedent selected lines by two spaces                 |
+| `u` / `U` | Lowercase / uppercase the selection                          |
 | `~`       | Toggle case in the selection                                 |
 
 V-LINE operators always apply to whole selected lines regardless of the cursor column.

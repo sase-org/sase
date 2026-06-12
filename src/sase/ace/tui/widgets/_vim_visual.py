@@ -33,6 +33,7 @@ from sase.ace.tui.widgets._vim_text_objects import (
     find_quote_or_bracket_text_object,
     is_quote_or_bracket_text_object_key,
 )
+from sase.ace.tui.widgets._vim_transforms import apply_case_operator
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -67,6 +68,15 @@ class VimVisualModeMixin(VimNormalOpsMixin):
 
         def _replace_via_keyboard(
             self, insert: str, start: tuple[int, int], end: tuple[int, int]
+        ) -> None: ...
+
+        def _execute_linewise_transform_operator(
+            self,
+            first_row: int,
+            last_row: int,
+            op: str,
+            *,
+            units: int = 1,
         ) -> None: ...
 
     def _enter_visual_mode(self, kind: VisualKind) -> None:
@@ -338,8 +348,8 @@ class VimVisualModeMixin(VimNormalOpsMixin):
         self.selection = Selection.cursor(cursor)
         self._enter_normal_mode()
 
-    def _toggle_visual_case(self) -> None:
-        """Toggle case over the active visual selection."""
+    def _apply_visual_case_operator(self, op: str) -> None:
+        """Apply a case operator over the active visual selection."""
         selected_text, selected_kind = self._visual_selected_text()
         if not selected_text:
             self._clear_visual_state()
@@ -352,14 +362,30 @@ class VimVisualModeMixin(VimNormalOpsMixin):
         self.read_only = False
         if kind == "linewise":
             start, end = self._linewise_visual_range()
-            replacement = self._linewise_replacement_payload(selected_text.swapcase())
+            replacement = self._linewise_replacement_payload(
+                apply_case_operator(selected_text, op)
+            )
         else:
             start, end = self._charwise_visual_range()
-            replacement = selected_text.swapcase()
+            replacement = apply_case_operator(selected_text, op)
         self._record_mutation()
         self._replace_via_keyboard(replacement, start, end)
         self.read_only = was_readonly
         self.selection = Selection.cursor(start)
+        self._enter_normal_mode()
+
+    def _apply_visual_indent_operator(self, op: str, count: int) -> None:
+        """Apply an indent/dedent operator to the selected lines."""
+        count = max(1, count)
+        kind = self._visual_kind()
+        if kind == "linewise":
+            first, last = self._linewise_visual_rows()
+        else:
+            start, end = self._charwise_visual_range()
+            first, last = start[0], end[0]
+        self._collapse_visual_before_operator()
+        self._execute_linewise_transform_operator(first, last, op, units=count)
+        self.selection = Selection.cursor(self.cursor_location)
         self._enter_normal_mode()
 
     def _visual_count(self) -> tuple[bool, int]:
@@ -645,8 +671,17 @@ class VimVisualModeMixin(VimNormalOpsMixin):
         if key == "p":
             self._replace_visual_selection_with_register(count)
             return True
+        if key in (">", "<"):
+            self._apply_visual_indent_operator(key, count)
+            return True
+        if key == "u":
+            self._apply_visual_case_operator("gu")
+            return True
+        if key == "U":
+            self._apply_visual_case_operator("gU")
+            return True
         if key == "~":
-            self._toggle_visual_case()
+            self._apply_visual_case_operator("g~")
             return True
 
         return True

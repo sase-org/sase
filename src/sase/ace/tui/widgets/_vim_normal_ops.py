@@ -16,6 +16,10 @@ from sase.ace.tui.widgets._vim_registers import (
     VimRegisterKind,
     first_non_blank_col,
 )
+from sase.ace.tui.widgets._vim_transforms import (
+    apply_case_operator,
+    apply_indent_operator,
+)
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -55,6 +59,20 @@ class VimNormalOpsMixin(_MixinBase):
         def _handle_normal_mode_key(self, event: Key) -> bool: ...
 
     # -- Mixin implementation --
+
+    def _is_case_operator(self, op: str) -> bool:
+        """Return whether *op* is a vim case operator."""
+        return op in {"gu", "gU", "g~"}
+
+    def _is_indent_operator(self, op: str) -> bool:
+        """Return whether *op* is a vim indent/dedent operator."""
+        return op in {">", "<"}
+
+    def _is_line_repeat_key(self, op: str, key: str) -> bool:
+        """Return whether *key* completes an operator's linewise form."""
+        if op in {"d", "c", "y", ">", "<"}:
+            return key == op
+        return (op, key) in {("gu", "u"), ("gU", "U"), ("g~", "~")}
 
     def _update_count_display(self) -> None:
         """Update border subtitle to show the pending count/operator."""
@@ -147,9 +165,15 @@ class VimNormalOpsMixin(_MixinBase):
         end: tuple[int, int],
         op: str,
     ) -> None:
-        """Execute a charwise ``d``/``c``/``y`` operator over *start*..*end*."""
+        """Execute a charwise vim operator over *start*..*end*."""
         if start > end:
             start, end = end, start
+        if self._is_indent_operator(op):
+            self._execute_linewise_transform_operator(start[0], end[0], op)
+            return
+        if self._is_case_operator(op):
+            self._execute_charwise_case_operator(start, end, op)
+            return
         if start == end:
             if op == "c":
                 self._record_mutation()
@@ -177,6 +201,27 @@ class VimNormalOpsMixin(_MixinBase):
         if op == "c":
             self._enter_insert_mode()
         else:
+            self.read_only = was_readonly
+        self.cursor_location = start
+
+    def _execute_charwise_case_operator(
+        self,
+        start: tuple[int, int],
+        end: tuple[int, int],
+        op: str,
+    ) -> None:
+        """Execute a charwise case operator over *start*..*end*."""
+        if start >= end:
+            self._mutation_key_buffer.clear()
+            return
+
+        text = self._get_text_in_range(start, end)
+        replacement = apply_case_operator(text, op)
+        self._record_mutation()
+        if replacement != text:
+            was_readonly = self.read_only
+            self.read_only = False
+            self._replace_via_keyboard(replacement, start, end)
             self.read_only = was_readonly
         self.cursor_location = start
 
@@ -211,6 +256,10 @@ class VimNormalOpsMixin(_MixinBase):
         op: str,
     ) -> None:
         """Execute a linewise operator on rows *first_row* .. *last_row*."""
+        if self._is_indent_operator(op) or self._is_case_operator(op):
+            self._execute_linewise_transform_operator(first_row, last_row, op)
+            return
+
         doc = self.document
         first_row = max(0, first_row)
         last_row = min(last_row, doc.line_count - 1)
@@ -255,6 +304,43 @@ class VimNormalOpsMixin(_MixinBase):
                 self.delete((first_row, 0), (last_row + 1, 0))
                 self.cursor_location = (first_row, 0)
             self.read_only = was_readonly
+
+    def _execute_linewise_transform_operator(
+        self,
+        first_row: int,
+        last_row: int,
+        op: str,
+        *,
+        units: int = 1,
+    ) -> None:
+        """Execute a line-preserving transform on rows *first_row*..*last_row*."""
+        doc = self.document
+        first_row = max(0, min(first_row, doc.line_count - 1))
+        last_row = max(0, min(last_row, doc.line_count - 1))
+        if first_row > last_row:
+            first_row, last_row = last_row, first_row
+
+        lines = [doc.get_line(row) for row in range(first_row, last_row + 1)]
+        if self._is_indent_operator(op):
+            transformed = apply_indent_operator(lines, op, units=units)
+        else:
+            transformed = [apply_case_operator(line, op) for line in lines]
+
+        original = "\n".join(lines)
+        replacement = "\n".join(transformed)
+        self._record_mutation()
+        if replacement != original:
+            was_readonly = self.read_only
+            self.read_only = False
+            self._replace_via_keyboard(
+                replacement,
+                (first_row, 0),
+                (last_row, len(doc.get_line(last_row))),
+            )
+            self.read_only = was_readonly
+
+        first_line = transformed[0] if transformed else ""
+        self.cursor_location = (first_row, first_non_blank_col(first_line))
 
     def _last_char_location_after_insert(
         self,
