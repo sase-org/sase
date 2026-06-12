@@ -79,6 +79,15 @@ def _run_step_python(
     return captured
 
 
+def _assert_split_segment(segment: str, *, name: str, path: str) -> None:
+    assert f"%name:{name}" in segment
+    assert "\n#m_codex\n" in segment
+    assert "#gh:sase" in segment
+    assert "%group:chop" in segment
+    assert "%approve" in segment
+    assert f"#split_file:{path}" in segment
+
+
 def test_step_no_files_does_not_launch(
     pylimit_workflow_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -113,13 +122,16 @@ def test_step_two_files_launches_chained_multi_prompt(
     assert "%wait" not in parsed.segments[0]
     assert parsed.segments[1].startswith("%wait")
 
-    assert "%name:split_file.foo" in parsed.segments[0]
-    assert "%name:split_file.bar" in parsed.segments[1]
-    assert "#split_file:src/foo.py" in parsed.segments[0]
-    assert "#split_file:src/bar.py" in parsed.segments[1]
-    for seg in parsed.segments:
-        assert "#gh:sase" in seg
-        assert "%approve" in seg
+    _assert_split_segment(
+        parsed.segments[0],
+        name="split_file.foo",
+        path="src/foo.py",
+    )
+    _assert_split_segment(
+        parsed.segments[1],
+        name="split_file.bar",
+        path="src/bar.py",
+    )
 
 
 def test_step_dedups_files_across_trees(
@@ -141,10 +153,16 @@ def test_step_dedups_files_across_trees(
     assert len(captured) == 1
     parsed = parse_multi_prompt(captured[0])
     assert len(parsed.segments) == 2
-    assert "%name:split_file.dup" in parsed.segments[0]
-    assert "%name:split_file.only" in parsed.segments[1]
-    assert "#split_file:src/dup.py" in parsed.segments[0]
-    assert "#split_file:tests/only.py" in parsed.segments[1]
+    _assert_split_segment(
+        parsed.segments[0],
+        name="split_file.dup",
+        path="src/dup.py",
+    )
+    _assert_split_segment(
+        parsed.segments[1],
+        name="split_file.only",
+        path="tests/only.py",
+    )
 
 
 def test_step_names_same_stem_with_collision_suffix(
@@ -166,7 +184,13 @@ def test_step_names_same_stem_with_collision_suffix(
     assert len(captured) == 1
     parsed = parse_multi_prompt(captured[0])
     assert len(parsed.segments) == 2
-    assert "%name:split_file.foo" in parsed.segments[0]
-    assert "%name:split_file.foo_2" in parsed.segments[1]
-    assert "#split_file:src/foo.py" in parsed.segments[0]
-    assert "#split_file:tests/foo.py" in parsed.segments[1]
+    _assert_split_segment(
+        parsed.segments[0],
+        name="split_file.foo",
+        path="src/foo.py",
+    )
+    _assert_split_segment(
+        parsed.segments[1],
+        name="split_file.foo_2",
+        path="tests/foo.py",
+    )
