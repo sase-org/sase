@@ -16,10 +16,13 @@ def derive_display_version(
 
     tag_version = version_from_tag(git.tag)
     if tag_version:
-        distance = git.distance or 0
+        # A failed distance probe (None) is unknown, not 0 — claiming the
+        # bare tag version would misattribute the runtime to the release.
+        distance = git.distance
         if distance == 0 and not git.dirty:
             return tag_version
-        suffix = f"{distance}.g{git.short_commit}"
+        rendered_distance = "unknown" if distance is None else str(distance)
+        suffix = f"{rendered_distance}.g{git.short_commit}"
         if git.dirty:
             suffix = f"{suffix}.dirty"
         return f"{tag_version}+{suffix}"

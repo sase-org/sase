@@ -228,3 +228,38 @@ async def test_zoom_modal_z_closes() -> None:
         await pilot.pause()
 
         assert not isinstance(pilot.app.screen, ZoomPanelModal)
+
+
+async def test_zoom_file_show_all_survives_periodic_refresh(tmp_path: Any) -> None:
+    content = "\n".join(f"line {i}" for i in range(200)) + "\n"
+    file_path = tmp_path / "notes.md"
+    file_path.write_text(content, encoding="utf-8")
+
+    agent = _make_agent(status="DONE", extra_files=[str(file_path)])
+    modal = ZoomPanelModal(
+        agent_provider=lambda: agent,
+        initial_agent=agent,
+        initial_target=ZoomPanelTarget.FILE,
+        seed=ZoomPanelSeed(has_file_content=True),
+        refresh_interval=10,
+    )
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        assert panel.is_trimmed  # default page trim applied after layout
+
+        await pilot.press("equals_sign")  # show all lines
+        await pilot.pause()
+        assert not panel.is_trimmed
+
+        # A periodic refresh tick must not revert the user's show-all.
+        modal._refresh_active_panel(force=False)
+        await pilot.pause()
+        await pilot.pause()
+        assert not panel.is_trimmed

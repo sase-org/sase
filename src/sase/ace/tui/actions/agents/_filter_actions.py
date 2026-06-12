@@ -13,6 +13,11 @@ class AgentFilterActionsMixin:
         """Toggle visibility of non-run agents and refresh the display."""
         self.hide_non_run_agents = not self.hide_non_run_agents
         self._refilter_agents()  # type: ignore[attr-defined]
+        # The hide filter is applied by the disk-load pipeline, not by the
+        # in-memory refilter: the cached ``_agents_with_children`` list was
+        # built with the previous flag value, so a reload is required for
+        # the toggle to take effect.
+        self._schedule_agents_async_refresh(source="filter")  # type: ignore[attr-defined]
 
     def _edit_agent_search_query(self) -> None:
         """Open modal to edit the agent search/filter query."""

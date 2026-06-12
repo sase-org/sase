@@ -479,6 +479,9 @@ def format_with_prettier(text: str) -> str:
             capture_output=True,
             text=True,
             check=True,
+            # A hung prettier (e.g. a package-manager shim waiting on the
+            # network) must not hang callers like `sase doctor`.
+            timeout=10.0,
         )
         # Unescape underscores that prettier escaped for markdown safety.
         # This preserves literal underscores in filenames and identifiers.
@@ -488,7 +491,7 @@ def format_with_prettier(text: str) -> str:
         while r"\_" in text:
             text = text.replace(r"\_", "_")
         return text
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return text
 
 

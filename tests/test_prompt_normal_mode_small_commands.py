@@ -132,3 +132,35 @@ async def test_dgE_deletes_back_to_previous_WORD_end() -> None:
         await page.press("d", "g", "E")
         assert page.text == "foo.baaz"
         assert page.cursor == (0, 6)
+
+
+async def test_dge_at_buffer_start_aborts_without_deleting() -> None:
+    async with PromptPage("one two", cursor=(0, 0)) as page:
+        await page.press("d", "g", "e")
+        assert page.text == "one two"
+        assert page.cursor == (0, 0)
+
+
+async def test_dgE_at_buffer_start_aborts_without_deleting() -> None:
+    async with PromptPage("foo.bar baz", cursor=(0, 0)) as page:
+        await page.press("d", "g", "E")
+        assert page.text == "foo.bar baz"
+        assert page.cursor == (0, 0)
+
+
+async def test_ge_with_huge_count_terminates_at_buffer_start() -> None:
+    # Regression: the motion loop must stop once pinned at the buffer-start
+    # clamp instead of iterating the full count.
+    async with PromptPage("one two three", cursor=(0, 12)) as page:
+        await page.press("9", "9", "9", "9", "9", "9", "9", "9", "g", "e")
+        assert page.cursor == (0, 0)
+
+
+async def test_noop_X_preserves_dot_repeat() -> None:
+    async with PromptPage("one two three") as page:
+        await page.press("d", "w")
+        assert page.text == "two three"
+        await page.press("X")  # column 0: nothing to delete
+        assert page.text == "two three"
+        await page.press(".")
+        assert page.text == "three"

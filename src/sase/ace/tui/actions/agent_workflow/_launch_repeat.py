@@ -181,10 +181,15 @@ class RepeatLaunchMixin:
             )
         except NameCollisionError as e:
             err_msg = str(e)
-            return LaunchTaskOutcome(err_msg, severity="error")
+            # A mid-plan failure may have already spawned some slots;
+            # without results, only a refresh makes them visible.
+            return LaunchTaskOutcome(
+                err_msg, severity="error", request_agents_refresh=True
+            )
         except Exception:
             log.exception("Repeat launch failed")
             return LaunchTaskOutcome(
                 "Repeat launch failed (see log)",
                 severity="error",
+                request_agents_refresh=True,
             )

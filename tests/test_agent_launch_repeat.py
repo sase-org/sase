@@ -27,6 +27,7 @@ class _FakeApp(AgentLaunchMixin):
     def __init__(self) -> None:
         self.notifications: list[tuple[str, str | None]] = []
         self.launched: list[dict[str, object]] = []
+        self.outcomes: list[LaunchTaskOutcome] = []
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
@@ -52,8 +53,10 @@ class _FakeApp(AgentLaunchMixin):
         if not callable(task_callable):
             return False
         outcome = task_callable()
-        if isinstance(outcome, LaunchTaskOutcome) and outcome.notify:
-            self.notify(outcome.message, severity=outcome.severity)
+        if isinstance(outcome, LaunchTaskOutcome):
+            self.outcomes.append(outcome)
+            if outcome.notify:
+                self.notify(outcome.message, severity=outcome.severity)
         return True
 
     def request_agents_refresh(
@@ -234,3 +237,31 @@ class TestLaunchRepeatAgents:
         assert error_notifications
         assert any("zz" in msg for msg in error_notifications)
         assert app.launched == []
+
+    def test_error_outcome_requests_agents_refresh(self, tmp_path: Path) -> None:
+        """A mid-plan failure may have spawned slots already; the error
+        outcome must request a refresh so they become visible."""
+        import json
+        import os
+
+        artifact_dir = (
+            tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "ts"
+        )
+        artifact_dir.mkdir(parents=True)
+        (artifact_dir / "agent_meta.json").write_text(
+            json.dumps({"name": "zz.2", "pid": os.getpid()})
+        )
+
+        app = _FakeApp()
+        with patch.object(Path, "home", return_value=tmp_path):
+            app._launch_repeat_agents(
+                prompt="%r:3 %n:zz body",
+                ctx=_fake_context(),
+                vcs_ref=None,
+                has_wait=False,
+            )
+
+        assert app.outcomes
+        outcome = app.outcomes[-1]
+        assert outcome.severity == "error"
+        assert outcome.request_agents_refresh is True

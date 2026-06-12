@@ -552,3 +552,44 @@ def test_concurrent_explicit_extract_rejects_collision(tmp_path: Path) -> None:
     assert statuses.count("ok") == 1
     assert statuses.count("error") == 1
     assert any("dupe1" in detail for status, detail in results if status == "error")
+
+
+def test_generated_name_marker_env_is_consumed(tmp_path: Path) -> None:
+    """The generated-name marker applies to this launch only.
+
+    If it lingers in the environment, nested launches spawned by this agent
+    inherit it and treat their own explicit %name directives as generated,
+    silently skipping name collision checks.
+    """
+    from sase.axe.run_agent_phases import extract_directives_and_write_meta
+
+    workspace = str(tmp_path / "workspace")
+    artifacts = str(tmp_path / "artifacts")
+    os.makedirs(workspace, exist_ok=True)
+    os.makedirs(artifacts, exist_ok=True)
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch("sase.agent.names.claim_agent_name"),
+        patch.dict(os.environ, {"SASE_AGENT_GENERATED_NAME": "1"}, clear=False),
+        patch("sase.xprompt.process_xprompt_references", side_effect=lambda p, **kw: p),
+        patch(
+            "sase.llm_provider.registry.get_default_provider_name",
+            return_value="test",
+        ),
+        patch("sase.llm_provider.registry.get_provider", return_value=_mock_provider()),
+        patch(
+            "sase.llm_provider.registry.resolve_model_provider",
+            return_value=("test", "test-model"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+    ):
+        extract_directives_and_write_meta(
+            "%name:genx\nDo work",
+            workspace,
+            artifacts,
+            cl_name="test_cl",
+            raw_resolved_prompt="%name:genx\nDo work",
+        )
+
+        assert "SASE_AGENT_GENERATED_NAME" not in os.environ

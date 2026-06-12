@@ -197,6 +197,24 @@ def test_find_vcs_workflow_tag_span_excludes_trailing_newline() -> None:
         assert find_vcs_workflow_tag_span(prompt) == (0, len("#gh:sase"))
 
 
+def test_find_vcs_workflow_tag_span_skips_fenced_blocks() -> None:
+    """Tags inside fenced code blocks are quoted content, not workflow refs."""
+    prompt = "Fix it:\n```\nsase run #gh:sase do thing\n```\nthen #git:foo go"
+    with _patch_embedded_vcs_pattern():
+        start = prompt.index("#git:foo")
+        assert find_vcs_workflow_tag_span(prompt) == (
+            start,
+            start + len("#git:foo"),
+        )
+
+
+def test_find_vcs_workflow_tag_span_returns_none_when_only_fenced() -> None:
+    """A prompt whose only tag-like text is fenced has no workflow tag."""
+    prompt = "Fix it:\n```\nsase run #gh:sase do thing\n```\n"
+    with _patch_embedded_vcs_pattern():
+        assert find_vcs_workflow_tag_span(prompt) is None
+
+
 def test_prepend_offset_preserves_frontmatter_directives() -> None:
     prompt = "---\nxprompts: {}\n---\n  %n:a %wait Fix it"
     assert find_vcs_workflow_tag_prepend_offset(prompt) == len(

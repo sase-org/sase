@@ -217,6 +217,30 @@ def test_batch_formatter_failure_falls_back_per_unique_output(
     assert single_calls == ["same\n", "other\n"]
 
 
+def test_batch_formatter_timeout_falls_back_per_unique_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hung prettier must degrade like a failed one, not hang the caller."""
+    from sase.gemini_wrapper import file_references
+
+    def hang_batch(outputs: list[str]) -> list[str]:
+        raise subprocess.TimeoutExpired(["prettier"], 10.0)
+
+    monkeypatch.setattr(
+        init_skills_handler,
+        "_format_unique_skill_outputs_batch",
+        hang_batch,
+    )
+    monkeypatch.setattr(file_references, "format_with_prettier", lambda text: text)
+
+    formatted = init_skills_handler._format_skill_outputs(
+        ["body\n"],
+        use_prettier=True,
+    )
+
+    assert formatted == ["body\n"]
+
+
 def test_non_tty_explicit_init_skills_skips_existing_without_force(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

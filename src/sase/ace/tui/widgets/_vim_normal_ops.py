@@ -154,9 +154,9 @@ class VimNormalOpsMixin(_MixinBase):
             if op == "c":
                 self._record_mutation()
                 self._enter_insert_mode()
-            elif op != "y":
-                self._record_mutation()
             else:
+                # An empty delete performs no edit; recording it would
+                # overwrite the dot-repeat register with a no-op.
                 self._mutation_key_buffer.clear()
             return
         text = self._get_text_in_range(start, end)

@@ -85,16 +85,25 @@ class VimNormalModeMixin(VimNormalOpsMixin):
                 r, c = self.cursor_location
                 finder = find_prev_word_end if key == "e" else find_prev_WORD_end
                 for _ in range(eff):
-                    r, c = finder(doc, r, c)
+                    nr, nc = finder(doc, r, c)
+                    if (nr, nc) == (r, c):
+                        # Pinned at the buffer-start clamp — counting further
+                        # iterations would spin without moving.
+                        break
+                    r, c = nr, nc
+                moved = (r, c) != self.cursor_location
                 if op_info:
-                    end_row, end_col = self.cursor_location
-                    line = doc.get_line(end_row)
-                    if end_col < len(line):
-                        end_col += 1
-                    self._execute_charwise_operator(
-                        (r, c), (end_row, end_col), op_info[0]
-                    )
-                else:
+                    # A motion that cannot move aborts the operator (vim:
+                    # a failed ge/gE leaves the buffer untouched).
+                    if moved:
+                        end_row, end_col = self.cursor_location
+                        line = doc.get_line(end_row)
+                        if end_col < len(line):
+                            end_col += 1
+                        self._execute_charwise_operator(
+                            (r, c), (end_row, end_col), op_info[0]
+                        )
+                elif moved:
                     self.cursor_location = (r, c)
             elif pending in "fFtT":
                 # Character search: key is the target character.
