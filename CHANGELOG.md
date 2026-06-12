@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/sase-org/sase/compare/v0.1.5...v0.1.6) (2026-06-12)
+
+
+### Bug Fixes
+
+* resolve 11 bugs found in recent-commit audit (cb7a4a556..690d4a3be) ([#167](https://github.com/sase-org/sase/issues/167)) ([93c8ccb](https://github.com/sase-org/sase/commit/93c8ccb35bd197a082269dc107cae7696fac6b04))
+
 ## [0.1.5](https://github.com/sase-org/sase/compare/v0.1.4...v0.1.5) (2026-06-10)
 
 
