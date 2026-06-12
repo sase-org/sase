@@ -304,3 +304,20 @@ def _git(repo: Path, *args: str) -> None:
         capture_output=True,
         text=True,
     )
+
+
+def test_probe_git_metadata_reports_unexecutable_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A git binary that cannot be executed degrades to a warning, not a crash."""
+    from sase.version import _git as git_mod
+
+    def _raise(*args: object, **kwargs: object) -> None:
+        raise PermissionError(13, "Permission denied", "git")
+
+    monkeypatch.setattr(git_mod.subprocess, "run", _raise)
+
+    result = inv.probe_git_metadata(tmp_path)
+
+    assert result.metadata is None
+    assert "git could not be executed" in (result.warning or "")

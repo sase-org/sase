@@ -231,3 +231,61 @@ def test_missing_source_metadata_falls_back_to_distribution_version(
     assert record.display_version == "1.0.0"
     assert record.source_version is None
     assert any("source version metadata not found" in msg for msg in record.warnings)
+
+
+def test_rust_source_root_ignores_ancestor_cargo_for_wheel_installs(
+    tmp_path: Path,
+) -> None:
+    """A wheel install must not adopt an unrelated ancestor Cargo.toml.
+
+    Regression test: with the venv living under someone else's Rust project
+    (a common layout), the ancestor climb from site-packages would report
+    that project's version and git state for a wheel-installed core.
+    """
+    from sase.version._models import ImportResolution
+    from sase.version._sources import source_root
+
+    unrelated = tmp_path / "my_rust_project"
+    site_packages = unrelated / ".venv" / "lib" / "site-packages"
+    site_packages.mkdir(parents=True)
+    (unrelated / "Cargo.toml").write_text(
+        '[package]\nname = "unrelated"\nversion = "7.7.7"\n',
+        encoding="utf-8",
+    )
+
+    resolved = source_root(
+        source_kind="rust",
+        direct_url=None,
+        install_type="wheel",
+        import_resolution=ImportResolution(
+            site_packages / "sase_core_rs.so", site_packages
+        ),
+        distribution_location=site_packages,
+    )
+
+    assert resolved is None
+
+
+def test_rust_source_root_still_climbs_for_editable_installs(
+    tmp_path: Path,
+) -> None:
+    from sase.version._models import ImportResolution
+    from sase.version._sources import source_root
+
+    project = tmp_path / "sase-core"
+    code_dir = project / "bindings" / "python"
+    code_dir.mkdir(parents=True)
+    (project / "Cargo.toml").write_text(
+        '[package]\nname = "sase-core"\nversion = "0.1.1"\n',
+        encoding="utf-8",
+    )
+
+    resolved = source_root(
+        source_kind="rust",
+        direct_url=None,
+        install_type="editable",
+        import_resolution=ImportResolution(code_dir / "mod.so", code_dir),
+        distribution_location=None,
+    )
+
+    assert resolved == project

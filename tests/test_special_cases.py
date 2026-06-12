@@ -198,3 +198,49 @@ def test_resolve_vcs_project_info_fallback() -> None:
         sort_by, workspace = _resolve_vcs_project_info("unknown_ref")
     assert sort_by == "unknown_ref"
     assert workspace == "unknown_ref"
+
+
+def test_run_single_token_prompt_dispatches_directly() -> None:
+    """`sase run hello` runs the prompt instead of dead-ending in argparse.
+
+    Regression test: single-token prompts used to fall through to argparse's
+    dispatch-less `run` namespace and exit with "Unknown command: run".
+    """
+    with (
+        patch("sase.xprompt.get_all_prompts", MagicMock(return_value={})),
+        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_run_special_cases(["hello-single-token"])
+
+    assert excinfo.value.code == 0
+    mock_run.assert_called_once_with("hello-single-token")
+
+
+def test_run_single_flag_like_token_falls_through() -> None:
+    """Unknown flag-like tokens still fall through to argparse's error."""
+    with (
+        patch("sase.xprompt.get_all_prompts", MagicMock(return_value={})),
+        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+    ):
+        handled = handle_run_special_cases(["--bogus-flag"])
+
+    assert handled is False
+    mock_run.assert_not_called()
+
+
+def test_run_parsed_prompt_dispatches_fallthrough_namespace() -> None:
+    """The entry.py `run` branch routes argparse-parsed prompts to the query path."""
+    import argparse
+
+    from sase.main.query_handler.special_cases import run_parsed_prompt
+
+    args = argparse.Namespace(command="run", prompt="known_prompt_name", daemon=False)
+    with (
+        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        run_parsed_prompt(args)
+
+    assert excinfo.value.code == 0
+    mock_run.assert_called_once_with("known_prompt_name")

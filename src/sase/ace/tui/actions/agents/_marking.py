@@ -324,10 +324,12 @@ class AgentMarkingMixin:
         else:
             self.notify(message)  # type: ignore[attr-defined]
 
+        from ....dismissed_agents import snapshot_dismissed_agents
+
         self.call_later(  # type: ignore[attr-defined]
             self._run_marked_agent_group_save_persistence_async,
             list(agents),
-            set(self._dismissed_agents),
+            snapshot_dismissed_agents(self._dismissed_agents),
             added,
             group,
             normalize_saved_group_name(group_name),

@@ -142,6 +142,10 @@ def _resolve_managed_workspace_dir(
     """
     if workspace_num is None:
         return primary_workspace_dir
+    if workspace_num == 1:
+        # Legacy metadata uses 0 and 1 interchangeably for the primary
+        # checkout; the runner-side resolvers normalize 1 -> 0 the same way.
+        workspace_num = 0
     try:
         store = _get_workspace_store(primary_workspace_dir)
         return store.resolve(workspace_num).checkout_dir

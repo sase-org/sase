@@ -47,9 +47,10 @@ def persist_single_kill_transaction(
     consumed_intents = consumed_intents_result is True
     # Persist the dismissed-set snapshot captured on the UI thread, then
     # rewrite the notifications file (single read+write) for this agent and
-    # any workflow-child rows hidden alongside it.
-    save_dismissed_agents(dismissed_snapshot)
-    killing_compat.sync_dismissed_agent_artifact_index(dismissed_snapshot)
+    # any workflow-child rows hidden alongside it. The save is skipped (and
+    # the index sync with it) when a newer snapshot already reached disk.
+    if save_dismissed_agents(dismissed_snapshot):
+        killing_compat.sync_dismissed_agent_artifact_index(dismissed_snapshot)
     if not consumed_intents:
         killing_compat.dismiss_notifications_for_agents(related_agents)
 

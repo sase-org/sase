@@ -78,3 +78,61 @@ def test_no_trimming_limit(tmp_path: Path) -> None:
         save_dismissed_agents(dismissed)
         result = load_dismissed_agents()
         assert len(result) == total
+
+
+def test_stale_snapshot_save_is_skipped(tmp_path: Path) -> None:
+    """A snapshot superseded by a newer snapshot must not overwrite it.
+
+    Regression test: concurrent kill/dismiss persistence workers each
+    blind-write a full-set snapshot; without the generation guard a slow
+    older worker could erase a later dismissal from disk.
+    """
+    from sase.ace.dismissed_agents import snapshot_dismissed_agents
+
+    test_file = tmp_path / "dismissed_agents.json"
+    with patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", test_file):
+        live = {(AgentType.RUNNING, "cl_a", "00000000000001")}
+        older = snapshot_dismissed_agents(live)
+        live.add((AgentType.RUNNING, "cl_b", "00000000000002"))
+        newer = snapshot_dismissed_agents(live)
+
+        assert save_dismissed_agents(newer)
+        # The older snapshot's worker finishes late and must be skipped.
+        assert not save_dismissed_agents(older)
+        assert load_dismissed_agents() == set(newer)
+
+
+def test_in_order_snapshot_saves_both_persist(tmp_path: Path) -> None:
+    """Snapshots persisted in capture order both reach disk."""
+    from sase.ace.dismissed_agents import snapshot_dismissed_agents
+
+    test_file = tmp_path / "dismissed_agents.json"
+    with patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", test_file):
+        live = {(AgentType.RUNNING, "cl_a", "00000000000001")}
+        older = snapshot_dismissed_agents(live)
+        live.add((AgentType.RUNNING, "cl_b", "00000000000002"))
+        newer = snapshot_dismissed_agents(live)
+
+        assert save_dismissed_agents(older)
+        assert save_dismissed_agents(newer)
+        assert load_dismissed_agents() == set(newer)
+
+
+def test_live_set_save_supersedes_pending_snapshots(tmp_path: Path) -> None:
+    """An unstamped live-set save outranks snapshots captured earlier.
+
+    A revive removes an identity from the live set and saves it directly on
+    the UI thread; a pending dismiss worker holding an older snapshot that
+    still contains the identity must not resurrect it.
+    """
+    from sase.ace.dismissed_agents import snapshot_dismissed_agents
+
+    test_file = tmp_path / "dismissed_agents.json"
+    with patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", test_file):
+        live = {(AgentType.RUNNING, "cl_a", "00000000000001")}
+        pending = snapshot_dismissed_agents(live)
+        live.clear()  # revived
+
+        assert save_dismissed_agents(set(live))
+        assert not save_dismissed_agents(pending)
+        assert load_dismissed_agents() == set()

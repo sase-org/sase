@@ -43,34 +43,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         daemon_mode = True
 
     def _run_query(prompt: str) -> None:
-        """Run a query, auto-routing multi-prompts through daemon mode."""
-        if daemon_mode:
-            run_query_daemon(prompt)
-            return
-        from sase.agent.multi_prompt import is_multi_prompt
-
-        if is_multi_prompt(prompt):
-            from sase.agent.multi_prompt import parse_multi_prompt
-
-            n = len(parse_multi_prompt(prompt).segments)
-            print(f"Multi-prompt detected — launching {n} agents in daemon mode")
-            run_query_daemon(prompt)
-            return
-        from sase.xprompt.directives import (
-            has_alt_directive,
-            split_prompt_for_models,
-        )
-
-        alt_prompts = split_prompt_for_models(prompt)
-        if alt_prompts is not None:
-            n = len(alt_prompts)
-            if has_alt_directive(prompt):
-                print(f"Alt-split detected — launching {n} agents in daemon mode")
-            else:
-                print(f"Multi-model detected — launching {n} agents in daemon mode")
-            run_query_daemon(prompt)
-            return
-        run_query(prompt)
+        _dispatch_query(prompt, daemon_mode=daemon_mode)
 
     # Handle -l/--list flag (incompatible with daemon)
     if args_after_run and args_after_run[0] in ("-l", "--list"):
@@ -248,19 +221,76 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                         print(f"Workflow error: {e}")
                         sys.exit(1)
 
-    # Handle direct query (not a known prompt, contains spaces)
+    # Handle direct query (not a known prompt): a quoted multi-word prompt,
+    # or a sole non-flag token (the PROMPT positional advertised by
+    # `sase run --help`). Without the single-token case, such prompts would
+    # parse into argparse's `run` namespace and never dispatch.
     if args_after_run:
         potential_query = args_after_run[0]
         # Get known prompts dynamically (includes both xprompts and workflows)
         from sase.xprompt import get_all_prompts
 
         known_prompts = set(get_all_prompts().keys())
-        if potential_query not in known_prompts and " " in potential_query:
+        single_prompt_token = len(
+            args_after_run
+        ) == 1 and not potential_query.startswith("-")
+        if potential_query not in known_prompts and (
+            " " in potential_query or single_prompt_token
+        ):
             _run_query(potential_query)
             sys.exit(0)
 
     # No special case handled
     return False
+
+
+def _dispatch_query(prompt: str, *, daemon_mode: bool) -> None:
+    """Run a query, auto-routing multi-prompts through daemon mode."""
+    if daemon_mode:
+        run_query_daemon(prompt)
+        return
+    from sase.agent.multi_prompt import is_multi_prompt
+
+    if is_multi_prompt(prompt):
+        from sase.agent.multi_prompt import parse_multi_prompt
+
+        n = len(parse_multi_prompt(prompt).segments)
+        print(f"Multi-prompt detected — launching {n} agents in daemon mode")
+        run_query_daemon(prompt)
+        return
+    from sase.xprompt.directives import (
+        has_alt_directive,
+        split_prompt_for_models,
+    )
+
+    alt_prompts = split_prompt_for_models(prompt)
+    if alt_prompts is not None:
+        n = len(alt_prompts)
+        if has_alt_directive(prompt):
+            print(f"Alt-split detected — launching {n} agents in daemon mode")
+        else:
+            print(f"Multi-model detected — launching {n} agents in daemon mode")
+        run_query_daemon(prompt)
+        return
+    run_query(prompt)
+
+
+def run_parsed_prompt(args: object) -> None:
+    """Dispatch a `sase run` invocation that fell through to argparse.
+
+    :func:`handle_run_special_cases` declines a few shapes (e.g. a sole
+    PROMPT token that matches a known xprompt/workflow name); route them
+    through the standard query path so the documented PROMPT positional
+    always dispatches instead of dead-ending on "Unknown command: run".
+    """
+    prompt = getattr(args, "prompt", None)
+    if prompt is None:
+        prompt = open_editor_for_prompt()
+        if prompt is None:
+            print("No prompt provided. Aborting.")
+            sys.exit(1)
+    _dispatch_query(prompt, daemon_mode=bool(getattr(args, "daemon", False)))
+    sys.exit(0)
 
 
 def _resolve_vcs_project_info(ref: str) -> tuple[str, str]:

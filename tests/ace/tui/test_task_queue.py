@@ -279,3 +279,33 @@ def test_submit_tracked_task_completes_queue_and_typed_callback() -> None:
     assert [completion.payload for completion in completions] == ["payload"]
     assert app.notifications == []
     assert app.reloads == 0
+
+
+# ---------------------------------------------------------------------------
+# Custom dedup keys opt out of per-CL dedup
+# ---------------------------------------------------------------------------
+
+
+class TestTaskQueueCustomKeyScoping:
+    def test_custom_dedup_key_task_invisible_to_per_cl_dedup(self) -> None:
+        # Launch and cleanup tasks carry a real CL name for display but a
+        # custom dedup key; they must never block ChangeSpec actions that
+        # dedup via get_running_for_cl on the same CL.
+        q = TaskQueue()
+        info = q.submit(
+            "dismiss",
+            "CL-1",
+            "/proj.sase",
+            display_name="dismiss agent for CL-1",
+            dedup_key="dismiss:0123abcd",
+        )
+
+        assert q.get_running_for_cl("CL-1") is None
+        assert q.get_running_for_key("dismiss:0123abcd") is info
+
+    def test_per_cl_task_still_visible_alongside_custom_key_task(self) -> None:
+        q = TaskQueue()
+        q.submit("dismiss", "CL-1", "/proj.sase", dedup_key="dismiss:0123abcd")
+        sync_info = q.submit("sync", "CL-1", "/proj.sase")
+
+        assert q.get_running_for_cl("CL-1") is sync_info

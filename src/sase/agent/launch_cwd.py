@@ -196,11 +196,19 @@ def launch_agents_from_cwd(
             raise ValueError(
                 "segment_extra_env must have one entry per multi-prompt segment"
             )
+        from itertools import count
+
         expanded_segments: list[str] = []
         expanded_segment_extra_env = []
+        # Share one invocation counter across the per-segment calls so two
+        # invocations of the same multi-agent xprompt get distinct template
+        # groups, exactly as the single-call branch below allocates them.
+        xprompt_group_counter = count()
         for segment, env in zip(multi.segments, segment_extra_env, strict=True):
             segment_expansions = expand_multi_agent_xprompts_with_metadata(
-                [segment], multi.local_xprompts
+                [segment],
+                multi.local_xprompts,
+                group_counter=xprompt_group_counter,
             )
             expanded_segments.extend(record.prompt for record in segment_expansions)
             expanded_segment_extra_env.extend([env] * len(segment_expansions))

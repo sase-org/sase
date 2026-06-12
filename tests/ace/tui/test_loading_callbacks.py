@@ -122,3 +122,38 @@ async def test_coalesced_followup_only_fires_its_own_callbacks() -> None:
     # Run the follow-up; the pending callback fires.
     await app._run_agents_async_refresh()
     assert fired == ["first", "pending"]
+
+
+@pytest.mark.asyncio
+async def test_delta_refresh_forwards_pending_full_history_request() -> None:
+    """A Tier-2 request arriving mid-delta must not be downgraded to Tier 1.
+
+    Regression test: the artifact-delta refresh's finally block used to clear
+    the pending full-history flags without forwarding them, silently turning
+    a queued full-history refresh into a Tier-1 load.
+    """
+    from pathlib import Path
+
+    app = _FakeApp()
+
+    async def _fake_delta_load(
+        artifact_dirs: list[Path], *, source: str = "unknown"
+    ) -> bool:
+        del artifact_dirs, source
+        # Simulate the user's full-history keybind racing the delta load.
+        app._schedule_agents_async_refresh(
+            full_history=True,
+            full_history_reason="manual_full_history_refresh",
+        )
+        return True
+
+    app._load_agent_artifact_delta_async = _fake_delta_load  # type: ignore[attr-defined]
+
+    await app._run_agent_artifact_delta_refresh((Path("/tmp/agent-x"),), "watcher")
+
+    assert app._agents_refresh_scheduled is True
+    assert app._agents_refresh_scheduled_full_history is True
+    assert (
+        app._agents_refresh_scheduled_full_history_reason
+        == "manual_full_history_refresh"
+    )

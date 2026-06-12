@@ -24,6 +24,8 @@ def probe_git_metadata(source_root: Path) -> GitProbeResult:
         dirty = bool(run_git(git_root, "status", "--porcelain"))
     except FileNotFoundError:
         return GitProbeResult(None, "git is not available on PATH")
+    except OSError as exc:
+        return GitProbeResult(None, f"git could not be executed: {exc}")
     except subprocess.TimeoutExpired:
         return GitProbeResult(None, f"git probe timed out for {source_root}")
     except subprocess.CalledProcessError as exc:

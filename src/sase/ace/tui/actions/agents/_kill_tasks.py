@@ -105,7 +105,9 @@ class AgentKillPersistenceTaskMixin:
         if agents_with_children_snapshot is None:
             agents_with_children_snapshot = list(self._agents_with_children)
         if dismissed_snapshot is None:
-            dismissed_snapshot = set(self._dismissed_agents)
+            from ....dismissed_agents import snapshot_dismissed_agents
+
+            dismissed_snapshot = snapshot_dismissed_agents(self._dismissed_agents)
         related_agents = self._agents_related_to_kill(  # type: ignore[attr-defined]
             agent, agents_with_children_snapshot
         )

@@ -36,6 +36,17 @@ def handle_doctor_command(args: argparse.Namespace) -> int:
             strict=bool(getattr(args, "strict", False)),
         )
     except UnknownCheckSelection as exc:
+        # A selection can be registered but deep-only; `-L` lists those, so
+        # calling them "unknown" would be wrong. Point at -D/--deep instead.
+        deep_only = _deep_only_selections(registry, selections)
+        if deep_only:
+            joined = ", ".join(deep_only)
+            print(
+                f"error: {joined} selects deep checks only; "
+                "rerun with -D/--deep to include them",
+                file=sys.stderr,
+            )
+            return 2
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
@@ -44,6 +55,20 @@ def handle_doctor_command(args: argparse.Namespace) -> int:
     else:
         render_diagnostic_report(report, verbose=bool(getattr(args, "verbose", False)))
     return report.exit_code()
+
+
+def _deep_only_selections(
+    registry: Any,
+    selections: tuple[str, ...],
+) -> list[str]:
+    """Return selections that resolve to deep-only check ids or groups."""
+    deep_specs = registry.list_deep_checks()
+    default_specs = registry.list_default_checks()
+    deep_names = {spec.id for spec in deep_specs} | {spec.group for spec in deep_specs}
+    default_names = {spec.id for spec in default_specs} | {
+        spec.group for spec in default_specs
+    }
+    return [item for item in selections if item in deep_names - default_names]
 
 
 def _handle_list_checks(
