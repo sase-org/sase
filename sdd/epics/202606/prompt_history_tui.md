@@ -1,6 +1,8 @@
 ---
 create_time: 2026-06-13 09:01:57
+bead_id: sase-4m
 status: wip
+tier: epic
 prompt: sdd/prompts/202606/prompt_history_tui.md
 ---
 # Prompt History TUI Improvements
