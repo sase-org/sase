@@ -318,7 +318,10 @@ def _ensure_synthetic_planner_children(
 
 
 def apply_status_overrides(
-    agents: list[Agent], workflow_agent_steps: list[Agent] | None = None
+    agents: list[Agent],
+    workflow_agent_steps: list[Agent] | None = None,
+    *,
+    classify_diff_badges: bool = True,
 ) -> None:
     """Override statuses based on workflow relationships (mutates in place).
 
@@ -540,4 +543,5 @@ def apply_status_overrides(
                 key=lambda a: a.retry_attempt or 0,
             )
 
-    _classify_diff_badges(all_agents)
+    if classify_diff_badges:
+        _classify_diff_badges(all_agents)

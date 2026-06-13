@@ -1,10 +1,11 @@
 """Functions for loading and aggregating agents from all sources."""
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
+from sase.agent.status_buckets import status_bucket_for_values
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     query_agent_artifact_index,
@@ -55,6 +56,7 @@ from ._loaders import (
     load_workflow_states,  # noqa: F401  re-exported for fallback/tests
     load_workflow_states_from_snapshot,  # noqa: F401  re-exported for fallback/tests
 )
+from ._timestamps import normalize_to_14_digit
 from .agent import Agent
 from .workflow import WorkflowEntry
 
@@ -73,6 +75,16 @@ _TIER1_FALLBACK_SCAN_OPTIONS = replace(
     max_records=_TIER1_RECENT_COMPLETED_LIMIT,
     newest_first=True,
 )
+_PLAN_LIVE_SCAN_OPTIONS = replace(
+    _TUI_SCAN_OPTIONS,
+    include_prompt_step_markers=False,
+)
+_PLAN_LIVE_FALLBACK_SCAN_OPTIONS = replace(
+    _PLAN_LIVE_SCAN_OPTIONS,
+    max_records=_TIER1_RECENT_COMPLETED_LIMIT,
+    newest_first=True,
+)
+_LIVE_PLAN_AGENT_BUCKETS = frozenset({"Stopped", "Starting", "Running", "Waiting"})
 
 
 @dataclass(frozen=True)
@@ -236,6 +248,64 @@ def _artifact_snapshot_for_tui_load(
     )
 
 
+def _artifact_snapshot_for_live_plan_load() -> AgentArtifactScanWire:
+    """Return a bounded artifact snapshot for CLI plan notification matching."""
+
+    index_path = default_agent_artifact_index_path()
+    if index_path.is_file():
+        query = AgentArtifactIndexQueryWire(
+            include_active=True,
+            include_recent_completed=True,
+            include_full_history=False,
+            active_limit=None,
+            recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
+            include_hidden=False,
+        )
+        try:
+            return query_agent_artifact_index(
+                index_path,
+                _projects_root_for_loader(),
+                query=query,
+                options=_PLAN_LIVE_SCAN_OPTIONS,
+            )
+        except (ImportError, AttributeError, OSError, ValueError, RuntimeError):
+            pass
+
+    return _scan_artifacts_for_loader(_PLAN_LIVE_FALLBACK_SCAN_OPTIONS)
+
+
+def _normalize_timestamps(timestamps: Iterable[str]) -> set[str]:
+    normalized: set[str] = set()
+    for value in timestamps:
+        timestamp = normalize_to_14_digit(str(value).strip())
+        if timestamp:
+            normalized.add(timestamp)
+    return normalized
+
+
+def _artifact_dirs_for_normalized_timestamps(normalized: set[str]) -> list[Path]:
+    if not normalized:
+        return []
+
+    projects_dir = sase_projects_dir()
+    if not projects_dir.is_dir():
+        return []
+
+    artifact_dirs: list[Path] = []
+    for project_dir in projects_dir.iterdir():
+        artifacts_dir = project_dir / "artifacts"
+        if not artifacts_dir.is_dir():
+            continue
+        for workflow_dir in artifacts_dir.iterdir():
+            if not workflow_dir.is_dir():
+                continue
+            for timestamp in normalized:
+                candidate = workflow_dir / timestamp
+                if candidate.is_dir():
+                    artifact_dirs.append(candidate)
+    return artifact_dirs
+
+
 def load_all_workflows() -> list[WorkflowEntry]:
     """Load all workflow entries from workflow_state.json files.
 
@@ -301,6 +371,23 @@ def _load_agents_from_artifact_snapshot_sources(
         )
     )
     return agents, workflow_agent_steps
+
+
+def _load_plan_agents_from_artifact_snapshot(
+    artifact_snapshot: AgentArtifactScanWire,
+) -> list[Agent]:
+    """Load artifact-backed rows needed for plan notification liveness."""
+
+    agents: list[Agent] = []
+    agents.extend(load_done_agents_from_snapshot(artifact_snapshot, {}, {}))
+    agents.extend(load_running_home_agents_from_snapshot(artifact_snapshot))
+    agents.extend(
+        load_workflow_agents_from_snapshot(
+            artifact_snapshot,
+            step_meta_by_parent=None,
+        )
+    )
+    return agents
 
 
 def _load_agents_from_all_sources(
@@ -447,6 +534,56 @@ def _normalize_loaded_agents(
 
     # Sort and insert workflow steps
     return _sort_and_reorder(agents, workflow_agent_steps)
+
+
+def _normalize_live_plan_agents(agents: list[Agent]) -> list[Agent]:
+    """Normalize the cheap visibility-affecting pieces for plan-list matching."""
+
+    agents = _filter_dead_pids(agents)
+    agents = dedup_axe_spawned_agents(agents)
+    agents = remove_vcs_workspace_claims(agents)
+    agents = dedup_workflow_entries(agents)
+    agents = dedup_running_vs_workflow(agents)
+    agents = dedup_by_pid(agents)
+    _apply_status_overrides(agents, classify_diff_badges=False)
+    return [agent for agent in agents if _agent_is_live_plan_candidate(agent)]
+
+
+def _agent_is_live_plan_candidate(agent: Agent) -> bool:
+    bucket = status_bucket_for_values(agent.status, agent.retried_as_timestamp)
+    return bucket in _LIVE_PLAN_AGENT_BUCKETS
+
+
+def load_live_plan_agents() -> list[Agent]:
+    """Load just the agent rows needed to match pending PlanApproval notifications."""
+
+    agents: list[Agent] = []
+    project_files = get_all_project_files()
+    agents.extend(load_agents_from_running_field(project_files, {}, {}))
+    artifact_snapshot = _artifact_snapshot_for_live_plan_load()
+    agents.extend(_load_plan_agents_from_artifact_snapshot(artifact_snapshot))
+    return _normalize_live_plan_agents(agents)
+
+
+def load_live_plan_agents_for_timestamps(timestamps: Iterable[str]) -> list[Agent]:
+    """Load plan-matching agent rows from exact artifact timestamps."""
+
+    normalized = _normalize_timestamps(timestamps)
+    if not normalized:
+        return []
+
+    agents = [
+        agent
+        for agent in load_agents_from_running_field(get_all_project_files(), {}, {})
+        if agent.raw_suffix and normalize_to_14_digit(agent.raw_suffix) in normalized
+    ]
+
+    artifact_dirs = _artifact_dirs_for_normalized_timestamps(normalized)
+    if not artifact_dirs:
+        return _normalize_live_plan_agents(agents)
+    snapshot = _scan_artifact_dirs_for_loader(artifact_dirs, _PLAN_LIVE_SCAN_OPTIONS)
+    agents.extend(_load_plan_agents_from_artifact_snapshot(snapshot))
+    return _normalize_live_plan_agents(agents)
 
 
 def load_all_agents(

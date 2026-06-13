@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -18,6 +19,8 @@ from sase.integrations.mobile_notifications import (
     resolve_mobile_notification_detail,
 )
 from sase.notifications.models import Notification
+
+_FRESH_FIXTURE_BASE = datetime.now(UTC).replace(microsecond=0)
 
 
 def _snapshot(rows: list[Notification]) -> SimpleNamespace:
@@ -41,7 +44,7 @@ def _notification(
 ) -> Notification:
     return Notification(
         id=notification_id,
-        timestamp=timestamp,
+        timestamp=_fresh_fixture_timestamp(timestamp),
         sender="plan" if action == "PlanApproval" else "user-workflow",
         notes=[f"note {notification_id}"],
         files=files or [],
@@ -51,6 +54,19 @@ def _notification(
         dismissed=dismissed,
         silent=silent,
     )
+
+
+def _fresh_fixture_timestamp(timestamp: str) -> str:
+    if not timestamp.startswith("2026-05-06T"):
+        return timestamp
+    parsed = datetime.fromisoformat(timestamp)
+    offset = timedelta(
+        hours=parsed.hour,
+        minutes=parsed.minute,
+        seconds=parsed.second,
+        microseconds=parsed.microsecond,
+    )
+    return (_FRESH_FIXTURE_BASE + offset).isoformat()
 
 
 def test_mobile_bridge_filters_orders_and_preserves_counts() -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-13 14:06:06
-status: wip
+status: done
 prompt: sdd/prompts/202606/plan_list_perf.md
 ---
 # Plan: Make `sase plan list` Fast

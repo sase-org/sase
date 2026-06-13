@@ -19,6 +19,7 @@ _REJECTED_LIMIT = 10
 _REJECTED_NOTE = (
     "inferred from archived proposal not represented by proposed/approved state"
 )
+_APPROVED_META_CANDIDATE_LIMIT = 2_000
 
 
 @dataclass(frozen=True)
@@ -64,14 +65,24 @@ class _PlanInventory:
     total_archived_proposals: int
 
 
+@dataclass(frozen=True)
+class _DisplayPathRoots:
+    sase_root: Path
+    home: Path
+
+
 def build_plan_inventory(
     *,
     approved_limit: int = _APPROVED_LIMIT,
     rejected_limit: int = _REJECTED_LIMIT,
 ) -> _PlanInventory:
     """Build the current plan proposal/approval inventory."""
-    proposed = _collect_proposed_plans()
-    approved = _collect_approved_plans(limit=approved_limit)
+    display_roots = _display_path_roots()
+    proposed = _collect_proposed_plans(display_roots=display_roots)
+    approved = _collect_approved_plans(
+        limit=approved_limit,
+        display_roots=display_roots,
+    )
 
     represented_paths = {row._plan_key for row in proposed if row._plan_key} | {
         row._plan_key for row in approved if row._plan_key
@@ -81,6 +92,7 @@ def build_plan_inventory(
         archived_paths,
         represented_paths=represented_paths,
         limit=rejected_limit,
+        display_roots=display_roots,
     )
 
     return _PlanInventory(
@@ -158,14 +170,22 @@ def render_plan_inventory(
     )
 
 
-def _collect_proposed_plans() -> tuple[_ProposedPlan, ...]:
+def _collect_proposed_plans(
+    *,
+    display_roots: _DisplayPathRoots,
+) -> tuple[_ProposedPlan, ...]:
     notifications = visible_pending_plan_notifications()
     return tuple(
-        _proposed_plan_from_notification(notification) for notification in notifications
+        _proposed_plan_from_notification(notification, display_roots=display_roots)
+        for notification in notifications
     )
 
 
-def _proposed_plan_from_notification(notification: Notification) -> _ProposedPlan:
+def _proposed_plan_from_notification(
+    notification: Notification,
+    *,
+    display_roots: _DisplayPathRoots,
+) -> _ProposedPlan:
     action_data = notification.action_data
     plan_path = _first_str(*notification.files, action_data.get("plan_file"))
     provider_model = _provider_model_label(
@@ -185,14 +205,29 @@ def _proposed_plan_from_notification(notification: Notification) -> _ProposedPla
         or "-",
         project=_project_from_action_data(action_data),
         provider_model=provider_model,
-        plan_path=_display_path(plan_path),
-        response_dir=_display_path(action_data.get("response_dir")),
+        plan_path=_display_path(plan_path, display_roots=display_roots),
+        response_dir=_display_path(
+            action_data.get("response_dir"),
+            display_roots=display_roots,
+        ),
     )
 
 
-def _collect_approved_plans(*, limit: int) -> tuple[_ApprovedPlan, ...]:
+def _collect_approved_plans(
+    *,
+    limit: int,
+    display_roots: _DisplayPathRoots,
+) -> tuple[_ApprovedPlan, ...]:
+    target = max(limit, 0)
+    if target <= 0:
+        return ()
+
     by_plan_key: dict[str, tuple[datetime, _ApprovedPlan]] = {}
-    for meta_path in _agent_meta_paths():
+    scanned = 0
+    for meta_path in _agent_meta_paths_newest_first():
+        if scanned >= _APPROVED_META_CANDIDATE_LIMIT:
+            break
+        scanned += 1
         meta = read_json_object(meta_path)
         if not _truthy(meta.get("plan_approved")):
             continue
@@ -200,11 +235,19 @@ def _collect_approved_plans(*, limit: int) -> tuple[_ApprovedPlan, ...]:
         if not plan_path:
             continue
         timestamp = _approval_timestamp(meta, meta_path)
-        row = _approved_plan_from_meta(meta, meta_path, plan_path, timestamp)
+        row = _approved_plan_from_meta(
+            meta,
+            meta_path,
+            plan_path,
+            timestamp,
+            display_roots=display_roots,
+        )
         key = path_key(plan_path)
         previous = by_plan_key.get(key)
         if previous is None or timestamp > previous[0]:
             by_plan_key[key] = (timestamp, row)
+        if len(by_plan_key) >= target:
+            break
 
     rows = [
         row
@@ -212,7 +255,7 @@ def _collect_approved_plans(*, limit: int) -> tuple[_ApprovedPlan, ...]:
             by_plan_key.values(), key=lambda item: item[0], reverse=True
         )
     ]
-    return tuple(rows[: max(limit, 0)])
+    return tuple(rows[:target])
 
 
 def _approved_plan_from_meta(
@@ -220,6 +263,8 @@ def _approved_plan_from_meta(
     meta_path: Path,
     plan_path: str,
     timestamp: datetime,
+    *,
+    display_roots: _DisplayPathRoots,
 ) -> _ApprovedPlan:
     timestamp_text = timestamp.isoformat()
     return _ApprovedPlan(
@@ -235,8 +280,8 @@ def _approved_plan_from_meta(
             _first_str(meta.get("llm_provider"), meta.get("provider")),
             _first_str(meta.get("model")),
         ),
-        plan_path=_display_path(plan_path),
-        meta_path=_display_path(str(meta_path)),
+        plan_path=_display_path(plan_path, display_roots=display_roots),
+        meta_path=_display_path(str(meta_path), display_roots=display_roots),
     )
 
 
@@ -245,6 +290,7 @@ def _collect_rejected_plans(
     *,
     represented_paths: set[str],
     limit: int,
+    display_roots: _DisplayPathRoots,
 ) -> tuple[_RejectedPlan, ...]:
     rows: list[tuple[datetime, _RejectedPlan]] = []
     for path in archived_paths:
@@ -258,7 +304,7 @@ def _collect_rejected_plans(
                 _RejectedPlan(
                     timestamp=timestamp_text,
                     age=format_relative_time(timestamp_text),
-                    plan_path=_display_path(str(path)),
+                    plan_path=_display_path(str(path), display_roots=display_roots),
                 ),
             )
         )
@@ -266,16 +312,36 @@ def _collect_rejected_plans(
     return tuple(row for _, row in sorted_rows[: max(limit, 0)])
 
 
-def _agent_meta_paths() -> tuple[Path, ...]:
+def _agent_meta_paths_newest_first() -> tuple[Path, ...]:
     projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return ()
-    return tuple(
-        sorted(
-            path
-            for path in projects_dir.glob("*/artifacts/**/agent_meta.json")
-            if path.is_file()
-        )
+    # `sase plan list` only displays a fixed-size recent approval summary.
+    # Artifact directory names are `YYYYmmddHHMMSS`, so newest-first ordering
+    # does not require statting every historical meta file.
+    candidates: list[tuple[str, str, Path]] = []
+    for project_dir in projects_dir.iterdir():
+        artifacts_dir = project_dir / "artifacts"
+        if not artifacts_dir.is_dir():
+            continue
+        for workflow_dir in artifacts_dir.iterdir():
+            if not workflow_dir.is_dir():
+                continue
+            for timestamp_dir in workflow_dir.iterdir():
+                if not timestamp_dir.is_dir():
+                    continue
+                timestamp = timestamp_dir.name
+                if len(timestamp) != 14 or not timestamp.isdigit():
+                    continue
+                meta_path = timestamp_dir / "agent_meta.json"
+                candidates.append((timestamp, str(meta_path), meta_path))
+    return tuple(path for _, _, path in sorted(candidates, reverse=True))
+
+
+def _display_path_roots() -> _DisplayPathRoots:
+    return _DisplayPathRoots(
+        sase_root=sase_home().expanduser().resolve(strict=False),
+        home=Path.home().expanduser().resolve(strict=False),
     )
 
 
@@ -340,20 +406,23 @@ def _provider_model_label(provider: str | None, model: str | None) -> str:
     return "-"
 
 
-def _display_path(path: str | None) -> str:
+def _display_path(
+    path: str | None,
+    *,
+    display_roots: _DisplayPathRoots | None = None,
+) -> str:
     if not path:
         return "-"
+    roots = display_roots or _display_path_roots()
     candidate = Path(path).expanduser()
     resolved = candidate.resolve(strict=False)
-    sase_root = sase_home().expanduser().resolve(strict=False)
     try:
-        return f"~/.sase/{resolved.relative_to(sase_root)}"
+        return f"~/.sase/{resolved.relative_to(roots.sase_root)}"
     except ValueError:
         pass
 
-    home = Path.home().expanduser().resolve(strict=False)
     try:
-        relative = resolved.relative_to(home)
+        relative = resolved.relative_to(roots.home)
     except ValueError:
         return str(path)
     return "~" if not relative.parts else f"~/{relative}"

@@ -79,8 +79,8 @@ def _live_agent() -> Agent:
 @pytest.fixture(autouse=True)
 def _visible_plan_agents(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.main.plan_candidates._load_live_plan_agents",
-        lambda: (_live_agent(),),
+        "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
+        lambda notifications: (_live_agent(),),
     )
 
 

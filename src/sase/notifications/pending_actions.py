@@ -10,6 +10,7 @@ import time
 from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -77,15 +78,18 @@ def register_notification(
 
 
 def action_state_for_notification(
-    notification: Notification, *, now: float | None = None
+    notification: Notification,
+    *,
+    now: float | None = None,
+    store: Mapping[str, Any] | None = None,
 ) -> str:
     """Return the mobile action state for a notification without mutating it."""
     current = time.time() if now is None else now
-    store = _load_store(include_legacy=True)
+    loaded_store = store if store is not None else _load_store(include_legacy=True)
     pending = next(
         (
             entry
-            for entry in store.get("actions", {}).values()
+            for entry in loaded_store.get("actions", {}).values()
             if isinstance(entry, dict)
             and entry.get("notification_id") == notification.id
         ),
@@ -176,7 +180,21 @@ def _state_for_notification(
             or float(pending.get("stale_deadline_unix", 0.0)) <= now
         ):
             return "stale"
+    elif _notification_is_stale(notification, now):
+        return "stale"
     return "available"
+
+
+def _notification_is_stale(notification: Notification, now: float) -> bool:
+    try:
+        timestamp = datetime.fromisoformat(notification.timestamp)
+    except ValueError:
+        return False
+    if timestamp.tzinfo is None:
+        from sase.core.time import get_timezone
+
+        timestamp = timestamp.replace(tzinfo=get_timezone())
+    return timestamp.timestamp() + STALE_THRESHOLD_SECONDS <= now
 
 
 def _externally_handled(notification: Notification) -> bool:
@@ -311,6 +329,7 @@ __all__ = [
     "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH",
     "PENDING_ACTIONS_PATH",
     "action_state_for_notification",
+    "read_pending_action_store",
     "register_notification",
     "resolve_prefix",
 ]

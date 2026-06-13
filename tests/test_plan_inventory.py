@@ -12,15 +12,25 @@ from unittest.mock import patch
 from rich.console import Console
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentArtifactScanWire,
+    AgentMetaWire,
+    DoneMarkerWire,
+)
 from sase.core.paths import sase_projects_dir, sharded_path
 from sase.core.time import get_timezone
+from sase.main import plan_inventory as plan_inventory_module
+from sase.main.plan_candidates import visible_pending_plan_notifications
 from sase.main.plan_inventory import (
     build_plan_inventory,
     plan_inventory_to_json,
     render_plan_inventory,
 )
+from sase.notifications import pending_actions
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification
+from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 _LIVE_AGENT_TS = "20260613120000"
 _LIVE_AGENT_ROOT_TS = "20260613115900"
@@ -127,6 +137,39 @@ def _write_agent_meta(
     return path
 
 
+def _done_plan_snapshot(
+    *,
+    project: str = "demo",
+    timestamp: str = _LIVE_AGENT_TS,
+    cl_name: str = "demo-cl",
+    agent_name: str = "planner",
+) -> AgentArtifactScanWire:
+    snapshot = _empty_artifact_snapshot()
+    snapshot.records.append(
+        AgentArtifactRecordWire(
+            project_name=project,
+            project_dir=f"/tmp/projects/{project}",
+            project_file=f"/tmp/projects/{project}/{project}.sase",
+            workflow_dir_name="ace-run",
+            artifact_dir=f"/tmp/projects/{project}/artifacts/ace-run/{timestamp}",
+            timestamp=timestamp,
+            agent_meta=AgentMetaWire(
+                name=agent_name,
+                plan=True,
+                plan_submitted_at=["2026-06-13T16:00:00Z"],
+            ),
+            done=DoneMarkerWire(
+                outcome="completed",
+                cl_name=cl_name,
+                project_file=f"/tmp/projects/{project}/{project}.sase",
+                name=agent_name,
+            ),
+            has_done_marker=True,
+        )
+    )
+    return snapshot
+
+
 def test_build_plan_inventory_classifies_proposed_approved_and_rejected(
     tmp_path: Path,
 ) -> None:
@@ -156,7 +199,7 @@ def test_build_plan_inventory_classifies_proposed_approved_and_rejected(
     )
 
     with patch(
-        "sase.main.plan_candidates._load_live_plan_agents",
+        "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
         return_value=(_live_agent(),),
     ):
         inventory = build_plan_inventory()
@@ -198,7 +241,7 @@ def test_inventory_dedupes_approved_by_plan_path_and_applies_limits() -> None:
     _write_agent_meta(
         "demo",
         "workflow-plan",
-        "20260613120000",
+        "20260613140000",
         {
             "plan_approved": True,
             "plan_action": "legend",
@@ -252,6 +295,157 @@ def test_inventory_dedupes_approved_by_plan_path_and_applies_limits() -> None:
     )
 
 
+def test_approved_plan_scan_stops_after_limit() -> None:
+    for index in range(10):
+        plan = _archived_plan(f"approved-fast-{index:02d}.md", minutes_ago=index + 1)
+        _write_agent_meta(
+            "demo",
+            "workflow-plan",
+            f"2026061313{index:02d}00",
+            {
+                "plan_approved": True,
+                "plan_action": "approve",
+                "plan_path": str(plan),
+            },
+            minutes_ago=index + 1,
+        )
+    for index in range(50):
+        _write_agent_meta(
+            "demo",
+            "workflow-plan",
+            f"2026061212{index:02d}00",
+            {"plan_approved": False},
+            minutes_ago=100 + index,
+        )
+
+    with (
+        patch(
+            "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
+            return_value=(),
+        ),
+        patch(
+            "sase.main.plan_inventory.read_json_object",
+            wraps=plan_inventory_module.read_json_object,
+        ) as read_json,
+    ):
+        payload = plan_inventory_to_json(build_plan_inventory(approved_limit=10))
+
+    assert len(payload["approved"]) == 10
+    assert read_json.call_count == 10
+
+
+def test_visible_plan_notifications_loads_pending_store_once(
+    tmp_path: Path,
+) -> None:
+    first_plan = _archived_plan("first.md", minutes_ago=5)
+    second_plan = _archived_plan("second.md", minutes_ago=4)
+    first_response = _response_dir(tmp_path, "first")
+    second_response = _response_dir(tmp_path, "second")
+    _append_plan_notification(
+        "abcdef12-plan-notification",
+        first_plan,
+        first_response,
+        minutes_ago=5,
+        agent_timestamp="20260613120000",
+    )
+    _append_plan_notification(
+        "12345678-plan-notification",
+        second_plan,
+        second_response,
+        minutes_ago=4,
+        agent_timestamp="20260613120100",
+    )
+
+    with patch.object(
+        pending_actions,
+        "_load_store",
+        wraps=pending_actions._load_store,
+    ) as load_store:
+        visible = visible_pending_plan_notifications(
+            agents=(
+                _live_agent(raw_suffix="20260613120000"),
+                _live_agent(raw_suffix="20260613120100"),
+            )
+        )
+
+    assert [notification.id for notification in visible] == [
+        "12345678-plan-notification",
+        "abcdef12-plan-notification",
+    ]
+    load_store.assert_called_once_with(include_legacy=True)
+
+
+def test_plan_inventory_exact_timestamp_fallback_matches_recent_done_planner(
+    tmp_path: Path,
+) -> None:
+    timestamp = "20260612120000"
+    plan = _archived_plan("fallback.md", minutes_ago=5)
+    response_dir = _response_dir(tmp_path, "fallback")
+    _append_plan_notification(
+        "abcdef12-plan-notification",
+        plan,
+        response_dir,
+        minutes_ago=5,
+        agent_timestamp=timestamp,
+    )
+    artifact_dir = sase_projects_dir() / "demo" / "artifacts" / "ace-run" / timestamp
+    artifact_dir.mkdir(parents=True)
+
+    with patch(
+        "sase.ace.tui.models.agent_loader._scan_artifact_dirs_for_loader",
+        return_value=_done_plan_snapshot(timestamp=timestamp),
+    ) as scan_dirs:
+        payload = plan_inventory_to_json(build_plan_inventory())
+
+    assert payload["summary"]["proposed"] == 1
+    assert payload["proposed"][0]["id_prefix"] == "abcdef12"
+    scan_dirs.assert_called_once()
+
+
+def test_lightweight_live_plan_loader_promotes_unreviewed_done_plan(
+    tmp_path: Path,
+) -> None:
+    from sase.ace.tui.models.agent_loader import load_live_plan_agents
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    snapshot = _done_plan_snapshot()
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
+            return_value=index_path,
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
+            return_value=snapshot,
+        ) as query_index,
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+        ) as source_scan,
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+        ) as workflow_steps,
+        patch(
+            "sase.ace.tui.models._agent_status_overrides._classify_diff_badges",
+            side_effect=AssertionError("diff badges should be skipped"),
+        ),
+    ):
+        agents = load_live_plan_agents()
+
+    assert [(agent.raw_suffix, agent.status) for agent in agents] == [
+        (_LIVE_AGENT_TS, "PLAN")
+    ]
+    query_index.assert_called_once()
+    assert query_index.call_args.kwargs["options"].include_prompt_step_markers is False
+    source_scan.assert_not_called()
+    workflow_steps.assert_not_called()
+
+
 def test_render_plan_inventory_empty_state_is_intentional() -> None:
     inventory = build_plan_inventory()
     buffer = io.StringIO()
@@ -281,7 +475,7 @@ def test_render_plan_inventory_non_empty_output_uses_stable_columns(
         minutes_ago=5,
     )
     with patch(
-        "sase.main.plan_candidates._load_live_plan_agents",
+        "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
         return_value=(_live_agent(),),
     ):
         inventory = build_plan_inventory()
@@ -314,7 +508,7 @@ def test_plan_inventory_excludes_proposal_without_matching_live_agent(
     )
 
     with patch(
-        "sase.main.plan_candidates._load_live_plan_agents",
+        "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
         return_value=(_live_agent(),),
     ):
         payload = plan_inventory_to_json(build_plan_inventory())
@@ -337,7 +531,7 @@ def test_plan_inventory_matches_root_timestamp(tmp_path: Path) -> None:
     )
 
     with patch(
-        "sase.main.plan_candidates._load_live_plan_agents",
+        "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
         return_value=(_live_agent(raw_suffix=_LIVE_AGENT_ROOT_TS),),
     ):
         payload = plan_inventory_to_json(build_plan_inventory())
@@ -359,7 +553,7 @@ def test_plan_inventory_matches_agent_name_with_timestamp(tmp_path: Path) -> Non
     )
 
     with patch(
-        "sase.main.plan_candidates._load_live_plan_agents",
+        "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
         return_value=(_live_agent(cl_name="demo-cl", agent_name="planner"),),
     ):
         payload = plan_inventory_to_json(build_plan_inventory())

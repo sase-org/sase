@@ -79,6 +79,31 @@ def test_pending_action_state_detects_external_handled_and_stale(
         )
 
 
+def test_pending_action_state_stales_unregistered_old_notification(
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "pending_actions" / "actions.json"
+    response_dir = tmp_path / "plan"
+    response_dir.mkdir()
+    (response_dir / "plan_request.json").write_text("{}", encoding="utf-8")
+    notification = Notification(
+        id="old-plan-row",
+        timestamp="2026-05-06T12:00:00+00:00",
+        sender="test",
+        notes=["note"],
+        files=[],
+        action="PlanApproval",
+        action_data={"response_dir": str(response_dir)},
+    )
+
+    stale_now = 1_778_155_201.0  # 2026-05-07T12:00:01+00:00
+    with patch.object(pending_actions, "PENDING_ACTIONS_PATH", store_path):
+        assert (
+            pending_actions.action_state_for_notification(notification, now=stale_now)
+            == "stale"
+        )
+
+
 def test_legacy_telegram_pending_actions_are_compatibility_source(
     tmp_path: Path,
 ) -> None:
