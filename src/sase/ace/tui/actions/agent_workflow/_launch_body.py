@@ -78,6 +78,28 @@ class AgentLaunchBodyMixin:
                 "Launch skipped: prompt context is no longer available",
                 severity="warning",
             )
+        original_submitted_prompt = prompt
+        from sase.agent.launch_validation import (
+            force_reuse_owner_names,
+            rewrite_force_reuse_name_directives,
+            wipe_names_for_forced_reuse,
+        )
+
+        force_reuse_names = force_reuse_owner_names([prompt])
+        if force_reuse_names:
+            try:
+                wipe_names_for_forced_reuse(force_reuse_names)
+            except Exception:
+                log.exception("Forced agent-name reuse wipe failed")
+                from sase.history.prompt import record_failed_launch_prompt
+
+                record_failed_launch_prompt(original_submitted_prompt)
+                self._prompt_context = None
+                return LaunchTaskOutcome(
+                    "Agent name reuse failed (see log)", severity="error"
+                )
+            prompt = rewrite_force_reuse_name_directives(prompt)
+
         from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
         prompt = canonicalize_project_aliases_in_prompt(prompt)

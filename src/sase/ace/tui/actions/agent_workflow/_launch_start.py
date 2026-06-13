@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
 
 from ._types import PromptContext
-
-log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sase.ace.tui.modals import SelectionItem
@@ -57,27 +54,6 @@ class AgentLaunchStartMixin:
         if self._prompt_context is None:
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return
-
-        from sase.agent.launch_validation import (
-            force_reuse_owner_names,
-            rewrite_force_reuse_name_directives,
-            wipe_names_for_forced_reuse,
-        )
-
-        force_reuse_names = force_reuse_owner_names([prompt])
-        if force_reuse_names:
-            try:
-                wipe_names_for_forced_reuse(force_reuse_names)
-            except Exception:
-                log.exception("Forced agent-name reuse wipe failed")
-                from sase.history.prompt import record_failed_launch_prompt
-
-                record_failed_launch_prompt(prompt)
-                self.notify(  # type: ignore[attr-defined]
-                    "Agent name reuse failed (see log)", severity="error"
-                )
-                return
-            prompt = rewrite_force_reuse_name_directives(prompt)
 
         # Regenerate timestamp at launch time (not when prompt bar was opened)
         from sase.core.agent_launch_facade import reserve_launch_timestamp_batch

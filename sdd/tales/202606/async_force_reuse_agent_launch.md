@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-13 10:49:57
-status: wip
+status: done
 prompt: sdd/prompts/202606/async_force_reuse_agent_launch.md
 ---
 # Plan: Move forced agent-name reuse cleanup into the tracked launch task

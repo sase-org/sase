@@ -19,11 +19,110 @@ from __future__ import annotations
 
 import asyncio
 import time
+from contextlib import ExitStack
+from datetime import datetime
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 
+from sase.ace.tui.actions.task_actions import TrackedTaskCompletion
+from sase.ace.tui.task_queue import TaskInfo
 from tests.ace.tui._agent_launch_helpers import _FakeApp
+from tests.ace.tui._agent_launch_helpers import _LaunchBodyApp
+
+
+class _SubmitLaunchBodyApp(_LaunchBodyApp):
+    """Launch-start harness that queues the real launch body."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.unmount_calls: list[str] = []
+        self.launch_tasks: list[dict[str, Any]] = []
+
+    def _unmount_prompt_bar_after_submit(self) -> None:
+        self.unmount_calls.append("submit")
+
+    def _submit_launch_task(
+        self,
+        *,
+        display_name: str,
+        cl_name: str,
+        project_file: str,
+        task_callable: Any,
+        dedup_key: str | None = None,
+    ) -> bool:
+        self.launch_tasks.append(
+            {
+                "display_name": display_name,
+                "cl_name": cl_name,
+                "project_file": project_file,
+                "dedup_key": dedup_key,
+                "task_callable": task_callable,
+            }
+        )
+        return True
+
+
+def _enter_launch_body_base_patches(stack: ExitStack) -> None:
+    stack.enter_context(
+        patch(
+            "sase.axe.run_agent_phases.resolve_agent_refs_in_prompt",
+            side_effect=lambda p: (p, None),
+        )
+    )
+    stack.enter_context(
+        patch("sase.workspace_provider.get_ref_patterns", return_value={})
+    )
+    stack.enter_context(
+        patch("sase.workspace_provider.get_workflow_names", return_value=set())
+    )
+    stack.enter_context(
+        patch(
+            "sase.history.file_references.extract_recordable_file_refs",
+            return_value=[],
+        )
+    )
+    stack.enter_context(patch("sase.history.file_references.record_file_references"))
+    stack.enter_context(
+        patch(
+            "sase.running_field.get_first_available_axe_workspace",
+            return_value=100,
+        )
+    )
+    stack.enter_context(
+        patch(
+            "sase.running_field.claim_next_axe_workspace",
+            return_value=100,
+        )
+    )
+    stack.enter_context(
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=("/tmp/ws100", None),
+        )
+    )
+
+
+def _complete_launch_task(app: _SubmitLaunchBodyApp, outcome: Any) -> None:
+    app._on_launch_task_complete(
+        TrackedTaskCompletion(
+            task_info=TaskInfo(
+                task_id="task",
+                task_type="launch",
+                cl_name="test",
+                project_file="/tmp/test.sase",
+                status="error" if not outcome.success else "success",
+                message=outcome.message,
+                started_at=datetime.now(),
+            ),
+            success=outcome.success,
+            message=outcome.message,
+            output="",
+            payload=outcome,
+            error=outcome.message if not outcome.success else None,
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -106,39 +205,65 @@ def test_finish_agent_launch_schedules_async_body_not_inline_call() -> None:
     assert app.body_calls == ["the prompt"]
 
 
-def test_finish_agent_launch_force_reuse_wipes_and_schedules_rewritten_prompt() -> None:
-    """``%name:!`` is explicit TUI confirmation and should not push a modal."""
-    app = _FakeApp()
+def test_finish_agent_launch_force_reuse_schedules_original_prompt_and_worker_rewrites() -> (
+    None
+):
+    """``%name:!`` cleanup runs in the tracked launch task, not during submit."""
+    app = _SubmitLaunchBodyApp()
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+                return_value=["forced-ts"],
+            )
+        )
+        _enter_launch_body_base_patches(stack)
+        wipe_names = stack.enter_context(
+            patch("sase.agent.launch_validation.wipe_names_for_forced_reuse")
+        )
+        validate_names = stack.enter_context(
+            patch("sase.agent.launch_validation.validate_launch_name_requests")
+        )
+        save_history = stack.enter_context(
+            patch("sase.history.prompt.add_or_update_prompt")
+        )
+
+        app._finish_agent_launch("%name:!foo\nDo work")
+
+        wipe_names.assert_not_called()
+        validate_names.assert_not_called()
+        assert app.scheduled == []
+        assert app.launched == []
+        assert len(app.launch_tasks) == 1
+        task = app.launch_tasks[0]
+        assert task["display_name"] == "launch test"
+        assert task["cl_name"] == "test"
+        assert task["project_file"] == "/tmp/test.sase"
+        assert app.notifications == [("Launching agent for test...", None)]
+        assert app._prompt_context is not None
+        assert app._prompt_context.timestamp == "forced-ts"
+        assert app._prompt_context.workflow_name == "ace(run)-forced-ts"
+
+        outcome = task["task_callable"]()
+
+    wipe_names.assert_called_once_with(["foo"])
+    for call in validate_names.call_args_list:
+        assert call.args == (["%name:foo\nDo work"],)
+    save_history.assert_called_once_with("%name:foo\nDo work")
+    assert app.launched[0]["prompt"] == "%name:foo\nDo work"
+    assert outcome.success is True
+
+
+def test_finish_agent_launch_force_reuse_wipe_failure_returns_worker_error() -> None:
+    """Wipe failures are task failures and record the original submitted prompt."""
+    app = _SubmitLaunchBodyApp()
 
     with (
         patch(
             "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
             return_value=["forced-ts"],
         ),
-        patch("sase.agent.launch_validation.wipe_names_for_forced_reuse") as wipe_names,
-    ):
-        app._finish_agent_launch("%name:!foo\nDo work")
-
-    wipe_names.assert_called_once_with(["foo"])
-    assert app.pushed_screens == []
-    assert app.scheduled == []
-    assert len(app.launch_tasks) == 1
-    task = app.launch_tasks[0]
-    assert task["display_name"] == "launch test"
-    assert app.body_calls == []
-    assert app.notifications == [("Launching agent for test...", None)]
-    assert app._prompt_context is not None
-    assert app._prompt_context.timestamp == "forced-ts"
-    assert app._prompt_context.workflow_name == "ace(run)-forced-ts"
-    task["task_callable"]()
-    assert app.body_calls == ["%name:foo\nDo work"]
-
-
-def test_finish_agent_launch_force_reuse_wipe_failure_does_not_schedule() -> None:
-    """Wipe failures surface through notify and leave launch unscheduled."""
-    app = _FakeApp()
-
-    with (
         patch(
             "sase.agent.launch_validation.wipe_names_for_forced_reuse",
             side_effect=RuntimeError("boom"),
@@ -147,11 +272,22 @@ def test_finish_agent_launch_force_reuse_wipe_failure_does_not_schedule() -> Non
     ):
         app._finish_agent_launch("%name:!foo\nDo work")
 
+        wipe_names.assert_not_called()
+        assert len(app.launch_tasks) == 1
+        assert app.launched == []
+        assert app.notifications == [("Launching agent for test...", None)]
+
+        outcome = app.launch_tasks[0]["task_callable"]()
+
     wipe_names.assert_called_once_with(["foo"])
     record_failed.assert_called_once_with("%name:!foo\nDo work")
-    assert app.pushed_screens == []
-    assert app.scheduled == []
-    assert app.body_calls == []
+    assert app.launched == []
+    assert outcome.message == "Agent name reuse failed (see log)"
+    assert outcome.severity == "error"
+    assert outcome.success is False
+
+    _complete_launch_task(app, outcome)
     assert app.notifications == [
+        ("Launching agent for test...", None),
         ("Agent name reuse failed (see log)", "error"),
     ]
