@@ -25,6 +25,9 @@ from sase.core.agent_cleanup_wire import (
     AgentCleanupIdentityWire,
     agent_cleanup_wire_to_json_dict,
 )
+from sase.core.agent_artifact_index_lock import (
+    agent_artifact_index_operation_lock,
+)
 from sase.core.agent_scan_wire import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
@@ -116,10 +119,11 @@ def rebuild_agent_artifact_index(
 ) -> AgentArtifactIndexUpdateWire:
     """Rebuild the persistent artifact index from source artifact files."""
     opts = options or AgentArtifactScanOptionsWire()
-    rust_rebuild = require_rust_binding("rebuild_agent_artifact_index")
-    payload: dict[str, Any] = rust_rebuild(
-        str(index_path), str(projects_root), _options_to_dict(opts)
-    )
+    with agent_artifact_index_operation_lock():
+        rust_rebuild = require_rust_binding("rebuild_agent_artifact_index")
+        payload: dict[str, Any] = rust_rebuild(
+            str(index_path), str(projects_root), _options_to_dict(opts)
+        )
     return agent_artifact_index_update_from_dict(payload)
 
 
@@ -131,13 +135,14 @@ def upsert_agent_artifact_index_row(
 ) -> AgentArtifactIndexUpdateWire:
     """Reparse and upsert one artifact directory into the index."""
     opts = options or AgentArtifactScanOptionsWire()
-    rust_upsert = require_rust_binding("upsert_agent_artifact_index_row")
-    payload: dict[str, Any] = rust_upsert(
-        str(index_path),
-        str(projects_root),
-        str(artifact_dir),
-        _options_to_dict(opts),
-    )
+    with agent_artifact_index_operation_lock():
+        rust_upsert = require_rust_binding("upsert_agent_artifact_index_row")
+        payload: dict[str, Any] = rust_upsert(
+            str(index_path),
+            str(projects_root),
+            str(artifact_dir),
+            _options_to_dict(opts),
+        )
     return agent_artifact_index_update_from_dict(payload)
 
 
@@ -146,8 +151,9 @@ def delete_agent_artifact_index_row(
     artifact_dir: Path | str,
 ) -> AgentArtifactIndexUpdateWire:
     """Remove one artifact directory row from the index."""
-    rust_delete = require_rust_binding("delete_agent_artifact_index_row")
-    payload: dict[str, Any] = rust_delete(str(index_path), str(artifact_dir))
+    with agent_artifact_index_operation_lock():
+        rust_delete = require_rust_binding("delete_agent_artifact_index_row")
+        payload: dict[str, Any] = rust_delete(str(index_path), str(artifact_dir))
     return agent_artifact_index_update_from_dict(payload)
 
 
@@ -156,11 +162,14 @@ def replace_agent_artifact_index_dismissed_agents(
     dismissed: Sequence[AgentCleanupIdentityWire],
 ) -> AgentArtifactIndexUpdateWire:
     """Replace the artifact index's dismissed identity table."""
-    rust_replace = require_rust_binding("replace_agent_artifact_index_dismissed_agents")
-    payload: dict[str, Any] = rust_replace(
-        str(index_path),
-        agent_cleanup_wire_to_json_dict(list(dismissed)),
-    )
+    with agent_artifact_index_operation_lock():
+        rust_replace = require_rust_binding(
+            "replace_agent_artifact_index_dismissed_agents"
+        )
+        payload: dict[str, Any] = rust_replace(
+            str(index_path),
+            agent_cleanup_wire_to_json_dict(list(dismissed)),
+        )
     return agent_artifact_index_update_from_dict(payload)
 
 
@@ -173,13 +182,14 @@ def query_agent_artifact_index(
     """Return scanner-shaped records from the persistent artifact index."""
     opts = options or AgentArtifactScanOptionsWire()
     query_wire = query or AgentArtifactIndexQueryWire()
-    rust_query = require_rust_binding("query_agent_artifact_index")
-    payload: dict[str, Any] = rust_query(
-        str(index_path),
-        str(projects_root),
-        agent_artifact_index_query_to_dict(query_wire),
-        _options_to_dict(opts),
-    )
+    with agent_artifact_index_operation_lock():
+        rust_query = require_rust_binding("query_agent_artifact_index")
+        payload: dict[str, Any] = rust_query(
+            str(index_path),
+            str(projects_root),
+            agent_artifact_index_query_to_dict(query_wire),
+            _options_to_dict(opts),
+        )
     return agent_scan_wire_from_dict(payload)
 
 

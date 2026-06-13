@@ -474,6 +474,25 @@ def test_quarantine_race_loser_skips(tmp_path: Path) -> None:
     assert _quarantine_corrupt_index(tmp_path / "missing.sqlite") is None
 
 
+def test_quarantine_renames_sqlite_sidecars(tmp_path: Path) -> None:
+    """Corrupt-index quarantine preserves WAL sidecars with the corrupt copy."""
+    index = tmp_path / "agent_artifact_index.sqlite"
+    index.write_bytes(b"bad db")
+    wal = Path(f"{index}-wal")
+    shm = Path(f"{index}-shm")
+    wal.write_bytes(b"wal")
+    shm.write_bytes(b"shm")
+
+    quarantined = _quarantine_corrupt_index(index)
+
+    assert quarantined is not None
+    assert quarantined.read_bytes() == b"bad db"
+    assert Path(f"{quarantined}-wal").read_bytes() == b"wal"
+    assert Path(f"{quarantined}-shm").read_bytes() == b"shm"
+    assert not wal.exists()
+    assert not shm.exists()
+
+
 def test_delete_agent_artifact_index_artifacts_is_best_effort(
     tmp_path: Path,
     monkeypatch,

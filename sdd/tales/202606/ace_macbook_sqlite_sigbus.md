@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-13 09:08:02
-status: wip
+status: done
 prompt: sdd/prompts/202606/ace_macbook_sqlite_sigbus.md
 ---
 # Plan: Diagnose and Fix `sase ace` macOS SIGBUS Crash

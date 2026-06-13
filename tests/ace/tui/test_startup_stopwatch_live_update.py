@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from collections.abc import Callable
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -127,6 +128,7 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
     class _Harness:
         def __init__(self) -> None:
             self._post_mount_background_loads_started = False
+            self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
             self.agent_started = asyncio.Event()
             self.agent_release = asyncio.Event()
             self.agent_done = asyncio.Event()
@@ -140,6 +142,9 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
 
         async def _run_axe_startup_init(self) -> None:
             self.axe_done.set()
+
+        def _schedule_dismissed_index_startup_sync(self) -> None:
+            pass
 
         def run_worker(self, fn, **kwargs) -> None:  # type: ignore[no-untyped-def]
             del kwargs

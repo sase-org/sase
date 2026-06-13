@@ -248,11 +248,15 @@ class StartupMixin(StateInitMixin):
             self._mounting = False
 
     def _start_post_mount_background_loads(self) -> None:
-        """Launch post-mount startup loads once, without serial dependency."""
+        """Launch post-mount startup loads once after first paint."""
         if self._post_mount_background_loads_started:
             return
         self._post_mount_background_loads_started = True
+        dismissed_index_callback = self._schedule_dismissed_index_startup_sync
         try:
+            self._agents_refresh_pending_callbacks.append(  # type: ignore[attr-defined]
+                dismissed_index_callback
+            )
             self._agents_refresh_scheduled_source = "startup"  # type: ignore[attr-defined]
             self.run_worker(  # type: ignore[attr-defined]
                 cast(Any, self._run_agents_async_refresh),  # type: ignore[attr-defined]
@@ -261,6 +265,12 @@ class StartupMixin(StateInitMixin):
                 group="startup-loads",
             )
         except Exception:
+            try:
+                self._agents_refresh_pending_callbacks.remove(  # type: ignore[attr-defined]
+                    dismissed_index_callback
+                )
+            except ValueError:
+                pass
             log.exception("Failed to schedule startup agent refresh")
         try:
             self.run_worker(  # type: ignore[attr-defined]
@@ -272,6 +282,13 @@ class StartupMixin(StateInitMixin):
         except Exception:
             log.exception("Failed to schedule startup axe init")
         try:
+            self._start_artifact_watcher()
+        except Exception:
+            log.exception("Failed to start artifact inotify watcher")
+
+    def _schedule_dismissed_index_startup_sync(self) -> None:
+        """Schedule dismissed-index maintenance after startup agents load."""
+        try:
             self.run_worker(  # type: ignore[attr-defined]
                 cast(Any, self._run_dismissed_index_startup_sync),
                 thread=False,
@@ -280,10 +297,6 @@ class StartupMixin(StateInitMixin):
             )
         except Exception:
             log.exception("Failed to schedule startup dismissed-index sync")
-        try:
-            self._start_artifact_watcher()
-        except Exception:
-            log.exception("Failed to start artifact inotify watcher")
 
     async def _run_dismissed_index_startup_sync(self) -> None:
         """Run dismissed-projection index maintenance off the paint path.

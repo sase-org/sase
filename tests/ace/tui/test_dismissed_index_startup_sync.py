@@ -9,6 +9,8 @@ nudges an agents refresh when the projection actually changed.
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -45,7 +47,7 @@ def test_init_app_state_performs_no_sync_and_no_bundle_reads(
 
 
 def test_start_post_mount_background_loads_schedules_dismissed_sync_once() -> None:
-    """The startup launcher schedules the dismissed-index sync exactly once."""
+    """The startup launcher chains dismissed sync after agents load."""
     app = AceApp()
     scheduled: list[object] = []
 
@@ -57,7 +59,68 @@ def test_start_post_mount_background_loads_schedules_dismissed_sync_once() -> No
         app._start_post_mount_background_loads()
         app._start_post_mount_background_loads()
 
-    assert scheduled.count(app._run_dismissed_index_startup_sync) == 1
+        assert scheduled.count(app._run_agents_async_refresh) == 1
+        assert scheduled.count(app._run_dismissed_index_startup_sync) == 0
+        callbacks = list(app._agents_refresh_pending_callbacks)
+        assert len(callbacks) == 1
+        callbacks[0]()
+        assert scheduled.count(app._run_dismissed_index_startup_sync) == 1
+
+
+@pytest.mark.asyncio
+async def test_startup_dismissed_sync_waits_for_initial_agents_refresh() -> None:
+    """Dismissed-index maintenance starts only after startup agents load."""
+
+    class _StartupHarness:
+        def __init__(self) -> None:
+            self._post_mount_background_loads_started = False
+            self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
+            self.agent_started = asyncio.Event()
+            self.agent_release = asyncio.Event()
+            self.dismissed_done = asyncio.Event()
+            self.events: list[str] = []
+            self.tasks: list[asyncio.Task[None]] = []
+
+        async def _run_agents_async_refresh(self) -> None:
+            self.events.append("agents-start")
+            self.agent_started.set()
+            await self.agent_release.wait()
+            self.events.append("agents-complete")
+            callbacks = list(self._agents_refresh_pending_callbacks)
+            self._agents_refresh_pending_callbacks.clear()
+            for callback in callbacks:
+                callback()
+
+        async def _run_axe_startup_init(self) -> None:
+            self.events.append("axe-start")
+
+        async def _run_dismissed_index_startup_sync(self) -> None:
+            self.events.append("dismissed-start")
+            self.dismissed_done.set()
+
+        def run_worker(self, fn, **kwargs) -> None:  # type: ignore[no-untyped-def]
+            del kwargs
+            self.tasks.append(asyncio.create_task(fn()))
+
+        def _schedule_dismissed_index_startup_sync(self) -> None:
+            AceApp._schedule_dismissed_index_startup_sync(self)  # type: ignore[arg-type]
+
+        def _start_artifact_watcher(self) -> None:
+            self.events.append("watcher-start")
+
+    harness = _StartupHarness()
+    AceApp._start_post_mount_background_loads(harness)  # type: ignore[arg-type]
+
+    await asyncio.wait_for(harness.agent_started.wait(), timeout=0.2)
+    assert "dismissed-start" not in harness.events
+
+    harness.agent_release.set()
+    await asyncio.wait_for(harness.dismissed_done.wait(), timeout=0.2)
+
+    assert harness.events.index("agents-complete") < harness.events.index(
+        "dismissed-start"
+    )
+    await asyncio.wait_for(asyncio.gather(*harness.tasks), timeout=0.2)
 
 
 class _SyncHarness:

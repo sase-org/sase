@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
+from sase.core.agent_artifact_index_lock import (
+    agent_artifact_index_operation_lock,
+)
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     delete_agent_artifact_index_row,
@@ -157,18 +160,19 @@ def sync_dismissed_agent_artifact_index_report(
     source artifacts, and re-synced; transient lock errors never trigger
     that heal.
     """
-    index = (
-        Path(index_path).expanduser()
-        if index_path is not None
-        else default_agent_artifact_index_path()
-    )
-    if not index.is_file():
-        return DismissedProjectionSyncReport(synced=False)
+    with agent_artifact_index_operation_lock():
+        index = (
+            Path(index_path).expanduser()
+            if index_path is not None
+            else default_agent_artifact_index_path()
+        )
+        if not index.is_file():
+            return DismissedProjectionSyncReport(synced=False)
 
-    try:
-        return _sync_projection(index, dismissed, added=added, force=force)
-    except _CorruptArtifactIndexError:
-        return _heal_corrupt_index_and_resync(index, dismissed)
+        try:
+            return _sync_projection(index, dismissed, added=added, force=force)
+        except _CorruptArtifactIndexError:
+            return _heal_corrupt_index_and_resync(index, dismissed)
 
 
 def _sync_projection(
@@ -249,8 +253,9 @@ def _quarantine_corrupt_index(index: Path) -> Path | None:
 
     The atomic rename doubles as the cross-process heal lock: a
     concurrent healer that loses the race sees a missing index and skips.
-    At most one quarantine copy is kept; stale SQLite sidecar files are
-    removed so they cannot bleed into the rebuilt database.
+    At most one quarantine copy is kept. WAL sidecars are renamed next to
+    the quarantined database instead of unlinked so live mappings are not
+    invalidated inside the current process.
     """
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     quarantined = index.with_name(f"{index.name}.corrupt-{timestamp}")
@@ -260,12 +265,16 @@ def _quarantine_corrupt_index(index: Path) -> Path | None:
         log.debug("agent artifact index quarantine rename failed", exc_info=True)
         return None
     for sidecar_suffix in ("-wal", "-shm"):
+        sidecar = Path(f"{index}{sidecar_suffix}")
+        quarantined_sidecar = Path(f"{quarantined}{sidecar_suffix}")
         try:
-            Path(f"{index}{sidecar_suffix}").unlink(missing_ok=True)
+            sidecar.rename(quarantined_sidecar)
+        except FileNotFoundError:
+            continue
         except OSError:
-            log.debug("agent artifact index sidecar cleanup failed", exc_info=True)
+            log.debug("agent artifact index sidecar quarantine failed", exc_info=True)
     for stale in index.parent.glob(f"{index.name}.corrupt-*"):
-        if stale == quarantined:
+        if stale == quarantined or stale.name.startswith(f"{quarantined.name}-"):
             continue
         try:
             stale.unlink()
@@ -343,31 +352,32 @@ def delete_agent_artifact_index_artifacts(
     index_path: Path | str | None = None,
 ) -> int:
     """Best-effort delete of artifact rows from the SQLite index."""
-    index = (
-        Path(index_path).expanduser()
-        if index_path is not None
-        else default_agent_artifact_index_path()
-    )
-    if not index.is_file():
-        return 0
+    with agent_artifact_index_operation_lock():
+        index = (
+            Path(index_path).expanduser()
+            if index_path is not None
+            else default_agent_artifact_index_path()
+        )
+        if not index.is_file():
+            return 0
 
-    deleted = 0
-    for artifact_dir in artifact_dirs:
-        if artifact_dir is None:
-            continue
-        try:
-            update = delete_agent_artifact_index_row(
-                index, Path(artifact_dir).expanduser()
-            )
-        except _INDEX_ERRORS:
-            log.debug(
-                "agent artifact index row delete failed: %s",
-                artifact_dir,
-                exc_info=True,
-            )
-            continue
-        deleted += update.rows_deleted
-    return deleted
+        deleted = 0
+        for artifact_dir in artifact_dirs:
+            if artifact_dir is None:
+                continue
+            try:
+                update = delete_agent_artifact_index_row(
+                    index, Path(artifact_dir).expanduser()
+                )
+            except _INDEX_ERRORS:
+                log.debug(
+                    "agent artifact index row delete failed: %s",
+                    artifact_dir,
+                    exc_info=True,
+                )
+                continue
+            deleted += update.rows_deleted
+        return deleted
 
 
 def upsert_agent_artifact_index_artifacts(
@@ -376,36 +386,37 @@ def upsert_agent_artifact_index_artifacts(
     index_path: Path | str | None = None,
 ) -> int:
     """Best-effort upsert of restored or changed artifact rows."""
-    index = (
-        Path(index_path).expanduser()
-        if index_path is not None
-        else default_agent_artifact_index_path()
-    )
-    indexed = 0
-    seen: set[Path] = set()
-    for artifact_dir in artifact_dirs:
-        if artifact_dir is None:
-            continue
-        artifact_path = Path(artifact_dir).expanduser()
-        if artifact_path in seen or not artifact_path.is_dir():
-            continue
-        seen.add(artifact_path)
-        try:
-            update = upsert_agent_artifact_index_row(
-                index,
-                _projects_root_for_artifact_dir(artifact_path),
-                artifact_path,
-                _LIFECYCLE_SCAN_OPTIONS,
-            )
-        except _INDEX_ERRORS:
-            log.debug(
-                "agent artifact index row upsert failed: %s",
-                artifact_path,
-                exc_info=True,
-            )
-            continue
-        indexed += update.rows_indexed
-    return indexed
+    with agent_artifact_index_operation_lock():
+        index = (
+            Path(index_path).expanduser()
+            if index_path is not None
+            else default_agent_artifact_index_path()
+        )
+        indexed = 0
+        seen: set[Path] = set()
+        for artifact_dir in artifact_dirs:
+            if artifact_dir is None:
+                continue
+            artifact_path = Path(artifact_dir).expanduser()
+            if artifact_path in seen or not artifact_path.is_dir():
+                continue
+            seen.add(artifact_path)
+            try:
+                update = upsert_agent_artifact_index_row(
+                    index,
+                    _projects_root_for_artifact_dir(artifact_path),
+                    artifact_path,
+                    _LIFECYCLE_SCAN_OPTIONS,
+                )
+            except _INDEX_ERRORS:
+                log.debug(
+                    "agent artifact index row upsert failed: %s",
+                    artifact_path,
+                    exc_info=True,
+                )
+                continue
+            indexed += update.rows_indexed
+        return indexed
 
 
 def update_agent_artifact_index_for_marker_mutation(
@@ -469,19 +480,20 @@ def _projection_metadata_matches(
 
 
 def _read_projection_metadata(index_path: Path) -> dict[str, object] | None:
-    try:
-        with sqlite3.connect(index_path, timeout=5) as conn:
-            row = conn.execute(
-                "SELECT value FROM meta WHERE key = ?",
-                (_DISMISSED_PROJECTION_META_KEY,),
-            ).fetchone()
-    except sqlite3.Error as error:
-        # Don't conflate corruption with "no metadata": a missing-table or
-        # transient lock error just misses the fast path, but a malformed
-        # database must surface so the sync entry point can heal it.
-        if _is_corruption_error(error):
-            raise _CorruptArtifactIndexError from error
-        return None
+    with agent_artifact_index_operation_lock():
+        try:
+            with sqlite3.connect(index_path, timeout=5) as conn:
+                row = conn.execute(
+                    "SELECT value FROM meta WHERE key = ?",
+                    (_DISMISSED_PROJECTION_META_KEY,),
+                ).fetchone()
+        except sqlite3.Error as error:
+            # Don't conflate corruption with "no metadata": a missing-table or
+            # transient lock error just misses the fast path, but a malformed
+            # database must surface so the sync entry point can heal it.
+            if _is_corruption_error(error):
+                raise _CorruptArtifactIndexError from error
+            return None
     if row is None:
         return None
     try:
@@ -506,15 +518,16 @@ def _write_projection_metadata(
         "projected_identity_count": len(projection.identities),
         "synced_at": datetime.now(UTC).isoformat(),
     }
-    with sqlite3.connect(index_path, timeout=5) as conn:
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS meta ("
-            "key TEXT PRIMARY KEY, value TEXT NOT NULL)"
-        )
-        conn.execute(
-            "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
-            (_DISMISSED_PROJECTION_META_KEY, json.dumps(payload, sort_keys=True)),
-        )
+    with agent_artifact_index_operation_lock():
+        with sqlite3.connect(index_path, timeout=5) as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS meta ("
+                "key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
+                (_DISMISSED_PROJECTION_META_KEY, json.dumps(payload, sort_keys=True)),
+            )
 
 
 def _json_signature(signature: tuple[int, ...] | None) -> list[int] | None:
