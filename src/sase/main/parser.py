@@ -84,6 +84,10 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
         "Launch or resume a coding-agent run from a prompt, xprompt, workflow, or history.",
     ),
     _CompactRootCommand(
+        "prompt",
+        "Inspect, search, replay, and curate previously submitted agent prompts.",
+    ),
+    _CompactRootCommand(
         "agents",
         "List, inspect, tag, or stop active and recent agent runs.",
     ),

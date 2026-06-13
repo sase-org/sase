@@ -21,6 +21,7 @@ nav:
       - AXE Automation: axe.md
       - Spec-Driven Development: sdd.md
       - XPrompts: xprompt.md
+      - Prompt History: prompt.md
   - Beyond the Basics:
       - Architecture: architecture.md
       - ChangeSpecs: change_spec.md

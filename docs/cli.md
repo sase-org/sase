@@ -20,6 +20,11 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase agents names migrate-auto` | Backfill the permanent agent-name registry from legacy auto-generated names; pass `--force` to rerun.                | [ACE TUI](ace.md)                                     |
 | `sase chats list`                | List recent chat transcripts.                                                                                        | [XPrompts](xprompt.md)                                |
 | `sase chats show`                | Show one chat transcript by agent name, path, or basename.                                                           | [XPrompts](xprompt.md)                                |
+| `sase prompt list`               | List, search, and filter previously submitted prompts (pretty table or JSON).                                        | [Prompt history](prompt.md)                           |
+| `sase prompt show`               | Print one prompt's exact text as raw, Markdown, or JSON.                                                             | [Prompt history](prompt.md)                           |
+| `sase prompt run`                | Replay a stored prompt by selector, optionally editing or re-prefixing it first.                                     | [Prompt history](prompt.md)                           |
+| `sase prompt save`               | Save a stored prompt as a reusable xprompt, or `export` it to a file or SDD snapshot.                                | [Prompt history](prompt.md), [XPrompts](xprompt.md)   |
+| `sase prompt prune`              | Curate the prompt-history store with `delete`, `prune`, and read-only `doctor`/`stats`.                              | [Prompt history](prompt.md)                           |
 | `sase notify`                    | Shortcut for `sase notify list`.                                                                                     | [Notifications](notifications.md)                     |
 | `sase notify create`             | Create a notification from JSON input.                                                                               | [Notifications](notifications.md)                     |
 | `sase notify list`               | List recent notifications, optionally filtered by sender, tag, unread state, or query.                               | [Notifications](notifications.md)                     |
@@ -33,8 +38,9 @@ agents from the TUI.
 
 Command groups with an exact `list` child default to that list view when invoked bare, including `sase amd`,
 `sase bead`, `sase chats`, `sase file`, `sase file-history`, `sase memory`, `sase memory episodes`, `sase notify`,
-`sase plugin`, `sase project`, `sase sdd`, `sase skills`, `sase telemetry`, `sase workspace`, and `sase xprompt`. Nested
-groups such as `sase agents tag`, `sase axe chop`, and `sase axe lumberjack` follow the same rule.
+`sase plugin`, `sase project`, `sase prompt`, `sase sdd`, `sase skills`, `sase telemetry`, `sase workspace`, and
+`sase xprompt`. Nested groups such as `sase agents tag`, `sase axe chop`, and `sase axe lumberjack` follow the same
+rule.
 
 The bare form is only the default view. When you need flags that belong to the list command, keep the `list` subcommand
 explicit, for example `sase notify list -j`, `sase memory episodes list -p <project>`, or `sase workspace list --json`.

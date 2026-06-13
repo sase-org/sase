@@ -150,6 +150,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
         "sase memory episodes",
         "sase notify",
         "sase plugin",
+        "sase prompt",
         "sase sdd",
         "sase skills",
         "sase telemetry",
@@ -333,6 +334,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         "version",
         "ace",
         "run",
+        "prompt",
         "agents",
         "memory",
         "bead",
@@ -354,6 +356,10 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
     ) in help_text
     assert (
         "Launch or resume a coding-agent run from a prompt, xprompt, workflow, or history."
+        in help_text
+    )
+    assert (
+        "Inspect, search, replay, and curate previously submitted agent prompts."
         in help_text
     )
     assert (
