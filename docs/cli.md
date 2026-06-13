@@ -81,7 +81,9 @@ explicit, for example `sase notify list -j`, `sase memory episodes list -p <proj
 | `sase project show`                          | Show lifecycle, workspace, launchability, and warning details for one project.               | [Project lifecycle](project_spec.md#project-lifecycle) |
 | `sase project set-state` / aliases           | Update `PROJECT_STATE` under the ProjectSpec lock.                                           | [Project lifecycle](project_spec.md#project-lifecycle) |
 | `sase project alias`                         | List, add, remove, or clear `PROJECT_ALIASES` under the ProjectSpec lock.                    | [Project aliases](project_spec.md#project-aliases)     |
-| `sase plan`                                  | Submit a plan for approval from the plan skill path.                                         | [XPrompt directives](xprompt.md#plan-directive)        |
+| `sase plan` / `sase plan list`               | Review pending proposals, approved plans, and inferred rejected archived proposals.          | [XPrompt directives](xprompt.md#plan-directive)        |
+| `sase plan approve`                          | Approve a pending proposed plan from the CLI.                                                | [XPrompt directives](xprompt.md#plan-directive)        |
+| `sase plan propose`                          | Submit a plan file for approval from the plan skill path.                                    | [XPrompt directives](xprompt.md#plan-directive)        |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                 | [XPrompt directives](xprompt.md#directives)            |
 
 ChangeSpecs are CL/PR-sized review records. SDD stores durable prompt and planning artifacts. Beads add git-portable

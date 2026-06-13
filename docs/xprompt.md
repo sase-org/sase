@@ -1128,9 +1128,9 @@ planner.
 ### Epic Directive
 
 The `%epic` directive enables plan mode and marks the submitted plan for epic approval. When the agent later submits a
-plan with `/sase_plan` or `sase plan`, sase follows the same epic path as the TUI Epic action: it writes the SDD epic
-files, commits them as needed, initializes beads, and launches the epic follow-up agent. Unlike `%approve`, `%epic` is
-plan-specific and does not automatically answer unrelated questions.
+plan with `/sase_plan` or `sase plan propose`, sase follows the same epic path as the TUI Epic action: it writes the SDD
+epic files, commits them as needed, initializes beads, and launches the epic follow-up agent. Unlike `%approve`, `%epic`
+is plan-specific and does not automatically answer unrelated questions.
 
 ```
 %epic

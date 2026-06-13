@@ -426,27 +426,55 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     plan_parser = subparsers.add_parser(
         "plan",
         help="Review, approve, and propose implementation plans",
-        description="Review plan proposals and submit new plans for approval.",
+        description=(
+            "Review the plan pipeline, approve pending proposals from the CLI, "
+            "or submit a new plan for review.\n\n"
+            "With no subcommand, `sase plan` defaults to `sase plan list`."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase plan\n"
+            "  sase plan list --json\n"
+            "  sase plan approve abcdef12 --kind tale\n"
+            "  sase plan propose sase_plan_feature.md"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     plan_subparsers = plan_parser.add_subparsers(
         dest="plan_subcommand",
         help="Plan subcommands",
+        metavar="<subcommand>",
+        title="subcommands",
     )
     plan_parser.set_defaults(plan_subcommand="list")
 
     approve_parser = plan_subparsers.add_parser(
         "approve",
         help="Approve one pending plan proposal",
+        description=(
+            "Approve one pending PlanApproval notification by ID or unique "
+            "prefix from `sase plan list`. If SELECTOR is omitted, exactly one "
+            "pending proposal must exist."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase plan approve\n"
+            "  sase plan approve abcdef12 --kind approve\n"
+            "  sase plan approve abcdef12 --kind tale --prompt 'Focus tests'\n"
+            "  sase plan approve abcdef12 --kind commit"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     approve_parser.add_argument(
         "selector",
         nargs="?",
+        metavar="SELECTOR",
         help="Notification id or unique prefix from `sase plan list`",
     )
     approve_parser.add_argument(
         "-k",
         "--kind",
-        choices=("approve", "tale", "epic", "legend", "commit"),
+        choices=("approve", "commit", "epic", "legend", "tale"),
         default="approve",
         help=(
             "Approval kind: approve runs coder without SDD commit; tale commits "
@@ -468,6 +496,13 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     list_parser = plan_subparsers.add_parser(
         "list",
         help="List plan proposals and approval history",
+        description=(
+            "Show pending plan proposals plus recent approved and inferred "
+            "rejected archived plans. This is also the default for bare "
+            "`sase plan`."
+        ),
+        epilog=("examples:\n  sase plan\n  sase plan list\n  sase plan list --json"),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     list_parser.add_argument(
         "-j",
@@ -479,8 +514,19 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     propose_parser = plan_subparsers.add_parser(
         "propose",
         help="Submit a plan file for approval (used by /sase_plan skill)",
+        description=(
+            "Submit a Markdown plan file for user approval. This command is "
+            "intended for SASE agent runs with SASE_AGENT and "
+            "SASE_ARTIFACTS_DIR set."
+        ),
+        epilog=("example:\n  sase plan propose sase_plan_feature.md"),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    propose_parser.add_argument("plan_file", help="Path to the plan .md file")
+    propose_parser.add_argument(
+        "plan_file",
+        metavar="PLAN_FILE",
+        help="Path to the plan .md file",
+    )
 
 
 def register_questions_parser(subparsers: argparse._SubParsersAction) -> None:

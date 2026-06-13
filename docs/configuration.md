@@ -1717,9 +1717,13 @@ that exact normalized tag.
 
 ### `sase plan`
 
-| Flag        | Values | Default    | Description                 |
-| ----------- | ------ | ---------- | --------------------------- |
-| `plan_file` | path   | (required) | Path to the plan `.md` file |
+With no subcommand, `sase plan` defaults to the `sase plan list` dashboard.
+
+| Form                            | Flags                                    | Description                                                           |
+| ------------------------------- | ---------------------------------------- | --------------------------------------------------------------------- |
+| `sase plan approve [selector]`  | `-k/--kind`, `-m/--model`, `-p/--prompt` | Approve one pending proposal by notification ID or unique ID prefix.  |
+| `sase plan` / `sase plan list`  | `-j/--json`                              | List pending, approved, and inferred rejected plan proposals.         |
+| `sase plan propose <plan_file>` | -                                        | Submit a Markdown plan file for approval from the `/sase_plan` skill. |
 
 ### `sase artifact`
 

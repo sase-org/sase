@@ -147,9 +147,9 @@ Planning artifacts may also carry a `status` field (set to `done` when work comp
 the bead issue tracker. Legend artifacts use `legend_bead_id` for the legend container bead and `epic_count` for the
 number of proposed epics; epics linked under a legend also preserve that `legend_bead_id`.
 
-When `sase plan` submits a plan for approval, it touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI flips the
-agent into the `PLAN` status immediately rather than waiting for the next auto-refresh tick. The pulse file is consumed
-by the inotify-based artifact watcher and is harmless when no TUI is open.
+When `sase plan propose` submits a plan for approval, it touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI
+flips the agent into the `PLAN` status immediately rather than waiting for the next auto-refresh tick. The pulse file is
+consumed by the inotify-based artifact watcher and is harmless when no TUI is open.
 
 ### Q&A Sections
 
