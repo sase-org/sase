@@ -16,10 +16,6 @@ def test_single_word_prompt_not_written(tmp_path: Path) -> None:
     test_file = tmp_path / "prompt_history.json"
     with (
         patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch(
-            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
-        ),
-        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
         patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
     ):
         add_or_update_prompt("#gh:sase")
@@ -31,10 +27,6 @@ def test_whitespace_only_prompt_not_written(tmp_path: Path) -> None:
     test_file = tmp_path / "prompt_history.json"
     with (
         patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch(
-            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
-        ),
-        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
         patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
     ):
         add_or_update_prompt("   \n\t  ")
@@ -46,10 +38,6 @@ def test_two_word_prompt_is_written(tmp_path: Path) -> None:
     test_file = tmp_path / "prompt_history.json"
     with (
         patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch(
-            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
-        ),
-        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
         patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
     ):
         add_or_update_prompt("fix bug")
@@ -63,10 +51,6 @@ def test_single_word_cancelled_prompt_not_written(tmp_path: Path) -> None:
     test_file = tmp_path / "prompt_history.json"
     with (
         patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch(
-            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
-        ),
-        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
         patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
     ):
         add_or_update_prompt("#gh:sase", cancelled=True)
@@ -79,41 +63,32 @@ def test_existing_single_word_entry_not_updated(tmp_path: Path) -> None:
     with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         entry = PromptEntry(
             text="#gh:sase",
-            branch_or_workspace="main",
             timestamp="251231_100000",
             last_used="251231_100000",
-            workspace="myproject",
         )
         _save_prompt_history([entry])
 
-        with (
-            patch(
-                "sase.history.prompt._get_current_branch_or_workspace",
-                return_value="main",
-            ),
-            patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
-            patch(
-                "sase.history.prompt.generate_timestamp", return_value="251231_200000"
-            ),
+        with patch(
+            "sase.history.prompt.generate_timestamp", return_value="251231_200000"
         ):
             add_or_update_prompt("#gh:sase")
 
         result = _load_prompt_history()
         assert len(result) == 1
-        # last_used should NOT have been bumped
         assert result[0].last_used == "251231_100000"
 
 
-def test_handles_missing_fields_in_json(tmp_path: Path) -> None:
-    """Test that JSON entries with missing fields are filtered out."""
+def test_loads_entries_missing_legacy_context_fields(tmp_path: Path) -> None:
+    """Test that old context fields are no longer required to load entries."""
     test_file = tmp_path / "prompt_history.json"
-    # Both entries are missing workspace field, so both should be filtered out
     test_file.write_text(
-        '{"prompts": [{"text": "missing_workspace", "branch_or_workspace": "main", '
+        '{"prompts": [{"text": "missing legacy context", '
         '"timestamp": "251231_143052", "last_used": "251231_143052"}, '
-        '{"text": "missing_fields"}]}'
+        '{"text": "missing_required_fields"}]}'
     )
     with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         result = _load_prompt_history()
-        # Both entries are missing required workspace field
-        assert len(result) == 0
+        assert len(result) == 1
+        assert result[0].text == "missing legacy context"
+        assert result[0].branch_or_workspace == ""
+        assert result[0].workspace == ""

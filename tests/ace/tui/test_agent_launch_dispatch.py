@@ -134,8 +134,6 @@ def test_run_agent_launch_body_multi_agent_xprompt_history_uses_input() -> None:
 
     save_history.assert_called_once_with(
         "#!research_swarm",
-        project_name="test",
-        branch_or_workspace="",
         allow_short=True,
     )
     record_file_refs.assert_called_once_with("#!research_swarm")

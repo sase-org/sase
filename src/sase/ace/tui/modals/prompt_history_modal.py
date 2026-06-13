@@ -143,11 +143,7 @@ class PromptHistoryModal(
 
     def _load_items(self) -> None:
         """Load prompt history items (including cancelled for toggle filtering)."""
-        items = get_prompts_for_fzf(
-            current_branch=self._sort_by,
-            current_workspace=self._workspace,
-            include_cancelled=True,
-        )
+        items = get_prompts_for_fzf(include_cancelled=True)
 
         if not items:
             return
@@ -156,8 +152,7 @@ class PromptHistoryModal(
             if entry.cancelled:
                 marker = "x"
             else:
-                # Parse marker from display string (first char)
-                marker = display_str[0] if display_str else " "
+                marker = " "
 
             self._all_items.append(
                 _PromptDisplayItem(

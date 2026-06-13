@@ -538,13 +538,7 @@ def test_run_agent_launch_body_aborts_unresolvable_home_mode_vcs_tag() -> None:
     save.assert_not_called()
     record_mru.assert_not_called()
 
-    # A cancelled history entry, re-labeled off the literal cycled ref (never
-    # the unrelated baked "sase" project as the branch/workspace key).
-    assert add_prompt.call_count == 1
-    _, kwargs = add_prompt.call_args
-    assert kwargs["cancelled"] is True
-    assert kwargs["project_name"] == "sase"
-    assert kwargs["branch_or_workspace"] == "stale"
+    add_prompt.assert_called_once_with("#git:stale do work", cancelled=True)
 
     # The error outcome names the cycled ref, not the baked project.
     assert outcome.message == "Cannot resolve #git:stale; not launching"

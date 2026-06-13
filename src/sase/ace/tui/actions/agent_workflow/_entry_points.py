@@ -257,11 +257,8 @@ class EntryPointsMixin:
         """Return the default prompt-history entry highlighted by the modal."""
         from sase.history.prompt import get_prompts_for_fzf
 
-        items = get_prompts_for_fzf(
-            current_branch=sort_by,
-            current_workspace=workspace,
-            include_cancelled=True,
-        )
+        _ = sort_by, workspace
+        items = get_prompts_for_fzf(include_cancelled=True)
         for _display, entry in items:
             if not entry.cancelled:
                 return entry.text

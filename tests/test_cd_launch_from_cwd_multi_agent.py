@@ -145,9 +145,6 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_history_uses_submitted_promp
 
     history_path = tmp_path / ".sase" / "prompt_history.json"
     monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
-    monkeypatch.setattr(
-        prompt_history, "_get_current_branch_or_workspace", lambda: "main"
-    )
     monkeypatch.setattr(prompt_history, "generate_timestamp", lambda: "260501_120000")
     launched = [MagicMock(name="plan"), MagicMock(name="build")]
     catalog = {"swarm": XPrompt(name="swarm", content="Plan phase\n---\nBuild phase")}
@@ -187,9 +184,6 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_cancelled_history_uses_submi
 
     history_path = tmp_path / ".sase" / "prompt_history.json"
     monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
-    monkeypatch.setattr(
-        prompt_history, "_get_current_branch_or_workspace", lambda: "main"
-    )
     monkeypatch.setattr(prompt_history, "generate_timestamp", lambda: "260501_120000")
     catalog = {
         "swarm": XPrompt(

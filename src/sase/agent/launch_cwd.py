@@ -273,10 +273,6 @@ def launch_agents_from_cwd(
         ):
             add_or_update_prompt(
                 submitted_query,
-                project_name=project_name,
-                branch_or_workspace=(
-                    mp_cl_name if mp_cl_name != project_name else None
-                ),
                 cancelled=True,
                 allow_short=True,
             )
@@ -284,8 +280,6 @@ def launch_agents_from_cwd(
 
         add_or_update_prompt(
             submitted_query,
-            project_name=project_name,
-            branch_or_workspace=mp_cl_name if mp_cl_name != project_name else None,
             allow_short=True,
         )
         results = launch_multi_prompt_agents(
@@ -349,7 +343,7 @@ def launch_agents_from_cwd(
                 ),
             )
         except RuntimeError:
-            add_or_update_prompt(query, project_name=project_name, cancelled=True)
+            add_or_update_prompt(query, cancelled=True)
             raise
 
         def _spawn_repeat_slot(spec: RepeatAgentSpec) -> None:
@@ -416,19 +410,11 @@ def launch_agents_from_cwd(
         except RuntimeError:
             add_or_update_prompt(
                 query,
-                project_name=project_name,
-                branch_or_workspace=(
-                    alt_cl_name if alt_cl_name != project_name else None
-                ),
                 cancelled=True,
             )
             raise
 
-        add_or_update_prompt(
-            query,
-            project_name=project_name,
-            branch_or_workspace=alt_cl_name if alt_cl_name != project_name else None,
-        )
+        add_or_update_prompt(query)
         results = launch_multi_prompt_agents(
             segments=[query],
             local_xprompts=multi.local_xprompts,
@@ -548,18 +534,12 @@ def launch_agents_from_cwd(
     except RuntimeError:
         add_or_update_prompt(
             query,
-            project_name=project_name,
-            branch_or_workspace=history_sort_key or None,
             cancelled=True,
         )
         raise
 
     # --- Save prompt to history ---
-    add_or_update_prompt(
-        query,
-        project_name=project_name,
-        branch_or_workspace=history_sort_key or None,
-    )
+    add_or_update_prompt(query)
 
     from sase.agent.launch_executor import LaunchExecutionContext, execute_launch_plan
     from sase.core.agent_launch_facade import plan_fake_fanout

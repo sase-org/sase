@@ -185,8 +185,6 @@ class AgentLaunchBodyMixin:
                     err_msg = str(exc)
                     add_or_update_prompt(
                         submitted_xprompt,
-                        project_name=ctx.project_name,
-                        branch_or_workspace=ctx.history_sort_key,
                         cancelled=True,
                         allow_short=True,
                     )
@@ -195,8 +193,6 @@ class AgentLaunchBodyMixin:
                     return LaunchTaskOutcome(err_msg, severity="error")
                 add_or_update_prompt(
                     submitted_xprompt,
-                    project_name=ctx.project_name,
-                    branch_or_workspace=ctx.history_sort_key,
                     allow_short=True,
                 )
                 record_prompt_file_references(submitted_xprompt)
@@ -335,8 +331,6 @@ class AgentLaunchBodyMixin:
                 ctx.history_sort_key = ref_label
                 add_or_update_prompt(
                     prompt,
-                    project_name=ctx.project_name,
-                    branch_or_workspace=ctx.history_sort_key,
                     cancelled=True,
                 )
                 self._prompt_context = None
@@ -354,18 +348,12 @@ class AgentLaunchBodyMixin:
                 err_msg = str(exc)
                 add_or_update_prompt(
                     prompt,
-                    project_name=ctx.project_name,
-                    branch_or_workspace=ctx.history_sort_key,
                     cancelled=True,
                 )
                 self._prompt_context = None
                 timer.finish(dispatch="single", outcome="cancelled")
                 return LaunchTaskOutcome(err_msg, severity="error")
-            add_or_update_prompt(
-                prompt,
-                project_name=ctx.project_name,
-                branch_or_workspace=ctx.history_sort_key,
-            )
+            add_or_update_prompt(prompt)
             record_prompt_file_references(prompt)
 
         # Also detect VCS refs in non-home mode: the ace(run) workspace and

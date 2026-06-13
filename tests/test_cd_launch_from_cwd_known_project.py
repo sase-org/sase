@@ -140,11 +140,7 @@ def test_launch_agent_from_cwd_canonicalizes_project_alias_before_spawn(
     assert kwargs["cl_name"] == "bob-cli"
     assert kwargs["history_sort_key"] == "bob-cli"
     assert kwargs["vcs_ref"] == ("gh", "bob-cli")
-    history.assert_called_once_with(
-        "#gh:bob-cli #!bob/fix",
-        project_name="bob-cli",
-        branch_or_workspace="bob-cli",
-    )
+    history.assert_called_once_with("#gh:bob-cli #!bob/fix")
 
 
 def test_resolve_known_project_vcs_launch_ref_activates_inactive_owner_repo_ref(

@@ -303,7 +303,7 @@ def test_prompt_history_edit_first_uses_first_non_cancelled_modal_entry(
     )
     monkeypatch.setattr(
         "sase.history.prompt.get_prompts_for_fzf",
-        lambda current_branch, current_workspace, include_cancelled: [
+        lambda *, include_cancelled: [
             (
                 "x target | cancelled",
                 PromptEntry(
@@ -353,7 +353,7 @@ def test_prompt_history_edit_first_notifies_when_no_non_cancelled_entry(
     )
     monkeypatch.setattr(
         "sase.history.prompt.get_prompts_for_fzf",
-        lambda current_branch, current_workspace, include_cancelled: [
+        lambda *, include_cancelled: [
             (
                 "x target | cancelled",
                 PromptEntry(

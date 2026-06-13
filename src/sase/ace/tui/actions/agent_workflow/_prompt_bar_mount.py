@@ -126,20 +126,9 @@ class PromptBarMountMixin:
         if text.endswith((" .", " .x")) and text.startswith("#"):
             return
 
-        ctx = self._prompt_context
-        if ctx:
-            from sase.history.prompt import add_or_update_prompt
+        from sase.history.prompt import add_or_update_prompt
 
-            add_or_update_prompt(
-                text,
-                project_name=ctx.project_name,
-                branch_or_workspace=ctx.history_sort_key,
-                cancelled=True,
-            )
-        else:
-            from sase.history.prompt import add_or_update_prompt
-
-            add_or_update_prompt(text, cancelled=True)
+        add_or_update_prompt(text, cancelled=True)
 
         from sase.history.file_references import (
             extract_recordable_file_refs,

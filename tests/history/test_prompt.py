@@ -21,56 +21,41 @@ def test_add_new_prompt(tmp_path: Path) -> None:
     test_file = tmp_path / "prompt_history.json"
     with (
         patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch(
-            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
-        ),
-        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
         patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
     ):
         add_or_update_prompt("test prompt")
         result = _load_prompt_history()
         assert len(result) == 1
         assert result[0].text == "test prompt"
-        assert result[0].branch_or_workspace == "main"
         assert result[0].timestamp == "251231_143052"
         assert result[0].last_used == "251231_143052"
-        assert result[0].workspace == "myproject"
+        assert result[0].branch_or_workspace == ""
+        assert result[0].workspace == ""
+
+    saved = json.loads(test_file.read_text(encoding="utf-8"))["prompts"][0]
+    assert set(saved) == {"text", "timestamp", "last_used", "cancelled"}
 
 
 def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
     """Test that adding a duplicate prompt updates its last_used timestamp."""
     test_file = tmp_path / "prompt_history.json"
     with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
-        # Add initial prompt
         initial_entry = PromptEntry(
             text="test prompt",
-            branch_or_workspace="main",
             timestamp="251231_100000",
             last_used="251231_100000",
-            workspace="test_workspace",
         )
         _save_prompt_history([initial_entry])
 
-        # Add the same prompt again
-        with (
-            patch(
-                "sase.history.prompt._get_current_branch_or_workspace",
-                return_value="main",
-            ),
-            patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
-            patch(
-                "sase.history.prompt.generate_timestamp", return_value="251231_200000"
-            ),
+        with patch(
+            "sase.history.prompt.generate_timestamp", return_value="251231_200000"
         ):
             add_or_update_prompt("test prompt")
 
         result = _load_prompt_history()
-        # Should still be only 1 prompt (deduplicated)
         assert len(result) == 1
         assert result[0].text == "test prompt"
-        # Original timestamp should be preserved
         assert result[0].timestamp == "251231_100000"
-        # last_used should be updated
         assert result[0].last_used == "251231_200000"
 
 
@@ -79,10 +64,8 @@ def test_save_prompt_history_uses_atomic_replace(tmp_path: Path) -> None:
     test_file = tmp_path / "prompt_history.json"
     entry = PromptEntry(
         text="test prompt",
-        branch_or_workspace="main",
         timestamp="251231_100000",
         last_used="251231_100000",
-        workspace="myproject",
     )
     replace_calls: list[tuple[Path, Path]] = []
     original_replace = os.replace
@@ -105,9 +88,13 @@ def test_save_prompt_history_uses_atomic_replace(tmp_path: Path) -> None:
     assert temp_path.name.startswith(".prompt_history.json.")
     assert final_path == test_file
     assert not temp_path.exists()
-    assert json.loads(test_file.read_text(encoding="utf-8"))["prompts"][0]["text"] == (
-        "test prompt"
-    )
+    saved = json.loads(test_file.read_text(encoding="utf-8"))["prompts"][0]
+    assert saved == {
+        "text": "test prompt",
+        "timestamp": "251231_100000",
+        "last_used": "251231_100000",
+        "cancelled": False,
+    }
 
 
 def test_save_prompt_history_keeps_existing_file_when_replace_fails(
@@ -117,17 +104,13 @@ def test_save_prompt_history_keeps_existing_file_when_replace_fails(
     test_file = tmp_path / "prompt_history.json"
     initial_entry = PromptEntry(
         text="initial prompt",
-        branch_or_workspace="main",
         timestamp="251231_100000",
         last_used="251231_100000",
-        workspace="myproject",
     )
     new_entry = PromptEntry(
         text="new prompt",
-        branch_or_workspace="main",
         timestamp="251231_200000",
         last_used="251231_200000",
-        workspace="myproject",
     )
 
     with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
@@ -144,14 +127,11 @@ def test_format_prompt_truncates_long_prompts() -> None:
     """Test that long prompts are truncated with ellipsis."""
     entry = PromptEntry(
         text="a" * 100,
-        branch_or_workspace="main",
         timestamp="251231_143052",
         last_used="251231_143052",
-        workspace="myproject",
     )
-    result = _format_prompt_for_display(entry, "main", "myproject", 10)
+    result = _format_prompt_for_display(entry)
     assert "..." in result
-    # Should not contain the full prompt
     assert "a" * 100 not in result
 
 
@@ -159,45 +139,52 @@ def test_get_prompts_for_fzf_empty(tmp_path: Path) -> None:
     """Test get_prompts_for_fzf returns empty list when no history."""
     test_file = tmp_path / "prompt_history.json"
     with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
-        result = get_prompts_for_fzf("main", "myproject")
+        result = get_prompts_for_fzf()
         assert result == []
 
 
-def test_get_prompts_for_fzf_sorts_workspace_second(tmp_path: Path) -> None:
-    """Test that prompts from same workspace but different branch are sorted second."""
+def test_get_prompts_for_fzf_sorts_by_last_used_desc(tmp_path: Path) -> None:
+    """Test that prompts are sorted by recency only."""
     test_file = tmp_path / "prompt_history.json"
-    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
-        entries = [
-            PromptEntry(
-                text="other workspace prompt",
-                branch_or_workspace="feature",
-                timestamp="251231_143052",
-                last_used="251231_300000",  # Most recent
-                workspace="otherproject",
-            ),
-            PromptEntry(
-                text="same workspace prompt",
-                branch_or_workspace="feature2",
-                timestamp="251231_143052",
-                last_used="251231_200000",  # Middle
-                workspace="myproject",
-            ),
-            PromptEntry(
-                text="current branch prompt",
-                branch_or_workspace="main",
-                timestamp="251231_143052",
-                last_used="251231_100000",  # Least recent
-                workspace="myproject",
-            ),
-        ]
-        _save_prompt_history(entries)
+    test_file.write_text(
+        json.dumps(
+            {
+                "prompts": [
+                    {
+                        "text": "old current branch prompt",
+                        "branch_or_workspace": "main",
+                        "timestamp": "251231_143052",
+                        "last_used": "251231_100000",
+                        "workspace": "myproject",
+                    },
+                    {
+                        "text": "middle workspace prompt",
+                        "branch_or_workspace": "feature",
+                        "timestamp": "251231_143052",
+                        "last_used": "251231_200000",
+                        "workspace": "myproject",
+                    },
+                    {
+                        "text": "new other workspace prompt",
+                        "branch_or_workspace": "other",
+                        "timestamp": "251231_143052",
+                        "last_used": "251231_300000",
+                        "workspace": "otherproject",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
 
-        result = get_prompts_for_fzf("main", "myproject")
-        assert len(result) == 3
-        # Current branch first, then same workspace, then other
-        assert result[0][1].text == "current branch prompt"
-        assert result[1][1].text == "same workspace prompt"
-        assert result[2][1].text == "other workspace prompt"
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
+        result = get_prompts_for_fzf()
+
+    assert [entry.text for _, entry in result] == [
+        "new other workspace prompt",
+        "middle workspace prompt",
+        "old current branch prompt",
+    ]
 
 
 def test_handles_corrupt_json(tmp_path: Path) -> None:
@@ -216,21 +203,14 @@ def test_add_prompt_does_not_overwrite_after_transient_decode_failure(
     test_file = tmp_path / "prompt_history.json"
     initial_entry = PromptEntry(
         text="initial prompt",
-        branch_or_workspace="main",
         timestamp="251231_100000",
         last_used="251231_100000",
-        workspace="myproject",
     )
 
     with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         assert _save_prompt_history([initial_entry]) is True
 
         with (
-            patch(
-                "sase.history.prompt._get_current_branch_or_workspace",
-                return_value="main",
-            ),
-            patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
             patch(
                 "sase.history.prompt.generate_timestamp",
                 return_value="251231_200000",
@@ -253,11 +233,6 @@ def test_concurrent_prompt_writers_preserve_all_entries(tmp_path: Path) -> None:
 
     with (
         patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch(
-            "sase.history.prompt._get_current_branch_or_workspace",
-            return_value="main",
-        ),
-        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
         patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
     ):
         with ThreadPoolExecutor(max_workers=6) as executor:
