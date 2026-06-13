@@ -75,6 +75,42 @@ def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
         assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_worker_models_mapping() -> None:
+    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    config = {
+        "llm_provider": {
+            "worker_models": {
+                "claude": "codex/gpt-5.5",
+                "codex/o3": "claude/opus",
+            }
+        }
+    }
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
+
+
+def test_config_schema_rejects_legacy_worker_model_field() -> None:
+    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    config = {"llm_provider": {"worker_model": "codex/gpt-5.5"}}
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert any(
+        list(error.absolute_path) == ["llm_provider"]
+        and "Additional properties are not allowed" in error.message
+        and "worker_model" in error.message
+        for error in errors
+    )
+
+
 def test_config_schema_requires_sibling_repo_descriptions() -> None:
     schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
     config = {

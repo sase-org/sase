@@ -235,7 +235,9 @@ full LLM provider architecture, preprocessing pipeline, and invocation lifecycle
 ```yaml
 llm_provider:
   provider: claude # or "qwen", "opencode", "gemini" (default: auto-detect)
-  worker_model: codex/gpt-5.5 # optional secondary default for delegated work
+  worker_models:
+    claude: codex/gpt-5.5 # worker default when primary is on Claude
+    codex: claude/opus # worker default when primary is on Codex
   model_tier_map:
     large: opus
     small: sonnet
@@ -246,7 +248,7 @@ llm_provider:
 | Field                               | Type   | Default     | Description                                                                                                                                                  |
 | ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini.                  |
-| `llm_provider.worker_model`         | string | unset       | Optional secondary default model for worker-lane launches such as epic phase agents. Accepts bare known models, aliases, or explicit `provider/model`.       |
+| `llm_provider.worker_models`        | dict   | unset       | Optional worker-lane targets keyed by the effective primary lane. Values accept bare known models, aliases, or explicit `provider/model`.                    |
 | `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                                       |
 | `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                                       |
 | `llm_provider.model_aliases`        | dict   | -           | Model aliases usable from `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths. |
@@ -255,10 +257,12 @@ Model aliases are resolved when an agent launches, so reusable xprompts can poin
 each user's `sase.yml` controls the concrete provider/model. Unknown aliases and unknown model values keep the existing
 fallback behavior and run on the default provider.
 
-The optional `worker_model` config defines the worker lane used by delegated work, currently including `sase bead work`
-phase agents that do not have an explicit per-bead model. When unset, the worker lane follows the primary default lane:
-active primary override, configured provider/tier, then provider auto-detection. See
-[Worker Model](llms.md#worker-model) for the full precedence order and TUI behavior.
+The optional `worker_models` config defines the worker lane used by delegated work, currently including `sase bead work`
+phase agents that do not have an explicit per-bead model. Entries are selected from the current effective primary lane
+in this order: exact `provider/model`, bare model, then provider. Provider entries are defaults only and do not override
+model-specific entries. When no entry matches, the worker lane follows the primary default lane: active primary
+override, configured provider/tier, then provider auto-detection. See [Worker Model](llms.md#worker-model) for the full
+precedence order and TUI behavior.
 
 The alias name `other` is reserved: when a temporary LLM override is active (see
 [Temporary Default Override](llms.md#temporary-default-override)), `%model:other` resolves to the `(provider, model)`

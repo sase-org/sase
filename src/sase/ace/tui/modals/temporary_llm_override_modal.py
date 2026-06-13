@@ -30,7 +30,7 @@ from sase.llm_provider import (
     resolve_effective_worker_provider_model,
     set_temporary_override,
 )
-from sase.llm_provider.config import get_configured_worker_model
+from sase.llm_provider.config import get_configured_worker_model_for_primary
 from sase.llm_provider.registry import format_provider_model_label
 
 from .custom_model_input_modal import CustomModelInputModal
@@ -276,8 +276,12 @@ class TemporaryLLMOverrideModal(ModalScreen[TemporaryOverrideResult]):
                 source_tag="default",
             )
 
+        primary_provider, primary_model = resolve_effective_default_provider_model()
         provider_name, model_name = resolve_effective_worker_provider_model()
-        configured = get_configured_worker_model()
+        configured = get_configured_worker_model_for_primary(
+            primary_provider,
+            primary_model,
+        )
         has_worker_config = configured is not None and configured.strip() != "worker"
         source_tag = "config" if has_worker_config else "default"
         if not has_worker_config and self._active_primary is not None:

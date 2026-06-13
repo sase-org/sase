@@ -267,7 +267,9 @@ axe:
 
 llm_provider:
   provider: ""
-  # worker_model: ""
+  # worker_models:
+  #   claude: codex/gpt-5.5
+  #   codex: claude/opus
   retry:
     gemini:
       max_retries: 3

@@ -285,10 +285,10 @@ For epic-tier plans, the command:
    blocker phase-agent names, and the land agent waits on every launched phase agent. Because `%w` requires a successful
    `done.json` outcome, a failed or killed phase keeps dependent phases and the land agent parked until the phase name
    is retried successfully. Phase beads with a stored `model` emit `%model:<value>`; phase beads without one emit
-   `%model:worker`, which resolves through the worker-lane order: active worker override, configured
-   `llm_provider.worker_model`, then the primary model lane. A stored model on the epic plan bead still applies only to
-   the land agent. Each segment uses the force-reuse `%name:!<agent_name>` form so re-running `sase bead work` after a
-   killed or failed run wipes the stale name owners before the relaunch — the command is safe to retry.
+   `%model:worker`, which resolves through the worker-lane order: active worker override, matching
+   `llm_provider.worker_models` entry, then the primary model lane. A stored model on the epic plan bead still applies
+   only to the land agent. Each segment uses the force-reuse `%name:!<agent_name>` form so re-running `sase bead work`
+   after a killed or failed run wipes the stale name owners before the relaunch — the command is safe to retry.
 
 For legend-tier plans, the command:
 

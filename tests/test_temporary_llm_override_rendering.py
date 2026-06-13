@@ -34,8 +34,9 @@ def test_render_state_line_inactive_uses_resolved_default() -> None:
 def test_lane_rows_render_default_source_tags(monkeypatch: pytest.MonkeyPatch) -> None:
     """Idle primary and worker lanes show default source tags."""
     monkeypatch.setattr(
-        "sase.ace.tui.modals.temporary_llm_override_modal.get_configured_worker_model",
-        lambda: None,
+        "sase.ace.tui.modals.temporary_llm_override_modal."
+        "get_configured_worker_model_for_primary",
+        lambda _provider, _model: None,
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.temporary_llm_override_modal."
@@ -53,8 +54,9 @@ def test_lane_rows_render_config_source_tag(
 ) -> None:
     """A configured worker model shows ``config`` in the worker row."""
     monkeypatch.setattr(
-        "sase.ace.tui.modals.temporary_llm_override_modal.get_configured_worker_model",
-        lambda: "codex/gpt-5.5",
+        "sase.ace.tui.modals.temporary_llm_override_modal."
+        "get_configured_worker_model_for_primary",
+        lambda _provider, _model: "codex/gpt-5.5",
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.temporary_llm_override_modal."
@@ -72,8 +74,9 @@ def test_lane_rows_render_follows_primary_source_tag(
 ) -> None:
     """Worker falls through to the active primary override when unset."""
     monkeypatch.setattr(
-        "sase.ace.tui.modals.temporary_llm_override_modal.get_configured_worker_model",
-        lambda: None,
+        "sase.ace.tui.modals.temporary_llm_override_modal."
+        "get_configured_worker_model_for_primary",
+        lambda _provider, _model: None,
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.temporary_llm_override_modal."

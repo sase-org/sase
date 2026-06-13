@@ -11,8 +11,9 @@ from sase.llm_provider._subprocess import stream_process_output
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.claude import ClaudeCodeProvider
 from sase.llm_provider.config import (
+    _get_configured_worker_models,
     _get_model_aliases,
-    get_configured_worker_model,
+    get_configured_worker_model_for_primary,
     resolve_model_alias,
 )
 from sase.llm_provider.registry import resolve_model_provider
@@ -65,26 +66,70 @@ def test_model_aliases_ignore_invalid_entries(mock_config: MagicMock) -> None:
     "cfg",
     [
         {},
-        {"worker_model": ""},
-        {"worker_model": "   "},
-        {"worker_model": 123},
-        {"worker_model": ["codex/gpt-5.5"]},
+        {"worker_model": "codex/gpt-5.5"},
+        {"worker_models": ""},
+        {"worker_models": "   "},
+        {"worker_models": 123},
+        {"worker_models": ["codex/gpt-5.5"]},
+        {
+            "worker_models": {
+                "": "codex/gpt-5.5",
+                "claude": "",
+                "codex": "   ",
+                123: "opus",
+                "bad": ["codex/gpt-5.5"],
+            }
+        },
     ],
 )
-def test_get_configured_worker_model_tolerates_missing_blank_and_non_string(
+def test_get_configured_worker_models_tolerates_missing_blank_and_malformed(
     mock_config: MagicMock,
     cfg: dict[str, object],
 ) -> None:
     mock_config.return_value = cfg
 
-    assert get_configured_worker_model() is None
+    assert _get_configured_worker_models() == {}
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
-def test_get_configured_worker_model_strips_value(mock_config: MagicMock) -> None:
-    mock_config.return_value = {"worker_model": " codex/gpt-5.5 "}
+def test_get_configured_worker_models_strips_keys_and_values(
+    mock_config: MagicMock,
+) -> None:
+    mock_config.return_value = {
+        "worker_models": {
+            " claude ": " codex/gpt-5.5 ",
+            " opus ": " claude/sonnet ",
+        }
+    }
 
-    assert get_configured_worker_model() == "codex/gpt-5.5"
+    assert _get_configured_worker_models() == {
+        "claude": "codex/gpt-5.5",
+        "opus": "claude/sonnet",
+    }
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_get_configured_worker_model_for_primary_uses_specificity_order(
+    mock_config: MagicMock,
+) -> None:
+    mock_config.return_value = {
+        "worker_models": {
+            "claude": "qwen/qwen3.6-plus",
+            "opus": "gemini/gemini-2.5-pro",
+            "claude/opus": "codex/gpt-5.5",
+        }
+    }
+
+    assert get_configured_worker_model_for_primary("claude", "opus") == "codex/gpt-5.5"
+    assert (
+        get_configured_worker_model_for_primary("opencode", "opus")
+        == "gemini/gemini-2.5-pro"
+    )
+    assert (
+        get_configured_worker_model_for_primary("claude", "sonnet")
+        == "qwen/qwen3.6-plus"
+    )
+    assert get_configured_worker_model_for_primary("codex", "o3") is None
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
@@ -131,7 +176,7 @@ def test_worker_alias_resolves_effective_worker_lane(
 ) -> None:
     _mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "worker_model": "codex/gpt-5.5"},
+        {"provider": "claude", "worker_models": {"claude": "codex/gpt-5.5"}},
     )
 
     assert resolve_model_provider("worker") == ("codex", "gpt-5.5")
@@ -144,7 +189,7 @@ def test_worker_alias_shadows_configured_alias(
         monkeypatch,
         {
             "provider": "claude",
-            "worker_model": "codex/gpt-5.5",
+            "worker_models": {"claude": "codex/gpt-5.5"},
             "model_aliases": {"worker": "claude/sonnet"},
         },
     )

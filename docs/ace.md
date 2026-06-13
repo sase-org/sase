@@ -939,7 +939,7 @@ worker override with `W`. Both lanes use the same provider-grouped picker and du
 `2h`, `4h`, `Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`.
 
 When a worker override is active, the top bar includes a compact `W ...` chip next to the primary override indicator.
-Permanent `llm_provider.worker_model` config is visible in the modal, not the top bar.
+Permanent `llm_provider.worker_models` config is visible in the modal, not the top bar.
 
 ### Behavior
 

@@ -376,7 +376,7 @@ def test_resolve_effective_worker_prefers_worker_override(
 ) -> None:
     _mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "worker_model": "gemini/gemini-2.5-pro"},
+        {"provider": "claude", "worker_models": {"claude": "gemini/gemini-2.5-pro"}},
     )
     set_temporary_override("codex/o3", 3600.0, source="ace")
     set_temporary_override("codex/gpt-5.5", 3600.0, source="ace", role="worker")
@@ -390,7 +390,7 @@ def test_resolve_effective_worker_uses_configured_provider_syntax(
 ) -> None:
     _mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "worker_model": "codex/gpt-5.5"},
+        {"provider": "claude", "worker_models": {"claude": "codex/gpt-5.5"}},
     )
     set_temporary_override("claude/sonnet", 3600.0, source="ace")
 
@@ -403,7 +403,7 @@ def test_resolve_effective_worker_uses_configured_known_bare_model(
 ) -> None:
     _mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "worker_model": "gpt-5.5"},
+        {"provider": "claude", "worker_models": {"claude": "gpt-5.5"}},
     )
 
     provider, model = resolve_effective_worker_provider_model()
@@ -417,7 +417,7 @@ def test_resolve_effective_worker_uses_configured_alias_target(
         monkeypatch,
         {
             "provider": "claude",
-            "worker_model": "fast-worker",
+            "worker_models": {"claude": "fast-worker"},
             "model_aliases": {"fast-worker": "codex/gpt-5.5"},
         },
     )
@@ -426,12 +426,84 @@ def test_resolve_effective_worker_uses_configured_alias_target(
     assert (provider, model) == ("codex", "gpt-5.5")
 
 
+def test_resolve_effective_worker_exact_key_beats_bare_model_and_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "worker_models": {
+                "claude": "claude/sonnet",
+                "opus": "gemini/gemini-2.5-pro",
+                "claude/opus": "codex/gpt-5.5",
+            },
+        },
+    )
+
+    provider, model = resolve_effective_worker_provider_model()
+    assert (provider, model) == ("codex", "gpt-5.5")
+
+
+def test_resolve_effective_worker_bare_model_key_beats_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "worker_models": {
+                "claude": "gemini/gemini-2.5-pro",
+                "opus": "codex/gpt-5.5",
+            },
+        },
+    )
+
+    provider, model = resolve_effective_worker_provider_model()
+    assert (provider, model) == ("codex", "gpt-5.5")
+
+
+def test_resolve_effective_worker_provider_key_does_not_cross_providers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "codex",
+            "worker_models": {"claude": "gemini/gemini-2.5-pro"},
+        },
+    )
+
+    assert resolve_effective_worker_provider_model() == (
+        resolve_effective_default_provider_model()
+    )
+
+
+def test_resolve_effective_worker_primary_override_selects_mapping_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "worker_models": {
+                "claude": "gemini/gemini-2.5-pro",
+                "codex": "claude/sonnet",
+            },
+        },
+    )
+    set_temporary_override("codex/o3", 3600.0, source="ace")
+
+    provider, model = resolve_effective_worker_provider_model()
+    assert (provider, model) == ("claude", "sonnet")
+
+
 def test_resolve_effective_worker_unknown_config_model_uses_config_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "worker_model": "custom-worker-model"},
+        {"provider": "claude", "worker_models": {"codex": "custom-worker-model"}},
     )
     set_temporary_override("codex/o3", 3600.0, source="ace")
 
@@ -464,7 +536,7 @@ def test_resolve_effective_worker_self_reference_treated_as_unset(
 ) -> None:
     _mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "worker_model": "worker"},
+        {"provider": "claude", "worker_models": {"codex": "worker"}},
     )
     set_temporary_override("codex/o3", 3600.0, source="ace")
 
@@ -477,7 +549,7 @@ def test_worker_override_captures_worker_lane_pre_override_snapshot(
 ) -> None:
     _mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "worker_model": "codex/gpt-5.5"},
+        {"provider": "claude", "worker_models": {"claude": "codex/gpt-5.5"}},
     )
 
     override = set_temporary_override(

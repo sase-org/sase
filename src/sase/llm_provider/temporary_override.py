@@ -355,20 +355,27 @@ def resolve_effective_worker_provider_model(
 ) -> tuple[str, str]:
     """Return the ``(provider_name, model_name)`` for worker-lane launches.
 
-    Worker-specific state wins first. If no worker override or configured
-    worker model exists, the worker lane falls through to the primary lane.
+    Worker-specific state wins first. If no worker-model mapping matches
+    the current primary lane, the worker lane falls through to that primary
+    lane.
     """
     override = get_active_temporary_override(role="worker")
     if override is not None:
         return override.provider, override.model
 
-    from .config import get_configured_worker_model
+    from .config import get_configured_worker_model_for_primary
     from .registry import (
         get_configured_default_provider_name,
         resolve_model_provider,
     )
 
-    configured = get_configured_worker_model()
+    primary_provider, primary_model = resolve_effective_default_provider_model(
+        model_tier
+    )
+    configured = get_configured_worker_model_for_primary(
+        primary_provider,
+        primary_model,
+    )
     if configured is not None and configured.strip() != "worker":
         resolved_provider, resolved_model = resolve_model_provider(configured)
         if resolved_model.strip() != "worker":
@@ -376,4 +383,4 @@ def resolve_effective_worker_provider_model(
                 resolved_provider = get_configured_default_provider_name()
             return resolved_provider, resolved_model
 
-    return resolve_effective_default_provider_model(model_tier)
+    return primary_provider, primary_model

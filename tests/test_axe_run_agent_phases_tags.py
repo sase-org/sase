@@ -84,7 +84,7 @@ def test_worker_directive_metadata_prefers_worker_override(
 ) -> None:
     _mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "worker_model": "codex/gpt-5.5"},
+        {"provider": "claude", "worker_models": {"claude": "codex/gpt-5.5"}},
     )
     set_temporary_override("codex/o3", 3600.0, source="test")
     set_temporary_override(
@@ -102,7 +102,7 @@ def test_worker_directive_metadata_uses_configured_worker_model(
 ) -> None:
     _mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "worker_model": "codex/gpt-5.5"},
+        {"provider": "claude", "worker_models": {"claude": "codex/gpt-5.5"}},
     )
     set_temporary_override("claude/sonnet", 3600.0, source="test")
 

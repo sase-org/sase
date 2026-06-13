@@ -492,7 +492,9 @@ The LLM provider reads its configuration from `~/.config/sase/sase.yml` under th
 ```yaml
 llm_provider:
   provider: claude # or "qwen", "opencode", "gemini" (default: auto-detect)
-  worker_model: codex/gpt-5.5 # optional secondary default for delegated work
+  worker_models:
+    claude: codex/gpt-5.5 # worker default when primary is on Claude
+    codex: claude/opus # worker default when primary is on Codex
   model_tier_map:
     large: opus
     small: sonnet
@@ -502,13 +504,13 @@ llm_provider:
 
 ### Config Fields
 
-| Field                               | Type   | Default     | Description                                                                                                                                                                |
-| ----------------------------------- | ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini.                                |
-| `llm_provider.worker_model`         | string | unset       | Optional secondary default model for worker-lane launches such as plan follow-ups and epic phase agents. Accepts bare known models, aliases, or explicit `provider/model`. |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                                      |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                                      |
-| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths.                       |
+| Field                               | Type   | Default     | Description                                                                                                                                                                    |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini.                                    |
+| `llm_provider.worker_models`        | dict   | unset       | Optional worker-lane targets for plan follow-ups and epic phase agents, keyed by the effective primary lane. Values accept aliases, bare models, or explicit `provider/model`. |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                                          |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                                          |
+| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths.                           |
 
 ## Per-Prompt Provider Switching
 
@@ -647,16 +649,33 @@ the approval does not pick a specific follow-up model, and by `sase bead work` p
 per-bead model. Planning and landing agents stay on the primary default unless their prompt or bead explicitly asks for
 a different model.
 
-Configure it under `llm_provider.worker_model`:
+Configure it under `llm_provider.worker_models`:
 
 ```yaml
 llm_provider:
   provider: claude
-  worker_model: codex/gpt-5.5
+  worker_models:
+    claude: codex/gpt-5.5
+    codex: claude/opus
 ```
 
-The value accepts the same syntax as `%model`: a bare known model (`gpt-5.5`), a configured alias, an explicit
-`provider/model` pair (`codex/gpt-5.5`), or a nested provider-local model path.
+Each key selects which worker target to use for the current effective primary lane. Keys are matched in this order:
+exact `provider/model` first, bare model next, and provider last. Provider keys are defaults only, so `claude/opus` or
+`opus` beats `claude` when both are present. Values accept the same syntax as `%model`: a bare known model (`gpt-5.5`),
+a configured alias, an explicit `provider/model` pair (`codex/gpt-5.5`), or a nested provider-local model path.
+
+For example:
+
+```yaml
+llm_provider:
+  worker_models:
+    claude/opus: codex/gpt-5.5
+    sonnet: codex/o3
+    claude: gemini/gemini-2.5-pro
+```
+
+With that config, primary `claude/opus` uses `codex/gpt-5.5`, primary `claude/sonnet` uses `codex/o3`, and other Claude
+primary models use `gemini/gemini-2.5-pro`.
 
 ### Lane Precedence
 
@@ -673,19 +692,20 @@ Primary lane:
 Worker lane:
 1. explicit %model directive or per-bead model
 2. active worker temporary override (~/.sase/llm_worker_override.json)
-3. llm_provider.worker_model
+3. matching llm_provider.worker_models entry
 4. primary lane steps 2-4
 ```
 
-Because of that fallthrough, leaving `worker_model` unset preserves the old behavior: worker launches use the same
-effective default that a normal launch would have used.
+Because of that fallthrough, leaving `worker_models` unset, empty, or unmatched preserves the old behavior: worker
+launches use the same effective default that a normal launch would have used. Active primary temporary overrides affect
+which mapping key is selected, so a primary override to `codex/o3` can match `codex/o3`, `o3`, or `codex`.
 
 ### TUI Controls
 
 Press `,o` in ACE to open the **Model Overrides** panel. The panel shows both lanes, their current effective model, and
 the source of that model (`override`, `config`, `follows primary`, or `default`). Use `s`/`c`/`x` for primary override
 set/change/clear and `w`/`W` for worker override set/change/clear. Active temporary worker overrides also appear as a
-compact `W ...` chip in the top bar; permanent `worker_model` config is visible in the modal instead.
+compact `W ...` chip in the top bar; permanent `worker_models` config is visible in the modal instead.
 
 The worker override state file is `~/.sase/llm_worker_override.json`. It uses the same JSON format, expiry behavior, and
 atomic writes as the primary override file.
@@ -775,7 +795,7 @@ The override primitives live in `src/sase/llm_provider/temporary_override.py`:
 | `clear_temporary_override(role=...)`                  | Remove the lane's override file. Safe to call when nothing is active.              |
 | `parse_override_duration(value)`                      | Parse a user-facing duration string into seconds (or `None`).                      |
 | `resolve_effective_default_provider_model()`          | Centralized helper used by metadata pre-resolution paths.                          |
-| `resolve_effective_worker_provider_model()`           | Resolve the worker lane: worker override, `worker_model`, then primary fallback.   |
+| `resolve_effective_worker_provider_model()`           | Resolve the worker lane: worker override, matching `worker_models`, then fallback. |
 
 ### Examples
 

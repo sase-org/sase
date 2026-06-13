@@ -32,28 +32,46 @@ def get_llm_provider_config() -> dict[str, Any]:
 
 def _get_model_aliases() -> dict[str, str]:
     """Return cleaned ``llm_provider.model_aliases`` entries from config."""
-    aliases = get_llm_provider_config().get("model_aliases", {})
-    if not isinstance(aliases, dict):
+    return _clean_string_mapping(get_llm_provider_config().get("model_aliases", {}))
+
+
+def _clean_string_mapping(value: Any) -> dict[str, str]:
+    """Return stripped string-to-string entries from a config mapping."""
+    if not isinstance(value, dict):
         return {}
 
     cleaned: dict[str, str] = {}
-    for key, value in aliases.items():
-        if not isinstance(key, str) or not isinstance(value, str):
+    for key, item in value.items():
+        if not isinstance(key, str) or not isinstance(item, str):
             continue
         alias = key.strip()
-        target = value.strip()
+        target = item.strip()
         if alias and target:
             cleaned[alias] = target
     return cleaned
 
 
-def get_configured_worker_model() -> str | None:
-    """Return the optional configured worker-lane model, if set."""
-    value = get_llm_provider_config().get("worker_model")
-    if not isinstance(value, str):
+def _get_configured_worker_models() -> dict[str, str]:
+    """Return cleaned ``llm_provider.worker_models`` mapping entries."""
+    return _clean_string_mapping(get_llm_provider_config().get("worker_models", {}))
+
+
+def get_configured_worker_model_for_primary(
+    primary_provider: str,
+    primary_model: str,
+) -> str | None:
+    """Return the configured worker target for an effective primary lane."""
+    provider = primary_provider.strip()
+    model = primary_model.strip()
+    if not provider or not model:
         return None
-    cleaned = value.strip()
-    return cleaned or None
+
+    worker_models = _get_configured_worker_models()
+    for key in (f"{provider}/{model}", model, provider):
+        configured = worker_models.get(key)
+        if configured is not None:
+            return configured
+    return None
 
 
 def resolve_model_alias(model: str) -> str:
