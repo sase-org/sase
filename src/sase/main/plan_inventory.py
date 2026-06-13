@@ -20,7 +20,9 @@ from sase.notifications.store import load_notifications
 
 _APPROVED_LIMIT = 10
 _REJECTED_LIMIT = 10
-_REJECTED_NOTE = "inferred from archived proposal not represented by proposed/approved state"
+_REJECTED_NOTE = (
+    "inferred from archived proposal not represented by proposed/approved state"
+)
 
 
 @dataclass(frozen=True)
@@ -75,7 +77,9 @@ def build_plan_inventory(
     proposed = _collect_proposed_plans()
     approved = _collect_approved_plans(limit=approved_limit)
 
-    represented_paths = {row._plan_key for row in (*proposed, *approved) if row._plan_key}
+    represented_paths = {
+        row._plan_key for row in (*proposed, *approved) if row._plan_key
+    }
     archived_paths = _archived_plan_paths()
     rejected = _collect_rejected_plans(
         archived_paths,
@@ -106,7 +110,9 @@ def plan_inventory_to_json(inventory: _PlanInventory) -> dict[str, object]:
     }
 
 
-def render_plan_inventory(inventory: _PlanInventory, *, console: Any | None = None) -> None:
+def render_plan_inventory(
+    inventory: _PlanInventory, *, console: Any | None = None
+) -> None:
     """Render the inventory as a compact Rich dashboard."""
     from rich import box
     from rich.console import Console
@@ -391,7 +397,9 @@ def _summary_cell(label: str, value: int, style: str) -> Any:
     return text
 
 
-def _section_panel(title: str, table: Any | None, *, empty: str, border_style: str) -> Any:
+def _section_panel(
+    title: str, table: Any | None, *, empty: str, border_style: str
+) -> Any:
     from rich import box
     from rich.panel import Panel
     from rich.text import Text
