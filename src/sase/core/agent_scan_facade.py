@@ -180,8 +180,9 @@ def read_agent_artifact_index_meta(
     key: str,
 ) -> str | None:
     """Read one metadata value from the persistent artifact index."""
-    rust_read = require_rust_binding("read_agent_artifact_index_meta")
-    value = rust_read(str(index_path), str(key))
+    with agent_artifact_index_operation_lock():
+        rust_read = require_rust_binding("read_agent_artifact_index_meta")
+        value = rust_read(str(index_path), str(key))
     return None if value is None else str(value)
 
 
@@ -191,16 +192,18 @@ def write_agent_artifact_index_meta(
     value: str,
 ) -> None:
     """Write one metadata value in the persistent artifact index."""
-    rust_write = require_rust_binding("write_agent_artifact_index_meta")
-    rust_write(str(index_path), str(key), str(value))
+    with agent_artifact_index_operation_lock():
+        rust_write = require_rust_binding("write_agent_artifact_index_meta")
+        rust_write(str(index_path), str(key), str(value))
 
 
 def agent_artifact_index_status(
     index_path: Path | str,
 ) -> AgentArtifactIndexStatusWire:
     """Return lightweight row-count status for the persistent artifact index."""
-    rust_status = require_rust_binding("agent_artifact_index_status")
-    payload: dict[str, Any] = rust_status(str(index_path))
+    with agent_artifact_index_operation_lock():
+        rust_status = require_rust_binding("agent_artifact_index_status")
+        payload: dict[str, Any] = rust_status(str(index_path))
     return agent_artifact_index_status_from_dict(payload)
 
 
