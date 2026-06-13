@@ -304,6 +304,8 @@ class PlanApprovalModal(
                 coder_prompt=coder_prompt,
                 coder_model=coder_model,
                 choice=choice,
+                planner_llm_provider=self._llm_provider,
+                planner_model=self._model,
             ),
             on_options_dismiss,
         )

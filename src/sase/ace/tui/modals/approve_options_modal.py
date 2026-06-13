@@ -40,17 +40,50 @@ _CHOICE_CONSEQUENCES: dict[PlanApprovalChoice, str] = {
 }
 
 
-def _model_display_label(coder_model: str | None) -> str:
-    """Format the coder model for display in the modal."""
+def _contextual_worker_lane(
+    planner_llm_provider: str | None,
+    planner_model: str | None,
+) -> tuple[str, str]:
+    """Resolve the worker lane for a planner's concrete provider/model.
+
+    Falls back to the current effective worker lane when the planner's
+    provider/model metadata is missing, so the default display still resolves.
+    """
+    provider = (planner_llm_provider or "").strip()
+    model = (planner_model or "").strip()
+    if provider and model:
+        from sase.llm_provider import resolve_worker_provider_model_for_primary
+
+        resolution = resolve_worker_provider_model_for_primary(provider, model)
+        return resolution.provider, resolution.model
+
+    from sase.llm_provider import resolve_effective_worker_provider_model
+
+    return resolve_effective_worker_provider_model()
+
+
+def _model_display_label(
+    coder_model: str | None,
+    *,
+    planner_llm_provider: str | None = None,
+    planner_model: str | None = None,
+) -> str:
+    """Format the coder model for display in the modal.
+
+    When no model is chosen, the displayed worker default is resolved from the
+    planner's concrete provider/model so it matches the model the handoff will
+    actually use, not the current global worker lane.
+    """
     from sase.llm_provider.registry import (
         format_provider_model_label,
         resolve_model_provider,
     )
 
     if coder_model is None:
-        from sase.llm_provider import resolve_effective_worker_provider_model
-
-        worker_provider, worker_model = resolve_effective_worker_provider_model()
+        worker_provider, worker_model = _contextual_worker_lane(
+            planner_llm_provider,
+            planner_model,
+        )
         return f"Worker — {format_provider_model_label(worker_provider, worker_model)}"
 
     provider, model = resolve_model_provider(coder_model)
@@ -118,11 +151,16 @@ class ApproveOptionsModal(
         coder_prompt: str = "",
         coder_model: str | None = None,
         choice: PlanApprovalChoice | None = None,
+        *,
+        planner_llm_provider: str | None = None,
+        planner_model: str | None = None,
     ) -> None:
         super().__init__()
         self._choice = choice or _choice_from_legacy_flags(commit_plan, run_coder)
         self._coder_prompt = coder_prompt
         self._coder_model = coder_model
+        self._planner_llm_provider = planner_llm_provider
+        self._planner_model = planner_model
 
     def compose(self) -> ComposeResult:
         with Container(id="approve-options-container"):
@@ -140,7 +178,7 @@ class ApproveOptionsModal(
 
             yield Static("Coder model:", classes="approve-options-model-label")
             yield Static(
-                _model_display_label(self._coder_model),
+                self._model_display_label(),
                 id="coder-model-display",
             )
 
@@ -256,7 +294,11 @@ class ApproveOptionsModal(
         """Open the model picker modal."""
 
         from .custom_model_input_modal import CustomModelInputModal
-        from .model_picker_modal import CUSTOM_SENTINEL, ModelPickerModal
+        from .model_picker_modal import (
+            CUSTOM_SENTINEL,
+            DEFAULT_SENTINEL,
+            ModelPickerModal,
+        )
 
         def on_picker_dismiss(result: str | None) -> None:
             if result == CUSTOM_SENTINEL:
@@ -267,20 +309,33 @@ class ApproveOptionsModal(
                         self._update_model_display()
 
                 self.app.push_screen(CustomModelInputModal(), on_custom_dismiss)
+            elif result == DEFAULT_SENTINEL:
+                # "Worker model (default)" selected: reset any prior coder model
+                # back to the worker-lane default.
+                self._coder_model = None
+                self._update_model_display()
             elif result is not None:
                 # A known model was selected (result is the model id)
                 self._coder_model = result
                 self._update_model_display()
-            # result is None means "Worker model (default)" was selected or cancel
-            # For cancel (escape), result is None via OptionListNavigationMixin.action_cancel
-            # For "Worker model (default)", result is also None via ModelPickerModal
+            # result is None means cancel (escape): leave the current selection
+            # untouched. The picker uses distinct_default=True so the worker
+            # default returns DEFAULT_SENTINEL, distinct from cancel.
 
-        self.app.push_screen(ModelPickerModal(), on_picker_dismiss)
+        self.app.push_screen(ModelPickerModal(distinct_default=True), on_picker_dismiss)
+
+    def _model_display_label(self) -> str:
+        """Format the current coder model for display, with planner context."""
+        return _model_display_label(
+            self._coder_model,
+            planner_llm_provider=self._planner_llm_provider,
+            planner_model=self._planner_model,
+        )
 
     def _update_model_display(self) -> None:
         """Refresh the model display label."""
         model_display = self.query_one("#coder-model-display", Static)
-        model_display.update(_model_display_label(self._coder_model))
+        model_display.update(self._model_display_label())
 
     def action_edit_prompt(self) -> None:
         """Dismiss with edit-prompt sentinel so the caller can delegate to PromptInputBar."""

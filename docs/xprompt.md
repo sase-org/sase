@@ -1121,9 +1121,13 @@ built-in xprompt (see [sase/xprompts/coder.md](https://github.com/sase-org/sase/
 implement the plan. By default the coder does _not_ inherit the planner's chat transcript — the plan file is the
 hand-off artifact. Set `SASE_CODER_INHERIT_PLANNER_CHAT=1` to restore the old behavior, in which case a
 `#fork:<planner_name>` reference is prepended to the coder prompt so it resumes the planner's session. The coder prompt
-also carries a `%model:` directive. A model chosen at approval time wins. When no model is chosen, the follow-up uses
-`%model:worker`, which resolves through the worker lane (active worker override, configured `llm_provider.worker_model`,
-then the primary lane fallback).
+also carries a `%model:` directive. A model chosen at approval time wins. When no model is chosen, the follow-up default
+is resolved **at handoff time from the planner agent's concrete provider/model**: an active worker override, a matching
+`llm_provider.worker_models` entry for the planner's primary lane, then the planner's own provider/model as the
+fallback. The generated prefix is a concrete `%model:<provider>/<model>` so the planner's primary context is preserved
+even if the global worker lane changes before launch (when the planner is missing provider/model metadata the follow-up
+falls back to a bare `%model:worker`). Ordinary `%model:worker` directives written elsewhere still resolve from the
+current effective worker lane.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus recent approved and inferred
 rejected plans. Use `sase plan approve <id-prefix> --kind approve|commit|epic|legend|tale` to approve from a shell. The

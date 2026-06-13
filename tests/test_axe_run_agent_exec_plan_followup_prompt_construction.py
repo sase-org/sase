@@ -9,6 +9,7 @@ from sase.axe import run_agent_exec_plan as plan_mod
 from sase.axe import run_agent_exec_questions as questions_mod
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_exec_questions import handle_questions_marker
+from sase.llm_provider import WorkerModelResolution
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
@@ -23,9 +24,36 @@ def patch_plan_deps():
         yield mocks
 
 
+def _primary_lane_resolution(
+    primary_provider: str, primary_model: str, *_args, **_kwargs
+) -> WorkerModelResolution:
+    """Stub worker resolution that echoes the planner lane (no config match)."""
+    return WorkerModelResolution(
+        provider=primary_provider,
+        model=primary_model,
+        source="primary",
+        primary_provider=primary_provider,
+        primary_model=primary_model,
+    )
+
+
 @pytest.mark.usefixtures("patch_plan_deps")
 class TestPlanFollowupPromptConstruction:
     """Verify plan approval follow-up prompts."""
+
+    @pytest.fixture(autouse=True)
+    def _stub_worker_resolution(self):
+        """Resolve the contextual worker lane to the planner lane by default.
+
+        Individual tests override this patch to simulate ``worker_models``
+        config mappings; the default keeps prefixes deterministic regardless
+        of the developer's real ``~/.config/sase/sase.yml``.
+        """
+        with patch(
+            "sase.llm_provider.resolve_worker_provider_model_for_primary",
+            side_effect=_primary_lane_resolution,
+        ):
+            yield
 
     def _run(
         self,
@@ -58,38 +86,147 @@ class TestPlanFollowupPromptConstruction:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         return state
 
+    @pytest.mark.parametrize("action", ["approve", "epic", "legend"])
+    def test_followup_uses_contextual_worker_lane(self, tmp_path, action: str) -> None:
+        """With planner provider+model, the follow-up uses the concrete worker lane.
+
+        The default stub echoes the planner lane (no ``worker_models`` config),
+        so the prefix is a concrete ``%model:<provider>/<model>`` carrying the
+        planner's primary context rather than a bare ``%model:worker``.
+        """
+        state = self._run(
+            tmp_path,
+            action=action,
+            agent_model="opus",
+            agent_llm_provider="anthropic",
+        )
+        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+
     @pytest.mark.parametrize(
         ("agent_model", "agent_llm_provider"),
         [
-            ("opus", "anthropic"),
-            ("claude-fable-5", "claude"),
             ("opus", None),
-            ("anthropic/opus", "anthropic"),
             (None, "anthropic"),
+            (None, None),
         ],
     )
-    def test_coder_prompt_routes_to_worker_lane(
+    @pytest.mark.parametrize("action", ["approve", "epic", "legend"])
+    def test_followup_falls_back_to_worker_alias_without_planner_metadata(
         self,
         tmp_path,
+        action: str,
         agent_model: str | None,
         agent_llm_provider: str | None,
     ) -> None:
-        """The coder uses the worker lane regardless of the planner's model."""
+        """Missing planner provider/model falls back to the bare worker alias."""
         state = self._run(
             tmp_path,
-            action="approve",
+            action=action,
             agent_model=agent_model,
             agent_llm_provider=agent_llm_provider,
         )
         assert state.current_prompt.startswith("%model:worker\n")
 
-    @pytest.mark.parametrize("agent_model", ["opus", None])
-    def test_epic_prompt_routes_to_worker_lane(
-        self, tmp_path, agent_model: str | None
+    def test_followup_uses_exact_worker_models_mapping(self, tmp_path) -> None:
+        """Planner (claude, opus) + worker_models {claude/opus: codex/gpt-5.5}."""
+        resolution = WorkerModelResolution(
+            provider="codex",
+            model="gpt-5.5",
+            source="config",
+            primary_provider="claude",
+            primary_model="opus",
+            matched_key="claude/opus",
+            configured_target="codex/gpt-5.5",
+        )
+        state = self._run_with_resolution(
+            tmp_path,
+            agent_model="opus",
+            agent_llm_provider="claude",
+            resolution=resolution,
+        )
+        assert state.current_prompt.startswith("%model:codex/gpt-5.5\n")
+
+    def test_followup_uses_provider_level_worker_models_mapping(self, tmp_path) -> None:
+        """Planner (codex, o3) + provider-level worker_models {codex: claude/opus}."""
+        resolution = WorkerModelResolution(
+            provider="claude",
+            model="opus",
+            source="config",
+            primary_provider="codex",
+            primary_model="o3",
+            matched_key="codex",
+            configured_target="claude/opus",
+        )
+        state = self._run_with_resolution(
+            tmp_path,
+            agent_model="o3",
+            agent_llm_provider="codex",
+            resolution=resolution,
+        )
+        assert state.current_prompt.startswith("%model:claude/opus\n")
+
+    def test_explicit_coder_model_worker_uses_contextual_default(
+        self, tmp_path
     ) -> None:
-        """The epic follow-up uses the worker lane regardless of the planner's model."""
-        state = self._run(tmp_path, action="epic", agent_model=agent_model)
-        assert state.current_prompt.startswith("%model:worker\n")
+        """coder_model='worker' resolves the contextual worker default, not literal."""
+        ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="anthropic")
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_model="worker",
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+
+    def _run_with_resolution(
+        self,
+        tmp_path,
+        *,
+        agent_model: str | None,
+        agent_llm_provider: str | None,
+        resolution: WorkerModelResolution,
+        action: str = "approve",
+    ):
+        ctx = make_ctx(
+            tmp_path,
+            agent_model=agent_model,
+            agent_llm_provider=agent_llm_provider,
+        )
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(action=action, plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.llm_provider.resolve_worker_provider_model_for_primary",
+                return_value=resolution,
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        return state
 
     def test_coder_prompt_picker_model_wins_over_worker(self, tmp_path) -> None:
         """An explicit approval-dialog coder model suppresses the worker default."""
@@ -306,9 +443,11 @@ class TestPlanFollowupPromptConstruction:
         assert not state.current_prompt.startswith("%model:")
         assert "%m:sonnet" in state.current_prompt
 
-    def test_coder_prompt_without_model_directive_uses_worker(self, tmp_path) -> None:
-        """Custom prompt without model directive still gets the worker prefix."""
-        ctx = make_ctx(tmp_path, agent_model="opus")
+    def test_coder_prompt_without_model_directive_uses_contextual_worker(
+        self, tmp_path
+    ) -> None:
+        """Custom prompt without model directive still gets the contextual worker prefix."""
+        ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="anthropic")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
@@ -329,7 +468,7 @@ class TestPlanFollowupPromptConstruction:
             ),
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        assert state.current_prompt.startswith("%model:worker\n")
+        assert state.current_prompt.startswith("%model:anthropic/opus\n")
         assert "be concise" in state.current_prompt
 
     def test_approve_prompt_includes_custom_extra_text(self, tmp_path) -> None:
@@ -364,7 +503,7 @@ class TestPlanFollowupPromptConstruction:
         assert "#fork:" not in state.current_prompt
         plan_ref = "@plan.md"
         assert plan_ref in state.current_prompt
-        assert state.current_prompt.startswith("%model:worker\n")
+        assert state.current_prompt.startswith("%model:anthropic/opus\n")
 
     def test_coder_prompt_preserves_resume_when_env_set(
         self, tmp_path, monkeypatch
@@ -373,7 +512,9 @@ class TestPlanFollowupPromptConstruction:
         monkeypatch.setenv("SASE_CODER_INHERIT_PLANNER_CHAT", "1")
         state = self._run(tmp_path, action="approve", agent_model="opus")
         assert "#fork:test_agent--plan " in state.current_prompt
-        assert state.current_prompt.startswith("%model:worker\n#fork:test_agent--plan ")
+        assert state.current_prompt.startswith(
+            "%model:anthropic/opus\n#fork:test_agent--plan "
+        )
 
     def test_coder_prompt_qa_round_excludes_resume_by_default(self, tmp_path) -> None:
         """Q&A round (agent_step > 2) also drops #fork by default."""

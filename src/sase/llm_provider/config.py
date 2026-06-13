@@ -56,11 +56,18 @@ def _get_configured_worker_models() -> dict[str, str]:
     return _clean_string_mapping(get_llm_provider_config().get("worker_models", {}))
 
 
-def get_configured_worker_model_for_primary(
+def get_configured_worker_model_entry_for_primary(
     primary_provider: str,
     primary_model: str,
-) -> str | None:
-    """Return the configured worker target for an effective primary lane."""
+) -> tuple[str, str] | None:
+    """Return ``(matched_key, configured_target)`` for an effective primary lane.
+
+    Resolves the most specific ``worker_models`` key that matches the supplied
+    primary lane — exact ``provider/model``, then bare model, then provider —
+    and reports both the matched key (so callers can surface the provenance of
+    a worker choice) and its configured target. Returns ``None`` when no key
+    matches or the lane is incomplete.
+    """
     provider = primary_provider.strip()
     model = primary_model.strip()
     if not provider or not model:
@@ -70,7 +77,7 @@ def get_configured_worker_model_for_primary(
     for key in (f"{provider}/{model}", model, provider):
         configured = worker_models.get(key)
         if configured is not None:
-            return configured
+            return key, configured
     return None
 
 

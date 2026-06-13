@@ -27,10 +27,9 @@ from sase.llm_provider import (
     get_active_temporary_override,
     parse_override_duration,
     resolve_effective_default_provider_model,
-    resolve_effective_worker_provider_model,
+    resolve_worker_provider_model_for_primary,
     set_temporary_override,
 )
-from sase.llm_provider.config import get_configured_worker_model_for_primary
 from sase.llm_provider.registry import format_provider_model_label
 
 from .custom_model_input_modal import CustomModelInputModal
@@ -277,20 +276,23 @@ class TemporaryLLMOverrideModal(ModalScreen[TemporaryOverrideResult]):
             )
 
         primary_provider, primary_model = resolve_effective_default_provider_model()
-        provider_name, model_name = resolve_effective_worker_provider_model()
-        configured = get_configured_worker_model_for_primary(
+        resolution = resolve_worker_provider_model_for_primary(
             primary_provider,
             primary_model,
         )
-        has_worker_config = configured is not None and configured.strip() != "worker"
-        source_tag = "config" if has_worker_config else "default"
-        if not has_worker_config and self._active_primary is not None:
+        if resolution.source == "config":
+            # Surface which worker_models key matched (e.g. ``config claude/opus``
+            # or ``config codex``) so the provenance is unambiguous.
+            source_tag = f"config {resolution.matched_key}"
+        elif self._active_primary is not None:
             source_tag = "follows primary"
+        else:
+            source_tag = "default"
         return _LaneState(
             role=role,
             title=title,
-            provider=provider_name,
-            model=model_name,
+            provider=resolution.provider,
+            model=resolution.model,
             source_tag=source_tag,
         )
 

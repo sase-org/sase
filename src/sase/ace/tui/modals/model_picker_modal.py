@@ -21,7 +21,11 @@ from .base import FilterInput, OptionListNavigationMixin
 
 # Sentinel returned when user selects "Custom..."
 CUSTOM_SENTINEL = "__custom__"
-_DEFAULT_SENTINEL = "__default__"
+# Returned when the user selects "Worker model (default)" and the caller opted
+# into ``distinct_default``. By default this row dismisses with ``None`` (the
+# same as cancel); callers that need to tell "use the worker default" apart
+# from a cancel pass ``distinct_default=True`` to receive this sentinel.
+DEFAULT_SENTINEL = "__default__"
 _EMPTY_SENTINEL = "__empty__"
 
 _RowKind = Literal["default", "provider", "model", "custom", "empty"]
@@ -75,7 +79,7 @@ def _build_model_rows(*, include_default_option: bool = True) -> list[_ModelPick
             _ModelPickerRow(
                 kind="default",
                 label="Worker model (default)",
-                option_id=_DEFAULT_SENTINEL,
+                option_id=DEFAULT_SENTINEL,
             )
         )
 
@@ -293,6 +297,10 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
             ``"Worker model (default)"`` option whose selection dismisses
             with ``None``.  Pass ``False`` for callers (e.g. the temporary
             override modal) where ``None`` only ever means *cancel*.
+        distinct_default: If True, selecting ``"Worker model (default)"``
+            dismisses with :data:`DEFAULT_SENTINEL` instead of ``None`` so the
+            caller can tell it apart from a cancel (which always dismisses with
+            ``None``). Only meaningful when ``include_default_option`` is True.
     """
 
     _option_list_id = "model-picker-list"
@@ -308,10 +316,12 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         *,
         title: str = "Select Coder Model",
         include_default_option: bool = True,
+        distinct_default: bool = False,
     ) -> None:
         super().__init__()
         self._title = title
         self._include_default_option = include_default_option
+        self._distinct_default = distinct_default
         self._all_rows = _build_model_rows(
             include_default_option=include_default_option
         )
@@ -520,8 +530,8 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if option.disabled:
             return
         option_id = str(option.id)
-        if option_id == _DEFAULT_SENTINEL:
-            self.dismiss(None)
+        if option_id == DEFAULT_SENTINEL:
+            self.dismiss(DEFAULT_SENTINEL if self._distinct_default else None)
         else:
             self.dismiss(option_id)
 

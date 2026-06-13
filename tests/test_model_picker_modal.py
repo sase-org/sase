@@ -8,6 +8,7 @@ from rich.text import Text
 from sase.ace.tui.provider_styles import _provider_style_for
 from sase.ace.tui.modals.model_picker_modal import (
     CUSTOM_SENTINEL,
+    DEFAULT_SENTINEL,
     ModelPickerModal,
     _ModelPickerRow,
     _build_model_options,
@@ -144,6 +145,47 @@ async def test_model_picker_returns_none_for_default() -> None:
 
         # First option is "Worker model (default)" — select it
         await pilot.press("enter")
+        await pilot.pause()
+
+        assert result is None
+
+
+async def test_model_picker_distinct_default_returns_sentinel() -> None:
+    """With distinct_default, selecting the default returns DEFAULT_SENTINEL."""
+    result: str | None = "sentinel"
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(r: str | None) -> None:
+            nonlocal result
+            result = r
+
+        modal = ModelPickerModal(distinct_default=True)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        # First option is "Worker model (default)" — select it
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert result == DEFAULT_SENTINEL
+
+
+async def test_model_picker_distinct_default_escape_still_returns_none() -> None:
+    """Escape still cancels (None) even when distinct_default is enabled."""
+    result: str | None = "sentinel"
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(r: str | None) -> None:
+            nonlocal result
+            result = r
+
+        modal = ModelPickerModal(distinct_default=True)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        await pilot.press("escape")
         await pilot.pause()
 
         assert result is None

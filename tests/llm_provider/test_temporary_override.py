@@ -14,6 +14,7 @@ from sase.llm_provider.temporary_override import (
     parse_override_duration,
     resolve_effective_default_provider_model,
     resolve_effective_worker_provider_model,
+    resolve_worker_provider_model_for_primary,
     set_temporary_override,
 )
 
@@ -542,6 +543,149 @@ def test_resolve_effective_worker_self_reference_treated_as_unset(
 
     provider, model = resolve_effective_worker_provider_model()
     assert (provider, model) == ("codex", "o3")
+
+
+# ---------------------------------------------------------------------------
+# resolve_worker_provider_model_for_primary
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_worker_for_primary_exact_key_precedence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exact ``provider/model`` key beats bare-model and provider keys."""
+    _mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "worker_models": {
+                "claude": "claude/sonnet",
+                "opus": "gemini/gemini-2.5-pro",
+                "claude/opus": "codex/gpt-5.5",
+            },
+        },
+    )
+
+    resolution = resolve_worker_provider_model_for_primary("claude", "opus")
+    assert (resolution.provider, resolution.model) == ("codex", "gpt-5.5")
+    assert resolution.source == "config"
+    assert resolution.matched_key == "claude/opus"
+    assert resolution.configured_target == "codex/gpt-5.5"
+    assert (resolution.primary_provider, resolution.primary_model) == ("claude", "opus")
+
+
+def test_resolve_worker_for_primary_bare_model_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bare-model key matches when no exact ``provider/model`` key exists."""
+    _mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "worker_models": {
+                "claude": "gemini/gemini-2.5-pro",
+                "opus": "codex/gpt-5.5",
+            },
+        },
+    )
+
+    resolution = resolve_worker_provider_model_for_primary("claude", "opus")
+    assert (resolution.provider, resolution.model) == ("codex", "gpt-5.5")
+    assert resolution.matched_key == "opus"
+
+
+def test_resolve_worker_for_primary_provider_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A provider key matches the supplied primary provider."""
+    _mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "worker_models": {"codex": "claude/opus"}},
+    )
+
+    resolution = resolve_worker_provider_model_for_primary("codex", "o3")
+    assert (resolution.provider, resolution.model) == ("claude", "opus")
+    assert resolution.source == "config"
+    assert resolution.matched_key == "codex"
+
+
+def test_resolve_worker_for_primary_override_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An active worker override wins over a matching config entry."""
+    _mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "worker_models": {"claude/opus": "gemini/gemini-2.5-pro"},
+        },
+    )
+    set_temporary_override("codex/gpt-5.5", 3600.0, source="ace", role="worker")
+
+    resolution = resolve_worker_provider_model_for_primary("claude", "opus")
+    assert (resolution.provider, resolution.model) == ("codex", "gpt-5.5")
+    assert resolution.source == "override"
+    assert resolution.matched_key is None
+
+
+def test_resolve_worker_for_primary_falls_back_to_supplied_primary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No override or config match returns the supplied primary lane."""
+    _mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    resolution = resolve_worker_provider_model_for_primary("claude", "opus")
+    assert (resolution.provider, resolution.model) == ("claude", "opus")
+    assert resolution.source == "primary"
+    assert resolution.matched_key is None
+    assert resolution.configured_target is None
+
+
+def test_resolve_worker_for_primary_uses_supplied_lane_not_effective_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The supplied primary lane drives the lookup, not the global default.
+
+    A primary override is active (codex/o3), but the contextual resolver is
+    asked about a *different* planner lane (claude/opus) and must key off that.
+    """
+    _mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "worker_models": {
+                "codex": "gemini/gemini-2.5-pro",
+                "claude/opus": "codex/gpt-5.5",
+            },
+        },
+    )
+    set_temporary_override("codex/o3", 3600.0, source="ace")
+
+    resolution = resolve_worker_provider_model_for_primary("claude", "opus")
+    assert (resolution.provider, resolution.model) == ("codex", "gpt-5.5")
+    assert resolution.matched_key == "claude/opus"
+
+
+def test_resolve_effective_worker_responds_to_primary_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The effective worker helper still follows primary temporary overrides."""
+    _mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "worker_models": {
+                "claude": "gemini/gemini-2.5-pro",
+                "codex": "claude/sonnet",
+            },
+        },
+    )
+    # No override → matches the configured-default primary (claude) → gemini.
+    assert resolve_effective_worker_provider_model() == ("gemini", "gemini-2.5-pro")
+
+    # Primary override to codex/o3 → worker mapping now keys off codex → sonnet.
+    set_temporary_override("codex/o3", 3600.0, source="ace")
+    assert resolve_effective_worker_provider_model() == ("claude", "sonnet")
 
 
 def test_worker_override_captures_worker_lane_pre_override_snapshot(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -66,35 +67,87 @@ def _commit_sdd_files(
     )
 
 
-def _update_coder_model_meta(
-    plan_result: Any,
-    ctx: AgentExecContext,
-    state: LoopState,
-    *,
-    model_override: str | None = None,
-) -> None:
-    """Record the model the follow-up agent actually runs with in its ``agent_meta.json``.
+@dataclass(frozen=True)
+class _FollowupModel:
+    """The follow-up agent's model directive prefix and the meta to record.
 
-    With ``model_override`` (a ``%model``/``%m`` directive embedded in a
-    custom coder prompt), write its resolution: the directive supersedes
-    both the picker model and the worker lane at launch time. Otherwise,
-    with a picker model (``plan_result.coder_model``), write its resolution
-    when it differs from the planner's model. Without either, the follow-up
-    is handed to the worker lane (``%model:worker``), so write the resolved
-    worker provider/model instead of the inherited planner values.
+    ``model_prefix`` is prepended to the generated follow-up prompt (e.g.
+    ``"%model:codex/gpt-5.5\n"`` or ``"%model:worker\n"``).  ``meta`` is the
+    ``(provider_or_none, model)`` to write into the follow-up's
+    ``agent_meta.json`` so the recorded model matches the directive; it is
+    ``None`` when the inherited planner metadata is already correct and the
+    rewrite should be skipped.
     """
+
+    model_prefix: str
+    meta: tuple[str | None, str] | None = None
+
+
+def _resolve_model_meta(model_directive: str) -> tuple[str | None, str]:
+    """Resolve a ``%model`` directive value to ``(provider_or_none, model)``."""
     from sase.llm_provider.registry import resolve_model_provider
 
-    if model_override:
-        resolved_provider, resolved_model = resolve_model_provider(model_override)
-    elif plan_result.coder_model:
-        if plan_result.coder_model == ctx.agent_model:
-            return
-        resolved_provider, resolved_model = resolve_model_provider(
-            plan_result.coder_model
+    return resolve_model_provider(model_directive)
+
+
+def _resolve_followup_model(
+    plan_result: Any,
+    ctx: AgentExecContext,
+) -> _FollowupModel:
+    """Decide the follow-up agent's ``%model`` prefix and recorded metadata.
+
+    Precedence:
+
+    1. An explicit approval picker model (``plan_result.coder_model``) other
+       than the literal ``"worker"`` wins; its meta is recorded unless it
+       equals the planner's model (the inherited meta is already correct).
+    2. Otherwise — no picker model, or the picker chose ``"worker"`` — the
+       worker lane is resolved from the planner's *concrete*
+       provider/model (``ctx.agent_llm_provider``/``ctx.agent_model``) so the
+       handoff preserves the planner's primary context rather than re-reading
+       the current global worker lane later. The generated prefix is a
+       concrete ``%model:<provider>/<model>``.
+    3. If the planner is missing provider/model metadata, fall back to the
+       bare ``%model:worker`` alias, resolved from the current effective
+       worker lane at launch time.
+
+    A ``%model`` directive embedded in a custom coder prompt is handled by the
+    caller and supersedes this result.
+    """
+    coder_model = plan_result.coder_model
+    if coder_model and coder_model.strip() != "worker":
+        prefix = f"%model:{coder_model}\n"
+        if coder_model == ctx.agent_model:
+            return _FollowupModel(model_prefix=prefix)
+        return _FollowupModel(
+            model_prefix=prefix, meta=_resolve_model_meta(coder_model)
         )
-    else:
-        resolved_provider, resolved_model = resolve_model_provider("worker")
+
+    primary_provider = (ctx.agent_llm_provider or "").strip()
+    primary_model = (ctx.agent_model or "").strip()
+    if primary_provider and primary_model:
+        from sase.llm_provider import resolve_worker_provider_model_for_primary
+
+        resolution = resolve_worker_provider_model_for_primary(
+            primary_provider,
+            primary_model,
+        )
+        return _FollowupModel(
+            model_prefix=f"%model:{resolution.provider}/{resolution.model}\n",
+            meta=(resolution.provider, resolution.model),
+        )
+
+    return _FollowupModel(
+        model_prefix="%model:worker\n",
+        meta=_resolve_model_meta("worker"),
+    )
+
+
+def _write_followup_model_meta(state: LoopState, followup: _FollowupModel) -> None:
+    """Record the follow-up agent's resolved model in its ``agent_meta.json``."""
+    if followup.meta is None:
+        return
+    resolved_provider, resolved_model = followup.meta
     update_meta_field(state.current_artifacts_dir, "model", resolved_model)
     if resolved_provider:
         update_meta_field(
@@ -219,12 +272,11 @@ def handle_accepted_plan(
     # run after the follow-up agent.
     embedded_refs = get_embedded_workflow_refs(state.current_artifacts_dir, ctx.vcs_tag)
 
-    # Use coder_model override from plan approval if provided,
-    # otherwise hand the implementation off to the worker lane.
-    if plan_result.coder_model:
-        model_prefix = f"%model:{plan_result.coder_model}\n"
-    else:
-        model_prefix = "%model:worker\n"
+    # Decide the follow-up model: an explicit picker model wins; otherwise the
+    # worker lane is resolved from the planner's concrete provider/model so the
+    # handoff keeps the planner's primary context.
+    followup_model = _resolve_followup_model(plan_result, ctx)
+    model_prefix = followup_model.model_prefix
 
     if plan_result.action in ("epic", "legend"):
         # Ensure beads are initialized before spawning epic agent
@@ -283,7 +335,7 @@ def handle_accepted_plan(
             "epic_started_at" if plan_result.action == "epic" else "legend_started_at",
             datetime.now(UTC).isoformat(),
         )
-        _update_coder_model_meta(plan_result, ctx, state)
+        _write_followup_model_meta(state, followup_model)
         if plan_result.action == "epic":
             plan_ref = build_epic_plan_ref(
                 sdd_plan_path=sdd_plan_path if plan_committed else None,
@@ -357,7 +409,6 @@ def handle_accepted_plan(
             },
         )
         coder_extra = ""
-        coder_prompt_model: str | None = None
         if plan_result.coder_prompt:
             coder_extra = f"\n\nAdditional instructions:\n{plan_result.coder_prompt}"
             # If the custom prompt contains its own %model/%m directive,
@@ -380,9 +431,11 @@ def handle_accepted_plan(
                             "Custom coder prompt model directive requires a model"
                         )
                     model_prefix = ""
-        _update_coder_model_meta(
-            plan_result, ctx, state, model_override=coder_prompt_model
-        )
+                    followup_model = _FollowupModel(
+                        model_prefix="",
+                        meta=_resolve_model_meta(coder_prompt_model),
+                    )
+        _write_followup_model_meta(state, followup_model)
         # By default the coder starts with a fresh context window; the plan
         # file itself is the hand-off artifact. Set SASE_CODER_INHERIT_PLANNER_CHAT=1
         # to prepend #fork:<base>--plan so the coder inherits the planner's

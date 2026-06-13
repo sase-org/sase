@@ -13,7 +13,7 @@ from sase.llm_provider.claude import ClaudeCodeProvider
 from sase.llm_provider.config import (
     _get_configured_worker_models,
     _get_model_aliases,
-    get_configured_worker_model_for_primary,
+    get_configured_worker_model_entry_for_primary,
     resolve_model_alias,
 )
 from sase.llm_provider.registry import resolve_model_provider
@@ -109,9 +109,10 @@ def test_get_configured_worker_models_strips_keys_and_values(
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
-def test_get_configured_worker_model_for_primary_uses_specificity_order(
+def test_get_configured_worker_model_entry_uses_specificity_order(
     mock_config: MagicMock,
 ) -> None:
+    """The entry helper returns the most specific matched key and its target."""
     mock_config.return_value = {
         "worker_models": {
             "claude": "qwen/qwen3.6-plus",
@@ -120,16 +121,19 @@ def test_get_configured_worker_model_for_primary_uses_specificity_order(
         }
     }
 
-    assert get_configured_worker_model_for_primary("claude", "opus") == "codex/gpt-5.5"
-    assert (
-        get_configured_worker_model_for_primary("opencode", "opus")
-        == "gemini/gemini-2.5-pro"
+    assert get_configured_worker_model_entry_for_primary("claude", "opus") == (
+        "claude/opus",
+        "codex/gpt-5.5",
     )
-    assert (
-        get_configured_worker_model_for_primary("claude", "sonnet")
-        == "qwen/qwen3.6-plus"
+    assert get_configured_worker_model_entry_for_primary("opencode", "opus") == (
+        "opus",
+        "gemini/gemini-2.5-pro",
     )
-    assert get_configured_worker_model_for_primary("codex", "o3") is None
+    assert get_configured_worker_model_entry_for_primary("claude", "sonnet") == (
+        "claude",
+        "qwen/qwen3.6-plus",
+    )
+    assert get_configured_worker_model_entry_for_primary("codex", "o3") is None
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")

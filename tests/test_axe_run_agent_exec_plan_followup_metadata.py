@@ -6,6 +6,7 @@ import pytest
 
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_exec_plan_accept import _accepted_plan_action_for_meta
+from sase.llm_provider import WorkerModelResolution
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from sase.xprompt._exceptions import DirectiveError
 from tests._axe_run_agent_exec_plan_helpers import (
@@ -150,11 +151,16 @@ class TestPlanFollowupMetadata:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert "model" not in meta_updates
 
-    def test_coder_meta_resolves_worker_lane_when_no_picker_model(
+    def test_coder_meta_records_contextual_worker_lane_when_no_picker_model(
         self, tmp_path
     ) -> None:
-        """Without a picker model, agent_meta.json records the worker lane."""
-        ctx = make_ctx(tmp_path, agent_model="opus")
+        """Without a picker model, agent_meta.json records the contextual worker lane.
+
+        The worker lane is resolved from the planner's concrete provider/model,
+        so the recorded meta matches the concrete ``%model`` prefix the handoff
+        generates rather than the bare worker alias.
+        """
+        ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
@@ -164,6 +170,15 @@ class TestPlanFollowupMetadata:
         def track_meta(artifacts_dir, key, value):
             meta_updates[key] = value
 
+        resolution = WorkerModelResolution(
+            provider="codex",
+            model="gpt-5.5",
+            source="config",
+            primary_provider="claude",
+            primary_model="opus",
+            matched_key="claude/opus",
+            configured_target="codex/gpt-5.5",
+        )
         approval = PlanApprovalResult(
             action="approve",
             plan_file=plan_file,
@@ -183,14 +198,63 @@ class TestPlanFollowupMetadata:
                 side_effect=track_meta,
             ),
             patch(
-                "sase.llm_provider.registry.resolve_model_provider",
-                return_value=("workerprov", "worker-model"),
+                "sase.llm_provider.resolve_worker_provider_model_for_primary",
+                return_value=resolution,
             ) as resolve_mock,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        resolve_mock.assert_called_once_with("worker")
-        assert meta_updates.get("model") == "worker-model"
-        assert meta_updates.get("llm_provider") == "workerprov"
+        resolve_mock.assert_called_once_with("claude", "opus")
+        assert meta_updates.get("model") == "gpt-5.5"
+        assert meta_updates.get("llm_provider") == "codex"
+        assert state.current_prompt.startswith("%model:codex/gpt-5.5\n")
+
+    @pytest.mark.parametrize("action", ["epic", "legend"])
+    def test_epic_legend_meta_records_contextual_worker_lane(
+        self, tmp_path, action: str
+    ) -> None:
+        """Epic/legend follow-ups record the same contextual worker default."""
+        ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        meta_updates: dict[str, str] = {}
+
+        def track_meta(artifacts_dir, key, value):
+            meta_updates[key] = value
+
+        resolution = WorkerModelResolution(
+            provider="codex",
+            model="gpt-5.5",
+            source="config",
+            primary_provider="claude",
+            primary_model="opus",
+            matched_key="claude/opus",
+            configured_target="codex/gpt-5.5",
+        )
+        approval = PlanApprovalResult(action=action, plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan_accept.update_meta_field",
+                side_effect=track_meta,
+            ),
+            patch(
+                "sase.llm_provider.resolve_worker_provider_model_for_primary",
+                return_value=resolution,
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert meta_updates.get("model") == "gpt-5.5"
+        assert meta_updates.get("llm_provider") == "codex"
+        assert state.current_prompt.startswith("%model:codex/gpt-5.5\n")
 
     def test_coder_prompt_model_directive_updates_meta(self, tmp_path) -> None:
         """A custom prompt %model directive records the model that launch will use."""
@@ -221,6 +285,18 @@ class TestPlanFollowupMetadata:
             patch(
                 "sase.axe.run_agent_exec_plan_accept.update_meta_field",
                 side_effect=track_meta,
+            ),
+            # The custom prompt's %model directive supersedes the contextual
+            # worker default, so the worker resolver must not influence meta.
+            patch(
+                "sase.llm_provider.resolve_worker_provider_model_for_primary",
+                return_value=WorkerModelResolution(
+                    provider="anthropic",
+                    model="opus",
+                    source="primary",
+                    primary_provider="anthropic",
+                    primary_model="opus",
+                ),
             ),
             patch(
                 "sase.llm_provider.registry.resolve_model_provider",
@@ -264,6 +340,16 @@ class TestPlanFollowupMetadata:
             patch(
                 "sase.axe.run_agent_exec_plan_accept.update_meta_field",
                 side_effect=track_meta,
+            ),
+            patch(
+                "sase.llm_provider.resolve_worker_provider_model_for_primary",
+                return_value=WorkerModelResolution(
+                    provider="anthropic",
+                    model="opus",
+                    source="primary",
+                    primary_provider="anthropic",
+                    primary_model="opus",
+                ),
             ),
             patch(
                 "sase.llm_provider.registry.resolve_model_provider",

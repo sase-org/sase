@@ -350,6 +350,98 @@ def resolve_effective_default_provider_model(
     return provider_name, provider.resolve_model_name(model_tier)
 
 
+@dataclass(frozen=True)
+class WorkerModelResolution:
+    """Resolved worker-lane provider/model plus the provenance of the choice.
+
+    ``source`` is one of:
+
+    - ``"override"``: an active worker temporary override supplied the lane.
+    - ``"config"``: a matching ``llm_provider.worker_models`` entry supplied
+      the lane; ``matched_key`` is the key that matched (exact
+      ``provider/model``, bare model, or provider) and ``configured_target``
+      is its raw configured value.
+    - ``"primary"``: no override/config matched, so the worker lane falls
+      through to the supplied primary lane.
+
+    ``primary_provider``/``primary_model`` echo the primary lane the worker
+    was resolved against, regardless of which branch won.
+    """
+
+    provider: str
+    model: str
+    source: str
+    primary_provider: str
+    primary_model: str
+    matched_key: str | None = None
+    configured_target: str | None = None
+
+
+def resolve_worker_provider_model_for_primary(
+    primary_provider: str,
+    primary_model: str,
+    model_tier: ModelTier = "large",
+) -> WorkerModelResolution:
+    """Resolve the worker-lane provider/model for a known primary lane.
+
+    Precedence mirrors :func:`resolve_effective_worker_provider_model`: an
+    active worker temporary override wins first, then a matching
+    ``llm_provider.worker_models`` entry for ``primary_provider``/
+    ``primary_model``, then the supplied primary lane as a fallback.
+
+    Unlike :func:`resolve_effective_worker_provider_model`, the primary lane
+    is supplied by the caller rather than read from the current effective
+    default, so this can resolve the worker lane for a *specific* planner
+    context (e.g. a plan handoff) rather than the global current default.
+
+    ``model_tier`` is accepted for parity with the sibling resolvers; the
+    worker mapping lookup itself does not depend on it.
+    """
+    override = get_active_temporary_override(role="worker")
+    if override is not None:
+        return WorkerModelResolution(
+            provider=override.provider,
+            model=override.model,
+            source="override",
+            primary_provider=primary_provider,
+            primary_model=primary_model,
+        )
+
+    from .config import get_configured_worker_model_entry_for_primary
+    from .registry import (
+        get_configured_default_provider_name,
+        resolve_model_provider,
+    )
+
+    entry = get_configured_worker_model_entry_for_primary(
+        primary_provider,
+        primary_model,
+    )
+    if entry is not None and entry[1].strip() != "worker":
+        matched_key, configured = entry
+        resolved_provider, resolved_model = resolve_model_provider(configured)
+        if resolved_model.strip() != "worker":
+            if resolved_provider is None:
+                resolved_provider = get_configured_default_provider_name()
+            return WorkerModelResolution(
+                provider=resolved_provider,
+                model=resolved_model,
+                source="config",
+                primary_provider=primary_provider,
+                primary_model=primary_model,
+                matched_key=matched_key,
+                configured_target=configured,
+            )
+
+    return WorkerModelResolution(
+        provider=primary_provider,
+        model=primary_model,
+        source="primary",
+        primary_provider=primary_provider,
+        primary_model=primary_model,
+    )
+
+
 def resolve_effective_worker_provider_model(
     model_tier: ModelTier = "large",
 ) -> tuple[str, str]:
@@ -359,28 +451,12 @@ def resolve_effective_worker_provider_model(
     the current primary lane, the worker lane falls through to that primary
     lane.
     """
-    override = get_active_temporary_override(role="worker")
-    if override is not None:
-        return override.provider, override.model
-
-    from .config import get_configured_worker_model_for_primary
-    from .registry import (
-        get_configured_default_provider_name,
-        resolve_model_provider,
-    )
-
     primary_provider, primary_model = resolve_effective_default_provider_model(
         model_tier
     )
-    configured = get_configured_worker_model_for_primary(
+    resolution = resolve_worker_provider_model_for_primary(
         primary_provider,
         primary_model,
+        model_tier,
     )
-    if configured is not None and configured.strip() != "worker":
-        resolved_provider, resolved_model = resolve_model_provider(configured)
-        if resolved_model.strip() != "worker":
-            if resolved_provider is None:
-                resolved_provider = get_configured_default_provider_name()
-            return resolved_provider, resolved_model
-
-    return primary_provider, primary_model
+    return resolution.provider, resolution.model

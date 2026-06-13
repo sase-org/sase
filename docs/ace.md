@@ -933,7 +933,8 @@ The modal shows two lanes:
 - **Worker** — the secondary lane used by delegated work such as `sase bead work` phase agents that do not have an
   explicit per-bead model.
 
-Each row shows the current effective model and its source: `override`, `config`, `follows primary`, or `default`. Set or
+Each row shows the current effective model and its source: `override`, `config <key>` (the matched
+`llm_provider.worker_models` key, e.g. `config claude/opus` or `config codex`), `follows primary`, or `default`. Set or
 change the primary override with `s`/`c`, clear it with `x`, set or change the worker override with `w`, and clear the
 worker override with `W`. Both lanes use the same provider-grouped picker and duration choices: `15m`, `30m`, `1h`,
 `2h`, `4h`, `Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`.
@@ -1520,9 +1521,11 @@ The dialog keeps the custom coder prompt and follow-up model controls:
   Approve and Tale that agent is the coder; for Epic and Legend it is the bead follow-up. Shows all registered models
   grouped by provider (Claude, Codex, Gemini, Qwen, OpenCode) with a "Custom..." option for freeform input. Type to
   filter by provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to
-  clear the filter or cancel, and `'` for jump hints over the visible selectable rows. Leaving the default "Worker
-  model" row selected launches the follow-up with `%model:worker`, which resolves through the active worker override,
-  configured `llm_provider.worker_model`, then the primary lane fallback.
+  clear the filter or cancel, and `'` for jump hints over the visible selectable rows. The displayed default is the
+  worker lane resolved from the **planner's** concrete provider/model — an active worker override, a matching
+  `llm_provider.worker_models` entry for the planner's primary lane, then the planner's own provider/model. Selecting a
+  specific model and then re-opening the picker and choosing "Worker model (default)" resets the follow-up back to that
+  worker default (distinct from pressing `Esc`, which keeps the current selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
 commit location and follow-up behavior.

@@ -5,10 +5,28 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.tui.modals.temporary_llm_override_modal import TemporaryLLMOverrideModal
+from sase.llm_provider import WorkerModelResolution
 from sase.llm_provider.temporary_override import (
     get_active_temporary_override,
     set_temporary_override,
 )
+
+
+def _worker_resolution(
+    *, source: str, matched_key: str | None = None
+) -> WorkerModelResolution:
+    """Build a stub worker resolution with a fixed provider/model and source."""
+    provider = "codex" if source == "config" else "claude"
+    model = "gpt-5.5" if source == "config" else "opus"
+    return WorkerModelResolution(
+        provider=provider,
+        model=model,
+        source=source,
+        primary_provider="claude",
+        primary_model="opus",
+        matched_key=matched_key,
+        configured_target="codex/gpt-5.5" if source == "config" else None,
+    )
 
 
 def test_render_state_line_until_cleared_shows_no_expiry() -> None:
@@ -35,13 +53,8 @@ def test_lane_rows_render_default_source_tags(monkeypatch: pytest.MonkeyPatch) -
     """Idle primary and worker lanes show default source tags."""
     monkeypatch.setattr(
         "sase.ace.tui.modals.temporary_llm_override_modal."
-        "get_configured_worker_model_for_primary",
-        lambda _provider, _model: None,
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.temporary_llm_override_modal."
-        "resolve_effective_worker_provider_model",
-        lambda: ("claude", "opus"),
+        "resolve_worker_provider_model_for_primary",
+        lambda _provider, _model: _worker_resolution(source="primary"),
     )
     modal = TemporaryLLMOverrideModal()
 
@@ -52,21 +65,19 @@ def test_lane_rows_render_default_source_tags(monkeypatch: pytest.MonkeyPatch) -
 def test_lane_rows_render_config_source_tag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A configured worker model shows ``config`` in the worker row."""
+    """A configured worker model shows ``config <key>`` in the worker row."""
     monkeypatch.setattr(
         "sase.ace.tui.modals.temporary_llm_override_modal."
-        "get_configured_worker_model_for_primary",
-        lambda _provider, _model: "codex/gpt-5.5",
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.temporary_llm_override_modal."
-        "resolve_effective_worker_provider_model",
-        lambda: ("codex", "gpt-5.5"),
+        "resolve_worker_provider_model_for_primary",
+        lambda _provider, _model: _worker_resolution(
+            source="config", matched_key="claude/opus"
+        ),
     )
 
     modal = TemporaryLLMOverrideModal()
 
-    assert "config" in modal._render_lane_row("worker")
+    row = modal._render_lane_row("worker")
+    assert "config claude/opus" in row
 
 
 def test_lane_rows_render_follows_primary_source_tag(
@@ -75,13 +86,8 @@ def test_lane_rows_render_follows_primary_source_tag(
     """Worker falls through to the active primary override when unset."""
     monkeypatch.setattr(
         "sase.ace.tui.modals.temporary_llm_override_modal."
-        "get_configured_worker_model_for_primary",
-        lambda _provider, _model: None,
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.temporary_llm_override_modal."
-        "resolve_effective_worker_provider_model",
-        lambda: ("codex", "o3"),
+        "resolve_worker_provider_model_for_primary",
+        lambda _provider, _model: _worker_resolution(source="primary"),
     )
     set_temporary_override("codex/o3", 3600.0, source="test")
     modal = TemporaryLLMOverrideModal()
