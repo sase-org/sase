@@ -1277,8 +1277,8 @@ PromptHistoryModal {
 }
 
 PromptHistoryModal > Container {
-    width: 90%;
-    height: 80%;
+    width: 98%;
+    height: 96%;
     border: thick $primary;
     background: $surface;
     padding: 1 2;
@@ -1300,7 +1300,7 @@ PromptHistoryModal #prompt-history-panels {
 }
 
 PromptHistoryModal #prompt-history-list-panel {
-    width: 1fr;
+    width: 2fr;
     height: 100%;
 }
 
@@ -1310,9 +1310,39 @@ PromptHistoryModal #prompt-history-list-label {
     height: 1;
 }
 
-PromptHistoryModal OptionList {
+PromptHistoryModal #prompt-history-table {
     height: 1fr;
     border: solid $secondary;
+}
+
+PromptHistoryModal #prompt-history-columns {
+    height: 2;
+    color: $text-muted;
+    text-style: bold;
+    border-bottom: solid $secondary;
+    padding: 0 1;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+PromptHistoryModal OptionList {
+    height: 1fr;
+    border: none;
+    background: $surface;
+    scrollbar-gutter: stable;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+PromptHistoryModal OptionList > .option-list--option {
+    padding: 0 1;
+}
+
+PromptHistoryModal OptionList > .option-list--option-highlighted {
+    background: $accent 40%;
+    text-style: bold;
+    border-left: thick $accent;
+    padding: 0 1 0 0;
 }
 
 PromptHistoryModal #prompt-history-preview-panel {

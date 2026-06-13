@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-13 13:36:04
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_history_panel_redesign.md
 ---
 # Plan: Make the prompt-history modal near-fullscreen and beautify the list pane

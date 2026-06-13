@@ -22,9 +22,22 @@ from textual.widgets.option_list import Option
 from .base import FilterInput, OptionListNavigationMixin
 
 _LAST_USED_WIDTH = 11
-_PROMPT_PREVIEW_WIDTH = 96
-_PROJECT_COL_WIDTH = 12
-_MAX_TAG_CHIPS = 3
+_MARKER_COL_WIDTH = 2
+_PROJECT_COL_WIDTH = 14
+_TAGS_COL_WIDTH = 16
+_COLUMN_GAP_WIDTH = 2
+_OPTION_HORIZONTAL_PADDING_WIDTH = 2
+_MIN_PREVIEW_WIDTH = 16
+_FALLBACK_PREVIEW_WIDTH = 132
+_PROMPT_COL_START = (
+    _MARKER_COL_WIDTH
+    + _LAST_USED_WIDTH
+    + _COLUMN_GAP_WIDTH
+    + _PROJECT_COL_WIDTH
+    + _COLUMN_GAP_WIDTH
+    + _TAGS_COL_WIDTH
+    + _COLUMN_GAP_WIDTH
+)
 _PROJECT_PLACEHOLDER = "—"
 
 
@@ -73,7 +86,33 @@ def _format_history_timestamp(timestamp: str) -> str:
         return raw_timestamp[:_LAST_USED_WIDTH].ljust(_LAST_USED_WIDTH)
 
 
-def _create_prompt_history_label(item: _PromptDisplayItem) -> Text:
+def _prompt_history_header_text() -> Text:
+    """Return the fixed-column header aligned with prompt-history rows."""
+    text = Text(no_wrap=True, overflow="crop", style="bold dim")
+    text.append(" " * _MARKER_COL_WIDTH)
+    text.append(f"{'WHEN':<{_LAST_USED_WIDTH}}")
+    text.append(" " * _COLUMN_GAP_WIDTH)
+    text.append(f"{'PROJECT':<{_PROJECT_COL_WIDTH}}")
+    text.append(" " * _COLUMN_GAP_WIDTH)
+    text.append(f"{'TAGS':<{_TAGS_COL_WIDTH}}")
+    text.append(" " * _COLUMN_GAP_WIDTH)
+    text.append("PROMPT")
+    return text
+
+
+def _prompt_preview_width_for_list_content(list_content_width: int) -> int:
+    """Return prompt-preview column width from the laid-out list content width."""
+    if list_content_width <= 0:
+        return _FALLBACK_PREVIEW_WIDTH
+    text_width = list_content_width - _OPTION_HORIZONTAL_PADDING_WIDTH
+    return max(_MIN_PREVIEW_WIDTH, text_width - _PROMPT_COL_START)
+
+
+def _create_prompt_history_label(
+    item: _PromptDisplayItem,
+    *,
+    preview_width: int = _FALLBACK_PREVIEW_WIDTH,
+) -> Text:
     """Create a single-line styled label for a prompt history item."""
     text = Text(no_wrap=True, overflow="ellipsis")
     is_cancelled = item.entry.cancelled or item.marker == "x"
@@ -93,14 +132,15 @@ def _create_prompt_history_label(item: _PromptDisplayItem) -> Text:
     last_used = _format_history_timestamp(item.entry.last_used)
     prompt = _ellipsize_right(
         summary.clean_preview,
-        _PROMPT_PREVIEW_WIDTH,
+        preview_width,
     )
 
     text.append(last_used, style=metadata_style)
-    text.append("  ", style="dim")
+    text.append(" " * _COLUMN_GAP_WIDTH, style="dim")
     _append_project_column(text, summary, metadata_style, project_ref_style)
-    text.append("  ", style="dim")
+    text.append(" " * _COLUMN_GAP_WIDTH, style="dim")
     _append_tag_columns(text, summary, xprompt_style, directive_style)
+    text.append(" " * _COLUMN_GAP_WIDTH, style="dim")
     text.append(prompt, style=prompt_style)
 
     return text
@@ -146,31 +186,77 @@ def _append_tag_columns(
     xprompt_style: str,
     directive_style: str,
 ) -> None:
-    """Append xprompt and directive chips before the cleaned preview."""
-    has_tag = False
-    xprompts = list(summary.xprompts[:_MAX_TAG_CHIPS])
-    overflow = len(summary.xprompts) - len(xprompts)
-
-    for chip in xprompts:
-        if has_tag:
-            text.append(" ")
-        text.append(chip, style=xprompt_style)
-        has_tag = True
-
-    if overflow > 0:
-        if has_tag:
-            text.append(" ")
-        text.append(f"+{overflow}", style=xprompt_style)
-        has_tag = True
-
+    """Append the fixed-width xprompt/directive tag column."""
+    tokens = [(chip, xprompt_style) for chip in summary.xprompts]
     if summary.directive_token:
-        if has_tag:
-            text.append(" ")
-        text.append(summary.directive_token, style=directive_style)
-        has_tag = True
+        tokens.append((summary.directive_token, directive_style))
 
-    if has_tag:
-        text.append("  ")
+    rendered = _fit_tag_tokens(tokens, _TAGS_COL_WIDTH)
+    used = _append_tag_tokens(text, rendered)
+    padding = _TAGS_COL_WIDTH - used
+    if padding > 0:
+        text.append(" " * padding)
+
+
+def _fit_tag_tokens(
+    tokens: list[tuple[str, str]],
+    width: int,
+) -> list[tuple[str, str]]:
+    """Fit styled tag tokens into a fixed-width list column."""
+    if width <= 0 or not tokens:
+        return []
+
+    displayed: list[tuple[str, str]] = []
+    hidden_count = 0
+    for index, styled_token in enumerate(tokens):
+        candidate = [*displayed, styled_token]
+        if _tag_tokens_width(candidate) <= width:
+            displayed = candidate
+            continue
+        hidden_count = len(tokens) - index
+        break
+
+    if hidden_count == 0:
+        return displayed
+
+    if not displayed:
+        token_text, style = tokens[0]
+        if len(tokens) == 1:
+            return [(_ellipsize_right(token_text, width), style)]
+        suffix = f"+{len(tokens)}"
+        return [(_ellipsize_right(suffix, width), style)]
+
+    overflow_style = displayed[-1][1]
+    while displayed:
+        suffix = f"+{hidden_count}" if hidden_count > 1 else "..."
+        candidate = [*displayed, (suffix, overflow_style)]
+        if _tag_tokens_width(candidate) <= width:
+            return candidate
+        displayed.pop()
+        hidden_count += 1
+        overflow_style = displayed[-1][1] if displayed else tokens[0][1]
+
+    suffix = f"+{len(tokens)}"
+    return [(_ellipsize_right(suffix, width), tokens[0][1])]
+
+
+def _tag_tokens_width(tokens: list[tuple[str, str]]) -> int:
+    """Return plain-text width for space-separated tag tokens."""
+    if not tokens:
+        return 0
+    return sum(len(token) for token, _style in tokens) + len(tokens) - 1
+
+
+def _append_tag_tokens(text: Text, tokens: list[tuple[str, str]]) -> int:
+    """Append fitted tag tokens and return their plain-text width."""
+    used = 0
+    for index, (token, style) in enumerate(tokens):
+        if index:
+            text.append(" ")
+            used += 1
+        text.append(token, style=style)
+        used += len(token)
+    return used
 
 
 def _append_metadata_row(
@@ -219,6 +305,7 @@ class PromptHistoryModal(
         self._filtered_items: list[_PromptDisplayItem] = []
         self._show_cancelled = show_cancelled
         self._initial_filter = initial_filter
+        self._last_preview_width_budget = _FALLBACK_PREVIEW_WIDTH
         self._load_items()
         self._filtered_items = self._get_filtered_items(self._initial_filter)
 
@@ -256,11 +343,19 @@ class PromptHistoryModal(
                 )
                 with Horizontal(id="prompt-history-panels"):
                     with Vertical(id="prompt-history-list-panel"):
-                        yield Label("History", id="prompt-history-list-label")
-                        yield OptionList(
-                            *self._create_options(self._filtered_items),
-                            id="prompt-history-list",
+                        yield Label(
+                            self._history_count_label(),
+                            id="prompt-history-list-label",
                         )
+                        with Vertical(id="prompt-history-table"):
+                            yield Static(
+                                _prompt_history_header_text(),
+                                id="prompt-history-columns",
+                            )
+                            yield OptionList(
+                                *self._create_options(self._filtered_items),
+                                id="prompt-history-list",
+                            )
                     with Vertical(id="prompt-history-preview-panel"):
                         yield Label("Preview", id="prompt-history-preview-label")
                         with VerticalScroll(id="prompt-history-preview-scroll"):
@@ -273,14 +368,85 @@ class PromptHistoryModal(
 
     def _create_styled_label(self, item: _PromptDisplayItem) -> Text:
         """Create styled text for a prompt list item."""
-        return _create_prompt_history_label(item)
+        return _create_prompt_history_label(
+            item,
+            preview_width=self._last_preview_width_budget,
+        )
 
-    def _create_options(self, items: list[_PromptDisplayItem]) -> list[Option]:
+    def _create_options(
+        self,
+        items: list[_PromptDisplayItem],
+        *,
+        preview_width: int | None = None,
+    ) -> list[Option]:
         """Create options from prompt items."""
+        self._last_preview_width_budget = (
+            self._resolve_preview_width_budget()
+            if preview_width is None
+            else preview_width
+        )
         return [
             Option(self._create_styled_label(item), id=str(i))
             for i, item in enumerate(items)
         ]
+
+    def _resolve_preview_width_budget(self) -> int:
+        """Return the current prompt preview width budget for list rows."""
+        try:
+            option_list = self.query_one("#prompt-history-list", OptionList)
+        except Exception:
+            return _FALLBACK_PREVIEW_WIDTH
+
+        list_content_width = option_list.scrollable_content_region.width
+        if list_content_width <= 0:
+            list_content_width = option_list.content_size.width
+        if list_content_width <= 0:
+            list_content_width = option_list.size.width
+        return _prompt_preview_width_for_list_content(list_content_width)
+
+    def _refresh_options(
+        self,
+        *,
+        preserve_highlight: bool = False,
+        preview_width: int | None = None,
+    ) -> None:
+        """Rebuild visible options using one shared preview-width budget."""
+        option_list = self.query_one("#prompt-history-list", OptionList)
+        highlighted = option_list.highlighted if preserve_highlight else None
+        option_list.clear_options()
+        option_list.add_options(
+            self._create_options(
+                self._filtered_items,
+                preview_width=preview_width,
+            )
+        )
+        if not self._filtered_items:
+            return
+        if preserve_highlight and highlighted is not None:
+            option_list.highlighted = min(highlighted, len(self._filtered_items) - 1)
+        elif not preserve_highlight:
+            option_list.highlighted = 0
+
+    def _refresh_options_for_current_width(self) -> None:
+        """Refresh option labels if layout gives the preview column a new width."""
+        if not self._all_items:
+            return
+        preview_width = self._resolve_preview_width_budget()
+        if preview_width == self._last_preview_width_budget:
+            return
+        self._refresh_options(preserve_highlight=True, preview_width=preview_width)
+
+    def _history_count_label(self) -> str:
+        """Return the live list-pane history count label."""
+        return f"History · {len(self._filtered_items):,} / {len(self._all_items):,}"
+
+    def _update_history_count_label(self) -> None:
+        """Update the list-pane count label if it is mounted."""
+        try:
+            label = self.query_one("#prompt-history-list-label", Label)
+        except Exception:
+            return
+        label.update(self._history_count_label())
 
     def _get_filtered_items(self, filter_text: str) -> list[_PromptDisplayItem]:
         """Get items that match the filter text."""
@@ -328,17 +494,22 @@ class PromptHistoryModal(
             filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
             filter_input.focus()
             filter_input.cursor_position = len(filter_input.value)
+            self._update_history_count_label()
             # Show preview for first item
             if self._filtered_items:
                 self._update_preview(self._filtered_items[0])
+            self.call_after_refresh(self._refresh_options_for_current_width)
+
+    def on_resize(self, _event: events.Resize) -> None:
+        """Recompute adaptive row widths after terminal resize/layout changes."""
+        if self._all_items:
+            self.call_after_refresh(self._refresh_options_for_current_width)
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle input change - update the option list."""
         self._filtered_items = self._get_filtered_items(event.value)
-        option_list = self.query_one("#prompt-history-list", OptionList)
-        option_list.clear_options()
-        for option in self._create_options(self._filtered_items):
-            option_list.add_option(option)
+        self._update_history_count_label()
+        self._refresh_options()
         # Update preview for first filtered item
         if self._filtered_items:
             self._update_preview(self._filtered_items[0])
@@ -393,10 +564,8 @@ class PromptHistoryModal(
         self._show_cancelled = not self._show_cancelled
         filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
         self._filtered_items = self._get_filtered_items(filter_input.value)
-        option_list = self.query_one("#prompt-history-list", OptionList)
-        option_list.clear_options()
-        for option in self._create_options(self._filtered_items):
-            option_list.add_option(option)
+        self._update_history_count_label()
+        self._refresh_options()
         if self._filtered_items:
             self._update_preview(self._filtered_items[0])
         else:

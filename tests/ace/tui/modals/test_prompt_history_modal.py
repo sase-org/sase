@@ -8,11 +8,16 @@ import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
 import sase.history.prompt_metadata as prompt_metadata
 import sase.xprompt._parsing as xprompt_parsing
 from sase.ace.tui.modals.prompt_history_modal import (
+    _MIN_PREVIEW_WIDTH,
+    _OPTION_HORIZONTAL_PADDING_WIDTH,
+    _PROMPT_COL_START,
     _PromptDisplayItem,
     PromptHistoryModal,
     _create_prompt_history_label,
     _ellipsize_right,
     _format_history_timestamp,
+    _prompt_history_header_text,
+    _prompt_preview_width_for_list_content,
 )
 from sase.history.prompt import PromptEntry
 from sase.history.prompt_metadata import PromptListSummary
@@ -61,14 +66,18 @@ def _item(
 
 def test_prompt_history_label_is_single_line_and_ellipsized() -> None:
     prompt = ("normalize whitespace " * 12) + "\nsecond line should stay in preview"
+    preview_width = 112
 
-    label = _create_prompt_history_label(_item(text=prompt))
+    label = _create_prompt_history_label(
+        _item(text=prompt),
+        preview_width=preview_width,
+    )
 
     assert label.no_wrap is True
     assert label.overflow == "ellipsis"
     assert "\n" not in label.plain
     assert "second line" not in label.plain
-    assert _ellipsize_right("normalize whitespace " * 12, 96) in label.plain
+    assert _ellipsize_right("normalize whitespace " * 12, preview_width) in label.plain
     assert "..." in label.plain
 
 
@@ -91,6 +100,39 @@ def test_prompt_history_label_renders_project_tags_and_clean_preview(
     assert any("cyan" in str(span.style) for span in label.spans)
     assert any("green" in str(span.style) for span in label.spans)
     assert any("yellow" in str(span.style) for span in label.spans)
+
+
+def test_prompt_history_label_uses_fixed_grid_for_prompt_column(
+    workflow_names: None,
+) -> None:
+    without_tags = _create_prompt_history_label(
+        _item(text="Plain prompt without control tokens"),
+    )
+    with_tags = _create_prompt_history_label(
+        _item(text="#gh:steveyegge/beads #fork %plan Tagged prompt"),
+    )
+
+    assert without_tags.plain.index("Plain prompt") == _PROMPT_COL_START
+    assert with_tags.plain.index("Tagged prompt") == _PROMPT_COL_START
+
+
+def test_prompt_history_header_matches_row_grid() -> None:
+    header = _prompt_history_header_text()
+
+    assert "WHEN" in header.plain
+    assert "PROJECT" in header.plain
+    assert "TAGS" in header.plain
+    assert header.plain.index("PROMPT") == _PROMPT_COL_START
+
+
+def test_prompt_history_preview_width_adapts_to_list_content_width() -> None:
+    wide_prompt_width = 140
+    wide_content_width = (
+        _PROMPT_COL_START + _OPTION_HORIZONTAL_PADDING_WIDTH + wide_prompt_width
+    )
+
+    assert _prompt_preview_width_for_list_content(wide_content_width) == 140
+    assert _prompt_preview_width_for_list_content(1) == _MIN_PREVIEW_WIDTH
 
 
 def test_format_history_timestamp_uses_compact_datetime() -> None:
@@ -159,6 +201,34 @@ def test_prompt_history_initial_filter_prefilters_items(monkeypatch) -> None:
 
     assert modal._initial_filter == "auth"
     assert [item.entry.text for item in modal._filtered_items] == ["fix auth login"]
+
+
+def test_prompt_history_count_label_updates(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeLabel:
+        def __init__(self) -> None:
+            self.value = ""
+
+        def update(self, value: str) -> None:
+            self.value = value
+
+    label = FakeLabel()
+    modal = object.__new__(PromptHistoryModal)
+    modal._all_items = [
+        _item(text="fix auth"),
+        _item(text="update docs"),
+        _item(text="cancelled", cancelled=True),
+    ]
+    modal._filtered_items = [modal._all_items[0]]
+
+    monkeypatch.setattr(
+        modal,
+        "query_one",
+        lambda _selector, _widget_type: label,
+    )
+
+    modal._update_history_count_label()
+
+    assert label.value == "History · 1 / 3"
 
 
 def test_prompt_history_preview_metadata_includes_prompt_metadata(
