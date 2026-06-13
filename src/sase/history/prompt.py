@@ -1,7 +1,9 @@
 """Prompt history storage and retrieval for sase run commands."""
 
 import fcntl
+import hashlib
 import json
+import math
 import os
 import tempfile
 from collections.abc import Iterator
@@ -34,6 +36,100 @@ class PromptEntry:
     # compatibility. New writes intentionally omit them.
     branch_or_workspace: str = ""
     workspace: str = ""
+
+
+# Stable content-addressed prompt IDs are derived from exact prompt text so
+# selectors never depend on volatile recency indexes. ``ph_`` plus the first
+# twelve hex characters of the SHA-256 digest is short enough to type yet wide
+# enough to avoid collisions across a realistic prompt history.
+_PROMPT_ID_PREFIX = "ph_"
+_PROMPT_ID_HASH_LEN = 12
+
+# Largest prompts / chip counts reported by ``compute_prompt_stats`` default
+# to compact top-N slices so stats output stays bounded on huge histories.
+_STATS_LARGEST_LIMIT = 5
+_STATS_CHIPS_LIMIT = 10
+_STATS_PREVIEW_CHARS = 60
+
+
+def _compute_prompt_hash(text: str) -> str:
+    """Return the full lowercase SHA-256 hex digest of exact prompt text."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def compute_prompt_id(text: str) -> str:
+    """Return the stable ``ph_<sha256[:12]>`` content ID for prompt text."""
+    return f"{_PROMPT_ID_PREFIX}{_compute_prompt_hash(text)[:_PROMPT_ID_HASH_LEN]}"
+
+
+@dataclass(frozen=True)
+class PromptHistoryRecord:
+    """A catalog view of one prompt-history entry with a stable content ID."""
+
+    id: str
+    text_sha256: str
+    text: str
+    timestamp: str
+    last_used: str
+    cancelled: bool
+    branch_or_workspace: str = ""
+    workspace: str = ""
+
+    @property
+    def text_chars(self) -> int:
+        """Return the character length of the exact prompt text."""
+        return len(self.text)
+
+    def to_entry(self) -> "PromptEntry":
+        """Return the underlying :class:`PromptEntry` for this record."""
+        return PromptEntry(
+            text=self.text,
+            timestamp=self.timestamp,
+            last_used=self.last_used,
+            cancelled=self.cancelled,
+            branch_or_workspace=self.branch_or_workspace,
+            workspace=self.workspace,
+        )
+
+
+class PromptSelectorError(ValueError):
+    """Base class for prompt selector resolution failures."""
+
+
+class PromptNotFoundError(PromptSelectorError):
+    """Raised when a selector matches no prompt-history record."""
+
+    def __init__(self, selector: str) -> None:
+        super().__init__(f"No prompt matches selector: {selector!r}")
+        self.selector = selector
+
+
+class PromptAmbiguousError(PromptSelectorError):
+    """Raised when a short selector matches more than one record."""
+
+    def __init__(self, selector: str, matches: list[str]) -> None:
+        self.selector = selector
+        self.matches = matches
+        joined = ", ".join(matches)
+        super().__init__(
+            f"Selector {selector!r} is ambiguous; matches: {joined}."
+            " Use a longer selector or sha256:<full_hash>."
+        )
+
+
+def _record_from_entry(entry: PromptEntry) -> PromptHistoryRecord:
+    """Build a :class:`PromptHistoryRecord` from a stored entry."""
+    digest = _compute_prompt_hash(entry.text)
+    return PromptHistoryRecord(
+        id=f"{_PROMPT_ID_PREFIX}{digest[:_PROMPT_ID_HASH_LEN]}",
+        text_sha256=digest,
+        text=entry.text,
+        timestamp=entry.timestamp,
+        last_used=entry.last_used,
+        cancelled=entry.cancelled,
+        branch_or_workspace=entry.branch_or_workspace,
+        workspace=entry.workspace,
+    )
 
 
 @dataclass(frozen=True)
@@ -319,12 +415,248 @@ def _format_prompt_for_display(entry: PromptEntry) -> str:
     return f"{entry.last_used} | {preview}"
 
 
+# ---------------------------------------------------------------------------
+# Read-only catalog API
+# ---------------------------------------------------------------------------
+
+
+def _filter_records(
+    records: list[PromptHistoryRecord],
+    *,
+    include_cancelled: bool,
+    cancelled_only: bool,
+    query: str | None,
+) -> list[PromptHistoryRecord]:
+    """Apply launched/all/cancelled and case-insensitive substring filters."""
+    if cancelled_only:
+        records = [r for r in records if r.cancelled]
+    elif not include_cancelled:
+        records = [r for r in records if not r.cancelled]
+
+    if query:
+        needle = query.lower()
+        records = [r for r in records if needle in r.text.lower()]
+
+    return records
+
+
+def list_prompt_records(
+    *,
+    include_cancelled: bool = False,
+    cancelled_only: bool = False,
+    query: str | None = None,
+    limit: int | None = None,
+) -> list[PromptHistoryRecord]:
+    """Return recency-ordered prompt-history records.
+
+    Records are sorted by ``last_used`` descending. ``cancelled_only`` (the
+    ``--cancelled`` view) takes precedence over ``include_cancelled`` (the
+    ``--all`` view); the default excludes cancelled prompts. ``query`` is a
+    case-insensitive substring filter over exact prompt text. ``limit`` is
+    applied after sorting; ``None`` returns every matching record.
+    """
+    records = [_record_from_entry(entry) for entry in _load_prompt_history()]
+    records = _filter_records(
+        records,
+        include_cancelled=include_cancelled,
+        cancelled_only=cancelled_only,
+        query=query,
+    )
+    records.sort(key=lambda r: r.last_used, reverse=True)
+    if limit is not None and limit >= 0:
+        records = records[:limit]
+    return records
+
+
+def _normalize_selector(selector: str) -> str | None:
+    """Return the lowercase hex prefix a selector resolves to, or ``None``.
+
+    Accepts ``ph_<prefix>``, a bare hash prefix as printed by ``list``, or
+    ``sha256:<hash>``. Returns ``None`` for empty or non-hex selectors.
+    """
+    sel = selector.strip()
+    if sel.startswith("sha256:"):
+        hexprefix = sel[len("sha256:") :].strip().lower()
+    elif sel.startswith(_PROMPT_ID_PREFIX):
+        hexprefix = sel[len(_PROMPT_ID_PREFIX) :].strip().lower()
+    else:
+        hexprefix = sel.lower()
+
+    if not hexprefix or any(c not in "0123456789abcdef" for c in hexprefix):
+        return None
+    return hexprefix
+
+
+def resolve_prompt_selector(
+    selector: str,
+    *,
+    records: list[PromptHistoryRecord] | None = None,
+) -> PromptHistoryRecord:
+    """Resolve a selector to a single record, with collision diagnostics.
+
+    Args:
+        selector: ``ph_<prefix>``, a bare hash prefix, or ``sha256:<hash>``.
+        records: Optional pre-loaded records (e.g. a filtered subset). When
+            omitted, the full history is loaded.
+
+    Raises:
+        PromptNotFoundError: the selector is empty, non-hex, or matches nothing.
+        PromptAmbiguousError: a short prefix matches more than one record.
+    """
+    if records is None:
+        records = [_record_from_entry(entry) for entry in _load_prompt_history()]
+
+    hexprefix = _normalize_selector(selector)
+    if hexprefix is None:
+        raise PromptNotFoundError(selector)
+
+    matches = [r for r in records if r.text_sha256.startswith(hexprefix)]
+    if not matches:
+        raise PromptNotFoundError(selector)
+
+    unique_ids = {r.id for r in matches}
+    if len(unique_ids) > 1:
+        raise PromptAmbiguousError(selector, sorted(unique_ids))
+    return matches[0]
+
+
+@dataclass(frozen=True)
+class PromptLargest:
+    """A large prompt summarized by ID and size, with a preview only."""
+
+    id: str
+    text_chars: int
+    preview: str
+
+
+@dataclass(frozen=True)
+class PromptHistoryStats:
+    """Aggregate, full-text-free statistics for the prompt-history store."""
+
+    path: str
+    exists: bool
+    size_bytes: int
+    total: int
+    launched: int
+    cancelled: int
+    oldest_last_used: str | None
+    newest_last_used: str | None
+    length_percentiles: dict[str, int]
+    largest: list[PromptLargest]
+    top_chips: list[tuple[str, int]]
+
+
+def _short_preview(text: str, limit: int = _STATS_PREVIEW_CHARS) -> str:
+    """Return a single-line, truncated preview of prompt text."""
+    collapsed = " ".join(text.split())
+    if len(collapsed) > limit:
+        return collapsed[: max(limit - 1, 1)] + "…"
+    return collapsed
+
+
+def _percentile(sorted_values: list[int], pct: float) -> int:
+    """Return the nearest-rank ``pct`` percentile of pre-sorted values."""
+    if not sorted_values:
+        return 0
+    rank = max(1, math.ceil(pct / 100 * len(sorted_values)))
+    return sorted_values[min(rank, len(sorted_values)) - 1]
+
+
+def _prompt_chips(text: str) -> list[str]:
+    """Return xprompt/workflow/directive chips parsed from a prompt.
+
+    Parsing is best-effort; any prompt that the metadata layer cannot parse
+    contributes no chips rather than failing the whole stats computation.
+    """
+    try:
+        from sase.history.prompt_metadata import summarize_prompt_for_list
+
+        summary = summarize_prompt_for_list(text)
+    except Exception:
+        return []
+
+    chips: list[str] = []
+    if summary.project_prefix:
+        chips.append(summary.project_prefix.rstrip(":"))
+    chips.extend(summary.xprompts)
+    if summary.directive_token:
+        chips.extend(summary.directive_token.split())
+    return chips
+
+
+def compute_prompt_stats() -> PromptHistoryStats:
+    """Compute read-only aggregate statistics for the prompt-history store.
+
+    Never echoes full prompt text: the only text exposed is a short preview
+    for the largest prompts. Tolerates a missing or corrupt store by reporting
+    whatever can be read.
+    """
+    history_file = _prompt_history_file()
+    exists = history_file.exists()
+    try:
+        size_bytes = history_file.stat().st_size if exists else 0
+    except OSError:
+        size_bytes = 0
+
+    records = [_record_from_entry(entry) for entry in _load_prompt_history()]
+    total = len(records)
+    cancelled = sum(1 for r in records if r.cancelled)
+    launched = total - cancelled
+
+    last_used_values = sorted(r.last_used for r in records)
+    oldest = last_used_values[0] if last_used_values else None
+    newest = last_used_values[-1] if last_used_values else None
+
+    lengths = sorted(r.text_chars for r in records)
+    percentiles = {
+        "p50": _percentile(lengths, 50),
+        "p90": _percentile(lengths, 90),
+        "p99": _percentile(lengths, 99),
+        "max": lengths[-1] if lengths else 0,
+    }
+
+    largest = [
+        PromptLargest(
+            id=r.id,
+            text_chars=r.text_chars,
+            preview=_short_preview(r.text),
+        )
+        for r in sorted(records, key=lambda r: r.text_chars, reverse=True)[
+            :_STATS_LARGEST_LIMIT
+        ]
+    ]
+
+    chip_counts: dict[str, int] = {}
+    for record in records:
+        for chip in _prompt_chips(record.text):
+            chip_counts[chip] = chip_counts.get(chip, 0) + 1
+    top_chips = sorted(chip_counts.items(), key=lambda kv: (-kv[1], kv[0]))[
+        :_STATS_CHIPS_LIMIT
+    ]
+
+    return PromptHistoryStats(
+        path=str(history_file),
+        exists=exists,
+        size_bytes=size_bytes,
+        total=total,
+        launched=launched,
+        cancelled=cancelled,
+        oldest_last_used=oldest,
+        newest_last_used=newest,
+        length_percentiles=percentiles,
+        largest=largest,
+        top_chips=top_chips,
+    )
+
+
 def get_prompts_for_fzf(
     *, include_cancelled: bool = False
 ) -> list[tuple[str, PromptEntry]]:
     """Get prompts formatted for fzf display.
 
-    Prompts are sorted by ``last_used`` descending.
+    Prompts are sorted by ``last_used`` descending. This is a thin
+    compatibility wrapper over :func:`list_prompt_records` for callers that
+    still consume the legacy ``(display_string, PromptEntry)`` shape.
 
     Args:
         include_cancelled: If True, include cancelled prompts in results.
@@ -332,14 +664,8 @@ def get_prompts_for_fzf(
     Returns:
         List of (display_string, PromptEntry) tuples sorted for fzf display.
     """
-    prompts = _load_prompt_history()
-
-    if not include_cancelled:
-        prompts = [p for p in prompts if not p.cancelled]
-
-    if not prompts:
-        return []
-
-    prompts.sort(key=lambda p: p.last_used, reverse=True)
-
-    return [(_format_prompt_for_display(p), p) for p in prompts]
+    records = list_prompt_records(include_cancelled=include_cancelled)
+    return [
+        (_format_prompt_for_display(entry), entry)
+        for entry in (record.to_entry() for record in records)
+    ]

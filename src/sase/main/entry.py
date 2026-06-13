@@ -299,6 +299,12 @@ def main() -> NoReturn:
 
         handle_project_command(args)
 
+    # --- prompt ---
+    if args.command == "prompt":
+        from .prompt_handler import handle_prompt_command
+
+        handle_prompt_command(args)
+
     # --- questions ---
     if args.command == "questions":
         from .questions_command_handler import handle_questions_command

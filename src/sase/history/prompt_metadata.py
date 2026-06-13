@@ -117,7 +117,6 @@ def summarize_prompt_for_preview(text: str) -> PromptPreviewSummary:
     )
 
 
-# pyvision: sdd/tales/202606/prompt_history_metadata.md
 def clean_prompt_preview(text: str) -> str:
     """Strip prompt control tokens and return a collapsed first-line preview."""
     fenced_blocks: list[str] = []
