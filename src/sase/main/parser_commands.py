@@ -477,20 +477,21 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=("approve", "commit", "epic", "legend", "tale"),
         default="approve",
         help=(
-            "Approval kind: approve runs coder without SDD commit; tale commits "
-            "to sdd/tales; epic commits to sdd/epics; legend commits to "
-            "sdd/legends; commit saves the plan without launching coder"
+            "Approval kind: approve runs coder without committing an SDD plan; "
+            "tale commits to sdd/tales; epic commits to sdd/epics; legend "
+            "commits to sdd/legends; commit records the plan without launching "
+            "coder"
         ),
     )
     approve_parser.add_argument(
         "-m",
         "--model",
-        help="Optional model for the follow-up coder",
+        help="Optional model for the follow-up agent",
     )
     approve_parser.add_argument(
         "-p",
         "--prompt",
-        help="Optional prompt text for the follow-up coder",
+        help="Optional extra prompt text for approve/tale coder follow-up",
     )
 
     list_parser = plan_subparsers.add_parser(

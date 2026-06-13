@@ -113,10 +113,11 @@ opt into all project states explicitly.
 
 `sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and Rejected sections. Proposed rows
 include an `id_prefix`, agent, project, provider/model, plan path, and response directory; pass that prefix to
-`sase plan approve <prefix>`. If the selector is omitted, exactly one pending proposal must exist. Approval kind
-`approve` launches the coder with `commit_plan: false`, `tale`, `epic`, and `legend` commit under the matching SDD
-directory before launching the follow-up agent, and `commit` saves the plan without launching a coder. Use `-m/--model`
-and `-p/--prompt` to override the follow-up coder model or add extra coder instructions.
+`sase plan approve <prefix>`. If the selector is omitted, exactly one pending proposal must exist. The approval kind is
+the workflow choice: `approve` runs the coder without asking the runner to commit an SDD plan, `tale` commits the plan
+as an SDD tale and then runs the coder, `epic` and `legend` commit the matching SDD tier and launch the bead follow-up,
+and `commit` records the approved plan in SDD without launching a coder. Use `-m/--model` to pick the follow-up agent's
+model. Use `-p/--prompt` to add extra coder instructions for the `approve` and `tale` paths.
 
 ## Automation
 

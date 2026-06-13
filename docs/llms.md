@@ -502,13 +502,13 @@ llm_provider:
 
 ### Config Fields
 
-| Field                               | Type   | Default     | Description                                                                                                                                            |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini.            |
-| `llm_provider.worker_model`         | string | unset       | Optional secondary default model for worker-lane launches such as epic phase agents. Accepts bare known models, aliases, or explicit `provider/model`. |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                  |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                  |
-| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths.   |
+| Field                               | Type   | Default     | Description                                                                                                                                                                |
+| ----------------------------------- | ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini.                                |
+| `llm_provider.worker_model`         | string | unset       | Optional secondary default model for worker-lane launches such as plan follow-ups and epic phase agents. Accepts bare known models, aliases, or explicit `provider/model`. |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                                      |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                                      |
+| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths.                       |
 
 ## Per-Prompt Provider Switching
 
@@ -642,9 +642,10 @@ use the specified tier regardless of what the caller requests.
 
 ## Worker Model
 
-The worker model is an optional secondary default for delegated execution work. It is currently used by `sase bead work`
-phase agents that do not have an explicit per-bead model. Planning and landing agents stay on the primary default unless
-their prompt or bead explicitly asks for a different model.
+The worker model is an optional secondary default for delegated execution work. It is used by plan follow-up agents when
+the approval does not pick a specific follow-up model, and by `sase bead work` phase agents that do not have an explicit
+per-bead model. Planning and landing agents stay on the primary default unless their prompt or bead explicitly asks for
+a different model.
 
 Configure it under `llm_provider.worker_model`:
 

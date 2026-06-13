@@ -144,8 +144,8 @@ SASE keeps durable state outside any one chat session:
   in the producer's `OUTPUT VARIABLES` metadata panel.
 - **Plan approval pipeline** - Planning agents submit Markdown plans with `sase plan propose`. ACE, notifications, and
   `sase plan` all read the same pending approval state; `sase plan approve [id] -k <kind>` writes the same response
-  protocol as the TUI. Approval kinds decide whether the follow-up coder runs directly, the plan is committed as a tale,
-  epic, or legend, or the plan is saved without launching a coder.
+  protocol as the TUI. Approval kinds decide whether the runner starts a coder without committing an SDD plan, commits
+  the plan as a tale/epic/legend before the follow-up, or records the approved plan in SDD and stops there.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
   provider-neutral finalizer checks the main workspace and configured Git sibling workspace directories for uncommitted
   changes. Static siblings (`workspace.strategy: none`) are reported as advisory work that the agent may commit when it

@@ -1728,8 +1728,10 @@ With no subcommand, `sase plan` defaults to the `sase plan list` dashboard.
 `sase plan list` prints a Rich dashboard by default and emits a stable JSON projection with `summary`, `proposed`,
 `approved`, and `rejected` keys when `-j/--json` is set. Use the Proposed row's `id_prefix` as the selector for
 `sase plan approve`; omitting the selector is valid only when exactly one pending proposal exists. Approval kind
-`approve` runs the coder with `commit_plan: false`, `tale`, `epic`, and `legend` save under the matching SDD tier and
-launch the follow-up agent, and `commit` saves the plan without launching a coder.
+`approve` runs the coder without asking the runner to commit an SDD plan, `tale` commits the plan as an SDD tale and
+then runs the coder, `epic` and `legend` commit the matching SDD tier and launch the bead follow-up, and `commit`
+records the approved plan in SDD without launching a coder. The `-m/--model` flag applies to the follow-up agent;
+`-p/--prompt` adds extra coder instructions only for the `approve` and `tale` paths.
 
 ### `sase artifact`
 

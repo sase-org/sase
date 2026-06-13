@@ -1463,7 +1463,10 @@ omitted when provider/model metadata is absent, leaving the legacy title shape u
 The same pending approvals are available from the CLI. Run `sase plan` to see pending proposals, recent approvals, and
 inferred rejected archived plans; run `sase plan approve <id-prefix> --kind approve|commit|epic|legend|tale` to write
 the same response protocol used by the TUI modal. If the selector is omitted, the CLI approves only when exactly one
-proposal is pending. `-m/--model` and `-p/--prompt` override the follow-up coder model or add extra coder instructions.
+proposal is pending. `approve` starts the coder without committing an SDD plan, `tale` commits the plan as an SDD tale
+and starts the coder, `epic` and `legend` commit the matching SDD tier and launch the bead follow-up, and `commit`
+records the approved plan in SDD without launching a coder. `-m/--model` picks the follow-up agent's model, while
+`-p/--prompt` adds extra coder instructions for the `approve` and `tale` paths.
 
 For active Agents-tab rows, `a` cycles through normal auto-approve, epic auto-approve, and disabled. Epic auto-approve
 is the same plan-specific path as the `%epic` directive: the next submitted plan is accepted as an epic, SDD epic
@@ -1474,7 +1477,8 @@ HITL prompts.
 
 | Key          | Action                                                   |
 | ------------ | -------------------------------------------------------- |
-| `a`          | Save as tale and continue                                |
+| `a`          | Approve and run coder without committing an SDD tale     |
+| `t`          | Save as tale and run coder                               |
 | `c`          | Open [Custom Approval](#custom-approval)                 |
 | `r`          | Reject the plan                                          |
 | `f`          | Request feedback (send follow-up questions to the agent) |
@@ -1493,8 +1497,8 @@ The question modal also supports `y` to copy questions and selected answers.
 
 Pressing `c` in the plan approval modal opens a custom approval dialog. Choose the approval outcome directly: Approve,
 Tale, Epic, or Legend. These choices map to the same response protocol used by external approval transports: Approve
-runs the coder without committing an SDD tale, Tale commits under `sdd/tales`, Epic commits under `sdd/epics`, and
-Legend commits under `sdd/legends`.
+runs the coder without asking the runner to commit an SDD plan, Tale commits under `sdd/tales`, Epic commits under
+`sdd/epics`, and Legend commits under `sdd/legends`.
 
 | Key          | Action                        |
 | ------------ | ----------------------------- |
@@ -1508,16 +1512,17 @@ Legend commits under `sdd/legends`.
 | `Ctrl+N`/`P` | Next / previous action        |
 | `q` / `Esc`  | Cancel                        |
 
-The dialog keeps the custom coder prompt and model controls:
+The dialog keeps the custom coder prompt and follow-up model controls:
 
-- **Additional prompt** — Optional extra instructions for the follow-up agent.
-- **Coder model** — Select an LLM model for the coder agent instead of inheriting the planner's model. Shows all
-  registered models grouped by provider (Claude, Codex, Gemini, Qwen, OpenCode) with a "Custom..." option for freeform
-  input. Type to filter by provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to
-  select, `Esc` to clear the filter or cancel, and `'` for jump hints over the visible selectable rows. Leaving the
-  default "Same as planner" row selected inherits the planner's model: the coder is launched with a provider-qualified
-  `%model:<provider>/<model>` directive (e.g. `%model:claude/claude-fable-5`), so it runs on the same provider as the
-  planner even when the bare model name alone would not resolve to that provider.
+- **Additional prompt** — Optional extra instructions for the coder follow-up. It is used by Approve and Tale; Epic and
+  Legend generate their follow-up prompts from the bead xprompts.
+- **Coder model** — Select an LLM model for the next follow-up agent instead of using the worker-lane default. For
+  Approve and Tale that agent is the coder; for Epic and Legend it is the bead follow-up. Shows all registered models
+  grouped by provider (Claude, Codex, Gemini, Qwen, OpenCode) with a "Custom..." option for freeform input. Type to
+  filter by provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to
+  clear the filter or cancel, and `'` for jump hints over the visible selectable rows. Leaving the default "Worker
+  model" row selected launches the follow-up with `%model:worker`, which resolves through the active worker override,
+  configured `llm_provider.worker_model`, then the primary lane fallback.
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
 commit location and follow-up behavior.

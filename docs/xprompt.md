@@ -1121,15 +1121,16 @@ built-in xprompt (see [sase/xprompts/coder.md](https://github.com/sase-org/sase/
 implement the plan. By default the coder does _not_ inherit the planner's chat transcript — the plan file is the
 hand-off artifact. Set `SASE_CODER_INHERIT_PLANNER_CHAT=1` to restore the old behavior, in which case a
 `#fork:<planner_name>` reference is prepended to the coder prompt so it resumes the planner's session. The coder prompt
-also carries a `%model:` directive: the coder model chosen at approval time or, when none was chosen, the planner's own
-model qualified with its provider (e.g. `%model:claude/claude-fable-5`) so the coder runs on the same provider as the
-planner.
+also carries a `%model:` directive. A model chosen at approval time wins. When no model is chosen, the follow-up uses
+`%model:worker`, which resolves through the worker lane (active worker override, configured `llm_provider.worker_model`,
+then the primary lane fallback).
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus recent approved and inferred
 rejected plans. Use `sase plan approve <id-prefix> --kind approve|commit|epic|legend|tale` to approve from a shell. The
-`approve` kind runs the coder with `commit_plan: false`; `tale`, `epic`, and `legend` save under the matching SDD tier
-and launch the follow-up agent; `commit` saves the plan without launching a coder. `-m/--model` and `-p/--prompt`
-customize the follow-up coder.
+`approve` kind runs the coder without committing an SDD plan; `tale` commits an SDD tale and runs the coder; `epic` and
+`legend` commit the matching SDD tier and launch the bead follow-up; `commit` records the approved plan in SDD without
+launching a coder. `-m/--model` picks the follow-up agent's model, while `-p/--prompt` adds extra coder instructions for
+the `approve` and `tale` paths.
 
 ### Epic Directive
 

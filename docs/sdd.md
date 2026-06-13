@@ -152,10 +152,10 @@ flips the agent into the `PLAN` status immediately rather than waiting for the n
 consumed by the inotify-based artifact watcher and is harmless when no TUI is open.
 
 Humans can approve the pending proposal from ACE or from the CLI. `sase plan` lists pending PlanApproval notifications,
-recent approvals, and inferred rejected archived proposals; `sase plan approve <id-prefix> --kind tale|epic|legend`
-writes the same approval response as the TUI and saves the promoted plan under the matching SDD tier before launching
-the follow-up agent. `--kind approve` runs the coder with `commit_plan: false`, while `--kind commit` saves the plan
-without launching a coder.
+recent approvals, and inferred rejected archived proposals. `sase plan approve <id-prefix> --kind tale|epic|legend`
+writes the same approval response as the TUI and tells the runner to commit the promoted plan under the matching SDD
+tier before launching the follow-up. `--kind approve` runs the coder without committing an SDD plan, while
+`--kind commit` records the approved plan in SDD without launching a coder.
 
 ### Q&A Sections
 
