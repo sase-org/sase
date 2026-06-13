@@ -5,10 +5,11 @@ from ._embedded_workflows import (
     expand_embedded_workflows_in_query,
 )
 from ._standalone_steps import execute_standalone_steps
-from .special_cases import handle_run_special_cases
+from .special_cases import dispatch_query, handle_run_special_cases
 
 __all__ = [
     "EmbeddedWorkflowResult",
+    "dispatch_query",
     "execute_standalone_steps",
     "expand_embedded_workflows_in_query",
     "handle_run_special_cases",

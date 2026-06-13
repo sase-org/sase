@@ -41,7 +41,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         daemon_mode = True
 
     def _run_query(prompt: str) -> None:
-        _dispatch_query(prompt, daemon_mode=daemon_mode)
+        dispatch_query(prompt, daemon_mode=daemon_mode)
 
     # Handle -l/--list flag (incompatible with daemon)
     if args_after_run and args_after_run[0] in ("-l", "--list"):
@@ -238,8 +238,13 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
     return False
 
 
-def _dispatch_query(prompt: str, *, daemon_mode: bool) -> None:
-    """Run a query, auto-routing multi-prompts through daemon mode."""
+def dispatch_query(prompt: str, *, daemon_mode: bool) -> None:
+    """Run a query, auto-routing multi-prompts through daemon mode.
+
+    Shared by ``sase run`` and ``sase prompt run/edit/select`` so prompt replay
+    follows the same foreground/daemon, multi-prompt, multi-model, and xprompt
+    routing as a fresh ``sase run "<prompt>"`` invocation.
+    """
     if daemon_mode:
         run_query_daemon(prompt)
         return
@@ -283,5 +288,5 @@ def run_parsed_prompt(args: object) -> None:
         if prompt is None:
             print("No prompt provided. Aborting.")
             sys.exit(1)
-    _dispatch_query(prompt, daemon_mode=bool(getattr(args, "daemon", False)))
+    dispatch_query(prompt, daemon_mode=bool(getattr(args, "daemon", False)))
     sys.exit(0)

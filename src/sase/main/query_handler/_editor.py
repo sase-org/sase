@@ -114,6 +114,16 @@ def _open_editor_with_content(initial_content: str) -> str | None:
         return None
 
 
+def edit_prompt_text(initial_content: str) -> str | None:
+    """Open the editor pre-filled with *initial_content* and return the result.
+
+    Returns the edited text, or ``None`` if the editor failed or the user left
+    the buffer empty. Shared by ``sase prompt run --edit``/``edit``/``select``
+    so editing a replayed prompt matches the ``sase run "."`` editor flow.
+    """
+    return _open_editor_with_content(initial_content)
+
+
 def show_prompt_history_picker() -> str | None:
     """Show fzf picker for prompt history, open editor, return edited prompt.
 
