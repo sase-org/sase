@@ -1,9 +1,9 @@
 """Phase 2 tests: temporary override applied to provider resolution and metadata.
 
-Phase 1 (``test_temporary_override.py``) verifies the shared state primitive
-in isolation.  Phase 2 verifies that the rest of the system actually
-*consults* that primitive — at provider resolution, agent invocation, and
-agent metadata pre-resolution paths.
+The lower-level temporary override tests verify the shared state primitive and
+provider/model resolution helpers in isolation.  Phase 2 verifies that the rest
+of the system actually *consults* those helpers — at provider resolution, agent
+invocation, and agent metadata pre-resolution paths.
 """
 
 from __future__ import annotations
