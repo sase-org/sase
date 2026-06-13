@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from sase.ace.tui.modals.prompt_history_modal import (
-    _CONTEXT_WIDTH,
+    _PromptDisplayItem,
+    PromptHistoryModal,
     _create_prompt_history_label,
     _ellipsize_right,
     _format_history_timestamp,
-    _PromptDisplayItem,
 )
 from sase.history.prompt import PromptEntry
 
@@ -30,21 +30,19 @@ def _item(
             cancelled=cancelled,
         ),
         marker=marker,
-        display_context=context,
     )
 
 
 def test_prompt_history_label_is_single_line_and_ellipsized() -> None:
-    context = "feature/" + "very-long-branch-name-" * 4
     prompt = ("normalize whitespace " * 12) + "\nsecond line should stay in preview"
 
-    label = _create_prompt_history_label(_item(text=prompt, context=context))
+    label = _create_prompt_history_label(_item(text=prompt))
 
     assert label.no_wrap is True
     assert label.overflow == "ellipsis"
     assert "\n" not in label.plain
     assert "second line" not in label.plain
-    assert _ellipsize_right(context, _CONTEXT_WIDTH) in label.plain
+    assert _ellipsize_right("normalize whitespace " * 12, 96) in label.plain
     assert "..." in label.plain
 
 
@@ -63,3 +61,13 @@ def test_cancelled_prompt_history_label_is_marked_and_dimmed() -> None:
     assert label.plain.startswith("x ")
     assert any(str(span.style) == "magenta" for span in label.spans)
     assert any("dim italic" in str(span.style) for span in label.spans)
+
+
+def test_prompt_history_filter_matches_prompt_text_only() -> None:
+    matching_item = _item(text="fix the tests", context="main")
+    context_only_item = _item(text="ship the change", context="feature/tests")
+    modal = object.__new__(PromptHistoryModal)
+    modal._all_items = [matching_item, context_only_item]
+    modal._show_cancelled = False
+
+    assert modal._get_filtered_items("tests") == [matching_item]

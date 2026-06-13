@@ -1289,11 +1289,6 @@ PromptHistoryModal #modal-title {
     margin-bottom: 1;
 }
 
-PromptHistoryModal #prompt-history-header {
-    color: $text-muted;
-    margin-bottom: 1;
-}
-
 PromptHistoryModal #prompt-history-filter-input {
     width: 100%;
     margin-bottom: 1;

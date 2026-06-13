@@ -114,43 +114,23 @@ def _open_editor_with_content(initial_content: str) -> str | None:
         return None
 
 
-def show_prompt_history_picker(
-    sort_by: str | None = None,
-    workspace: str | None = None,
-) -> str | None:
+def show_prompt_history_picker() -> str | None:
     """Show fzf picker for prompt history, open editor, return edited prompt.
-
-    Args:
-        sort_by: Optional branch/CL name to prioritize in sorting.
-            If None, uses current branch detection.
-        workspace: Optional workspace/project name for secondary sorting.
-            If None, uses current workspace detection.
 
     Returns:
         The edited prompt content, or None if cancelled or no history.
     """
-    _ = sort_by, workspace
-    return _show_prompt_history_picker_for_branch(sort_by=sort_by, workspace=workspace)
+    return _show_prompt_history_picker()
 
 
-def _show_prompt_history_picker_for_branch(
-    sort_by: str | None = None,
-    workspace: str | None = None,
-) -> str | None:
-    """Show fzf picker for prompt history, sorted by branch, open editor.
-
-    Args:
-        sort_by: Optional branch/CL name to prioritize in sorting.
-            If None, uses current branch detection.
-        workspace: Optional workspace/project name for secondary sorting.
-            If None, uses current workspace detection.
+def _show_prompt_history_picker() -> str | None:
+    """Show fzf picker for prompt history, open editor.
 
     Returns:
         The edited prompt content, or None if cancelled or no history.
     """
     from sase.history.prompt import get_prompts_for_fzf
 
-    _ = sort_by, workspace
     items = get_prompts_for_fzf()
 
     if not items:
@@ -168,19 +148,12 @@ def _show_prompt_history_picker_for_branch(
     # Build display lines for fzf
     display_lines = "\n".join(display for display, _ in items)
 
-    # Run fzf with header showing sorting context
-    if sort_by and workspace:
-        header = f"* = {sort_by}, ~ = {workspace}"
-    elif sort_by:
-        header = f"* = {sort_by}"
-    else:
-        header = "* = current branch/workspace"
     cmd = [
         "fzf",
         "--prompt",
         "Select prompt> ",
         "--header",
-        header,
+        "Most recent prompts first",
     ]
 
     result = subprocess.run(

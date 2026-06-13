@@ -16,8 +16,7 @@ from textual.widgets.option_list import Option
 from .base import FilterInput, OptionListNavigationMixin
 
 _LAST_USED_WIDTH = 11
-_CONTEXT_WIDTH = 24
-_PROMPT_PREVIEW_WIDTH = 72
+_PROMPT_PREVIEW_WIDTH = 96
 
 
 class PromptHistoryAction(Enum):
@@ -41,8 +40,7 @@ class _PromptDisplayItem:
     """Wrapper for prompt entry with display info."""
 
     entry: PromptEntry
-    marker: str  # "*", "~", " ", or "x"
-    display_context: str  # Compact branch/workspace context
+    marker: str  # " " or "x"
 
 
 def _normalize_prompt_preview(prompt: str) -> str:
@@ -79,28 +77,18 @@ def _create_prompt_history_label(item: _PromptDisplayItem) -> Text:
 
     if is_cancelled:
         text.append("x ", style="magenta")
-    elif item.marker == "*":
-        text.append("* ", style="bold green")
-    elif item.marker == "~":
-        text.append("~ ", style="bold yellow")
     else:
         text.append("  ")
 
     metadata_style = "dim italic" if is_cancelled else "dim"
-    context_style = "dim italic" if is_cancelled else "dim cyan"
     prompt_style = "dim italic" if is_cancelled else ""
 
     last_used = _format_history_timestamp(item.entry.last_used)
-    context = _ellipsize_right(item.display_context, _CONTEXT_WIDTH).ljust(
-        _CONTEXT_WIDTH
-    )
     prompt = _ellipsize_right(
         _normalize_prompt_preview(item.entry.text), _PROMPT_PREVIEW_WIDTH
     )
 
     text.append(last_used, style=metadata_style)
-    text.append(" ", style="dim")
-    text.append(context, style=context_style)
     text.append("  ", style="dim")
     text.append(prompt, style=prompt_style)
 
@@ -122,20 +110,14 @@ class PromptHistoryModal(
 
     def __init__(
         self,
-        sort_by: str | None = None,
-        workspace: str | None = None,
         show_cancelled: bool = False,
     ) -> None:
         """Initialize the prompt history modal.
 
         Args:
-            sort_by: Branch/CL name to prioritize in sorting.
-            workspace: Workspace/project name for secondary sorting.
             show_cancelled: Whether to show cancelled prompts by default.
         """
         super().__init__()
-        self._sort_by = sort_by
-        self._workspace = workspace
         self._all_items: list[_PromptDisplayItem] = []
         self._filtered_items: list[_PromptDisplayItem] = []
         self._show_cancelled = show_cancelled
@@ -148,7 +130,7 @@ class PromptHistoryModal(
         if not items:
             return
 
-        for display_str, entry in items:
+        for _display_str, entry in items:
             if entry.cancelled:
                 marker = "x"
             else:
@@ -158,7 +140,6 @@ class PromptHistoryModal(
                 _PromptDisplayItem(
                     entry=entry,
                     marker=marker,
-                    display_context=entry.branch_or_workspace,
                 )
             )
 
@@ -176,10 +157,6 @@ class PromptHistoryModal(
             if not self._all_items:
                 yield Label("No prompt history found.")
             else:
-                # Header showing sort context
-                header_text = self._get_header_text()
-                yield Static(header_text, id="prompt-history-header")
-
                 yield FilterInput(
                     placeholder="Type to filter...",
                     id="prompt-history-filter-input",
@@ -200,26 +177,6 @@ class PromptHistoryModal(
                     "j/k ↑/↓ ^n/^p: navigate • Enter: submit • ^g: edit • ^i: load • ^x: cancelled • ^y: copy • Esc/q: cancel",
                     id="prompt-history-hints",
                 )
-
-    def _get_header_text(self, include_cancelled: bool = False) -> Text:
-        """Get header text showing sort context."""
-        text = Text()
-        if self._sort_by and self._workspace:
-            text.append("* ", style="bold green")
-            text.append(f"= {self._sort_by}  ")
-            text.append("~ ", style="bold yellow")
-            text.append(f"= {self._workspace}")
-        elif self._sort_by:
-            text.append("* ", style="bold green")
-            text.append(f"= {self._sort_by}")
-        else:
-            text.append("* ", style="bold green")
-            text.append("= current branch")
-        if include_cancelled:
-            text.append("  ")
-            text.append("x ", style="magenta")
-            text.append("= cancelled")
-        return text
 
     def _create_styled_label(self, item: _PromptDisplayItem) -> Text:
         """Create styled text for a prompt list item."""
@@ -244,10 +201,7 @@ class PromptHistoryModal(
             item
             for item in self._all_items
             if (self._show_cancelled or not item.entry.cancelled)
-            and (
-                filter_lower in item.entry.text.lower()
-                or filter_lower in item.entry.branch_or_workspace.lower()
-            )
+            and filter_lower in item.entry.text.lower()
         ]
 
     def _get_selected_prompt_text(self) -> str | None:
@@ -296,14 +250,6 @@ class PromptHistoryModal(
             self._update_preview(self._filtered_items[0])
         else:
             self._clear_preview()
-
-    def _update_header(self, include_cancelled: bool = False) -> None:
-        """Update the header to reflect current filter mode."""
-        try:
-            header = self.query_one("#prompt-history-header", Static)
-            header.update(self._get_header_text(include_cancelled))
-        except Exception:
-            pass
 
     def on_input_submitted(self, _event: Input.Submitted) -> None:
         """Handle Enter key in input - select and submit directly."""
@@ -361,7 +307,6 @@ class PromptHistoryModal(
             self._update_preview(self._filtered_items[0])
         else:
             self._clear_preview()
-        self._update_header(include_cancelled=self._show_cancelled)
 
     def action_load_to_input(self) -> None:
         """Handle Ctrl+I - load selected prompt into prompt input widget."""
@@ -401,11 +346,6 @@ class PromptHistoryModal(
             if item.entry.cancelled:
                 meta_text.append("Status: ", style="bold")
                 meta_text.append("Cancelled\n", style="magenta")
-            meta_text.append("Branch: ", style="bold")
-            meta_text.append(f"{item.entry.branch_or_workspace}\n")
-            if item.entry.workspace:
-                meta_text.append("Workspace: ", style="bold")
-                meta_text.append(f"{item.entry.workspace}\n")
             meta_text.append("Created: ", style="bold")
             meta_text.append(f"{item.entry.timestamp}\n")
             meta_text.append("Last Used: ", style="bold")

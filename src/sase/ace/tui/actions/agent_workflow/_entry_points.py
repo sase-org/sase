@@ -211,10 +211,7 @@ class EntryPointsMixin:
                 self._prompt_context = None
 
         if edit_first:
-            prompt_text = self._first_prompt_history_entry_for_editor(
-                sort_by=name,
-                workspace=self._prompt_context.project_name,
-            )
+            prompt_text = self._first_prompt_history_entry_for_editor()
             if prompt_text is None:
                 self.notify("No prompt history entry to edit", severity="warning")  # type: ignore[attr-defined]
                 self._prompt_context = None
@@ -240,24 +237,14 @@ class EntryPointsMixin:
                 _edit_prompt(result.prompt_text)
 
         self.push_screen(  # type: ignore[attr-defined]
-            PromptHistoryModal(
-                sort_by=self._prompt_context.history_sort_key,
-                workspace=self._prompt_context.project_name,
-                show_cancelled=show_cancelled,
-            ),
+            PromptHistoryModal(show_cancelled=show_cancelled),
             on_history_select,
         )
 
-    def _first_prompt_history_entry_for_editor(
-        self,
-        *,
-        sort_by: str,
-        workspace: str,
-    ) -> str | None:
+    def _first_prompt_history_entry_for_editor(self) -> str | None:
         """Return the default prompt-history entry highlighted by the modal."""
         from sase.history.prompt import get_prompts_for_fzf
 
-        _ = sort_by, workspace
         items = get_prompts_for_fzf(include_cancelled=True)
         for _display, entry in items:
             if not entry.cancelled:

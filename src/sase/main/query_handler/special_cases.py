@@ -1,10 +1,8 @@
 """Special case handling for sase run command."""
 
 import sys
-from pathlib import Path
 
 from sase.artifacts import create_artifacts_directory
-from sase.core.paths import sase_projects_dir
 from sase.history.chat import list_chat_histories
 
 from ._daemon import run_query_daemon
@@ -59,9 +57,9 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                 print(f"  {history}")
         sys.exit(0)
 
-    # Handle VCS workflow prefix + '.' (e.g., "#gh(sase) ." or "#hg:my_cl .")
-    # Opens prompt history picker with the specified project's prompts sorted to top,
-    # then runs the selected prompt wrapped in the VCS workflow.
+    # Handle VCS workflow prefix + '.' (e.g., "#gh:sase ." or "#hg:my_cl .").
+    # Opens the recency-ordered prompt history picker, then runs the selected
+    # prompt wrapped in the current VCS workflow.
     # Handles both split args (['#gh:sase', '.']) and single arg (['#gh:sase .'])
     # since shell may or may not split depending on quoting.
     vcs_prefix: str | None = None
@@ -80,11 +78,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
             from sase.workspace_provider import get_workflow_names
 
             if workflow_name in get_workflow_names() and positional_args:
-                ref = positional_args[0]
-                sort_by, workspace = _resolve_vcs_project_info(ref)
-                prompt = show_prompt_history_picker(
-                    sort_by=sort_by, workspace=workspace
-                )
+                prompt = show_prompt_history_picker()
                 if prompt is None:
                     print("No prompt selected. Aborting.")
                     sys.exit(1)
@@ -291,33 +285,3 @@ def run_parsed_prompt(args: object) -> None:
             sys.exit(1)
     _dispatch_query(prompt, daemon_mode=bool(getattr(args, "daemon", False)))
     sys.exit(0)
-
-
-def _resolve_vcs_project_info(ref: str) -> tuple[str, str]:
-    """Resolve a VCS ref to sorting parameters for prompt history.
-
-    Returns:
-        Tuple of (sort_by, workspace) where sort_by is the branch/CL name
-        for '*' marker sorting and workspace is the project name for '~'
-        marker sorting.
-    """
-    # Repo path like user/project → project name is the last component
-    if "/" in ref:
-        project_name = ref.strip("/").split("/")[-1]
-        return ref, project_name
-
-    # Check if ref matches a known project shorthand
-    projects_base = sase_projects_dir()
-    project_dir = projects_base / ref
-    if project_dir.is_dir():
-        return ref, ref
-
-    # Check ChangeSpec names for the project association
-    from sase.ace.changespec import find_all_changespecs
-
-    for cs in find_all_changespecs():
-        if cs.name == ref:
-            return ref, cs.project_basename
-
-    # Fallback: use ref as both sort_by and workspace
-    return ref, ref

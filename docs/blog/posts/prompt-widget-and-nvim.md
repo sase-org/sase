@@ -88,10 +88,10 @@ word, press `Tab`, and the trigger is replaced with the template. Templates supp
 advancing through fields. Snippets are intentionally lightweight — they are for boilerplate you keep retyping, not for
 anything xprompts already do better.
 
-Prompt history is the third reuse path. Press `.` (or `,.` on the PRs/Agents tab) to open the prompt history modal,
-which lists prior prompts ranked by relevance to the current CL or agent. `Enter` submits the highlighted prompt
-directly; `Ctrl+G` loads it into your editor first; `Ctrl+I` loads it into the input widget for tweaking. Entries
-shorter than two words are filtered on write so trivial replies (`y`, `ok`) don't clutter the list.
+Prompt history is the third reuse path. Press `,.` to open the prompt history modal, which lists prior prompts by most
+recent use. `Enter` submits the highlighted prompt directly; `Ctrl+G` loads it into your editor first; `Ctrl+I` loads it
+into the input widget for tweaking. Entries shorter than two words are filtered on write so trivial replies (`y`, `ok`)
+don't clutter the list.
 
 When the input is empty or contains only a workspace prefix, `Ctrl+N` / `Ctrl+P` cycles the most-recently-used workspace
 references (`#git:foo`, `#hg:bar`, `#cd:~/path`). The history files behind this — `~/.sase/prompt_history.json` and the

@@ -41,7 +41,7 @@ class PromptBarRequestsMixin:
             self._prompt_context = None
 
     def on_prompt_input_bar_history_requested(self, event: object) -> None:
-        """Handle request to show prompt history picker ('.')."""
+        """Handle request to show prompt history picker."""
         from ...widgets import PromptInputBar
 
         if not isinstance(event, PromptInputBar.HistoryRequested):
@@ -109,11 +109,7 @@ class PromptBarRequestsMixin:
                     self._prompt_context = None
 
         self.push_screen(  # type: ignore[attr-defined]
-            PromptHistoryModal(
-                sort_by=self._prompt_context.history_sort_key,
-                workspace=self._prompt_context.project_name,
-                show_cancelled=event.show_cancelled,
-            ),
+            PromptHistoryModal(show_cancelled=event.show_cancelled),
             on_history_select,
         )
 

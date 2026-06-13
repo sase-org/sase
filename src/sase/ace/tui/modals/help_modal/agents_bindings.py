@@ -143,7 +143,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",
-                    "Prompt history (last CL)",
+                    "Prompt history",
                 ),
                 (
                     f"{d(lm.prefix)} {d(sk(lm.keys, 'prompt_history_edit_first'))}",

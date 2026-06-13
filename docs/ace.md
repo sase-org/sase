@@ -213,7 +213,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,r`       | Show runners info                                                                             |
 | `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))                             |
 | `,<space>` | Run agent from current PR (skips project selection)                                           |
-| `,.`       | Open prompt history modal for the last PR                                                     |
+| `,.`       | Open prompt history modal                                                                     |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers use lifecycle-aware discovery:
@@ -643,7 +643,7 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation             |
 | `,x`       | Kill agent & edit prompt                                                                      |
 | `,<space>` | Run agent from current agent's PR (skips selection)                                           |
-| `,.`       | Open prompt history modal for the last PR                                                     |
+| `,.`       | Open prompt history modal                                                                     |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
 
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`, `TALE DONE`, `PLAN REJECTED`,
@@ -1706,13 +1706,6 @@ owns expansion semantics when the prompt is submitted. Detection intentionally s
 URLs, unknown xprompt names, `#name+`, and completed colon text such as `#name: value` do not keep the prompt-bar hint
 open.
 
-### Special Prompt Shortcuts
-
-| Input | Action                                                            |
-| ----- | ----------------------------------------------------------------- |
-| `.`   | Open prompt history modal for the current PR                      |
-| `.x`  | Open prompt history modal with cancelled prompts shown by default |
-
 ### NORMAL Mode
 
 Press `Escape` in INSERT mode to enter vim-style NORMAL mode. The border title shows `[NORMAL]` and line numbers switch
@@ -1834,9 +1827,9 @@ V-LINE operators always apply to whole selected lines regardless of the cursor c
 
 ## Prompt History Modal
 
-Press `,.` (leader + `.`) on the PRs or Agents tab to open the prompt history modal. It displays prompts previously run
-in ACE, sorted by relevance to the current PR/agent context. Prompts shorter than two words are skipped when writing to
-history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter the list.
+Press `,.` (leader + `.`) to open the prompt history modal. It displays prompts previously run in ACE, ordered by most
+recent use. Prompts shorter than two words are skipped when writing to history, so trivial one-word inputs (e.g. `y`,
+`ok`) don't clutter the list.
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit workspace reference appears with the
 default `#git:home` prefix. Use `#cd:~` for direct home-directory runs with no VCS workspace management. Explicit
@@ -1857,21 +1850,13 @@ before the prompt body.
 
 ### Filtering
 
-Type in the search box to filter prompts by text or branch/workspace name. Press `Ctrl+X` to toggle cancelled prompts on
-or off — when enabled, cancelled prompts appear in the results with a `✗` marker.
+Type in the search box to filter prompts by text. Press `Ctrl+X` to toggle cancelled prompts on or off — when enabled,
+cancelled prompts appear in the results with an `x` marker.
 
-Prompt-history rows are compact single-line entries: marker, last-used timestamp (`MM-DD HH:MM` when parseable), compact
-branch/workspace context, and a first-line prompt preview. The preview panel still shows the full prompt and metadata.
+Prompt-history rows are compact single-line entries: cancelled marker, last-used timestamp (`MM-DD HH:MM` when
+parseable), and a first-line prompt preview. The preview panel still shows the full prompt and timestamp metadata.
 History writes use a sidecar lock plus atomic tempfile replacement so concurrent agent launches do not truncate the
 shared `~/.sase/prompt_history.json` file.
-
-### Visual Markers
-
-| Marker | Color   | Meaning                          |
-| ------ | ------- | -------------------------------- |
-| `*`    | Green   | Prompt matches current branch    |
-| `~`    | Yellow  | Prompt matches current workspace |
-| `✗`    | Magenta | Prompt was cancelled             |
 
 ## Task Queue Modal
 
