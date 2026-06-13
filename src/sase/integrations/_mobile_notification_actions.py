@@ -16,7 +16,11 @@ from sase.integrations._mobile_notification_snapshot import (
 )
 from sase.integrations._mobile_notification_side_effects import (
     dismiss_notification_best_effort,
-    run_plan_side_effects,
+)
+from sase.plan_approval_actions import (
+    PlanApprovalActionContext,
+    PlanApprovalActionError,
+    execute_plan_approval_response,
 )
 
 
@@ -83,24 +87,28 @@ def execute_mobile_plan_action(
             "invalid_request", "plan_file", "plan file is missing"
         )
 
-    response_json, message = _plan_response_json(
-        choice,
-        feedback=feedback,
-        commit_plan=commit_plan,
-        run_coder=run_coder,
-        coder_prompt=coder_prompt,
-        coder_model=coder_model,
-    )
-    response_path = response_dir / "plan_response.json"
-    _write_json_once(response_path, response_json, notification.id)
-
-    run_plan_side_effects(notification, choice, response_path, response_json)
+    try:
+        action_result = execute_plan_approval_response(
+            PlanApprovalActionContext(
+                id=notification.id,
+                host_files=tuple(notification.host_files),
+                host_action_data=dict(notification.host_action_data),
+            ),
+            choice,
+            feedback=feedback,
+            commit_plan=commit_plan,
+            run_coder=run_coder,
+            coder_prompt=coder_prompt,
+            coder_model=coder_model,
+        )
+    except PlanApprovalActionError as exc:
+        raise MobilePlanActionError(exc.code, exc.target, str(exc)) from exc
     return MobilePlanActionResult(
         prefix=prefix,
         notification_id=notification.id,
-        response_file="plan_response.json",
-        response_json=response_json,
-        message=message,
+        response_file=action_result.response_file,
+        response_json=action_result.response_json,
+        message=action_result.message,
     )
 
 
@@ -233,52 +241,6 @@ def _resolve_action_notification(
             "invalid_request", notification.id, f"action is {notification.action_state}"
         )
     return notification
-
-
-def _plan_response_json(
-    choice: str,
-    *,
-    feedback: str | None,
-    commit_plan: bool | None,
-    run_coder: bool | None,
-    coder_prompt: str | None,
-    coder_model: str | None,
-) -> tuple[dict[str, Any], str]:
-    response: dict[str, Any] = {}
-    if choice == "approve":
-        response["action"] = "approve"
-        if commit_plan is not None:
-            response["commit_plan"] = commit_plan
-        if run_coder is not None:
-            response["run_coder"] = run_coder
-        if coder_prompt is not None:
-            response["coder_prompt"] = coder_prompt
-        if coder_model is not None:
-            response["coder_model"] = coder_model
-        return response, "Plan approved"
-    if choice == "run":
-        response.update({"action": "approve", "commit_plan": False, "run_coder": True})
-        if coder_prompt is not None:
-            response["coder_prompt"] = coder_prompt
-        if coder_model is not None:
-            response["coder_model"] = coder_model
-        return response, "Running coder"
-    if choice == "reject":
-        response["action"] = "reject"
-        if feedback is not None:
-            response["feedback"] = feedback
-        return response, "Plan rejected"
-    if choice == "feedback":
-        if not feedback:
-            raise MobilePlanActionError(
-                "invalid_request", "feedback", "feedback text is required"
-            )
-        return {"action": "reject", "feedback": feedback}, "Feedback received"
-    if choice in {"epic", "legend"}:
-        return {"action": choice}, f"{choice.title()} created"
-    raise MobilePlanActionError(
-        "unsupported_action", choice, "unsupported plan action choice"
-    )
 
 
 def _hitl_response_json(

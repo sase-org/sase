@@ -196,7 +196,19 @@ def test_plan_command_group_parses_subcommands() -> None:
     bare_args = parser.parse_args(["plan"])
     list_args = parser.parse_args(["plan", "list"])
     propose_args = parser.parse_args(["plan", "propose", "file.md"])
-    approve_args = parser.parse_args(["plan", "approve"])
+    approve_args = parser.parse_args(
+        [
+            "plan",
+            "approve",
+            "abcdef12",
+            "-k",
+            "tale",
+            "-m",
+            "worker",
+            "-p",
+            "Focus tests",
+        ]
+    )
 
     assert bare_args.command == "plan"
     assert bare_args.plan_subcommand == "list"
@@ -204,7 +216,10 @@ def test_plan_command_group_parses_subcommands() -> None:
     assert propose_args.plan_subcommand == "propose"
     assert propose_args.plan_file == "file.md"
     assert approve_args.plan_subcommand == "approve"
-    assert approve_args.selector is None
+    assert approve_args.selector == "abcdef12"
+    assert approve_args.kind == "tale"
+    assert approve_args.model == "worker"
+    assert approve_args.prompt == "Focus tests"
 
 
 def test_plan_help_renders_sorted_subcommands() -> None:

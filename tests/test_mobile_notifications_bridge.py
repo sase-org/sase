@@ -306,8 +306,7 @@ def test_execute_mobile_plan_action_approval_refreshes_artifact_index(
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
         patch("sase.notifications.mark_dismissed"),
         patch(
-            "sase.integrations._mobile_notification_side_effects."
-            "update_agent_artifact_index_for_marker_mutation"
+            "sase.plan_approval_actions.update_agent_artifact_index_for_marker_mutation"
         ) as update_index,
     ):
         resolve.return_value = SimpleNamespace(

@@ -1,0 +1,240 @@
+"""Tests for ``sase plan approve`` CLI approval behavior."""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from sase.core.time import get_timezone
+from sase.main.plan_approve_handler import _approve_plan_from_cli
+from sase.notifications.models import Notification
+from sase.notifications.store import append_notification, load_notifications
+from sase.plan_approval_actions import PlanApprovalActionError
+
+
+def _response_dir(root: Path, name: str = "plan_approval") -> Path:
+    path = root / "agent" / name
+    path.mkdir(parents=True)
+    (path / "plan_request.json").write_text("{}", encoding="utf-8")
+    return path
+
+
+def _plan_file(root: Path, name: str = "plan.md") -> Path:
+    path = root / name
+    path.write_text("# Plan\n", encoding="utf-8")
+    return path
+
+
+def _append_plan_notification(
+    notification_id: str,
+    plan_file: Path,
+    response_dir: Path,
+    *,
+    project_dir: Path | None = None,
+) -> None:
+    action_data = {"response_dir": str(response_dir)}
+    if project_dir is not None:
+        action_data["project_dir"] = str(project_dir)
+    append_notification(
+        Notification(
+            id=notification_id,
+            timestamp=datetime.now(get_timezone()).isoformat(),
+            sender="plan",
+            files=[str(plan_file)],
+            action="PlanApproval",
+            action_data=action_data,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected_json", "expected_meta_action"),
+    [
+        (
+            "approve",
+            {"action": "approve", "commit_plan": False, "run_coder": True},
+            "approve",
+        ),
+        (
+            "tale",
+            {"action": "approve", "commit_plan": True, "run_coder": True},
+            "tale",
+        ),
+        (
+            "epic",
+            {"action": "epic", "commit_plan": True, "run_coder": True},
+            "epic",
+        ),
+        (
+            "legend",
+            {"action": "legend", "commit_plan": True, "run_coder": True},
+            "legend",
+        ),
+        (
+            "commit",
+            {"action": "approve", "commit_plan": True, "run_coder": False},
+            "commit",
+        ),
+    ],
+)
+def test_plan_approve_by_unique_prefix_writes_protocol_json_and_meta(
+    tmp_path: Path,
+    kind: str,
+    expected_json: dict[str, object],
+    expected_meta_action: str,
+) -> None:
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    (response_dir.parent / "agent_meta.json").write_text(
+        json.dumps({"name": "planner"}),
+        encoding="utf-8",
+    )
+    _append_plan_notification("abcdef12-plan", plan, response_dir)
+
+    result = _approve_plan_from_cli(selector="abcdef12", kind=kind)
+
+    assert result.notification_id == "abcdef12-plan"
+    assert result.response_json == expected_json
+    assert (
+        json.loads((response_dir / "plan_response.json").read_text()) == expected_json
+    )
+    meta = json.loads((response_dir.parent / "agent_meta.json").read_text())
+    assert meta["plan_approved"] is True
+    assert meta["plan_action"] == expected_meta_action
+
+
+def test_plan_approve_can_include_coder_prompt_and_model(tmp_path: Path) -> None:
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    _append_plan_notification("abcdef12-plan", plan, response_dir)
+
+    result = _approve_plan_from_cli(
+        selector="abcdef12",
+        kind="approve",
+        coder_prompt="Focus on tests",
+        coder_model="worker",
+    )
+
+    assert result.response_json == {
+        "action": "approve",
+        "commit_plan": False,
+        "run_coder": True,
+        "coder_prompt": "Focus on tests",
+        "coder_model": "worker",
+    }
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.dismissed is True
+
+
+def test_plan_approve_omitted_selector_succeeds_with_one_pending_plan(
+    tmp_path: Path,
+) -> None:
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    _append_plan_notification("abcdef12-plan", plan, response_dir)
+
+    result = _approve_plan_from_cli(selector=None, kind="approve")
+
+    assert result.notification_id == "abcdef12-plan"
+    assert (response_dir / "plan_response.json").is_file()
+
+
+def test_plan_approve_omitted_selector_errors_with_zero_or_multiple(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(PlanApprovalActionError) as no_pending:
+        _approve_plan_from_cli(selector=None, kind="approve")
+    assert no_pending.value.code == "missing_selector"
+    assert "no pending plan proposals" in str(no_pending.value)
+
+    first_response_dir = _response_dir(tmp_path, "first")
+    second_response_dir = _response_dir(tmp_path, "second")
+    first_plan = _plan_file(tmp_path, "first.md")
+    second_plan = _plan_file(tmp_path, "second.md")
+    _append_plan_notification("abcdef12-plan", first_plan, first_response_dir)
+    _append_plan_notification("12345678-plan", second_plan, second_response_dir)
+
+    with pytest.raises(PlanApprovalActionError) as multiple_pending:
+        _approve_plan_from_cli(selector=None, kind="approve")
+    assert multiple_pending.value.code == "missing_selector"
+    assert "multiple pending plan proposals" in str(multiple_pending.value)
+
+
+def test_plan_approve_duplicate_response_conflicts_without_overwrite(
+    tmp_path: Path,
+) -> None:
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    response_path = response_dir / "plan_response.json"
+    response_path.write_text('{"action":"approve"}\n', encoding="utf-8")
+    _append_plan_notification("abcdef12-plan", plan, response_dir)
+
+    with pytest.raises(PlanApprovalActionError) as exc_info:
+        _approve_plan_from_cli(selector="abcdef12", kind="approve")
+
+    assert exc_info.value.code == "conflict_already_handled"
+    assert response_path.read_text(encoding="utf-8") == '{"action":"approve"}\n'
+
+
+def test_plan_approve_missing_response_dir_is_actionable(tmp_path: Path) -> None:
+    missing_response_dir = tmp_path / "missing"
+    plan = _plan_file(tmp_path)
+    _append_plan_notification("abcdef12-plan", plan, missing_response_dir)
+
+    with pytest.raises(PlanApprovalActionError) as exc_info:
+        _approve_plan_from_cli(selector="abcdef12", kind="approve")
+
+    assert exc_info.value.code == "invalid_request"
+    assert "response_dir is missing" in str(exc_info.value)
+
+
+def test_plan_approve_archives_sdd_path_and_refreshes_index(
+    tmp_path: Path,
+) -> None:
+    response_dir = _response_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan = _plan_file(tmp_path)
+    (response_dir.parent / "agent_meta.json").write_text(
+        json.dumps({"name": "planner"}),
+        encoding="utf-8",
+    )
+    _append_plan_notification(
+        "abcdef12-plan",
+        plan,
+        response_dir,
+        project_dir=workspace,
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_workspace_directory", return_value=str(workspace)
+        ),
+        patch("sase.sdd.beads.get_effective_sdd_config", return_value=True),
+        patch("sase.sdd.files.get_yyyymm", return_value="202606"),
+        patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
+        patch(
+            "sase.gemini_wrapper.file_references.format_with_prettier",
+            side_effect=lambda raw: raw,
+        ),
+        patch(
+            "sase.plan_approval_actions.update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
+    ):
+        result = _approve_plan_from_cli(selector="abcdef12", kind="tale")
+
+    saved = str(workspace / "sdd" / "tales" / "202606" / "plan.md")
+    assert result.response_json["saved_plan_path"] == saved
+    assert (
+        json.loads((response_dir / "plan_response.json").read_text())["saved_plan_path"]
+        == saved
+    )
+    assert Path(saved).is_file()
+    meta = json.loads((response_dir.parent / "agent_meta.json").read_text())
+    assert meta["plan_action"] == "tale"
+    ensure_sdd.assert_called_once_with(str(workspace), commit=True, push=False)
+    update_index.assert_called_once_with(response_dir.parent)

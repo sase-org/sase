@@ -443,6 +443,27 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         nargs="?",
         help="Notification id or unique prefix from `sase plan list`",
     )
+    approve_parser.add_argument(
+        "-k",
+        "--kind",
+        choices=("approve", "tale", "epic", "legend", "commit"),
+        default="approve",
+        help=(
+            "Approval kind: approve runs coder without SDD commit; tale commits "
+            "to sdd/tales; epic commits to sdd/epics; legend commits to "
+            "sdd/legends; commit saves the plan without launching coder"
+        ),
+    )
+    approve_parser.add_argument(
+        "-m",
+        "--model",
+        help="Optional model for the follow-up coder",
+    )
+    approve_parser.add_argument(
+        "-p",
+        "--prompt",
+        help="Optional prompt text for the follow-up coder",
+    )
 
     list_parser = plan_subparsers.add_parser(
         "list",
