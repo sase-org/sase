@@ -138,13 +138,17 @@ def test_finish_agent_launch_force_reuse_wipe_failure_does_not_schedule() -> Non
     """Wipe failures surface through notify and leave launch unscheduled."""
     app = _FakeApp()
 
-    with patch(
-        "sase.agent.launch_validation.wipe_names_for_forced_reuse",
-        side_effect=RuntimeError("boom"),
-    ) as wipe_names:
+    with (
+        patch(
+            "sase.agent.launch_validation.wipe_names_for_forced_reuse",
+            side_effect=RuntimeError("boom"),
+        ) as wipe_names,
+        patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
+    ):
         app._finish_agent_launch("%name:!foo\nDo work")
 
     wipe_names.assert_called_once_with(["foo"])
+    record_failed.assert_called_once_with("%name:!foo\nDo work")
     assert app.pushed_screens == []
     assert app.scheduled == []
     assert app.body_calls == []

@@ -22,6 +22,7 @@ class MultiPromptLaunchMixin:
         multi: object,
         ctx: PromptContext,
         vcs_ref: tuple[str, str] | None,
+        submitted_prompt: str | None = None,
     ) -> None:
         """Launch each multi-prompt segment as a separate agent.
 
@@ -46,7 +47,9 @@ class MultiPromptLaunchMixin:
             display_name=f"launch multi-prompt {snap.display_name}",
             cl_name=snap.display_name,
             project_file=snap.project_file,
-            task_callable=lambda: self._run_multi_prompt_launch(multi, snap, vcs_ref),
+            task_callable=lambda: self._run_multi_prompt_launch(
+                multi, snap, vcs_ref, submitted_prompt
+            ),
         )
 
     def _run_multi_prompt_launch(
@@ -54,6 +57,7 @@ class MultiPromptLaunchMixin:
         multi: object,
         ctx: PromptContext,
         vcs_ref: tuple[str, str] | None,
+        submitted_prompt: str | None = None,
     ) -> LaunchTaskOutcome:
         """Worker-thread body for :meth:`_launch_multi_prompt_agents`."""
         from sase.agent.multi_prompt import MultiPrompt
@@ -85,6 +89,7 @@ class MultiPromptLaunchMixin:
             from sase.agent.partial_launch import rollback_partial_launch_results
 
             rollback_partial_launch_results(exc.results)
+            _record_failed_multi_prompt_history(multi, submitted_prompt)
             log.exception("Partial multi-prompt launch failed; children terminated")
             return LaunchTaskOutcome(
                 "Partial multi-prompt launch failed; spawned agents terminated",
@@ -92,8 +97,21 @@ class MultiPromptLaunchMixin:
                 request_agents_refresh=True,
             )
         except Exception:
+            _record_failed_multi_prompt_history(multi, submitted_prompt)
             log.exception("Multi-prompt launch failed")
             return LaunchTaskOutcome(
                 "Multi-prompt launch failed (see log)",
                 severity="error",
             )
+
+
+def _record_failed_multi_prompt_history(
+    multi: object,
+    submitted_prompt: str | None,
+) -> None:
+    """Record the submitted multi-prompt text as failed launch history."""
+    if submitted_prompt is None:
+        submitted_prompt = "\n---\n".join(getattr(multi, "segments", []))
+    from sase.history.prompt import record_failed_launch_prompt
+
+    record_failed_launch_prompt(submitted_prompt)

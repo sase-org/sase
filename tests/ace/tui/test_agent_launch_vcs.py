@@ -264,6 +264,12 @@ def test_run_agent_launch_body_known_project_ref_without_provider_targets_projec
         stack.enter_context(
             patch("sase.ace.last_agent_selection._save_last_agent_selection")
         )
+        stack.enter_context(
+            patch(
+                "sase.ace.tui.modals.project_discovery.is_launchable_project",
+                return_value=True,
+            )
+        )
         app._run_agent_launch_body("#gh:sase #!sase/fix_just")
 
     assert len(app.launched) == 1
@@ -510,8 +516,8 @@ def test_run_agent_launch_body_aborts_unresolvable_home_mode_vcs_tag() -> None:
                 return_value=None,
             )
         )
-        add_prompt = stack.enter_context(
-            patch("sase.history.prompt.add_or_update_prompt")
+        record_failed = stack.enter_context(
+            patch("sase.history.prompt.record_failed_launch_prompt")
         )
         stack.enter_context(
             patch(
@@ -538,8 +544,47 @@ def test_run_agent_launch_body_aborts_unresolvable_home_mode_vcs_tag() -> None:
     save.assert_not_called()
     record_mru.assert_not_called()
 
-    add_prompt.assert_called_once_with("#git:stale do work", cancelled=True)
+    record_failed.assert_called_once_with("#git:stale do work")
 
     # The error outcome names the cycled ref, not the baked project.
+    assert outcome.message == "Cannot resolve #git:stale; not launching"
+    assert outcome.severity == "error"
+
+
+def test_run_agent_launch_body_records_short_unresolvable_home_mode_vcs_tag() -> None:
+    """A single-token unresolved VCS tag is saved as failed cancelled history."""
+    app = _LaunchBodyApp()
+    ctx = _fake_context()  # is_home_mode=True
+    ctx.display_name = "sase"
+    ctx.project_name = "sase"
+    app._prompt_context = ctx
+    app._resolve_vcs_from_prompt = (  # type: ignore[method-assign]
+        lambda prompt, wf_name, skip_workspace=False: None
+    )
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "sase.axe.run_agent_phases.resolve_agent_refs_in_prompt",
+                side_effect=lambda p: (p, None),
+            )
+        )
+        stack.enter_context(
+            patch("sase.workspace_provider.get_workflow_names", return_value={"git"})
+        )
+        stack.enter_context(
+            patch(
+                "sase.agent.launcher.resolve_known_project_vcs_launch_ref",
+                return_value=None,
+            )
+        )
+        record_failed = stack.enter_context(
+            patch("sase.history.prompt.record_failed_launch_prompt")
+        )
+
+        outcome = app._run_agent_launch_body("#git:stale")
+
+    assert app.launched == []
+    record_failed.assert_called_once_with("#git:stale")
     assert outcome.message == "Cannot resolve #git:stale; not launching"
     assert outcome.severity == "error"

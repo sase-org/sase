@@ -135,6 +135,7 @@ class MultiModelLaunchMixin:
             rollback_partial_launch_results(exc.results)
             timer.finish(outcome="error")
             log.exception("Prompt fan-out launch failed")
+            _record_failed_fanout_history(model_prompts, submitted_xprompt)
             _record_fanout_launch_failure(
                 exc,
                 ctx=ctx,
@@ -153,6 +154,7 @@ class MultiModelLaunchMixin:
         except Exception as exc:
             timer.finish(outcome="error")
             log.exception("Prompt fan-out launch failed")
+            _record_failed_fanout_history(model_prompts, submitted_xprompt)
             _record_fanout_launch_failure(
                 exc,
                 ctx=ctx,
@@ -167,6 +169,20 @@ class MultiModelLaunchMixin:
                 severity="error",
                 refresh_notifications=True,
             )
+
+
+def _record_failed_fanout_history(
+    model_prompts: list[str],
+    submitted_xprompt: str | None,
+) -> None:
+    """Record the source prompt for a failed fan-out launch."""
+    from sase.history.prompt import record_failed_launch_prompt
+
+    record_failed_launch_prompt(
+        submitted_xprompt
+        if submitted_xprompt is not None
+        else "\n---\n".join(model_prompts)
+    )
 
 
 def _record_fanout_launch_failure(

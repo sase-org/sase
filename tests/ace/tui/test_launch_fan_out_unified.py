@@ -434,6 +434,26 @@ def test_multi_prompt_launch_context_is_immutable_snapshot() -> None:
     assert captured["display_name"] == "cl"
 
 
+def test_multi_prompt_launch_failure_records_failed_history() -> None:
+    app = _MultiPromptApp()
+    multi = _FakeMultiPrompt(["first prompt", "second prompt"])
+    submitted = "first prompt\n---\nsecond prompt"
+
+    with (
+        patch("sase.agent.multi_prompt.MultiPrompt", _FakeMultiPrompt, create=True),
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            side_effect=RuntimeError("workspace claim failed"),
+        ),
+        patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
+    ):
+        outcome = app._run_multi_prompt_launch(multi, _ctx(), None, submitted)
+
+    record_failed.assert_called_once_with(submitted)
+    assert outcome.message == "Multi-prompt launch failed (see log)"
+    assert outcome.severity == "error"
+
+
 def test_multi_model_launch_uses_canonical_multi_prompt_launcher() -> None:
     app = _MultiModelApp()
     ctx = _ctx()
@@ -523,6 +543,7 @@ def test_multi_model_xprompt_alternatives_are_passed_as_planned_segments() -> No
 def test_multi_model_failure_records_toast_and_persistent_notification() -> None:
     app = _MultiModelApp()
     ctx = _ctx()
+    submitted = "#swarm"
 
     with (
         patch(
@@ -534,6 +555,7 @@ def test_multi_model_failure_records_toast_and_persistent_notification() -> None
             return_value=Path("/tmp/fanout_failure.txt"),
         ),
         patch("sase.notifications.append_notification") as append_notification,
+        patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
     ):
         outcome = app._run_multi_model_launch(
             ["%name:ag.1\n#plan", "%name:ag.2\n#epic"],
@@ -541,8 +563,10 @@ def test_multi_model_failure_records_toast_and_persistent_notification() -> None
             ("git", "proj"),
             has_wait=True,
             fanout_kind="alternatives",
+            submitted_xprompt=submitted,
         )
 
+    record_failed.assert_called_once_with(submitted)
     append_notification.assert_called_once()
     notification = append_notification.call_args.args[0]
     assert notification.sender == "user-agent"
@@ -644,6 +668,28 @@ def test_repeat_launch_runs_off_main_thread_and_batches_delta() -> None:
         "260501_120001",
         "260501_120002",
     ]
+
+
+def test_repeat_launch_failure_records_failed_history() -> None:
+    app = _RepeatApp()
+    ctx = _ctx()
+
+    with (
+        patch(
+            "sase.agent.repeat_launcher.extract_repeat_and_name",
+            return_value=(3, None, "repeat prompt"),
+        ),
+        patch(
+            "sase.agent.repeat_launcher.spawn_repeat_batch",
+            side_effect=RuntimeError("repeat failed"),
+        ),
+        patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
+    ):
+        outcome = app._run_repeat_launch("repeat prompt %r:3", ctx, None, False)
+
+    record_failed.assert_called_once_with("repeat prompt %r:3")
+    assert outcome.message == "Repeat launch failed (see log)"
+    assert outcome.severity == "error"
 
 
 def test_bulk_launch_takes_changespec_snapshot() -> None:

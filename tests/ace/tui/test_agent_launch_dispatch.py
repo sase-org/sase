@@ -166,3 +166,54 @@ def test_run_agent_launch_body_direct_single_agent_schedules_delta_after_success
         "/projects/test/artifacts/ace-run/20ts"
     )
     assert app.refresh_count == 0
+
+
+def test_run_agent_launch_body_name_validation_failure_records_failed_history() -> None:
+    app = _LaunchBodyApp()
+
+    with (
+        patch(
+            "sase.agent.launch_validation.validate_launch_name_requests",
+            side_effect=RuntimeError("bad launch name"),
+        ),
+        patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
+    ):
+        outcome = _run_launch_body_with_common_patches(app, "bad named prompt")
+
+    record_failed.assert_called_once_with("bad named prompt")
+    assert app.launched == []
+    assert outcome.message == "bad launch name"
+    assert outcome.severity == "error"
+
+
+def test_run_agent_launch_body_bulk_multi_prompt_rejection_records_failed_history() -> (
+    None
+):
+    app = _LaunchBodyApp()
+    app._bulk_changespecs = [SimpleNamespace()]
+
+    with patch("sase.history.prompt.record_failed_launch_prompt") as record_failed:
+        outcome = app._run_agent_launch_body("first prompt\n---\nsecond prompt")
+
+    record_failed.assert_called_once_with("first prompt\n---\nsecond prompt")
+    assert app.launched == []
+    assert outcome.message == "Multi-prompt is not supported with bulk launch"
+    assert outcome.severity == "error"
+
+
+def test_run_agent_launch_body_spawn_failure_records_failed_history() -> None:
+    app = _LaunchBodyApp()
+
+    with (
+        patch.object(
+            app,
+            "_launch_background_agent",
+            side_effect=RuntimeError("spawn failed"),
+        ),
+        patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
+    ):
+        outcome = _run_launch_body_with_common_patches(app, "plain failed prompt")
+
+    record_failed.assert_called_once_with("plain failed prompt")
+    assert outcome.message == "Agent launch failed (see log)"
+    assert outcome.severity == "error"

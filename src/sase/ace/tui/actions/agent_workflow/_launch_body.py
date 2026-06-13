@@ -102,6 +102,9 @@ class AgentLaunchBodyMixin:
             from sase.agent.multi_prompt import is_multi_prompt
 
             if is_multi_prompt(prompt):
+                from sase.history.prompt import record_failed_launch_prompt
+
+                record_failed_launch_prompt(prompt)
                 self._bulk_changespecs = None
                 self._prompt_context = None
                 return LaunchTaskOutcome(
@@ -172,7 +175,10 @@ class AgentLaunchBodyMixin:
                             ctx.display_name = ref_value
                             ctx.history_sort_key = ref_value
                             break
-            from sase.history.prompt import add_or_update_prompt
+            from sase.history.prompt import (
+                add_or_update_prompt,
+                record_failed_launch_prompt,
+            )
 
             with timer.stage("history_write", launch_kind="multi_prompt"):
                 try:
@@ -183,11 +189,7 @@ class AgentLaunchBodyMixin:
                     validate_launch_name_requests(multi.segments)
                 except RuntimeError as exc:
                     err_msg = str(exc)
-                    add_or_update_prompt(
-                        submitted_xprompt,
-                        cancelled=True,
-                        allow_short=True,
-                    )
+                    record_failed_launch_prompt(submitted_xprompt)
                     self._prompt_context = None
                     timer.finish(dispatch="multi_prompt", outcome="cancelled")
                     return LaunchTaskOutcome(err_msg, severity="error")
@@ -203,6 +205,7 @@ class AgentLaunchBodyMixin:
                 multi,
                 ctx,
                 mp_vcs_ref,
+                submitted_xprompt,
             )
             return LaunchTaskOutcome(
                 f"Multi-prompt launch queued for {ctx.display_name}",
@@ -310,7 +313,10 @@ class AgentLaunchBodyMixin:
             if vcs_ref is not None:
                 record_resolved_vcs_xprompt_usage(vcs_ref, ctx.project_name)
 
-        from sase.history.prompt import add_or_update_prompt
+        from sase.history.prompt import (
+            add_or_update_prompt,
+            record_failed_launch_prompt,
+        )
 
         # A user-written, recognized leading VCS tag that resolved to nothing
         # must NOT silently launch under the baked home-mode identity. This is
@@ -329,10 +335,7 @@ class AgentLaunchBodyMixin:
                 # unrelated baked project.
                 ctx.display_name = ref_label
                 ctx.history_sort_key = ref_label
-                add_or_update_prompt(
-                    prompt,
-                    cancelled=True,
-                )
+                record_failed_launch_prompt(prompt)
                 self._prompt_context = None
                 timer.finish(dispatch="single", outcome="cancelled")
                 err_msg = f"Cannot resolve {leading_tag.strip()}; not launching"
@@ -346,15 +349,13 @@ class AgentLaunchBodyMixin:
                 validate_launch_name_requests([prompt])
             except RuntimeError as exc:
                 err_msg = str(exc)
-                add_or_update_prompt(
-                    prompt,
-                    cancelled=True,
-                )
+                record_failed_launch_prompt(prompt)
                 self._prompt_context = None
                 timer.finish(dispatch="single", outcome="cancelled")
                 return LaunchTaskOutcome(err_msg, severity="error")
             add_or_update_prompt(prompt)
             record_prompt_file_references(prompt)
+        single_history_prompt = prompt
 
         # Also detect VCS refs in non-home mode: the ace(run) workspace and
         # the embedded workflow must share the same workspace number,
@@ -570,6 +571,7 @@ class AgentLaunchBodyMixin:
                 results=launch_results_tuple(execution.results),
             )
         except Exception:
+            record_failed_launch_prompt(single_history_prompt)
             timer.finish(dispatch="single", outcome="error")
             log.exception("Agent launch failed")
             return LaunchTaskOutcome(

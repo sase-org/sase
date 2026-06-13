@@ -70,6 +70,9 @@ class AgentLaunchStartMixin:
                 wipe_names_for_forced_reuse(force_reuse_names)
             except Exception:
                 log.exception("Forced agent-name reuse wipe failed")
+                from sase.history.prompt import record_failed_launch_prompt
+
+                record_failed_launch_prompt(prompt)
                 self.notify(  # type: ignore[attr-defined]
                     "Agent name reuse failed (see log)", severity="error"
                 )

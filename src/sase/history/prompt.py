@@ -42,6 +42,7 @@ class _PromptMutation:
 
     text: str
     cancelled: bool
+    force_cancelled: bool = False
 
 
 class _PromptHistoryLoadError(Exception):
@@ -221,6 +222,31 @@ def add_or_update_prompt(
     _apply_prompt_mutations(mutations, current_timestamp)
 
 
+def record_failed_launch_prompt(text: str) -> None:
+    """Record a submitted prompt whose launch failed before producing agents.
+
+    Failed launch attempts are different from ordinary prompt-bar cancellation:
+    the user submitted the prompt, so even short prompts such as ``#gh:foo`` are
+    useful history, and an earlier optimistic successful write must be forced
+    back to cancelled.
+    """
+    if not text.strip():
+        return
+
+    current_timestamp = generate_timestamp()
+    mutations = [_PromptMutation(text=text, cancelled=True, force_cancelled=True)]
+    mutations.extend(
+        _PromptMutation(
+            text=mutation.text,
+            cancelled=True,
+            force_cancelled=True,
+        )
+        for mutation in _multi_prompt_segment_mutations(text, cancelled=True)
+    )
+
+    _apply_prompt_mutations(mutations, current_timestamp)
+
+
 def _multi_prompt_segment_mutations(
     text: str,
     *,
@@ -256,8 +282,11 @@ def _apply_prompt_mutations(
             existing = next((p for p in prompts if p.text == mutation.text), None)
             if existing:
                 existing.last_used = current_timestamp
-                # Only upgrade from cancelled to non-cancelled, never downgrade.
-                if not mutation.cancelled:
+                if mutation.force_cancelled:
+                    existing.cancelled = True
+                elif not mutation.cancelled:
+                    # Normal cancellation only upgrades to non-cancelled, never
+                    # downgrades an already-successful prompt.
                     existing.cancelled = False
                 continue
 
