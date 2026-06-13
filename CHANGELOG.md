@@ -1,5 +1,64 @@
 # Changelog
 
+## [0.2.0](https://github.com/sase-org/sase/compare/v0.1.7...v0.2.0) (2026-06-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* llm_provider.worker_model is no longer accepted. Configure llm_provider.worker_models entries keyed by provider/model, model, or provider.
+
+### Features
+
+* **ace:** add prompt-input history trigger (sase-4m.3) ([4e40764](https://github.com/sase-org/sase/commit/4e40764920a28e1ee243ca753c74e43695b6e67a))
+* add plan approval CLI path ([ca8f5de](https://github.com/sase-org/sase/commit/ca8f5def1b9202af025d112baf29d25498e9a683))
+* add sharded agent artifact migration ([6cfa3b1](https://github.com/sase-org/sase/commit/6cfa3b1714a1b1bc8fe53b9347abe658ff5ef3dc))
+* make prompt history recency-only (sase-4m.1) ([224b632](https://github.com/sase-org/sase/commit/224b6324e0d5b2638b80637ec0bf7a14cac6c7a5))
+* map worker models by primary lane ([51a36b8](https://github.com/sase-org/sase/commit/51a36b83d0caea4147e99a86fe99335c3f06ee58))
+* **prompt:** add doctor, delete, and prune maintenance commands (sase-4o.3) ([32d8dfd](https://github.com/sase-org/sase/commit/32d8dfd2d746ceaa05dc039ea5c84465819ab22f))
+* **prompt:** add export and save subcommands (sase-4o.4) ([7e0f9f0](https://github.com/sase-org/sase/commit/7e0f9f07de03761d89c1f7783d0d48416dac9e0b))
+* **prompt:** add read-only `sase prompt` command group (sase-4o.1) ([3bc6d17](https://github.com/sase-org/sase/commit/3bc6d177b75b5d6c36412c0c6c38cadaceab8622))
+* **prompt:** add replay, selection, and clipboard commands (sase-4o.2) ([a385fa5](https://github.com/sase-org/sase/commit/a385fa563d5cdd82a30d728964f4a45479d0e59a))
+* **prompt:** polish, document, and integration-test the command group (sase-4o.5) ([f163194](https://github.com/sase-org/sase/commit/f1631941eb9ff715a60ecb7facb88299e58e7373))
+* **repeat:** add STOP output variable to halt later repeat slots ([cf9d54a](https://github.com/sase-org/sase/commit/cf9d54a8916cc55cf49e083f5eaeb079ddce3666))
+* resolve worker-lane models from the planner's primary context ([2da49fb](https://github.com/sase-org/sase/commit/2da49fbed5dcc57808237c7b3256f9c0cef2144d))
+* Save failed agent prompts (sase-4m.4) ([3ba4e78](https://github.com/sase-org/sase/commit/3ba4e78b4e3cb45ca10c24b707ae3c849f7917c3))
+* **tui:** redesign prompt history modal ([06700fa](https://github.com/sase-org/sase/commit/06700fa2ae5283e00269c1dff78d5433972c7fe3))
+* **tui:** surface prompt metadata in history modal ([bdea1b3](https://github.com/sase-org/sase/commit/bdea1b3f805fde1dfa2a9851159d18f00e97681e))
+
+
+### Bug Fixes
+
+* **ace:** rebind prompt history to ctrl+k ([d7e45bc](https://github.com/sase-org/sase/commit/d7e45bc0744e1f4f0df155e7bdfabe29a547b6d1))
+* **ace:** remove prompt history sorting references (sase-4m.2) ([ac817e0](https://github.com/sase-org/sase/commit/ac817e0c19098d2b3fda8f432094e69af1cb61ee))
+* **agent-index:** use Rust facade for index metadata ([f13b4c6](https://github.com/sase-org/sase/commit/f13b4c6cb443bf602b7d949bb45c7fea94ac87d5))
+* **agents:** support sharded artifact layout readers ([ae6e9ff](https://github.com/sase-org/sase/commit/ae6e9ff9ca09916827c66c114bb2611d523d57a4))
+* **cli:** polish plan command help ([e5bf27a](https://github.com/sase-org/sase/commit/e5bf27ae4e218fc0e867b661eb806437d34254d3))
+* keep axe restart status indicators accurate ([51ea133](https://github.com/sase-org/sase/commit/51ea1334ce6dcb8eae8f58ef9b8ce25b85f5779c))
+* **plan:** filter pending approvals to live agents ([f15d55c](https://github.com/sase-org/sase/commit/f15d55c7efb914a3dc795a4e3867c1b279ca4bef))
+* record failed non-TUI launches as cancelled history ([d9910fc](https://github.com/sase-org/sase/commit/d9910fcc25d827b1e565e30fdc7945c1854b5c21))
+* record failed TUI launches as cancelled history (sase-4m.4) ([2a562f3](https://github.com/sase-org/sase/commit/2a562f3fc68947dc6df0114fc4c431e574180a2d))
+* serialize artifact index metadata facade calls ([d5007f6](https://github.com/sase-org/sase/commit/d5007f63ebb653652a6da2135718418001247564))
+* serialize artifact index startup maintenance ([265f3e9](https://github.com/sase-org/sase/commit/265f3e90be0b37298aa26b3582b45accaf072a03))
+
+
+### Performance Improvements
+
+* speed up plan list inventory ([cfbad85](https://github.com/sase-org/sase/commit/cfbad8509c0b263a83f8154d669d8c7d10ea5a4e))
+* **tui:** avoid repeated tool artifact scans ([a4088d5](https://github.com/sase-org/sase/commit/a4088d57cfcb687456ab6ebd8086e5d8a21ab992))
+* **tui:** defer forced-reuse cleanup to launch task ([5dfa29b](https://github.com/sase-org/sase/commit/5dfa29b219d3caa96e24e46b7ed21eee00a1e8c1))
+
+
+### Documentation
+
+* add PyPI version badge ([3276c82](https://github.com/sase-org/sase/commit/3276c827f2e46b2c1e0967b05ae2060c02574bdf))
+* add research for proposed `sase prompt` command ([5c7a16e](https://github.com/sase-org/sase/commit/5c7a16ee020aced196c3131be162496e97845741))
+* add sase prompt research infographic ([d3991f2](https://github.com/sase-org/sase/commit/d3991f2cde46672bad62214f2cd4a1c3e62d38cb))
+* clarify plan approval workflow ([e5ab602](https://github.com/sase-org/sase/commit/e5ab602c5d65ef9182bafdd70d6e2fe612574e53))
+* consolidate sase prompt command research ([cb7b4fb](https://github.com/sase-org/sase/commit/cb7b4fbd63dac72183c0b9c706832d8b34d955d7))
+* **nav:** move [01] Hello, SASE post under Blog section ([db1043b](https://github.com/sase-org/sase/commit/db1043bec5f4b2036e990133574c38afc2ad3d5b))
+* refresh plan workflow documentation ([30c1d6a](https://github.com/sase-org/sase/commit/30c1d6a9d4e29aeba116873e4eba330e5fe15bbe))
+* research sase prompt command ([88bb7c1](https://github.com/sase-org/sase/commit/88bb7c1d0361b4ef393a2c32712b248f57d7ed11))
+
 ## [0.1.7](https://github.com/sase-org/sase/compare/v0.1.6...v0.1.7) (2026-06-13)
 
 

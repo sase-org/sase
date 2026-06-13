@@ -7,4 +7,4 @@ warnings.filterwarnings(
     "ignore", message="Core Pydantic V1 functionality", category=UserWarning
 )
 
-__version__ = "0.1.7"  # x-release-please-version
+__version__ = "0.2.0"  # x-release-please-version
