@@ -78,7 +78,7 @@ def _load_raw_prompt_entries() -> tuple[bool, list[object]]:
     ``prompts`` list. The raw list is returned untouched so ``doctor`` can count
     individually invalid entries without discarding them silently.
     """
-    history_file = store._prompt_history_file()
+    history_file = store.prompt_history_file()
     if not history_file.exists():
         return True, []
 
@@ -124,7 +124,7 @@ def compute_prompt_doctor() -> PromptHistoryDoctor:
     """
     from sase.core.clipboard import clipboard_available
 
-    history_file = store._prompt_history_file()
+    history_file = store.prompt_history_file()
     exists = history_file.exists()
     try:
         size_bytes = history_file.stat().st_size if exists else 0
@@ -134,12 +134,12 @@ def compute_prompt_doctor() -> PromptHistoryDoctor:
     parseable, raw_prompts = _load_raw_prompt_entries()
     entries = [
         entry
-        for entry in (store._prompt_entry_from_json(raw) for raw in raw_prompts)
+        for entry in (store.prompt_entry_from_json(raw) for raw in raw_prompts)
         if entry is not None
     ]
     invalid_entries = len(raw_prompts) - len(entries)
 
-    records = [catalog._record_from_entry(entry) for entry in entries]
+    records = [catalog.record_from_entry(entry) for entry in entries]
     cancelled = sum(1 for r in records if r.cancelled)
 
     id_counts: dict[str, int] = {}
@@ -158,7 +158,7 @@ def compute_prompt_doctor() -> PromptHistoryDoctor:
         stats.PromptLargest(
             id=r.id,
             text_chars=r.text_chars,
-            preview=stats._short_preview(r.text),
+            preview=stats.short_preview(r.text),
         )
         for r in sorted(records, key=lambda r: r.text_chars, reverse=True)
         if r.text_chars >= _DOCTOR_OVERSIZE_CHARS
@@ -168,7 +168,7 @@ def compute_prompt_doctor() -> PromptHistoryDoctor:
         stats.PromptLargest(
             id=r.id,
             text_chars=r.text_chars,
-            preview=stats._short_preview(r.text),
+            preview=stats.short_preview(r.text),
         )
         for r in sorted(records, key=lambda r: r.text_chars)
         if len(r.text.split()) < store._MIN_PROMPT_WORDS
@@ -200,18 +200,18 @@ def delete_prompt(selector: str) -> catalog.PromptHistoryRecord:
     :class:`PromptSelectorError` subclasses before any write happens, so a bad
     selector never rewrites the store.
     """
-    with store._locked_prompt_history():
+    with store.locked_prompt_history():
         try:
-            entries = store._load_prompt_history_for_write()
-        except store._PromptHistoryLoadError as exc:
+            entries = store.load_prompt_history_for_write()
+        except store.PromptHistoryLoadError as exc:
             raise PromptStoreCorruptError from exc
 
-        records = [catalog._record_from_entry(entry) for entry in entries]
+        records = [catalog.record_from_entry(entry) for entry in entries]
         record = catalog.resolve_prompt_selector(selector, records=records)
         # Content-addressed IDs mean every entry sharing this prompt's text is
         # the same logical prompt; drop them all so duplicates cannot linger.
         remaining = [entry for entry in entries if entry.text != record.text]
-        if not store._save_prompt_history(remaining):
+        if not store.save_prompt_history(remaining):
             raise PromptStoreWriteError
         return record
 
@@ -262,10 +262,10 @@ def prune_prompts(
     if keep is None and before is None and not cancelled_only:
         raise ValueError("prune requires at least one of keep, before, cancelled_only")
 
-    with store._locked_prompt_history():
+    with store.locked_prompt_history():
         try:
-            entries = store._load_prompt_history_for_write()
-        except store._PromptHistoryLoadError as exc:
+            entries = store.load_prompt_history_for_write()
+        except store.PromptHistoryLoadError as exc:
             raise PromptStoreCorruptError from exc
 
         total = len(entries)
@@ -301,7 +301,7 @@ def prune_prompts(
                 continue
             removable.append(i)
 
-        removed = [catalog._record_from_entry(entries[i]) for i in removable]
+        removed = [catalog.record_from_entry(entries[i]) for i in removable]
         plan = PrunePlan(
             total=total,
             removed=removed,
@@ -319,6 +319,6 @@ def prune_prompts(
 
         remove_set = set(removable)
         remaining = [e for i, e in enumerate(entries) if i not in remove_set]
-        if not store._save_prompt_history(remaining):
+        if not store.save_prompt_history(remaining):
             raise PromptStoreWriteError
         return replace(plan, applied=True)

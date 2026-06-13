@@ -78,7 +78,7 @@ def test_save_prompt_history_uses_atomic_replace(tmp_path: Path) -> None:
 
     with (
         patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch("sase.history.prompt.os.replace", side_effect=tracking_replace),
+        patch("sase.history.prompt_store.os.replace", side_effect=tracking_replace),
     ):
         assert _save_prompt_history([entry]) is True
 
@@ -115,7 +115,7 @@ def test_save_prompt_history_keeps_existing_file_when_replace_fails(
 
     with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         assert _save_prompt_history([initial_entry]) is True
-        with patch("sase.history.prompt.os.replace", side_effect=OSError):
+        with patch("sase.history.prompt_store.os.replace", side_effect=OSError):
             assert _save_prompt_history([new_entry]) is False
 
         result = _load_prompt_history()
@@ -216,7 +216,7 @@ def test_add_prompt_does_not_overwrite_after_transient_decode_failure(
                 return_value="251231_200000",
             ),
             patch(
-                "sase.history.prompt.json.load",
+                "sase.history.prompt_store.json.load",
                 side_effect=json.JSONDecodeError("transient", "", 0),
             ),
         ):

@@ -9,8 +9,8 @@ import pytest
 from sase.agent.repeat_launcher import REPEAT_PREV_NAME_ENV
 from sase.axe.run_agent_repeat_stop import (
     RepeatStopDecision,
+    _is_stop_value,
     detect_repeat_stop,
-    is_stop_value,
 )
 
 
@@ -20,14 +20,14 @@ class TestIsStopValue:
         ["", "0", "false", "False", "FALSE", "no", "No", "off", "OFF", "  off  "],
     )
     def test_falsy_values(self, value: str) -> None:
-        assert is_stop_value(value) is False
+        assert _is_stop_value(value) is False
 
     @pytest.mark.parametrize(
         "value",
         ["1", "true", "True", "yes", "on", "stop", "anything", "2"],
     )
     def test_truthy_values(self, value: str) -> None:
-        assert is_stop_value(value) is True
+        assert _is_stop_value(value) is True
 
 
 class TestDetectRepeatStop:

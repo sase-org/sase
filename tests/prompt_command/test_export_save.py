@@ -6,10 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from sase.history.prompt import compute_prompt_id
 from sase.prompt.cli_export import handle_prompt_export, handle_prompt_save
 
-from ._helpers import _entry, _export_ns, _save_ns, _seed
+from ._helpers import _entry, _export_ns, _save_ns, _seed, prompt_id
 
 
 def test_export_stdout_raw_is_byte_exact(
@@ -19,7 +18,7 @@ def test_export_stdout_raw_is_byte_exact(
     text = "export this exact prompt body"
     _seed(_entry(text, "260603_000000"))
 
-    handle_prompt_export(_export_ns(compute_prompt_id(text)))
+    handle_prompt_export(_export_ns(prompt_id(text)))
 
     # Default stdout export is a full-text escape hatch: no frontmatter, no
     # added or stripped newline.
@@ -33,11 +32,11 @@ def test_export_stdout_metadata_wraps_in_frontmatter(
     text = "export with provenance metadata"
     _seed(_entry(text, "260603_091500"))
 
-    handle_prompt_export(_export_ns(compute_prompt_id(text), metadata=True))
+    handle_prompt_export(_export_ns(prompt_id(text), metadata=True))
 
     out = capsys.readouterr().out
     assert out.startswith("---\n")
-    assert f"id: {compute_prompt_id(text)}" in out
+    assert f"id: {prompt_id(text)}" in out
     assert "sha256:" in out
     assert "last_used:" in out
     assert "cancelled: false" in out
@@ -54,18 +53,18 @@ def test_export_out_writes_file_and_guards_overwrite(
     _seed(_entry(text, "260603_000000"))
     dest = tmp_path / "exported.md"
 
-    handle_prompt_export(_export_ns(compute_prompt_id(text), out=str(dest)))
+    handle_prompt_export(_export_ns(prompt_id(text), out=str(dest)))
     assert dest.read_text(encoding="utf-8") == text + "\n"
-    assert compute_prompt_id(text) in capsys.readouterr().out
+    assert prompt_id(text) in capsys.readouterr().out
 
     # A second export to the same path fails without --force and never clobbers.
     with pytest.raises(SystemExit) as exc_info:
-        handle_prompt_export(_export_ns(compute_prompt_id(text), out=str(dest)))
+        handle_prompt_export(_export_ns(prompt_id(text), out=str(dest)))
     assert exc_info.value.code == 1
     assert "--force" in capsys.readouterr().err
 
     # --force replaces the file.
-    handle_prompt_export(_export_ns(compute_prompt_id(text), out=str(dest), force=True))
+    handle_prompt_export(_export_ns(prompt_id(text), out=str(dest), force=True))
     assert dest.read_text(encoding="utf-8") == text + "\n"
 
 
@@ -79,13 +78,13 @@ def test_export_sdd_writes_snapshot_with_metadata(
     text = "snapshot this prompt under the sdd tree"
     _seed(_entry(text, "260603_000000"))
 
-    handle_prompt_export(_export_ns(compute_prompt_id(text), sdd=True))
+    handle_prompt_export(_export_ns(prompt_id(text), sdd=True))
 
     snapshots = list((tmp_path / "sdd" / "prompts").rglob("*.md"))
     assert len(snapshots) == 1
     snapshot = snapshots[0]
     # Default SDD filename is a clean slug plus the short prompt ID.
-    assert compute_prompt_id(text) in snapshot.name
+    assert prompt_id(text) in snapshot.name
     assert "snapshot-this-prompt" in snapshot.name
     content = snapshot.read_text(encoding="utf-8")
     # --sdd implies metadata even though --metadata was not passed.
@@ -104,7 +103,7 @@ def test_export_out_and_sdd_are_mutually_exclusive(
 
     with pytest.raises(SystemExit) as exc_info:
         handle_prompt_export(
-            _export_ns(compute_prompt_id(text), out=str(tmp_path / "x.md"), sdd=True)
+            _export_ns(prompt_id(text), out=str(tmp_path / "x.md"), sdd=True)
         )
 
     assert exc_info.value.code == 2
@@ -135,7 +134,7 @@ def test_save_local_creates_loadable_xprompt(
     text = "do the important refactor across the parser"
     _seed(_entry(text, "260603_000000"))
 
-    handle_prompt_save(_save_ns(compute_prompt_id(text), name="fix-parser"))
+    handle_prompt_save(_save_ns(prompt_id(text), name="fix-parser"))
 
     dest = tmp_path / ".xprompts" / "fix-parser.md"
     xprompt = load_xprompt_from_file(dest)
@@ -158,7 +157,7 @@ def test_save_tag_persists_prompt_tags_and_stays_loadable(
     _seed(_entry(text, "260603_000000"))
 
     handle_prompt_save(
-        _save_ns(compute_prompt_id(text), name="fix-auth-review", tag=["review"])
+        _save_ns(prompt_id(text), name="fix-auth-review", tag=["review"])
     )
 
     dest = tmp_path / ".xprompts" / "fix-auth-review.md"
@@ -185,9 +184,7 @@ def test_save_global_writes_home_xprompts(
     text = "save this prompt globally for reuse"
     _seed(_entry(text, "260603_000000"))
 
-    handle_prompt_save(
-        _save_ns(compute_prompt_id(text), name="global-prompt", global_=True)
-    )
+    handle_prompt_save(_save_ns(prompt_id(text), name="global-prompt", global_=True))
 
     assert (tmp_path / ".xprompts" / "global-prompt.md").is_file()
 
@@ -201,9 +198,7 @@ def test_save_project_writes_config_dir(
     text = "save this prompt under a project namespace"
     _seed(_entry(text, "260603_000000"))
 
-    handle_prompt_save(
-        _save_ns(compute_prompt_id(text), name="proj-prompt", project="bob")
-    )
+    handle_prompt_save(_save_ns(prompt_id(text), name="proj-prompt", project="bob"))
 
     dest = tmp_path / ".config" / "sase" / "xprompts" / "bob" / "proj-prompt.md"
     assert dest.is_file()
@@ -218,7 +213,7 @@ def test_save_auto_name_derives_slug(
     text = "Improve the launcher startup time"
     _seed(_entry(text, "260603_000000"))
 
-    handle_prompt_save(_save_ns(compute_prompt_id(text)))
+    handle_prompt_save(_save_ns(prompt_id(text)))
 
     assert (tmp_path / ".xprompts" / "improve-the-launcher-startup-time.md").is_file()
 
@@ -235,7 +230,7 @@ def test_save_description_override(
     _seed(_entry(text, "260603_000000"))
 
     handle_prompt_save(
-        _save_ns(compute_prompt_id(text), name="custom", description="My summary")
+        _save_ns(prompt_id(text), name="custom", description="My summary")
     )
 
     xprompt = load_xprompt_from_file(tmp_path / ".xprompts" / "custom.md")
@@ -253,15 +248,15 @@ def test_save_guards_overwrite(
     text = "prompt saved twice to the same name"
     _seed(_entry(text, "260603_000000"))
 
-    handle_prompt_save(_save_ns(compute_prompt_id(text), name="dup"))
+    handle_prompt_save(_save_ns(prompt_id(text), name="dup"))
 
     with pytest.raises(SystemExit) as exc_info:
-        handle_prompt_save(_save_ns(compute_prompt_id(text), name="dup"))
+        handle_prompt_save(_save_ns(prompt_id(text), name="dup"))
     assert exc_info.value.code == 1
     assert "--force" in capsys.readouterr().err
 
     # --force replaces the existing file.
-    handle_prompt_save(_save_ns(compute_prompt_id(text), name="dup", force=True))
+    handle_prompt_save(_save_ns(prompt_id(text), name="dup", force=True))
     assert (tmp_path / ".xprompts" / "dup.md").is_file()
 
 
@@ -274,7 +269,7 @@ def test_save_global_and_project_are_mutually_exclusive(
 
     with pytest.raises(SystemExit) as exc_info:
         handle_prompt_save(
-            _save_ns(compute_prompt_id(text), name="x", global_=True, project="bob")
+            _save_ns(prompt_id(text), name="x", global_=True, project="bob")
         )
 
     assert exc_info.value.code == 2
@@ -289,7 +284,7 @@ def test_save_rejects_name_with_path_separator(
     _seed(_entry(text, "260603_000000"))
 
     with pytest.raises(SystemExit) as exc_info:
-        handle_prompt_save(_save_ns(compute_prompt_id(text), name="../escape"))
+        handle_prompt_save(_save_ns(prompt_id(text), name="../escape"))
 
     assert exc_info.value.code == 2
     assert "invalid name" in capsys.readouterr().err

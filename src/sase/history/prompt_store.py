@@ -47,15 +47,15 @@ class _PromptMutation:
     force_cancelled: bool = False
 
 
-class _PromptHistoryLoadError(Exception):
+class PromptHistoryLoadError(Exception):
     """Raised when prompt history cannot be loaded for a safe mutation."""
 
 
-def _prompt_history_file() -> Path:
+def prompt_history_file() -> Path:
     return _PROMPT_HISTORY_FILE or sase_home() / "prompt_history.json"
 
 
-def _prompt_entry_from_json(value: object) -> PromptEntry | None:
+def prompt_entry_from_json(value: object) -> PromptEntry | None:
     """Convert a raw JSON prompt entry into a PromptEntry."""
     if not isinstance(value, dict):
         return None
@@ -85,13 +85,13 @@ def _prompt_entry_from_json(value: object) -> PromptEntry | None:
     )
 
 
-def _load_prompt_history() -> list[PromptEntry]:
+def load_prompt_history() -> list[PromptEntry]:
     """Load prompt history from disk.
 
     Returns:
         List of PromptEntry objects, or empty list if file doesn't exist.
     """
-    history_file = _prompt_history_file()
+    history_file = prompt_history_file()
     if not history_file.exists():
         return []
 
@@ -102,16 +102,16 @@ def _load_prompt_history() -> list[PromptEntry]:
         prompts = data.get("prompts", [])
         return [
             entry
-            for entry in (_prompt_entry_from_json(prompt) for prompt in prompts)
+            for entry in (prompt_entry_from_json(prompt) for prompt in prompts)
             if entry is not None
         ]
     except (AttributeError, OSError, json.JSONDecodeError, KeyError):
         return []
 
 
-def _load_prompt_history_for_write() -> list[PromptEntry]:
+def load_prompt_history_for_write() -> list[PromptEntry]:
     """Load prompt history for a writer without masking corrupt/partial files."""
-    history_file = _prompt_history_file()
+    history_file = prompt_history_file()
     if not history_file.exists():
         return []
 
@@ -122,23 +122,23 @@ def _load_prompt_history_for_write() -> list[PromptEntry]:
         prompts = data.get("prompts", [])
         return [
             entry
-            for entry in (_prompt_entry_from_json(prompt) for prompt in prompts)
+            for entry in (prompt_entry_from_json(prompt) for prompt in prompts)
             if entry is not None
         ]
     except (AttributeError, OSError, json.JSONDecodeError, KeyError) as exc:
-        raise _PromptHistoryLoadError from exc
+        raise PromptHistoryLoadError from exc
 
 
-def _prompt_history_lock_file() -> Path:
+def prompt_history_lock_file() -> Path:
     """Return the lock file path for prompt history mutations."""
-    history_file = _prompt_history_file()
+    history_file = prompt_history_file()
     return history_file.with_name(f"{history_file.name}.lock")
 
 
 @contextmanager
-def _locked_prompt_history() -> Iterator[None]:
+def locked_prompt_history() -> Iterator[None]:
     """Hold an exclusive lock for prompt-history read/modify/write cycles."""
-    lock_file = _prompt_history_lock_file()
+    lock_file = prompt_history_lock_file()
     lock_file.parent.mkdir(parents=True, exist_ok=True)
     with open(lock_file, "a+", encoding="utf-8") as f:
         fcntl.flock(f.fileno(), fcntl.LOCK_EX)
@@ -148,7 +148,7 @@ def _locked_prompt_history() -> Iterator[None]:
             fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
-def _save_prompt_history(prompts: list[PromptEntry]) -> bool:
+def save_prompt_history(prompts: list[PromptEntry]) -> bool:
     """Save prompt history to disk.
 
     Args:
@@ -158,7 +158,7 @@ def _save_prompt_history(prompts: list[PromptEntry]) -> bool:
         True if saved successfully, False otherwise.
     """
     try:
-        history_file = _prompt_history_file()
+        history_file = prompt_history_file()
         history_file.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "prompts": [
@@ -274,10 +274,10 @@ def _apply_prompt_mutations(
     current_timestamp: str,
 ) -> bool:
     """Apply prompt mutations in one locked read/modify/write cycle."""
-    with _locked_prompt_history():
+    with locked_prompt_history():
         try:
-            prompts = _load_prompt_history_for_write()
-        except _PromptHistoryLoadError:
+            prompts = load_prompt_history_for_write()
+        except PromptHistoryLoadError:
             return False
 
         for mutation in mutations:
@@ -301,10 +301,10 @@ def _apply_prompt_mutations(
                 )
             )
 
-        return _save_prompt_history(prompts)
+        return save_prompt_history(prompts)
 
 
-def _format_prompt_for_display(entry: PromptEntry) -> str:
+def format_prompt_for_display(entry: PromptEntry) -> str:
     """Format a prompt entry for fzf display.
 
     Args:
@@ -325,10 +325,10 @@ class _PromptStoreApi:
     """Internal adapter for sibling prompt-history modules."""
 
     def load_prompt_history(self) -> list[PromptEntry]:
-        return _load_prompt_history()
+        return load_prompt_history()
 
     def format_prompt_for_display(self, entry: PromptEntry) -> str:
-        return _format_prompt_for_display(entry)
+        return format_prompt_for_display(entry)
 
 
 api = _PromptStoreApi()

@@ -8,12 +8,10 @@ from unittest.mock import patch
 import pytest
 
 from sase.history.prompt import (
-    PromptAmbiguousError,
     PromptEntry,
     PromptHistoryRecord,
-    PromptNotFoundError,
+    PromptSelectorError,
     _save_prompt_history,
-    compute_prompt_id,
     compute_prompt_stats,
     list_prompt_records,
     resolve_prompt_selector,
@@ -22,6 +20,10 @@ from sase.history.prompt import (
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def prompt_id(text: str) -> str:
+    return f"ph_{_sha256(text)[:12]}"
 
 
 @pytest.fixture
@@ -54,12 +56,12 @@ def _entry(
 def test_compute_prompt_id_is_stable_and_content_addressed() -> None:
     text = "fix the parser bug in the login flow"
 
-    first = compute_prompt_id(text)
-    assert first == compute_prompt_id(text)
+    first = prompt_id(text)
+    assert first == prompt_id(text)
     assert first.startswith("ph_")
     assert len(first) == len("ph_") + 12
     assert first[3:] == _sha256(text)[:12]
-    assert compute_prompt_id("a different prompt") != first
+    assert prompt_id("a different prompt") != first
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +144,7 @@ def test_records_expose_stable_id_and_hash(history_file: Path) -> None:
 
     (record,) = list_prompt_records()
 
-    assert record.id == compute_prompt_id("fix the parser bug")
+    assert record.id == prompt_id("fix the parser bug")
     assert record.text_sha256 == _sha256("fix the parser bug")
     assert record.text_chars == len("fix the parser bug")
 
@@ -157,7 +159,7 @@ def test_resolve_by_full_id_bare_prefix_and_sha256(history_file: Path) -> None:
     _save_prompt_history([_entry(text, "260601_000000")])
     digest = _sha256(text)
 
-    assert resolve_prompt_selector(compute_prompt_id(text)).text == text
+    assert resolve_prompt_selector(prompt_id(text)).text == text
     assert resolve_prompt_selector(digest[:8]).text == text
     assert resolve_prompt_selector(f"sha256:{digest}").text == text
 
@@ -165,7 +167,7 @@ def test_resolve_by_full_id_bare_prefix_and_sha256(history_file: Path) -> None:
 def test_resolve_selectors_stable_after_newer_prompts(history_file: Path) -> None:
     text = "fix the parser bug"
     _save_prompt_history([_entry(text, "260601_000000")])
-    selector = compute_prompt_id(text)
+    selector = prompt_id(text)
 
     _save_prompt_history(
         [
@@ -180,11 +182,11 @@ def test_resolve_selectors_stable_after_newer_prompts(history_file: Path) -> Non
 def test_resolve_not_found_and_bad_selectors(history_file: Path) -> None:
     _save_prompt_history([_entry("fix the parser bug", "260601_000000")])
 
-    with pytest.raises(PromptNotFoundError):
+    with pytest.raises(PromptSelectorError):
         resolve_prompt_selector("ph_ffffffffffff")
-    with pytest.raises(PromptNotFoundError):
+    with pytest.raises(PromptSelectorError):
         resolve_prompt_selector("zzz")
-    with pytest.raises(PromptNotFoundError):
+    with pytest.raises(PromptSelectorError):
         resolve_prompt_selector("")
 
 
@@ -208,10 +210,13 @@ def test_resolve_ambiguous_prefix_lists_matches() -> None:
         ),
     ]
 
-    with pytest.raises(PromptAmbiguousError) as exc_info:
+    with pytest.raises(PromptSelectorError) as exc_info:
         resolve_prompt_selector("abcd", records=records)
 
-    assert exc_info.value.matches == ["ph_abcd00000000", "ph_abcd11111111"]
+    assert exc_info.value.matches == [
+        "ph_abcd00000000",
+        "ph_abcd11111111",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -268,5 +273,5 @@ def test_corrupt_history_is_tolerated_read_only(history_file: Path) -> None:
     assert stats.exists is True
     assert stats.total == 0
 
-    with pytest.raises(PromptNotFoundError):
+    with pytest.raises(PromptSelectorError):
         resolve_prompt_selector("ph_abc")

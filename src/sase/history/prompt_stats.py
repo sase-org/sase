@@ -41,7 +41,7 @@ class PromptHistoryStats:
     top_chips: list[tuple[str, int]]
 
 
-def _short_preview(text: str, limit: int = _STATS_PREVIEW_CHARS) -> str:
+def short_preview(text: str, limit: int = _STATS_PREVIEW_CHARS) -> str:
     """Return a single-line, truncated preview of prompt text."""
     collapsed = " ".join(text.split())
     if len(collapsed) > limit:
@@ -86,7 +86,7 @@ def compute_prompt_stats() -> PromptHistoryStats:
     for the largest prompts. Tolerates a missing or corrupt store by reporting
     whatever can be read.
     """
-    history_file = store._prompt_history_file()
+    history_file = store.prompt_history_file()
     exists = history_file.exists()
     try:
         size_bytes = history_file.stat().st_size if exists else 0
@@ -94,7 +94,7 @@ def compute_prompt_stats() -> PromptHistoryStats:
         size_bytes = 0
 
     records = [
-        catalog._record_from_entry(entry) for entry in store.api.load_prompt_history()
+        catalog.record_from_entry(entry) for entry in store.api.load_prompt_history()
     ]
     total = len(records)
     cancelled = sum(1 for r in records if r.cancelled)
@@ -116,7 +116,7 @@ def compute_prompt_stats() -> PromptHistoryStats:
         PromptLargest(
             id=r.id,
             text_chars=r.text_chars,
-            preview=_short_preview(r.text),
+            preview=short_preview(r.text),
         )
         for r in sorted(records, key=lambda r: r.text_chars, reverse=True)[
             :_STATS_LARGEST_LIMIT

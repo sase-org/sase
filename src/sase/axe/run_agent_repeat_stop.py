@@ -28,7 +28,7 @@ STOP_OUTPUT_VARIABLE = "STOP"
 _FALSE_STOP_VALUES = frozenset({"", "0", "false", "no", "off"})
 
 
-def is_stop_value(value: str) -> bool:
+def _is_stop_value(value: str) -> bool:
     """Return whether *value* counts as a truthy ``STOP`` signal."""
     return value.strip().lower() not in _FALSE_STOP_VALUES
 
@@ -66,7 +66,7 @@ def detect_repeat_stop() -> RepeatStopDecision | None:
         return None
 
     stop_value = variables.get(STOP_OUTPUT_VARIABLE)
-    if stop_value is None or not is_stop_value(stop_value):
+    if stop_value is None or not _is_stop_value(stop_value):
         return None
 
     return RepeatStopDecision(producer_name=prev_name, stop_value=stop_value)
@@ -76,5 +76,4 @@ __all__ = [
     "STOP_OUTPUT_VARIABLE",
     "RepeatStopDecision",
     "detect_repeat_stop",
-    "is_stop_value",
 ]

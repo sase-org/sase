@@ -9,14 +9,14 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.history.prompt import _load_prompt_history, compute_prompt_id
+from sase.history.prompt import _load_prompt_history
 from sase.prompt.cli_maintenance import (
     handle_prompt_delete,
     handle_prompt_doctor,
     handle_prompt_prune,
 )
 
-from ._helpers import _entry, _prune_ns, _seed
+from ._helpers import _entry, _prune_ns, _seed, prompt_id
 
 
 def test_delete_with_yes_removes_without_prompting(
@@ -27,10 +27,10 @@ def test_delete_with_yes_removes_without_prompting(
     drop = "remove this stored prompt"
     _seed(_entry(keep, "260601_000000"), _entry(drop, "260602_000000"))
 
-    handle_prompt_delete(argparse.Namespace(id=compute_prompt_id(drop), yes=True))
+    handle_prompt_delete(argparse.Namespace(id=prompt_id(drop), yes=True))
 
     assert [e.text for e in _load_prompt_history()] == [keep]
-    assert compute_prompt_id(drop) in capsys.readouterr().out
+    assert prompt_id(drop) in capsys.readouterr().out
 
 
 def test_delete_confirm_yes_on_tty_removes(history_file: Path) -> None:
@@ -41,7 +41,7 @@ def test_delete_confirm_yes_on_tty_removes(history_file: Path) -> None:
         patch("sase.prompt.cli_maintenance._stdin_is_tty", return_value=True),
         patch("builtins.input", return_value="y"),
     ):
-        handle_prompt_delete(argparse.Namespace(id=compute_prompt_id(drop), yes=False))
+        handle_prompt_delete(argparse.Namespace(id=prompt_id(drop), yes=False))
 
     assert [e.text for e in _load_prompt_history()] == ["survivor prompt one"]
 
@@ -58,7 +58,7 @@ def test_delete_confirm_no_aborts(
         patch("builtins.input", return_value="n"),
         pytest.raises(SystemExit) as exc_info,
     ):
-        handle_prompt_delete(argparse.Namespace(id=compute_prompt_id(drop), yes=False))
+        handle_prompt_delete(argparse.Namespace(id=prompt_id(drop), yes=False))
 
     assert exc_info.value.code == 1
     assert [e.text for e in _load_prompt_history()] == [drop]
@@ -76,7 +76,7 @@ def test_delete_non_tty_without_yes_fails(
         patch("sase.prompt.cli_maintenance._stdin_is_tty", return_value=False),
         pytest.raises(SystemExit) as exc_info,
     ):
-        handle_prompt_delete(argparse.Namespace(id=compute_prompt_id(drop), yes=False))
+        handle_prompt_delete(argparse.Namespace(id=prompt_id(drop), yes=False))
 
     assert exc_info.value.code == 1
     assert [e.text for e in _load_prompt_history()] == [drop]

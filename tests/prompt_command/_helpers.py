@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 
 from sase.history.prompt import PromptEntry, _save_prompt_history
 from sase.main.parser import create_parser
+
+
+def prompt_id(text: str) -> str:
+    return f"ph_{hashlib.sha256(text.encode('utf-8')).hexdigest()[:12]}"
 
 
 def _seed(*entries: PromptEntry) -> None:
