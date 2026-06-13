@@ -16,11 +16,9 @@ from pathlib import Path
 from typing import Literal, NoReturn
 
 from sase.core.shell import get_vendored_tool
+from sase.main.plan_candidates import visible_pending_plan_notifications
 from sase.notifications.models import Notification
-from sase.notifications.pending_actions import (
-    action_state_for_notification,
-    resolve_prefix,
-)
+from sase.notifications.pending_actions import action_state_for_notification
 from sase.notifications.store import load_notifications
 from sase.plan_approval_actions import (
     PlanApprovalActionContext,
@@ -143,46 +141,53 @@ def _resolve_single_pending_plan() -> Notification:
 
 
 def _resolve_plan_selector(selector: str) -> Notification:
-    identity = resolve_prefix(selector)
-    if identity.resolution in {"exact", "unique_prefix"}:
-        notification = _notification_by_id(identity.notification_id)
-        if notification is not None:
-            return notification
-    elif identity.resolution in {"ambiguous_prefix", "duplicate_full_id"}:
+    matches = _matching_selector_notifications(
+        selector,
+        _available_plan_notifications(),
+    )
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
         raise PlanApprovalActionError(
             "ambiguous_prefix", selector, "action prefix is ambiguous"
         )
 
-    fallback = [
+    unavailable_matches = [
         notification
-        for notification in _available_plan_notifications()
-        if notification.id == selector or notification.id.startswith(selector)
+        for notification in _matching_selector_notifications(
+            selector,
+            [
+                notification
+                for notification in load_notifications(include_dismissed=False)
+                if notification.action == "PlanApproval"
+            ],
+        )
+        if action_state_for_notification(notification) != "available"
     ]
-    if len(fallback) == 1:
-        return fallback[0]
-    if len(fallback) > 1:
+    if len(unavailable_matches) == 1:
+        return unavailable_matches[0]
+    if len(unavailable_matches) > 1:
         raise PlanApprovalActionError(
             "ambiguous_prefix", selector, "action prefix is ambiguous"
         )
+
     raise PlanApprovalActionError(
         "not_found", selector, "pending plan approval not found"
     )
 
 
-def _available_plan_notifications() -> list[Notification]:
+def _matching_selector_notifications(
+    selector: str, notifications: list[Notification]
+) -> list[Notification]:
     return [
         notification
-        for notification in load_notifications(include_dismissed=False)
-        if notification.action == "PlanApproval"
-        and action_state_for_notification(notification) == "available"
+        for notification in notifications
+        if notification.id == selector or notification.id.startswith(selector)
     ]
 
 
-def _notification_by_id(notification_id: str) -> Notification | None:
-    for notification in load_notifications(include_dismissed=False):
-        if notification.id == notification_id:
-            return notification
-    return None
+def _available_plan_notifications() -> list[Notification]:
+    return visible_pending_plan_notifications()
 
 
 def _ensure_plan_notification_available(notification: Notification) -> None:

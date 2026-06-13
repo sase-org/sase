@@ -7,9 +7,11 @@ import json
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from rich.console import Console
 
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.paths import sase_projects_dir, sharded_path
 from sase.core.time import get_timezone
 from sase.main.plan_inventory import (
@@ -19,6 +21,9 @@ from sase.main.plan_inventory import (
 )
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification
+
+_LIVE_AGENT_TS = "20260613120000"
+_LIVE_AGENT_ROOT_TS = "20260613115900"
 
 
 def _timestamp(minutes_ago: int) -> datetime:
@@ -51,7 +56,24 @@ def _append_plan_notification(
     response_dir: Path,
     *,
     minutes_ago: int,
+    agent_cl_name: str = "demo-cl",
+    agent_name: str = "planner",
+    agent_timestamp: str | None = _LIVE_AGENT_TS,
+    agent_root_timestamp: str | None = None,
 ) -> None:
+    action_data = {
+        "agent_name": agent_name,
+        "llm_provider": "anthropic",
+        "model": "claude-sonnet",
+        "project_dir": "/work/demo-project",
+        "response_dir": str(response_dir),
+    }
+    if agent_cl_name:
+        action_data["agent_cl_name"] = agent_cl_name
+    if agent_timestamp:
+        action_data["agent_timestamp"] = agent_timestamp
+    if agent_root_timestamp:
+        action_data["agent_root_timestamp"] = agent_root_timestamp
     append_notification(
         Notification(
             id=notification_id,
@@ -59,14 +81,27 @@ def _append_plan_notification(
             sender="plan",
             files=[str(plan_path)],
             action="PlanApproval",
-            action_data={
-                "agent_name": "planner",
-                "llm_provider": "anthropic",
-                "model": "claude-sonnet",
-                "project_dir": "/work/demo-project",
-                "response_dir": str(response_dir),
-            },
+            action_data=action_data,
         )
+    )
+
+
+def _live_agent(
+    *,
+    status: str = "PLAN",
+    cl_name: str = "demo-cl",
+    agent_name: str = "planner",
+    raw_suffix: str = _LIVE_AGENT_TS,
+) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=cl_name,
+        project_file="/tmp/demo-project.sase",
+        status=status,
+        start_time=None,
+        raw_suffix=raw_suffix,
+        agent_name=agent_name,
+        workspace_dir="/work/demo-project",
     )
 
 
@@ -120,7 +155,11 @@ def test_build_plan_inventory_classifies_proposed_approved_and_rejected(
         minutes_ago=2,
     )
 
-    inventory = build_plan_inventory()
+    with patch(
+        "sase.main.plan_candidates._load_live_plan_agents",
+        return_value=(_live_agent(),),
+    ):
+        inventory = build_plan_inventory()
     payload = plan_inventory_to_json(inventory)
 
     assert payload["summary"] == {
@@ -241,7 +280,11 @@ def test_render_plan_inventory_non_empty_output_uses_stable_columns(
         response_dir,
         minutes_ago=5,
     )
-    inventory = build_plan_inventory()
+    with patch(
+        "sase.main.plan_candidates._load_live_plan_agents",
+        return_value=(_live_agent(),),
+    ):
+        inventory = build_plan_inventory()
     buffer = io.StringIO()
     console = Console(file=buffer, force_terminal=False, color_system=None, width=100)
 
@@ -255,3 +298,71 @@ def test_render_plan_inventory_non_empty_output_uses_stable_columns(
     assert "Plan path" in output
     assert "12345678" in output
     assert "planner / demo-project" in output
+
+
+def test_plan_inventory_excludes_proposal_without_matching_live_agent(
+    tmp_path: Path,
+) -> None:
+    plan = _archived_plan("orphan.md", minutes_ago=5)
+    response_dir = _response_dir(tmp_path, "orphan")
+    _append_plan_notification(
+        "12345678-plan-notification",
+        plan,
+        response_dir,
+        minutes_ago=5,
+        agent_timestamp="20260613130000",
+    )
+
+    with patch(
+        "sase.main.plan_candidates._load_live_plan_agents",
+        return_value=(_live_agent(),),
+    ):
+        payload = plan_inventory_to_json(build_plan_inventory())
+
+    assert payload["summary"]["proposed"] == 0
+    assert payload["summary"]["rejected_shown"] == 1
+    assert str(payload["rejected"][0]["plan_path"]).endswith("/orphan.md")
+
+
+def test_plan_inventory_matches_root_timestamp(tmp_path: Path) -> None:
+    plan = _archived_plan("root.md", minutes_ago=5)
+    response_dir = _response_dir(tmp_path, "root")
+    _append_plan_notification(
+        "12345678-plan-notification",
+        plan,
+        response_dir,
+        minutes_ago=5,
+        agent_timestamp="20260613125900",
+        agent_root_timestamp=_LIVE_AGENT_ROOT_TS,
+    )
+
+    with patch(
+        "sase.main.plan_candidates._load_live_plan_agents",
+        return_value=(_live_agent(raw_suffix=_LIVE_AGENT_ROOT_TS),),
+    ):
+        payload = plan_inventory_to_json(build_plan_inventory())
+
+    assert payload["summary"]["proposed"] == 1
+    assert payload["proposed"][0]["id_prefix"] == "12345678"
+
+
+def test_plan_inventory_matches_agent_name_with_timestamp(tmp_path: Path) -> None:
+    plan = _archived_plan("named.md", minutes_ago=5)
+    response_dir = _response_dir(tmp_path, "named")
+    _append_plan_notification(
+        "12345678-plan-notification",
+        plan,
+        response_dir,
+        minutes_ago=5,
+        agent_cl_name="other-cl",
+        agent_name="planner",
+    )
+
+    with patch(
+        "sase.main.plan_candidates._load_live_plan_agents",
+        return_value=(_live_agent(cl_name="demo-cl", agent_name="planner"),),
+    ):
+        payload = plan_inventory_to_json(build_plan_inventory())
+
+    assert payload["summary"]["proposed"] == 1
+    assert payload["proposed"][0]["agent"] == "planner"

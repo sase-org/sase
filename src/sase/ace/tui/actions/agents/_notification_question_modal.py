@@ -131,14 +131,10 @@ def _restore_pre_question_status(app: object, notification: Notification) -> Non
     override (e.g. "PLAN APPROVED") or removes the override entirely (reverting
     the agent to its disk status, e.g. "RUNNING").
     """
-    cl_name = notification.action_data.get("agent_cl_name")
-    if not cl_name:
-        return
-
     from ._notification_navigation import agent_matches_notification_identity
 
     for agent in app._agents:  # type: ignore[attr-defined]
-        if not agent_matches_notification_identity(agent, notification, cl_name):
+        if not agent_matches_notification_identity(agent, notification):
             continue
 
         identity = agent.identity

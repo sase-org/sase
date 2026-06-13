@@ -40,16 +40,10 @@ class AgentNotificationStatusMixin:
                     dismissed_any = True
                     continue
 
-            cl_name = notification.action_data.get("agent_cl_name")
-            if not cl_name:
-                continue
-
             from ._notification_navigation import agent_matches_notification_identity
 
             for agent in self._agents:  # type: ignore[attr-defined]
-                if not agent_matches_notification_identity(
-                    agent, notification, cl_name
-                ):
+                if not agent_matches_notification_identity(agent, notification):
                     continue
 
                 if agent.status in ("DONE", "FAILED"):

@@ -67,10 +67,7 @@ class AgentNotificationModalMixin:
         for notification in unread:
             if notification.action not in ("PlanApproval", "UserQuestion"):
                 continue
-            cl_name = notification.action_data.get("agent_cl_name")
-            if cl_name != agent.cl_name:
-                continue
-            if not agent_matches_notification_identity(agent, notification, cl_name):
+            if not agent_matches_notification_identity(agent, notification):
                 continue
             matched = notification
             break

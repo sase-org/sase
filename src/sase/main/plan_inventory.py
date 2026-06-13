@@ -10,13 +10,9 @@ from typing import Any
 from sase.core.agent_artifact_helpers import path_key, read_json_object
 from sase.core.paths import iter_sharded_files, sase_home, sase_projects_dir
 from sase.core.time import get_timezone
+from sase.main.plan_candidates import visible_pending_plan_notifications
 from sase.notifications.models import Notification, format_relative_time
-from sase.notifications.pending_actions import (
-    PENDING_ACTION_PREFIX_LEN,
-    action_state_for_notification,
-)
-from sase.notifications.sort import timestamp_sort_key
-from sase.notifications.store import load_notifications
+from sase.notifications.pending_actions import PENDING_ACTION_PREFIX_LEN
 
 _APPROVED_LIMIT = 10
 _REJECTED_LIMIT = 10
@@ -163,13 +159,7 @@ def render_plan_inventory(
 
 
 def _collect_proposed_plans() -> tuple[_ProposedPlan, ...]:
-    notifications = [
-        notification
-        for notification in load_notifications(include_dismissed=False)
-        if notification.action == "PlanApproval"
-        and action_state_for_notification(notification) == "available"
-    ]
-    notifications.sort(key=timestamp_sort_key, reverse=True)
+    notifications = visible_pending_plan_notifications()
     return tuple(
         _proposed_plan_from_notification(notification) for notification in notifications
     )

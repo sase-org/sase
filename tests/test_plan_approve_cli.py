@@ -9,11 +9,14 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.time import get_timezone
 from sase.main.plan_approve_handler import _approve_plan_from_cli
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification, load_notifications
 from sase.plan_approval_actions import PlanApprovalActionError
+
+_LIVE_AGENT_TS = "20260613120000"
 
 
 def _response_dir(root: Path, name: str = "plan_approval") -> Path:
@@ -35,10 +38,19 @@ def _append_plan_notification(
     response_dir: Path,
     *,
     project_dir: Path | None = None,
+    agent_cl_name: str = "demo-cl",
+    agent_name: str = "planner",
+    agent_timestamp: str | None = _LIVE_AGENT_TS,
 ) -> None:
-    action_data = {"response_dir": str(response_dir)}
+    action_data = {
+        "response_dir": str(response_dir),
+        "agent_cl_name": agent_cl_name,
+        "agent_name": agent_name,
+    }
     if project_dir is not None:
         action_data["project_dir"] = str(project_dir)
+    if agent_timestamp:
+        action_data["agent_timestamp"] = agent_timestamp
     append_notification(
         Notification(
             id=notification_id,
@@ -48,6 +60,27 @@ def _append_plan_notification(
             action="PlanApproval",
             action_data=action_data,
         )
+    )
+
+
+def _live_agent() -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="demo-cl",
+        project_file="/tmp/demo-project.sase",
+        status="PLAN",
+        start_time=None,
+        raw_suffix=_LIVE_AGENT_TS,
+        agent_name="planner",
+        workspace_dir="/work/demo-project",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _visible_plan_agents(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.main.plan_candidates._load_live_plan_agents",
+        lambda: (_live_agent(),),
     )
 
 
@@ -141,6 +174,29 @@ def test_plan_approve_omitted_selector_succeeds_with_one_pending_plan(
 
     assert result.notification_id == "abcdef12-plan"
     assert (response_dir / "plan_response.json").is_file()
+
+
+def test_plan_approve_omitted_selector_ignores_orphaned_pending_plan(
+    tmp_path: Path,
+) -> None:
+    visible_response_dir = _response_dir(tmp_path, "visible")
+    orphan_response_dir = _response_dir(tmp_path, "orphan")
+    visible_plan = _plan_file(tmp_path, "visible.md")
+    orphan_plan = _plan_file(tmp_path, "orphan.md")
+    _append_plan_notification("abcdef12-plan", visible_plan, visible_response_dir)
+    _append_plan_notification(
+        "12345678-plan",
+        orphan_plan,
+        orphan_response_dir,
+        agent_name="orphan",
+        agent_timestamp="20260613130000",
+    )
+
+    result = _approve_plan_from_cli(selector=None, kind="approve")
+
+    assert result.notification_id == "abcdef12-plan"
+    assert (visible_response_dir / "plan_response.json").is_file()
+    assert not (orphan_response_dir / "plan_response.json").exists()
 
 
 def test_plan_approve_omitted_selector_errors_with_zero_or_multiple(

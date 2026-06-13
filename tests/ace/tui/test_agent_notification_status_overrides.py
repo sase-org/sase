@@ -33,21 +33,25 @@ def _notification(
     *,
     action: str = "PlanApproval",
     cl_name: str = "oo",
+    agent_name: str | None = None,
     agent_timestamp: str = "20260512094333",
     agent_root_timestamp: str = "20260512090000",
 ) -> Notification:
+    action_data = {
+        "agent_cl_name": cl_name,
+        "agent_timestamp": agent_timestamp,
+        "agent_root_timestamp": agent_root_timestamp,
+        "response_dir": "/tmp/response",
+        "session_id": "session",
+    }
+    if agent_name:
+        action_data["agent_name"] = agent_name
     return Notification(
         id="n1",
         timestamp="2026-05-12T09:43:33",
         sender="plan" if action == "PlanApproval" else "question",
         action=action,
-        action_data={
-            "agent_cl_name": cl_name,
-            "agent_timestamp": agent_timestamp,
-            "agent_root_timestamp": agent_root_timestamp,
-            "response_dir": "/tmp/response",
-            "session_id": "session",
-        },
+        action_data=action_data,
     )
 
 
@@ -94,6 +98,31 @@ def test_find_agent_for_notification_matches_root_timestamp() -> None:
     app = _NotificationApp([parent])
 
     assert find_agent_for_notification(app, _notification()) is parent
+
+
+def test_find_agent_for_notification_matches_agent_name_timestamp() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="different-cl",
+        project_file="/tmp/test.sase",
+        status="PLAN",
+        start_time=datetime(2026, 5, 12, 9, 43, 33),
+        raw_suffix="20260512094333",
+        agent_name="planner",
+    )
+    app = _NotificationApp([agent])
+
+    assert (
+        find_agent_for_notification(
+            app,
+            _notification(
+                cl_name="oo",
+                agent_name="planner",
+                agent_root_timestamp="20260512090000",
+            ),
+        )
+        is agent
+    )
 
 
 def test_user_question_root_timestamp_sets_parent_question_override() -> None:

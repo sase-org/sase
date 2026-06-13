@@ -9,6 +9,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 from typing import Protocol
 
+from sase.notifications.agent_matching import (
+    agent_matches_notification_identity as agent_matches_notification_identity,
+)
+
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
@@ -17,31 +21,6 @@ if TYPE_CHECKING:
 
 class _NamedChangeSpec(Protocol):
     name: str
-
-
-def _notification_agent_timestamps(notification: Notification) -> set[str]:
-    """Return normalized phase/root timestamps carried by a notification."""
-    from ...models._timestamps import normalize_to_14_digit
-
-    timestamps: set[str] = set()
-    for key in ("agent_timestamp", "agent_root_timestamp"):
-        timestamp = normalize_to_14_digit(notification.action_data.get(key))
-        if timestamp:
-            timestamps.add(timestamp)
-    return timestamps
-
-
-def agent_matches_notification_identity(
-    agent: Agent, notification: Notification, cl_name: str | None = None
-) -> bool:
-    """Return True when an agent row matches the notification routing fields."""
-    agent_cl_name = cl_name or notification.action_data.get("agent_cl_name")
-    if not agent_cl_name or agent.cl_name != agent_cl_name:
-        return False
-    timestamps = _notification_agent_timestamps(notification)
-    if timestamps and agent.raw_suffix not in timestamps:
-        return False
-    return True
 
 
 def _find_changespec_index_by_name(
@@ -65,25 +44,20 @@ def find_agent_for_notification(
 ) -> Agent | None:
     """Find the agent matching a notification's identity fields.
 
-    Matches by agent_cl_name plus either agent_timestamp or
-    agent_root_timestamp in action_data against the currently loaded agents
-    list.
+    Matches notification routing metadata against the currently loaded agents
+    list. Timestamped notifications can match by agent_cl_name or agent_name.
 
     Args:
         app: The AceApp instance.
         notification: The notification with action_data containing
-            agent_cl_name and optionally agent_timestamp / agent_root_timestamp.
+            agent identity and optionally agent_timestamp / agent_root_timestamp.
 
     Returns:
         The matching Agent, or None if not found.
     """
-    cl_name = notification.action_data.get("agent_cl_name")
-    if not cl_name:
-        return None
-
     agents: list[Agent] = app._agents  # type: ignore[attr-defined]
     for agent in agents:
-        if agent_matches_notification_identity(agent, notification, cl_name):
+        if agent_matches_notification_identity(agent, notification):
             return agent
 
     return None
