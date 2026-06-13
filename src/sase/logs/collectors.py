@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import (
     iter_sharded_files,
     sase_home,
@@ -170,7 +171,11 @@ def collect_artifacts(start: datetime, end: datetime) -> list[Path]:
         for workflow_dir in artifacts_root.iterdir():
             if not workflow_dir.is_dir():
                 continue
-            for ts_dir in workflow_dir.iterdir():
+            for ts_dir in iter_agent_artifact_dirs(
+                project_dir.name,
+                workflow_dir.name,
+                projects_root=projects_dir,
+            ):
                 if not ts_dir.is_dir():
                     continue
                 ts = _ts_from_artifacts_dir(ts_dir.name)

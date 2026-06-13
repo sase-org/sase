@@ -20,6 +20,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
     upsert_agent_artifact_index_artifacts,
 )
+from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_home, sase_projects_dir, sase_subdir
 
 MIGRATION_SCHEMA_VERSION = 1
@@ -195,10 +196,13 @@ def _artifact_dirs() -> list[Path]:
         except OSError:
             continue
         for workflow_dir in workflow_dirs:
-            try:
-                dirs.extend(p for p in workflow_dir.iterdir() if p.is_dir())
-            except OSError:
-                continue
+            dirs.extend(
+                iter_agent_artifact_dirs(
+                    project_dir.name,
+                    workflow_dir.name,
+                    projects_root=projects_dir,
+                )
+            )
     return dirs
 
 

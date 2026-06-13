@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.paths import sase_home as _sase_home
 
 AgentArtifactKind = Literal["chat", "plan", "image", "markdown", "pdf", "file"]
@@ -116,14 +117,20 @@ def artifact_association_from_dir(
     project: str | None = None
     workflow: str | None = None
     raw_timestamp: str | None = artifacts_dir.name or None
-    parts = artifacts_dir.parts
-    for index, part in enumerate(parts):
-        if part == "projects" and len(parts) > index + 4:
-            project = parts[index + 1]
-            if parts[index + 2] == "artifacts":
-                workflow = parts[index + 3]
-                raw_timestamp = parts[index + 4]
-            break
+    info = parse_agent_artifact_path(artifacts_dir)
+    if info is not None:
+        project = info.project_name
+        workflow = info.workflow_dir_name
+        raw_timestamp = info.timestamp
+    else:
+        parts = artifacts_dir.parts
+        for index, part in enumerate(parts):
+            if part == "projects" and len(parts) > index + 4:
+                project = parts[index + 1]
+                if parts[index + 2] == "artifacts":
+                    workflow = parts[index + 3]
+                    raw_timestamp = parts[index + 4]
+                break
     return AgentArtifactAssociation(
         agent_artifacts_dir=str(artifacts_dir),
         project=project,

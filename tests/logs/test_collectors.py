@@ -11,6 +11,7 @@ from sase.logs.collectors import (
     _ts_from_artifacts_dir,
     _ts_from_filename_suffix,
     collect_archived_diffs,
+    collect_artifacts,
     collect_axe_state,
     collect_chats,
     collect_comments,
@@ -244,6 +245,25 @@ class TestNewCollectors:
             "cl-run-260316_120000.md",
             "cl-run-260415_120000.md",
         ]
+
+    def test_collect_artifacts_across_legacy_and_day_shards(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        artifacts_root = tmp_path / "projects" / "proj" / "artifacts" / "ace-run"
+        legacy = artifacts_root / "20260316120000"
+        sharded = artifacts_root / "202603" / "15" / "20260315120000"
+        out_of_range = artifacts_root / "202603" / "10" / "20260310120000"
+        for path in (legacy, sharded, out_of_range):
+            path.mkdir(parents=True)
+
+        start = datetime(2026, 3, 14, 0, 0, 0, tzinfo=get_timezone())
+        end = datetime(2026, 3, 16, 23, 59, 59, tzinfo=get_timezone())
+
+        with _patch_expanduser(tmp_path):
+            results = collect_artifacts(start, end)
+
+        assert set(results) == {legacy, sharded}
 
     def test_collect_axe_state_empty(self, tmp_path: Path) -> None:
         start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=get_timezone())

@@ -37,12 +37,85 @@ def _write_bundle(base: Path, filename: str, data: dict[str, object]) -> Path:
     return path
 
 
+def _make_sharded_agent(
+    base: Path,
+    project: str,
+    timestamp: str,
+    name: str,
+    *,
+    done: bool = False,
+) -> Path:
+    artifact_dir = (
+        base
+        / ".sase"
+        / "projects"
+        / project
+        / "artifacts"
+        / "ace-run"
+        / timestamp[:6]
+        / timestamp[6:8]
+        / timestamp
+    )
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps({"name": name, "model": "test"}),
+        encoding="utf-8",
+    )
+    if done:
+        (artifact_dir / "done.json").write_text(
+            json.dumps({"outcome": "completed"}),
+            encoding="utf-8",
+        )
+    return artifact_dir
+
+
 def test_registry_rebuild_collects_active_agent(tmp_path: Path) -> None:
     _make_agent(tmp_path, "proj", "run1", "foo")
     with patch.object(Path, "home", return_value=tmp_path):
         data = rebuild_name_registry()
         assert "foo" in data["entries"]
         assert lookup_registered_name("foo")["state"] == "active"
+
+
+def test_registry_rebuild_collects_sharded_agent_and_tracks_day_dir(
+    tmp_path: Path,
+) -> None:
+    first = _make_sharded_agent(tmp_path, "proj", "20260613120000", "sharded")
+    with patch.object(Path, "home", return_value=tmp_path):
+        paths = _registry._source_signature_paths()
+        assert first.parent in paths
+        assert first not in paths
+
+        data = rebuild_name_registry()
+        assert data["entries"]["sharded"]["project_name"] == "proj"
+        assert data["entries"]["sharded"]["workflow_dir"] == "ace-run"
+        assert data["entries"]["sharded"]["raw_suffix"] == "20260613120000"
+
+        before = _registry._source_signature()
+        time.sleep(0.01)
+        _make_sharded_agent(tmp_path, "proj", "20260613120100", "sharded-later")
+        after = _registry._source_signature()
+        assert after != before
+
+
+def test_claim_registered_name_records_sharded_owner_identity(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = _make_sharded_agent(
+        tmp_path,
+        "proj",
+        "20260613130000",
+        "claimed",
+    )
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_registered_name("claimed", artifact_dir)
+        entry = lookup_registered_name("claimed")
+
+    assert entry is not None
+    assert entry["project_name"] == "proj"
+    assert entry["workflow_dir"] == "ace-run"
+    assert entry["raw_suffix"] == "20260613130000"
+    assert entry["created_at"] == "20260613130000"
 
 
 def test_registry_rebuild_collects_numeric_auto_prefix(tmp_path: Path) -> None:

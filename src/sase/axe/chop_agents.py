@@ -19,7 +19,7 @@ from typing import Any
 from sase.ace.hooks.processes import is_process_running
 from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
-from sase.core.paths import sase_projects_dir, sase_subdir
+from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 
 from . import state

@@ -14,6 +14,7 @@ from sase.core.agent_artifact_facade import (
     store_explicit_agent_artifact,
     synthesize_default_agent_artifacts,
 )
+from sase.core.agent_artifact_types import artifact_association_from_dir
 
 
 def _agent_dir(tmp_path: Path) -> Path:
@@ -76,6 +77,32 @@ def test_synthesize_default_artifacts_from_done_and_agent_meta(tmp_path: Path) -
     assert artifacts[0].agent_name == "agent-name"
     assert artifacts[0].project == "proj"
     assert artifacts[0].raw_timestamp == "20260507123456"
+
+
+def test_artifact_association_from_dir_parses_sharded_agent_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    artifacts_dir = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "202606"
+        / "13"
+        / "20260613120000"
+    )
+    artifacts_dir.mkdir(parents=True)
+
+    assoc = artifact_association_from_dir(artifacts_dir, agent_name="agent-one")
+
+    assert assoc.project == "proj"
+    assert assoc.workflow == "ace-run"
+    assert assoc.raw_timestamp == "20260613120000"
+    assert assoc.agent_name == "agent-one"
 
 
 def test_committed_sdd_plan_is_single_default_plan_artifact(

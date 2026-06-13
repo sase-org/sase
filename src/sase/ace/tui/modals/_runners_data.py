@@ -9,7 +9,6 @@ from datetime import datetime
 from typing import Literal
 
 from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
-from sase.core.paths import sase_projects_dir
 
 from ...changespec import (
     ChangeSpec,

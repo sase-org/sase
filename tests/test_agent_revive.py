@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.tui.models.agent import AgentType
@@ -80,6 +81,44 @@ def test_do_revive_agent_removes_suffix_aliases() -> None:
     assert len(app.restored) == 2
     assert app.restored[0] == (parent.identity, None)
     assert app.restored[1] == (child.identity, parent.artifacts_dir)
+
+
+def test_do_revive_agent_resolves_parent_artifact_dir_for_child_restore() -> None:
+    app = FakeReviveApp()
+    parent = make_agent(
+        cl_name="feature",
+        raw_suffix="20260201101010",
+        artifacts_dir="/tmp/projects/myproj/artifacts/ace-run/20260201101010",
+    )
+    child = make_agent(
+        cl_name="child_step",
+        raw_suffix="child_suffix_1",
+        parent_workflow="wf",
+        parent_timestamp="20260201101010",
+    )
+    resolved = Path("/tmp/projects/myproj/artifacts/ace-run/202602/01/20260201101010")
+    app._dismissed_agent_objects = [parent, child]
+    app._dismissed_agents = {parent.identity, child.identity}
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
+        patch(
+            "sase.ace.tui.actions.agents._revive_execution.resolve_agent_artifact_path",
+            return_value=resolved,
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._revive_helpers.resolve_agent_artifact_path",
+            return_value=resolved,
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._revive.upsert_agent_artifact_index_artifacts"
+        ) as mock_upsert_index,
+    ):
+        app._do_revive_agent(parent)
+
+    assert app.restored[1] == (child.identity, str(resolved))
+    mock_upsert_index.assert_called_once_with([str(resolved), str(resolved)])
 
 
 def test_do_revive_agent_selects_revived_agent_panel_after_reload() -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-13 13:35:34
-status: wip
+status: done
 prompt: sdd/prompts/202606/ace_run_layout_review_fixes.md
 ---
 # Plan: Fix Gaps in the Sharded `ace-run` Artifact Layout Implementation

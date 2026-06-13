@@ -17,6 +17,7 @@ from sase.ace.agent_tags import (
     validate_tag_name,
 )
 from sase.agent.names import find_named_agent
+from sase.core.agent_artifact_paths import parse_agent_artifact_path
 
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import AgentType
@@ -60,10 +61,12 @@ def _resolve_identity_by_name(
         # Running agents don't get cl_name in agent_meta.json; fall back to
         # the project directory name (matches the typical ``cl_name=project``
         # convention for run-type agents that don't target a specific CL).
-        try:
-            cl_name = artifact_dir.parent.parent.parent.name
-        except (AttributeError, IndexError):
-            cl_name = "unknown"
+        info = parse_agent_artifact_path(artifact_dir)
+        cl_name = (
+            info.project_name
+            if info is not None
+            else artifact_dir.parent.parent.parent.name or "unknown"
+        )
 
     agent_type = AgentType.RUNNING
     ws_state = _read_json(artifact_dir / "workflow_state.json")

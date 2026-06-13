@@ -227,6 +227,19 @@ def _store_manifest(path: Path, manifest: dict[str, Any]) -> None:
     )
 
 
+def _manifest_path(args: argparse.Namespace) -> Path | None:
+    manifest_path = getattr(args, "manifest", None)
+    return Path(manifest_path).expanduser() if manifest_path else None
+
+
+def _persist_manifest_if_requested(
+    args: argparse.Namespace, payload: dict[str, Any]
+) -> None:
+    path = _manifest_path(args)
+    if path is not None and "entries" in payload:
+        _store_manifest(path, payload)
+
+
 def _handle_migrate(args: argparse.Namespace) -> None:
     projects_root, index_path = _paths(args)
     manifest = _build_manifest(args)
@@ -234,6 +247,8 @@ def _handle_migrate(args: argparse.Namespace) -> None:
     if dry_run:
         _finish_payload(args, manifest)
         return
+
+    _persist_manifest_if_requested(args, manifest)
 
     moved = 0
     rewritten = 0
@@ -247,17 +262,28 @@ def _handle_migrate(args: argparse.Namespace) -> None:
             entry["status"] = "skipped"
             entry["skip_reason"] = reason
             continue
-        new_path.parent.mkdir(parents=True, exist_ok=True)
-        os.rename(old_path, new_path)
-        moved += 1
-        rewritten += _rewrite_marker_paths(new_path, str(old_path), str(new_path))
-        _write_alias(index_path, str(old_path), str(new_path))
+        try:
+            new_path.parent.mkdir(parents=True, exist_ok=True)
+            os.rename(old_path, new_path)
+            moved += 1
+            rewritten += _rewrite_marker_paths(new_path, str(old_path), str(new_path))
+            _write_alias(index_path, str(old_path), str(new_path))
+        except Exception as exc:
+            entry["status"] = "failed"
+            entry["failure_reason"] = str(exc)
+            continue
         entry["status"] = "migrated"
 
-    if moved:
-        rebuild_agent_artifact_index(index_path, projects_root)
     manifest["moved"] = moved
     manifest["marker_files_rewritten"] = rewritten
+    _persist_manifest_if_requested(args, manifest)
+    if moved:
+        try:
+            rebuild_agent_artifact_index(index_path, projects_root)
+        except Exception as exc:
+            manifest["index_rebuild_error"] = str(exc)
+            _finish_payload(args, manifest)
+            raise SystemExit(1) from exc
     _finish_payload(args, manifest)
 
 
@@ -270,7 +296,7 @@ def _handle_rollback(args: argparse.Namespace) -> None:
     moved = 0
     rewritten = 0
     for entry in manifest.get("entries", []):
-        if entry.get("status") not in {"migrated", "planned"}:
+        if entry.get("status") not in {"migrated", "planned", "failed"}:
             continue
         old_path = Path(entry["old_path"])
         new_path = Path(entry["new_path"])
@@ -386,9 +412,7 @@ def _read_aliases(index_path: Path) -> dict[str, str]:
 
 
 def _finish_payload(args: argparse.Namespace, payload: dict[str, Any]) -> None:
-    manifest_path = getattr(args, "manifest", None)
-    if manifest_path and "entries" in payload:
-        _store_manifest(Path(manifest_path).expanduser(), payload)
+    _persist_manifest_if_requested(args, payload)
     if getattr(args, "json", False):
         print(json.dumps(payload, sort_keys=True))
         return

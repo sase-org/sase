@@ -159,12 +159,6 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
                 action="store_true",
                 help="Write or print the migration manifest without moving dirs",
             )
-            layout_command.add_argument(
-                "-f",
-                "--force",
-                action="store_true",
-                help="Continue after safe-to-override preflight warnings",
-            )
         layout_command.add_argument(
             "-i",
             "--index-path",

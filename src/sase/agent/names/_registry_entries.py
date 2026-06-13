@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sase.core.agent_artifact_paths import parse_agent_artifact_path
+
 
 def dotted_namespace_prefixes(name: str) -> set[str]:
     """Return every dotted-segment prefix of *name* (including *name* itself)."""
@@ -62,16 +64,30 @@ def owner_from_artifact_name(
     reservation_kind: str,
     template_namespace: str | None = None,
 ) -> dict[str, Any]:
-    workflow_dir = artifact_dir.parent
-    project_dir = (
-        workflow_dir.parent.parent if workflow_dir.parent.name == "artifacts" else None
-    )
+    info = parse_agent_artifact_path(artifact_dir)
+    project_name: str | None
+    workflow_name: str
+    raw_suffix: str
+    if info is not None:
+        project_name = info.project_name
+        workflow_name = info.workflow_dir_name
+        raw_suffix = info.timestamp
+    else:
+        workflow_dir = artifact_dir.parent
+        project_dir = (
+            workflow_dir.parent.parent
+            if workflow_dir.parent.name == "artifacts"
+            else None
+        )
+        project_name = project_dir.name if project_dir is not None else None
+        workflow_name = workflow_dir.name
+        raw_suffix = artifact_dir.name
     entry: dict[str, Any] = {
         "source": "artifact",
         "name": name,
-        "project_name": project_dir.name if project_dir is not None else None,
-        "workflow_dir": workflow_dir.name,
-        "raw_suffix": artifact_dir.name,
+        "project_name": project_name,
+        "workflow_dir": workflow_name,
+        "raw_suffix": raw_suffix,
         "artifacts_dir": str(artifact_dir),
         "state": (
             "planned"
@@ -80,7 +96,7 @@ def owner_from_artifact_name(
             if (artifact_dir / "done.json").exists()
             else "active"
         ),
-        "created_at": artifact_dir.name,
+        "created_at": raw_suffix,
         "reservation_kind": reservation_kind,
     }
     if reservation_kind == "planned":

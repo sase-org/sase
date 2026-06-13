@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.names._common import extract_auto_name_prefix
+from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_home, sase_projects_dir, sase_subdir
 
 
@@ -31,10 +32,22 @@ def source_signature_paths() -> list[Path]:
         paths.extend(workflow_dirs)
         for workflow_dir in workflow_dirs:
             try:
-                paths.extend(p for p in workflow_dir.iterdir() if p.is_dir())
+                children = [p for p in workflow_dir.iterdir() if p.is_dir()]
             except OSError:
                 continue
+            paths.extend(children)
+            for child in children:
+                if not _looks_like_month_shard(child.name):
+                    continue
+                try:
+                    paths.extend(p for p in child.iterdir() if p.is_dir())
+                except OSError:
+                    continue
     return paths
+
+
+def _looks_like_month_shard(name: str) -> bool:
+    return len(name) == 6 and name.isdigit()
 
 
 def collect_planned_reservation_entries(
@@ -74,11 +87,11 @@ def collect_artifact_entries(entries: dict[str, dict[str, Any]]) -> None:
         for workflow_dir in workflow_iter:
             if not workflow_dir.is_dir():
                 continue
-            try:
-                artifact_iter = workflow_dir.iterdir()
-            except OSError:
-                continue
-            for artifact_dir in artifact_iter:
+            for artifact_dir in iter_agent_artifact_dirs(
+                project_dir.name,
+                workflow_dir.name,
+                projects_root=projects_dir,
+            ):
                 if not artifact_dir.is_dir():
                     continue
                 meta = _read_json_object(artifact_dir / "agent_meta.json")

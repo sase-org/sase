@@ -12,6 +12,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from sase.agent.names import find_named_agent
+from sase.core.agent_artifact_paths import parse_agent_artifact_path
 
 
 def handle_agents_show(args: argparse.Namespace) -> None:
@@ -38,7 +39,12 @@ def handle_agents_show(args: argparse.Namespace) -> None:
     body.append("Artifacts dir: ", style="bold")
     body.append(f"{artifacts_dir}\n")
 
-    project = artifacts_dir.parent.parent.parent.name
+    info = parse_agent_artifact_path(artifacts_dir)
+    project = (
+        info.project_name
+        if info is not None
+        else artifacts_dir.parent.parent.parent.name
+    )
     body.append("Project: ", style="bold")
     body.append(f"{project}\n")
 

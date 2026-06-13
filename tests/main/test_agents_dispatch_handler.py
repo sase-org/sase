@@ -181,6 +181,19 @@ def test_parser_registers_artifacts_layout_migrate_options() -> None:
     assert args.json is True
 
 
+def test_parser_rejects_artifacts_layout_migrate_force() -> None:
+    with pytest.raises(SystemExit):
+        create_parser().parse_args(
+            [
+                "agents",
+                "artifacts",
+                "layout",
+                "migrate",
+                "--force",
+            ]
+        )
+
+
 def test_dispatch_artifacts_layout_status_json(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

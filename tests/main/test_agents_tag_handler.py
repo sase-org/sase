@@ -12,6 +12,7 @@ import pytest
 
 from sase.ace.tui.models.agent import AgentType
 from sase.agent.names import NamedAgent
+from sase.agents.cli_show import handle_agents_show
 from sase.agents.cli_tag import (
     _resolve_identity_by_name,
     handle_agents_tag,
@@ -34,8 +35,12 @@ def _make_artifact_dir(
     raw_suffix: str = "20260425120000",
     cl_name: str | None = "fix-bug",
     workflow_name: str | None = None,
+    sharded: bool = False,
 ) -> Path:
-    art_dir = tmp_path / "projects" / project / "artifacts" / "ace-run" / raw_suffix
+    art_dir = tmp_path / "projects" / project / "artifacts" / "ace-run"
+    if sharded:
+        art_dir = art_dir / raw_suffix[:6] / raw_suffix[6:8]
+    art_dir = art_dir / raw_suffix
     art_dir.mkdir(parents=True)
     (art_dir / "agent_meta.json").write_text(json.dumps({"pid": 1}))
     if cl_name is not None:
@@ -92,6 +97,48 @@ def test_resolve_identity_falls_back_to_project_name(tmp_path: Path) -> None:
     ):
         identity = _resolve_identity_by_name("brisk-otter")
     assert identity == (AgentType.RUNNING, "dotfiles", "20260425140000")
+
+
+def test_resolve_identity_falls_back_to_project_name_for_sharded_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    art_dir = _make_artifact_dir(
+        tmp_path,
+        project="dotfiles",
+        cl_name=None,
+        raw_suffix="20260613120000",
+        sharded=True,
+    )
+    with patch(
+        "sase.agents.cli_tag.find_named_agent",
+        return_value=_named(art_dir),
+    ):
+        identity = _resolve_identity_by_name("brisk-otter")
+    assert identity == (AgentType.RUNNING, "dotfiles", "20260613120000")
+
+
+def test_agents_show_reports_project_for_sharded_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    art_dir = _make_artifact_dir(
+        tmp_path,
+        project="dotfiles",
+        cl_name="ship-it",
+        raw_suffix="20260613123000",
+        sharded=True,
+    )
+    with patch(
+        "sase.agents.cli_show.find_named_agent",
+        return_value=_named(art_dir),
+    ):
+        handle_agents_show(argparse.Namespace(name="brisk-otter"))
+
+    assert "Project: dotfiles" in capsys.readouterr().out
 
 
 def test_resolve_identity_returns_none_when_agent_missing() -> None:

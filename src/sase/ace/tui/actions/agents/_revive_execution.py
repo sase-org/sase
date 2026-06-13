@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from sase.core.agent_artifact_paths import resolve_agent_artifact_path
+
 from ._revive_artifacts import ArtifactRestorationMixin
 from ._revive_helpers import (
     is_child_of,
@@ -77,15 +79,20 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             revived_artifact_dirs = [revived_artifact_dir(agent)]
 
             # Also restore child step / follow-up artifacts for workflow parents
+            parent_artifacts_dir = (
+                str(resolve_agent_artifact_path(agent.artifacts_dir))
+                if agent.artifacts_dir
+                else None
+            )
             for dismissed_agent in child_agents:
                 self._restore_agent_artifacts(
                     dismissed_agent,
-                    parent_artifacts_dir=agent.artifacts_dir,
+                    parent_artifacts_dir=parent_artifacts_dir,
                 )
                 revived_artifact_dirs.append(
                     revived_artifact_dir(
                         dismissed_agent,
-                        parent_artifacts_dir=agent.artifacts_dir,
+                        parent_artifacts_dir=parent_artifacts_dir,
                     )
                 )
 
@@ -249,16 +256,21 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                 self._restore_agent_artifacts(agent)
                 revived_artifact_dirs.append(revived_artifact_dir(agent))
                 if not agent.is_workflow_child and agent.raw_suffix:
+                    parent_artifacts_dir = (
+                        str(resolve_agent_artifact_path(agent.artifacts_dir))
+                        if agent.artifacts_dir
+                        else None
+                    )
                     for dismissed_agent in list(self._dismissed_agent_objects):
                         if is_child_of(dismissed_agent, agent):
                             self._restore_agent_artifacts(
                                 dismissed_agent,
-                                parent_artifacts_dir=agent.artifacts_dir,
+                                parent_artifacts_dir=parent_artifacts_dir,
                             )
                             revived_artifact_dirs.append(
                                 revived_artifact_dir(
                                     dismissed_agent,
-                                    parent_artifacts_dir=agent.artifacts_dir,
+                                    parent_artifacts_dir=parent_artifacts_dir,
                                 )
                             )
             except Exception as exc:

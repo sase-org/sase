@@ -7,6 +7,8 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.core.agent_artifact_paths import resolve_agent_artifact_path
+
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
@@ -54,9 +56,12 @@ def revived_artifact_dir(
     *,
     parent_artifacts_dir: str | None = None,
 ) -> str | None:
-    if parent_artifacts_dir:
-        return parent_artifacts_dir
-    return agent.artifacts_dir or agent.get_artifacts_dir()
+    artifact_dir = (
+        parent_artifacts_dir or agent.artifacts_dir or agent.get_artifacts_dir()
+    )
+    if not artifact_dir:
+        return None
+    return str(resolve_agent_artifact_path(artifact_dir))
 
 
 def schedule_revive_full_history_refresh(

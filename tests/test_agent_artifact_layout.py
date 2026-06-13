@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -244,3 +246,73 @@ def test_artifact_layout_cli_migrates_verifies_and_rolls_back(
             "SELECT COUNT(*) FROM agent_artifact_aliases"
         ).fetchone()[0]
     assert alias_count == 0
+
+
+def test_artifact_layout_migrate_persists_manifest_and_records_entry_failure(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    projects_root = tmp_path / "projects"
+    index_path = tmp_path / "index.sqlite"
+    manifest_path = tmp_path / "manifest.json"
+    old_one = projects_root / "proj" / "artifacts" / "ace-run" / "20260613120000"
+    old_two = projects_root / "proj" / "artifacts" / "ace-run" / "20260613120100"
+    new_one = (
+        projects_root
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "202606"
+        / "13"
+        / "20260613120000"
+    )
+    for path, name in ((old_one, "one"), (old_two, "two")):
+        path.mkdir(parents=True)
+        _write_json(path / "agent_meta.json", {"name": name})
+
+    real_rename = os.rename
+
+    def flaky_rename(src: object, dst: object) -> None:
+        if Path(src) == old_two:
+            raise OSError("boom")
+        real_rename(src, dst)
+
+    with (
+        patch("sase.agents.cli_artifacts_layout.os.rename", side_effect=flaky_rename),
+        patch("sase.agents.cli_artifacts_layout.rebuild_agent_artifact_index"),
+    ):
+        handle_agents_artifacts_layout(
+            _layout_args(
+                "migrate",
+                projects_root=projects_root,
+                index_path=index_path,
+                manifest=manifest_path,
+            )
+        )
+
+    payload = _read_json_output(capsys)
+    assert payload["moved"] == 1
+    assert [entry["status"] for entry in payload["entries"]] == [
+        "migrated",
+        "failed",
+    ]
+    assert payload["entries"][1]["failure_reason"] == "boom"
+    assert (
+        json.loads(manifest_path.read_text(encoding="utf-8"))["entries"]
+        == (payload["entries"])
+    )
+    assert new_one.is_dir()
+    assert old_two.is_dir()
+
+    handle_agents_artifacts_layout(
+        _layout_args(
+            "rollback",
+            projects_root=projects_root,
+            index_path=index_path,
+            manifest=manifest_path,
+        )
+    )
+    _read_json_output(capsys)
+    assert old_one.is_dir()
+    assert not new_one.exists()
+    assert old_two.is_dir()
