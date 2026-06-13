@@ -250,7 +250,7 @@ def testload_xprompts_from_default_files_includes_research_swarm() -> None:
     # Shipped defaults must inline %model/%m directives: user-config xprompt
     # aliases (e.g. #m_codex) are not available to other installs.
     assert "%name:research.@.cdx %model:codex/gpt-5.5" in xprompt.content
-    assert "%name:research.@.cld %m:claude/claude-fable-5" in xprompt.content
+    assert "%name:research.@.cld %m:claude/opus" in xprompt.content
     assert "%name:research.@.final" in xprompt.content
     assert "%wait:research.@.cdx" in xprompt.content
     assert "%wait:research.@.cld" in xprompt.content
