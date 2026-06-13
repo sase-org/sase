@@ -34,6 +34,12 @@ def handle_prompt_command(args: argparse.Namespace) -> None:
         handle_prompt_edit(args)
         sys.exit(0)
 
+    if sub == "export":
+        from sase.prompt.cli_export import handle_prompt_export
+
+        handle_prompt_export(args)
+        sys.exit(0)
+
     if sub == "list":
         from sase.prompt.cli_list import handle_prompt_list
 
@@ -50,6 +56,12 @@ def handle_prompt_command(args: argparse.Namespace) -> None:
         from sase.prompt.cli_run import handle_prompt_run
 
         handle_prompt_run(args)
+        sys.exit(0)
+
+    if sub == "save":
+        from sase.prompt.cli_export import handle_prompt_save
+
+        handle_prompt_save(args)
         sys.exit(0)
 
     if sub == "select":
@@ -71,6 +83,7 @@ def handle_prompt_command(args: argparse.Namespace) -> None:
         sys.exit(0)
 
     print(
-        "Usage: sase prompt {copy,delete,doctor,edit,list,prune,run,select,show,stats}"
+        "Usage: sase prompt"
+        " {copy,delete,doctor,edit,export,list,prune,run,save,select,show,stats}"
     )
     sys.exit(1)

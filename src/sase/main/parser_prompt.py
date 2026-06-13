@@ -82,6 +82,41 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_prefix_option(edit_parser)
 
+    # sase prompt export
+    export_parser = prompt_sub.add_parser(
+        "export",
+        help="Export a prompt to stdout, a file, or an SDD snapshot",
+    )
+    export_parser.add_argument(
+        "id",
+        help="Prompt selector: ph_<prefix>, a bare hash prefix, or sha256:<hash>",
+    )
+    export_parser.add_argument(
+        "-F",
+        "--force",
+        action="store_true",
+        help="Overwrite the destination file if it already exists",
+    )
+    export_parser.add_argument(
+        "-m",
+        "--metadata",
+        action="store_true",
+        help="Wrap output in frontmatter (id, hash, timestamps, status, source)",
+    )
+    export_parser.add_argument(
+        "-o",
+        "--out",
+        default=None,
+        metavar="PATH",
+        help="Write to PATH instead of stdout (fails if it exists without --force)",
+    )
+    export_parser.add_argument(
+        "-s",
+        "--sdd",
+        action="store_true",
+        help="Write an SDD snapshot under sdd/prompts/YYYYMM/ (implies --metadata)",
+    )
+
     # sase prompt list
     list_parser = prompt_sub.add_parser(
         "list",
@@ -180,6 +215,57 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Open the prompt in the editor before launching",
     )
     _add_prefix_option(run_parser)
+
+    # sase prompt save
+    save_parser = prompt_sub.add_parser(
+        "save",
+        help="Save a prompt as a reusable xprompt markdown file",
+    )
+    save_parser.add_argument(
+        "id",
+        help="Prompt selector: ph_<prefix>, a bare hash prefix, or sha256:<hash>",
+    )
+    save_parser.add_argument(
+        "-D",
+        "--description",
+        default=None,
+        metavar="TEXT",
+        help="Override the auto-generated xprompt description",
+    )
+    save_parser.add_argument(
+        "-F",
+        "--force",
+        action="store_true",
+        help="Overwrite the xprompt file if it already exists",
+    )
+    save_parser.add_argument(
+        "-g",
+        "--global",
+        dest="global_",
+        action="store_true",
+        help="Save to ~/.xprompts/ instead of the local ./.xprompts/",
+    )
+    save_parser.add_argument(
+        "-n",
+        "--name",
+        default=None,
+        help="xprompt name (defaults to a slug derived from the prompt)",
+    )
+    save_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        metavar="PROJECT",
+        help="Save to ~/.config/sase/xprompts/PROJECT/ for a project namespace",
+    )
+    save_parser.add_argument(
+        "-t",
+        "--tag",
+        action="append",
+        default=None,
+        metavar="TAG",
+        help="Tag recorded in xprompt frontmatter (repeatable)",
+    )
 
     # sase prompt select
     select_parser = prompt_sub.add_parser(
