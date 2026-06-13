@@ -1,0 +1,334 @@
+"""Low-level prompt history storage and mutation helpers."""
+
+from __future__ import annotations
+
+import fcntl
+import json
+import os
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+
+from sase.core.paths import sase_home
+from sase.core.time import generate_timestamp
+
+_PROMPT_HISTORY_FILE: Path | None = None
+
+# Display settings for fzf
+_PROMPT_PREVIEW_LENGTH = 60
+
+# Skip prompts shorter than this - bare xprompt triggers like `#gh:sase` are
+# single-token and not meaningful to re-run from history.
+_MIN_PROMPT_WORDS = 2
+
+
+@dataclass
+class PromptEntry:
+    """A single prompt history entry."""
+
+    text: str
+    timestamp: str
+    last_used: str
+    cancelled: bool = False
+    # Legacy fields loaded from old history files for transitional UI
+    # compatibility. New writes intentionally omit them.
+    branch_or_workspace: str = ""
+    workspace: str = ""
+
+
+@dataclass(frozen=True)
+class _PromptMutation:
+    """A prompt history mutation to apply under the writer lock."""
+
+    text: str
+    cancelled: bool
+    force_cancelled: bool = False
+
+
+class _PromptHistoryLoadError(Exception):
+    """Raised when prompt history cannot be loaded for a safe mutation."""
+
+
+def _prompt_history_file() -> Path:
+    return _PROMPT_HISTORY_FILE or sase_home() / "prompt_history.json"
+
+
+def _prompt_entry_from_json(value: object) -> PromptEntry | None:
+    """Convert a raw JSON prompt entry into a PromptEntry."""
+    if not isinstance(value, dict):
+        return None
+
+    text = value.get("text")
+    timestamp = value.get("timestamp")
+    last_used = value.get("last_used")
+    if (
+        not isinstance(text, str)
+        or not isinstance(timestamp, str)
+        or not isinstance(last_used, str)
+    ):
+        return None
+
+    branch_or_workspace = value.get("branch_or_workspace", "")
+    workspace = value.get("workspace", "")
+    cancelled = value.get("cancelled", False)
+    return PromptEntry(
+        text=text,
+        timestamp=timestamp,
+        last_used=last_used,
+        cancelled=cancelled if isinstance(cancelled, bool) else False,
+        branch_or_workspace=(
+            branch_or_workspace if isinstance(branch_or_workspace, str) else ""
+        ),
+        workspace=workspace if isinstance(workspace, str) else "",
+    )
+
+
+def _load_prompt_history() -> list[PromptEntry]:
+    """Load prompt history from disk.
+
+    Returns:
+        List of PromptEntry objects, or empty list if file doesn't exist.
+    """
+    history_file = _prompt_history_file()
+    if not history_file.exists():
+        return []
+
+    try:
+        with open(history_file, encoding="utf-8") as f:
+            data = json.load(f)
+
+        prompts = data.get("prompts", [])
+        return [
+            entry
+            for entry in (_prompt_entry_from_json(prompt) for prompt in prompts)
+            if entry is not None
+        ]
+    except (AttributeError, OSError, json.JSONDecodeError, KeyError):
+        return []
+
+
+def _load_prompt_history_for_write() -> list[PromptEntry]:
+    """Load prompt history for a writer without masking corrupt/partial files."""
+    history_file = _prompt_history_file()
+    if not history_file.exists():
+        return []
+
+    try:
+        with open(history_file, encoding="utf-8") as f:
+            data = json.load(f)
+
+        prompts = data.get("prompts", [])
+        return [
+            entry
+            for entry in (_prompt_entry_from_json(prompt) for prompt in prompts)
+            if entry is not None
+        ]
+    except (AttributeError, OSError, json.JSONDecodeError, KeyError) as exc:
+        raise _PromptHistoryLoadError from exc
+
+
+def _prompt_history_lock_file() -> Path:
+    """Return the lock file path for prompt history mutations."""
+    history_file = _prompt_history_file()
+    return history_file.with_name(f"{history_file.name}.lock")
+
+
+@contextmanager
+def _locked_prompt_history() -> Iterator[None]:
+    """Hold an exclusive lock for prompt-history read/modify/write cycles."""
+    lock_file = _prompt_history_lock_file()
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_file, "a+", encoding="utf-8") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+
+def _save_prompt_history(prompts: list[PromptEntry]) -> bool:
+    """Save prompt history to disk.
+
+    Args:
+        prompts: List of PromptEntry objects to save.
+
+    Returns:
+        True if saved successfully, False otherwise.
+    """
+    try:
+        history_file = _prompt_history_file()
+        history_file.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "prompts": [
+                {
+                    "text": p.text,
+                    "timestamp": p.timestamp,
+                    "last_used": p.last_used,
+                    "cancelled": p.cancelled,
+                }
+                for p in prompts
+            ]
+        }
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f".{history_file.name}.",
+            suffix=f".{os.getpid()}.tmp",
+            dir=history_file.parent,
+            text=True,
+        )
+        temp_path = Path(temp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, history_file)
+        except OSError:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+            return False
+        return True
+    except OSError:
+        return False
+
+
+def add_or_update_prompt(
+    text: str,
+    *,
+    cancelled: bool = False,
+    allow_short: bool = False,
+) -> None:
+    """Add a new prompt or update an existing prompt's last_used timestamp.
+
+    If a prompt with the same text already exists, updates its last_used timestamp.
+    Otherwise, adds a new entry.
+
+    Args:
+        text: The prompt text to add or update.
+        cancelled: If True, mark this prompt as cancelled (unsent). An existing
+            non-cancelled prompt will not be downgraded to cancelled.
+        allow_short: If True, record the prompt even when it is shorter than
+            the normal history threshold. This is used for replayable generated
+            fanout invocations such as a bare multi-agent xprompt trigger.
+    """
+    if not allow_short and len(text.split()) < _MIN_PROMPT_WORDS:
+        return
+
+    current_timestamp = generate_timestamp()
+    mutations = [_PromptMutation(text=text, cancelled=cancelled)]
+    mutations.extend(_multi_prompt_segment_mutations(text, cancelled=cancelled))
+
+    _apply_prompt_mutations(mutations, current_timestamp)
+
+
+def record_failed_launch_prompt(text: str) -> None:
+    """Record a submitted prompt whose launch failed before producing agents.
+
+    Failed launch attempts are different from ordinary prompt-bar cancellation:
+    the user submitted the prompt, so even short prompts such as ``#gh:foo`` are
+    useful history, and an earlier optimistic successful write must be forced
+    back to cancelled.
+    """
+    if not text.strip():
+        return
+
+    current_timestamp = generate_timestamp()
+    mutations = [_PromptMutation(text=text, cancelled=True, force_cancelled=True)]
+    mutations.extend(
+        _PromptMutation(
+            text=mutation.text,
+            cancelled=True,
+            force_cancelled=True,
+        )
+        for mutation in _multi_prompt_segment_mutations(text, cancelled=True)
+    )
+
+    _apply_prompt_mutations(mutations, current_timestamp)
+
+
+def _multi_prompt_segment_mutations(
+    text: str,
+    *,
+    cancelled: bool,
+) -> list[_PromptMutation]:
+    """Return history mutations for long-enough multi-prompt segments."""
+    from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
+
+    if not is_multi_prompt(text):
+        return []
+
+    multi = parse_multi_prompt(text)
+    mutations = []
+    for segment in multi.segments:
+        if len(segment.split()) < _MIN_PROMPT_WORDS:
+            continue
+        mutations.append(_PromptMutation(text=segment, cancelled=cancelled))
+    return mutations
+
+
+def _apply_prompt_mutations(
+    mutations: list[_PromptMutation],
+    current_timestamp: str,
+) -> bool:
+    """Apply prompt mutations in one locked read/modify/write cycle."""
+    with _locked_prompt_history():
+        try:
+            prompts = _load_prompt_history_for_write()
+        except _PromptHistoryLoadError:
+            return False
+
+        for mutation in mutations:
+            existing = next((p for p in prompts if p.text == mutation.text), None)
+            if existing:
+                existing.last_used = current_timestamp
+                if mutation.force_cancelled:
+                    existing.cancelled = True
+                elif not mutation.cancelled:
+                    # Normal cancellation only upgrades to non-cancelled, never
+                    # downgrades an already-successful prompt.
+                    existing.cancelled = False
+                continue
+
+            prompts.append(
+                PromptEntry(
+                    text=mutation.text,
+                    timestamp=current_timestamp,
+                    last_used=current_timestamp,
+                    cancelled=mutation.cancelled,
+                )
+            )
+
+        return _save_prompt_history(prompts)
+
+
+def _format_prompt_for_display(entry: PromptEntry) -> str:
+    """Format a prompt entry for fzf display.
+
+    Args:
+        entry: The prompt entry to format.
+
+    Returns:
+        Formatted display string.
+    """
+    # Format prompt text: replace newlines with spaces, truncate if needed
+    preview = entry.text.replace("\n", " ").replace("\r", " ")
+    if len(preview) > _PROMPT_PREVIEW_LENGTH:
+        preview = preview[:_PROMPT_PREVIEW_LENGTH] + "..."
+
+    return f"{entry.last_used} | {preview}"
+
+
+class _PromptStoreApi:
+    """Internal adapter for sibling prompt-history modules."""
+
+    def load_prompt_history(self) -> list[PromptEntry]:
+        return _load_prompt_history()
+
+    def format_prompt_for_display(self, entry: PromptEntry) -> str:
+        return _format_prompt_for_display(entry)
+
+
+api = _PromptStoreApi()
