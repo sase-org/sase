@@ -4,8 +4,10 @@ from sase.core.agent_scan_wire import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
+    AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
     agent_artifact_index_query_to_dict,
+    agent_artifact_index_status_from_dict,
     agent_artifact_index_update_from_dict,
     agent_scan_wire_from_dict,
     agent_scan_wire_to_json_dict,
@@ -62,6 +64,21 @@ def test_artifact_index_wire_helpers() -> None:
         rows_indexed=2,
         rows_deleted=1,
         rows_skipped=3,
+    )
+
+    status = agent_artifact_index_status_from_dict(
+        {
+            "schema_version": 3,
+            "index_path": "/tmp/index.sqlite",
+            "agent_artifacts_rows": 10,
+            "dismissed_agents_rows": 2,
+        }
+    )
+    assert status == AgentArtifactIndexStatusWire(
+        schema_version=3,
+        index_path="/tmp/index.sqlite",
+        agent_artifacts_rows=10,
+        dismissed_agents_rows=2,
     )
 
 

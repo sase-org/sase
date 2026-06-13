@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 
 from sase.ace.tui.models.agent import AgentType
@@ -17,6 +16,8 @@ from sase.core.agent_artifact_index_lifecycle import (
     upsert_agent_artifact_index_artifacts,
 )
 from sase.core.agent_scan_wire import AgentArtifactIndexUpdateWire
+
+ProjectionMetaStore = dict[tuple[Path, str], str]
 
 
 def test_projects_root_for_artifact_dir_derives_projects_root(tmp_path: Path) -> None:
@@ -35,6 +36,7 @@ def test_sync_dismissed_agent_artifact_index_serializes_identities(
 ) -> None:  # type: ignore[no-untyped-def]
     index = tmp_path / "agent_artifact_index.sqlite"
     index.touch()
+    _install_projection_meta_store(monkeypatch)
     calls: list[tuple[Path, list[object]]] = []
 
     def fake_replace(index_path: Path, identities: list[object]) -> object:
@@ -178,7 +180,9 @@ def test_sync_dismissed_projection_skips_when_metadata_matches(
 ) -> None:  # type: ignore[no-untyped-def]
     index = tmp_path / "agent_artifact_index.sqlite"
     index.touch()
+    meta_store = _install_projection_meta_store(monkeypatch)
     _write_projection_meta(
+        meta_store,
         index,
         dismissed_agents_signature=[10, 20],
         dismissed_bundle_index_signature=[1, 30, 40, 2],
@@ -210,7 +214,9 @@ def test_authoritative_dismissed_sync_bypasses_matching_metadata(
 ) -> None:  # type: ignore[no-untyped-def]
     index = tmp_path / "agent_artifact_index.sqlite"
     index.touch()
+    meta_store = _install_projection_meta_store(monkeypatch)
     _write_projection_meta(
+        meta_store,
         index,
         dismissed_agents_signature=[10, 20],
         dismissed_bundle_index_signature=[1, 30, 40, 2],
@@ -251,7 +257,7 @@ def test_authoritative_dismissed_sync_bypasses_matching_metadata(
     assert [(row.agent_type, row.cl_name, row.raw_suffix) for row in calls[0][1]] == [
         ("run", "kept", "20260501010101")
     ]
-    metadata = _read_projection_meta(index)
+    metadata = _read_projection_meta(meta_store, index)
     assert metadata["projected_identity_count"] == 1
 
 
@@ -261,6 +267,7 @@ def test_sync_dismissed_projection_writes_metadata(
 ) -> None:  # type: ignore[no-untyped-def]
     index = tmp_path / "agent_artifact_index.sqlite"
     index.touch()
+    meta_store = _install_projection_meta_store(monkeypatch)
     calls: list[tuple[Path, list[object]]] = []
 
     monkeypatch.setattr(
@@ -305,7 +312,7 @@ def test_sync_dismissed_projection_writes_metadata(
         ("run", "json", "20260501010101"),
         ("workflow", "bundle", "20260502020202"),
     ]
-    metadata = _read_projection_meta(index)
+    metadata = _read_projection_meta(meta_store, index)
     assert metadata["dismissed_agents_signature"] == [10, 20]
     assert metadata["dismissed_bundle_index_signature"] == [1, 30, 40, 1]
     assert metadata["projected_identity_count"] == 2
@@ -352,11 +359,14 @@ def test_corrupt_index_quarantined_rebuilt_and_resynced(
     )
     stale_quarantine.write_bytes(b"older corrupt copy")
     _patch_projection_sources(monkeypatch)
+    meta_store = _install_projection_meta_store(
+        monkeypatch,
+        corrupt_prefix=b"this is not",
+    )
 
     def fake_rebuild(index_path: Path, projects_root: Path) -> object:
         del projects_root
-        with sqlite3.connect(index_path) as conn:
-            conn.execute("CREATE TABLE artifacts (artifact_dir TEXT PRIMARY KEY)")
+        index_path.touch()
         return AgentArtifactIndexUpdateWire(
             schema_version=1,
             index_path=str(index_path),
@@ -386,7 +396,7 @@ def test_corrupt_index_quarantined_rebuilt_and_resynced(
     assert report.quarantined_path.read_bytes().startswith(b"this is not")
     quarantines = sorted(tmp_path.glob("agent_artifact_index.sqlite.corrupt-*"))
     assert quarantines == [report.quarantined_path]
-    assert _read_projection_meta(index)["projected_identity_count"] == 1
+    assert _read_projection_meta(meta_store, index)["projected_identity_count"] == 1
 
     # The healed index's metadata must satisfy the fast path on the next
     # sync — the pre-fix failure mode was a full rescan on every launch.
@@ -412,6 +422,7 @@ def test_corruption_reported_by_replace_triggers_heal(
     index = tmp_path / "agent_artifact_index.sqlite"
     index.touch()
     _patch_projection_sources(monkeypatch)
+    _install_projection_meta_store(monkeypatch)
     replace_calls: list[int] = []
 
     def flaky_replace(index_path: Path, identities: list[object]) -> object:
@@ -448,9 +459,10 @@ def test_transient_lock_errors_do_not_quarantine(
     index = tmp_path / "agent_artifact_index.sqlite"
     index.touch()
     _patch_projection_sources(monkeypatch)
+    _install_projection_meta_store(monkeypatch)
 
     def locked_replace(*args: object, **kwargs: object) -> object:
-        raise sqlite3.OperationalError("database is locked")
+        raise RuntimeError("database is locked")
 
     monkeypatch.setattr(
         "sase.core.agent_artifact_index_lifecycle."
@@ -590,7 +602,39 @@ def test_marker_mutation_helper_wraps_single_artifact_upsert(
     assert calls == [([tmp_path], tmp_path / "index.sqlite")]
 
 
+def _install_projection_meta_store(
+    monkeypatch,
+    *,
+    corrupt_prefix: bytes | None = None,
+) -> ProjectionMetaStore:  # type: ignore[no-untyped-def]
+    store: ProjectionMetaStore = {}
+
+    def fake_read(index_path: Path, key: str) -> str | None:
+        path = Path(index_path)
+        if (
+            corrupt_prefix is not None
+            and path.exists()
+            and path.read_bytes().startswith(corrupt_prefix)
+        ):
+            raise RuntimeError("file is not a database")
+        return store.get((path, key))
+
+    def fake_write(index_path: Path, key: str, value: str) -> None:
+        store[(Path(index_path), key)] = value
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle.read_agent_artifact_index_meta",
+        fake_read,
+    )
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle.write_agent_artifact_index_meta",
+        fake_write,
+    )
+    return store
+
+
 def _write_projection_meta(
+    store: ProjectionMetaStore,
     index: Path,
     *,
     dismissed_agents_signature: list[int] | None,
@@ -602,21 +646,15 @@ def _write_projection_meta(
         "dismissed_bundle_index_signature": dismissed_bundle_index_signature,
         "projected_identity_count": 2,
     }
-    with sqlite3.connect(index) as conn:
-        conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        conn.execute(
-            "INSERT INTO meta(key, value) VALUES (?, ?)",
-            (_DISMISSED_PROJECTION_META_KEY, json.dumps(payload)),
-        )
+    store[(index, _DISMISSED_PROJECTION_META_KEY)] = json.dumps(payload)
 
 
-def _read_projection_meta(index: Path) -> dict[str, object]:
-    with sqlite3.connect(index) as conn:
-        row = conn.execute(
-            "SELECT value FROM meta WHERE key = ?",
-            (_DISMISSED_PROJECTION_META_KEY,),
-        ).fetchone()
-    assert row is not None
-    value = json.loads(row[0])
+def _read_projection_meta(
+    store: ProjectionMetaStore,
+    index: Path,
+) -> dict[str, object]:
+    raw = store.get((index, _DISMISSED_PROJECTION_META_KEY))
+    assert raw is not None
+    value = json.loads(raw)
     assert isinstance(value, dict)
     return value

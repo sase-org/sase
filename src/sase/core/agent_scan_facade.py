@@ -31,6 +31,7 @@ from sase.core.agent_artifact_index_lock import (
 from sase.core.agent_scan_wire import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
+    AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
     AgentArtifactIndexVerifyWire,
     AgentArtifactRecordWire,
@@ -47,6 +48,7 @@ from sase.core.agent_scan_wire import (
     WorkflowStateWire,
     WorkflowStepStateWire,
     agent_artifact_index_query_to_dict,
+    agent_artifact_index_status_from_dict,
     agent_artifact_index_update_from_dict,
     agent_scan_wire_to_json_dict,
     agent_scan_wire_from_dict,
@@ -173,6 +175,35 @@ def replace_agent_artifact_index_dismissed_agents(
     return agent_artifact_index_update_from_dict(payload)
 
 
+def read_agent_artifact_index_meta(
+    index_path: Path | str,
+    key: str,
+) -> str | None:
+    """Read one metadata value from the persistent artifact index."""
+    rust_read = require_rust_binding("read_agent_artifact_index_meta")
+    value = rust_read(str(index_path), str(key))
+    return None if value is None else str(value)
+
+
+def write_agent_artifact_index_meta(
+    index_path: Path | str,
+    key: str,
+    value: str,
+) -> None:
+    """Write one metadata value in the persistent artifact index."""
+    rust_write = require_rust_binding("write_agent_artifact_index_meta")
+    rust_write(str(index_path), str(key), str(value))
+
+
+def agent_artifact_index_status(
+    index_path: Path | str,
+) -> AgentArtifactIndexStatusWire:
+    """Return lightweight row-count status for the persistent artifact index."""
+    rust_status = require_rust_binding("agent_artifact_index_status")
+    payload: dict[str, Any] = rust_status(str(index_path))
+    return agent_artifact_index_status_from_dict(payload)
+
+
 def query_agent_artifact_index(
     index_path: Path | str,
     projects_root: Path | str,
@@ -282,6 +313,7 @@ def verify_agent_artifact_index(
 
 __all__ = [
     "AgentArtifactRecordWire",
+    "AgentArtifactIndexStatusWire",
     "AgentArtifactIndexQueryWire",
     "AgentArtifactIndexUpdateWire",
     "AgentArtifactIndexVerifyWire",
@@ -297,13 +329,16 @@ __all__ = [
     "WaitingMarkerWire",
     "WorkflowStateWire",
     "WorkflowStepStateWire",
+    "agent_artifact_index_status",
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "query_agent_artifact_index",
+    "read_agent_artifact_index_meta",
     "rebuild_agent_artifact_index",
     "replace_agent_artifact_index_dismissed_agents",
     "scan_agent_artifact_dirs",
     "scan_agent_artifacts",
     "upsert_agent_artifact_index_row",
     "verify_agent_artifact_index",
+    "write_agent_artifact_index_meta",
 ]

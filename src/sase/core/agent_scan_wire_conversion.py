@@ -22,6 +22,7 @@ from sase.core.agent_scan_wire_markers import (
     WorkflowStepStateWire,
 )
 from sase.core.agent_scan_wire_records import (
+    AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
@@ -90,6 +91,17 @@ def agent_artifact_index_update_from_dict(
         rows_indexed=int(data.get("rows_indexed", 0)),
         rows_deleted=int(data.get("rows_deleted", 0)),
         rows_skipped=int(data.get("rows_skipped", 0)),
+    )
+
+
+def agent_artifact_index_status_from_dict(
+    data: dict[str, Any],
+) -> AgentArtifactIndexStatusWire:
+    return AgentArtifactIndexStatusWire(
+        schema_version=int(data["schema_version"]),
+        index_path=str(data["index_path"]),
+        agent_artifacts_rows=int(data.get("agent_artifacts_rows", 0)),
+        dismissed_agents_rows=int(data.get("dismissed_agents_rows", 0)),
     )
 
 
@@ -176,6 +188,7 @@ def agent_scan_wire_from_dict(data: dict[str, Any]) -> AgentArtifactScanWire:
 
 __all__ = [
     "agent_artifact_index_query_to_dict",
+    "agent_artifact_index_status_from_dict",
     "agent_artifact_index_update_from_dict",
     "agent_scan_wire_from_dict",
     "agent_scan_wire_to_json_dict",

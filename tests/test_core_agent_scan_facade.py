@@ -8,9 +8,12 @@ from typing import Any
 import pytest
 
 from sase.core.agent_scan_facade import (
+    agent_artifact_index_status,
+    read_agent_artifact_index_meta,
     scan_agent_artifact_dirs,
     scan_agent_artifacts,
     verify_agent_artifact_index,
+    write_agent_artifact_index_meta,
 )
 from sase.core.agent_scan_wire import AGENT_SCAN_WIRE_SCHEMA_VERSION
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
@@ -182,6 +185,65 @@ def test_scan_agent_artifact_dirs_calls_rust_binding(
     assert artifact_dirs == [str(artifact_dir)]
     assert options_dict["include_prompt_step_markers"] is True
     assert options_dict["include_raw_prompt_snippets"] is True
+
+
+def test_agent_artifact_index_metadata_helpers_call_rust_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str, str | None]] = []
+
+    fake = install_fake_scan_module(
+        monkeypatch, lambda root, opts: minimal_snapshot(root, [])
+    )
+    fake.read_agent_artifact_index_meta = (  # type: ignore[attr-defined]
+        lambda index, key: calls.append((index, key, None)) or "stored"
+    )
+
+    def fake_write(index: str, key: str, value: str) -> None:
+        calls.append((index, key, value))
+
+    fake.write_agent_artifact_index_meta = fake_write  # type: ignore[attr-defined]
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    assert (
+        read_agent_artifact_index_meta(index_path, "dismissed_projection") == "stored"
+    )
+    write_agent_artifact_index_meta(index_path, "dismissed_projection", "{}")
+
+    assert calls == [
+        (str(index_path), "dismissed_projection", None),
+        (str(index_path), "dismissed_projection", "{}"),
+    ]
+
+
+def test_agent_artifact_index_status_calls_rust_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    fake = install_fake_scan_module(
+        monkeypatch, lambda root, opts: minimal_snapshot(root, [])
+    )
+
+    def fake_status(index: str) -> dict[str, Any]:
+        calls.append(index)
+        return {
+            "schema_version": 3,
+            "index_path": index,
+            "agent_artifacts_rows": 7,
+            "dismissed_agents_rows": 2,
+        }
+
+    fake.agent_artifact_index_status = fake_status  # type: ignore[attr-defined]
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    status = agent_artifact_index_status(index_path)
+
+    assert calls == [str(index_path)]
+    assert status.schema_version == 3
+    assert status.agent_artifacts_rows == 7
+    assert status.dismissed_agents_rows == 2
 
 
 def test_snapshot_workflow_hidden_maps_to_agent_hidden(tmp_path: Path) -> None:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +14,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
 from sase.core.agent_scan_facade import (
+    agent_artifact_index_status,
     default_agent_artifact_index_path,
     query_agent_artifact_index,
     rebuild_agent_artifact_index,
@@ -139,6 +139,7 @@ def _agent_index_status_payload(
         "complete_history": False,
         "complete_visible_inbox": False,
         "dismissed_projection_rows": 0,
+        "indexed_rows": 0,
         "normal_refresh": "visible-inbox artifact-index query",
         "repair_command": "sase agents index gc",
         "repair_reason": None,
@@ -156,10 +157,20 @@ def _agent_index_status_payload(
         )
         return base
 
-    base["schema_version"] = _read_index_schema_version(index_path)
-    base["dismissed_projection_rows"] = _count_index_rows(
-        index_path, "dismissed_agents"
-    )
+    try:
+        status = agent_artifact_index_status(index_path)
+    except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
+        base.update(
+            {
+                "repair_recommended": True,
+                "repair_reason": f"artifact_index_status_failed: {exc}",
+            }
+        )
+        return base
+
+    base["schema_version"] = status.schema_version
+    base["indexed_rows"] = status.agent_artifacts_rows
+    base["dismissed_projection_rows"] = status.dismissed_agents_rows
     try:
         snapshot = query_agent_artifact_index(
             index_path,
@@ -194,36 +205,6 @@ def _agent_index_status_payload(
         }
     )
     return base
-
-
-def _read_index_schema_version(index_path: Path) -> int:
-    try:
-        with sqlite3.connect(index_path) as conn:
-            row = conn.execute(
-                "SELECT value FROM meta WHERE key = 'schema_version'"
-            ).fetchone()
-    except sqlite3.Error:
-        return 0
-    if row is None:
-        return 0
-    try:
-        return int(row[0])
-    except (TypeError, ValueError):
-        return 0
-
-
-def _count_index_rows(index_path: Path, table: str) -> int:
-    if table not in {"agent_artifacts", "dismissed_agents"}:
-        raise ValueError(f"unsupported artifact index table: {table}")
-    try:
-        with sqlite3.connect(index_path) as conn:
-            # Table names are validated above; sqlite parameters cannot bind them.
-            row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()  # noqa: S608
-    except sqlite3.Error:
-        return 0
-    if row is None:
-        return 0
-    return int(row[0])
 
 
 def _handle_agents_index_gc(args: argparse.Namespace) -> None:

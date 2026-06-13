@@ -134,6 +134,16 @@ class AgentArtifactIndexUpdateWire:
 
 
 @dataclass(frozen=True)
+class AgentArtifactIndexStatusWire:
+    """Lightweight row-count status for the persistent artifact index."""
+
+    schema_version: int
+    index_path: str
+    agent_artifacts_rows: int = 0
+    dismissed_agents_rows: int = 0
+
+
+@dataclass(frozen=True)
 class AgentArtifactIndexVerifyWire:
     """Summary returned by artifact index verification."""
 
@@ -269,6 +279,7 @@ __all__ = [
     "AGENT_ARTIFACT_INDEX_SCHEMA_VERSION",
     "AGENT_SCAN_WIRE_SCHEMA_VERSION",
     "AgentArtifactIndexQueryWire",
+    "AgentArtifactIndexStatusWire",
     "AgentArtifactIndexUpdateWire",
     "AgentArtifactIndexVerifyWire",
     "AgentArtifactRecordWire",

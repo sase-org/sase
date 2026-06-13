@@ -81,6 +81,7 @@ from __future__ import annotations
 
 from sase.core.agent_scan_wire_conversion import (
     agent_artifact_index_query_to_dict,
+    agent_artifact_index_status_from_dict,
     agent_artifact_index_update_from_dict,
     agent_scan_wire_from_dict,
     agent_scan_wire_to_json_dict,
@@ -104,6 +105,7 @@ from sase.core.agent_scan_wire_records import (
     WORKFLOW_STATE_DIR_NAMES,
     WORKFLOW_STATE_DIR_PREFIXES,
     AgentArtifactIndexQueryWire,
+    AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
     AgentArtifactIndexVerifyWire,
     AgentArtifactRecordWire,
@@ -120,6 +122,7 @@ __all__ = [
     "WORKFLOW_STATE_DIR_NAMES",
     "WORKFLOW_STATE_DIR_PREFIXES",
     "AgentArtifactIndexQueryWire",
+    "AgentArtifactIndexStatusWire",
     "AgentArtifactIndexUpdateWire",
     "AgentArtifactIndexVerifyWire",
     "AgentArtifactRecordWire",
@@ -136,6 +139,7 @@ __all__ = [
     "WorkflowStateWire",
     "WorkflowStepStateWire",
     "agent_artifact_index_query_to_dict",
+    "agent_artifact_index_status_from_dict",
     "agent_artifact_index_update_from_dict",
     "agent_scan_wire_from_dict",
     "agent_scan_wire_to_json_dict",

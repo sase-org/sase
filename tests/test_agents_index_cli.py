@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,11 +12,12 @@ import pytest
 from sase.agents.cli_index import handle_agents_index
 from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
 from sase.core.agent_scan_wire import (
+    AgentArtifactIndexStatusWire,
+    AgentArtifactIndexUpdateWire,
+    AgentArtifactIndexVerifyWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
-    AgentArtifactIndexUpdateWire,
-    AgentArtifactIndexVerifyWire,
 )
 
 
@@ -153,36 +153,40 @@ def test_index_status_json_reports_visible_inbox_without_verify_scan(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     index_path = tmp_path / "index.sqlite"
-    with sqlite3.connect(index_path) as conn:
-        conn.execute("CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        conn.execute("INSERT INTO meta(key, value) VALUES ('schema_version', '1')")
-        conn.execute(
-            "CREATE TABLE dismissed_agents(agent_type TEXT, cl_name TEXT, raw_suffix TEXT)"
-        )
-        conn.execute(
-            "INSERT INTO dismissed_agents(agent_type, cl_name, raw_suffix) "
-            "VALUES ('run', 'unknown', '20260521010101')"
-        )
+    index_path.touch()
 
     args = _index_args("status")
     args.index_path = str(index_path)
-    with patch(
-        "sase.agents.cli_index.query_agent_artifact_index",
-        return_value=AgentArtifactScanWire(
-            schema_version=1,
-            projects_root="/tmp/projects",
-            options=AgentArtifactScanOptionsWire(),
-            stats=AgentArtifactScanStatsWire(),
-            records=[],
-        ),
-    ) as mock_query:
+    with (
+        patch(
+            "sase.agents.cli_index.agent_artifact_index_status",
+            return_value=AgentArtifactIndexStatusWire(
+                schema_version=3,
+                index_path=str(index_path),
+                agent_artifacts_rows=5,
+                dismissed_agents_rows=1,
+            ),
+        ) as mock_status,
+        patch(
+            "sase.agents.cli_index.query_agent_artifact_index",
+            return_value=AgentArtifactScanWire(
+                schema_version=1,
+                projects_root="/tmp/projects",
+                options=AgentArtifactScanOptionsWire(),
+                stats=AgentArtifactScanStatsWire(),
+                records=[],
+            ),
+        ) as mock_query,
+    ):
         handle_agents_index(args)
 
+    mock_status.assert_called_once_with(index_path)
     mock_query.assert_called_once()
     payload = json.loads(capsys.readouterr().out)
     assert payload["complete_visible_inbox"] is True
     assert payload["complete_history"] is False
     assert payload["dismissed_projection_rows"] == 1
+    assert payload["indexed_rows"] == 5
     assert payload["normal_refresh"] == "visible-inbox artifact-index query"
     assert payload["repair_recommended"] is False
 

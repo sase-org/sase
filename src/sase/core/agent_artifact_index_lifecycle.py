@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import json
-import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -18,9 +17,11 @@ from sase.core.agent_artifact_index_lock import (
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     delete_agent_artifact_index_row,
+    read_agent_artifact_index_meta,
     rebuild_agent_artifact_index,
     replace_agent_artifact_index_dismissed_agents,
     upsert_agent_artifact_index_row,
+    write_agent_artifact_index_meta,
 )
 from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
 from sase.core.paths import sase_home as _sase_home
@@ -41,7 +42,6 @@ _INDEX_ERRORS = (
     OSError,
     RuntimeError,
     ValueError,
-    sqlite3.Error,
 )
 _DISMISSED_PROJECTION_META_KEY = "dismissed_projection"
 _DISMISSED_PROJECTION_META_VERSION = 1
@@ -51,8 +51,10 @@ _DISMISSED_PROJECTION_META_VERSION = 1
 _CORRUPTION_MARKERS = (
     "database disk image is malformed",
     "file is not a database",
+    "not a database",
     "malformed database schema",
     "database corruption",
+    "unsupported file format",
 )
 
 
@@ -63,14 +65,9 @@ class _CorruptArtifactIndexError(Exception):
 def _is_corruption_error(error: BaseException) -> bool:
     """Return whether *error* signals on-disk corruption.
 
-    Matches the ``sqlite3.DatabaseError`` malformed-database family plus
-    corruption messages surfaced through the Rust facade's ``RuntimeError``.
-    Transient errors (locked/busy timeouts) never match.
+    Matches corruption messages surfaced through the Rust facade's
+    ``RuntimeError``. Transient errors (locked/busy timeouts) never match.
     """
-    if isinstance(error, sqlite3.Error) and not isinstance(
-        error, sqlite3.DatabaseError
-    ):
-        return False
     message = " ".join(str(arg) for arg in getattr(error, "args", ())).lower()
     return any(marker in message for marker in _CORRUPTION_MARKERS)
 
@@ -480,24 +477,19 @@ def _projection_metadata_matches(
 
 
 def _read_projection_metadata(index_path: Path) -> dict[str, object] | None:
-    with agent_artifact_index_operation_lock():
-        try:
-            with sqlite3.connect(index_path, timeout=5) as conn:
-                row = conn.execute(
-                    "SELECT value FROM meta WHERE key = ?",
-                    (_DISMISSED_PROJECTION_META_KEY,),
-                ).fetchone()
-        except sqlite3.Error as error:
-            # Don't conflate corruption with "no metadata": a missing-table or
-            # transient lock error just misses the fast path, but a malformed
-            # database must surface so the sync entry point can heal it.
-            if _is_corruption_error(error):
-                raise _CorruptArtifactIndexError from error
-            return None
-    if row is None:
+    try:
+        raw = read_agent_artifact_index_meta(index_path, _DISMISSED_PROJECTION_META_KEY)
+    except _INDEX_ERRORS as error:
+        # Don't conflate corruption with "no metadata": a missing-table or
+        # transient lock error just misses the fast path, but a malformed
+        # database must surface so the sync entry point can heal it.
+        if _is_corruption_error(error):
+            raise _CorruptArtifactIndexError from error
+        return None
+    if raw is None:
         return None
     try:
-        value = json.loads(str(row[0]))
+        value = json.loads(raw)
     except (TypeError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
@@ -518,16 +510,11 @@ def _write_projection_metadata(
         "projected_identity_count": len(projection.identities),
         "synced_at": datetime.now(UTC).isoformat(),
     }
-    with agent_artifact_index_operation_lock():
-        with sqlite3.connect(index_path, timeout=5) as conn:
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS meta ("
-                "key TEXT PRIMARY KEY, value TEXT NOT NULL)"
-            )
-            conn.execute(
-                "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
-                (_DISMISSED_PROJECTION_META_KEY, json.dumps(payload, sort_keys=True)),
-            )
+    write_agent_artifact_index_meta(
+        index_path,
+        _DISMISSED_PROJECTION_META_KEY,
+        json.dumps(payload, sort_keys=True),
+    )
 
 
 def _json_signature(signature: tuple[int, ...] | None) -> list[int] | None:
