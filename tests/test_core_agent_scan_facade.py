@@ -9,6 +9,7 @@ import pytest
 
 from sase.core.agent_scan_facade import (
     agent_artifact_index_status,
+    query_related_agent_artifact_dirs,
     read_agent_artifact_index_meta,
     scan_agent_artifact_dirs,
     scan_agent_artifacts,
@@ -244,6 +245,35 @@ def test_agent_artifact_index_status_calls_rust_binding(
     assert status.schema_version == 3
     assert status.agent_artifacts_rows == 7
     assert status.dismissed_agents_rows == 2
+
+
+def test_related_agent_artifact_dirs_calls_rust_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str, list[str]]] = []
+    fake = install_fake_scan_module(
+        monkeypatch, lambda root, opts: minimal_snapshot(root, [])
+    )
+
+    def fake_query(index: str, artifact_dir: str, seeds: list[str]) -> list[str]:
+        calls.append((index, artifact_dir, seeds))
+        return [artifact_dir, str(tmp_path / "artifacts" / "20260504120500")]
+
+    fake.query_related_agent_artifact_dirs = fake_query  # type: ignore[attr-defined]
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    artifact_dir = tmp_path / "artifacts" / "20260504120000"
+    related = query_related_agent_artifact_dirs(
+        index_path,
+        artifact_dir,
+        ["20260504120000", ""],
+    )
+
+    assert calls == [
+        (str(index_path), str(artifact_dir), ["20260504120000"]),
+    ]
+    assert related == [artifact_dir, tmp_path / "artifacts" / "20260504120500"]
 
 
 def test_snapshot_workflow_hidden_maps_to_agent_hidden(tmp_path: Path) -> None:

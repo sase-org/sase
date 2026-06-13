@@ -342,6 +342,54 @@ def test_tools_panel_cache_invalidates_for_live_codex_appends(tmp_path: Path) ->
     assert entries[0].detail == "exit 0 | /tmp"
 
 
+def test_tools_panel_worker_reuses_discovered_dirs_for_reread(
+    tmp_path: Path,
+) -> None:
+    root_dir = tmp_path / "ace-run" / "20260514140000"
+    retry_dir = tmp_path / "ace-run" / "20260514140500"
+    root_dir.mkdir(parents=True)
+    retry_dir.mkdir(parents=True)
+    (root_dir / TOOL_CALLS_FILENAME).write_text("", encoding="utf-8")
+    (retry_dir / TOOL_CALLS_FILENAME).write_text("", encoding="utf-8")
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="proj",
+        project_file="/tmp/proj/proj.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 14, 10, 0, 0),
+        artifacts_dir=str(root_dir),
+        raw_suffix=root_dir.name,
+    )
+    cache_key = get_cache_key(agent)
+    tools_panel_mod._tools_cache[cache_key] = _ToolsCacheEntry(
+        entries=[],
+        fetch_time=datetime.now(),
+        artifact_mtime_ns=1,
+        discovered_dirs=[root_dir, retry_dir],
+        parent_mtime_ns=2,
+        last_worker_monotonic=time.monotonic(),
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.tools.reader.discover_related_tool_artifact_dirs_cached",
+            return_value=([root_dir, retry_dir], 3),
+        ),
+        patch(
+            "sase.ace.tui.widgets.tools_panel.read_tool_calls_for_agent",
+            return_value=[],
+        ) as read_mock,
+    ):
+        try:
+            panel = _build_panel()
+            entries = panel._fetch_tools_in_background(agent)
+        finally:
+            tools_panel_mod._tools_cache.pop(cache_key, None)
+
+    assert entries == []
+    read_mock.assert_called_once_with(agent, artifact_dirs=[root_dir, retry_dir])
+
+
 def _build_panel() -> AgentToolsPanel:
     panel = AgentToolsPanel.__new__(AgentToolsPanel)
     panel._current_agent = None

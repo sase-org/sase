@@ -227,6 +227,21 @@ def query_agent_artifact_index(
     return agent_scan_wire_from_dict(payload)
 
 
+def query_related_agent_artifact_dirs(
+    index_path: Path | str,
+    artifact_dir: Path | str,
+    seed_timestamps: Sequence[str],
+) -> list[Path]:
+    """Return index-backed artifact dirs for one related agent lineage."""
+    index = Path(index_path).expanduser()
+    artifact = Path(artifact_dir).expanduser()
+    seeds = [str(value) for value in seed_timestamps if value]
+    with agent_artifact_index_operation_lock():
+        rust_query = require_rust_binding("query_related_agent_artifact_dirs")
+        payload: list[str] = rust_query(str(index), str(artifact), seeds)
+    return [Path(path) for path in payload]
+
+
 def verify_agent_artifact_index(
     index_path: Path | str,
     projects_root: Path | str,
@@ -336,6 +351,7 @@ __all__ = [
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "query_agent_artifact_index",
+    "query_related_agent_artifact_dirs",
     "read_agent_artifact_index_meta",
     "rebuild_agent_artifact_index",
     "replace_agent_artifact_index_dismissed_agents",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from sase.ace.tui.tools import (
     ToolCallEntry,
@@ -9,6 +10,7 @@ from sase.ace.tui.tools import (
     discover_related_tool_artifact_dirs,
     read_tool_calls_for_agent,
 )
+from sase.ace.tui.tools import reader as reader_mod
 
 from ._reader_helpers import (
     _agent,
@@ -237,6 +239,59 @@ def test_read_tool_calls_for_agent_aggregates_related_phase_dirs(
 
     assert related == [root_dir, retry_dir]
     assert [entry.tool_use_id for entry in entries or []] == ["root", "retry"]
+
+
+def test_discover_related_tool_artifact_dirs_uses_index_without_fallback_scan(
+    tmp_path: Path,
+) -> None:
+    root_dir = tmp_path / "ace-run" / "20260514140000"
+    retry_dir = tmp_path / "ace-run" / "20260514140500"
+    root_dir.mkdir(parents=True)
+    retry_dir.mkdir(parents=True)
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+
+    with (
+        patch(
+            "sase.core.agent_scan_facade.default_agent_artifact_index_path",
+            return_value=index_path,
+        ),
+        patch(
+            "sase.core.agent_scan_facade.query_related_agent_artifact_dirs",
+            return_value=[root_dir, retry_dir],
+        ) as query_index,
+        patch.object(
+            reader_mod,
+            "_discover_related_tool_artifact_dirs_bounded_scan",
+        ) as fallback_scan,
+    ):
+        related = discover_related_tool_artifact_dirs(_agent(root_dir), root_dir)
+
+    assert related == [root_dir, retry_dir]
+    query_index.assert_called_once()
+    fallback_scan.assert_not_called()
+
+
+def test_discover_related_tool_artifact_dirs_fallback_caps_sibling_scan(
+    tmp_path: Path,
+) -> None:
+    root_dir = tmp_path / "ace-run" / "20260514140000"
+    root_dir.mkdir(parents=True)
+    for index in range(reader_mod._MAX_RELATED_FALLBACK_SIBLINGS + 20):
+        sibling = tmp_path / "ace-run" / f"20260515{index:06}"
+        sibling.mkdir()
+        (sibling / "agent_meta.json").write_text(
+            json.dumps({"parent_timestamp": root_dir.name}),
+            encoding="utf-8",
+        )
+
+    with patch(
+        "sase.core.agent_scan_facade.default_agent_artifact_index_path",
+        return_value=tmp_path / "missing.sqlite",
+    ):
+        related = discover_related_tool_artifact_dirs(_agent(root_dir), root_dir)
+
+    assert 1 < len(related) <= reader_mod._MAX_RELATED_FALLBACK_SIBLINGS + 1
 
 
 def test_read_tool_calls_for_agent_sorts_stably(tmp_path: Path) -> None:

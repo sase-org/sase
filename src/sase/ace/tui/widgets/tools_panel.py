@@ -389,7 +389,7 @@ class AgentToolsPanel(Static):
             prior.parent_mtime_ns = parent_mtime_ns
             return prior.entries
 
-        entries = read_tool_calls_for_agent(agent)
+        entries = read_tool_calls_for_agent(agent, artifact_dirs=dirs)
         _tools_cache[cache_key] = _ToolsCacheEntry(
             entries=entries,
             fetch_time=datetime.now(),
