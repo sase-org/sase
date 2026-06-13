@@ -111,7 +111,7 @@ class PromptInputBar(Static):
             placeholder = "Type coder prompt...  [^G] editor  [^J] newline"
         else:
             placeholder = (
-                "Type prompt  [^.] history  [^T] complete  [^R] find  "
+                "Type prompt  [^K] history  [^T] complete  [^R] find  "
                 "[^G] editor  [^Y] workflow  [^J] newline"
             )
         yield Static("", id="prompt-completion", classes="hidden")

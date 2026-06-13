@@ -64,7 +64,7 @@ class _HistoryRequestHarness(PromptBarRequestsMixin):
         self.unmount_count += 1
 
 
-def test_ctrl_dot_history_cancel_refocuses_prompt_bar_without_unmounting() -> None:
+def test_ctrl_k_history_cancel_refocuses_prompt_bar_without_unmounting() -> None:
     harness = _HistoryRequestHarness()
     event = PromptInputBar.HistoryRequested(
         initial_filter="draft prompt",

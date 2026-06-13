@@ -303,7 +303,7 @@ class PromptTextArea(
                 bar.action_cancel()
             return
 
-        if event.key in {"ctrl+full_stop", "ctrl+period"}:
+        if event.key == "ctrl+k":
             event.stop()
             event.prevent_default()
             self.action_open_prompt_history()

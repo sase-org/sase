@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-13 11:44:15
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_history_ctrl_k_rebind.md
 ---
 # Plan: Fix the broken prompt-history trigger (rebind `Ctrl+.` → `Ctrl+K`)

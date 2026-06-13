@@ -33,11 +33,11 @@ class PromptHistoryTriggerApp(App[None]):
         self.submissions.append(event)
 
 
-async def test_ctrl_full_stop_requests_history_with_single_line_filter() -> None:
+async def test_ctrl_k_requests_history_with_single_line_filter() -> None:
     app = PromptHistoryTriggerApp("fix failing auth test")
 
     async with app.run_test() as pilot:
-        await pilot.press("ctrl+full_stop")
+        await pilot.press("ctrl+k")
 
     assert len(app.history_requests) == 1
     request = app.history_requests[0]
@@ -47,22 +47,34 @@ async def test_ctrl_full_stop_requests_history_with_single_line_filter() -> None
     assert app.submissions == []
 
 
-async def test_ctrl_full_stop_noops_for_multiline_prompt() -> None:
+async def test_ctrl_k_noops_for_multiline_prompt() -> None:
     app = PromptHistoryTriggerApp("first line\nsecond line")
 
     async with app.run_test() as pilot:
-        await pilot.press("ctrl+full_stop")
+        await pilot.press("ctrl+k")
 
     assert app.history_requests == []
     assert app.submissions == []
 
 
-async def test_ctrl_full_stop_noops_for_feedback_mode() -> None:
+async def test_ctrl_k_noops_for_feedback_mode() -> None:
     app = PromptHistoryTriggerApp("plan feedback", mode="feedback")
 
     async with app.run_test() as pilot:
-        await pilot.press("ctrl+full_stop")
+        await pilot.press("ctrl+k")
 
+    assert app.history_requests == []
+    assert app.submissions == []
+
+
+async def test_full_stop_inserts_period_without_requesting_history() -> None:
+    app = PromptHistoryTriggerApp()
+
+    async with app.run_test() as pilot:
+        await pilot.press("full_stop")
+        text_area = app.query_one(PromptTextArea)
+
+    assert text_area.text == "."
     assert app.history_requests == []
     assert app.submissions == []
 
