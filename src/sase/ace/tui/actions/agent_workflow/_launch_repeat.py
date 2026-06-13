@@ -67,6 +67,7 @@ class RepeatLaunchMixin:
             NameCollisionError,
             REPEAT_ITERATION_ENV,
             REPEAT_NAME_ENV,
+            REPEAT_PREV_NAME_ENV,
             REPEAT_TOTAL_ENV,
             RepeatAgentSpec,
             extract_repeat_and_name,
@@ -128,11 +129,14 @@ class RepeatLaunchMixin:
 
             def _slot_env(slot: LaunchFanoutSlotWire) -> dict[str, str]:
                 spec = specs_by_slot[slot.slot_index]
-                return {
+                env = {
                     REPEAT_NAME_ENV: spec.name,
                     REPEAT_ITERATION_ENV: str(spec.iteration),
                     REPEAT_TOTAL_ENV: str(spec.total),
                 }
+                if spec.prev_name is not None:
+                    env[REPEAT_PREV_NAME_ENV] = spec.prev_name
+                return env
 
             def _spawn_from_tui(request: LaunchSpawnRequest) -> AgentLaunchResult:
                 return self._launch_background_agent(  # type: ignore[attr-defined]

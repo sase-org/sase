@@ -19,13 +19,20 @@ from typing import Any
 
 from sase.ace.hooks import format_duration
 from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
+from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.axe.run_agent_phases import (
+    build_done_marker,
     claim_deferred_workspace,
     extract_directives_and_write_meta,
     record_run_started_at,
     resolve_agent_refs_in_prompt,
     resolve_wait_chat_paths,
     wait_for_dependencies,
+)
+from sase.axe.run_agent_repeat_stop import (
+    STOP_OUTPUT_VARIABLE,
+    RepeatStopDecision,
+    detect_repeat_stop,
 )
 from sase.axe.run_agent_runtime import format_agent_run_runtime
 from sase.axe.run_agent_runner_finalize import (
@@ -56,6 +63,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.agent_output_variables import set_agent_output_variables
 from sase.telemetry import init_telemetry, register_push_on_exit
 from sase.telemetry.metrics import AGENT_KILLS
 
@@ -93,6 +101,57 @@ def _auto_dismiss_completed_agent(cl_name: str, artifacts_timestamp: str) -> Non
             sync_dismissed_agent_artifact_index(dismissed, added=identities)
     except Exception:
         pass  # Best effort
+
+
+def _finalize_repeat_stop(
+    *,
+    decision: RepeatStopDecision,
+    artifacts_dir: str,
+    cl_name: str,
+    project_file: str,
+    timestamp: str,
+    artifacts_timestamp: str,
+    workspace_num: int,
+    workspace_dir: str,
+    output_path: str,
+    agent_name: str | None,
+    agent_model: str | None,
+    agent_llm_provider: str | None,
+    agent_vcs_provider: str | None,
+    agent_hidden: bool,
+) -> None:
+    """Finalize the current repeat slot as a successful skipped STOP slot.
+
+    Propagates ``STOP`` into this slot's own output variables *before* writing
+    the completed ``done.json`` marker: the next downstream waiter can only
+    wake once this slot has a completed done marker, so writing the variable
+    first guarantees the cascade always observes the propagated value.
+    """
+    set_agent_output_variables(
+        artifacts_dir, {STOP_OUTPUT_VARIABLE: decision.stop_value}
+    )
+    done_marker = build_done_marker(
+        cl_name,
+        project_file,
+        timestamp,
+        artifacts_timestamp,
+        workspace_num,
+        workspace_dir,
+        output_path,
+        "completed",
+        agent_name=agent_name,
+        agent_model=agent_model,
+        agent_llm_provider=agent_llm_provider,
+        agent_vcs_provider=agent_vcs_provider,
+        agent_hidden=agent_hidden,
+        repeat_stopped=True,
+        stopped_by=decision.producer_name,
+    )
+    write_done_marker_and_update_index(artifacts_dir, done_marker)
+    print(
+        f"Repeat chain stopped by {decision.producer_name} "
+        f"(STOP={decision.stop_value}); skipping execution"
+    )
 
 
 def main() -> None:
@@ -303,6 +362,7 @@ def main() -> None:
                     "is empty; refusing to continue in the placeholder workspace"
                 )
             wait_chats: list[str] = []
+            repeat_stop: RepeatStopDecision | None = None
             if has_wait:
                 wait_for_dependencies(
                     info.wait_names,
@@ -314,90 +374,122 @@ def main() -> None:
                     wait_until=info.wait_until,
                 )
 
-                if info.wait_names:
-                    wait_chats = resolve_wait_chat_paths(info.wait_names)
+                # A repeat slot whose chain predecessor set STOP finalizes here
+                # as a successful skipped slot -- before resolving wait chats,
+                # claiming a deferred workspace, or invoking the provider.
+                repeat_stop = detect_repeat_stop()
 
-                # Allocate real workspace now that dependencies are resolved
-                if os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE") and not is_home_mode:
-                    workspace_num, workspace_dir = claim_deferred_workspace(
-                        project_file,
-                        project_name,
-                        workflow_name,
-                        cl_name,
-                        artifacts_timestamp,
-                    )
-                    prepare_workspace_if_needed(
-                        workspace_dir=workspace_dir,
-                        cl_name=cl_name,
-                        update_target=update_target,
-                        project_name=project_name,
-                        is_home_mode=is_home_mode,
-                        retry_handoff=retry_handoff,
-                    )
-                    prompt = refresh_sibling_repos_for_workspace(
-                        project_file=project_file,
-                        workspace_dir=workspace_dir,
-                        workspace_num=workspace_num,
-                        artifacts_dir=artifacts_dir,
-                        agent_meta=agent_meta,
-                        prompt=prompt,
-                    )
+            if repeat_stop is not None:
+                _finalize_repeat_stop(
+                    decision=repeat_stop,
+                    artifacts_dir=artifacts_dir,
+                    cl_name=cl_name,
+                    project_file=project_file,
+                    timestamp=timestamp,
+                    artifacts_timestamp=artifacts_timestamp,
+                    workspace_num=workspace_num,
+                    workspace_dir=workspace_dir,
+                    output_path=output_path,
+                    agent_name=agent_name,
+                    agent_model=agent_model,
+                    agent_llm_provider=agent_llm_provider,
+                    agent_vcs_provider=agent_vcs_provider,
+                    agent_hidden=agent_hidden,
+                )
+                current_artifacts_dir = artifacts_dir
+                success = True
+                exec_outcome = "completed"
+                suppress_completion_notification = True
+            else:
+                if has_wait:
+                    if info.wait_names:
+                        wait_chats = resolve_wait_chat_paths(info.wait_names)
 
-            # Resolve @name agent references in VCS tags (e.g., #gh:@a -> #gh:branch_name).
-            # This runs after wait_for_dependencies() so referenced agents are done.
-            prompt, vcs_tag = resolve_agent_refs_in_prompt(prompt)
+                    # Allocate real workspace now that dependencies are resolved
+                    if (
+                        os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE")
+                        and not is_home_mode
+                    ):
+                        workspace_num, workspace_dir = claim_deferred_workspace(
+                            project_file,
+                            project_name,
+                            workflow_name,
+                            cl_name,
+                            artifacts_timestamp,
+                        )
+                        prepare_workspace_if_needed(
+                            workspace_dir=workspace_dir,
+                            cl_name=cl_name,
+                            update_target=update_target,
+                            project_name=project_name,
+                            is_home_mode=is_home_mode,
+                            retry_handoff=retry_handoff,
+                        )
+                        prompt = refresh_sibling_repos_for_workspace(
+                            project_file=project_file,
+                            workspace_dir=workspace_dir,
+                            workspace_num=workspace_num,
+                            artifacts_dir=artifacts_dir,
+                            agent_meta=agent_meta,
+                            prompt=prompt,
+                        )
 
-            if info.approve:
-                os.environ["SASE_AGENT_AUTO_APPROVE"] = "1"
+                # Resolve @name agent references in VCS tags
+                # (e.g., #gh:@a -> #gh:branch_name). This runs after
+                # wait_for_dependencies() so referenced agents are done.
+                prompt, vcs_tag = resolve_agent_refs_in_prompt(prompt)
 
-            from sase.agent.output_variable_context import (
-                SASE_AGENT_VAR_UPSTREAMS_ENV,
-                build_agent_output_variable_context,
-            )
+                if info.approve:
+                    os.environ["SASE_AGENT_AUTO_APPROVE"] = "1"
 
-            output_variable_namespaces = build_agent_output_variable_context(
-                upstreams_json=os.environ.get(SASE_AGENT_VAR_UPSTREAMS_ENV),
-                wait_names=info.wait_names,
-            )
+                from sase.agent.output_variable_context import (
+                    SASE_AGENT_VAR_UPSTREAMS_ENV,
+                    build_agent_output_variable_context,
+                )
 
-            ctx = AgentExecContext(
-                cl_name=cl_name,
-                project_file=project_file,
-                workspace_dir=workspace_dir,
-                output_path=output_path,
-                workspace_num=workspace_num,
-                timestamp=timestamp,
-                update_target=update_target,
-                project_name=project_name,
-                is_home_mode=is_home_mode,
-                artifacts_dir=artifacts_dir,
-                artifacts_timestamp=artifacts_timestamp,
-                vcs_tag=vcs_tag,
-                agent_name=agent_name,
-                agent_model=agent_model,
-                agent_llm_provider=agent_llm_provider,
-                agent_vcs_provider=agent_vcs_provider,
-                agent_hidden=agent_hidden,
-                agent_meta=agent_meta,
-                local_xprompts=info.local_xprompts,
-                wait_chats=wait_chats,
-                output_variable_namespaces=output_variable_namespaces,
-            )
+                output_variable_namespaces = build_agent_output_variable_context(
+                    upstreams_json=os.environ.get(SASE_AGENT_VAR_UPSTREAMS_ENV),
+                    wait_names=info.wait_names,
+                )
 
-            run_started_at = record_run_started_at(artifacts_dir, agent_meta)
-            exec_result = run_execution_loop(ctx, prompt)
-            exec_outcome = exec_result.outcome
-            success = classify_exec_success(
-                success=exec_result.success,
-                outcome=exec_outcome,
-            )
-            saved_path = exec_result.saved_path
-            diff_path = exec_result.diff_path
-            markdown_pdf_paths = exec_result.markdown_pdf_paths
-            markdown_source_count = exec_result.markdown_source_count
-            image_paths = exec_result.image_paths
-            current_artifacts_dir = exec_result.current_artifacts_dir
-            step_output = exec_result.step_output
+                ctx = AgentExecContext(
+                    cl_name=cl_name,
+                    project_file=project_file,
+                    workspace_dir=workspace_dir,
+                    output_path=output_path,
+                    workspace_num=workspace_num,
+                    timestamp=timestamp,
+                    update_target=update_target,
+                    project_name=project_name,
+                    is_home_mode=is_home_mode,
+                    artifacts_dir=artifacts_dir,
+                    artifacts_timestamp=artifacts_timestamp,
+                    vcs_tag=vcs_tag,
+                    agent_name=agent_name,
+                    agent_model=agent_model,
+                    agent_llm_provider=agent_llm_provider,
+                    agent_vcs_provider=agent_vcs_provider,
+                    agent_hidden=agent_hidden,
+                    agent_meta=agent_meta,
+                    local_xprompts=info.local_xprompts,
+                    wait_chats=wait_chats,
+                    output_variable_namespaces=output_variable_namespaces,
+                )
+
+                run_started_at = record_run_started_at(artifacts_dir, agent_meta)
+                exec_result = run_execution_loop(ctx, prompt)
+                exec_outcome = exec_result.outcome
+                success = classify_exec_success(
+                    success=exec_result.success,
+                    outcome=exec_outcome,
+                )
+                saved_path = exec_result.saved_path
+                diff_path = exec_result.diff_path
+                markdown_pdf_paths = exec_result.markdown_pdf_paths
+                markdown_source_count = exec_result.markdown_source_count
+                image_paths = exec_result.image_paths
+                current_artifacts_dir = exec_result.current_artifacts_dir
+                step_output = exec_result.step_output
 
         except Exception as e:
             print(f"Error running agent: {e}", file=sys.stderr)

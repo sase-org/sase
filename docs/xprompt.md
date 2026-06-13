@@ -1187,6 +1187,24 @@ in the prompt body:
 Run test suite batch {{ n }} of {{ N }}.
 ```
 
+#### Stopping a repeat chain early with `STOP`
+
+A repeat iteration can stop every later slot by setting the reserved `STOP` output variable before it completes:
+
+```
+%repeat:5
+Process the next batch; if there is no more work, run: sase var set STOP=1
+```
+
+Because the slots are already spawned and wait-chained, "stopping" works on wake: when a later slot's `%wait` on its
+repeat predecessor resolves, the slot checks that predecessor's `STOP` output variable. If it is truthy, the slot
+propagates `STOP`, finalizes as a successful **completed** (skipped) slot — recording `repeat_stopped: true` and
+`stopped_by` in its `done.json` — and exits without claiming a workspace or running its prompt. Keeping the outcome
+`completed` lets the stop cascade down the chain through the ordinary `%wait` resolution, so each remaining slot winds
+down one wait-check cycle after the previous one. `STOP` is conservative: `""`, `0`, `false`, `no`, and `off`
+(case-insensitive) are not-stop; any other value stops the chain. See
+[Cross-Agent Output Variables](#cross-agent-output-variables) for how `STOP` behaves outside repeat chains.
+
 ### Alt Directive
 
 The `%alt` directive splits a single prompt into multiple variant prompts, each launched as a separate agent. Each
@@ -1462,6 +1480,11 @@ keys also support attribute access such as `{{ agents.build.report_path }}`. `ag
 name; a workflow input named `agents` collides and fails clearly. Output variables are persisted in the producer's
 `agent_meta.json` and also appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata section. They are visible metadata,
 not secret storage.
+
+`STOP` is a reserved output-variable name, but only for `%repeat` / `%r` chain continuation: setting it stops later
+repeat slots (see [Stopping a repeat chain early with `STOP`](#stopping-a-repeat-chain-early-with-stop)). It has no
+special meaning for ordinary `%wait` consumers, `---` segments, or `%alt` fan-outs — those read it like any other
+variable, e.g. `{{ agents["name"].STOP }}`.
 
 ### Rules
 

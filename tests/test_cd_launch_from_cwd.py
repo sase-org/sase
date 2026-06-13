@@ -282,3 +282,47 @@ def test_launch_agent_from_cwd_repeat_failure_records_failed_history(
     entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
     assert entries[0]["text"] == prompt
     assert entries[0]["cancelled"] is True
+
+
+def test_launch_agents_from_cwd_repeat_injects_prev_name_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The daemon/cwd repeat path forwards SASE_REPEAT_PREV_NAME to later slots."""
+    patch_cd_metadata(monkeypatch)
+    import sase.agent.launch_cwd as launch_cwd_mod
+
+    real_launch = launch_cwd_mod.launch_agents_from_cwd
+    captured: list[dict[str, str]] = []
+
+    def fake(query, extra_env=None, segment_extra_env=None, timestamp=None):
+        # Per-slot recursive calls carry the repeat env; the top-level call does
+        # not. Capture the slot envs and short-circuit before any real spawn.
+        if extra_env and "SASE_REPEAT_NAME" in extra_env:
+            captured.append(dict(extra_env))
+            return []
+        return real_launch(
+            query,
+            extra_env=extra_env,
+            segment_extra_env=segment_extra_env,
+            timestamp=timestamp,
+        )
+
+    prompt = f"%r:2\n#cd:{tmp_path} do work"
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000", "260501_120001"],
+        ),
+        patch.object(launch_cwd_mod, "launch_agents_from_cwd", side_effect=fake),
+    ):
+        launch_cwd_mod.launch_agents_from_cwd(prompt)
+
+    assert len(captured) == 2
+    assert "SASE_REPEAT_PREV_NAME" not in captured[0]
+    assert captured[1]["SASE_REPEAT_PREV_NAME"] == captured[0]["SASE_REPEAT_NAME"]

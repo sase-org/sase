@@ -71,6 +71,8 @@ def build_done_marker(
     retried_as_timestamp: str | None = None,
     retry_chain_root_timestamp: str | None = None,
     retry_error_category: str | None = None,
+    repeat_stopped: bool = False,
+    stopped_by: str | None = None,
 ) -> dict[str, Any]:
     """Build a done marker dict for writing to done.json."""
     marker: dict[str, Any] = {
@@ -119,6 +121,13 @@ def build_done_marker(
         marker["retry_chain_root_timestamp"] = retry_chain_root_timestamp
     if retry_error_category:
         marker["retry_error_category"] = retry_error_category
+    # Repeat-chain STOP: a successful skipped repeat slot keeps
+    # ``outcome: "completed"`` (so the wait-check chop cascades it) but records
+    # that it was stopped by a predecessor rather than actually executed.
+    if repeat_stopped:
+        marker["repeat_stopped"] = True
+        if stopped_by:
+            marker["stopped_by"] = stopped_by
     return marker
 
 

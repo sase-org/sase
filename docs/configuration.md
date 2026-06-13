@@ -1620,6 +1620,13 @@ variables from the single `agents` dictionary keyed by the producer's stable age
 `{{ agents["build"].report_path }}` (or `{{ agents.build.report_path }}` for identifier-safe names). Do not store
 secrets; output variables are persisted in `agent_meta.json` and shown in ACE.
 
+`STOP` is a reserved output variable. `sase var set` stays generic and stores it like any other key, but repeat
+orchestration interprets it: setting `STOP` (e.g. `sase var set STOP=1`) inside a `%repeat` / `%r` iteration stops the
+remaining repeat slots, which finalize as successful skipped slots. Truthiness is conservative — `""`, `0`, `false`,
+`no`, and `off` (case-insensitive) are not-stop; any other value stops the chain. `STOP` affects only repeat-chain
+continuation; ordinary `%wait` consumers read it as a normal variable. See
+[Repeat Directive](xprompt.md#repeat-directive) in the xprompt reference for the full cascade semantics.
+
 ### `sase telemetry`
 
 With no subcommand, `sase telemetry` defaults to `sase telemetry list`.

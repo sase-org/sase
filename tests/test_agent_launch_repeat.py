@@ -153,6 +153,23 @@ class TestLaunchRepeatAgents:
         ]
         assert totals == ["3", "3", "3"]
 
+    def test_injects_prev_name_only_for_later_slots(self, tmp_path: Path) -> None:
+        app = _FakeApp()
+        with patch.object(Path, "home", return_value=tmp_path):
+            app._launch_repeat_agents(
+                prompt="%r:3 %n:foo body",
+                ctx=_fake_context(),
+                vcs_ref=None,
+                has_wait=False,
+            )
+
+        assert len(app.launched) == 3
+        prev_names = [
+            call["extra_env"].get("SASE_REPEAT_PREV_NAME")  # type: ignore[union-attr]
+            for call in app.launched
+        ]
+        assert prev_names == [None, "foo.1", "foo.2"]
+
     def test_prompt_has_repeat_stripped_and_name_injected(self, tmp_path: Path) -> None:
         app = _FakeApp()
         with patch.object(Path, "home", return_value=tmp_path):

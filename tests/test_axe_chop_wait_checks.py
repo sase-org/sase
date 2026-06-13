@@ -144,6 +144,34 @@ def test_later_same_name_completed_agent_resolves_after_killed(
     assert ready == {"resolved_deps": ["foo"]}
 
 
+def test_repeat_stopped_completed_marker_resolves_downstream_wait(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A repeat-stopped slot still reports `completed`, so the cascade is generic.
+
+    The next downstream waiter must resolve off the stopped predecessor exactly
+    like any other completed producer -- the chop never inspects `repeat_stopped`.
+    """
+    waiter_dir = _make_waiting_agent(tmp_path, "foo.2")
+    producer_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo.2",
+        done=True,
+        outcome="completed",
+    )
+    # Mark the predecessor as a repeat-stopped slot, as the runner would.
+    done = json.loads((producer_dir / "done.json").read_text(encoding="utf-8"))
+    done.update({"repeat_stopped": True, "stopped_by": "foo.1"})
+    (producer_dir / "done.json").write_text(json.dumps(done), encoding="utf-8")
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["foo.2"]}
+
+
 def test_failed_workflow_name_dependency_does_not_resolve(
     tmp_path: Path, monkeypatch
 ) -> None:

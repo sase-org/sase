@@ -177,6 +177,21 @@ def _read_variables_if_present(artifacts_dir: str) -> dict[str, str]:
         return {}
 
 
+def read_waited_agent_output_variables(wait_name: str) -> dict[str, str] | None:
+    """Return a waited agent's output variables, or ``None`` if unresolvable.
+
+    Resolves *wait_name* the same way :func:`build_agent_output_variable_context`
+    does (newest matching producer generation) and reads its stored
+    ``output_variables``.  Returns an empty mapping when the producer resolves
+    but has written no variables, and ``None`` when no producer matches.
+    """
+    resolved = _resolve_waited_agent(wait_name)
+    if resolved is None:
+        return None
+    artifacts_dir = resolved[0]
+    return _read_variables_if_present(artifacts_dir)
+
+
 def _resolve_waited_agent(
     wait_name: str,
 ) -> tuple[str, str, str | None] | None:
@@ -226,4 +241,5 @@ __all__ = [
     "build_agent_output_variable_context",
     "build_agent_var_upstream_record",
     "encode_agent_var_upstreams",
+    "read_waited_agent_output_variables",
 ]

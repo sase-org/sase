@@ -316,6 +316,7 @@ def launch_agents_from_cwd(
     from sase.agent.repeat_launcher import (
         REPEAT_ITERATION_ENV,
         REPEAT_NAME_ENV,
+        REPEAT_PREV_NAME_ENV,
         REPEAT_TOTAL_ENV,
         RepeatAgentSpec,
         extract_repeat_and_name,
@@ -352,6 +353,8 @@ def launch_agents_from_cwd(
                     REPEAT_ITERATION_ENV: str(spec.iteration),
                     REPEAT_TOTAL_ENV: str(spec.total),
                 }
+                if spec.prev_name is not None:
+                    slot_env[REPEAT_PREV_NAME_ENV] = spec.prev_name
                 if extra_env:
                     slot_env.update(extra_env)
                 slot_results.extend(

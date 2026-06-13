@@ -202,6 +202,37 @@ class TestSpawnRepeatBatch:
         assert specs[2].prompt.startswith("%n:ww.3\n%wait:ww.2\n")
         assert specs[3].prompt.startswith("%n:ww.4\n%wait:ww.3\n")
 
+    def test_prev_name_is_none_for_first_slot_and_predecessor_for_later(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:4 %n:ww do X",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+        assert [s.prev_name for s in specs] == [None, "ww.1", "ww.2", "ww.3"]
+
+    def test_prev_name_uses_resume_derived_names(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:3 #fork:foo do X",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+        assert [s.name for s in specs] == ["foo.f1", "foo.f2", "foo.f3"]
+        assert [s.prev_name for s in specs] == [None, "foo.f1", "foo.f2"]
+
+    def test_prev_name_uses_wait_derived_names(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:3 %wait:foo do X",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+        assert [s.name for s in specs] == ["foo.w1", "foo.w2", "foo.w3"]
+        assert [s.prev_name for s in specs] == [None, "foo.w1", "foo.w2"]
+
     def test_preexisting_user_wait_is_preserved(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(

@@ -34,6 +34,7 @@ __all__ = [
     "NameCollisionError",
     "REPEAT_ITERATION_ENV",
     "REPEAT_NAME_ENV",
+    "REPEAT_PREV_NAME_ENV",
     "REPEAT_TOTAL_ENV",
     "RepeatAgentSpec",
     "extract_repeat_and_name",
@@ -45,17 +46,27 @@ log = logging.getLogger(__name__)
 REPEAT_NAME_ENV = "SASE_REPEAT_NAME"
 REPEAT_ITERATION_ENV = "SASE_REPEAT_ITERATION"
 REPEAT_TOTAL_ENV = "SASE_REPEAT_TOTAL"
+REPEAT_PREV_NAME_ENV = "SASE_REPEAT_PREV_NAME"
 
 
 @dataclass
 class RepeatAgentSpec:
-    """One repeat agent's per-slot parameters."""
+    """One repeat agent's per-slot parameters.
+
+    ``prev_name`` is the resolved name of this slot's chain predecessor
+    (the agent it ``%wait``s on), or ``None`` for the first slot.  It is the
+    already-allocated name, not ``<base>.<k-1>`` string surgery, so it stays
+    correct for resume- and wait-derived names such as ``foo.f2`` or
+    ``foo.w3``.  Launch surfaces forward it as ``SASE_REPEAT_PREV_NAME`` so a
+    woken slot can detect a predecessor's ``STOP`` output variable.
+    """
 
     name: str
     iteration: int
     total: int
     prompt: str
     timestamp: str | None = None
+    prev_name: str | None = None
 
 
 def extract_repeat_and_name(
@@ -150,6 +161,7 @@ def spawn_repeat_batch(
                 else f"%n:{names[k - 1]}\n%wait:{names[k - 2]}\n{prompt_stripped}"
             ),
             timestamp=None if timestamps is None else timestamps[k - 1],
+            prev_name=None if k == 1 else names[k - 2],
         )
         for k in range(1, count + 1)
     ]
