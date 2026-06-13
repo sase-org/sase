@@ -19,7 +19,7 @@ from sase.ace.tui.modals.prompt_history_modal import (
     _prompt_history_header_text,
     _prompt_preview_width_for_list_content,
 )
-from sase.history.prompt import PromptEntry
+from sase.history.prompt_store import PromptEntry
 from sase.history.prompt_metadata import PromptListSummary
 
 

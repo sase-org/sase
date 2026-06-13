@@ -20,11 +20,6 @@ def _compute_prompt_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def compute_prompt_id(text: str) -> str:
-    """Return the stable ``ph_<sha256[:12]>`` content ID for prompt text."""
-    return f"{_PROMPT_ID_PREFIX}{_compute_prompt_hash(text)[:_PROMPT_ID_HASH_LEN]}"
-
-
 @dataclass(frozen=True)
 class PromptHistoryRecord:
     """A catalog view of one prompt-history entry with a stable content ID."""
@@ -59,7 +54,7 @@ class PromptSelectorError(ValueError):
     """Base class for prompt selector resolution failures."""
 
 
-class PromptNotFoundError(PromptSelectorError):
+class _PromptNotFoundError(PromptSelectorError):
     """Raised when a selector matches no prompt-history record."""
 
     def __init__(self, selector: str) -> None:
@@ -67,7 +62,7 @@ class PromptNotFoundError(PromptSelectorError):
         self.selector = selector
 
 
-class PromptAmbiguousError(PromptSelectorError):
+class _PromptAmbiguousError(PromptSelectorError):
     """Raised when a short selector matches more than one record."""
 
     def __init__(self, selector: str, matches: list[str]) -> None:
@@ -80,7 +75,7 @@ class PromptAmbiguousError(PromptSelectorError):
         )
 
 
-def _record_from_entry(entry: store.PromptEntry) -> PromptHistoryRecord:
+def record_from_entry(entry: store.PromptEntry) -> PromptHistoryRecord:
     """Build a :class:`PromptHistoryRecord` from a stored entry."""
     digest = _compute_prompt_hash(entry.text)
     return PromptHistoryRecord(
@@ -130,7 +125,7 @@ def list_prompt_records(
     case-insensitive substring filter over exact prompt text. ``limit`` is
     applied after sorting; ``None`` returns every matching record.
     """
-    records = [_record_from_entry(entry) for entry in store.api.load_prompt_history()]
+    records = [record_from_entry(entry) for entry in store.load_prompt_history()]
     records = _filter_records(
         records,
         include_cancelled=include_cancelled,
@@ -175,25 +170,23 @@ def resolve_prompt_selector(
             omitted, the full history is loaded.
 
     Raises:
-        PromptNotFoundError: the selector is empty, non-hex, or matches nothing.
-        PromptAmbiguousError: a short prefix matches more than one record.
+        PromptSelectorError: the selector is empty, non-hex, matches nothing, or
+            (as a short prefix) matches more than one record.
     """
     if records is None:
-        records = [
-            _record_from_entry(entry) for entry in store.api.load_prompt_history()
-        ]
+        records = [record_from_entry(entry) for entry in store.load_prompt_history()]
 
     hexprefix = _normalize_selector(selector)
     if hexprefix is None:
-        raise PromptNotFoundError(selector)
+        raise _PromptNotFoundError(selector)
 
     matches = [r for r in records if r.text_sha256.startswith(hexprefix)]
     if not matches:
-        raise PromptNotFoundError(selector)
+        raise _PromptNotFoundError(selector)
 
     unique_ids = {r.id for r in matches}
     if len(unique_ids) > 1:
-        raise PromptAmbiguousError(selector, sorted(unique_ids))
+        raise _PromptAmbiguousError(selector, sorted(unique_ids))
     return matches[0]
 
 
@@ -214,6 +207,6 @@ def get_prompts_for_fzf(
     """
     records = list_prompt_records(include_cancelled=include_cancelled)
     return [
-        (store.api.format_prompt_for_display(entry), entry)
+        (store.format_prompt_for_display(entry), entry)
         for entry in (record.to_entry() for record in records)
     ]

@@ -11,7 +11,7 @@ from sase.ace.tui.actions.agent_workflow import _entry_points
 from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
 from sase.ace.tui.actions.agent_workflow._prompt_bar_mount import PromptBarMountMixin
 from sase.ace.tui.modals import ProjectSelectModal, SelectionItem
-from sase.history.prompt import PromptEntry
+from sase.history.prompt_store import PromptEntry
 
 
 class _App(EntryPointsMixin):

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-13 16:34:03
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_pyvision_cleanup.md
 ---
 # Prompt History Pyvision Cleanup Plan

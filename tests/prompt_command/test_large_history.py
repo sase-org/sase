@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.history.prompt import PromptEntry
+from sase.history.prompt_store import PromptEntry
 from sase.prompt.cli_list import handle_prompt_list
 from sase.prompt.cli_maintenance import handle_prompt_doctor
 from sase.prompt.cli_stats import handle_prompt_stats

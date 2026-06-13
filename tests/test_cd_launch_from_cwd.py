@@ -186,11 +186,11 @@ def test_launch_agent_from_cwd_spawn_failure_records_short_failed_history(
 ) -> None:
     patch_cd_metadata(monkeypatch)
     from sase.agent.launcher import launch_agent_from_cwd
-    from sase.history import prompt as prompt_history
+    from sase.history import prompt_store
 
     history_path = tmp_path / ".sase" / "prompt_history.json"
     prompt = f"#cd:{tmp_path}"
-    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
+    monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_FILE", history_path)
 
     with (
         patch(
@@ -226,11 +226,11 @@ def test_launch_agent_from_cwd_alt_failure_records_failed_history(
 ) -> None:
     patch_cd_metadata(monkeypatch)
     from sase.agent.launcher import launch_agents_from_cwd
-    from sase.history import prompt as prompt_history
+    from sase.history import prompt_store
 
     history_path = tmp_path / ".sase" / "prompt_history.json"
     prompt = f"%alt(sec=security pass,perf=performance pass)\n#cd:{tmp_path} do work"
-    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
+    monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_FILE", history_path)
 
     with (
         patch(
@@ -256,11 +256,11 @@ def test_launch_agent_from_cwd_repeat_failure_records_failed_history(
 ) -> None:
     patch_cd_metadata(monkeypatch)
     from sase.agent.launcher import launch_agents_from_cwd
-    from sase.history import prompt as prompt_history
+    from sase.history import prompt_store
 
     history_path = tmp_path / ".sase" / "prompt_history.json"
     prompt = f"%r:2\n#cd:{tmp_path} do work"
-    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
+    monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_FILE", history_path)
 
     with (
         patch(

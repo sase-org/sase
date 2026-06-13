@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 
-from sase.history.prompt import PromptEntry, _save_prompt_history
+from sase.history.prompt_store import PromptEntry, save_prompt_history
 from sase.main.parser import create_parser
 
 
 def _seed(*entries: PromptEntry) -> None:
-    _save_prompt_history(list(entries))
+    save_prompt_history(list(entries))
+
+
+def _prompt_id(text: str) -> str:
+    """Local re-implementation of the stable ``ph_<sha256[:12]>`` content ID."""
+    return f"ph_{hashlib.sha256(text.encode('utf-8')).hexdigest()[:12]}"
 
 
 def _entry(

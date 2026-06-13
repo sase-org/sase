@@ -8,27 +8,30 @@ from unittest.mock import patch
 import pytest
 
 from sase.history.prompt import (
-    PromptAmbiguousError,
-    PromptEntry,
     PromptHistoryRecord,
-    PromptNotFoundError,
-    _save_prompt_history,
-    compute_prompt_id,
+    PromptSelectorError,
     compute_prompt_stats,
     list_prompt_records,
     resolve_prompt_selector,
 )
+from sase.history.prompt_catalog import record_from_entry
+from sase.history.prompt_store import PromptEntry, save_prompt_history
 
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _prompt_id(text: str) -> str:
+    """Local re-implementation of the stable ``ph_<sha256[:12]>`` content ID."""
+    return f"ph_{_sha256(text)[:12]}"
+
+
 @pytest.fixture
 def history_file(tmp_path: Path) -> Iterator[Path]:
     """Point the prompt-history store at an isolated temp file."""
     test_file = tmp_path / "prompt_history.json"
-    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file):
         yield test_file
 
 
@@ -51,15 +54,16 @@ def _entry(
 # ---------------------------------------------------------------------------
 
 
-def test_compute_prompt_id_is_stable_and_content_addressed() -> None:
+def test_record_id_is_stable_and_content_addressed() -> None:
     text = "fix the parser bug in the login flow"
 
-    first = compute_prompt_id(text)
-    assert first == compute_prompt_id(text)
+    first = record_from_entry(_entry(text, "260601_000000")).id
+    assert first == record_from_entry(_entry(text, "260601_000000")).id
     assert first.startswith("ph_")
     assert len(first) == len("ph_") + 12
     assert first[3:] == _sha256(text)[:12]
-    assert compute_prompt_id("a different prompt") != first
+    other = record_from_entry(_entry("a different prompt", "260601_000000")).id
+    assert other != first
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +72,7 @@ def test_compute_prompt_id_is_stable_and_content_addressed() -> None:
 
 
 def test_list_defaults_to_non_cancelled_recency_order(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("alpha prompt one", "260601_000000"),
             _entry("beta prompt two", "260603_000000"),
@@ -82,7 +86,7 @@ def test_list_defaults_to_non_cancelled_recency_order(history_file: Path) -> Non
 
 
 def test_list_all_includes_cancelled(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("alpha prompt one", "260601_000000"),
             _entry("cancelled prompt three", "260605_000000", cancelled=True),
@@ -95,7 +99,7 @@ def test_list_all_includes_cancelled(history_file: Path) -> None:
 
 
 def test_list_cancelled_only_and_precedence(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("alpha prompt one", "260601_000000"),
             _entry("cancelled prompt three", "260605_000000", cancelled=True),
@@ -111,7 +115,7 @@ def test_list_cancelled_only_and_precedence(history_file: Path) -> None:
 
 
 def test_list_query_is_case_insensitive_substring(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("Fix the AUTH bug now", "260601_000000"),
             _entry("refactor the parser", "260602_000000"),
@@ -124,7 +128,7 @@ def test_list_query_is_case_insensitive_substring(history_file: Path) -> None:
 
 
 def test_list_limit_applies_after_sort(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("alpha prompt one", "260601_000000"),
             _entry("beta prompt two", "260603_000000"),
@@ -138,11 +142,11 @@ def test_list_limit_applies_after_sort(history_file: Path) -> None:
 
 
 def test_records_expose_stable_id_and_hash(history_file: Path) -> None:
-    _save_prompt_history([_entry("fix the parser bug", "260601_000000")])
+    save_prompt_history([_entry("fix the parser bug", "260601_000000")])
 
     (record,) = list_prompt_records()
 
-    assert record.id == compute_prompt_id("fix the parser bug")
+    assert record.id == _prompt_id("fix the parser bug")
     assert record.text_sha256 == _sha256("fix the parser bug")
     assert record.text_chars == len("fix the parser bug")
 
@@ -154,20 +158,20 @@ def test_records_expose_stable_id_and_hash(history_file: Path) -> None:
 
 def test_resolve_by_full_id_bare_prefix_and_sha256(history_file: Path) -> None:
     text = "fix the parser bug"
-    _save_prompt_history([_entry(text, "260601_000000")])
+    save_prompt_history([_entry(text, "260601_000000")])
     digest = _sha256(text)
 
-    assert resolve_prompt_selector(compute_prompt_id(text)).text == text
+    assert resolve_prompt_selector(_prompt_id(text)).text == text
     assert resolve_prompt_selector(digest[:8]).text == text
     assert resolve_prompt_selector(f"sha256:{digest}").text == text
 
 
 def test_resolve_selectors_stable_after_newer_prompts(history_file: Path) -> None:
     text = "fix the parser bug"
-    _save_prompt_history([_entry(text, "260601_000000")])
-    selector = compute_prompt_id(text)
+    save_prompt_history([_entry(text, "260601_000000")])
+    selector = _prompt_id(text)
 
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry(text, "260601_000000"),
             _entry("a brand new prompt", "260609_000000"),
@@ -178,13 +182,13 @@ def test_resolve_selectors_stable_after_newer_prompts(history_file: Path) -> Non
 
 
 def test_resolve_not_found_and_bad_selectors(history_file: Path) -> None:
-    _save_prompt_history([_entry("fix the parser bug", "260601_000000")])
+    save_prompt_history([_entry("fix the parser bug", "260601_000000")])
 
-    with pytest.raises(PromptNotFoundError):
+    with pytest.raises(PromptSelectorError):
         resolve_prompt_selector("ph_ffffffffffff")
-    with pytest.raises(PromptNotFoundError):
+    with pytest.raises(PromptSelectorError):
         resolve_prompt_selector("zzz")
-    with pytest.raises(PromptNotFoundError):
+    with pytest.raises(PromptSelectorError):
         resolve_prompt_selector("")
 
 
@@ -208,7 +212,7 @@ def test_resolve_ambiguous_prefix_lists_matches() -> None:
         ),
     ]
 
-    with pytest.raises(PromptAmbiguousError) as exc_info:
+    with pytest.raises(PromptSelectorError) as exc_info:
         resolve_prompt_selector("abcd", records=records)
 
     assert exc_info.value.matches == ["ph_abcd00000000", "ph_abcd11111111"]
@@ -220,7 +224,7 @@ def test_resolve_ambiguous_prefix_lists_matches() -> None:
 
 
 def test_compute_prompt_stats(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("aaaa bbbb", "260601_000000"),
             _entry("#gh:sase do the longer thing right now", "260603_000000"),
@@ -268,5 +272,5 @@ def test_corrupt_history_is_tolerated_read_only(history_file: Path) -> None:
     assert stats.exists is True
     assert stats.total == 0
 
-    with pytest.raises(PromptNotFoundError):
+    with pytest.raises(PromptSelectorError):
         resolve_prompt_selector("ph_abc")

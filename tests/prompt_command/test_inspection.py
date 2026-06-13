@@ -8,12 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from sase.history.prompt import compute_prompt_id
 from sase.prompt.cli_list import handle_prompt_list
 from sase.prompt.cli_show import handle_prompt_show
 from sase.prompt.cli_stats import handle_prompt_stats
 
-from ._helpers import _entry, _seed
+from ._helpers import _entry, _prompt_id, _seed
 
 
 def test_list_json_has_stable_shape_and_excludes_cancelled(
@@ -41,7 +40,7 @@ def test_list_json_has_stable_shape_and_excludes_cancelled(
         "text_chars",
         "text_sha256",
     ]
-    assert payload[0]["id"] == compute_prompt_id("launched prompt one")
+    assert payload[0]["id"] == _prompt_id("launched prompt one")
     assert payload[0]["cancelled"] is False
 
 
@@ -67,7 +66,7 @@ def test_show_raw_is_byte_exact(
     text = "refactor the parser module to be cleaner"
     _seed(_entry(text, "260603_000000"))
 
-    handle_prompt_show(argparse.Namespace(id=compute_prompt_id(text), format="raw"))
+    handle_prompt_show(argparse.Namespace(id=_prompt_id(text), format="raw"))
 
     # Exact text, no added or stripped trailing newline.
     assert capsys.readouterr().out == text
@@ -80,7 +79,7 @@ def test_show_raw_preserves_existing_trailing_newline(
     text = "prompt with trailing newline\n"
     _seed(_entry(text, "260603_000000"))
 
-    handle_prompt_show(argparse.Namespace(id=compute_prompt_id(text), format="raw"))
+    handle_prompt_show(argparse.Namespace(id=_prompt_id(text), format="raw"))
 
     assert capsys.readouterr().out == text
 
@@ -92,12 +91,10 @@ def test_show_markdown_has_metadata_header_and_body(
     text = "do the important thing"
     _seed(_entry(text, "260603_000000"))
 
-    handle_prompt_show(
-        argparse.Namespace(id=compute_prompt_id(text), format="markdown")
-    )
+    handle_prompt_show(argparse.Namespace(id=_prompt_id(text), format="markdown"))
 
     out = capsys.readouterr().out
-    assert f"# Prompt {compute_prompt_id(text)}" in out
+    assert f"# Prompt {_prompt_id(text)}" in out
     assert "- cancelled: false" in out
     assert text in out
 
@@ -109,11 +106,11 @@ def test_show_json_includes_full_text(
     text = "do the important thing"
     _seed(_entry(text, "260603_000000"))
 
-    handle_prompt_show(argparse.Namespace(id=compute_prompt_id(text), format="json"))
+    handle_prompt_show(argparse.Namespace(id=_prompt_id(text), format="json"))
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["text"] == text
-    assert payload["id"] == compute_prompt_id(text)
+    assert payload["id"] == _prompt_id(text)
 
 
 def test_show_unknown_selector_exits_nonzero(

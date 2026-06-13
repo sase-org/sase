@@ -9,7 +9,7 @@ import sase.history.prompt_metadata as prompt_metadata
 import sase.xprompt._parsing as xprompt_parsing
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.prompt_history_modal import PromptHistoryModal
-from sase.history.prompt import PromptEntry
+from sase.history.prompt_store import PromptEntry
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,

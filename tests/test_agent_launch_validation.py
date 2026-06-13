@@ -231,10 +231,10 @@ def test_launch_agents_from_cwd_cancels_history_and_skips_spawn(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.history import prompt as prompt_history
+    from sase.history import prompt_store
 
     history_path = tmp_path / ".sase" / "prompt_history.json"
-    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
+    monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_FILE", history_path)
     monkeypatch.setattr(
         "sase.main.utils.ensure_project_file_and_get_workspace_num",
         lambda: (None, 0, "home"),

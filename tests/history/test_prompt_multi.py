@@ -3,12 +3,12 @@
 from pathlib import Path
 from unittest.mock import patch
 
-import sase.history.prompt as prompt_history
-from sase.history.prompt import (
+import sase.history.prompt_store as prompt_store
+from sase.history.prompt_store import (
     PromptEntry,
-    _load_prompt_history,
-    _save_prompt_history,
     add_or_update_prompt,
+    load_prompt_history,
+    save_prompt_history,
 )
 
 
@@ -16,13 +16,15 @@ def test_multi_prompt_saves_combined_and_segments(tmp_path: Path) -> None:
     """Test that a multi-agent prompt saves both the combined and individual segments."""
     test_file = tmp_path / "prompt_history.json"
     with (
-        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
+        ),
     ):
         add_or_update_prompt(
             "Fix the auth bug\n---\n%wait Review the fix and add tests"
         )
-        result = _load_prompt_history()
+        result = load_prompt_history()
         texts = {e.text for e in result}
         assert len(result) == 3
         assert "Fix the auth bug\n---\n%wait Review the fix and add tests" in texts
@@ -36,22 +38,24 @@ def test_multi_prompt_saves_combined_and_segments_in_one_mutation(
     """Test that multi-prompt history does not load/save once per segment."""
     test_file = tmp_path / "prompt_history.json"
     with (
-        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
         patch(
-            "sase.history.prompt._load_prompt_history_for_write",
-            wraps=prompt_history._load_prompt_history_for_write,
+            "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
+        ),
+        patch(
+            "sase.history.prompt_store.load_prompt_history_for_write",
+            wraps=prompt_store.load_prompt_history_for_write,
         ) as load_for_write,
         patch(
-            "sase.history.prompt._save_prompt_history",
-            wraps=prompt_history._save_prompt_history,
+            "sase.history.prompt_store.save_prompt_history",
+            wraps=prompt_store.save_prompt_history,
         ) as save_history,
     ):
         add_or_update_prompt("Fix the auth bug\n---\nAdd tests")
 
         assert load_for_write.call_count == 1
         assert save_history.call_count == 1
-        assert {entry.text for entry in _load_prompt_history()} == {
+        assert {entry.text for entry in load_prompt_history()} == {
             "Fix the auth bug\n---\nAdd tests",
             "Fix the auth bug",
             "Add tests",
@@ -61,20 +65,20 @@ def test_multi_prompt_saves_combined_and_segments_in_one_mutation(
 def test_multi_prompt_segment_dedup(tmp_path: Path) -> None:
     """Test that a segment already in history just gets last_used bumped."""
     test_file = tmp_path / "prompt_history.json"
-    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file):
         entry = PromptEntry(
             text="Fix the auth bug",
             timestamp="251231_100000",
             last_used="251231_100000",
         )
-        _save_prompt_history([entry])
+        save_prompt_history([entry])
 
         with patch(
-            "sase.history.prompt.generate_timestamp", return_value="251231_200000"
+            "sase.history.prompt_store.generate_timestamp", return_value="251231_200000"
         ):
             add_or_update_prompt("Fix the auth bug\n---\nAdd tests")
 
-        result = _load_prompt_history()
+        result = load_prompt_history()
         assert len(result) == 3
         segment_entry = next(e for e in result if e.text == "Fix the auth bug")
         assert segment_entry.timestamp == "251231_100000"
@@ -85,11 +89,13 @@ def test_cancelled_multi_prompt_saves_cancelled_segments(tmp_path: Path) -> None
     """Test that a cancelled multi-agent prompt saves each segment as cancelled."""
     test_file = tmp_path / "prompt_history.json"
     with (
-        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
+        ),
     ):
         add_or_update_prompt("Draft fix\n---\nDraft tests", cancelled=True)
-        result = _load_prompt_history()
+        result = load_prompt_history()
         assert len(result) == 3
         for entry in result:
             assert entry.cancelled is True
@@ -99,14 +105,16 @@ def test_single_segment_with_frontmatter_does_not_split(tmp_path: Path) -> None:
     """Test that a single-segment prompt with frontmatter does NOT split."""
     test_file = tmp_path / "prompt_history.json"
     with (
-        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
+        ),
     ):
         prompt = (
             "---\nxprompts:\n  _style:\n    - prompt_part: Be concise\n---\nFix the bug"
         )
         add_or_update_prompt(prompt)
-        result = _load_prompt_history()
+        result = load_prompt_history()
         assert len(result) == 1
         assert result[0].text == prompt
 
@@ -115,13 +123,15 @@ def test_multi_prompt_segments_preserve_directives(tmp_path: Path) -> None:
     """Test that segments with directives (%wait, %name) are preserved as-is."""
     test_file = tmp_path / "prompt_history.json"
     with (
-        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
+        ),
     ):
         add_or_update_prompt(
             "%name builder Fix the bug\n---\n%wait\n%name reviewer Review the fix"
         )
-        result = _load_prompt_history()
+        result = load_prompt_history()
         texts = {e.text for e in result}
         assert "%name builder Fix the bug" in texts
         assert "%wait\n%name reviewer Review the fix" in texts
@@ -132,11 +142,13 @@ def test_prompt_history_preserves_raw_alt_prompt(tmp_path: Path) -> None:
     test_file = tmp_path / "prompt_history.json"
     prompt = "%name review\n%alt(sec=[[security pass]],perf=[[perf pass]])\nAudit"
     with (
-        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
+        ),
     ):
         add_or_update_prompt(prompt)
-        entries = _load_prompt_history()
+        entries = load_prompt_history()
 
     assert [entry.text for entry in entries] == [prompt]
     assert all("%name:review.sec" not in entry.text for entry in entries)
@@ -146,11 +158,13 @@ def test_multi_prompt_skips_short_segments(tmp_path: Path) -> None:
     """Test that short segments in a multi-prompt are skipped but the whole is kept."""
     test_file = tmp_path / "prompt_history.json"
     with (
-        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
+        ),
     ):
         add_or_update_prompt("#gh:sase\n---\nfix auth bug")
-        result = _load_prompt_history()
+        result = load_prompt_history()
         texts = {e.text for e in result}
         assert "#gh:sase\n---\nfix auth bug" in texts
         assert "fix auth bug" in texts
@@ -169,12 +183,14 @@ def test_multi_prompt_segments_do_not_derive_vcs_history_keys(
         "#git:sase_feature\ncontinue the work"
     )
     with (
-        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
-        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
+        ),
     ):
         add_or_update_prompt(prompt)
 
-        entries = {entry.text: entry for entry in _load_prompt_history()}
+        entries = {entry.text: entry for entry in load_prompt_history()}
         assert entries[prompt].branch_or_workspace == ""
         assert (
             entries[

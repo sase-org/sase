@@ -140,12 +140,12 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_history_uses_submitted_promp
 ) -> None:
     patch_cd_metadata(monkeypatch)
     from sase.agent.launcher import launch_agents_from_cwd
-    from sase.history import prompt as prompt_history
+    from sase.history import prompt_store
     from sase.xprompt.models import XPrompt
 
     history_path = tmp_path / ".sase" / "prompt_history.json"
-    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
-    monkeypatch.setattr(prompt_history, "generate_timestamp", lambda: "260501_120000")
+    monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_FILE", history_path)
+    monkeypatch.setattr(prompt_store, "generate_timestamp", lambda: "260501_120000")
     launched = [MagicMock(name="plan"), MagicMock(name="build")]
     catalog = {"swarm": XPrompt(name="swarm", content="Plan phase\n---\nBuild phase")}
 
@@ -179,12 +179,12 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_cancelled_history_uses_submi
     patch_cd_metadata(monkeypatch)
     from sase.agent.launch_validation import AgentNameSyntaxError
     from sase.agent.launcher import launch_agents_from_cwd
-    from sase.history import prompt as prompt_history
+    from sase.history import prompt_store
     from sase.xprompt.models import XPrompt
 
     history_path = tmp_path / ".sase" / "prompt_history.json"
-    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
-    monkeypatch.setattr(prompt_history, "generate_timestamp", lambda: "260501_120000")
+    monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_FILE", history_path)
+    monkeypatch.setattr(prompt_store, "generate_timestamp", lambda: "260501_120000")
     catalog = {
         "swarm": XPrompt(
             name="swarm",
@@ -219,12 +219,12 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_failure_forces_cancelled_his
 ) -> None:
     patch_cd_metadata(monkeypatch)
     from sase.agent.launcher import launch_agents_from_cwd
-    from sase.history import prompt as prompt_history
+    from sase.history import prompt_store
     from sase.xprompt.models import XPrompt
 
     history_path = tmp_path / ".sase" / "prompt_history.json"
-    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
-    monkeypatch.setattr(prompt_history, "generate_timestamp", lambda: "260501_120000")
+    monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_FILE", history_path)
+    monkeypatch.setattr(prompt_store, "generate_timestamp", lambda: "260501_120000")
     catalog = {"swarm": XPrompt(name="swarm", content="Plan phase\n---\nBuild phase")}
 
     with (

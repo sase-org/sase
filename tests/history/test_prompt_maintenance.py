@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from collections.abc import Iterator
@@ -12,24 +13,30 @@ import pytest
 
 from sase.history.prompt import (
     PromptDateError,
-    PromptEntry,
-    PromptNotFoundError,
+    PromptSelectorError,
     PromptStoreCorruptError,
-    _load_prompt_history,
-    _save_prompt_history,
     compute_prompt_doctor,
-    compute_prompt_id,
     delete_prompt,
     parse_prune_date,
     prune_prompts,
 )
+from sase.history.prompt_store import (
+    PromptEntry,
+    load_prompt_history,
+    save_prompt_history,
+)
+
+
+def _prompt_id(text: str) -> str:
+    """Local re-implementation of the stable ``ph_<sha256[:12]>`` content ID."""
+    return f"ph_{hashlib.sha256(text.encode('utf-8')).hexdigest()[:12]}"
 
 
 @pytest.fixture
 def history_file(tmp_path: Path) -> Iterator[Path]:
     """Point the prompt-history store at an isolated temp file."""
     test_file = tmp_path / "prompt_history.json"
-    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file):
         yield test_file
 
 
@@ -80,19 +87,19 @@ def test_parse_prune_date_rejects_ambiguous_with_examples() -> None:
 def test_delete_removes_one_prompt(history_file: Path) -> None:
     keep = "keep this launched prompt"
     drop = "delete this other prompt"
-    _save_prompt_history([_entry(keep, "260601_000000"), _entry(drop, "260602_000000")])
+    save_prompt_history([_entry(keep, "260601_000000"), _entry(drop, "260602_000000")])
 
-    deleted = delete_prompt(compute_prompt_id(drop))
+    deleted = delete_prompt(_prompt_id(drop))
 
-    assert deleted.id == compute_prompt_id(drop)
-    assert [e.text for e in _load_prompt_history()] == [keep]
+    assert deleted.id == _prompt_id(drop)
+    assert [e.text for e in load_prompt_history()] == [keep]
 
 
 def test_delete_unknown_selector_does_not_rewrite(history_file: Path) -> None:
-    _save_prompt_history([_entry("a stored prompt here", "260601_000000")])
+    save_prompt_history([_entry("a stored prompt here", "260601_000000")])
     before = history_file.read_text(encoding="utf-8")
 
-    with pytest.raises(PromptNotFoundError):
+    with pytest.raises(PromptSelectorError):
         delete_prompt("ph_ffffffffffff")
 
     assert history_file.read_text(encoding="utf-8") == before
@@ -100,7 +107,7 @@ def test_delete_unknown_selector_does_not_rewrite(history_file: Path) -> None:
 
 def test_delete_uses_atomic_replace_and_lock(history_file: Path) -> None:
     drop = "delete this prompt atomically"
-    _save_prompt_history(
+    save_prompt_history(
         [_entry("survivor prompt", "260601_000000"), _entry(drop, "260602_000000")]
     )
 
@@ -114,10 +121,10 @@ def test_delete_uses_atomic_replace_and_lock(history_file: Path) -> None:
         original_replace(src, dst)
 
     with (
-        patch("sase.history.prompt.os.replace", side_effect=tracking_replace),
-        patch("sase.history.prompt._locked_prompt_history") as mock_lock,
+        patch("sase.history.prompt_store.os.replace", side_effect=tracking_replace),
+        patch("sase.history.prompt_store.locked_prompt_history") as mock_lock,
     ):
-        delete_prompt(compute_prompt_id(drop))
+        delete_prompt(_prompt_id(drop))
 
     assert mock_lock.called
     assert len(replace_calls) == 1
@@ -142,7 +149,7 @@ def test_delete_corrupt_store_aborts_without_rewrite(history_file: Path) -> None
 
 
 def test_prune_keep_retains_newest(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("oldest prompt", "260601_000000"),
             _entry("middle prompt", "260602_000000"),
@@ -154,11 +161,11 @@ def test_prune_keep_retains_newest(history_file: Path) -> None:
 
     assert plan.applied is True
     assert {r.text for r in plan.removed} == {"oldest prompt", "middle prompt"}
-    assert [e.text for e in _load_prompt_history()] == ["newest prompt"]
+    assert [e.text for e in load_prompt_history()] == ["newest prompt"]
 
 
 def test_prune_before_removes_older(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("ancient prompt", "251201_000000"),
             _entry("recent prompt", "260605_000000"),
@@ -168,11 +175,11 @@ def test_prune_before_removes_older(history_file: Path) -> None:
     plan = prune_prompts(before=parse_prune_date("2026-01-01"))
 
     assert {r.text for r in plan.removed} == {"ancient prompt"}
-    assert [e.text for e in _load_prompt_history()] == ["recent prompt"]
+    assert [e.text for e in load_prompt_history()] == ["recent prompt"]
 
 
 def test_prune_cancelled_only(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("launched prompt", "260601_000000"),
             _entry("cancelled prompt", "260602_000000", cancelled=True),
@@ -182,12 +189,12 @@ def test_prune_cancelled_only(history_file: Path) -> None:
     plan = prune_prompts(cancelled_only=True)
 
     assert {r.text for r in plan.removed} == {"cancelled prompt"}
-    assert [e.text for e in _load_prompt_history()] == ["launched prompt"]
+    assert [e.text for e in load_prompt_history()] == ["launched prompt"]
 
 
 def test_prune_keep_is_a_hard_floor_for_before(history_file: Path) -> None:
     # Even though every entry is "before" the cutoff, --keep protects the newest.
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("old one", "251101_000000"),
             _entry("old two", "251102_000000"),
@@ -199,11 +206,11 @@ def test_prune_keep_is_a_hard_floor_for_before(history_file: Path) -> None:
 
     # Intersection: removable must be both beyond-newest-1 AND older-than-cutoff.
     assert {r.text for r in plan.removed} == {"old one", "old two"}
-    assert [e.text for e in _load_prompt_history()] == ["old three"]
+    assert [e.text for e in load_prompt_history()] == ["old three"]
 
 
 def test_prune_dry_run_does_not_mutate(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("keep me", "260603_000000"),
             _entry("drop me", "260601_000000"),
@@ -219,7 +226,7 @@ def test_prune_dry_run_does_not_mutate(history_file: Path) -> None:
 
 
 def test_prune_requires_a_predicate(history_file: Path) -> None:
-    _save_prompt_history([_entry("a prompt", "260601_000000")])
+    save_prompt_history([_entry("a prompt", "260601_000000")])
 
     with pytest.raises(ValueError):
         prune_prompts()
@@ -233,7 +240,7 @@ def test_prune_corrupt_store_aborts(history_file: Path) -> None:
 
 
 def test_prune_reports_per_predicate_counts(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("old cancelled", "251101_000000", cancelled=True),
             _entry("old launched", "251102_000000"),
@@ -257,7 +264,7 @@ def test_prune_reports_per_predicate_counts(history_file: Path) -> None:
 
 
 def test_doctor_reports_counts_and_availability(history_file: Path) -> None:
-    _save_prompt_history(
+    save_prompt_history(
         [
             _entry("launched prompt one", "260601_000000"),
             _entry("cancelled prompt two", "260602_000000", cancelled=True),
@@ -265,7 +272,9 @@ def test_doctor_reports_counts_and_availability(history_file: Path) -> None:
     )
 
     with (
-        patch("sase.history.prompt.shutil.which", return_value="/usr/bin/fzf"),
+        patch(
+            "sase.history.prompt_maintenance.shutil.which", return_value="/usr/bin/fzf"
+        ),
         patch("sase.core.clipboard.clipboard_available", return_value=True),
     ):
         report = compute_prompt_doctor()
@@ -335,8 +344,8 @@ def test_doctor_flags_oversized_and_short_and_legacy(history_file: Path) -> None
 
     report = compute_prompt_doctor()
 
-    assert [item.id for item in report.oversized] == [compute_prompt_id(big)]
-    assert [item.id for item in report.short_recovery] == [compute_prompt_id("#gh:foo")]
+    assert [item.id for item in report.oversized] == [_prompt_id(big)]
+    assert [item.id for item in report.short_recovery] == [_prompt_id("#gh:foo")]
     assert report.legacy_field_entries == 1
     # Never echoes full oversized text.
     assert "x" * 11000 not in report.oversized[0].preview
