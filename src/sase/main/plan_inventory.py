@@ -77,9 +77,8 @@ def build_plan_inventory(
     proposed = _collect_proposed_plans()
     approved = _collect_approved_plans(limit=approved_limit)
 
-    represented_paths = {
-        row._plan_key for row in (*proposed, *approved) if row._plan_key
-    }
+    represented_paths = {row._plan_key for row in proposed if row._plan_key}
+    represented_paths.update(row._plan_key for row in approved if row._plan_key)
     archived_paths = _archived_plan_paths()
     rejected = _collect_rejected_plans(
         archived_paths,
