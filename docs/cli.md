@@ -81,8 +81,8 @@ explicit, for example `sase notify list -j`, `sase memory episodes list -p <proj
 | `sase project show`                          | Show lifecycle, workspace, launchability, and warning details for one project.               | [Project lifecycle](project_spec.md#project-lifecycle) |
 | `sase project set-state` / aliases           | Update `PROJECT_STATE` under the ProjectSpec lock.                                           | [Project lifecycle](project_spec.md#project-lifecycle) |
 | `sase project alias`                         | List, add, remove, or clear `PROJECT_ALIASES` under the ProjectSpec lock.                    | [Project aliases](project_spec.md#project-aliases)     |
-| `sase plan` / `sase plan list`               | Review pending proposals, approved plans, and inferred rejected archived proposals.          | [XPrompt directives](xprompt.md#plan-directive)        |
-| `sase plan approve`                          | Approve a pending proposed plan from the CLI.                                                | [XPrompt directives](xprompt.md#plan-directive)        |
+| `sase plan` / `sase plan list`               | Show the plan pipeline dashboard: pending proposals, recent approvals, and inferred rejects. | [XPrompt directives](xprompt.md#plan-directive)        |
+| `sase plan approve`                          | Approve one pending plan by ID or prefix; `--kind` chooses approve/commit/epic/legend/tale.  | [XPrompt directives](xprompt.md#plan-directive)        |
 | `sase plan propose`                          | Submit a plan file for approval from the plan skill path.                                    | [XPrompt directives](xprompt.md#plan-directive)        |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                 | [XPrompt directives](xprompt.md#directives)            |
 
@@ -110,6 +110,13 @@ Active-only project discovery is also the default for launch pickers, ChangeSpec
 catalogs, broad mobile helper catalogs, and all-known bead helper reads. Sibling records are hidden from those surfaces
 and are intended for `sase workspace open -p <sibling> <workspace_num>`. Agent-history views that need older artifacts
 opt into all project states explicitly.
+
+`sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and Rejected sections. Proposed rows
+include an `id_prefix`, agent, project, provider/model, plan path, and response directory; pass that prefix to
+`sase plan approve <prefix>`. If the selector is omitted, exactly one pending proposal must exist. Approval kind
+`approve` launches the coder with `commit_plan: false`, `tale`, `epic`, and `legend` commit under the matching SDD
+directory before launching the follow-up agent, and `commit` saves the plan without launching a coder. Use `-m/--model`
+and `-p/--prompt` to override the follow-up coder model or add extra coder instructions.
 
 ## Automation
 

@@ -151,6 +151,12 @@ When `sase plan propose` submits a plan for approval, it touches `~/.sase/.ace_r
 flips the agent into the `PLAN` status immediately rather than waiting for the next auto-refresh tick. The pulse file is
 consumed by the inotify-based artifact watcher and is harmless when no TUI is open.
 
+Humans can approve the pending proposal from ACE or from the CLI. `sase plan` lists pending PlanApproval notifications,
+recent approvals, and inferred rejected archived proposals; `sase plan approve <id-prefix> --kind tale|epic|legend`
+writes the same approval response as the TUI and saves the promoted plan under the matching SDD tier before launching
+the follow-up agent. `--kind approve` runs the coder with `commit_plan: false`, while `--kind commit` saves the plan
+without launching a coder.
+
 ### Q&A Sections
 
 If the agent asks clarifying questions during planning (via the `/sase_questions` skill), the Q&A exchange is appended

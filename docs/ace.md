@@ -1414,6 +1414,11 @@ recent reload. While a background reload is in flight (because the artifact chan
 next to that timestamp. The body shows `No tools artifact available` when the file does not yet exist for this agent and
 `No tool calls recorded` when the file exists but contains zero records.
 
+For retry chains and planner-to-coder follow-up families, the panel aggregates `tool_calls.jsonl` from related artifact
+directories so the selected logical agent shows one ordered tool timeline. Discovery uses the persistent artifact index
+when it is available; if the index is missing or stale, ACE falls back to direct lineage pointers plus a bounded scan of
+nearby legacy sibling artifacts.
+
 Records are produced by writers that share one normalized on-disk format. Claude uses the SASE tool-call hook collector
 as the preferred source and keeps its stream-derived parser as a fallback when hooks are unavailable. Codex writes
 equivalent rows from its `codex exec --json` stream with `runtime: "codex"` and `source: "stream"`; current Codex
@@ -1454,6 +1459,11 @@ matching follow-up status) instead.
 The Plan Review modal title shows a provider-themed `PROVIDER(model)` badge between the "Plan Review" label and the plan
 filename — orange for Claude, lime for Codex, Google blue for Gemini, neutral muted for other providers. The badge is
 omitted when provider/model metadata is absent, leaving the legacy title shape unchanged.
+
+The same pending approvals are available from the CLI. Run `sase plan` to see pending proposals, recent approvals, and
+inferred rejected archived plans; run `sase plan approve <id-prefix> --kind approve|commit|epic|legend|tale` to write
+the same response protocol used by the TUI modal. If the selector is omitted, the CLI approves only when exactly one
+proposal is pending. `-m/--model` and `-p/--prompt` override the follow-up coder model or add extra coder instructions.
 
 For active Agents-tab rows, `a` cycles through normal auto-approve, epic auto-approve, and disabled. Epic auto-approve
 is the same plan-specific path as the `%epic` directive: the next submitted plan is accepted as an epic, SDD epic
@@ -1841,14 +1851,14 @@ before the prompt body.
 
 ### Keybindings
 
-| Key      | Action                                        |
-| -------- | --------------------------------------------- |
-| `Enter`  | Submit the highlighted prompt directly        |
-| `Ctrl+G` | Edit first — load prompt into editor          |
-| `Tab`    | Load prompt into the input widget for editing |
-| `Ctrl+X` | Toggle visibility of cancelled prompts        |
-| `Ctrl+Y` | Copy prompt to clipboard                      |
-| `Esc`    | Close modal                                   |
+| Key              | Action                                        |
+| ---------------- | --------------------------------------------- |
+| `Enter`          | Submit the highlighted prompt directly        |
+| `Ctrl+G`         | Edit first - load prompt into editor          |
+| `Tab` / `Ctrl+I` | Load prompt into the input widget for editing |
+| `Ctrl+X`         | Toggle visibility of cancelled prompts        |
+| `Ctrl+Y`         | Copy prompt to clipboard                      |
+| `Esc`            | Close modal                                   |
 
 ### Filtering
 

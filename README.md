@@ -93,6 +93,7 @@ sase version             # inspect the exact SASE packages loaded by this enviro
 sase ace                  # open the interactive control surface; press ,p for project lifecycle management
 sase run "<prompt>"       # launch an agent or workflow
 sase agents status        # inspect running agents
+sase plan                 # review pending, approved, and inferred rejected plan proposals
 sase bead onboard         # see the bead issue-tracking quick start
 sase workspace list       # inspect numbered workspaces for the current project
 ```
@@ -141,6 +142,10 @@ SASE keeps durable state outside any one chat session:
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them
   in the producer's `OUTPUT VARIABLES` metadata panel.
+- **Plan approval pipeline** - Planning agents submit Markdown plans with `sase plan propose`. ACE, notifications, and
+  `sase plan` all read the same pending approval state; `sase plan approve [id] -k <kind>` writes the same response
+  protocol as the TUI. Approval kinds decide whether the follow-up coder runs directly, the plan is committed as a tale,
+  epic, or legend, or the plan is saved without launching a coder.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
   provider-neutral finalizer checks the main workspace and configured Git sibling workspace directories for uncommitted
   changes. Static siblings (`workspace.strategy: none`) are reported as advisory work that the agent may commit when it

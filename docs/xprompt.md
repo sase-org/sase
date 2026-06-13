@@ -1125,6 +1125,12 @@ also carries a `%model:` directive: the coder model chosen at approval time or, 
 model qualified with its provider (e.g. `%model:claude/claude-fable-5`) so the coder runs on the same provider as the
 planner.
 
+Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus recent approved and inferred
+rejected plans. Use `sase plan approve <id-prefix> --kind approve|commit|epic|legend|tale` to approve from a shell. The
+`approve` kind runs the coder with `commit_plan: false`; `tale`, `epic`, and `legend` save under the matching SDD tier
+and launch the follow-up agent; `commit` saves the plan without launching a coder. `-m/--model` and `-p/--prompt`
+customize the follow-up coder.
+
 ### Epic Directive
 
 The `%epic` directive enables plan mode and marks the submitted plan for epic approval. When the agent later submits a

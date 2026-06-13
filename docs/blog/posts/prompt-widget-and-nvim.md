@@ -91,8 +91,8 @@ anything xprompts already do better.
 Prompt history is the third reuse path. Press `Ctrl+K` from the input bar to open the prompt history modal, pre-filtered
 by the current single-line prompt; `,.` opens the same modal from the main ACE UI. The modal lists prior prompts by most
 recent use. `Enter` submits the highlighted prompt directly; `Ctrl+G` loads it into your editor first; `Ctrl+I` loads it
-into the input widget for tweaking. Entries shorter than two words are filtered on write so trivial replies (`y`, `ok`)
-don't clutter the list.
+into the input widget for tweaking (pressing `Tab` does the same thing). Entries shorter than two words are filtered on
+write so trivial replies (`y`, `ok`) don't clutter the list.
 
 When the input is empty or contains only a workspace prefix, `Ctrl+N` / `Ctrl+P` cycles the most-recently-used workspace
 references (`#git:foo`, `#hg:bar`, `#cd:~/path`). The history files behind this — `~/.sase/prompt_history.json` and the

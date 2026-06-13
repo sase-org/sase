@@ -1725,6 +1725,12 @@ With no subcommand, `sase plan` defaults to the `sase plan list` dashboard.
 | `sase plan` / `sase plan list`  | `-j/--json`                              | List pending, approved, and inferred rejected plan proposals.         |
 | `sase plan propose <plan_file>` | -                                        | Submit a Markdown plan file for approval from the `/sase_plan` skill. |
 
+`sase plan list` prints a Rich dashboard by default and emits a stable JSON projection with `summary`, `proposed`,
+`approved`, and `rejected` keys when `-j/--json` is set. Use the Proposed row's `id_prefix` as the selector for
+`sase plan approve`; omitting the selector is valid only when exactly one pending proposal exists. Approval kind
+`approve` runs the coder with `commit_plan: false`, `tale`, `epic`, and `legend` save under the matching SDD tier and
+launch the follow-up agent, and `commit` saves the plan without launching a coder.
+
 ### `sase artifact`
 
 `sase artifact create` is intended for code agents running with `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` set. It moves a
