@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sase.axe.config import AxeConfig
 from sase.axe.process import (
+    _wait_for_daemon_start,
     get_axe_status,
     restart_axe_daemon,
     start_axe_daemon,
@@ -93,6 +94,41 @@ def test_repeated_start_axe_daemon_spawns_once_after_pid_appears(
     assert kwargs["pass_fds"]
     assert "SASE_AXE_LIFECYCLE_LOCK_FD" in kwargs["env"]
     mock_is_running.assert_any_call(22222)
+
+
+def test_wait_for_daemon_start_waits_for_published_pid() -> None:
+    """A live child is not success until the daemon PID file is readable."""
+    mock_proc = MagicMock()
+    mock_proc.pid = 99999
+    mock_proc.poll.return_value = None
+
+    with (
+        patch("sase.axe.process.get_axe_pid", side_effect=[None, 4321]),
+        patch("sase.axe.process.time.sleep", return_value=None),
+    ):
+        assert _wait_for_daemon_start(mock_proc, timeout=1.0) == 4321
+
+
+def test_wait_for_daemon_start_does_not_return_child_pid_on_timeout() -> None:
+    """Timeout without a PID file is failure, even if the child is alive."""
+    mock_proc = MagicMock()
+    mock_proc.pid = 99999
+    mock_proc.poll.return_value = None
+
+    with patch("sase.axe.process.get_axe_pid", return_value=None):
+        assert _wait_for_daemon_start(mock_proc, timeout=0.0) is None
+
+
+def test_wait_for_daemon_start_returns_none_when_child_exits() -> None:
+    """A dead spawned child without a published PID is startup failure."""
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = 1
+
+    with (
+        patch("sase.axe.process.get_axe_pid", return_value=None),
+        patch("sase.axe.process.time.sleep", return_value=None),
+    ):
+        assert _wait_for_daemon_start(mock_proc, timeout=1.0) is None
 
 
 # --- stop_axe_daemon Tests ---

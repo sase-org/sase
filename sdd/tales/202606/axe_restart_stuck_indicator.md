@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-13 12:27:01
-status: wip
+status: done
 prompt: sdd/prompts/202606/axe_restart_stuck_indicator.md
 ---
 # Fix: `sase ace --restart-axe` leaves the axe status indicator stuck at "RESTARTING"

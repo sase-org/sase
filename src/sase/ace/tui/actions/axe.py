@@ -27,6 +27,9 @@ TabName = Literal["changespecs", "agents", "axe"]
 
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
 AxeViewType = Literal["axe"] | int
+AxeWorkerOperation = Literal["start", "stop", "restart"]
+
+_POST_AXE_WORKER_STATUS_REPOLL_DELAYS = (0.25, 0.75, 1.5, 3.0)
 
 
 class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
@@ -48,6 +51,7 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
     _bang_mode_active: bool
     _keymap_registry: KeymapRegistry
     _axe_worker: Worker[Any] | None
+    _axe_worker_operation: AxeWorkerOperation | None
 
     # Background command state
     _axe_current_view: AxeViewType
@@ -238,6 +242,7 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
         if self._axe_worker is not None:
             return  # Start/stop already in progress
         self._set_axe_starting(True)
+        self._axe_worker_operation = "start"
 
         def _do_start() -> tuple[bool, str]:
             proc = get_axe_process_module()
@@ -253,6 +258,7 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
         if self._axe_worker is not None:
             return  # Start/stop already in progress
         self._set_axe_stopping(True)
+        self._axe_worker_operation = "stop"
 
         def _do_stop() -> tuple[bool, str]:
             proc = get_axe_process_module()
@@ -268,6 +274,7 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
         if self._axe_worker is not None:
             return
         self._set_axe_restarting(True)
+        self._axe_worker_operation = "restart"
 
         def _do_restart() -> tuple[bool, str]:
             proc = get_axe_process_module()
@@ -280,10 +287,14 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
 
     def _on_axe_worker_done(self, worker: Worker[Any], state: WorkerState) -> None:
         """Handle axe start/stop worker completion."""
+        operation = self._axe_worker_operation
         self._axe_worker = None
+        self._axe_worker_operation = None
+        worker_succeeded = False
 
         if state == WorkerState.SUCCESS and worker.result is not None:
             success, message = worker.result
+            worker_succeeded = success
             if not success:
                 self.notify(message, severity="error")  # type: ignore[attr-defined]
         elif state == WorkerState.ERROR:
@@ -291,6 +302,24 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
             self.notify(f"Axe operation failed: {error_msg}", severity="error")  # type: ignore[attr-defined]
 
         self._load_axe_status()
+        self._clear_axe_transition_flags()
+        if (
+            worker_succeeded
+            and operation in ("start", "restart")
+            and not self.axe_running
+        ):
+            self._schedule_post_axe_worker_status_repolls()
+
+    def _clear_axe_transition_flags(self) -> None:
+        """Clear transient axe operation indicators after a worker completes."""
+        self._set_axe_starting(False)
+        self._set_axe_restarting(False)
+        self._set_axe_stopping(False)
+
+    def _schedule_post_axe_worker_status_repolls(self) -> None:
+        """Schedule bounded follow-up status reads after a lagging start."""
+        for delay in _POST_AXE_WORKER_STATUS_REPOLL_DELAYS:
+            self.set_timer(delay, self._schedule_axe_async_refresh)  # type: ignore[attr-defined]
 
     def action_show_runners(self) -> None:
         """Show the runners modal with all current runners."""

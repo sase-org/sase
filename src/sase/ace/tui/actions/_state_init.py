@@ -177,6 +177,7 @@ class StateInitMixin:
 
         # Axe worker state (for background start/stop)
         self._axe_worker: Worker[Any] | None = None
+        self._axe_worker_operation: Literal["start", "stop", "restart"] | None = None
 
         # Custom mode state (for user-defined prefix-key modes)
         self._custom_mode_active: str | None = None

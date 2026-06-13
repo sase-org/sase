@@ -141,20 +141,18 @@ def _build_axe_start_command(config: AxeConfig) -> list[str] | None:
 
 def _wait_for_daemon_start(
     process: subprocess.Popen[bytes],
-    timeout: float = 3.0,
+    timeout: float = 15.0,
 ) -> int | None:
-    """Wait for the spawned orchestrator to publish a live PID."""
+    """Wait for the spawned orchestrator to publish a live PID file."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         pid = get_axe_pid()
         if pid is not None:
             return pid
         if process.poll() is not None:
-            return get_axe_pid()
+            return None
         time.sleep(0.05)
 
-    if process.poll() is None and is_process_running(process.pid):
-        return process.pid
     return get_axe_pid()
 
 
