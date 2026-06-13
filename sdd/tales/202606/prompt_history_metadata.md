@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-13 13:00:46
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_history_metadata.md
 ---
 # Plan: Show project + directives/xprompts in the prompt history panel

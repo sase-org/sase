@@ -5,6 +5,12 @@ from datetime import datetime
 from enum import Enum, auto
 
 from sase.history.prompt import PromptEntry, get_prompts_for_fzf
+from sase.history.prompt_metadata import (
+    PromptListSummary,
+    PromptPreviewSummary,
+    summarize_prompt_for_list,
+    summarize_prompt_for_preview,
+)
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
@@ -17,6 +23,9 @@ from .base import FilterInput, OptionListNavigationMixin
 
 _LAST_USED_WIDTH = 11
 _PROMPT_PREVIEW_WIDTH = 96
+_PROJECT_COL_WIDTH = 12
+_MAX_TAG_CHIPS = 3
+_PROJECT_PLACEHOLDER = "—"
 
 
 class PromptHistoryAction(Enum):
@@ -41,13 +50,7 @@ class _PromptDisplayItem:
 
     entry: PromptEntry
     marker: str  # " " or "x"
-
-
-def _normalize_prompt_preview(prompt: str) -> str:
-    """Return the first prompt line with whitespace collapsed."""
-    lines = prompt.splitlines()
-    first_line = lines[0] if lines else ""
-    return " ".join(first_line.split())
+    summary: PromptListSummary | None = None
 
 
 def _ellipsize_right(value: str, width: int) -> str:
@@ -74,6 +77,7 @@ def _create_prompt_history_label(item: _PromptDisplayItem) -> Text:
     """Create a single-line styled label for a prompt history item."""
     text = Text(no_wrap=True, overflow="ellipsis")
     is_cancelled = item.entry.cancelled or item.marker == "x"
+    summary = _get_prompt_list_summary(item)
 
     if is_cancelled:
         text.append("x ", style="magenta")
@@ -82,17 +86,108 @@ def _create_prompt_history_label(item: _PromptDisplayItem) -> Text:
 
     metadata_style = "dim italic" if is_cancelled else "dim"
     prompt_style = "dim italic" if is_cancelled else ""
+    project_ref_style = "dim italic" if is_cancelled else "cyan"
+    xprompt_style = "dim italic" if is_cancelled else "green"
+    directive_style = "dim italic" if is_cancelled else "yellow"
 
     last_used = _format_history_timestamp(item.entry.last_used)
     prompt = _ellipsize_right(
-        _normalize_prompt_preview(item.entry.text), _PROMPT_PREVIEW_WIDTH
+        summary.clean_preview,
+        _PROMPT_PREVIEW_WIDTH,
     )
 
     text.append(last_used, style=metadata_style)
     text.append("  ", style="dim")
+    _append_project_column(text, summary, metadata_style, project_ref_style)
+    text.append("  ", style="dim")
+    _append_tag_columns(text, summary, xprompt_style, directive_style)
     text.append(prompt, style=prompt_style)
 
     return text
+
+
+def _get_prompt_list_summary(item: _PromptDisplayItem) -> PromptListSummary:
+    """Return a cached list summary for a prompt display item."""
+    if item.summary is None:
+        item.summary = summarize_prompt_for_list(item.entry.text)
+    return item.summary
+
+
+def _append_project_column(
+    text: Text,
+    summary: PromptListSummary,
+    metadata_style: str,
+    project_ref_style: str,
+) -> None:
+    """Append the fixed-width project column to a history row."""
+    if not summary.project_prefix and not summary.project_ref_display:
+        text.append(_PROJECT_PLACEHOLDER, style=metadata_style)
+        text.append(" " * (_PROJECT_COL_WIDTH - len(_PROJECT_PLACEHOLDER)))
+        return
+
+    prefix = summary.project_prefix
+    ref_width = max(_PROJECT_COL_WIDTH - len(prefix), 0)
+    ref = _ellipsize_right(summary.project_ref_display, ref_width)
+    if not ref and len(prefix) > _PROJECT_COL_WIDTH:
+        prefix = _ellipsize_right(prefix, _PROJECT_COL_WIDTH)
+
+    text.append(prefix, style=metadata_style)
+    if ref:
+        text.append(ref, style=project_ref_style)
+
+    padding = _PROJECT_COL_WIDTH - len(prefix) - len(ref)
+    if padding > 0:
+        text.append(" " * padding)
+
+
+def _append_tag_columns(
+    text: Text,
+    summary: PromptListSummary,
+    xprompt_style: str,
+    directive_style: str,
+) -> None:
+    """Append xprompt and directive chips before the cleaned preview."""
+    has_tag = False
+    xprompts = list(summary.xprompts[:_MAX_TAG_CHIPS])
+    overflow = len(summary.xprompts) - len(xprompts)
+
+    for chip in xprompts:
+        if has_tag:
+            text.append(" ")
+        text.append(chip, style=xprompt_style)
+        has_tag = True
+
+    if overflow > 0:
+        if has_tag:
+            text.append(" ")
+        text.append(f"+{overflow}", style=xprompt_style)
+        has_tag = True
+
+    if summary.directive_token:
+        if has_tag:
+            text.append(" ")
+        text.append(summary.directive_token, style=directive_style)
+        has_tag = True
+
+    if has_tag:
+        text.append("  ")
+
+
+def _append_metadata_row(
+    meta_text: Text,
+    label: str,
+    value: str,
+    *,
+    value_style: str | None = None,
+) -> None:
+    """Append one aligned metadata row."""
+    meta_text.append(f"{label + ':':<12}", style="bold")
+    meta_text.append(f"{value}\n", style=value_style)
+
+
+def _preview_project_value(summary: PromptPreviewSummary) -> str:
+    """Return the preview metadata value for a prompt project."""
+    return summary.vcs_tag.strip() if summary.vcs_tag else _PROJECT_PLACEHOLDER
 
 
 class PromptHistoryModal(
@@ -340,15 +435,37 @@ class PromptHistoryModal(
             preview.update(item.entry.text)
 
             # Metadata section
+            summary = summarize_prompt_for_preview(item.entry.text)
             meta_text = Text()
             meta_text.append("\n--- Metadata ---\n", style="dim")
             if item.entry.cancelled:
-                meta_text.append("Status: ", style="bold")
-                meta_text.append("Cancelled\n", style="magenta")
-            meta_text.append("Created: ", style="bold")
-            meta_text.append(f"{item.entry.timestamp}\n")
-            meta_text.append("Last Used: ", style="bold")
-            meta_text.append(f"{item.entry.last_used}\n")
+                _append_metadata_row(
+                    meta_text,
+                    "Status",
+                    "Cancelled",
+                    value_style="magenta",
+                )
+            _append_metadata_row(
+                meta_text,
+                "Project",
+                _preview_project_value(summary),
+            )
+            if summary.xprompts:
+                _append_metadata_row(
+                    meta_text,
+                    "Workflows",
+                    ", ".join(summary.xprompts),
+                    value_style="green",
+                )
+            if summary.directives:
+                _append_metadata_row(
+                    meta_text,
+                    "Directives",
+                    ", ".join(summary.directives),
+                    value_style="yellow",
+                )
+            _append_metadata_row(meta_text, "Created", item.entry.timestamp)
+            _append_metadata_row(meta_text, "Last Used", item.entry.last_used)
             metadata.update(meta_text)
 
         except Exception:
