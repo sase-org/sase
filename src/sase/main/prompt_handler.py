@@ -16,6 +16,18 @@ def handle_prompt_command(args: argparse.Namespace) -> None:
         handle_prompt_copy(args)
         sys.exit(0)
 
+    if sub == "delete":
+        from sase.prompt.cli_maintenance import handle_prompt_delete
+
+        handle_prompt_delete(args)
+        sys.exit(0)
+
+    if sub == "doctor":
+        from sase.prompt.cli_maintenance import handle_prompt_doctor
+
+        handle_prompt_doctor(args)
+        sys.exit(0)
+
     if sub == "edit":
         from sase.prompt.cli_run import handle_prompt_edit
 
@@ -26,6 +38,12 @@ def handle_prompt_command(args: argparse.Namespace) -> None:
         from sase.prompt.cli_list import handle_prompt_list
 
         handle_prompt_list(args)
+        sys.exit(0)
+
+    if sub == "prune":
+        from sase.prompt.cli_maintenance import handle_prompt_prune
+
+        handle_prompt_prune(args)
         sys.exit(0)
 
     if sub == "run":
@@ -52,5 +70,7 @@ def handle_prompt_command(args: argparse.Namespace) -> None:
         handle_prompt_stats(args)
         sys.exit(0)
 
-    print("Usage: sase prompt {copy,edit,list,run,select,show,stats}")
+    print(
+        "Usage: sase prompt {copy,delete,doctor,edit,list,prune,run,select,show,stats}"
+    )
     sys.exit(1)

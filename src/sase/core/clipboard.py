@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 
@@ -46,3 +47,8 @@ def copy_to_system_clipboard(content: str) -> bool:
         except (subprocess.CalledProcessError, FileNotFoundError):
             continue
     return False
+
+
+def clipboard_available() -> bool:
+    """Return True when a usable system clipboard command is on PATH."""
+    return any(shutil.which(cmd[0]) is not None for cmd in _clipboard_commands())

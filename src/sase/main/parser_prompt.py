@@ -37,6 +37,34 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Prompt selector: ph_<prefix>, a bare hash prefix, or sha256:<hash>",
     )
 
+    # sase prompt delete
+    delete_parser = prompt_sub.add_parser(
+        "delete",
+        help="Delete one stored prompt by selector (confirms unless --yes)",
+    )
+    delete_parser.add_argument(
+        "id",
+        help="Prompt selector: ph_<prefix>, a bare hash prefix, or sha256:<hash>",
+    )
+    delete_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip the confirmation prompt and delete immediately",
+    )
+
+    # sase prompt doctor
+    doctor_parser = prompt_sub.add_parser(
+        "doctor",
+        help="Diagnose the prompt-history store (read-only, JSON with -j)",
+    )
+    doctor_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object (stable schema)",
+    )
+
     # sase prompt edit
     edit_parser = prompt_sub.add_parser(
         "edit",
@@ -89,6 +117,45 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         "--query",
         default=None,
         help="Case-insensitive substring filter over exact prompt text",
+    )
+
+    # sase prompt prune
+    prune_parser = prompt_sub.add_parser(
+        "prune",
+        help="Remove prompts by objective criteria (confirms unless --yes)",
+    )
+    prune_parser.add_argument(
+        "-b",
+        "--before",
+        default=None,
+        metavar="DATE",
+        help=("Remove prompts older than DATE (YYYY-MM-DD, YYmmdd, or YYmmdd_HHMMSS)"),
+    )
+    prune_parser.add_argument(
+        "-c",
+        "--cancelled",
+        action="store_true",
+        help="Limit removal to cancelled prompts",
+    )
+    prune_parser.add_argument(
+        "-d",
+        "--dry-run",
+        action="store_true",
+        help="Show what would be removed without mutating the store",
+    )
+    prune_parser.add_argument(
+        "-k",
+        "--keep",
+        type=int,
+        default=None,
+        metavar="LIMIT",
+        help="Keep the newest LIMIT prompts; older ones become removable",
+    )
+    prune_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip the confirmation prompt and prune immediately",
     )
 
     # sase prompt run
