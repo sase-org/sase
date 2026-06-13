@@ -60,6 +60,7 @@ from tests.main.init_skills_handler_helpers import make_args
             ),
         ),
         ("sase_notify", ("sase notify list -j", "sase notify show --id")),
+        ("sase_plan", ("sase plan propose sase_plan_<name>.md",)),
         (
             "sase_var",
             (

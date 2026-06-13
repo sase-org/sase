@@ -19,5 +19,5 @@ disabled.
 
 3. **Submit the plan**:
    ```bash
-   sase plan sase_plan_<name>.md
+   sase plan propose sase_plan_<name>.md
    ```

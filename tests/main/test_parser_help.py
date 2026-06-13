@@ -189,6 +189,35 @@ def test_agents_help_renders_sorted_subcommands() -> None:
     assert "{archive,index,kill,names,show,status,tag}" in agents_parser.format_help()
 
 
+def test_plan_command_group_parses_subcommands() -> None:
+    """``sase plan`` is a command group with list/propose/approve children."""
+    parser = create_parser()
+
+    bare_args = parser.parse_args(["plan"])
+    list_args = parser.parse_args(["plan", "list"])
+    propose_args = parser.parse_args(["plan", "propose", "file.md"])
+    approve_args = parser.parse_args(["plan", "approve"])
+
+    assert bare_args.command == "plan"
+    assert bare_args.plan_subcommand == "list"
+    assert list_args.plan_subcommand == "list"
+    assert propose_args.plan_subcommand == "propose"
+    assert propose_args.plan_file == "file.md"
+    assert approve_args.plan_subcommand == "approve"
+    assert approve_args.selector is None
+
+
+def test_plan_help_renders_sorted_subcommands() -> None:
+    """``sase plan --help`` lists child commands alphabetically."""
+    plan_parser = _parser_for(("sase", "plan"))
+    expected_commands = {"approve", "list", "propose"}
+
+    help_commands = _help_subcommand_rows(plan_parser.format_help(), expected_commands)
+
+    assert help_commands == sorted(expected_commands)
+    assert "{approve,list,propose}" in plan_parser.format_help()
+
+
 def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> None:
     """Root --help renders curated first-contact help."""
     help_text = _parse_and_capture_help(["--help"], capsys)

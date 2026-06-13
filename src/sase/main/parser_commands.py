@@ -425,9 +425,41 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'plan' subcommand parser."""
     plan_parser = subparsers.add_parser(
         "plan",
+        help="Review, approve, and propose implementation plans",
+        description="Review plan proposals and submit new plans for approval.",
+    )
+    plan_subparsers = plan_parser.add_subparsers(
+        dest="plan_subcommand",
+        help="Plan subcommands",
+    )
+    plan_parser.set_defaults(plan_subcommand="list")
+
+    approve_parser = plan_subparsers.add_parser(
+        "approve",
+        help="Approve one pending plan proposal",
+    )
+    approve_parser.add_argument(
+        "selector",
+        nargs="?",
+        help="Notification id or unique prefix from `sase plan list`",
+    )
+
+    list_parser = plan_subparsers.add_parser(
+        "list",
+        help="List plan proposals and approval history",
+    )
+    list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Print plan inventory as JSON",
+    )
+
+    propose_parser = plan_subparsers.add_parser(
+        "propose",
         help="Submit a plan file for approval (used by /sase_plan skill)",
     )
-    plan_parser.add_argument("plan_file", help="Path to the plan .md file")
+    propose_parser.add_argument("plan_file", help="Path to the plan .md file")
 
 
 def register_questions_parser(subparsers: argparse._SubParsersAction) -> None:

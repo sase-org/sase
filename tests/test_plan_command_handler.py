@@ -1,7 +1,8 @@
-"""Tests for ``sase plan`` command handler."""
+"""Tests for ``sase plan`` command handlers."""
 
 from __future__ import annotations
 
+import argparse
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -27,15 +28,33 @@ def _make_artifacts_dir(sase_home: Path) -> Path:
 
 
 def _invoke_plan(plan_file: Path) -> None:
-    """Invoke ``handle_plan_command`` swallowing the trailing ``SystemExit``."""
+    """Invoke ``handle_plan_propose_command`` swallowing ``SystemExit``."""
     with pytest.raises(SystemExit):
-        plan_command_handler.handle_plan_command(str(plan_file))
+        plan_command_handler.handle_plan_propose_command(str(plan_file))
+
+
+def test_plan_command_dispatches_propose() -> None:
+    """``sase plan propose`` routes to the proposal handler."""
+    args = argparse.Namespace(plan_subcommand="propose", plan_file="plan.md")
+
+    with (
+        patch.object(
+            plan_command_handler,
+            "handle_plan_propose_command",
+            side_effect=SystemExit(0),
+        ) as propose_mock,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        plan_command_handler.handle_plan_command(args)
+
+    assert exc_info.value.code == 0
+    propose_mock.assert_called_once_with("plan.md")
 
 
 def test_plan_command_writes_refresh_pulse(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`sase plan` pulses ``.ace_refresh_pulse`` in the watched ``artifacts/`` dir."""
+    """``sase plan propose`` pulses ``.ace_refresh_pulse`` in ``artifacts/``."""
     sase_home = tmp_path / ".sase"
     redirect_sase_home(monkeypatch, sase_home)
 
@@ -52,7 +71,9 @@ def test_plan_command_writes_refresh_pulse(
     assert not pulse_path.exists()
 
     with (
-        patch.object(plan_command_handler, "kill_agent_runner_group") as kill_mock,
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+        ) as kill_mock,
         patch(
             "sase.gemini_wrapper.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
@@ -84,7 +105,9 @@ def test_plan_command_pulse_mtime_advances(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
 
     with (
-        patch.object(plan_command_handler, "kill_agent_runner_group") as kill_mock,
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+        ) as kill_mock,
         patch(
             "sase.gemini_wrapper.file_references.format_with_prettier",
             side_effect=lambda raw: raw,

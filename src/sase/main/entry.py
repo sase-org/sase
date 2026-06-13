@@ -285,7 +285,7 @@ def main() -> NoReturn:
     if args.command == "plan":
         from .plan_command_handler import handle_plan_command
 
-        handle_plan_command(args.plan_file)
+        handle_plan_command(args)
 
     # --- plugin ---
     if args.command == "plugin":
