@@ -154,7 +154,7 @@ def launch_agents_from_cwd(
         is_non_workspace_workflow,
         resolve_ref_from_prompt,
     )
-    from sase.history.prompt import add_or_update_prompt
+    from sase.history.prompt import add_or_update_prompt, record_failed_launch_prompt
     from sase.main.utils import ensure_project_file_and_get_workspace_num
     from sase.running_field import get_workspace_directory
     from sase.workspace_provider import get_workflow_names
@@ -271,34 +271,34 @@ def launch_agents_from_cwd(
             AgentNameReuseConfirmationRequiredError,
             AgentNameSyntaxError,
         ):
-            add_or_update_prompt(
-                submitted_query,
-                cancelled=True,
-                allow_short=True,
-            )
+            record_failed_launch_prompt(submitted_query)
             raise
 
         add_or_update_prompt(
             submitted_query,
             allow_short=True,
         )
-        results = launch_multi_prompt_agents(
-            segments=expanded_segments,
-            local_xprompts=multi.local_xprompts,
-            cl_name=mp_cl_name,
-            project_file=project_file,
-            project_name=project_name,
-            is_home_mode=is_home_mode,
-            vcs_ref=mp_vcs_ref,
-            extra_env=extra_env,
-            segment_extra_env=expanded_segment_extra_env,
-            segment_template_groups=expanded_segment_template_groups,
-            allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
-                extra_env,
-                expanded_segment_extra_env,
-            ),
-            default_bare_segments_to_home=True,
-        )
+        try:
+            results = launch_multi_prompt_agents(
+                segments=expanded_segments,
+                local_xprompts=multi.local_xprompts,
+                cl_name=mp_cl_name,
+                project_file=project_file,
+                project_name=project_name,
+                is_home_mode=is_home_mode,
+                vcs_ref=mp_vcs_ref,
+                extra_env=extra_env,
+                segment_extra_env=expanded_segment_extra_env,
+                segment_template_groups=expanded_segment_template_groups,
+                allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
+                    extra_env,
+                    expanded_segment_extra_env,
+                ),
+                default_bare_segments_to_home=True,
+            )
+        except Exception:
+            record_failed_launch_prompt(submitted_query)
+            raise
         return results
 
     query = normalize_default_vcs_workflow(expanded_segments[0])
@@ -325,15 +325,16 @@ def launch_agents_from_cwd(
     repeat_count, _, _ = extract_repeat_and_name(query)
     if repeat_count is not None and repeat_count > 1:
         slot_results: list[AgentLaunchResult] = []
-        repeat_timestamps = reserve_launch_timestamp_batch(repeat_count)
-        repeat_specs: list[RepeatAgentSpec] = []
-
-        spawn_repeat_batch(
-            query,
-            base_spawn_fn=repeat_specs.append,
-            timestamps=repeat_timestamps,
-        )
         try:
+            repeat_timestamps = reserve_launch_timestamp_batch(repeat_count)
+            repeat_specs: list[RepeatAgentSpec] = []
+
+            spawn_repeat_batch(
+                query,
+                base_spawn_fn=repeat_specs.append,
+                timestamps=repeat_timestamps,
+            )
+
             from sase.agent.launch_validation import validate_launch_name_requests
 
             validate_launch_name_requests(
@@ -342,29 +343,29 @@ def launch_agents_from_cwd(
                     extra_env,
                 ),
             )
-        except RuntimeError:
-            add_or_update_prompt(query, cancelled=True)
-            raise
 
-        def _spawn_repeat_slot(spec: RepeatAgentSpec) -> None:
-            assert spec.timestamp is not None
-            slot_env = {
-                REPEAT_NAME_ENV: spec.name,
-                REPEAT_ITERATION_ENV: str(spec.iteration),
-                REPEAT_TOTAL_ENV: str(spec.total),
-            }
-            if extra_env:
-                slot_env.update(extra_env)
-            slot_results.extend(
-                launch_agents_from_cwd(
-                    spec.prompt,
-                    extra_env=slot_env,
-                    timestamp=spec.timestamp,
+            def _spawn_repeat_slot(spec: RepeatAgentSpec) -> None:
+                assert spec.timestamp is not None
+                slot_env = {
+                    REPEAT_NAME_ENV: spec.name,
+                    REPEAT_ITERATION_ENV: str(spec.iteration),
+                    REPEAT_TOTAL_ENV: str(spec.total),
+                }
+                if extra_env:
+                    slot_env.update(extra_env)
+                slot_results.extend(
+                    launch_agents_from_cwd(
+                        spec.prompt,
+                        extra_env=slot_env,
+                        timestamp=spec.timestamp,
+                    )
                 )
-            )
 
-        for spec in repeat_specs:
-            _spawn_repeat_slot(spec)
+            for spec in repeat_specs:
+                _spawn_repeat_slot(spec)
+        except Exception:
+            record_failed_launch_prompt(query)
+            raise
         return slot_results
 
     # --- Alt-split detection ---
@@ -408,28 +409,29 @@ def launch_agents_from_cwd(
                 ),
             )
         except RuntimeError:
-            add_or_update_prompt(
-                query,
-                cancelled=True,
-            )
+            record_failed_launch_prompt(query)
             raise
 
         add_or_update_prompt(query)
-        results = launch_multi_prompt_agents(
-            segments=[query],
-            local_xprompts=multi.local_xprompts,
-            cl_name=alt_cl_name,
-            project_file=project_file,
-            project_name=project_name,
-            is_home_mode=is_home_mode,
-            vcs_ref=alt_vcs_ref,
-            extra_env=extra_env,
-            preplanned_fanout_plans=[alt_plan],
-            allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
-                extra_env
-            ),
-            default_bare_segments_to_home=True,
-        )
+        try:
+            results = launch_multi_prompt_agents(
+                segments=[query],
+                local_xprompts=multi.local_xprompts,
+                cl_name=alt_cl_name,
+                project_file=project_file,
+                project_name=project_name,
+                is_home_mode=is_home_mode,
+                vcs_ref=alt_vcs_ref,
+                extra_env=extra_env,
+                preplanned_fanout_plans=[alt_plan],
+                allow_reserved_family_separator_names=_internal_agent_name_bypass_for_launch(
+                    extra_env
+                ),
+                default_bare_segments_to_home=True,
+            )
+        except Exception:
+            record_failed_launch_prompt(query)
+            raise
         return results
 
     # --- Detect VCS refs in prompt ---
@@ -532,10 +534,7 @@ def launch_agents_from_cwd(
             ),
         )
     except RuntimeError:
-        add_or_update_prompt(
-            query,
-            cancelled=True,
-        )
+        record_failed_launch_prompt(query)
         raise
 
     # --- Save prompt to history ---
@@ -577,6 +576,7 @@ def launch_agents_from_cwd(
     except Exception:
         if name_allocator is not None:
             name_allocator.release_uncommitted_template_reservations()
+        record_failed_launch_prompt(query)
         raise
     return execution.results
 

@@ -236,6 +236,7 @@ def run_query(
         query = "\n---\n".join(expanded_segments)
 
     workspace_claimed = False
+    workflow_completed = False
     try:
         # Build the full prompt
         if previous_history:
@@ -427,6 +428,7 @@ def run_query(
 
         # Extract response text for chat history
         response_content = result.response_text or ""
+        workflow_completed = True
 
         # Prepare and save chat history
         saved_path = save_chat_history(
@@ -438,6 +440,12 @@ def run_query(
         )
 
         print(f"\nChat history saved to: {saved_path}")
+    except Exception:
+        if previous_history is None and not workflow_completed:
+            from sase.history.prompt import record_failed_launch_prompt
+
+            record_failed_launch_prompt(query)
+        raise
     finally:
         # Release workspace when done
         if workspace_claimed and project_file and workspace_num:

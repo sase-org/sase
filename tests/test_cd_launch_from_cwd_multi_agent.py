@@ -211,3 +211,39 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_cancelled_history_uses_submi
     assert [entry["text"] for entry in entries] == ["#!swarm"]
     assert entries[0]["cancelled"] is True
     assert "Plan phase" not in entries[0]["text"]
+
+
+def test_launch_agents_from_cwd_multi_agent_xprompt_failure_forces_cancelled_history(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agents_from_cwd
+    from sase.history import prompt as prompt_history
+    from sase.xprompt.models import XPrompt
+
+    history_path = tmp_path / ".sase" / "prompt_history.json"
+    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
+    monkeypatch.setattr(prompt_history, "generate_timestamp", lambda: "260501_120000")
+    catalog = {"swarm": XPrompt(name="swarm", content="Plan phase\n---\nBuild phase")}
+
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch(
+            "sase.agent.multi_agent_xprompt.get_all_xprompts",
+            return_value=catalog,
+        ),
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            side_effect=RuntimeError("multi boom"),
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="multi boom"):
+            launch_agents_from_cwd("#!swarm")
+
+    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
+    assert [entry["text"] for entry in entries] == ["#!swarm"]
+    assert entries[0]["cancelled"] is True

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -177,3 +178,107 @@ def test_launch_agent_from_cwd_bad_cd_path_fails(
             launch_agent_from_cwd(f"#cd:{tmp_path / 'missing'} do work")
 
     spawn.assert_not_called()
+
+
+def test_launch_agent_from_cwd_spawn_failure_records_short_failed_history(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agent_from_cwd
+    from sase.history import prompt as prompt_history
+
+    history_path = tmp_path / ".sase" / "prompt_history.json"
+    prompt = f"#cd:{tmp_path}"
+    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
+
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
+        patch(
+            "sase.agent.launcher.spawn_agent_subprocess",
+            side_effect=RuntimeError("spawn boom"),
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="spawn boom"):
+            launch_agent_from_cwd(prompt)
+
+    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
+    assert entries == [
+        {
+            "text": prompt,
+            "timestamp": entries[0]["timestamp"],
+            "last_used": entries[0]["last_used"],
+            "cancelled": True,
+        }
+    ]
+
+
+def test_launch_agent_from_cwd_alt_failure_records_failed_history(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agents_from_cwd
+    from sase.history import prompt as prompt_history
+
+    history_path = tmp_path / ".sase" / "prompt_history.json"
+    prompt = f"%alt(sec=security pass,perf=performance pass)\n#cd:{tmp_path} do work"
+    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
+
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            side_effect=RuntimeError("fanout boom"),
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="fanout boom"):
+            launch_agents_from_cwd(prompt)
+
+    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
+    assert entries[0]["text"] == prompt
+    assert entries[0]["cancelled"] is True
+
+
+def test_launch_agent_from_cwd_repeat_failure_records_failed_history(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agents_from_cwd
+    from sase.history import prompt as prompt_history
+
+    history_path = tmp_path / ".sase" / "prompt_history.json"
+    prompt = f"%r:2\n#cd:{tmp_path} do work"
+    monkeypatch.setattr(prompt_history, "_PROMPT_HISTORY_FILE", history_path)
+
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000", "260501_120001"],
+        ),
+        patch(
+            "sase.agent.repeat_launcher.spawn_repeat_batch",
+            side_effect=RuntimeError("repeat boom"),
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="repeat boom"):
+            launch_agents_from_cwd(prompt)
+
+    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
+    assert entries[0]["text"] == prompt
+    assert entries[0]["cancelled"] is True

@@ -41,8 +41,8 @@ class BackgroundAgentLaunchMixin:
             prompt: The user's prompt for the agent.
             timestamp: Shared timestamp for artifacts.
             update_target: What to checkout (CL name or "p4head").
-            project_name: Project name for prompt history tracking.
-            history_sort_key: CL name to associate with the prompt in history.
+            project_name: Project name for launch metadata.
+            history_sort_key: Launch context label propagated to the agent.
             is_home_mode: If True, skip workspace management (for home directory).
             vcs_ref: If set, a (workflow_type, ref) tuple for the pre-resolved
                 VCS reference. Used to set SASE_*_PRE_ALLOCATED env vars.

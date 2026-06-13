@@ -341,7 +341,8 @@ class AgentLaunchBodyMixin:
                 err_msg = f"Cannot resolve {leading_tag.strip()}; not launching"
                 return LaunchTaskOutcome(err_msg, severity="error")
 
-        # Save prompt to history after VCS resolution so project/branch are correct
+        # Save prompt after launch validation; validation failures are recorded
+        # through the failed-launch helper so short prompts are retained.
         with timer.stage("history_write"):
             try:
                 from sase.agent.launch_validation import validate_launch_name_requests

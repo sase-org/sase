@@ -491,6 +491,7 @@ def test_run_query_failed_claim_blocks_workflow_and_cleanup(tmp_path: Path) -> N
         ),
         patch("sase.xprompt.resolve_xprompt_aliases", side_effect=lambda q: q),
         patch("sase.history.prompt.add_or_update_prompt"),
+        patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
         patch("sase.agent.multi_prompt.parse_multi_prompt", return_value=mock_multi),
         patch(
             "sase.agent.multi_agent_xprompt.expand_multi_agent_xprompts",
@@ -530,3 +531,4 @@ def test_run_query_failed_claim_blocks_workflow_and_cleanup(tmp_path: Path) -> N
     execute_workflow.assert_not_called()
     save_chat_history.assert_not_called()
     release_workspace.assert_not_called()
+    record_failed.assert_called_once_with("#git:home hello")

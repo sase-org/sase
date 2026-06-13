@@ -47,7 +47,7 @@ class PromptBarMountMixin:
             project_name: The project name.
             cl_name: The selected CL name (or None for project-only).
             update_target: What to checkout (CL name or "p4head").
-            history_sort_key: Branch/CL name to sort prompt history by.
+            history_sort_key: Launch context label propagated to spawned agents.
         """
         from sase.workflows.commit.project_file_utils import create_project_file
         from sase.core.time import generate_timestamp
@@ -81,7 +81,7 @@ class PromptBarMountMixin:
 
         # Remove any existing prompt bar before mounting a new one.
         # Must happen before overwriting _prompt_context so the old bar's
-        # text is saved with the old context's project/branch.
+        # text is saved with the old context.
         self._unmount_prompt_bar()
 
         # Store context for when prompt is submitted
@@ -253,7 +253,7 @@ class PromptBarMountMixin:
 
         Args:
             display_name: Display name shown in the prompt context.
-            history_sort_key: Key used to sort/filter prompt history.
+            history_sort_key: Launch context label propagated to spawned agents.
         """
         from pathlib import Path
 
@@ -304,13 +304,13 @@ class PromptBarMountMixin:
         Args:
             initial_text: Pre-populated text for the prompt input bar.
             display_name: Display name shown in the prompt context.
-            history_sort_key: Key used to sort/filter prompt history.
+            history_sort_key: Launch context label propagated to spawned agents.
         """
         from ...widgets import PromptInputBar
 
         # Remove any existing prompt bar before mounting a new one.
         # Must happen before overwriting _prompt_context so the old bar's
-        # text is saved with the old context's project/branch.
+        # text is saved with the old context.
         self._unmount_prompt_bar()
 
         self._setup_home_prompt_context(
@@ -335,7 +335,7 @@ class PromptBarMountMixin:
         Args:
             initial_text: Pre-populated text for the editor.
             display_name: Display name shown in the prompt context.
-            history_sort_key: Key used to sort/filter prompt history.
+            history_sort_key: Launch context label propagated to spawned agents.
         """
         self._setup_home_prompt_context(
             display_name=display_name,
