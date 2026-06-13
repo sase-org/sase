@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.7](https://github.com/sase-org/sase/compare/v0.1.6...v0.1.7) (2026-06-13)
+
+
+### Features
+
+* **ace:** add agents detail zoom modal ([1bfd6a8](https://github.com/sase-org/sase/commit/1bfd6a888b945a05bf612375eb9f681eba5ee876))
+* **ace:** add prompt vim quote and bracket text objects (sase-4l.3) ([14c0021](https://github.com/sase-org/sase/commit/14c00218029a4a7736b264e7fecb874e242b5021))
+* **ace:** add prompt Vim visual mode (sase-4l.2) ([ef4363f](https://github.com/sase-org/sase/commit/ef4363fdccea2aa38f372a2ada328b35e9c45129))
+* **ace:** add vim prompt fidelity commands (sase-4l.4) ([915fdc7](https://github.com/sase-org/sase/commit/915fdc737dda451657b2775dce14dec0bd17d546))
+* **ace:** cycle VCS MRU prefixes in prompt bodies ([d297e00](https://github.com/sase-org/sase/commit/d297e000d1a043028cfa08d38008f51897adf5e6))
+* add prompt vim indent and case operators (sase-4l.6) ([db9214c](https://github.com/sase-org/sase/commit/db9214c5f2201ad889d95ac4ea84a4f988aeb258))
+* add prompt Vim yank and paste (sase-4l.1) ([a8603da](https://github.com/sase-org/sase/commit/a8603da30bd21ab891a669aed1730268530f8087))
+* add vim paragraph motions to prompt input (sase-4l.5) ([abb8f9e](https://github.com/sase-org/sase/commit/abb8f9ecd38aef6c6e15385165e903f343e499b4))
+
+
+### Bug Fixes
+
+* pin codex model for pylimit split agents ([84d8fd7](https://github.com/sase-org/sase/commit/84d8fd7da775a89c9b27a46c5690ffa08651f677))
+* resolve 11 bugs found auditing recent commits ([#170](https://github.com/sase-org/sase/issues/170)) ([08915a2](https://github.com/sase-org/sase/commit/08915a2fbd74449e0f847efc79b23987896deb28))
+
+
+### Documentation
+
+* expand git commit tag guidance ([1d59abb](https://github.com/sase-org/sase/commit/1d59abbcd27ccf52af8503f2c330ffe6b768f59f))
+
 ## [0.1.6](https://github.com/sase-org/sase/compare/v0.1.5...v0.1.6) (2026-06-12)
 
 
