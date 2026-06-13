@@ -56,12 +56,20 @@ class PromptInputBar(Static):
             self.cursor_col = cursor_col
 
     class HistoryRequested(Message):
-        """Message sent when user requests prompt history picker ('.')."""
+        """Message sent when user requests the prompt history picker."""
 
-        def __init__(self, vcs_prefix: str = "", show_cancelled: bool = False) -> None:
+        def __init__(
+            self,
+            vcs_prefix: str = "",
+            show_cancelled: bool = False,
+            initial_filter: str = "",
+            preserve_prompt_bar: bool = False,
+        ) -> None:
             super().__init__()
             self.vcs_prefix = vcs_prefix
             self.show_cancelled = show_cancelled
+            self.initial_filter = initial_filter
+            self.preserve_prompt_bar = preserve_prompt_bar
 
     class SnippetRequested(Message):
         """Message sent when user requests snippet modal ('#@')."""
@@ -103,8 +111,8 @@ class PromptInputBar(Static):
             placeholder = "Type coder prompt...  [^G] editor  [^J] newline"
         else:
             placeholder = (
-                "Type prompt, '.' for history, '#@' for snippets  "
-                "[^T] complete  [^R] find  [^G] editor  [^Y] workflow  [^J] newline"
+                "Type prompt  [^.] history  [^T] complete  [^R] find  "
+                "[^G] editor  [^Y] workflow  [^J] newline"
             )
         yield Static("", id="prompt-completion", classes="hidden")
         yield PromptTextArea(
@@ -394,25 +402,6 @@ class PromptInputBar(Static):
     def _handle_text_submission(self, text: str) -> None:
         """Process text submission from the TextArea."""
         value = text.strip()
-
-        if self._mode != "feedback":
-            # Check for '.' or '.x' - trigger history picker
-            if value in (".", ".x"):
-                self.post_message(self.HistoryRequested(show_cancelled=value == ".x"))
-                return
-
-            # Check for VCS dot-prompt (e.g., "#gh:sase ." or "#git:repo .x")
-            if value.endswith((" .", " .x")) and value[0] == "#":
-                show_cancelled = value.endswith(" .x")
-                vcs_prefix = value.rsplit(" ", 1)[0].rstrip()
-                self.post_message(
-                    self.HistoryRequested(
-                        vcs_prefix=vcs_prefix, show_cancelled=show_cancelled
-                    )
-                )
-                return
-
-        # Normal submission
         self.post_message(self.Submitted(value, mode=self._mode))
 
     def action_cancel(self) -> None:

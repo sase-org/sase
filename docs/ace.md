@@ -1620,6 +1620,7 @@ markdown syntax highlighting for prompt content (headings, bold, italic, code bl
 | `Ctrl+A` | Move to start of line (jumps to previous line start if already at col 0)                      |
 | `Ctrl+E` | Move to end of line (jumps to next line end if already at end)                                |
 | `Ctrl+G` | Open full prompt in `$EDITOR`                                                                 |
+| `Ctrl+.` | Open prompt history, filtered by the current single-line prompt                               |
 | `Ctrl+T` | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
 | `Ctrl+R` | Recursive fuzzy file finder using the same prompt-aware path root as file completion          |
 | `Tab`    | Snippet expansion (see below)                                                                 |
@@ -1827,9 +1828,10 @@ V-LINE operators always apply to whole selected lines regardless of the cursor c
 
 ## Prompt History Modal
 
-Press `,.` (leader + `.`) to open the prompt history modal. It displays prompts previously run in ACE, ordered by most
-recent use. Prompts shorter than two words are skipped when writing to history, so trivial one-word inputs (e.g. `y`,
-`ok`) don't clutter the list.
+Press `Ctrl+.` from the prompt input to open the prompt history modal. When the current prompt is a single logical line,
+that line pre-fills the modal filter. Press `,.` (leader + `.`) to open the same modal from the main ACE UI. The modal
+displays prompts previously run in ACE, ordered by most recent use. Prompts shorter than two words are skipped when
+writing to history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter the list.
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit workspace reference appears with the
 default `#git:home` prefix. Use `#cd:~` for direct home-directory runs with no VCS workspace management. Explicit

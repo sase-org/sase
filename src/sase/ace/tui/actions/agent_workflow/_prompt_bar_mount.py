@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-from typing import ClassVar
 
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -34,7 +33,6 @@ class PromptBarMountMixin:
     """Mount/unmount + focus management for the prompt input bar."""
 
     _prompt_context: PromptContext | None
-    _TRIVIAL_PROMPT_PATTERNS: ClassVar[frozenset[str]]
 
     def _show_prompt_input_bar(
         self,
@@ -106,7 +104,6 @@ class PromptBarMountMixin:
     def _save_bar_text_as_cancelled(self, bar: object) -> None:
         """Extract text from bar and save to history as cancelled.
 
-        Skips empty text and trivial trigger patterns (`.`, `.x`, VCS dot-prompts).
         Safe to call even if the prompt was already saved — add_or_update_prompt
         never downgrades a non-cancelled entry to cancelled.
         """
@@ -117,13 +114,6 @@ class PromptBarMountMixin:
             return
 
         if not text:
-            return
-
-        # Skip trigger patterns that aren't real prompts
-        if text in self._TRIVIAL_PROMPT_PATTERNS:
-            return
-        # Skip VCS dot-prompts like "#gh:sase ." or "#gh:sase .x"
-        if text.endswith((" .", " .x")) and text.startswith("#"):
             return
 
         from sase.history.prompt import add_or_update_prompt

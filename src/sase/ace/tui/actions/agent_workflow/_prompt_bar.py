@@ -26,5 +26,3 @@ class PromptBarMixin(
     _prompt_context: PromptContext | None = None
     _plan_feedback_context: PlanFeedbackContext | None
     _approve_prompt_context: ApprovePromptContext | None = None
-
-    _TRIVIAL_PROMPT_PATTERNS = frozenset({".", ".x"})

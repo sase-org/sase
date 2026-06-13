@@ -111,17 +111,21 @@ class PromptHistoryModal(
     def __init__(
         self,
         show_cancelled: bool = False,
+        initial_filter: str = "",
     ) -> None:
         """Initialize the prompt history modal.
 
         Args:
             show_cancelled: Whether to show cancelled prompts by default.
+            initial_filter: Text to pre-fill in the modal filter.
         """
         super().__init__()
         self._all_items: list[_PromptDisplayItem] = []
         self._filtered_items: list[_PromptDisplayItem] = []
         self._show_cancelled = show_cancelled
+        self._initial_filter = initial_filter
         self._load_items()
+        self._filtered_items = self._get_filtered_items(self._initial_filter)
 
     def _load_items(self) -> None:
         """Load prompt history items (including cancelled for toggle filtering)."""
@@ -143,13 +147,6 @@ class PromptHistoryModal(
                 )
             )
 
-        # Filter based on initial show_cancelled setting
-        self._filtered_items = [
-            item
-            for item in self._all_items
-            if self._show_cancelled or not item.entry.cancelled
-        ]
-
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         with Container(id="prompt-history-modal-container"):
@@ -158,6 +155,7 @@ class PromptHistoryModal(
                 yield Label("No prompt history found.")
             else:
                 yield FilterInput(
+                    value=self._initial_filter,
                     placeholder="Type to filter...",
                     id="prompt-history-filter-input",
                 )
@@ -234,6 +232,7 @@ class PromptHistoryModal(
         if self._all_items:
             filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
             filter_input.focus()
+            filter_input.cursor_position = len(filter_input.value)
             # Show preview for first item
             if self._filtered_items:
                 self._update_preview(self._filtered_items[0])

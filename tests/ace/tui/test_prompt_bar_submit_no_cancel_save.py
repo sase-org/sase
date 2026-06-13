@@ -68,8 +68,6 @@ def test_finish_agent_launch_does_not_write_cancelled_history() -> None:
 class _MountHarness(PromptBarMountMixin):
     """Drive the unmount methods without a live Textual DOM."""
 
-    _TRIVIAL_PROMPT_PATTERNS = frozenset({".", ".x"})
-
     def __init__(self, bar: object | None) -> None:
         self._prompt_context: PromptContext | None = _ctx()
         self._bar = bar

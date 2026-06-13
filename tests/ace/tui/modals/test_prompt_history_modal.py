@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
 from sase.ace.tui.modals.prompt_history_modal import (
     _PromptDisplayItem,
     PromptHistoryModal,
@@ -71,3 +72,20 @@ def test_prompt_history_filter_matches_prompt_text_only() -> None:
     modal._show_cancelled = False
 
     assert modal._get_filtered_items("tests") == [matching_item]
+
+
+def test_prompt_history_initial_filter_prefilters_items(monkeypatch) -> None:
+    entries = [
+        _item(text="fix auth login").entry,
+        _item(text="update docs").entry,
+    ]
+    monkeypatch.setattr(
+        prompt_history_modal,
+        "get_prompts_for_fzf",
+        lambda *, include_cancelled: [("", entry) for entry in entries],
+    )
+
+    modal = PromptHistoryModal(initial_filter="auth")
+
+    assert modal._initial_filter == "auth"
+    assert [item.entry.text for item in modal._filtered_items] == ["fix auth login"]

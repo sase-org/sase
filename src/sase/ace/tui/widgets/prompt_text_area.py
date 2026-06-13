@@ -142,6 +142,28 @@ class PromptTextArea(
         if bar:
             bar._handle_text_submission(self.text)
 
+    def action_open_prompt_history(self) -> None:
+        """Request prompt history, filtered by the current single-line prompt."""
+        bar = self._find_prompt_bar()
+        if not bar or bar._mode != "prompt":
+            return
+        if self.document.line_count != 1:
+            return
+
+        self._snippet_tabstops = []
+        self._clear_soft_completion(cancel_timer=True)
+        self._clear_file_completion()
+        self._clear_xprompt_arg_hint()
+        self._vcs_mru_index = None
+
+        PromptInputBar = _prompt_bar_class()
+        bar.post_message(
+            PromptInputBar.HistoryRequested(
+                initial_filter=self.text,
+                preserve_prompt_bar=True,
+            )
+        )
+
     def action_insert_newline(self) -> None:
         """Insert a newline at the cursor position."""
         start, end = self.selection
@@ -279,6 +301,12 @@ class PromptTextArea(
             bar = self._find_prompt_bar()
             if bar:
                 bar.action_cancel()
+            return
+
+        if event.key in {"ctrl+full_stop", "ctrl+period"}:
+            event.stop()
+            event.prevent_default()
+            self.action_open_prompt_history()
             return
 
         if self._vim_mode in {"visual", "visual_line"}:

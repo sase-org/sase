@@ -74,6 +74,14 @@ class PromptBarRequestsMixin:
 
         def on_history_select(result: PromptHistoryResult | None) -> None:
             if result is None:
+                if event.preserve_prompt_bar:
+                    try:
+                        bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
+                        text_area = bar.query_one("#prompt-input", PromptTextArea)
+                        text_area.focus()
+                    except Exception:
+                        pass
+                    return
                 self.notify("No prompt from history - cancelled", severity="warning")  # type: ignore[attr-defined]
                 self._unmount_prompt_bar()  # type: ignore[attr-defined]
                 self._prompt_context = None
@@ -84,8 +92,6 @@ class PromptBarRequestsMixin:
                 self._finish_agent_launch(_build_prompt(result.prompt_text))  # type: ignore[attr-defined]
             elif result.action == PromptHistoryAction.LOAD:
                 # Load into prompt input widget for inline editing
-                from ...widgets import PromptInputBar
-
                 try:
                     bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
                     text_area = bar.query_one("#prompt-input", PromptTextArea)
@@ -109,7 +115,10 @@ class PromptBarRequestsMixin:
                     self._prompt_context = None
 
         self.push_screen(  # type: ignore[attr-defined]
-            PromptHistoryModal(show_cancelled=event.show_cancelled),
+            PromptHistoryModal(
+                show_cancelled=event.show_cancelled,
+                initial_filter=event.initial_filter,
+            ),
             on_history_select,
         )
 
