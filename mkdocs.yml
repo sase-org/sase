@@ -12,7 +12,6 @@ use_directory_urls: true
 nav:
   - Home: index.md
   - Getting Started:
-      - "Hello, SASE: Your First 15 Minutes": blog/posts/hello-sase-your-first-15-minutes.md
       - Initialization: init.md
   - The Basics:
       - Memory: memory.md
@@ -56,6 +55,7 @@ nav:
       - Blog Home: blog/index.md
       - SASE Blog Series: series/agentic-software-engineering.md
       - "[00] Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
+      - "[01] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
 
 theme:
   name: material

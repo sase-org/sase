@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-13 16:09:56
-status: wip
+status: done
 prompt: sdd/prompts/202606/hello_sase_blog_nav.md
 ---
 # Plan: Move [01] Hello, SASE Back Under Blog Navigation
