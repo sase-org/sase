@@ -138,6 +138,7 @@ def _agent_index_status_payload(
         "index_exists": index_path.is_file(),
         "complete_history": False,
         "complete_visible_inbox": False,
+        "alias_rows": 0,
         "dismissed_projection_rows": 0,
         "indexed_rows": 0,
         "normal_refresh": "visible-inbox artifact-index query",
@@ -171,6 +172,7 @@ def _agent_index_status_payload(
     base["schema_version"] = status.schema_version
     base["indexed_rows"] = status.agent_artifacts_rows
     base["dismissed_projection_rows"] = status.dismissed_agents_rows
+    base["alias_rows"] = status.agent_artifact_aliases_rows
     try:
         snapshot = query_agent_artifact_index(
             index_path,

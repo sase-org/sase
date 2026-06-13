@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-13 12:28:33
-status: wip
+status: done
 prompt: sdd/prompts/202606/ace_run_layout.md
 ---
 # Plan: Restructure `ace-run/` Artifact Storage and Search

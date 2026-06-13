@@ -63,6 +63,8 @@ DEFAULT_EVENT_MASK = (
 # agent's artifact tree adds dozens of watches; without a ceiling the
 # kernel watch table grows unbounded over a long ACE session.
 MAX_INOTIFY_WATCHES = 4096
+MAX_STARTUP_ACE_RUN_MONTH_WATCHES = 2
+MAX_STARTUP_ACE_RUN_DAY_WATCHES = 14
 
 # Event header is wd:int32, mask:uint32, cookie:uint32, len:uint32.
 _EVENT_HEADER = struct.Struct("iIII")
@@ -287,8 +289,49 @@ class ArtifactWatcher:
                 try:
                     if child.is_dir():
                         yield child
+                        if child.name == "ace-run":
+                            yield from self._iter_recent_ace_run_shard_watch_paths(
+                                child
+                            )
                 except OSError:
                     continue
+
+    def _iter_recent_ace_run_shard_watch_paths(
+        self, workflow_dir: Path
+    ) -> Iterable[Path]:
+        """Yield bounded existing month/day shard dirs for startup watches."""
+        try:
+            month_dirs = sorted(
+                (
+                    child
+                    for child in workflow_dir.iterdir()
+                    if child.is_dir() and _is_month_shard(child.name)
+                ),
+                key=lambda path: path.name,
+                reverse=True,
+            )
+        except OSError:
+            return
+        day_count = 0
+        for month_dir in month_dirs[:MAX_STARTUP_ACE_RUN_MONTH_WATCHES]:
+            yield month_dir
+            try:
+                day_dirs = sorted(
+                    (
+                        child
+                        for child in month_dir.iterdir()
+                        if child.is_dir() and _is_day_shard(child.name)
+                    ),
+                    key=lambda path: path.name,
+                    reverse=True,
+                )
+            except OSError:
+                continue
+            for day_dir in day_dirs:
+                if day_count >= MAX_STARTUP_ACE_RUN_DAY_WATCHES:
+                    return
+                day_count += 1
+                yield day_dir
 
     def _add_watch_tree(self, libc: ctypes.CDLL, fd: int, path: Path) -> int:
         """Install watches for a newly-created or moved directory tree.
@@ -400,3 +443,13 @@ def _callback_accepts_positional(callback: Callable[..., object]) -> bool:
         ):
             return True
     return False
+
+
+def _is_month_shard(name: str) -> bool:
+    return len(name) == 6 and name.isdigit()
+
+
+def _is_day_shard(name: str) -> bool:
+    if len(name) != 2 or not name.isdigit():
+        return False
+    return 1 <= int(name) <= 31

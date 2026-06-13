@@ -6,6 +6,8 @@ child-name reservation that backs ``%r:N`` repeat batches.
 
 import json
 import re
+from collections.abc import Iterator
+from pathlib import Path
 from sase.agent.names._common import (
     extract_auto_name_prefix,
     is_process_alive,
@@ -16,6 +18,26 @@ from sase.agent.names._templates import (
     allocate_agent_name_template,
 )
 from sase.core.paths import sase_projects_dir
+
+
+def _iter_ace_run_artifact_dirs() -> Iterator[Path]:
+    projects_dir = sase_projects_dir()
+    if not projects_dir.exists():
+        return
+    from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
+
+    try:
+        project_iter = projects_dir.iterdir()
+    except OSError:
+        return
+    for project_dir in project_iter:
+        if not project_dir.is_dir():
+            continue
+        yield from iter_agent_artifact_dirs(
+            project_dir.name,
+            "ace-run",
+            projects_root=projects_dir,
+        )
 
 
 def get_next_auto_name() -> str:
@@ -53,72 +75,62 @@ def get_active_agent_names() -> set[str]:
 
     dismissed_suffixes = _load_dismissed_suffixes()
     names: set[str] = set()
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
+    for artifact_dir in _iter_ace_run_artifact_dirs():
+        if artifact_dir.name in dismissed_suffixes:
             continue
 
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
+        meta_path = artifact_dir / "agent_meta.json"
+        if not meta_path.exists():
             continue
 
-        for artifact_dir in ace_run_dir.iterdir():
-            if not artifact_dir.is_dir():
-                continue
-            if artifact_dir.name in dismissed_suffixes:
-                continue
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
 
-            meta_path = artifact_dir / "agent_meta.json"
-            if not meta_path.exists():
-                continue
+        if not isinstance(data, dict):
+            continue
 
-            try:
-                with open(meta_path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
+        # Prefer workflow_name for multi-agent workflows so the
+        # base name (e.g. "a") is reserved, not the child name ("a.1").
+        name_field = data.get("name")
+        workflow_name_field = data.get("workflow_name")
+        name = workflow_name_field or name_field
+        if not name:
+            continue
 
-            if not isinstance(data, dict):
-                continue
+        # Any active agent whose name (or workflow name) starts with
+        # ``<base>.`` reserves the auto-name slot ``<base>``: a fresh
+        # ``m`` agent next to ``m.claude.plan`` would visually collide on
+        # the Agents tab and become ambiguous when typing ``@m`` in
+        # prompts. This also covers the legacy repeat-batch case where
+        # ``<letter>.<digits>`` reserves ``<letter>``.
+        prefix = extract_auto_name_prefix(name_field, workflow_name_field)
 
-            # Prefer workflow_name for multi-agent workflows so the
-            # base name (e.g. "a") is reserved, not the child name ("a.1").
-            name_field = data.get("name")
-            workflow_name_field = data.get("workflow_name")
-            name = workflow_name_field or name_field
-            if not name:
-                continue
+        done_path = artifact_dir / "done.json"
+        is_done = done_path.exists()
 
-            # Any active agent whose name (or workflow name) starts with
-            # ``<base>.`` reserves the auto-name slot ``<base>``: a fresh
-            # ``m`` agent next to ``m.claude.plan`` would visually collide on
-            # the Agents tab and become ambiguous when typing ``@m`` in
-            # prompts. This also covers the legacy repeat-batch case where
-            # ``<letter>.<digits>`` reserves ``<letter>``.
-            prefix = extract_auto_name_prefix(name_field, workflow_name_field)
+        # Non-done artifacts only reserve a name while their process is
+        # actually alive. Done artifacts do not need a live PID because
+        # dismissal controls their visible lifecycle.
+        if not is_done and not is_process_alive(data, artifact_dir):
+            continue
 
-            done_path = artifact_dir / "done.json"
-            is_done = done_path.exists()
-
-            # Non-done artifacts only reserve a name while their process is
-            # actually alive. Done artifacts do not need a live PID because
-            # dismissal controls their visible lifecycle.
-            if not is_done and not is_process_alive(data, artifact_dir):
-                continue
-
-            # Follow-up agents (coder/epic steps spawned after plan
-            # approval) share their parent's name and are sub-steps of
-            # the parent workflow — they should not independently
-            # reserve their full name. They still reserve the auto-name
-            # prefix while live so a fresh ``<base>`` agent does not
-            # collide with them.
-            if data.get("parent_timestamp"):
-                if prefix is not None:
-                    names.add(prefix)
-                continue
-
-            names.add(name)
+        # Follow-up agents (coder/epic steps spawned after plan
+        # approval) share their parent's name and are sub-steps of
+        # the parent workflow — they should not independently
+        # reserve their full name. They still reserve the auto-name
+        # prefix while live so a fresh ``<base>`` agent does not
+        # collide with them.
+        if data.get("parent_timestamp"):
             if prefix is not None:
                 names.add(prefix)
+            continue
+
+        names.add(name)
+        if prefix is not None:
+            names.add(prefix)
 
     return names
 
@@ -137,41 +149,31 @@ def get_active_agent_name_map() -> dict[str, str]:
 
     dismissed_suffixes = _load_dismissed_suffixes()
     name_map: dict[str, str] = {}
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
+    for artifact_dir in _iter_ace_run_artifact_dirs():
+        if artifact_dir.name in dismissed_suffixes:
             continue
 
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
+        meta_path = artifact_dir / "agent_meta.json"
+        if not meta_path.exists():
             continue
 
-        for artifact_dir in ace_run_dir.iterdir():
-            if not artifact_dir.is_dir():
-                continue
-            if artifact_dir.name in dismissed_suffixes:
-                continue
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
 
-            meta_path = artifact_dir / "agent_meta.json"
-            if not meta_path.exists():
-                continue
+        if not isinstance(data, dict):
+            continue
 
-            try:
-                with open(meta_path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
+        done_path = artifact_dir / "done.json"
+        is_done = done_path.exists()
+        if not is_done and not is_process_alive(data, artifact_dir):
+            continue
 
-            if not isinstance(data, dict):
-                continue
-
-            done_path = artifact_dir / "done.json"
-            is_done = done_path.exists()
-            if not is_done and not is_process_alive(data, artifact_dir):
-                continue
-
-            for value in (data.get("name"), data.get("workflow_name")):
-                if isinstance(value, str) and value:
-                    name_map.setdefault(value, str(artifact_dir))
+        for value in (data.get("name"), data.get("workflow_name")):
+            if isinstance(value, str) and value:
+                name_map.setdefault(value, str(artifact_dir))
 
     return name_map
 
@@ -189,41 +191,31 @@ def get_live_agent_name_map() -> dict[str, str]:
 
     dismissed_suffixes = _load_dismissed_suffixes()
     name_map: dict[str, str] = {}
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
+    for artifact_dir in _iter_ace_run_artifact_dirs():
+        if artifact_dir.name in dismissed_suffixes:
             continue
 
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
+        meta_path = artifact_dir / "agent_meta.json"
+        if not meta_path.exists():
             continue
 
-        for artifact_dir in ace_run_dir.iterdir():
-            if not artifact_dir.is_dir():
-                continue
-            if artifact_dir.name in dismissed_suffixes:
-                continue
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
 
-            meta_path = artifact_dir / "agent_meta.json"
-            if not meta_path.exists():
-                continue
+        if not isinstance(data, dict):
+            continue
 
-            try:
-                with open(meta_path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
+        if (artifact_dir / "done.json").exists():
+            continue
+        if not is_process_alive(data, artifact_dir):
+            continue
 
-            if not isinstance(data, dict):
-                continue
-
-            if (artifact_dir / "done.json").exists():
-                continue
-            if not is_process_alive(data, artifact_dir):
-                continue
-
-            for value in (data.get("name"), data.get("workflow_name")):
-                if isinstance(value, str) and value:
-                    name_map.setdefault(value, str(artifact_dir))
+        for value in (data.get("name"), data.get("workflow_name")):
+            if isinstance(value, str) and value:
+                name_map.setdefault(value, str(artifact_dir))
 
     return name_map
 
@@ -246,60 +238,40 @@ def get_live_agent_name_subset(expected_names: set[str]) -> dict[str, str]:
 
     dismissed_suffixes = _load_dismissed_suffixes()
     name_map: dict[str, str] = {}
-    try:
-        project_iter = projects_dir.iterdir()
-    except OSError:
-        return {}
-
-    for project_dir in project_iter:
-        if not project_dir.is_dir():
+    for artifact_dir in _iter_ace_run_artifact_dirs():
+        if artifact_dir.name in dismissed_suffixes:
+            continue
+        if (artifact_dir / "done.json").exists():
             continue
 
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
+        meta_path = artifact_dir / "agent_meta.json"
+        if not meta_path.exists():
             continue
 
         try:
-            artifact_iter = ace_run_dir.iterdir()
-        except OSError:
+            with open(meta_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
             continue
 
-        for artifact_dir in artifact_iter:
-            if not artifact_dir.is_dir():
-                continue
-            if artifact_dir.name in dismissed_suffixes:
-                continue
-            if (artifact_dir / "done.json").exists():
-                continue
+        if not isinstance(data, dict):
+            continue
 
-            meta_path = artifact_dir / "agent_meta.json"
-            if not meta_path.exists():
-                continue
+        names = {
+            value
+            for value in (data.get("name"), data.get("workflow_name"))
+            if isinstance(value, str) and value in remaining
+        }
+        if not names:
+            continue
+        if not is_process_alive(data, artifact_dir):
+            continue
 
-            try:
-                with open(meta_path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
-
-            if not isinstance(data, dict):
-                continue
-
-            names = {
-                value
-                for value in (data.get("name"), data.get("workflow_name"))
-                if isinstance(value, str) and value in remaining
-            }
-            if not names:
-                continue
-            if not is_process_alive(data, artifact_dir):
-                continue
-
-            for name in names:
-                name_map.setdefault(name, str(artifact_dir))
-                remaining.discard(name)
-            if not remaining:
-                return name_map
+        for name in names:
+            name_map.setdefault(name, str(artifact_dir))
+            remaining.discard(name)
+        if not remaining:
+            return name_map
 
     return name_map
 
@@ -330,43 +302,33 @@ def get_active_child_names(base: str) -> set[str]:
     dismissed_suffixes = _load_dismissed_suffixes()
     pattern = re.compile(rf"^{re.escape(base)}\.\d+$")
     names: set[str] = set()
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
+    for artifact_dir in _iter_ace_run_artifact_dirs():
+        if artifact_dir.name in dismissed_suffixes:
             continue
 
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
+        meta_path = artifact_dir / "agent_meta.json"
+        if not meta_path.exists():
             continue
 
-        for artifact_dir in ace_run_dir.iterdir():
-            if not artifact_dir.is_dir():
-                continue
-            if artifact_dir.name in dismissed_suffixes:
-                continue
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
 
-            meta_path = artifact_dir / "agent_meta.json"
-            if not meta_path.exists():
-                continue
+        if not isinstance(data, dict):
+            continue
 
-            try:
-                with open(meta_path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
+        name = data.get("name")
+        if not isinstance(name, str) or not pattern.match(name):
+            continue
 
-            if not isinstance(data, dict):
-                continue
+        done_path = artifact_dir / "done.json"
+        if done_path.exists():
+            names.add(name)
+            continue
 
-            name = data.get("name")
-            if not isinstance(name, str) or not pattern.match(name):
-                continue
-
-            done_path = artifact_dir / "done.json"
-            if done_path.exists():
-                names.add(name)
-                continue
-
-            if is_process_alive(data, artifact_dir):
-                names.add(name)
+        if is_process_alive(data, artifact_dir):
+            names.add(name)
 
     return names

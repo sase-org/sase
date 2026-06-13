@@ -69,6 +69,36 @@ def _artifact_relative_parts(path: Path) -> tuple[str, ...] | None:
     return path.parts[artifacts_idx + 1 :]
 
 
+def _is_month_shard(value: str) -> bool:
+    return len(value) == 6 and value.isdigit()
+
+
+def _is_day_shard(value: str) -> bool:
+    return len(value) == 2 and value.isdigit() and 1 <= int(value) <= 31
+
+
+def _is_artifact_timestamp(value: str) -> bool:
+    return len(value) == 14 and value.isdigit()
+
+
+def _is_sharded_ace_run_dir_path(relative_parts: tuple[str, ...]) -> bool:
+    if not relative_parts or relative_parts[0] != "ace-run":
+        return False
+    if len(relative_parts) == 2:
+        return _is_month_shard(relative_parts[1])
+    if len(relative_parts) == 3:
+        return _is_month_shard(relative_parts[1]) and _is_day_shard(relative_parts[2])
+    if len(relative_parts) == 4:
+        month, day, timestamp = relative_parts[1:]
+        return (
+            _is_month_shard(month)
+            and _is_day_shard(day)
+            and _is_artifact_timestamp(timestamp)
+            and timestamp.startswith(f"{month}{day}")
+        )
+    return False
+
+
 def _is_prompt_step_marker(path: Path) -> bool:
     name = path.name
     return name.startswith("prompt_step_") and name.endswith(".json")
@@ -92,7 +122,7 @@ def _artifact_path_affects_agents(path: Path) -> bool:
     # deleted agent-root directories such as:
     #   artifacts/<legacy-agent-dir>
     #   artifacts/<workflow>/<timestamp-or-run-dir>
-    if len(relative_parts) <= 2:
+    if len(relative_parts) <= 2 or _is_sharded_ace_run_dir_path(relative_parts):
         try:
             if path.is_dir():
                 return True

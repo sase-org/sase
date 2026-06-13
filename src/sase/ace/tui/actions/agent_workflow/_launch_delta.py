@@ -16,7 +16,11 @@ def _artifact_dir_from_output_path(output_path: str) -> Path | None:
         return None
     path = Path(output_path).expanduser()
     candidates = [path, path.parent]
+    from sase.core.agent_artifact_paths import parse_agent_artifact_path
+
     for candidate in candidates:
+        if parse_agent_artifact_path(candidate) is not None:
+            return candidate
         parts = candidate.parts
         if (
             len(parts) >= 4
@@ -35,14 +39,12 @@ def _artifact_dir_from_launch_result(result: AgentLaunchResult) -> Path | None:
         project_name = Path(result.project_file).expanduser().parent.name
     if project_name and result.timestamp:
         from sase.artifacts import convert_timestamp_to_artifacts_format
-        from sase.core.paths import sase_projects_dir
+        from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 
-        return (
-            sase_projects_dir()
-            / project_name
-            / "artifacts"
-            / "ace-run"
-            / convert_timestamp_to_artifacts_format(result.timestamp)
+        return canonical_agent_artifact_path(
+            project_name,
+            "ace-run",
+            convert_timestamp_to_artifacts_format(result.timestamp),
         )
     return _artifact_dir_from_output_path(result.output_path)
 

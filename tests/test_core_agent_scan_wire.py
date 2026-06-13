@@ -24,7 +24,7 @@ from .agent_scan_golden import (
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
     assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 1
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 3
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 4
 
 
 def test_artifact_index_wire_helpers() -> None:
@@ -68,16 +68,18 @@ def test_artifact_index_wire_helpers() -> None:
 
     status = agent_artifact_index_status_from_dict(
         {
-            "schema_version": 3,
+            "schema_version": 4,
             "index_path": "/tmp/index.sqlite",
             "agent_artifacts_rows": 10,
+            "agent_artifact_aliases_rows": 1,
             "dismissed_agents_rows": 2,
         }
     )
     assert status == AgentArtifactIndexStatusWire(
-        schema_version=3,
+        schema_version=4,
         index_path="/tmp/index.sqlite",
         agent_artifacts_rows=10,
+        agent_artifact_aliases_rows=1,
         dismissed_agents_rows=2,
     )
 

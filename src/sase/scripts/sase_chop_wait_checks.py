@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.axe.chop_script_context import read_chop_context
+from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_projects_dir
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
@@ -297,13 +298,11 @@ def main() -> None:
             continue
         projects += 1
 
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
-            continue
-
-        for artifact_dir in ace_run_dir.iterdir():
-            if not artifact_dir.is_dir():
-                continue
+        for artifact_dir in iter_agent_artifact_dirs(
+            project_dir.name,
+            "ace-run",
+            projects_root=projects_dir,
+        ):
             artifacts += 1
 
             meta = _read_json_dict(artifact_dir / "agent_meta.json")

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from sase.core.paths import sase_projects_dir
+from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 from sase.core.shell import get_vendored_tool, run_shell_command
 from sase.core.time import get_timezone
 from sase.output import (
@@ -73,16 +73,13 @@ def create_artifacts_directory(
         if not project_name:
             raise RuntimeError("Failed to detect project name from workspace provider")
 
-    # Create artifacts directory in new location: ~/.sase/projects/<project>/artifacts/<workflow>/<timestamp>
-    artifacts_dir = str(
-        sase_projects_dir()
-        / project_name
-        / "artifacts"
-        / workflow_name
-        / artifacts_timestamp
+    artifacts_dir = canonical_agent_artifact_path(
+        project_name,
+        workflow_name,
+        artifacts_timestamp,
     )
-    Path(artifacts_dir).mkdir(parents=True, exist_ok=True)
-    return artifacts_dir
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    return str(artifacts_dir)
 
 
 def generate_workflow_tag() -> str:

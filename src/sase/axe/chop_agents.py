@@ -18,6 +18,7 @@ from typing import Any
 
 from sase.ace.hooks.processes import is_process_running
 from sase.artifacts import convert_timestamp_to_artifacts_format
+from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.core.paths import sase_projects_dir, sase_subdir
 from sase.core.time import get_timezone
 
@@ -191,12 +192,10 @@ def _write_records_unlocked(
 def _artifacts_dir(record: _ChopAgentRecord) -> Path | None:
     if not record.project_name or not record.artifacts_timestamp:
         return None
-    return (
-        sase_projects_dir()
-        / record.project_name
-        / "artifacts"
-        / "ace-run"
-        / record.artifacts_timestamp
+    return resolve_agent_artifact_timestamp_path(
+        record.project_name,
+        "ace-run",
+        record.artifacts_timestamp,
     )
 
 

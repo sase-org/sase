@@ -16,13 +16,14 @@ from textual.widgets import Input, Static
 from sase.ace import dismissed_agents
 from sase.ace.testing import AcePage, make_changespec
 from sase.ace.tui import AceApp
-from sase.core.paths import sase_home
 from sase.ace.tui.modals.command_palette_modal import CommandPaletteModal
 from sase.ace.tui.modals.save_agent_group_modal import SaveAgentGroupModal
 from sase.ace.tui.modals.saved_agent_group_revival_modal import (
     SavedAgentGroupRevivalModal,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.core.agent_artifact_paths import canonical_agent_artifact_path
+from sase.core.paths import sase_home
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     wait_for_startup,
@@ -303,7 +304,12 @@ def _write_done_agent_artifacts(
     project_dir.mkdir(parents=True, exist_ok=True)
     project_file = project_dir / f"{project}.sase"
     project_file.write_text("", encoding="utf-8")
-    artifacts_dir = project_dir / "artifacts" / "ace-run" / raw_suffix
+    artifacts_dir = canonical_agent_artifact_path(
+        project,
+        "ace-run",
+        raw_suffix,
+        projects_root=project_dir.parent,
+    )
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     (artifacts_dir / "done.json").write_text(
         json.dumps(

@@ -12,6 +12,10 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.core.agent_artifact_paths import (
+    canonical_agent_artifact_path,
+    resolve_agent_artifact_path,
+)
 from sase.core.paths import sase_projects_dir
 from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
 
@@ -52,9 +56,22 @@ class ArtifactRestorationMixin:
             timestamp = agent.extract_artifacts_timestamp()
             if not timestamp:
                 return
-            artifacts_dir = (
-                sase_projects_dir() / project_name / "artifacts" / "ace-run" / timestamp
-            )
+            if agent.artifacts_dir:
+                original_artifacts_dir = Path(agent.artifacts_dir)
+                resolved_artifacts_dir = resolve_agent_artifact_path(
+                    original_artifacts_dir
+                )
+                artifacts_dir = (
+                    resolved_artifacts_dir
+                    if resolved_artifacts_dir.exists()
+                    else original_artifacts_dir
+                )
+            else:
+                artifacts_dir = canonical_agent_artifact_path(
+                    project_name,
+                    "ace-run",
+                    timestamp,
+                )
             artifacts_dir.mkdir(parents=True, exist_ok=True)
             done_file = artifacts_dir / "done.json"
             if not done_file.exists():

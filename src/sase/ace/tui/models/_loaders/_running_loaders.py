@@ -20,6 +20,7 @@ from pathlib import Path
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 from sase.core.paths import sase_projects_dir
 from sase.running_field import get_claimed_workspaces
@@ -227,15 +228,16 @@ def load_running_home_agents() -> list[Agent]:
         List of Agent objects with status="RUNNING".
     """
     agents: list[Agent] = []
-    home_ace_run_dir = sase_projects_dir() / "home" / "artifacts" / "ace-run"
-
-    if not home_ace_run_dir.exists():
+    projects_dir = sase_projects_dir()
+    home_project_dir = projects_dir / "home"
+    if not home_project_dir.exists():
         return agents
 
-    for artifact_dir in home_ace_run_dir.iterdir():
-        if not artifact_dir.is_dir():
-            continue
-
+    for artifact_dir in iter_agent_artifact_dirs(
+        "home",
+        "ace-run",
+        projects_root=projects_dir,
+    ):
         running_file = artifact_dir / "running.json"
         if not running_file.exists():
             continue

@@ -37,6 +37,8 @@ def test_launch_delta_handler_schedules_exact_artifact_dirs(
                     / "proj"
                     / "artifacts"
                     / "ace-run"
+                    / "202605"
+                    / "01"
                     / "20260501120000"
                 )
             ],

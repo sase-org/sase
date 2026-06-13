@@ -167,14 +167,14 @@ def _discover_related_tool_artifact_dirs_direct(
     queue: list[Path] = [current]
     queue.extend(_related_agent_artifact_dirs(agent))
     queue.extend(
-        current.parent / timestamp
+        _resolve_related_artifact_timestamp(current, timestamp)
         for timestamp in _lineage_timestamps_for_agent(agent, current, current_meta)
     )
     seen: set[Path] = set()
 
     while queue and len(related) < MAX_RELATED_ARTIFACT_DIRS:
         path = queue.pop(0).expanduser()
-        if path.parent != current.parent:
+        if not _same_workflow_artifact_family(path, current):
             continue
         key = _path_identity(path)
         if key in seen:
@@ -190,7 +190,7 @@ def _discover_related_tool_artifact_dirs_direct(
             else (_combined_artifact_metadata(path))
         )
         queue.extend(
-            path.parent / timestamp
+            _resolve_related_artifact_timestamp(path, timestamp)
             for timestamp in _metadata_lineage_timestamps(metadata)
         )
 
@@ -206,6 +206,31 @@ def _discover_related_tool_artifact_dirs_bounded_scan(
 
     related: list[Path] = []
     scanned_dirs = 0
+    try:
+        from sase.core.agent_artifact_paths import (
+            iter_agent_artifact_dirs,
+            parse_agent_artifact_path,
+        )
+
+        info = parse_agent_artifact_path(current)
+    except (AttributeError, ImportError, OSError, RuntimeError, ValueError):
+        info = None
+
+    if info is not None:
+        for artifact_dir in iter_agent_artifact_dirs(
+            info.project_name,
+            info.workflow_dir_name,
+            newest_first=True,
+        ):
+            if scanned_dirs >= MAX_RELATED_FALLBACK_SIBLINGS:
+                break
+            if _path_identity(artifact_dir) == _path_identity(current):
+                continue
+            scanned_dirs += 1
+            if _artifact_dir_matches_roots(artifact_dir, root_ids):
+                related.append(artifact_dir)
+        return related
+
     try:
         siblings = current.parent.iterdir()
     except OSError:
@@ -243,7 +268,7 @@ def discover_related_tool_artifact_dirs_cached(
     metadata. Otherwise re-runs :func:`discover_related_tool_artifact_dirs`.
     """
     current = Path(artifacts_dir).expanduser()
-    parent = current.parent
+    parent = _artifact_cache_scope(current)
     try:
         parent_mtime_ns = parent.stat().st_mtime_ns
     except OSError:
@@ -257,6 +282,55 @@ def discover_related_tool_artifact_dirs_cached(
         return cached_dirs, parent_mtime_ns
 
     return discover_related_tool_artifact_dirs(agent, artifacts_dir), parent_mtime_ns
+
+
+def _resolve_related_artifact_timestamp(current: Path, timestamp: str) -> Path:
+    try:
+        from sase.core.agent_artifact_paths import (
+            parse_agent_artifact_path,
+            resolve_agent_artifact_timestamp_path,
+        )
+
+        info = parse_agent_artifact_path(current)
+        if info is not None:
+            return resolve_agent_artifact_timestamp_path(
+                info.project_name,
+                info.workflow_dir_name,
+                timestamp,
+            )
+    except (AttributeError, ImportError, OSError, RuntimeError, ValueError):
+        pass
+    return current.parent / timestamp
+
+
+def _same_workflow_artifact_family(path: Path, current: Path) -> bool:
+    try:
+        from sase.core.agent_artifact_paths import parse_agent_artifact_path
+
+        left = parse_agent_artifact_path(path)
+        right = parse_agent_artifact_path(current)
+    except (AttributeError, ImportError, OSError, RuntimeError, ValueError):
+        left = right = None
+    if left is not None and right is not None:
+        return (
+            left.project_name == right.project_name
+            and left.workflow_dir_name == right.workflow_dir_name
+        )
+    return path.parent == current.parent
+
+
+def _artifact_cache_scope(current: Path) -> Path:
+    try:
+        from sase.core.agent_artifact_paths import parse_agent_artifact_path
+
+        info = parse_agent_artifact_path(current)
+    except (AttributeError, ImportError, OSError, RuntimeError, ValueError):
+        info = None
+    if info is not None and info.layout_version == 2:
+        parents = current.parents
+        if len(parents) >= 3:
+            return parents[2]
+    return current.parent
 
 
 def _dedupe_artifact_dirs(

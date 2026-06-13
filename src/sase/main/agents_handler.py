@@ -41,6 +41,16 @@ def handle_agents_command(args: argparse.Namespace) -> None:
         handle_agents_archive(args)
         return
 
+    if sub == "artifacts":
+        if getattr(args, "artifacts_subcommand", None) == "layout":
+            from sase.agents.cli_artifacts_layout import handle_agents_artifacts_layout
+
+            handle_agents_artifacts_layout(args)
+            sys.exit(0)
+
+        print("Usage: sase agents artifacts {layout}")
+        sys.exit(1)
+
     if sub == "index":
         from sase.agents.cli_index import handle_agents_index
 
@@ -53,5 +63,5 @@ def handle_agents_command(args: argparse.Namespace) -> None:
         handle_agents_names(args)
         sys.exit(0)
 
-    print("Usage: sase agents {status,kill,show,tag,archive,index,names}")
+    print("Usage: sase agents {archive,artifacts,index,kill,names,show,status,tag}")
     sys.exit(1)

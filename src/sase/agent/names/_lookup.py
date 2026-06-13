@@ -25,6 +25,7 @@ and diagnostics.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -105,6 +106,27 @@ def _projects_root() -> Path:
     return sase_projects_dir()
 
 
+def _iter_ace_run_artifact_dirs(*, newest_first: bool = False) -> Iterator[Path]:
+    projects_dir = _projects_root()
+    if not projects_dir.exists():
+        return
+    from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
+
+    try:
+        project_iter = projects_dir.iterdir()
+    except OSError:
+        return
+    for project_dir in project_iter:
+        if not project_dir.is_dir():
+            continue
+        yield from iter_agent_artifact_dirs(
+            project_dir.name,
+            "ace-run",
+            projects_root=projects_dir,
+            newest_first=newest_first,
+        )
+
+
 def _read_json_dict(path: Path) -> dict[str, Any] | None:
     try:
         with open(path, encoding="utf-8") as f:
@@ -147,47 +169,23 @@ def _family_base_from_meta(meta: dict[str, Any]) -> str | None:
 
 
 def _iter_family_members(base_name: str) -> list[AgentFamilyMember]:
-    projects_dir = _projects_root()
-    if not projects_dir.exists():
-        return []
-
     members: list[AgentFamilyMember] = []
-    try:
-        project_iter = projects_dir.iterdir()
-    except OSError:
-        return []
-
-    for project_dir in project_iter:
-        if not project_dir.is_dir():
+    for artifact_dir in _iter_ace_run_artifact_dirs():
+        meta = _read_json_dict(artifact_dir / "agent_meta.json")
+        if meta is None or _family_base_from_meta(meta) != base_name:
             continue
 
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
-            continue
-
-        try:
-            artifact_iter = ace_run_dir.iterdir()
-        except OSError:
-            continue
-
-        for artifact_dir in artifact_iter:
-            if not artifact_dir.is_dir():
-                continue
-            meta = _read_json_dict(artifact_dir / "agent_meta.json")
-            if meta is None or _family_base_from_meta(meta) != base_name:
-                continue
-
-            name_value = meta.get("name")
-            name = name_value if isinstance(name_value, str) else base_name
-            members.append(
-                AgentFamilyMember(
-                    name=name,
-                    artifacts_dir=artifact_dir,
-                    timestamp=artifact_dir.name,
-                    outcome=_done_outcome(artifact_dir),
-                    parent_timestamp=_meta_parent_timestamp(meta),
-                )
+        name_value = meta.get("name")
+        name = name_value if isinstance(name_value, str) else base_name
+        members.append(
+            AgentFamilyMember(
+                name=name,
+                artifacts_dir=artifact_dir,
+                timestamp=artifact_dir.name,
+                outcome=_done_outcome(artifact_dir),
+                parent_timestamp=_meta_parent_timestamp(meta),
             )
+        )
 
     return members
 
@@ -480,45 +478,24 @@ def is_workflow_complete(name: str) -> bool | None:
 
     # (artifact_dir, agent_meta dict)
     workflow_agents: list[tuple[Path, dict[str, Any]]] = []
-    try:
-        project_iter = projects_dir.iterdir()
-    except OSError:
-        return None
-
-    for project_dir in project_iter:
-        if not project_dir.is_dir():
-            continue
-
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
+    for artifact_dir in _iter_ace_run_artifact_dirs():
+        meta_path = artifact_dir / "agent_meta.json"
+        if not meta_path.exists():
             continue
 
         try:
-            artifact_iter = ace_run_dir.iterdir()
-        except OSError:
+            with open(meta_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
             continue
 
-        for artifact_dir in artifact_iter:
-            if not artifact_dir.is_dir():
-                continue
+        if not isinstance(data, dict):
+            continue
 
-            meta_path = artifact_dir / "agent_meta.json"
-            if not meta_path.exists():
-                continue
+        if data.get("workflow_name") != name:
+            continue
 
-            try:
-                with open(meta_path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
-
-            if not isinstance(data, dict):
-                continue
-
-            if data.get("workflow_name") != name:
-                continue
-
-            workflow_agents.append((artifact_dir, data))
+        workflow_agents.append((artifact_dir, data))
 
     if not workflow_agents:
         return None
@@ -591,47 +568,37 @@ def get_most_recent_agent_name(
         excluded = Path(exclude_artifacts_dir).expanduser().resolve(strict=False)
 
     candidates: list[tuple[str, str]] = []  # (dir_name, agent_name)
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
+    for artifact_dir in _iter_ace_run_artifact_dirs():
+        if excluded is not None:
+            candidate_dir = artifact_dir.expanduser().resolve(strict=False)
+            if candidate_dir == excluded:
+                continue
+
+        meta_path = artifact_dir / "agent_meta.json"
+        if not meta_path.exists():
             continue
 
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
             continue
 
-        for artifact_dir in ace_run_dir.iterdir():
-            if not artifact_dir.is_dir():
-                continue
-            if excluded is not None:
-                candidate_dir = artifact_dir.expanduser().resolve(strict=False)
-                if candidate_dir == excluded:
-                    continue
+        if not isinstance(data, dict):
+            continue
 
-            meta_path = artifact_dir / "agent_meta.json"
-            if not meta_path.exists():
-                continue
+        name = data.get("name")
+        if not name:
+            continue
 
-            try:
-                with open(meta_path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
+        # Bare ``%wait`` should never resolve to a dismissed historical
+        # agent. Dismissal-prefixed names (``YYmmdd.foo``) are reserved
+        # for explicit references (``%w:260428.foo``); skip them so the
+        # bare-wait path stays anchored on visible/active agents.
+        if isinstance(name, str) and is_dismissed_prefixed(name):
+            continue
 
-            if not isinstance(data, dict):
-                continue
-
-            name = data.get("name")
-            if not name:
-                continue
-
-            # Bare ``%wait`` should never resolve to a dismissed historical
-            # agent. Dismissal-prefixed names (``YYmmdd.foo``) are reserved
-            # for explicit references (``%w:260428.foo``); skip them so the
-            # bare-wait path stays anchored on visible/active agents.
-            if isinstance(name, str) and is_dismissed_prefixed(name):
-                continue
-
-            candidates.append((artifact_dir.name, name))
+        candidates.append((artifact_dir.name, name))
 
     if not candidates:
         return None

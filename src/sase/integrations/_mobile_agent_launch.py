@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
+from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 from sase.xprompt._parsing import normalize_launch_xprompt_at_refs
 
 from ._mobile_agent_common import (
@@ -283,13 +284,11 @@ def artifact_dir_for_launch(result: AgentLaunchResult) -> str | None:
         return None
     artifacts_timestamp = convert_timestamp_to_artifacts_format(result.timestamp)
     return str(
-        Path.home()
-        / ".sase"
-        / "projects"
-        / result.project_name
-        / "artifacts"
-        / "ace-run"
-        / artifacts_timestamp
+        canonical_agent_artifact_path(
+            result.project_name,
+            "ace-run",
+            artifacts_timestamp,
+        )
     )
 
 

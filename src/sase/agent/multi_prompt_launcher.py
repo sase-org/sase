@@ -80,14 +80,12 @@ MultiPromptPartialLaunchError = _MultiPromptPartialLaunchError
 
 def _future_agent_artifacts_dir(*, project_name: str, timestamp: str) -> Path:
     from sase.artifacts import convert_timestamp_to_artifacts_format
-    from sase.core.paths import sase_projects_dir
+    from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 
-    return (
-        sase_projects_dir()
-        / project_name
-        / "artifacts"
-        / "ace-run"
-        / convert_timestamp_to_artifacts_format(timestamp)
+    return canonical_agent_artifact_path(
+        project_name,
+        "ace-run",
+        convert_timestamp_to_artifacts_format(timestamp),
     )
 
 

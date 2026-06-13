@@ -102,6 +102,7 @@ def agent_artifact_index_status_from_dict(
         index_path=str(data["index_path"]),
         agent_artifacts_rows=int(data.get("agent_artifacts_rows", 0)),
         dismissed_agents_rows=int(data.get("dismissed_agents_rows", 0)),
+        agent_artifact_aliases_rows=int(data.get("agent_artifact_aliases_rows", 0)),
     )
 
 

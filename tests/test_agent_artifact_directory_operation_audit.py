@@ -17,6 +17,20 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "agent artifact directory."
         ),
     ),
+    "src/sase/agents/cli_artifacts_layout.py:_handle_migrate": DirOpReview(
+        exemption=(
+            "Moves flat ace-run artifact directories into the sharded physical "
+            "layout, rewrites owned marker path fields, writes alias rows, and "
+            "rebuilds the artifact index after the batch."
+        ),
+    ),
+    "src/sase/agents/cli_artifacts_layout.py:_handle_rollback": DirOpReview(
+        exemption=(
+            "Moves sharded ace-run artifact directories back using a migration "
+            "manifest, rewrites owned marker path fields, removes alias rows, "
+            "and rebuilds the artifact index after the batch."
+        ),
+    ),
     "src/sase/agent/names/_wipe.py:_remove_artifact_dirs": DirOpReview(
         batched_by=(
             BatchedCoverage(

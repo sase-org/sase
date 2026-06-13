@@ -128,6 +128,83 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Verify the dismissed bundle summary index",
     )
 
+    # sase agents artifacts layout {migrate,rollback,status,verify}
+    artifacts_parser = agents_sub.add_parser(
+        "artifacts",
+        help="Inspect and migrate agent artifact storage",
+    )
+    artifacts_sub = artifacts_parser.add_subparsers(
+        dest="artifacts_subcommand",
+        help="Artifact subcommands",
+    )
+    layout_parser = artifacts_sub.add_parser(
+        "layout",
+        help="Manage the ace-run physical artifact layout",
+    )
+    layout_sub = layout_parser.add_subparsers(
+        dest="layout_subcommand",
+        help="Layout subcommands",
+    )
+    for command, help_text in (
+        ("migrate", "Move flat ace-run artifact dirs into day shards"),
+        ("rollback", "Move migrated ace-run artifact dirs back from a manifest"),
+        ("status", "Report ace-run layout counts and index alias status"),
+        ("verify", "Verify ace-run layout state against a manifest"),
+    ):
+        layout_command = layout_sub.add_parser(command, help=help_text)
+        if command == "migrate":
+            layout_command.add_argument(
+                "-d",
+                "--dry-run",
+                action="store_true",
+                help="Write or print the migration manifest without moving dirs",
+            )
+            layout_command.add_argument(
+                "-f",
+                "--force",
+                action="store_true",
+                help="Continue after safe-to-override preflight warnings",
+            )
+        layout_command.add_argument(
+            "-i",
+            "--index-path",
+            default=None,
+            help="SQLite index path (default: ~/.sase/agent_artifact_index.sqlite)",
+        )
+        layout_command.add_argument(
+            "-j",
+            "--json",
+            action="store_true",
+            help="Emit a machine-readable JSON object",
+        )
+        if command == "migrate":
+            layout_command.add_argument(
+                "-l",
+                "--limit",
+                type=int,
+                default=None,
+                help="Migrate at most N artifact dirs",
+            )
+        if command in {"migrate", "rollback", "verify"}:
+            layout_command.add_argument(
+                "-m",
+                "--manifest",
+                default=None,
+                help="Manifest path for migration, verification, or rollback",
+            )
+        layout_command.add_argument(
+            "-P",
+            "--project",
+            default=None,
+            help="Limit to one project",
+        )
+        layout_command.add_argument(
+            "-p",
+            "--projects-root",
+            default=None,
+            help="Projects artifact root (default: ~/.sase/projects)",
+        )
+
     # sase agents index {gc,rebuild,status,verify}
     index_parser = agents_sub.add_parser(
         "index",

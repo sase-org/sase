@@ -34,13 +34,14 @@ _PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
 
 def _future_agent_artifacts_dir(*, project_name: str, timestamp: str) -> str:
     from sase.artifacts import convert_timestamp_to_artifacts_format
+    from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 
     return str(
-        sase_projects_dir()
-        / project_name
-        / "artifacts"
-        / "ace-run"
-        / convert_timestamp_to_artifacts_format(timestamp)
+        canonical_agent_artifact_path(
+            project_name,
+            "ace-run",
+            convert_timestamp_to_artifacts_format(timestamp),
+        )
     )
 
 

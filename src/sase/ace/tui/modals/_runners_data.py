@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
+from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.core.paths import sase_projects_dir
 
 from ...changespec import (
@@ -233,11 +234,7 @@ def _read_prompt_preview(
         ts = convert_timestamp_to_artifacts_format(ts)
 
     raw_path = (
-        sase_projects_dir()
-        / project_name
-        / "artifacts"
-        / "ace-run"
-        / ts
+        resolve_agent_artifact_timestamp_path(project_name, "ace-run", ts)
         / "raw_xprompt.md"
     )
     try:

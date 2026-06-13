@@ -148,6 +148,71 @@ def test_parser_registers_index_gc_options() -> None:
     assert args.json is True
 
 
+def test_parser_registers_artifacts_layout_migrate_options() -> None:
+    """`sase agents artifacts layout migrate` accepts migration knobs."""
+    args = create_parser().parse_args(
+        [
+            "agents",
+            "artifacts",
+            "layout",
+            "migrate",
+            "--dry-run",
+            "--manifest",
+            "/tmp/manifest.json",
+            "--projects-root",
+            "/tmp/projects",
+            "--index-path",
+            "/tmp/index.sqlite",
+            "--project",
+            "proj",
+            "--json",
+        ]
+    )
+
+    assert args.command == "agents"
+    assert args.agents_subcommand == "artifacts"
+    assert args.artifacts_subcommand == "layout"
+    assert args.layout_subcommand == "migrate"
+    assert args.dry_run is True
+    assert args.manifest == "/tmp/manifest.json"
+    assert args.projects_root == "/tmp/projects"
+    assert args.index_path == "/tmp/index.sqlite"
+    assert args.project == "proj"
+    assert args.json is True
+
+
+def test_dispatch_artifacts_layout_status_json(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`sase agents artifacts layout status -j` dispatches to the layout handler."""
+    args = argparse.Namespace(
+        agents_subcommand="artifacts",
+        artifacts_subcommand="layout",
+        layout_subcommand="status",
+        index_path="/tmp/index.sqlite",
+        projects_root="/tmp/projects",
+        project="proj",
+        json=True,
+    )
+
+    with (
+        patch(
+            "sase.agents.cli_artifacts_layout.iter_agent_artifact_dirs", return_value=[]
+        ),
+        patch(
+            "sase.agents.cli_artifacts_layout.agent_artifact_index_status",
+            side_effect=FileNotFoundError("missing"),
+        ),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_command(args)
+
+    assert excinfo.value.code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["flat_dirs"] == 0
+    assert payload["index_error"] == "missing"
+
+
 def test_dispatch_index_gc_json(capsys: pytest.CaptureFixture[str]) -> None:
     """`sase agents index gc -j` reports reconciliation diagnostics."""
     args = argparse.Namespace(

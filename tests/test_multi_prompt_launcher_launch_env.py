@@ -63,6 +63,8 @@ def test_launch_multi_prompt_passes_scoped_output_variable_upstreams(
                 / "test"
                 / "artifacts"
                 / "ace-run"
+                / "202605"
+                / "01"
                 / "20260501120000"
             ),
             "name": "build-0",
@@ -125,6 +127,8 @@ def test_launch_multi_prompt_passes_digit_leading_fanout_output_variable_upstrea
                 / "test"
                 / "artifacts"
                 / "ace-run"
+                / "202605"
+                / "01"
                 / "20260501120000"
             ),
             "name": "0n.cld",

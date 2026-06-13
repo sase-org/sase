@@ -179,14 +179,26 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
 def test_agents_help_renders_sorted_subcommands() -> None:
     """A formerly unsorted help view renders its user-facing rows sorted."""
     agents_parser = _parser_for(("sase", "agents"))
-    expected_commands = {"archive", "index", "kill", "names", "show", "status", "tag"}
+    expected_commands = {
+        "archive",
+        "artifacts",
+        "index",
+        "kill",
+        "names",
+        "show",
+        "status",
+        "tag",
+    }
 
     help_commands = _help_subcommand_rows(
         agents_parser.format_help(), expected_commands
     )
 
     assert help_commands == sorted(expected_commands)
-    assert "{archive,index,kill,names,show,status,tag}" in agents_parser.format_help()
+    assert (
+        "{archive,artifacts,index,kill,names,show,status,tag}"
+        in agents_parser.format_help()
+    )
 
 
 def test_plan_command_group_parses_subcommands() -> None:

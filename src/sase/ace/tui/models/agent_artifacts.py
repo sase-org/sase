@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING
 
 from sase.agent.agent_artifacts_cache import get_global_cache
 from sase.ace.tui.models.agent import AgentType
-from sase.core.paths import sase_projects_dir
+from sase.core.agent_artifact_paths import (
+    resolve_agent_artifact_path,
+    resolve_agent_artifact_timestamp_path,
+)
 
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
@@ -20,9 +23,12 @@ def get_artifacts_dir(agent: Agent) -> str | None:
     Returns:
         Path to the artifacts directory, or None if it cannot be determined.
     """
-    # If we have an explicit artifacts_dir (from marker files), use it directly
-    if agent.artifacts_dir and os.path.isdir(agent.artifacts_dir):
-        return agent.artifacts_dir
+    # If we have an explicit artifacts_dir (from marker files), resolve it in
+    # case persisted state still points at the legacy flat layout.
+    if agent.artifacts_dir:
+        resolved = resolve_agent_artifact_path(agent.artifacts_dir)
+        if resolved.is_dir():
+            return str(resolved)
 
     # Extract project name from project_file
     # Format: ~/.sase/projects/<project>/<project>.sase (or legacy .gp)
@@ -67,15 +73,15 @@ def get_artifacts_dir(agent: Agent) -> str | None:
             )
             # appears_as_agent workflows may use ace-run/ artifacts dir
             if agent.appears_as_agent:
-                ace_run_dir = str(
-                    sase_projects_dir() / project_name / "artifacts" / "ace-run"
-                )
-                if os.path.isdir(ace_run_dir):
-                    timestamp = extract_artifacts_timestamp(agent)
-                    if timestamp:
-                        candidate = os.path.join(ace_run_dir, timestamp)
-                        if os.path.isdir(candidate):
-                            return candidate
+                timestamp = extract_artifacts_timestamp(agent)
+                if timestamp:
+                    candidate = resolve_agent_artifact_timestamp_path(
+                        project_name,
+                        "ace-run",
+                        timestamp,
+                    )
+                    if candidate.is_dir():
+                        return str(candidate)
             workflow_name = f"workflow-{base_workflow}"
         else:
             return None
@@ -92,13 +98,14 @@ def get_artifacts_dir(agent: Agent) -> str | None:
     if timestamp is None:
         return None
 
-    # Construct path
-    artifacts_dir = str(
-        sase_projects_dir() / project_name / "artifacts" / workflow_name / timestamp
+    artifacts_dir = resolve_agent_artifact_timestamp_path(
+        project_name,
+        workflow_name,
+        timestamp,
     )
 
-    if os.path.isdir(artifacts_dir):
-        return artifacts_dir
+    if artifacts_dir.is_dir():
+        return str(artifacts_dir)
 
     return None
 

@@ -212,15 +212,11 @@ def _merge_agent_variables(
 
 def _artifacts_dir_for_launch(project_name: str, workflow_timestamp: str) -> str:
     from sase.artifacts import convert_timestamp_to_artifacts_format
-    from sase.core.paths import sase_projects_dir
+    from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 
     artifacts_timestamp = convert_timestamp_to_artifacts_format(workflow_timestamp)
     return str(
-        sase_projects_dir()
-        / project_name
-        / "artifacts"
-        / "ace-run"
-        / artifacts_timestamp
+        canonical_agent_artifact_path(project_name, "ace-run", artifacts_timestamp)
     )
 
 

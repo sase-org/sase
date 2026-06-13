@@ -72,7 +72,7 @@ def test_launch_mobile_text_agents_normalizes_prompt_and_returns_slots(
     assert payload["primary"]["name"] == "mobile.demo"
     assert [slot["status"] for slot in payload["slots"]] == ["launched", "launched"]
     assert payload["slots"][0]["artifact_dir"].endswith(
-        "/.sase/projects/home/artifacts/ace-run/20260506143000"
+        "/projects/home/artifacts/ace-run/202605/06/20260506143000"
     )
     contexts = (tmp_path / "mobile_gateway" / "agent_launch_contexts.jsonl").read_text(
         encoding="utf-8"
