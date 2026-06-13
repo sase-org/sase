@@ -12,85 +12,41 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from ._constants import (
+    KNOWN_STATUSES,
+    LINEAGE_METADATA_KEYS,
+    MAX_RELATED_ARTIFACT_DIRS,
+    MAX_RELATED_FALLBACK_SIBLINGS,
+    SUPPORTED_SCHEMA_VERSIONS,
+    TOOL_CALLS_FILENAME,
+)
+from ._entry import ToolCallEntry
+from ._parser import (
+    collapse_tool_use_pairs,
+    derive_tool_call_status,
+    prefer_hook_records,
+    read_tool_call_file,
+)
 
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
 
-TOOL_CALLS_FILENAME = "tool_calls.jsonl"
-SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2, 3})
-KNOWN_STATUSES = frozenset({"success", "failure", "interrupted", "subagent", "pending"})
-LINEAGE_METADATA_KEYS = (
-    "parent_timestamp",
-    "retry_of_timestamp",
-    "retried_as_timestamp",
-    "retry_chain_root_timestamp",
-)
-_MAX_RELATED_ARTIFACT_DIRS = 128
-_MAX_RELATED_FALLBACK_SIBLINGS = 128
+_MAX_RELATED_ARTIFACT_DIRS = MAX_RELATED_ARTIFACT_DIRS
+_MAX_RELATED_FALLBACK_SIBLINGS = MAX_RELATED_FALLBACK_SIBLINGS
 
-
-@dataclass(frozen=True)
-class ToolCallEntry:
-    """One normalized tool-call artifact record, with TUI display helpers."""
-
-    recorded_at: str
-    runtime: str
-    event: str
-    status: str
-    tool_name: str | None = None
-    tool_use_id: str | None = None
-    duration_ms: int | None = None
-    tool_input_summary: Mapping[str, Any] = field(default_factory=dict)
-    tool_response_summary: Mapping[str, Any] = field(default_factory=dict)
-    session_id: str | None = None
-    transcript_path: str | None = None
-    cwd: str | None = None
-    permission_mode: str | None = None
-    agent_id: str | None = None
-    agent_type: str | None = None
-    parent_tool_use_id: str | None = None
-    error: str | None = None
-    is_interrupt: bool = False
-    source: str | None = None
-    artifact_dir: str | None = None
-    source_path: str | None = None
-    line_number: int = 0
-    _recorded_at_sort: datetime = field(
-        default=datetime.max.replace(tzinfo=UTC), compare=False, repr=False
-    )
-    _file_order: int = field(default=0, compare=False, repr=False)
-
-    @property
-    def display_tool_name(self) -> str:
-        """Return a stable label for unknown tools and subagent events."""
-        if self.tool_name:
-            return self.tool_name
-        if self.event in {"SubagentStart", "SubagentStop"}:
-            return self.event
-        return self.event or "unknown"
-
-    @property
-    def compact_target(self) -> str:
-        """Best-effort target summary for one-line timeline rows."""
-        return _compact_tool_target(
-            self.tool_name,
-            self.tool_input_summary,
-            self.tool_response_summary,
-        )
-
-    @property
-    def detail(self) -> str:
-        """Best-effort one-line detail derived from input/response summaries."""
-        return _tool_call_detail(
-            self.tool_name,
-            self.tool_input_summary,
-            self.tool_response_summary,
-            error=self.error,
-        )
+__all__ = [
+    "KNOWN_STATUSES",
+    "SUPPORTED_SCHEMA_VERSIONS",
+    "TOOL_CALLS_FILENAME",
+    "ToolCallEntry",
+    "derive_tool_call_status",
+    "discover_related_tool_artifact_dirs",
+    "discover_related_tool_artifact_dirs_cached",
+    "read_tool_calls_for_agent",
+]
 
 
 def read_tool_calls_for_agent(
@@ -128,7 +84,7 @@ def read_tool_calls_for_agent(
         path = artifact_dir / TOOL_CALLS_FILENAME
         if not path.is_file():
             continue
-        entries.extend(_read_tool_call_file(path, artifact_dir, file_order))
+        entries.extend(read_tool_call_file(path, artifact_dir, file_order))
         file_order += 1
 
     entries.sort(
@@ -139,8 +95,8 @@ def read_tool_calls_for_agent(
             entry.tool_use_id or "",
         )
     )
-    entries = _prefer_hook_records(entries)
-    return _collapse_tool_use_pairs(entries)
+    entries = prefer_hook_records(entries)
+    return collapse_tool_use_pairs(entries)
 
 
 def discover_related_tool_artifact_dirs(
@@ -216,7 +172,7 @@ def _discover_related_tool_artifact_dirs_direct(
     )
     seen: set[Path] = set()
 
-    while queue and len(related) < _MAX_RELATED_ARTIFACT_DIRS:
+    while queue and len(related) < MAX_RELATED_ARTIFACT_DIRS:
         path = queue.pop(0).expanduser()
         if path.parent != current.parent:
             continue
@@ -256,7 +212,7 @@ def _discover_related_tool_artifact_dirs_bounded_scan(
         return []
 
     for sibling in siblings:
-        if scanned_dirs >= _MAX_RELATED_FALLBACK_SIBLINGS:
+        if scanned_dirs >= MAX_RELATED_FALLBACK_SIBLINGS:
             break
         if sibling == current:
             continue
@@ -303,282 +259,6 @@ def discover_related_tool_artifact_dirs_cached(
     return discover_related_tool_artifact_dirs(agent, artifacts_dir), parent_mtime_ns
 
 
-def derive_tool_call_status(record: Mapping[str, Any]) -> str:
-    """Derive a known display status from a normalized artifact record."""
-    raw_status = record.get("status")
-    if isinstance(raw_status, str):
-        normalized_status = raw_status.lower()
-        if normalized_status in KNOWN_STATUSES:
-            return normalized_status
-        if normalized_status in {"failed", "error"}:
-            return "failure"
-        if normalized_status in {"cancelled", "canceled"}:
-            return "interrupted"
-        if normalized_status in {"in_progress", "running"}:
-            return "pending"
-
-    if record.get("is_interrupt") is True:
-        return "interrupted"
-
-    event = record.get("event")
-    if event == "PostToolUseFailure":
-        return "failure"
-    if event in {"SubagentStart", "SubagentStop"}:
-        return "subagent"
-    if event == "ToolUse":
-        return "pending"
-
-    response = record.get("tool_response_summary")
-    if isinstance(response, Mapping):
-        if response.get("interrupted") is True:
-            return "interrupted"
-        if (
-            response.get("success") is False
-            or response.get("is_error") is True
-            or response.get("error")
-        ):
-            return "failure"
-
-    return "success"
-
-
-def _prefer_hook_records(entries: list[ToolCallEntry]) -> list[ToolCallEntry]:
-    """Drop stream rows when an old hook row exists for the same call.
-
-    New artifacts should not mix Claude stream and hook collection. This rule
-    is retained for historical runs created while Claude hook collection was
-    enabled, where both sources could describe one logical ``tool_use_id``.
-    """
-    hook_ids = {
-        (entry.runtime, entry.tool_use_id)
-        for entry in entries
-        if entry.source == "hook" and entry.tool_use_id
-    }
-    if not hook_ids:
-        return entries
-    return [
-        entry
-        for entry in entries
-        if (entry.runtime, entry.tool_use_id) not in hook_ids or entry.source == "hook"
-    ]
-
-
-def _collapse_tool_use_pairs(
-    entries: list[ToolCallEntry],
-) -> list[ToolCallEntry]:
-    """Merge ``ToolUse`` + ``ToolResult`` pairs with matching ``tool_use_id``.
-
-    Orphan ``ToolUse`` rows (no result yet) are kept with status ``pending``.
-    Other event types (``PostToolUse``, ``SubagentStart``, etc.) pass through
-    unchanged. Schema-v1 records are returned as-is for back-compat.
-    """
-    starts_by_id: dict[tuple[str, str, str], int] = {}
-    merged: list[ToolCallEntry | None] = list(entries)
-
-    for index, entry in enumerate(entries):
-        if entry.event == "ToolUse" and entry.tool_use_id:
-            starts_by_id[_tool_pair_key(entry)] = index
-            continue
-        if entry.event == "ToolResult" and entry.tool_use_id:
-            start_index = starts_by_id.pop(_tool_pair_key(entry), None)
-            if start_index is None:
-                continue
-            start_entry = merged[start_index]
-            if start_entry is None:
-                continue
-            merged[start_index] = _merge_use_and_result(start_entry, entry)
-            merged[index] = None
-
-    return [entry for entry in merged if entry is not None]
-
-
-def _tool_pair_key(entry: ToolCallEntry) -> tuple[str, str, str]:
-    """Return the scope in which a provider tool-use id is unique."""
-    scope = entry.session_id or entry.artifact_dir or ""
-    return entry.runtime, entry.tool_use_id or "", scope
-
-
-def _merge_use_and_result(start: ToolCallEntry, end: ToolCallEntry) -> ToolCallEntry:
-    """Combine a ``ToolUse`` start entry with its matching ``ToolResult`` end."""
-    response_summary: Mapping[str, Any] = end.tool_response_summary
-    return ToolCallEntry(
-        recorded_at=start.recorded_at,
-        runtime=start.runtime,
-        event="ToolUse",
-        status=end.status if end.status in KNOWN_STATUSES else start.status,
-        tool_name=start.tool_name or end.tool_name,
-        tool_use_id=start.tool_use_id,
-        duration_ms=start.duration_ms or end.duration_ms,
-        tool_input_summary=start.tool_input_summary or end.tool_input_summary,
-        tool_response_summary=response_summary,
-        session_id=start.session_id or end.session_id,
-        transcript_path=start.transcript_path or end.transcript_path,
-        cwd=start.cwd or end.cwd,
-        permission_mode=start.permission_mode or end.permission_mode,
-        agent_id=start.agent_id or end.agent_id,
-        agent_type=start.agent_type or end.agent_type,
-        parent_tool_use_id=start.parent_tool_use_id or end.parent_tool_use_id,
-        error=start.error or end.error,
-        is_interrupt=start.is_interrupt or end.is_interrupt,
-        source=start.source or end.source,
-        artifact_dir=start.artifact_dir,
-        source_path=start.source_path,
-        line_number=start.line_number,
-        _recorded_at_sort=start._recorded_at_sort,
-        _file_order=start._file_order,
-    )
-
-
-def _compact_tool_target(
-    tool_name: str | None,
-    tool_input_summary: Mapping[str, Any],
-    tool_response_summary: Mapping[str, Any],
-) -> str:
-    """Return a compact target string for common tools."""
-    del tool_response_summary
-    for key in ("file_path", "path", "url", "query", "pattern", "description"):
-        value = tool_input_summary.get(key)
-        if isinstance(value, str) and value:
-            return _one_line(value, 96)
-
-    command = tool_input_summary.get("command")
-    if isinstance(command, str) and command:
-        return _one_line(command, 96)
-
-    subagent_type = tool_input_summary.get("subagent_type")
-    if isinstance(subagent_type, str) and subagent_type:
-        return subagent_type
-
-    if tool_name:
-        return ""
-    input_keys = tool_input_summary.get("input_keys")
-    if isinstance(input_keys, list) and input_keys:
-        return ", ".join(str(key) for key in input_keys[:4])
-    return ""
-
-
-def _tool_call_detail(
-    tool_name: str | None,
-    tool_input_summary: Mapping[str, Any],
-    tool_response_summary: Mapping[str, Any],
-    *,
-    error: str | None = None,
-) -> str:
-    """Return a bounded one-line detail string for a timeline row."""
-    if error:
-        return _one_line(error, 140)
-
-    response_error = tool_response_summary.get("error")
-    if isinstance(response_error, str) and response_error:
-        return _one_line(response_error, 140)
-
-    parts: list[str] = []
-    if tool_name == "Bash":
-        exit_code = tool_response_summary.get("exit_code")
-        if isinstance(exit_code, int):
-            parts.append(f"exit {exit_code}")
-    for key in (
-        "stdout_preview",
-        "stderr_preview",
-        "output_preview",
-        "content_preview",
-        "result_preview",
-        "preview",
-    ):
-        value = tool_response_summary.get(key)
-        if isinstance(value, str) and value:
-            parts.append(_one_line(value, 120))
-            break
-
-    if not parts:
-        for key in ("content_length", "old_string_length", "new_string_length"):
-            value = tool_input_summary.get(key)
-            if isinstance(value, int):
-                parts.append(f"{key}={value}")
-        edits = tool_input_summary.get("edits_count")
-        if isinstance(edits, int):
-            parts.append(f"edits={edits}")
-
-    if not parts:
-        keys = tool_response_summary.get("response_keys")
-        if isinstance(keys, list) and keys:
-            parts.append("response: " + ", ".join(str(key) for key in keys[:4]))
-
-    return " | ".join(parts)
-
-
-def _read_tool_call_file(
-    path: Path,
-    artifact_dir: Path,
-    file_order: int,
-) -> list[ToolCallEntry]:
-    entries: list[ToolCallEntry] = []
-    try:
-        with open(path, encoding="utf-8") as f:
-            for line_number, line in enumerate(f, start=1):
-                entry = _parse_tool_call_line(
-                    line,
-                    artifact_dir=artifact_dir,
-                    source_path=path,
-                    line_number=line_number,
-                    file_order=file_order,
-                )
-                if entry is not None:
-                    entries.append(entry)
-    except OSError:
-        return []
-    return entries
-
-
-def _parse_tool_call_line(
-    line: str,
-    *,
-    artifact_dir: Path,
-    source_path: Path,
-    line_number: int,
-    file_order: int,
-) -> ToolCallEntry | None:
-    try:
-        record = json.loads(line)
-    except json.JSONDecodeError:
-        return None
-
-    if not isinstance(record, Mapping):
-        return None
-    if record.get("schema_version") not in SUPPORTED_SCHEMA_VERSIONS:
-        return None
-
-    input_summary = _mapping_or_empty(record.get("tool_input_summary"))
-    response_summary = _mapping_or_empty(record.get("tool_response_summary"))
-    recorded_at = _str_or_empty(record.get("recorded_at"))
-    return ToolCallEntry(
-        recorded_at=recorded_at,
-        runtime=_str_or_default(record.get("runtime"), "unknown"),
-        event=_str_or_default(record.get("event"), "unknown"),
-        status=derive_tool_call_status(record),
-        tool_name=_str_or_none(record.get("tool_name")),
-        tool_use_id=_str_or_none(record.get("tool_use_id")),
-        duration_ms=_int_or_none(record.get("duration_ms")),
-        tool_input_summary=input_summary,
-        tool_response_summary=response_summary,
-        session_id=_str_or_none(record.get("session_id")),
-        transcript_path=_str_or_none(record.get("transcript_path")),
-        cwd=_str_or_none(record.get("cwd")),
-        permission_mode=_str_or_none(record.get("permission_mode")),
-        agent_id=_str_or_none(record.get("agent_id")),
-        agent_type=_str_or_none(record.get("agent_type")),
-        parent_tool_use_id=_str_or_none(record.get("parent_tool_use_id")),
-        error=_str_or_none(record.get("error")),
-        is_interrupt=record.get("is_interrupt") is True,
-        source=_str_or_none(record.get("source")),
-        artifact_dir=str(artifact_dir),
-        source_path=str(source_path),
-        line_number=line_number,
-        _recorded_at_sort=_parse_recorded_at(recorded_at),
-        _file_order=file_order,
-    )
-
-
 def _dedupe_artifact_dirs(
     artifact_dirs: Iterable[Path | str],
     *,
@@ -614,7 +294,7 @@ def _related_agent_artifact_dirs(agent: Agent) -> list[Path]:
         *list(getattr(agent, "retry_chain_siblings", []) or []),
     ]
     seen: set[int] = set()
-    while queue and len(related) < _MAX_RELATED_ARTIFACT_DIRS:
+    while queue and len(related) < MAX_RELATED_ARTIFACT_DIRS:
         candidate = queue.pop(0)
         identity = id(candidate)
         if identity in seen:
@@ -707,48 +387,3 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
     return dict(data) if isinstance(data, Mapping) else {}
-
-
-def _mapping_or_empty(value: Any) -> Mapping[str, Any]:
-    return value if isinstance(value, Mapping) else {}
-
-
-def _parse_recorded_at(value: str) -> datetime:
-    if not value:
-        return datetime.max.replace(tzinfo=UTC)
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return datetime.max.replace(tzinfo=UTC)
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
-
-
-def _str_or_none(value: Any) -> str | None:
-    return value if isinstance(value, str) and value else None
-
-
-def _str_or_empty(value: Any) -> str:
-    return value if isinstance(value, str) else ""
-
-
-def _str_or_default(value: Any, default: str) -> str:
-    return value if isinstance(value, str) and value else default
-
-
-def _int_or_none(value: Any) -> int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    return None
-
-
-def _one_line(value: str, limit: int) -> str:
-    text = " ".join(value.replace("\r\n", "\n").replace("\r", "\n").splitlines())
-    if len(text) <= limit:
-        return text
-    return text[:limit] + f"...[{len(text) - limit} more]"
