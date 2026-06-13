@@ -1,5 +1,7 @@
 ---
 create_time: 2026-06-13 09:55:30
+bead_id: sase-4n
+tier: epic
 status: wip
 prompt: sdd/prompts/202606/plan_command_subcommands.md
 ---
