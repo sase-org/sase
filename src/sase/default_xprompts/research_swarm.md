@@ -10,7 +10,7 @@ input:
 
 ---
 
-%name:research.@.cld %m:claude/claude-fable-5 %g:research {{ prompt }} #research
+%name:research.@.cld %m:claude/opus %g:research {{ prompt }} #research
 
 ---
 
