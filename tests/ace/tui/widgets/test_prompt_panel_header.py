@@ -14,7 +14,7 @@ from rich.text import Text
 from sase.ace.tui import memory_reads as memory_reads_module
 from sase.ace.tui import skill_uses as skill_uses_module
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.widgets.prompt_panel import _agent_memory_reads
+from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,
     build_header_text,
@@ -54,7 +54,7 @@ def _setup(
         lambda _root: "header-test",
     )
     monkeypatch.setattr(
-        _agent_memory_reads,
+        _agent_context_common,
         "get_timezone",
         lambda: ZoneInfo("UTC"),
     )
@@ -177,8 +177,8 @@ def test_header_renders_workflow_variables_before_agent_context(
     plain = header.plain
 
     assert "AGENT CONTEXT\n" in plain
-    assert "▸ MEMORY\n" in plain
-    assert "▸ SKILLS\n" in plain
+    assert "▸ MEMORY · 1 read · 1 file\n" in plain
+    assert "▸ SKILLS · none recorded\n" in plain
     assert "WORKFLOW VARIABLES\n" in plain
     assert "long/generated_skills.md" in plain
     assert "↳ needed commit hook contract for runtime parity refactor" in plain
@@ -210,8 +210,8 @@ def test_header_renders_skill_uses_without_memory_reads(tmp_path: Path) -> None:
     plain = header.plain
 
     assert "AGENT CONTEXT\n" in plain
-    assert "▸ MEMORY\n" in plain
-    assert "▸ SKILLS\n" in plain
+    assert "▸ MEMORY · none recorded\n" in plain
+    assert "▸ SKILLS · 1 use · 1 skill\n" in plain
     assert "sase_plan" in plain
     assert "↳ needed an implementation plan" in plain
     assert "none recorded" in plain

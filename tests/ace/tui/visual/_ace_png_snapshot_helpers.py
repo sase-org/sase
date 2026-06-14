@@ -6,6 +6,7 @@ The underscore prefix keeps pytest from collecting this module.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
@@ -14,7 +15,6 @@ import pytest
 
 from sase.ace.testing import AcePage, make_changespec
 from sase.ace.tui import AceApp
-from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.ace.tui.actions.axe_display._data import (
     AxeCollectedData,
     BgCmdSnapshot,
@@ -24,6 +24,9 @@ from sase.ace.tui.actions.axe_display._data import (
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.axe.state import LumberjackMetrics, LumberjackStatus
+from sase.core.project_lifecycle_wire import ProjectRecordWire
+from sase.memory.read_log import MemoryReadEvent
+from sase.skills.use_log import SkillUseEvent
 
 
 def changespecs() -> list[Any]:
@@ -239,11 +242,15 @@ def patch_startup_loaders(
     *,
     agents: list[Agent] | None = None,
     axe_data: AxeCollectedData | None = None,
+    memory_reads: Sequence[MemoryReadEvent] | None = None,
+    skill_uses: Sequence[SkillUseEvent] | None = None,
 ) -> None:
     """Replace background startup data sources with deterministic fixtures."""
     import sase.notifications as notifications
     from sase.ace import grouping_strategy
     from sase.ace import tui_activity
+    from sase.ace.tui import memory_reads as memory_reads_module
+    from sase.ace.tui import skill_uses as skill_uses_module
     from sase.ace.tui.actions.agents import _loading
     from sase.ace.tui.models.agent_groups import GroupingMode
     from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
@@ -263,6 +270,19 @@ def patch_startup_loaders(
             dismissed_from_loader=[],
             load_state=state,
         )
+
+    memory_read_events = tuple(memory_reads or ())
+    skill_use_events = tuple(skill_uses or ())
+
+    def _fake_load_memory_reads_for_agent(
+        *_args: Any, limit: int = len(memory_read_events), **_kwargs: Any
+    ) -> tuple[MemoryReadEvent, ...]:
+        return memory_read_events[:limit]
+
+    def _fake_load_skill_uses_for_agent(
+        *_args: Any, limit: int = len(skill_use_events), **_kwargs: Any
+    ) -> tuple[SkillUseEvent, ...]:
+        return skill_use_events[:limit]
 
     async def _fake_axe_startup(app: AceApp) -> None:
         if axe_data is not None:
@@ -307,6 +327,16 @@ def patch_startup_loaders(
         return None
 
     monkeypatch.setattr(_loading, "load_agents_from_disk_with_state", _fake_load_agents)
+    monkeypatch.setattr(
+        memory_reads_module,
+        "load_memory_reads_for_agent",
+        _fake_load_memory_reads_for_agent,
+    )
+    monkeypatch.setattr(
+        skill_uses_module,
+        "load_skill_uses_for_agent",
+        _fake_load_skill_uses_for_agent,
+    )
     monkeypatch.setattr(AceApp, "_run_axe_startup_init", _fake_axe_startup)
     monkeypatch.setattr(AceApp, "_load_axe_status_async", _fake_axe_status_async)
     monkeypatch.setattr(

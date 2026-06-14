@@ -2,79 +2,44 @@
 
 from __future__ import annotations
 
-import textwrap
-from datetime import datetime
-
 from rich.text import Text
 
-from sase.core.time import get_timezone
 from sase.memory.read_log import MemoryReadEvent
 
+from ._agent_context_common import (
+    COLOR_EMPTY,
+    COLOR_FRONTMATTER,
+    COLOR_MEMORY_GLYPH,
+    COLOR_MEMORY_PRIMARY,
+    COLOR_MEMORY_SUBHEADER,
+    COLOR_TRUNCATION,
+    FRONTMATTER_MARKER,
+    MEMORY_GLYPH,
+    REASON_WRAP_WIDTH,
+    append_context_lane_header,
+    append_context_reason,
+    append_lane_row,
+    count_phrase,
+    format_local_hhmm,
+    format_local_hhmmss,
+    normalize_context_display,
+    truncate_display,
+)
+
 MAX_VISIBLE_READS = 5
-REASON_WRAP_WIDTH = 88
 PATH_LIMIT = 64
 
-_COLOR_SUBHEADER = "bold #5FD7FF"
-_COLOR_SUMMARY = "dim"
-_COLOR_TIMESTAMP = "dim"
-_COLOR_PATH = "#87D7FF"
-_COLOR_FRONTMATTER = "dim italic"
-_COLOR_REASON = "#D7D7AF"
-_COLOR_TRUNCATION = "dim italic"
-_COLOR_EMPTY = "dim italic"
-_FRONTMATTER_MARKER = "  ↩ frontmatter"
-_REASON_GLYPH = "↳"
-_REASON_PREFIX = f"            {_REASON_GLYPH} "
-_REASON_CONTINUATION_PREFIX = " " * len(_REASON_PREFIX)
-_EMPTY_PLACEHOLDER = "  — none recorded —\n"
-
-
-def format_local_hhmmss(iso_timestamp: str) -> str:
-    try:
-        cleaned = iso_timestamp.replace("Z", "+00:00")
-        dt = datetime.fromisoformat(cleaned)
-        return dt.astimezone(get_timezone()).strftime("%H:%M:%S")
-    except (ValueError, AttributeError):
-        return "??:??:??"
-
-
-def format_local_hhmm(iso_timestamp: str) -> str:
-    try:
-        cleaned = iso_timestamp.replace("Z", "+00:00")
-        dt = datetime.fromisoformat(cleaned)
-        return dt.astimezone(get_timezone()).strftime("%H:%M")
-    except (ValueError, AttributeError):
-        return "??:??"
-
-
-def normalize_context_display(value: str) -> str:
-    return " ".join(value.split())
-
-
-def _truncate_path(value: str, limit: int) -> str:
-    value = normalize_context_display(value)
-    if len(value) > limit:
-        return value[: limit - 1] + "…"
-    return value
-
-
-def append_context_reason(text: Text, reason: str) -> None:
-    reason = normalize_context_display(reason)
-    if not reason:
-        text.append(f"{_REASON_PREFIX}\n", style=_COLOR_REASON)
-        return
-
-    lines = textwrap.wrap(
-        reason,
-        width=REASON_WRAP_WIDTH,
-        break_long_words=True,
-        break_on_hyphens=False,
-    )
-    text.append(_REASON_PREFIX, style=_COLOR_REASON)
-    text.append(lines[0] + "\n", style=_COLOR_REASON)
-    for line in lines[1:]:
-        text.append(_REASON_CONTINUATION_PREFIX, style=_COLOR_REASON)
-        text.append(line + "\n", style=_COLOR_REASON)
+__all__ = [
+    "MAX_VISIBLE_READS",
+    "PATH_LIMIT",
+    "REASON_WRAP_WIDTH",
+    "append_agent_memory_reads_section",
+    "append_context_reason",
+    "format_local_hhmm",
+    "format_local_hhmmss",
+    "normalize_context_display",
+    "truncate_display",
+]
 
 
 def append_agent_memory_reads_section(
@@ -86,35 +51,45 @@ def append_agent_memory_reads_section(
     """Append a MEMORY sub-section listing the agent's audited reads."""
     if not events:
         if show_empty:
-            text.append("▸ MEMORY\n", style=_COLOR_SUBHEADER)
-            text.append(_EMPTY_PLACEHOLDER, style=_COLOR_EMPTY)
+            append_context_lane_header(
+                text,
+                "MEMORY",
+                label_style=COLOR_MEMORY_SUBHEADER,
+                details="none recorded",
+                details_style=COLOR_EMPTY,
+            )
         return
 
     distinct_paths = len({event.canonical_path for event in events})
-    latest = events[0]
-
-    text.append("▸ MEMORY\n", style=_COLOR_SUBHEADER)
-    text.append(
-        f"  {len(events)} reads · {distinct_paths} files "
-        f"· last {format_local_hhmmss(latest.timestamp)}\n\n",
-        style=_COLOR_SUMMARY,
+    append_context_lane_header(
+        text,
+        "MEMORY",
+        label_style=COLOR_MEMORY_SUBHEADER,
+        details=(
+            f"{count_phrase(len(events), 'read')} · "
+            f"{count_phrase(distinct_paths, 'file')}"
+        ),
     )
 
     visible = events[:MAX_VISIBLE_READS]
     for event in visible:
-        text.append(
-            f"  {format_local_hhmmss(event.timestamp)}  ", style=_COLOR_TIMESTAMP
+        reason_indent = append_lane_row(
+            text,
+            timestamp=event.timestamp,
+            glyph=MEMORY_GLYPH,
+            glyph_style=COLOR_MEMORY_GLYPH,
+            primary=truncate_display(event.canonical_path, PATH_LIMIT),
+            primary_style=COLOR_MEMORY_PRIMARY,
         )
-        text.append(_truncate_path(event.canonical_path, PATH_LIMIT), style=_COLOR_PATH)
         if event.frontmatter_stripped:
-            text.append(_FRONTMATTER_MARKER, style=_COLOR_FRONTMATTER)
+            text.append(f"  {FRONTMATTER_MARKER}", style=COLOR_FRONTMATTER)
         text.append("\n")
-        append_context_reason(text, event.reason)
+        append_context_reason(text, event.reason, indent=reason_indent)
 
     overflow = len(events) - len(visible)
     if overflow > 0:
         earliest = events[-1]
         text.append(
-            f"  + {overflow} more  ({format_local_hhmm(earliest.timestamp)} earliest)\n",
-            style=_COLOR_TRUNCATION,
+            f"  + {overflow} more · {format_local_hhmm(earliest.timestamp)} earliest\n",
+            style=COLOR_TRUNCATION,
         )

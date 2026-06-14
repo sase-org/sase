@@ -13,6 +13,8 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
+from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     agents,
     changespecs,
@@ -121,6 +123,59 @@ def _zoom_agent(tmp_path: Path) -> Agent:
     )
 
 
+def _context_memory_reads() -> list[MemoryReadEvent]:
+    return [
+        MemoryReadEvent(
+            schema_version=READ_LOG_SCHEMA_VERSION,
+            id="visual-read-generated-skills",
+            timestamp="2026-06-14T14:22:08+00:00",
+            project="visual",
+            cwd="/workspace/sase",
+            canonical_path="long/generated_skills.md",
+            resolved_path="/workspace/sase/memory/long/generated_skills.md",
+            agent_name="zoom.snapshot.agent",
+            agent_source="SASE_AGENT_NAME",
+            artifacts_dir="/workspace/sase/artifacts/visual-zoom",
+            reason="needed generated skill rules",
+            byte_count=64,
+            frontmatter_stripped=False,
+        ),
+        MemoryReadEvent(
+            schema_version=READ_LOG_SCHEMA_VERSION,
+            id="visual-read-gotchas",
+            timestamp="2026-06-14T14:18:30+00:00",
+            project="visual",
+            cwd="/workspace/sase",
+            canonical_path="short/gotchas.md",
+            resolved_path="/workspace/sase/memory/short/gotchas.md",
+            agent_name="zoom.snapshot.agent",
+            agent_source="SASE_AGENT_NAME",
+            artifacts_dir="/workspace/sase/artifacts/visual-zoom",
+            reason="avoid the double-install gotcha",
+            byte_count=64,
+            frontmatter_stripped=True,
+        ),
+    ]
+
+
+def _context_skill_uses() -> list[SkillUseEvent]:
+    return [
+        SkillUseEvent(
+            schema_version=SKILL_USE_LOG_SCHEMA_VERSION,
+            id="visual-skill-plan",
+            timestamp="2026-06-14T14:23:08+00:00",
+            project="visual",
+            cwd="/workspace/sase",
+            skill_name="sase_plan",
+            agent_name="zoom.snapshot.agent",
+            agent_source="SASE_AGENT_NAME",
+            artifacts_dir="/workspace/sase/artifacts/visual-zoom",
+            reason="needed an implementation plan",
+            runtime="codex",
+        )
+    ]
+
+
 async def test_agents_file_zoom_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -143,6 +198,43 @@ async def test_agents_file_zoom_modal_png_snapshot(
             page,
             "agents_file_zoom_modal_120x40",
             title="ACE agents file zoom modal",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_agents_context_zoom_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[_zoom_agent(tmp_path)],
+        memory_reads=_context_memory_reads(),
+        skill_uses=_context_skill_uses(),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+        await page.press("p")
+        await page.press("z")
+        await page.expect_modal("ZoomPanelModal")
+        await page.pause()
+        await page.pause()
+
+        _assert_page_svg_contains(page, "AGENT CONTEXT")
+        _assert_page_svg_contains(page, "◇")
+        _assert_page_svg_contains(page, "long/generated_skills.md")
+        _assert_page_svg_contains(page, "◆")
+        _assert_page_svg_contains(page, "sase_plan")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_context_zoom_modal_120x40",
+            title="ACE agents context zoom modal",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

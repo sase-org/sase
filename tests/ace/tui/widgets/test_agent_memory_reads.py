@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from rich.text import Text
 
-from sase.ace.tui.widgets.prompt_panel import _agent_memory_reads
+from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_memory_reads import (
     MAX_VISIBLE_READS,
     REASON_WRAP_WIDTH,
@@ -19,7 +19,7 @@ from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 @pytest.fixture(autouse=True)
 def _pin_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        _agent_memory_reads,
+        _agent_context_common,
         "get_timezone",
         lambda: ZoneInfo("UTC"),
     )
@@ -59,8 +59,7 @@ def test_empty_events_appends_nothing() -> None:
 def test_empty_events_can_render_placeholder() -> None:
     text = Text()
     append_agent_memory_reads_section(text, events=(), show_empty=True)
-    assert "▸ MEMORY\n" in text.plain
-    assert "none recorded" in text.plain
+    assert text.plain == "▸ MEMORY · none recorded\n"
 
 
 def test_single_event_renders_timestamp_path_and_reason() -> None:
@@ -73,10 +72,10 @@ def test_single_event_renders_timestamp_path_and_reason() -> None:
     append_agent_memory_reads_section(text, events=(event,))
 
     plain = text.plain
-    assert "▸ MEMORY\n" in plain
-    assert "  1 reads · 1 files · last 14:22:08" in plain
-    assert "14:22:08  long/generated_skills.md" in plain
+    assert "▸ MEMORY · 1 read · 1 file\n" in plain
+    assert "14:22:08  ◇ long/generated_skills.md" in plain
     assert "↳ needed commit hook contract for runtime parity refactor" in plain
+    assert "last 14:22:08" not in plain
     assert "+ " not in plain
 
 
@@ -99,7 +98,7 @@ def test_overflow_renders_truncation_footer() -> None:
     assert f"+ {overflow} more" in plain
     # Earliest visible footer uses HH:MM of the last (oldest) event.
     earliest_hhmm = events[-1].timestamp[11:16]
-    assert f"({earliest_hhmm} earliest)" in plain
+    assert f"· {earliest_hhmm} earliest" in plain
 
 
 def test_long_reason_is_wrapped_without_truncation() -> None:
@@ -124,7 +123,7 @@ def test_long_reason_is_wrapped_without_truncation() -> None:
     continuation_line = lines[first_reason_line_index + 1]
 
     assert len(first_reason_line.partition("↳ ")[2]) <= REASON_WRAP_WIDTH
-    assert continuation_line.startswith(" " * len("            ↳ "))
+    assert continuation_line.startswith(" " * len("              ↳ "))
     assert "↳" not in continuation_line
     assert continuation_line.strip()
 
@@ -174,4 +173,5 @@ def test_distinct_path_count_in_summary() -> None:
     text = Text()
     append_agent_memory_reads_section(text, events=events)
 
-    assert "3 reads · 2 files · last 14:05:00" in text.plain
+    assert "▸ MEMORY · 3 reads · 2 files\n" in text.plain
+    assert "last 14:05:00" not in text.plain

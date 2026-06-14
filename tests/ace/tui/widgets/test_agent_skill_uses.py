@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from rich.text import Text
 
-from sase.ace.tui.widgets.prompt_panel import _agent_memory_reads
+from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_skill_uses import (
     MAX_VISIBLE_SKILL_USES,
     append_agent_skills_section,
@@ -18,7 +18,7 @@ from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 @pytest.fixture(autouse=True)
 def _pin_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        _agent_memory_reads,
+        _agent_context_common,
         "get_timezone",
         lambda: ZoneInfo("UTC"),
     )
@@ -46,6 +46,18 @@ def _event(
     )
 
 
+def _span_style_for(text: Text, needle: str) -> str:
+    start = text.plain.index(needle)
+    end = start + len(needle)
+    styles = [
+        str(span.style)
+        for span in text.spans
+        if span.start <= start and span.end >= end
+    ]
+    assert len(styles) == 1
+    return styles[0]
+
+
 def test_empty_events_appends_nothing() -> None:
     text = Text()
     append_agent_skills_section(text, events=())
@@ -55,8 +67,7 @@ def test_empty_events_appends_nothing() -> None:
 def test_empty_events_can_render_placeholder() -> None:
     text = Text()
     append_agent_skills_section(text, events=(), show_empty=True)
-    assert "▸ SKILLS\n" in text.plain
-    assert "none recorded" in text.plain
+    assert text.plain == "▸ SKILLS · none recorded\n"
 
 
 def test_single_event_renders_timestamp_skill_and_reason() -> None:
@@ -69,11 +80,22 @@ def test_single_event_renders_timestamp_skill_and_reason() -> None:
     append_agent_skills_section(text, events=(event,))
 
     plain = text.plain
-    assert "▸ SKILLS\n" in plain
-    assert "  1 uses · 1 skills · last 14:22:08" in plain
+    assert "▸ SKILLS · 1 use · 1 skill\n" in plain
     assert "14:22:08  ◆ sase_plan" in plain
     assert "↳ needed a reviewed implementation plan" in plain
+    assert "last 14:22:08" not in plain
     assert "+ " not in plain
+
+
+def test_skills_header_uses_green_lane_accent() -> None:
+    text = Text()
+    event = _event(
+        skill_name="sase_plan",
+        timestamp="2026-06-14T14:22:08+00:00",
+    )
+    append_agent_skills_section(text, events=(event,))
+
+    assert _span_style_for(text, "▸ SKILLS").lower() == "bold #5fd75f"
 
 
 def test_overflow_renders_truncation_footer() -> None:
@@ -94,7 +116,7 @@ def test_overflow_renders_truncation_footer() -> None:
     overflow = len(events) - MAX_VISIBLE_SKILL_USES
     assert f"+ {overflow} more" in plain
     earliest_hhmm = events[-1].timestamp[11:16]
-    assert f"({earliest_hhmm} earliest)" in plain
+    assert f"· {earliest_hhmm} earliest" in plain
 
 
 def test_distinct_skill_count_in_summary() -> None:
@@ -118,4 +140,5 @@ def test_distinct_skill_count_in_summary() -> None:
     text = Text()
     append_agent_skills_section(text, events=events)
 
-    assert "3 uses · 2 skills · last 14:05:00" in text.plain
+    assert "▸ SKILLS · 3 uses · 2 skills\n" in text.plain
+    assert "last 14:05:00" not in text.plain
