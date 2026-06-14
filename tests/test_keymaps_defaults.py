@@ -121,13 +121,49 @@ def test_leader_mode_omits_retry_edit() -> None:
     assert "retry_edit" not in reg.leader_mode.keys
 
 
-def test_leader_mode_reserves_r_for_revert_and_moves_runners_to_w() -> None:
-    """Leader ``,r`` reverts the selected agent; runners moves to ``,w``."""
+def test_leader_mode_reserves_r_for_revert_and_moves_runners_to_uppercase_r() -> None:
+    """Leader ``,r`` reverts the selected agent; runners moves to ``,R``.
+
+    Repro capture moves off ``,R`` to ``,C`` so it no longer collides with
+    the runners panel.
+    """
     reg = load_keymap_registry({})
     assert LeaderModeKeymaps().keys["revert_agent"] == "r"
-    assert LeaderModeKeymaps().keys["runners"] == "w"
+    assert LeaderModeKeymaps().keys["runners"] == "R"
+    assert LeaderModeKeymaps().keys["capture_agents_repro"] == "C"
     assert reg.leader_mode.keys["revert_agent"] == "r"
-    assert reg.leader_mode.keys["runners"] == "w"
+    assert reg.leader_mode.keys["runners"] == "R"
+    assert reg.leader_mode.keys["capture_agents_repro"] == "C"
+
+
+def test_leader_mode_default_subkeys_are_unique() -> None:
+    """No two default leader-mode actions share the same subkey.
+
+    A collision would shadow whichever action the dispatcher checks later,
+    making it unreachable by keypress and ambiguous via command dispatch.
+    """
+    subkeys = [
+        value for value in LeaderModeKeymaps().keys.values() if isinstance(value, str)
+    ]
+    duplicates = sorted({key for key in subkeys if subkeys.count(key) > 1})
+    assert not duplicates, f"duplicate leader-mode subkeys: {duplicates}"
+
+
+def test_agents_help_advertises_runners_and_capture_on_new_keys() -> None:
+    """Agents help shows ``,R`` for runners and ``,C`` for repro capture.
+
+    ``,R`` must no longer advertise the repro-capture action now that it
+    has moved to ``,C``.
+    """
+    reg = load_keymap_registry({})
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+    assert (",R", "Show runners info") in agent_pairs
+    assert (",C", "Capture repro bundle") in agent_pairs
+    assert (",R", "Capture repro bundle") not in agent_pairs
 
 
 def test_open_command_palette_default_binding() -> None:

@@ -364,10 +364,10 @@ def test_leader_r_noops_on_non_agents_tabs() -> None:
     assert app.refresh_count == 1
 
 
-def test_leader_w_opens_runners_on_agents_tab() -> None:
+def test_leader_uppercase_r_opens_runners_on_agents_tab() -> None:
     app = _FakeApp(current_tab="agents")
 
-    handled = app._handle_leader_key("w")
+    handled = app._handle_leader_key("R")
 
     assert handled is True
     assert app.retry_edit_count == 0
@@ -378,12 +378,12 @@ def test_leader_w_opens_runners_on_agents_tab() -> None:
 
 def test_leader_repeat_uses_raw_subkey_for_runners() -> None:
     app = _FakeApp(current_tab="agents")
-    app._handle_leader_key("w")
+    app._handle_leader_key("R")
 
     app.current_tab = "changespecs"  # type: ignore[assignment]
     app._handle_leader_key("comma")
 
-    assert app._last_leader_key == "w"
+    assert app._last_leader_key == "R"
     assert app.retry_edit_count == 0
     assert app.runners_count == 2
 

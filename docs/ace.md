@@ -210,7 +210,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,M`       | Kill running mentors                                                                          |
 | `,p`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
 | `,o`       | Open model overrides (see [Model Overrides](#model-overrides))                                |
-| `,r`       | Show runners info                                                                             |
+| `,R`       | Show runners info                                                                             |
 | `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))                             |
 | `,<space>` | Run agent from current PR (skips project selection)                                           |
 | `,.`       | Open prompt history modal                                                                     |
@@ -639,7 +639,7 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
 | `,p`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
 | `,o`       | Open model overrides (see [Model Overrides](#model-overrides))                                |
-| `,R`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |
+| `,C`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation             |
 | `,x`       | Kill agent & edit prompt                                                                      |
 | `,<space>` | Run agent from current agent's PR (skips selection)                                           |
@@ -655,7 +655,7 @@ on user action.
 Agents-tab reproduction bundles capture the loader/apply sequence that determines which rows are visible. Use them when
 the Agents tab briefly drops historical rows, re-adds them, or shows duplicate workflow parents.
 
-When you see one of these bugs in a live ACE session, switch to the Agents tab and press `,R` before refreshing again.
+When you see one of these bugs in a live ACE session, switch to the Agents tab and press `,C` before refreshing again.
 ACE writes a commit-safe bundle to `~/.sase/repros/<timestamp>-manual-.../agents_tab_repro.json` and shows a toast with
 the path. "Commit-safe" means local names and paths are redacted, and prompt, response, chat, and diff bodies are
 omitted. The bundle keeps the row identities, loader state, app projection state, screen text, and an SVG screenshot
@@ -776,7 +776,7 @@ numerical identity.
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home`                       |
 | `,p` | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
 | `,o` | Open model overrides (see [Model Overrides](#model-overrides))                                |
-| `,r` | Show runners info                                                                             |
+| `,R` | Show runners info                                                                             |
 
 ### Bang Mode (`!` prefix)
 
@@ -1153,7 +1153,7 @@ operations). The indicator automatically hides when all background tasks complet
 
 ### Runners Modal
 
-Press `,r` (leader + `r`) to open the runners modal. It shows concurrency information including hook runners, agent
+Press `,R` (leader + `R`) to open the runners modal. It shows concurrency information including hook runners, agent
 runners, and a **Background Tasks** section listing active and recently completed background tasks (sync, rebase,
 accept, mail, add-tag). Each task entry shows its type, CL name, status, and timestamps.
 

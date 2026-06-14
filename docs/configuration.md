@@ -1236,7 +1236,7 @@ Agents-tab loader/apply sequence used to diagnose row disappearance, reappearanc
 | `sase repro replay <path>`      | `--assert-stable`, `--json`, `--write-artifacts <dir>`, `--size`          | Replay a bundle JSON file or bundle directory through the headless TUI harness.                    |
 | `sase repro capture agents-tab` | `--output <dir>`, `--commit-safe`, `--no-commit-safe`, `--size`, `--json` | Capture a baseline bundle from current filesystem state. `--commit-safe` redaction is the default. |
 
-Use the in-TUI `,R` capture when a transient row-list bug has just happened in a live ACE session. The CLI capture path
+Use the in-TUI `,C` capture when a transient row-list bug has just happened in a live ACE session. The CLI capture path
 is out-of-band: it loads current filesystem state and cannot reconstruct refreshes that already passed through the
 running TUI.
 

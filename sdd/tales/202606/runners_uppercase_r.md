@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-14 11:21:48
-status: wip
+status: done
 prompt: sdd/prompts/202606/runners_uppercase_r.md
 ---
 # Plan: Move Runners Panel to `,R`

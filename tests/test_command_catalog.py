@@ -400,6 +400,25 @@ def test_jump_to_next_stopped_agent_leader_command_is_agents_only() -> None:
     assert spec.executor.subkey == "J"
 
 
+def test_runners_leader_command_uses_uppercase_r() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.runners")
+
+    assert spec.key_display == ",R"
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "R"
+
+
+def test_capture_agents_repro_leader_command_uses_uppercase_c() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.capture_agents_repro")
+
+    assert spec.key_display == ",C"
+    assert spec.tabs == ("agents",)
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "C"
+
+
 def test_prompt_history_edit_first_leader_command_uses_ctrl_g() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.prompt_history_edit_first")

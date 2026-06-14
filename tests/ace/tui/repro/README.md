@@ -25,7 +25,7 @@ writes one `.txt` screen dump and one `.svg` screenshot per replay step.
 
 When creating a new regression fixture, start from a redacted bundle:
 
-1. In the running ACE Agents tab, press `,R` immediately after seeing the bug. This writes `agents_tab_repro.json` under
+1. In the running ACE Agents tab, press `,C` immediately after seeing the bug. This writes `agents_tab_repro.json` under
    `~/.sase/repros/<timestamp>-manual-.../`.
 2. Replay it locally with `sase repro replay <bundle> --assert-stable --json --write-artifacts <dir>`.
 3. If the fixture is useful for CI, keep it commit-safe: no absolute home paths, chat bodies, prompt bodies, response
