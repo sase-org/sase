@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-14 13:10:41
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_family_context_1.md
 ---
 # Plan: Agent-family context in the ACE metadata panel

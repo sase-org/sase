@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from rich.text import Text
 
+from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_memory_reads import (
     MAX_VISIBLE_READS,
@@ -50,6 +51,12 @@ def _event(
     )
 
 
+def _display(
+    event: MemoryReadEvent, label: str | None = None
+) -> MemoryReadDisplayEvent:
+    return MemoryReadDisplayEvent(event=event, agent_label=label)
+
+
 def test_empty_events_appends_nothing() -> None:
     text = Text()
     append_agent_memory_reads_section(text, events=())
@@ -69,7 +76,7 @@ def test_single_event_renders_timestamp_path_and_reason() -> None:
         timestamp="2026-05-24T14:22:08+00:00",
         reason="needed commit hook contract for runtime parity refactor",
     )
-    append_agent_memory_reads_section(text, events=(event,))
+    append_agent_memory_reads_section(text, events=(_display(event),))
 
     plain = text.plain
     assert "▸ MEMORY · 1 read · 1 file\n" in plain
@@ -90,7 +97,9 @@ def test_overflow_renders_truncation_footer() -> None:
         for index in range(MAX_VISIBLE_READS + 2)
     )
     text = Text()
-    append_agent_memory_reads_section(text, events=events)
+    append_agent_memory_reads_section(
+        text, events=tuple(_display(event) for event in events)
+    )
 
     plain = text.plain
     assert plain.count("↳") == MAX_VISIBLE_READS
@@ -109,7 +118,7 @@ def test_long_reason_is_wrapped_without_truncation() -> None:
         timestamp="2026-05-24T14:00:00+00:00",
         reason=long_reason,
     )
-    append_agent_memory_reads_section(text, events=(event,))
+    append_agent_memory_reads_section(text, events=(_display(event),))
 
     plain = text.plain
     assert "…" not in plain
@@ -135,7 +144,7 @@ def test_frontmatter_marker_present_when_stripped() -> None:
         timestamp="2026-05-24T14:00:00+00:00",
         frontmatter_stripped=True,
     )
-    append_agent_memory_reads_section(text, events=(event,))
+    append_agent_memory_reads_section(text, events=(_display(event),))
 
     assert "↩ frontmatter" in text.plain
 
@@ -147,7 +156,7 @@ def test_frontmatter_marker_absent_when_not_stripped() -> None:
         timestamp="2026-05-24T14:00:00+00:00",
         frontmatter_stripped=False,
     )
-    append_agent_memory_reads_section(text, events=(event,))
+    append_agent_memory_reads_section(text, events=(_display(event),))
 
     assert "↩ frontmatter" not in text.plain
 
@@ -171,7 +180,113 @@ def test_distinct_path_count_in_summary() -> None:
         ),
     )
     text = Text()
-    append_agent_memory_reads_section(text, events=events)
+    append_agent_memory_reads_section(
+        text, events=tuple(_display(event) for event in events)
+    )
 
     assert "▸ MEMORY · 3 reads · 2 files\n" in text.plain
     assert "last 14:05:00" not in text.plain
+
+
+def test_attributed_rows_render_role_labels() -> None:
+    text = Text()
+    events = (
+        _display(
+            _event(
+                canonical_path="long/tui_perf.md",
+                timestamp="2026-05-24T14:22:08+00:00",
+                read_id="id-1",
+            ),
+            "coder",
+        ),
+        _display(
+            _event(
+                canonical_path="long/cli_rules.md",
+                timestamp="2026-05-24T14:21:00+00:00",
+                read_id="id-2",
+            ),
+            "plan",
+        ),
+    )
+    append_agent_memory_reads_section(text, events=events)
+
+    plain = text.plain
+    assert "▸ MEMORY · 2 reads · 2 files · 2 agents\n" in plain
+    assert "14:22:08  coder  ◇ long/tui_perf.md" in plain
+    assert "14:21:00  plan   ◇ long/cli_rules.md" in plain
+
+
+def test_role_column_padded_for_unlabeled_rows_in_attributed_lane() -> None:
+    text = Text()
+    events = (
+        _display(
+            _event(
+                canonical_path="long/tui_perf.md",
+                timestamp="2026-05-24T14:22:08+00:00",
+                read_id="id-1",
+            ),
+            "coder",
+        ),
+        _display(
+            _event(
+                canonical_path="long/cli_rules.md",
+                timestamp="2026-05-24T14:21:00+00:00",
+                read_id="id-2",
+            ),
+            None,
+        ),
+    )
+    append_agent_memory_reads_section(text, events=events)
+
+    lines = text.plain.splitlines()
+    labeled = next(line for line in lines if "long/tui_perf.md" in line)
+    unlabeled = next(line for line in lines if "long/cli_rules.md" in line)
+    # Glyph stays column-aligned even though the second row has no label.
+    assert labeled.index("◇") == unlabeled.index("◇")
+
+
+def test_single_producer_summary_omits_agent_count() -> None:
+    text = Text()
+    events = (
+        _display(
+            _event(
+                canonical_path="long/a.md",
+                timestamp="2026-05-24T14:05:00+00:00",
+                read_id="id-1",
+            ),
+            "plan",
+        ),
+        _display(
+            _event(
+                canonical_path="long/b.md",
+                timestamp="2026-05-24T14:04:00+00:00",
+                read_id="id-2",
+            ),
+            "plan",
+        ),
+    )
+    append_agent_memory_reads_section(text, events=events)
+
+    assert "▸ MEMORY · 2 reads · 2 files\n" in text.plain
+    assert "agents" not in text.plain
+
+
+def test_attributed_reason_aligns_under_primary_text() -> None:
+    text = Text()
+    events = (
+        _display(
+            _event(
+                canonical_path="long/tui_perf.md",
+                timestamp="2026-05-24T14:22:08+00:00",
+                reason="perf budget context",
+                read_id="id-1",
+            ),
+            "coder",
+        ),
+    )
+    append_agent_memory_reads_section(text, events=events)
+
+    lines = text.plain.splitlines()
+    row = next(line for line in lines if "long/tui_perf.md" in line)
+    reason = next(line for line in lines if "↳" in line)
+    assert reason.index("↳") == row.index("long/tui_perf.md")

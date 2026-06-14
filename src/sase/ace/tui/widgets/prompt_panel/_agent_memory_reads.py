@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from sase.memory.read_log import MemoryReadEvent
+from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 
 from ._agent_context_common import (
     COLOR_EMPTY,
@@ -45,10 +45,10 @@ __all__ = [
 def append_agent_memory_reads_section(
     text: Text,
     *,
-    events: tuple[MemoryReadEvent, ...] = (),
+    events: tuple[MemoryReadDisplayEvent, ...] = (),
     show_empty: bool = False,
 ) -> None:
-    """Append a MEMORY sub-section listing the agent's audited reads."""
+    """Append a MEMORY sub-section listing the family's audited reads."""
     if not events:
         if show_empty:
             append_context_lane_header(
@@ -60,19 +60,24 @@ def append_agent_memory_reads_section(
             )
         return
 
-    distinct_paths = len({event.canonical_path for event in events})
+    distinct_paths = len({item.event.canonical_path for item in events})
+    distinct_agents = len({item.agent_label for item in events if item.agent_label})
+    details = (
+        f"{count_phrase(len(events), 'read')} · {count_phrase(distinct_paths, 'file')}"
+    )
+    if distinct_agents > 1:
+        details += f" · {count_phrase(distinct_agents, 'agent')}"
     append_context_lane_header(
         text,
         "MEMORY",
         label_style=COLOR_MEMORY_SUBHEADER,
-        details=(
-            f"{count_phrase(len(events), 'read')} · "
-            f"{count_phrase(distinct_paths, 'file')}"
-        ),
+        details=details,
     )
 
     visible = events[:MAX_VISIBLE_READS]
-    for event in visible:
+    show_role_column = any(item.agent_label for item in visible)
+    for item in visible:
+        event = item.event
         reason_indent = append_lane_row(
             text,
             timestamp=event.timestamp,
@@ -80,6 +85,8 @@ def append_agent_memory_reads_section(
             glyph_style=COLOR_MEMORY_GLYPH,
             primary=truncate_display(event.canonical_path, PATH_LIMIT),
             primary_style=COLOR_MEMORY_PRIMARY,
+            role_label=item.agent_label,
+            show_role_column=show_role_column,
         )
         if event.frontmatter_stripped:
             text.append(f"  {FRONTMATTER_MARKER}", style=COLOR_FRONTMATTER)
@@ -88,7 +95,7 @@ def append_agent_memory_reads_section(
 
     overflow = len(events) - len(visible)
     if overflow > 0:
-        earliest = events[-1]
+        earliest = events[-1].event
         text.append(
             f"  + {overflow} more · {format_local_hhmm(earliest.timestamp)} earliest\n",
             style=COLOR_TRUNCATION,

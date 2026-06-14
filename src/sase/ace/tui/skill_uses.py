@@ -19,6 +19,19 @@ MAX_KEPT_SKILL_USES = 50
 _MIN_REREAD_INTERVAL_S = 0.5
 
 
+@dataclass(frozen=True)
+class SkillUseDisplayEvent:
+    """A skill-use event paired with an optional family role label.
+
+    ``agent_label`` is ``None`` for ordinary (single-member) rows so the
+    existing per-agent visual shape is preserved; family rows set it to the
+    producing member's compact role label (e.g. ``q``, ``commit``).
+    """
+
+    event: SkillUseEvent
+    agent_label: str | None = None
+
+
 @dataclass
 class _SkillUsesCacheEntry:
     events: tuple[SkillUseEvent, ...]
@@ -26,7 +39,17 @@ class _SkillUsesCacheEntry:
     last_read_monotonic: float
 
 
+@dataclass
+class _SkillUsesContextCacheEntry:
+    events: tuple[SkillUseDisplayEvent, ...]
+    log_mtime_ns: int
+    last_read_monotonic: float
+
+
 _skill_uses_cache: dict[tuple[str, str], _SkillUsesCacheEntry] = {}
+_skill_uses_context_cache: dict[
+    tuple[str, tuple[str, ...]], _SkillUsesContextCacheEntry
+] = {}
 
 
 def _project_name_for_agent(agent: Agent) -> str | None:
@@ -88,7 +111,7 @@ def _stat_mtime_ns(path: Path) -> int:
         return 0
 
 
-def load_skill_uses_for_agent(
+def _load_skill_uses_for_agent(
     agent: Agent, *, limit: int = MAX_KEPT_SKILL_USES
 ) -> tuple[SkillUseEvent, ...]:
     """Return skill-use events attributed to ``agent``, newest first.
@@ -116,6 +139,72 @@ def load_skill_uses_for_agent(
     ordered = tuple(sorted(filtered, key=lambda event: event.timestamp, reverse=True))
     capped = ordered[:MAX_KEPT_SKILL_USES]
     _skill_uses_cache[key] = _SkillUsesCacheEntry(
+        events=capped,
+        log_mtime_ns=current_mtime,
+        last_read_monotonic=now,
+    )
+    return capped[:limit]
+
+
+def load_skill_uses_for_agent_context(
+    agent: Agent, *, limit: int = MAX_KEPT_SKILL_USES
+) -> tuple[SkillUseDisplayEvent, ...]:
+    """Return display skill-uses for an agent-family context, newest first.
+
+    For an ordinary row with no follow-up family members this delegates to
+    :func:`_load_skill_uses_for_agent` and wraps each event with no label,
+    preserving the single-agent visual shape. For a family row it reads the
+    log once, attributes each event to a member, de-duplicates by event id,
+    sorts newest first, caps to ``MAX_KEPT_SKILL_USES``, and labels each kept
+    event with its producer's compact role.
+    """
+    from sase.ace.tui.agent_context_members import (
+        build_context_members,
+        context_cache_key,
+        match_event_label,
+    )
+
+    members = build_context_members(agent)
+    if len(members) <= 1:
+        events = _load_skill_uses_for_agent(agent, limit=limit)
+        return tuple(SkillUseDisplayEvent(event=event) for event in events)
+
+    project = _project_name_for_agent(agent)
+    if project is None:
+        return ()
+
+    log_path = skill_use_log_path(project)
+    now = time.monotonic()
+    key = (project, context_cache_key(members))
+    cached = _skill_uses_context_cache.get(key)
+    current_mtime = _stat_mtime_ns(log_path)
+
+    if cached is not None:
+        recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
+        if recent or current_mtime == cached.log_mtime_ns:
+            return cached.events[:limit]
+
+    all_events = read_skill_use_events(project=project)
+    matched: list[SkillUseDisplayEvent] = []
+    seen_ids: set[str] = set()
+    for event in all_events:
+        if event.id in seen_ids:
+            continue
+        label = match_event_label(
+            members,
+            artifacts_dir=event.artifacts_dir,
+            agent_name=event.agent_name,
+        )
+        if label is None:
+            continue
+        seen_ids.add(event.id)
+        matched.append(SkillUseDisplayEvent(event=event, agent_label=label))
+
+    ordered = tuple(
+        sorted(matched, key=lambda item: item.event.timestamp, reverse=True)
+    )
+    capped = ordered[:MAX_KEPT_SKILL_USES]
+    _skill_uses_context_cache[key] = _SkillUsesContextCacheEntry(
         events=capped,
         log_mtime_ns=current_mtime,
         last_read_monotonic=now,

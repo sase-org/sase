@@ -329,12 +329,12 @@ def patch_startup_loaders(
     monkeypatch.setattr(_loading, "load_agents_from_disk_with_state", _fake_load_agents)
     monkeypatch.setattr(
         memory_reads_module,
-        "load_memory_reads_for_agent",
+        "_load_memory_reads_for_agent",
         _fake_load_memory_reads_for_agent,
     )
     monkeypatch.setattr(
         skill_uses_module,
-        "load_skill_uses_for_agent",
+        "_load_skill_uses_for_agent",
         _fake_load_skill_uses_for_agent,
     )
     monkeypatch.setattr(AceApp, "_run_axe_startup_init", _fake_axe_startup)

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from sase.memory.read_log import MemoryReadEvent
-from sase.skills.use_log import SkillUseEvent
+from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
+from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 
 from ._agent_memory_reads import append_agent_memory_reads_section
 from ._agent_skill_uses import append_agent_skills_section
@@ -23,8 +23,8 @@ def _append_major_section_divider(text: Text) -> None:
 def append_agent_context_section(
     text: Text,
     *,
-    memory_reads: tuple[MemoryReadEvent, ...] = (),
-    skill_uses: tuple[SkillUseEvent, ...] = (),
+    memory_reads: tuple[MemoryReadDisplayEvent, ...] = (),
+    skill_uses: tuple[SkillUseDisplayEvent, ...] = (),
 ) -> None:
     """Append the AGENT CONTEXT section when any audited context exists."""
     if not memory_reads and not skill_uses:

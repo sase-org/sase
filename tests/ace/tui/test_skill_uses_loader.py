@@ -11,7 +11,15 @@ import pytest
 
 from sase.ace.tui import skill_uses as skill_uses_module
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.skill_uses import load_skill_uses_for_agent
+from sase.ace.tui.skill_uses import (
+    _load_skill_uses_for_agent,
+    load_skill_uses_for_agent_context,
+)
+from sase.plan_chain import (
+    PLAN_CHAIN_CODER_SUFFIX,
+    PLAN_CHAIN_PLAN_SUFFIX,
+    PLAN_CHAIN_QUESTION_SUFFIX,
+)
 from sase.skills.use_log import (
     SKILL_USE_LOG_SCHEMA_VERSION,
     SkillUseEvent,
@@ -25,6 +33,7 @@ def _make_agent(
     agent_name: str | None = None,
     workspace_dir: Path | None = None,
     raw_suffix: str = "20260614-100000",
+    role_suffix: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -36,6 +45,7 @@ def _make_agent(
         agent_name=agent_name,
         workspace_dir=str(workspace_dir) if workspace_dir else None,
         artifacts_dir=str(artifacts_dir) if artifacts_dir else None,
+        role_suffix=role_suffix,
     )
 
 
@@ -75,6 +85,7 @@ def _write_jsonl(path: Path, events: list[SkillUseEvent]) -> None:
 @pytest.fixture(autouse=True)
 def _clear_cache() -> None:
     skill_uses_module._skill_uses_cache.clear()
+    skill_uses_module._skill_uses_context_cache.clear()
 
 
 @pytest.fixture
@@ -122,7 +133,7 @@ def test_filter_by_artifacts_dir_exact_match(
         agent_name="alpha",
         workspace_dir=fake_project,
     )
-    result = load_skill_uses_for_agent(agent)
+    result = _load_skill_uses_for_agent(agent)
 
     assert [event.skill_name for event in result] == ["sase_plan"]
 
@@ -154,7 +165,7 @@ def test_fallback_to_agent_name_when_artifacts_dir_missing(
         agent_name="alpha",
         workspace_dir=fake_project,
     )
-    result = load_skill_uses_for_agent(agent)
+    result = _load_skill_uses_for_agent(agent)
 
     assert [event.skill_name for event in result] == ["sase_plan"]
 
@@ -190,7 +201,7 @@ def test_results_are_newest_first(fake_project: Path, tmp_path: Path) -> None:
         agent_name="alpha",
         workspace_dir=fake_project,
     )
-    result = load_skill_uses_for_agent(agent)
+    result = _load_skill_uses_for_agent(agent)
 
     assert [event.skill_name for event in result] == [
         "sase_questions",
@@ -220,7 +231,7 @@ def test_limit_caps_returned_events(fake_project: Path, tmp_path: Path) -> None:
         agent_name="alpha",
         workspace_dir=fake_project,
     )
-    result = load_skill_uses_for_agent(agent, limit=3)
+    result = _load_skill_uses_for_agent(agent, limit=3)
 
     assert len(result) == 3
     assert result[0].skill_name == "skill_9"
@@ -246,7 +257,7 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
         agent_name="alpha",
         workspace_dir=fake_project,
     )
-    first = load_skill_uses_for_agent(agent)
+    first = _load_skill_uses_for_agent(agent)
     assert len(first) == 1
 
     later = list(initial) + [
@@ -266,8 +277,230 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
     for entry in skill_uses_module._skill_uses_cache.values():
         entry.last_read_monotonic = 0.0
 
-    second = load_skill_uses_for_agent(agent)
+    second = _load_skill_uses_for_agent(agent)
     assert [event.skill_name for event in second] == [
         "sase_questions",
         "sase_plan",
     ]
+
+
+def test_context_single_agent_has_no_labels(fake_project: Path, tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts" / "agent_a"
+    artifacts_dir.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            skill_name="sase_plan",
+            timestamp="2026-06-14T10:00:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_dir),
+        )
+    ]
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+
+    agent = _make_agent(
+        artifacts_dir=artifacts_dir,
+        agent_name="alpha",
+        workspace_dir=fake_project,
+    )
+    result = load_skill_uses_for_agent_context(agent)
+
+    assert [item.event.skill_name for item in result] == ["sase_plan"]
+    assert [item.agent_label for item in result] == [None]
+
+
+def test_context_aggregates_family_with_role_labels(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    plan_dir = tmp_path / "artifacts" / "plan"
+    coder_dir = tmp_path / "artifacts" / "coder"
+    q_dir = tmp_path / "artifacts" / "q"
+    for directory in (plan_dir, coder_dir, q_dir):
+        directory.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            skill_name="sase_plan",
+            timestamp="2026-06-14T10:00:00+00:00",
+            agent_name="alpha--plan",
+            artifacts_dir=str(plan_dir),
+            use_id="plan-use",
+        ),
+        _make_event(
+            skill_name="sase_git_commit",
+            timestamp="2026-06-14T10:05:00+00:00",
+            agent_name="alpha--code",
+            artifacts_dir=str(coder_dir),
+            use_id="coder-use",
+        ),
+        _make_event(
+            skill_name="sase_questions",
+            timestamp="2026-06-14T10:02:00+00:00",
+            agent_name="alpha--q",
+            artifacts_dir=str(q_dir),
+            use_id="q-use",
+        ),
+    ]
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+
+    root = _make_agent(
+        artifacts_dir=plan_dir,
+        agent_name="alpha--plan",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-plan",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    coder = _make_agent(
+        artifacts_dir=coder_dir,
+        agent_name="alpha--code",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-code",
+        role_suffix=PLAN_CHAIN_CODER_SUFFIX,
+    )
+    question = _make_agent(
+        artifacts_dir=q_dir,
+        agent_name="alpha--q",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-q",
+        role_suffix=PLAN_CHAIN_QUESTION_SUFFIX,
+    )
+    root.followup_agents = [coder, question]
+
+    result = load_skill_uses_for_agent_context(root)
+
+    assert [(item.event.skill_name, item.agent_label) for item in result] == [
+        ("sase_git_commit", "coder"),
+        ("sase_questions", "q"),
+        ("sase_plan", "plan"),
+    ]
+
+
+def test_context_artifacts_dir_mismatch_does_not_fall_back_to_name(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    plan_dir = tmp_path / "artifacts" / "plan"
+    coder_dir = tmp_path / "artifacts" / "coder"
+    other_dir = tmp_path / "artifacts" / "other"
+    for directory in (plan_dir, coder_dir, other_dir):
+        directory.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            skill_name="sase_git_commit",
+            timestamp="2026-06-14T10:00:00+00:00",
+            agent_name="alpha--code",
+            artifacts_dir=str(other_dir),
+            use_id="mismatch-use",
+        )
+    ]
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+
+    root = _make_agent(
+        artifacts_dir=plan_dir,
+        agent_name="alpha--plan",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-plan",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    coder = _make_agent(
+        artifacts_dir=coder_dir,
+        agent_name="alpha--code",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-code",
+        role_suffix=PLAN_CHAIN_CODER_SUFFIX,
+    )
+    root.followup_agents = [coder]
+
+    assert load_skill_uses_for_agent_context(root) == ()
+
+
+def test_context_dedupes_synthetic_planner_sharing_root_dir(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    plan_dir = tmp_path / "artifacts" / "plan"
+    coder_dir = tmp_path / "artifacts" / "coder"
+    plan_dir.mkdir(parents=True)
+    coder_dir.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            skill_name="sase_plan",
+            timestamp="2026-06-14T10:00:00+00:00",
+            agent_name="alpha--plan",
+            artifacts_dir=str(plan_dir),
+            use_id="plan-use",
+        )
+    ]
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+
+    root = _make_agent(
+        artifacts_dir=plan_dir,
+        agent_name="alpha--plan",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-plan",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    synthetic = _make_agent(
+        artifacts_dir=plan_dir,
+        agent_name="alpha--plan",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-plan-2",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    coder = _make_agent(
+        artifacts_dir=coder_dir,
+        agent_name="alpha--code",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-code",
+        role_suffix=PLAN_CHAIN_CODER_SUFFIX,
+    )
+    root.followup_agents = [synthetic, coder]
+
+    result = load_skill_uses_for_agent_context(root)
+
+    assert [(item.event.skill_name, item.agent_label) for item in result] == [
+        ("sase_plan", "plan")
+    ]
+
+
+def test_context_caps_to_limit_newest_first(fake_project: Path, tmp_path: Path) -> None:
+    plan_dir = tmp_path / "artifacts" / "plan"
+    coder_dir = tmp_path / "artifacts" / "coder"
+    plan_dir.mkdir(parents=True)
+    coder_dir.mkdir(parents=True)
+
+    events = []
+    for index in range(6):
+        directory = plan_dir if index % 2 == 0 else coder_dir
+        name = "alpha--plan" if index % 2 == 0 else "alpha--code"
+        events.append(
+            _make_event(
+                skill_name=f"skill_{index}",
+                timestamp=f"2026-06-14T10:{index:02d}:00+00:00",
+                agent_name=name,
+                artifacts_dir=str(directory),
+                use_id=f"id-{index}",
+            )
+        )
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+
+    root = _make_agent(
+        artifacts_dir=plan_dir,
+        agent_name="alpha--plan",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-plan",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    coder = _make_agent(
+        artifacts_dir=coder_dir,
+        agent_name="alpha--code",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-code",
+        role_suffix=PLAN_CHAIN_CODER_SUFFIX,
+    )
+    root.followup_agents = [coder]
+
+    result = load_skill_uses_for_agent_context(root, limit=2)
+
+    assert [item.event.skill_name for item in result] == ["skill_5", "skill_4"]
+    assert [item.agent_label for item in result] == ["coder", "plan"]

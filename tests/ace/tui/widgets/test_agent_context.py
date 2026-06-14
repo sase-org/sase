@@ -7,6 +7,8 @@ from zoneinfo import ZoneInfo
 import pytest
 from rich.text import Text
 
+from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
+from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_context_common import count_phrase
 from sase.ace.tui.widgets.prompt_panel._agent_context import (
@@ -25,37 +27,41 @@ def _pin_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _memory_event() -> MemoryReadEvent:
-    return MemoryReadEvent(
-        schema_version=READ_LOG_SCHEMA_VERSION,
-        id="read-a",
-        timestamp="2026-06-14T14:22:08+00:00",
-        project="test",
-        cwd="/tmp/test",
-        canonical_path="long/generated_skills.md",
-        resolved_path="/tmp/test/memory/long/generated_skills.md",
-        agent_name="alpha",
-        agent_source="SASE_AGENT_NAME",
-        artifacts_dir="/tmp/test/artifacts",
-        reason="needed generated skill rules",
-        byte_count=64,
-        frontmatter_stripped=False,
+def _memory_event() -> MemoryReadDisplayEvent:
+    return MemoryReadDisplayEvent(
+        event=MemoryReadEvent(
+            schema_version=READ_LOG_SCHEMA_VERSION,
+            id="read-a",
+            timestamp="2026-06-14T14:22:08+00:00",
+            project="test",
+            cwd="/tmp/test",
+            canonical_path="long/generated_skills.md",
+            resolved_path="/tmp/test/memory/long/generated_skills.md",
+            agent_name="alpha",
+            agent_source="SASE_AGENT_NAME",
+            artifacts_dir="/tmp/test/artifacts",
+            reason="needed generated skill rules",
+            byte_count=64,
+            frontmatter_stripped=False,
+        )
     )
 
 
-def _skill_event() -> SkillUseEvent:
-    return SkillUseEvent(
-        schema_version=SKILL_USE_LOG_SCHEMA_VERSION,
-        id="skill-a",
-        timestamp="2026-06-14T14:23:08+00:00",
-        project="test",
-        cwd="/tmp/test",
-        skill_name="sase_plan",
-        agent_name="alpha",
-        agent_source="SASE_AGENT_NAME",
-        artifacts_dir="/tmp/test/artifacts",
-        reason="needed an implementation plan",
-        runtime="codex",
+def _skill_event() -> SkillUseDisplayEvent:
+    return SkillUseDisplayEvent(
+        event=SkillUseEvent(
+            schema_version=SKILL_USE_LOG_SCHEMA_VERSION,
+            id="skill-a",
+            timestamp="2026-06-14T14:23:08+00:00",
+            project="test",
+            cwd="/tmp/test",
+            skill_name="sase_plan",
+            agent_name="alpha",
+            agent_source="SASE_AGENT_NAME",
+            artifacts_dir="/tmp/test/artifacts",
+            reason="needed an implementation plan",
+            runtime="codex",
+        )
     )
 
 

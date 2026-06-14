@@ -10,8 +10,8 @@ from rich.text import Text
 
 from sase.agent.agent_artifacts_cache import get_global_cache
 from sase.ace.changespec.models import DeltaEntry
-from sase.memory.read_log import MemoryReadEvent
-from sase.skills.use_log import SkillUseEvent
+from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
+from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
@@ -55,8 +55,8 @@ class _DetailHeaderSummary:
     bead_display: str | None = None
     delta_entries: list[DeltaEntry] | None = None
     artifact_paths: list[AgentArtifactPath] | None = None
-    memory_reads: tuple[MemoryReadEvent, ...] = ()
-    skill_uses: tuple[SkillUseEvent, ...] = ()
+    memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()
+    skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
 
 
 _PHASE_LABELS = {
@@ -111,8 +111,8 @@ def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
     if agent.agent_name:
         bead_display = format_agent_bead_display(agent, include_description=True)
 
-    from sase.ace.tui.memory_reads import load_memory_reads_for_agent
-    from sase.ace.tui.skill_uses import load_skill_uses_for_agent
+    from sase.ace.tui.memory_reads import load_memory_reads_for_agent_context
+    from sase.ace.tui.skill_uses import load_skill_uses_for_agent_context
 
     from ._agent_artifacts import agent_artifact_paths
     from ._agent_deltas import agent_delta_entries
@@ -122,8 +122,8 @@ def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
         bead_display=bead_display,
         delta_entries=agent_delta_entries(agent),
         artifact_paths=agent_artifact_paths(agent),
-        memory_reads=load_memory_reads_for_agent(agent),
-        skill_uses=load_skill_uses_for_agent(agent),
+        memory_reads=load_memory_reads_for_agent_context(agent),
+        skill_uses=load_skill_uses_for_agent_context(agent),
     )
 
 

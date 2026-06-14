@@ -23,6 +23,7 @@ COLOR_FRONTMATTER = "dim italic"
 COLOR_REASON = "#D7D7AF"
 COLOR_TRUNCATION = "dim italic"
 COLOR_EMPTY = "dim italic"
+COLOR_ROLE = "italic #AF87FF"
 
 MEMORY_GLYPH = "◇"
 SKILL_GLYPH = "◆"
@@ -37,6 +38,14 @@ CONTEXT_REASON_INDENT = len(
     f"{_ROW_LEADING}{_ROW_TIMESTAMP_DISPLAY}{_ROW_AFTER_TIMESTAMP}"
     f"{MEMORY_GLYPH}{_ROW_GLYPH_SEPARATOR}"
 )
+
+# Compact responsibility column rendered between timestamp and glyph for
+# attributed (agent-family) rows. Labels are truncated to ROLE_LABEL_LIMIT so
+# the ljust to ROLE_COLUMN_WIDTH always leaves at least one space before the
+# glyph; non-attributed rows in an attributed lane render a blank column so
+# the glyph/primary/reason columns stay aligned.
+ROLE_LABEL_LIMIT = 6
+ROLE_COLUMN_WIDTH = 7
 
 
 def format_local_hhmmss(iso_timestamp: str) -> str:
@@ -85,6 +94,13 @@ def append_context_lane_header(
     text.append(f" · {details}\n", style=details_style)
 
 
+def _format_role_column(role_label: str | None) -> str:
+    label = role_label or ""
+    if len(label) > ROLE_LABEL_LIMIT:
+        label = label[: ROLE_LABEL_LIMIT - 1] + "…"
+    return f"{label:<{ROLE_COLUMN_WIDTH}}"
+
+
 def append_lane_row(
     text: Text,
     *,
@@ -93,14 +109,21 @@ def append_lane_row(
     glyph_style: str,
     primary: str,
     primary_style: str,
+    role_label: str | None = None,
+    show_role_column: bool = False,
 ) -> int:
     text.append(
         f"{_ROW_LEADING}{format_local_hhmmss(timestamp)}{_ROW_AFTER_TIMESTAMP}",
         style=COLOR_TIMESTAMP,
     )
+    extra_indent = 0
+    if show_role_column:
+        column = _format_role_column(role_label)
+        text.append(column, style=COLOR_ROLE)
+        extra_indent = len(column)
     text.append(f"{glyph}{_ROW_GLYPH_SEPARATOR}", style=glyph_style)
     text.append(primary, style=primary_style)
-    return CONTEXT_REASON_INDENT
+    return CONTEXT_REASON_INDENT + extra_indent
 
 
 def append_context_reason(

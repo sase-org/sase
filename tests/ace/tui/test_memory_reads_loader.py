@@ -10,12 +10,20 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui import memory_reads as memory_reads_module
-from sase.ace.tui.memory_reads import load_memory_reads_for_agent
+from sase.ace.tui.memory_reads import (
+    _load_memory_reads_for_agent,
+    load_memory_reads_for_agent_context,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.memory.read_log import (
     READ_LOG_SCHEMA_VERSION,
     MemoryReadEvent,
     memory_read_log_path,
+)
+from sase.plan_chain import (
+    PLAN_CHAIN_CODER_SUFFIX,
+    PLAN_CHAIN_PLAN_SUFFIX,
+    PLAN_CHAIN_QUESTION_SUFFIX,
 )
 
 
@@ -25,6 +33,7 @@ def _make_agent(
     agent_name: str | None = None,
     workspace_dir: Path | None = None,
     raw_suffix: str = "20260524-100000",
+    role_suffix: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -36,6 +45,7 @@ def _make_agent(
         agent_name=agent_name,
         workspace_dir=str(workspace_dir) if workspace_dir else None,
         artifacts_dir=str(artifacts_dir) if artifacts_dir else None,
+        role_suffix=role_suffix,
     )
 
 
@@ -78,6 +88,7 @@ def _write_jsonl(path: Path, events: list[MemoryReadEvent]) -> None:
 @pytest.fixture(autouse=True)
 def _clear_cache() -> None:
     memory_reads_module._memory_reads_cache.clear()
+    memory_reads_module._memory_reads_context_cache.clear()
 
 
 @pytest.fixture
@@ -125,7 +136,7 @@ def test_filter_by_artifacts_dir_exact_match(
         agent_name="alpha",
         workspace_dir=fake_project,
     )
-    result = load_memory_reads_for_agent(agent)
+    result = _load_memory_reads_for_agent(agent)
 
     assert [event.canonical_path for event in result] == ["long/skill.md"]
 
@@ -157,7 +168,7 @@ def test_fallback_to_agent_name_when_artifacts_dir_missing(
         agent_name="alpha",
         workspace_dir=fake_project,
     )
-    result = load_memory_reads_for_agent(agent)
+    result = _load_memory_reads_for_agent(agent)
 
     assert [event.canonical_path for event in result] == ["long/skill.md"]
 
@@ -193,7 +204,7 @@ def test_results_are_newest_first(fake_project: Path, tmp_path: Path) -> None:
         agent_name="alpha",
         workspace_dir=fake_project,
     )
-    result = load_memory_reads_for_agent(agent)
+    result = _load_memory_reads_for_agent(agent)
 
     assert [event.canonical_path for event in result] == [
         "long/b.md",
@@ -223,7 +234,7 @@ def test_limit_caps_returned_events(fake_project: Path, tmp_path: Path) -> None:
         agent_name="alpha",
         workspace_dir=fake_project,
     )
-    result = load_memory_reads_for_agent(agent, limit=3)
+    result = _load_memory_reads_for_agent(agent, limit=3)
 
     assert len(result) == 3
     assert result[0].canonical_path == "long/file_9.md"
@@ -238,7 +249,7 @@ def test_empty_project_returns_empty_tuple(fake_project: Path, tmp_path: Path) -
         workspace_dir=fake_project,
     )
 
-    assert load_memory_reads_for_agent(agent) == ()
+    assert _load_memory_reads_for_agent(agent) == ()
 
 
 def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -> None:
@@ -261,7 +272,7 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
         agent_name="alpha",
         workspace_dir=fake_project,
     )
-    first = load_memory_reads_for_agent(agent)
+    first = _load_memory_reads_for_agent(agent)
     assert len(first) == 1
 
     # Force a future mtime so the cache invalidates even though the throttle
@@ -284,7 +295,7 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
     for entry in memory_reads_module._memory_reads_cache.values():
         entry.last_read_monotonic = 0.0
 
-    second = load_memory_reads_for_agent(agent)
+    second = _load_memory_reads_for_agent(agent)
     assert [event.canonical_path for event in second] == [
         "long/other.md",
         "long/skill.md",
@@ -317,7 +328,7 @@ def test_event_with_artifacts_dir_does_not_match_other_agent(
         workspace_dir=fake_project,
     )
 
-    assert load_memory_reads_for_agent(agent) == ()
+    assert _load_memory_reads_for_agent(agent) == ()
 
 
 def test_normalizes_trailing_slash_and_symlink(
@@ -341,6 +352,235 @@ def test_normalizes_trailing_slash_and_symlink(
         agent_name="alpha",
         workspace_dir=fake_project,
     )
-    result = load_memory_reads_for_agent(agent)
+    result = _load_memory_reads_for_agent(agent)
 
     assert [event.canonical_path for event in result] == ["long/skill.md"]
+
+
+def test_context_single_agent_has_no_labels(fake_project: Path, tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts" / "agent_a"
+    artifacts_dir.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            canonical_path="long/skill.md",
+            timestamp="2026-05-24T10:00:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_dir),
+        )
+    ]
+    _write_jsonl(memory_read_log_path("memory-reads-test"), events)
+
+    agent = _make_agent(
+        artifacts_dir=artifacts_dir,
+        agent_name="alpha",
+        workspace_dir=fake_project,
+    )
+    result = load_memory_reads_for_agent_context(agent)
+
+    assert [item.event.canonical_path for item in result] == ["long/skill.md"]
+    assert [item.agent_label for item in result] == [None]
+
+
+def test_context_aggregates_family_with_role_labels(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    plan_dir = tmp_path / "artifacts" / "plan"
+    coder_dir = tmp_path / "artifacts" / "coder"
+    q_dir = tmp_path / "artifacts" / "q"
+    for directory in (plan_dir, coder_dir, q_dir):
+        directory.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            canonical_path="long/cli_rules.md",
+            timestamp="2026-05-24T10:00:00+00:00",
+            agent_name="alpha--plan",
+            artifacts_dir=str(plan_dir),
+            read_id="plan-read",
+        ),
+        _make_event(
+            canonical_path="long/tui_perf.md",
+            timestamp="2026-05-24T10:05:00+00:00",
+            agent_name="alpha--code",
+            artifacts_dir=str(coder_dir),
+            read_id="coder-read",
+        ),
+        _make_event(
+            canonical_path="long/generated_skills.md",
+            timestamp="2026-05-24T10:02:00+00:00",
+            agent_name="alpha--q",
+            artifacts_dir=str(q_dir),
+            read_id="q-read",
+        ),
+    ]
+    _write_jsonl(memory_read_log_path("memory-reads-test"), events)
+
+    root = _make_agent(
+        artifacts_dir=plan_dir,
+        agent_name="alpha--plan",
+        workspace_dir=fake_project,
+        raw_suffix="20260524-100000-plan",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    coder = _make_agent(
+        artifacts_dir=coder_dir,
+        agent_name="alpha--code",
+        workspace_dir=fake_project,
+        raw_suffix="20260524-100000-code",
+        role_suffix=PLAN_CHAIN_CODER_SUFFIX,
+    )
+    question = _make_agent(
+        artifacts_dir=q_dir,
+        agent_name="alpha--q",
+        workspace_dir=fake_project,
+        raw_suffix="20260524-100000-q",
+        role_suffix=PLAN_CHAIN_QUESTION_SUFFIX,
+    )
+    root.followup_agents = [coder, question]
+
+    result = load_memory_reads_for_agent_context(root)
+
+    # Newest first across the whole family, each labeled by its producer.
+    assert [(item.event.canonical_path, item.agent_label) for item in result] == [
+        ("long/tui_perf.md", "coder"),
+        ("long/generated_skills.md", "q"),
+        ("long/cli_rules.md", "plan"),
+    ]
+
+
+def test_context_artifacts_dir_mismatch_does_not_fall_back_to_name(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    plan_dir = tmp_path / "artifacts" / "plan"
+    coder_dir = tmp_path / "artifacts" / "coder"
+    other_dir = tmp_path / "artifacts" / "other"
+    for directory in (plan_dir, coder_dir, other_dir):
+        directory.mkdir(parents=True)
+
+    # Event carries a coder agent_name but an unrelated artifacts_dir: must NOT
+    # be attributed to the coder via name fallback because it has a dir.
+    events = [
+        _make_event(
+            canonical_path="long/skill.md",
+            timestamp="2026-05-24T10:00:00+00:00",
+            agent_name="alpha--code",
+            artifacts_dir=str(other_dir),
+            read_id="mismatch-read",
+        )
+    ]
+    _write_jsonl(memory_read_log_path("memory-reads-test"), events)
+
+    root = _make_agent(
+        artifacts_dir=plan_dir,
+        agent_name="alpha--plan",
+        workspace_dir=fake_project,
+        raw_suffix="20260524-100000-plan",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    coder = _make_agent(
+        artifacts_dir=coder_dir,
+        agent_name="alpha--code",
+        workspace_dir=fake_project,
+        raw_suffix="20260524-100000-code",
+        role_suffix=PLAN_CHAIN_CODER_SUFFIX,
+    )
+    root.followup_agents = [coder]
+
+    assert load_memory_reads_for_agent_context(root) == ()
+
+
+def test_context_dedupes_synthetic_planner_sharing_root_dir(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    plan_dir = tmp_path / "artifacts" / "plan"
+    coder_dir = tmp_path / "artifacts" / "coder"
+    plan_dir.mkdir(parents=True)
+    coder_dir.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            canonical_path="long/skill.md",
+            timestamp="2026-05-24T10:00:00+00:00",
+            agent_name="alpha--plan",
+            artifacts_dir=str(plan_dir),
+            read_id="plan-read",
+        )
+    ]
+    _write_jsonl(memory_read_log_path("memory-reads-test"), events)
+
+    root = _make_agent(
+        artifacts_dir=plan_dir,
+        agent_name="alpha--plan",
+        workspace_dir=fake_project,
+        raw_suffix="20260524-100000-plan",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    # Synthetic planner row sharing the root artifacts dir (distinct identity).
+    synthetic = _make_agent(
+        artifacts_dir=plan_dir,
+        agent_name="alpha--plan",
+        workspace_dir=fake_project,
+        raw_suffix="20260524-100000-plan-2",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    coder = _make_agent(
+        artifacts_dir=coder_dir,
+        agent_name="alpha--code",
+        workspace_dir=fake_project,
+        raw_suffix="20260524-100000-code",
+        role_suffix=PLAN_CHAIN_CODER_SUFFIX,
+    )
+    root.followup_agents = [synthetic, coder]
+
+    result = load_memory_reads_for_agent_context(root)
+
+    assert [(item.event.canonical_path, item.agent_label) for item in result] == [
+        ("long/skill.md", "plan")
+    ]
+
+
+def test_context_caps_to_limit_newest_first(fake_project: Path, tmp_path: Path) -> None:
+    plan_dir = tmp_path / "artifacts" / "plan"
+    coder_dir = tmp_path / "artifacts" / "coder"
+    plan_dir.mkdir(parents=True)
+    coder_dir.mkdir(parents=True)
+
+    events = []
+    for index in range(6):
+        directory = plan_dir if index % 2 == 0 else coder_dir
+        name = "alpha--plan" if index % 2 == 0 else "alpha--code"
+        events.append(
+            _make_event(
+                canonical_path=f"long/file_{index}.md",
+                timestamp=f"2026-05-24T10:{index:02d}:00+00:00",
+                agent_name=name,
+                artifacts_dir=str(directory),
+                read_id=f"id-{index}",
+            )
+        )
+    _write_jsonl(memory_read_log_path("memory-reads-test"), events)
+
+    root = _make_agent(
+        artifacts_dir=plan_dir,
+        agent_name="alpha--plan",
+        workspace_dir=fake_project,
+        raw_suffix="20260524-100000-plan",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    coder = _make_agent(
+        artifacts_dir=coder_dir,
+        agent_name="alpha--code",
+        workspace_dir=fake_project,
+        raw_suffix="20260524-100000-code",
+        role_suffix=PLAN_CHAIN_CODER_SUFFIX,
+    )
+    root.followup_agents = [coder]
+
+    result = load_memory_reads_for_agent_context(root, limit=2)
+
+    assert [item.event.canonical_path for item in result] == [
+        "long/file_5.md",
+        "long/file_4.md",
+    ]
+    assert [item.agent_label for item in result] == ["coder", "plan"]

@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from rich.text import Text
 
+from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_skill_uses import (
     MAX_VISIBLE_SKILL_USES,
@@ -46,6 +47,10 @@ def _event(
     )
 
 
+def _display(event: SkillUseEvent, label: str | None = None) -> SkillUseDisplayEvent:
+    return SkillUseDisplayEvent(event=event, agent_label=label)
+
+
 def _span_style_for(text: Text, needle: str) -> str:
     start = text.plain.index(needle)
     end = start + len(needle)
@@ -77,7 +82,7 @@ def test_single_event_renders_timestamp_skill_and_reason() -> None:
         timestamp="2026-06-14T14:22:08+00:00",
         reason="needed a reviewed implementation plan",
     )
-    append_agent_skills_section(text, events=(event,))
+    append_agent_skills_section(text, events=(_display(event),))
 
     plain = text.plain
     assert "▸ SKILLS · 1 use · 1 skill\n" in plain
@@ -93,7 +98,7 @@ def test_skills_header_uses_green_lane_accent() -> None:
         skill_name="sase_plan",
         timestamp="2026-06-14T14:22:08+00:00",
     )
-    append_agent_skills_section(text, events=(event,))
+    append_agent_skills_section(text, events=(_display(event),))
 
     assert _span_style_for(text, "▸ SKILLS").lower() == "bold #5fd75f"
 
@@ -109,7 +114,7 @@ def test_overflow_renders_truncation_footer() -> None:
         for index in range(MAX_VISIBLE_SKILL_USES + 2)
     )
     text = Text()
-    append_agent_skills_section(text, events=events)
+    append_agent_skills_section(text, events=tuple(_display(event) for event in events))
 
     plain = text.plain
     assert plain.count("↳") == MAX_VISIBLE_SKILL_USES
@@ -138,7 +143,82 @@ def test_distinct_skill_count_in_summary() -> None:
         ),
     )
     text = Text()
-    append_agent_skills_section(text, events=events)
+    append_agent_skills_section(text, events=tuple(_display(event) for event in events))
 
     assert "▸ SKILLS · 3 uses · 2 skills\n" in text.plain
     assert "last 14:05:00" not in text.plain
+
+
+def test_attributed_rows_render_role_labels() -> None:
+    text = Text()
+    events = (
+        _display(
+            _event(
+                skill_name="sase_questions",
+                timestamp="2026-06-14T14:23:10+00:00",
+                use_id="id-1",
+            ),
+            "q",
+        ),
+        _display(
+            _event(
+                skill_name="sase_git_commit",
+                timestamp="2026-06-14T14:22:00+00:00",
+                use_id="id-2",
+            ),
+            "commit",
+        ),
+    )
+    append_agent_skills_section(text, events=events)
+
+    plain = text.plain
+    assert "▸ SKILLS · 2 uses · 2 skills · 2 agents\n" in plain
+    assert "14:23:10  q      ◆ sase_questions" in plain
+    assert "14:22:00  commit ◆ sase_git_commit" in plain
+
+
+def test_single_producer_summary_omits_agent_count() -> None:
+    text = Text()
+    events = (
+        _display(
+            _event(
+                skill_name="sase_plan",
+                timestamp="2026-06-14T14:05:00+00:00",
+                use_id="id-1",
+            ),
+            "plan",
+        ),
+        _display(
+            _event(
+                skill_name="sase_questions",
+                timestamp="2026-06-14T14:04:00+00:00",
+                use_id="id-2",
+            ),
+            "plan",
+        ),
+    )
+    append_agent_skills_section(text, events=events)
+
+    assert "▸ SKILLS · 2 uses · 2 skills\n" in text.plain
+    assert "agents" not in text.plain
+
+
+def test_attributed_reason_aligns_under_skill_name() -> None:
+    text = Text()
+    events = (
+        _display(
+            _event(
+                skill_name="sase_questions",
+                timestamp="2026-06-14T14:23:10+00:00",
+                reason="needed answers before coding",
+                use_id="id-1",
+            ),
+            "q",
+        ),
+    )
+    append_agent_skills_section(text, events=events)
+
+    lines = text.plain.splitlines()
+    row = next(line for line in lines if "sase_questions" in line)
+    reason = next(line for line in lines if "↳" in line)
+    assert reason.index("↳") == row.index("sase_questions")

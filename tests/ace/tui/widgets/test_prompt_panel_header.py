@@ -24,6 +24,11 @@ from sase.memory.read_log import (
     MemoryReadEvent,
     memory_read_log_path,
 )
+from sase.plan_chain import (
+    PLAN_CHAIN_CODER_SUFFIX,
+    PLAN_CHAIN_PLAN_SUFFIX,
+    PLAN_CHAIN_QUESTION_SUFFIX,
+)
 from sase.skills.use_log import (
     SKILL_USE_LOG_SCHEMA_VERSION,
     SkillUseEvent,
@@ -39,7 +44,9 @@ def _setup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Path:
     memory_reads_module._memory_reads_cache.clear()
+    memory_reads_module._memory_reads_context_cache.clear()
     skill_uses_module._skill_uses_cache.clear()
+    skill_uses_module._skill_uses_context_cache.clear()
     sase_home = tmp_path / "sase-home"
     sase_home.mkdir()
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: sase_home))
@@ -74,17 +81,25 @@ def _assert_dim_divider_before(header: Text, section: str) -> None:
     )
 
 
-def _make_agent(*, artifacts_dir: Path, workspace_dir: Path) -> Agent:
+def _make_agent(
+    *,
+    artifacts_dir: Path,
+    workspace_dir: Path,
+    agent_name: str = "alpha",
+    raw_suffix: str = "20260524-142200",
+    role_suffix: str | None = None,
+) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="header-test",
         project_file="/tmp/header-test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 24, 14, 22, 0),
-        raw_suffix="20260524-142200",
-        agent_name="alpha",
+        raw_suffix=raw_suffix,
+        agent_name=agent_name,
         workspace_dir=str(workspace_dir),
         artifacts_dir=str(artifacts_dir),
+        role_suffix=role_suffix,
     )
 
 
@@ -250,3 +265,75 @@ def test_no_events_omits_agent_context_section(tmp_path: Path) -> None:
     header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
 
     assert "AGENT CONTEXT" not in header.plain
+
+
+def test_family_header_renders_followup_role_attribution(tmp_path: Path) -> None:
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    plan_dir = tmp_path / "artifacts" / "plan"
+    coder_dir = tmp_path / "artifacts" / "coder"
+    q_dir = tmp_path / "artifacts" / "q"
+    for directory in (plan_dir, coder_dir, q_dir):
+        directory.mkdir(parents=True)
+
+    _write_events(
+        [
+            _event(
+                canonical_path="long/cli_rules.md",
+                timestamp="2026-05-24T14:22:08+00:00",
+                artifacts_dir=str(plan_dir),
+                reason="planner reviewed CLI rules",
+            ),
+            _event(
+                canonical_path="long/tui_perf.md",
+                timestamp="2026-05-24T14:30:00+00:00",
+                artifacts_dir=str(coder_dir),
+                reason="coder checked perf budget",
+            ),
+        ]
+    )
+    _write_skill_events(
+        [
+            _skill_event(
+                skill_name="sase_questions",
+                timestamp="2026-05-24T14:25:00+00:00",
+                artifacts_dir=str(q_dir),
+                reason="needed answers before coding",
+            ),
+        ]
+    )
+
+    root = _make_agent(
+        artifacts_dir=plan_dir,
+        workspace_dir=workspace_dir,
+        agent_name="alpha--plan",
+        raw_suffix="20260524-142200-plan",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    coder = _make_agent(
+        artifacts_dir=coder_dir,
+        workspace_dir=workspace_dir,
+        agent_name="alpha--code",
+        raw_suffix="20260524-142200-code",
+        role_suffix=PLAN_CHAIN_CODER_SUFFIX,
+    )
+    question = _make_agent(
+        artifacts_dir=q_dir,
+        workspace_dir=workspace_dir,
+        agent_name="alpha--q",
+        raw_suffix="20260524-142200-q",
+        role_suffix=PLAN_CHAIN_QUESTION_SUFFIX,
+    )
+    root.followup_agents = [coder, question]
+
+    header, _ = build_header_text(root, summary=build_detail_header_summary(root))
+    plain = header.plain
+
+    assert "AGENT CONTEXT\n" in plain
+    # Memory lane: 2 reads from 2 producers, newest (coder) first.
+    assert "▸ MEMORY · 2 reads · 2 files · 2 agents\n" in plain
+    assert "coder  ◇ long/tui_perf.md" in plain
+    assert "plan   ◇ long/cli_rules.md" in plain
+    # Skills lane: the question follow-up's audited use is attributed to `q`.
+    assert "▸ SKILLS · 1 use · 1 skill\n" in plain
+    assert "q      ◆ sase_questions" in plain
