@@ -82,7 +82,6 @@ stripped before the prompt reaches the model. The ones worth knowing on day one:
 | `%wait`    | Wait for another named agent to complete successfully           |
 | `%time`    | Defer launch by a duration or until an absolute wall-clock time |
 | `%approve` | Run fully autonomously (skip the approval gate)                 |
-| `%plan`    | Enable plan mode (plan first, then execute)                     |
 | `%epic`    | Enable plan mode and auto-approve the resulting plan as an epic |
 | `%repeat`  | Run the prompt N times                                          |
 | `%alt`     | Split the prompt into variants with different text              |

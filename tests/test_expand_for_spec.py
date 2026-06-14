@@ -243,7 +243,7 @@ def test_expand_prompt_for_spec_xprompt_expanded() -> None:
 
 
 def test_expand_prompt_for_spec_directives_removed() -> None:
-    """Directives like %plan are stripped by preprocess_prompt_early."""
+    """Directives like %approve are stripped by preprocess_prompt_early."""
     with (
         patch(
             "sase.llm_provider.preprocessing.preprocess_prompt_early"
@@ -254,9 +254,9 @@ def test_expand_prompt_for_spec_directives_removed() -> None:
 
         # Simulate that preprocessing already stripped directives
         mock_preprocess.return_value = PreprocessResult(prompt="clean prompt")
-        result = expand_prompt_for_spec("%plan do something")
+        result = expand_prompt_for_spec("%approve do something")
     assert result == "clean prompt"
-    assert "%plan" not in result
+    assert "%approve" not in result
 
 
 def test_expand_prompt_for_spec_embedded_workflows_expanded() -> None:

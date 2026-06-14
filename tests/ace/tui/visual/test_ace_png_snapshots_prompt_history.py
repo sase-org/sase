@@ -73,7 +73,7 @@ async def test_prompt_history_modal_redesign_png_snapshot(
 def _prompt_entries() -> tuple[PromptEntry, ...]:
     return (
         _entry(
-            "#gh:sase #fork %p Fix the parser bug so it handles edge cases in "
+            "#gh:sase #fork %n Fix the parser bug so it handles edge cases in "
             "the prompt history table without shifting the preview column",
             last_used="260613_143000",
         ),
@@ -98,7 +98,7 @@ def _prompt_entries() -> tuple[PromptEntry, ...]:
             last_used="260612_221000",
         ),
         _entry(
-            "#gh:sase #fork #research #cleanup #diagnose %p Audit the overflow "
+            "#gh:sase #fork #research #cleanup #diagnose %n Audit the overflow "
             "tag rendering and make sure the compact suffix stays aligned",
             last_used="260612_191500",
         ),
@@ -109,7 +109,7 @@ def _prompt_entries() -> tuple[PromptEntry, ...]:
             cancelled=True,
         ),
         _entry(
-            "%p #gh:sase #fork",
+            "%n #gh:sase #fork",
             last_used="260612_173000",
         ),
     )

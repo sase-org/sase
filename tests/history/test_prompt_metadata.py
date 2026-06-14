@@ -35,13 +35,13 @@ def _workflow_names(monkeypatch: pytest.MonkeyPatch):
 
 def test_summarize_prompt_for_list_extracts_columns_and_clean_preview() -> None:
     summary = summarize_prompt_for_list(
-        "%plan\n%m:opus #gh:steveyegge/beads #fork:agent #research Fix parser"
+        "%name\n%m:opus #gh:steveyegge/beads #fork:agent #research Fix parser"
     )
 
     assert summary.project_prefix == "gh:"
     assert summary.project_ref_display == "beads"
     assert summary.xprompts == ("#fork", "#research")
-    assert summary.directive_token == "%mp"
+    assert summary.directive_token == "%mn"
     assert summary.clean_preview == "Fix parser"
 
 
@@ -64,24 +64,37 @@ def test_summarize_prompt_for_list_uses_underscore_vcs_basename() -> None:
 
 
 def test_clean_prompt_preview_ignores_control_tokens_inside_fences() -> None:
-    prompt = "Show this:\n```\n#fork %plan\n```\nThen #fork %plan"
+    prompt = "Show this:\n```\n#fork %name\n```\nThen #fork %name"
 
     summary = summarize_prompt_for_list(prompt)
 
     assert summary.xprompts == ("#fork",)
-    assert summary.directive_token == "%p"
+    assert summary.directive_token == "%n"
     assert summary.clean_preview == "Show this:"
 
 
 def test_clean_prompt_preview_returns_empty_for_control_only_prompt() -> None:
-    assert clean_prompt_preview("#gh:sase #fork %plan") == ""
+    assert clean_prompt_preview("#gh:sase #fork %name") == ""
 
 
 def test_summarize_prompt_for_preview_preserves_verbose_metadata() -> None:
     summary = summarize_prompt_for_preview(
-        "%plan %model:opus #gh:steveyegge/beads #fork(prev) #research:topic Fix"
+        "%model:opus #gh:steveyegge/beads #fork(prev) #research:topic Fix"
     )
 
     assert summary.vcs_tag == "#gh:steveyegge/beads "
     assert summary.xprompts == ("#fork(prev)", "#research:topic")
-    assert summary.directives == ("%plan", "%model:opus")
+    assert summary.directives == ("%model:opus",)
+
+
+def test_removed_plan_directive_is_not_summarized() -> None:
+    """The removed %plan directive is left as text, not summarized as metadata."""
+    summary = summarize_prompt_for_preview(
+        "%plan %model:opus #gh:steveyegge/beads Fix parser"
+    )
+
+    assert summary.vcs_tag == "#gh:steveyegge/beads "
+    assert summary.directives == ("%model:opus",)
+
+    list_summary = summarize_prompt_for_list("%plan %model:opus #gh:sase Fix parser")
+    assert list_summary.directive_token == "%m"

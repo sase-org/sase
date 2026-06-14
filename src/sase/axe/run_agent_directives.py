@@ -206,7 +206,7 @@ def extract_directives_and_write_meta(
             agent_meta["auto_approve_plan_action"] = "epic"
         if directives.hide or auto_dismiss:
             agent_meta["hidden"] = True
-        if directives.plan or directives.epic:
+        if directives.epic:
             agent_meta["plan"] = True
         if directives.tag:
             agent_meta["tag"] = directives.tag
@@ -267,7 +267,7 @@ def extract_directives_and_write_meta(
         vcs_provider=agent_vcs_provider,
         hidden=bool(directives.hide or auto_dismiss),
         approve=bool(directives.approve),
-        plan=bool(directives.plan or directives.epic),
+        plan=bool(directives.epic),
         tag=directives.tag,
         meta=agent_meta,
         local_xprompts=multi.local_xprompts,

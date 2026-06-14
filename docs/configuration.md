@@ -972,7 +972,6 @@ Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 | `SASE_CODEX_LARGE_ARGS`          | Codex-specific extra args for `large` tier (fallback if generic unset).    |
 | `SASE_CODEX_SMALL_ARGS`          | Codex-specific extra args for `small` tier (fallback if generic unset).    |
 | `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to launch Codex with the inherited `CODEX_HOME`.                |
-| `SASE_AGENT_PLAN_MODE`           | Enable Codex two-phase plan/implement flow.                                |
 | `SASE_QWEN_PATH`                 | Path to the Qwen Code CLI binary (default: `qwen`).                        |
 | `SASE_QWEN_LARGE_ARGS`           | Qwen-specific extra args for `large` tier (fallback if generic unset).     |
 | `SASE_QWEN_SMALL_ARGS`           | Qwen-specific extra args for `small` tier (fallback if generic unset).     |

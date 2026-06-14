@@ -48,14 +48,14 @@ def test_extract_vcs_workflow_tag_git_paren() -> None:
 def test_extract_vcs_workflow_tag_with_directives() -> None:
     """Test that %directive lines are skipped before VCS tag."""
     with _patch_vcs_pattern():
-        result = extract_vcs_workflow_tag("%plan\n#gh:sase Fix the bug")
+        result = extract_vcs_workflow_tag("%name\n#gh:sase Fix the bug")
         assert result == "#gh:sase "
 
 
 def test_extract_vcs_workflow_tag_multiple_directives() -> None:
     """Test skipping multiple %directive lines."""
     with _patch_vcs_pattern():
-        result = extract_vcs_workflow_tag("%plan\n%fast\n#gh:sase Fix the bug")
+        result = extract_vcs_workflow_tag("%name\n%model:opus\n#gh:sase Fix the bug")
         assert result == "#gh:sase "
 
 
@@ -68,7 +68,7 @@ def test_extract_vcs_workflow_tag_no_tag() -> None:
 def test_extract_vcs_workflow_tag_directive_only() -> None:
     """Test returns None when prompt is only a directive with no newline."""
     with _patch_vcs_pattern():
-        assert extract_vcs_workflow_tag("%plan") is None
+        assert extract_vcs_workflow_tag("%name") is None
 
 
 def test_extract_vcs_workflow_tag_empty() -> None:
@@ -106,7 +106,7 @@ def test_extract_vcs_workflow_tag_multiple_directives_same_line() -> None:
 def test_extract_vcs_workflow_tag_directive_mixed_lines() -> None:
     """Test extracting VCS tag with directives on separate lines and same line."""
     with _patch_vcs_pattern():
-        result = extract_vcs_workflow_tag("%plan\n%n:a #gh:sase Fix the bug")
+        result = extract_vcs_workflow_tag("%model:opus\n%n:a #gh:sase Fix the bug")
         assert result == "#gh:sase "
 
 

@@ -2,6 +2,7 @@
 
 import pytest
 
+from sase.xprompt._directive_types import PromptDirectives
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import extract_prompt_directives
 
@@ -65,7 +66,6 @@ def test_epic_bare() -> None:
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Write an epic plan"
     assert directives.epic is True
-    assert directives.plan is False
     assert directives.approve is False
 
 
@@ -84,54 +84,34 @@ def test_e_alias_still_means_edit_not_epic() -> None:
     assert directives.epic is False
 
 
-# --- %plan directive tests ---
+# --- removed %plan directive ---
+# The legacy manual planning directive (%plan and its %p alias) was removed.
+# It is now treated like any other unknown %name token: left in the prompt and
+# never parsed into metadata.
 
 
-def test_plan_bare() -> None:
-    """%plan (bare) sets plan=True."""
+def test_removed_plan_directive_is_unknown_text() -> None:
+    """%plan is no longer a directive; it stays in the prompt verbatim."""
     prompt = "%plan\nFix the bug"
     cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Fix the bug"
-    assert directives.plan is True
+    assert cleaned == prompt
+    assert directives == PromptDirectives()
 
 
-def test_plan_plus() -> None:
-    """%plan+ sets plan=True."""
-    prompt = "%plan+\nFix the bug"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Fix the bug"
-    assert directives.plan is True
-
-
-def test_plan_alias() -> None:
-    """%p (alias) sets plan=True."""
+def test_removed_plan_alias_is_unknown_text() -> None:
+    """%p is no longer the plan alias; it stays in the prompt verbatim."""
     prompt = "%p\nFix the bug"
     cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Fix the bug"
-    assert directives.plan is True
+    assert cleaned == prompt
+    assert directives == PromptDirectives()
 
 
-def test_plan_default_false() -> None:
-    """Default plan is False."""
-    prompt = "Just a normal prompt"
-    _, directives = extract_prompt_directives(prompt)
-    assert directives.plan is False
-
-
-def test_plan_with_approve() -> None:
-    """%plan combined with %approve both work together."""
-    prompt = "%plan\n%approve\nFix the bug"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Fix the bug"
-    assert directives.plan is True
-    assert directives.approve is True
-
-
-def test_plan_duplicate_raises() -> None:
-    """Duplicate %plan raises DirectiveError."""
+def test_repeated_removed_plan_directive_does_not_raise() -> None:
+    """An unknown %plan token no longer triggers duplicate-directive errors."""
     prompt = "%plan\n%plan\nFix the bug"
-    with pytest.raises(DirectiveError, match="Duplicate directive '%plan'"):
-        extract_prompt_directives(prompt)
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == prompt
+    assert directives == PromptDirectives()
 
 
 # --- %hide directive tests ---

@@ -1434,7 +1434,8 @@ way Codex pairs do. See [LLM Providers — Claude tool-call hooks](llms.md#claud
 
 ## Plan Workflows
 
-When a workflow uses the `%plan` directive, the agent enters a planning phase before executing:
+When an agent submits a plan via `/sase_plan` (or `sase plan propose`, including the `%epic` path), it enters a planning
+phase before executing:
 
 - **PLAN** — The agent has produced a plan and is waiting for user approval. Shown in pink/magenta in the prompt panel.
 - **PLAN APPROVED** — The plan has been approved and the follow-up agent has been spawned. Shown in cyan/turquoise.

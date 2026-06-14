@@ -26,7 +26,6 @@ _KNOWN_DIRECTIVES = frozenset(
         "model",
         "name",
         "group",
-        "plan",
         "repeat",
         "time",
         "wait",
@@ -45,7 +44,6 @@ _DIRECTIVE_ALIASES: dict[str, str] = {
     "m": "model",
     "n": "name",
     "r": "repeat",
-    "p": "plan",
     "t": "time",
     "w": "wait",
 }
@@ -73,7 +71,6 @@ class PromptDirectives:
     name_template_base: str | None = None
     name_indexed_template: bool = False
     name_indexed_base: str | None = None
-    plan: bool = False
     repeat_count: int | None = None
     # Populated by the user-facing %group directive (alias %g). The internal
     # field name remains `tag` because the persisted concept (agent_tags.json,

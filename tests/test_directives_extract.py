@@ -117,8 +117,8 @@ def test_identical_duplicate_model_directives_accepted() -> None:
 
 def test_duplicate_non_model_directive_still_raises() -> None:
     """Non-model duplicate directives continue to raise DirectiveError."""
-    prompt = "%plan\n%plan\nPrompt text"
-    with pytest.raises(DirectiveError, match="Duplicate directive '%plan'"):
+    prompt = "%hide\n%hide\nPrompt text"
+    with pytest.raises(DirectiveError, match="Duplicate directive '%hide'"):
         extract_prompt_directives(prompt)
 
 

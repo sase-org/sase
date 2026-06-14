@@ -954,7 +954,6 @@ the prompt before further processing.
 | `%time`    | `%t`  | Defer launch by a duration or until an absolute wall-clock time |
 | `%hide`    | `%h`  | Hide the agent from the default Agents tab display              |
 | `%approve` | `%a`  | Run the agent fully autonomously (skip approval)                |
-| `%plan`    | `%p`  | Enable plan mode (plan first, then execute)                     |
 | `%epic`    |       | Enable plan mode and auto-approve the plan as an epic           |
 | `%edit`    | `%e`  | Return editor text to the prompt bar for review                 |
 | `%repeat`  | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)               |
@@ -998,8 +997,6 @@ Directives use the same argument syntax as xprompt references:
 %a                           # Same, using alias
 %edit                        # Return editor text to prompt bar
 %e                           # Same, using alias
-%plan                        # Enable plan mode
-%p                           # Same, using alias
 %epic                        # Enable plan mode and auto-approve the plan as an epic
 %group:review                # Assign the tag "review" to this agent
 %g:review                    # Same, using alias
@@ -1060,8 +1057,8 @@ Multi-value directives (`%wait`, `%time`, `%model`, `%alt`) accept comma-separat
 otherwise be several lines: `%wait:agent_a,agent_b` is equivalent to two separate `%wait:` directives. Backtick-quoted
 values (e.g. `` %wait:`a,b` ``) are treated as a single literal and not split on commas.
 
-The `%approve`, `%edit`, `%plan`, and `%epic` directives are boolean flags — they take no arguments and are simply
-present or absent.
+The `%approve`, `%edit`, and `%epic` directives are boolean flags — they take no arguments and are simply present or
+absent.
 
 ### Example
 
@@ -1112,17 +1109,13 @@ Refactor the parser module to use dataclasses.
 When the editor closes, the `%edit` directive is stripped and the remaining text appears in the prompt input bar for
 further editing. The agent is not launched until you press Enter in the prompt bar.
 
-### Plan Directive
+### Plan Approval and Coder Follow-up
 
-The `%plan` directive enables plan mode for the agent. The agent first creates a plan and pauses for user approval
-before proceeding with execution. In the TUI, the agent shows a PLAN status after submitting the plan for review, then
-PLAN APPROVED once the user approves it:
-
-```
-%plan
-%name:refactorer
-Refactor the authentication module to use the new middleware.
-```
+SASE's planning workflow is driven by the `/sase_plan` skill together with the `sase plan` approval pipeline. An agent
+drafts a plan and submits it with `/sase_plan` (or `sase plan propose`); the plan then pauses for user approval before
+any execution. In the TUI, the agent shows a PLAN status after submitting the plan for review, then PLAN APPROVED once
+the user approves it. The `%epic` directive opts a planning agent into this same pipeline with automatic epic approval
+(see [Epic Directive](#epic-directive)).
 
 Once the plan is approved, sase launches a follow-up **coder** agent using the same handoff body as the `#coder`
 built-in xprompt (see [sase/xprompts/coder.md](https://github.com/sase-org/sase/blob/main/src/sase/xprompts/coder.md)).

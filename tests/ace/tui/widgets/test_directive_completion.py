@@ -34,6 +34,16 @@ def test_directive_completion_lists_canonical_directives() -> None:
     assert "%model" in insertions
     assert "%wait" in insertions
     assert "%xprompts_enabled" not in insertions
+    assert "%plan" not in insertions
+
+
+def test_removed_plan_alias_has_no_completion() -> None:
+    """The removed %plan directive and its %p alias no longer complete."""
+    plan_candidates, _ = build_directive_completion_candidates("%plan")
+    alias_candidates, _ = build_directive_completion_candidates("%p")
+
+    assert plan_candidates == []
+    assert alias_candidates == []
 
 
 def test_directive_completion_includes_representative_descriptions() -> None:

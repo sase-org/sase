@@ -51,10 +51,10 @@ def test_replace_vcs_tags_with_directive_same_line() -> None:
 
 def test_replace_vcs_tags_with_directives_multi_line() -> None:
     """Preserve multi-line directives before VCS tag."""
-    prompt = "%plan\n%n:a #gh:sase Fix bug"
+    prompt = "%model:opus\n%n:a #gh:sase Fix bug"
     with _patch_vcs_replace_pattern():
         result = replace_vcs_workflow_tags(prompt, "#gh:other")
-        assert result == "%plan\n%n:a #gh:other Fix bug"
+        assert result == "%model:opus\n%n:a #gh:other Fix bug"
 
 
 def test_replace_vcs_tags_multi_prompt_with_directives() -> None:

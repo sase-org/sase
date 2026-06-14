@@ -474,7 +474,6 @@ def extract_prompt_directives(
         name_template_base=name_template_base,
         name_indexed_template=name_indexed_template,
         name_indexed_base=name_indexed_base,
-        plan="plan" in expanded_args,
         repeat_count=repeat_count,
         tag=parsed_tag,
         wait=expanded_multi.get("wait", []),
