@@ -193,11 +193,11 @@ def test_header_renders_workflow_variables_before_agent_context(
 
     assert "AGENT CONTEXT\n" in plain
     assert "▸ MEMORY · 1 read · 1 file\n" in plain
-    assert "▸ SKILLS · none recorded\n" in plain
+    assert "▸ SKILLS" not in plain
     assert "WORKFLOW VARIABLES\n" in plain
     assert "long/generated_skills.md" in plain
     assert "↳ needed commit hook contract for runtime parity refactor" in plain
-    assert "none recorded" in plain
+    assert "none recorded" not in plain
     _assert_dim_divider_before(header, "AGENT CONTEXT\n")
     _assert_dim_divider_before(header, "WORKFLOW VARIABLES\n")
     assert plain.index("WORKFLOW VARIABLES\n") < plain.index("AGENT CONTEXT\n")

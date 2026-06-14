@@ -83,7 +83,7 @@ def test_empty_context_appends_nothing() -> None:
     assert text.plain == ""
 
 
-def test_memory_only_context_shows_empty_skills_placeholder() -> None:
+def test_memory_only_context_omits_empty_skills_lane() -> None:
     text = Text()
     append_agent_context_section(text, memory_reads=(_memory_event(),), skill_uses=())
 
@@ -91,8 +91,8 @@ def test_memory_only_context_shows_empty_skills_placeholder() -> None:
     assert "AGENT CONTEXT\n" in plain
     assert "▸ MEMORY · 1 read · 1 file\n" in plain
     assert "long/generated_skills.md" in plain
-    assert "▸ SKILLS · none recorded\n" in plain
-    assert "none recorded" in plain
+    assert "▸ SKILLS" not in plain
+    assert "none recorded" not in plain
 
 
 def test_skills_only_context_shows_empty_memory_placeholder() -> None:

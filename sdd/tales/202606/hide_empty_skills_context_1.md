@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-14 13:40:19
-status: wip
+status: done
 prompt: sdd/prompts/202606/hide_empty_skills_context_1.md
 ---
 # Plan: Hide Empty SKILLS Lane in AGENT CONTEXT
