@@ -569,7 +569,7 @@ state.
 The lesson from both papers is the same: agentic coding becomes agentic software engineering only when prompts,
 artifacts, process, and supervision become first-class.
 
-## Gastown, Beads, And The Interface Question
+## Gas Town, Beads, And The Interface Question
 
 Steve Yegge's [Beads](https://github.com/gastownhall/beads) and [Gas Town](https://docs.gastownhall.ai/) have also
 influenced SASE. Gas Town's docs describe a world of towns, rigs, the Mayor, Deacon, Witness, Refinery, crew workspaces,
@@ -587,7 +587,7 @@ Town docs; Gas Town's public model is more role/rig/dispatch oriented. That does
 better. It just means SASE leans harder into "prompt/workflow as local programmable artifact."
 
 <!--
-FUNNY DIAGRAM BRIEF 2 - place here after the Gastown comparison.
+FUNNY DIAGRAM BRIEF 2 - place here after the Gas Town comparison.
 Title: "Mayor vs cockpit"
 Shape: split-panel cartoon.
 Left panel: Gas Town as city hall. A Mayor at a desk dispatches beads to rigs, with polecats in hard hats running to
@@ -595,7 +595,7 @@ worktrees. Label it "autonomous town experiments".
 Right panel: SASE as a terminal cockpit. A developer sits at ACE with levers labeled XPrompts, Beads, AXE, VCS, and
 worker_models; several agent planes are queued on a runway.
 Caption: "Both believe agents can do work. SASE obsesses over the control surface."
-Keep it affectionate and clearly respectful of Gastown/Beads.
+Keep it affectionate and clearly respectful of Gas Town/Beads.
 -->
 
 ## Future Directions: Memory, Mobile, Web
