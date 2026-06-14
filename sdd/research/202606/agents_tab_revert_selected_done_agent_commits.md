@@ -207,10 +207,3 @@ Implement Option C as a reusable backend plus thin TUI caller, with two hardenin
 This satisfies the request without overusing the destructive ChangeSpec revert path, keeps slow git work off the TUI
 event loop, handles the current version-controlled SDD prompt/plan flow, and makes the known SDD auto-commit gaps
 explicit enough to fix before users depend on `,r`.
-
-## TEMPORARY MARKER — Revert-Agent Keymap Fixture (safe to revert)
-
-This section is an intentionally disposable test fixture created so Bryan can verify the new `,r` Agents-tab
-revert-agent keymap end-to-end. It is markdown-only, lives under `sdd/research/`, and carries no code, config, or
-generated-file changes. Once the `,r` revert has been verified against the agent-associated commit that contains this
-marker, this section can be removed with no further cleanup required.
