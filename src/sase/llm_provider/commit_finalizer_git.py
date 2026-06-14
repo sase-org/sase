@@ -64,9 +64,9 @@ def auto_commit_done_sdd_plan_status(dirty_state: DirtyState) -> bool:
     if candidate is None:
         return False
 
-    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+    from sase.workflows.commit.runtime_tags import apply_auto_commit_tags_with_runtime
 
-    message = apply_auto_commit_type_tag("chore: Mark SDD plan done", "sdd")
+    message = apply_auto_commit_tags_with_runtime("chore: Mark SDD plan done", "sdd")
     return _git_add_and_commit_path(
         candidate.repo_dir,
         candidate.path,

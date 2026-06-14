@@ -36,6 +36,7 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.toggle_panel_grouping_count = 0
         self.retry_edit_count = 0
         self.runners_count = 0
+        self.revert_count = 0
         self.jump_unread_count = 0
         self.jump_unread_result = True
         self.jump_stopped_count = 0
@@ -67,6 +68,9 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
 
     def action_show_runners(self) -> None:
         self.runners_count += 1
+
+    def _start_revert_selected_agent(self) -> None:
+        self.revert_count += 1
 
     def _jump_to_next_unread_done_agent(self) -> bool:
         self.jump_unread_count += 1
@@ -338,27 +342,59 @@ def test_leader_repeat_does_not_record_repeat_subkey() -> None:
     assert app.jump_unread_count == 2
 
 
-def test_leader_r_opens_runners_on_agents_tab() -> None:
+def test_leader_r_reverts_selected_agent_on_agents_tab() -> None:
     app = _FakeApp(current_tab="agents")
 
     handled = app._handle_leader_key("r")
 
     assert handled is True
     assert app.retry_edit_count == 0
+    assert app.runners_count == 0
+    assert app.revert_count == 1
+    assert app.refresh_count == 1
+
+
+def test_leader_r_noops_on_non_agents_tabs() -> None:
+    app = _FakeApp(current_tab="changespecs")
+
+    handled = app._handle_leader_key("r")
+
+    assert handled is True
+    assert app.revert_count == 0
+    assert app.refresh_count == 1
+
+
+def test_leader_w_opens_runners_on_agents_tab() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    handled = app._handle_leader_key("w")
+
+    assert handled is True
+    assert app.retry_edit_count == 0
+    assert app.revert_count == 0
     assert app.runners_count == 1
     assert app.refresh_count == 1
 
 
 def test_leader_repeat_uses_raw_subkey_for_runners() -> None:
     app = _FakeApp(current_tab="agents")
-    app._handle_leader_key("r")
+    app._handle_leader_key("w")
 
     app.current_tab = "changespecs"  # type: ignore[assignment]
     app._handle_leader_key("comma")
 
-    assert app._last_leader_key == "r"
+    assert app._last_leader_key == "w"
     assert app.retry_edit_count == 0
     assert app.runners_count == 2
+
+
+def test_leader_repeat_uses_raw_subkey_for_revert() -> None:
+    app = _FakeApp(current_tab="agents")
+    app._handle_leader_key("r")
+    app._handle_leader_key("comma")
+
+    assert app._last_leader_key == "r"
+    assert app.revert_count == 2
 
 
 def test_leader_j_notifies_when_no_unread_done_agent() -> None:
@@ -607,3 +643,24 @@ def test_footer_surfaces_stopped_jump_only_when_available() -> None:
 
     footer.update_leader_bindings(current_tab="agents", has_stopped_agent=False)
     assert "next stopped" not in _last_labels(captured)
+
+
+def test_footer_surfaces_revert_only_when_revertable() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    footer.update_leader_bindings(current_tab="agents", has_revertable_agent=True)
+    assert "r" in _last_keys(captured)
+    assert "revert agent" in _last_labels(captured)
+
+    footer.update_leader_bindings(current_tab="agents", has_revertable_agent=False)
+    assert "revert agent" not in _last_labels(captured)
+
+
+def test_footer_omits_revert_on_non_agents_tabs() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    for tab in ("changespecs", "axe"):
+        footer.update_leader_bindings(current_tab=tab, has_revertable_agent=True)
+        assert "revert agent" not in _last_labels(captured)

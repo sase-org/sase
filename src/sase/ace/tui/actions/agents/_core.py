@@ -17,6 +17,7 @@ from ._marking import AgentMarkingMixin
 from ._navigation_order import AgentNavigationOrderMixin
 from ._notifications import AgentNotificationMixin
 from ._panels import AgentPanelsMixin
+from ._revert import AgentRevertMixin
 from ._revive import AgentRevivalMixin
 from ._selection import AgentSelectionMixin
 from ._tagging import AgentTaggingMixin
@@ -65,6 +66,7 @@ class AgentsMixinCore(
     AgentFilterActionsMixin,
     AgentNotificationMixin,
     AgentKillingMixin,
+    AgentRevertMixin,
     AgentRevivalMixin,
     AgentLoadingMixin,
     AgentDisplayMixin,

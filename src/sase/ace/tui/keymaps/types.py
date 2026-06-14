@@ -424,7 +424,8 @@ class LeaderModeKeymaps(ModeKeymaps):
         default_factory=lambda: {
             "repeat_last": "comma",
             "run_cmd": "exclamation_mark",
-            "runners": "r",
+            "runners": "w",
+            "revert_agent": "r",
             "kill_mentors": "M",
             "review_mentors": "m",
             "agent_home": "h",

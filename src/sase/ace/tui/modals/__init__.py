@@ -27,6 +27,7 @@ from .confirm_kill_modal import (
     ConfirmKillModal,
 )
 from .confirm_rerun_modal import ConfirmRerunModal
+from .confirm_revert_agent_modal import ConfirmRevertAgentModal
 from .episode_explorer_modal import EpisodeExplorerModal
 from .help_modal import HelpModal, TabName
 from .hook_history_modal import HookHistoryAction, HookHistoryModal, HookHistoryResult
@@ -145,6 +146,7 @@ __all__ = [
     "ConfirmKillAllModal",
     "ConfirmKillModal",
     "ConfirmRerunModal",
+    "ConfirmRevertAgentModal",
     "DismissedAgentSelectModal",
     "EpisodeExplorerModal",
     "HelpModal",

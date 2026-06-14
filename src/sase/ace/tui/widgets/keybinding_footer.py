@@ -542,6 +542,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         has_mentor_results: bool = False,
         has_unread_completed_agent: bool = False,
         has_stopped_agent: bool = False,
+        has_revertable_agent: bool = False,
     ) -> None:
         """Update bindings to show leader mode options.
 
@@ -552,6 +553,8 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             has_mentor_results: Whether the selected ChangeSpec has mentor results.
             has_unread_completed_agent: Whether any completed agent is unread.
             has_stopped_agent: Whether any stopped agent is loaded.
+            has_revertable_agent: Whether the selected Agents-tab row is a
+                done/failed agent whose commits can be reverted.
         """
         d = footer_key_display
         keys = self._kr().leader_mode.keys
@@ -593,6 +596,8 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         bindings.append((k("prompt_history_cancelled"), "history (+cancelled)"))
         if current_tab == "agents":
             bindings.append((k("kill_and_edit"), "kill & edit"))
+            if has_revertable_agent:
+                bindings.append((k("revert_agent"), "revert agent"))
             bindings.append((k("capture_agents_repro"), "capture repro"))
             bindings.append((k("toggle_agents_repro_checks"), "repro checks"))
             if has_notification:

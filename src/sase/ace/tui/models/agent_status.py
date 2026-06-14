@@ -31,3 +31,14 @@ def is_unread_completed_status(status: str) -> bool:
 def is_stopped_agent_status(status: str) -> bool:
     """Return True for statuses displayed in the Stopped agent bucket."""
     return status_bucket_for_values(status) == "Stopped"
+
+
+def is_revertable_agent_status(status: str) -> bool:
+    """Return True for terminal/done agent rows whose commits can be reverted.
+
+    Accepts every status that means the agent has finished its work: the
+    :data:`DISMISSABLE_STATUSES` set plus any displayed ``FAILED*`` status
+    (e.g. ``FAILED (RETRIED)``). Active/input states such as ``RUNNING``,
+    ``STARTING``, ``WAITING``, ``PLAN``, and ``QUESTION`` are rejected.
+    """
+    return status in DISMISSABLE_STATUSES or status.startswith("FAILED")

@@ -42,9 +42,11 @@ def commit_sdd_files(
         capture_output=True,
     )
     if result.returncode != 0:
-        from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+        from sase.workflows.commit.runtime_tags import (
+            apply_auto_commit_tags_with_runtime,
+        )
 
-        message = apply_auto_commit_type_tag(message, auto_commit_type)
+        message = apply_auto_commit_tags_with_runtime(message, auto_commit_type)
         subprocess.run(
             ["git", "commit", "-m", message, "--"] + changed_files,
             cwd=sdd_dir,
@@ -164,9 +166,9 @@ def commit_bare_git_sdd_init_paths(
     if diff.returncode != 1:
         raise RuntimeError((diff.stderr or "git diff --cached failed").strip())
 
-    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+    from sase.workflows.commit.runtime_tags import apply_auto_commit_tags_with_runtime
 
-    message = apply_auto_commit_type_tag("Initialize SDD", "init")
+    message = apply_auto_commit_tags_with_runtime("Initialize SDD", "init")
     subprocess.run(
         [
             "git",

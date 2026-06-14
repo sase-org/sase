@@ -11,8 +11,10 @@ import pytest
 from sase.workflows.commit.runtime_tags import (
     RUNTIME_COMMIT_TAG_KEYS,
     _resolve_runtime_commit_tags,
+    apply_auto_commit_tags_with_runtime,
     apply_auto_commit_type_tag,
     filter_runtime_owned_tags,
+    parse_trailing_commit_tags,
     update_trailing_commit_tags,
 )
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
@@ -138,6 +140,44 @@ def test_auto_commit_type_tag_composes_with_runtime_tags_without_owning_type() -
 
     assert "TYPE" not in RUNTIME_COMMIT_TAG_KEYS
     assert updated == "Fix bug\n\nTYPE=sdd\nAGENT=agent-a\nMACHINE=machine-a"
+
+
+def test_auto_commit_tags_with_runtime_type_only_without_agent_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an agent identity, only ``TYPE=`` is written (no AGENT/MACHINE)."""
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    assert (
+        apply_auto_commit_tags_with_runtime("Fix bug", "sdd") == "Fix bug\n\nTYPE=sdd"
+    )
+
+
+def test_auto_commit_tags_with_runtime_adds_agent_when_name_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``SASE_AGENT_NAME`` adds the runtime ``AGENT=`` provenance tag."""
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-alpha")
+    monkeypatch.setattr(
+        "sase.workflows.commit.runtime_tags.socket.gethostname",
+        lambda: "machine-z",
+    )
+
+    updated = apply_auto_commit_tags_with_runtime("Fix bug", "sdd")
+
+    tags = parse_trailing_commit_tags(updated)
+    assert tags["TYPE"] == "sdd"
+    assert tags["AGENT"] == "agent-alpha"
+    assert tags["MACHINE"] == "machine-z"
+
+
+def test_parse_trailing_commit_tags_reads_block() -> None:
+    assert parse_trailing_commit_tags("Subject\n\nAGENT=foo\nTYPE=sdd") == {
+        "AGENT": "foo",
+        "TYPE": "sdd",
+    }
+    assert parse_trailing_commit_tags("Subject only") == {}
 
 
 def test_update_trailing_tags_keeps_body_text_intact() -> None:

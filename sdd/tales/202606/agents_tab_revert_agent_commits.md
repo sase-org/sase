@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-14 10:46:22
-status: wip
+status: done
 prompt: sdd/prompts/202606/agents_tab_revert_agent_commits.md
 ---
 # Implement Agents-Tab `,r` Revert For Done Agents

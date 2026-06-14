@@ -83,6 +83,13 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["revert_agent"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            if self.current_tab == "agents":
+                self._start_revert_selected_agent()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["kill_mentors"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "changespecs":
@@ -312,10 +319,14 @@ class LeaderModeMixin:
         has_notification = False
         has_unread_completed_agent = False
         has_stopped_agent = False
+        has_revertable_agent = False
         if current_tab == "agents":
+            from ...models.agent_status import is_revertable_agent_status
+
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
             if agent is not None:
                 has_notification = agent.status in ("PLAN", "QUESTION")
+                has_revertable_agent = is_revertable_agent_status(agent.status)
             has_unread_completed_agent = self._has_unread_completed_agent()  # type: ignore[attr-defined]
             has_stopped_agent = self._has_stopped_agent()  # type: ignore[attr-defined]
 
@@ -328,6 +339,7 @@ class LeaderModeMixin:
                 has_mentor_results=has_mentor_results,
                 has_unread_completed_agent=has_unread_completed_agent,
                 has_stopped_agent=has_stopped_agent,
+                has_revertable_agent=has_revertable_agent,
             )
         except Exception:
             pass

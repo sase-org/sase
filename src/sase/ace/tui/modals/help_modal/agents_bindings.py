@@ -142,6 +142,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Kill agent & edit prompt",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'revert_agent'))}",
+                    "Revert agent commits",
+                ),
+                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",
                     "Prompt history",
                 ),

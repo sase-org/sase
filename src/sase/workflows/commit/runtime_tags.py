@@ -79,6 +79,41 @@ def apply_auto_commit_type_tag(message: str, auto_commit_type: str) -> str:
     )
 
 
+def apply_auto_commit_tags_with_runtime(message: str, auto_commit_type: str) -> str:
+    """Compose the auto-commit ``TYPE`` tag with runtime provenance tags.
+
+    When a SASE agent identity is available (``SASE_AGENT_NAME`` or an
+    ``agent_meta.json`` ``name``), the resulting tag block also carries the
+    runtime ``AGENT=``/``MACHINE=`` provenance so raw SDD auto-commits can be
+    associated with the agent that produced them. Without an agent identity the
+    behavior matches :func:`apply_auto_commit_type_tag` exactly, leaving only
+    ``TYPE=<kind>`` so non-agent environments are unchanged.
+    """
+    updates: dict[str, str] = {"TYPE": auto_commit_type}
+    remove_keys: set[str] = {"TYPE"}
+
+    agent_name = _resolve_agent_name()
+    if agent_name:
+        updates["AGENT"] = agent_name
+        machine_name = _resolve_machine_name()
+        if machine_name:
+            updates["MACHINE"] = machine_name
+        remove_keys |= set(RUNTIME_COMMIT_TAG_KEYS)
+
+    return update_trailing_commit_tags(message, updates, remove_keys=remove_keys)
+
+
+def parse_trailing_commit_tags(message: str) -> dict[str, str]:
+    """Return the trailing ``KEY=VALUE`` tag block of *message* as a dict.
+
+    Only the contiguous block of ``KEY=VALUE`` lines at the very end of the
+    message is parsed. Later duplicate keys win, matching how the block is
+    rendered by :func:`update_trailing_commit_tags`.
+    """
+    tags = _split_trailing_tag_block(message)[1]
+    return dict(tags)
+
+
 def update_trailing_commit_tags(
     message: str,
     updates: Mapping[str, object],

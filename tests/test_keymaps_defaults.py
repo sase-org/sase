@@ -115,11 +115,19 @@ def test_leader_mode_omits_legacy_kill_all() -> None:
 
 
 def test_leader_mode_omits_retry_edit() -> None:
-    """Direct ``r`` handles Agents-tab retry-edit; leader ``,r`` shows runners."""
+    """Direct ``r`` handles Agents-tab retry-edit; leader ``,r`` reverts."""
     reg = load_keymap_registry({})
     assert "retry_edit" not in LeaderModeKeymaps().keys
     assert "retry_edit" not in reg.leader_mode.keys
-    assert reg.leader_mode.keys["runners"] == "r"
+
+
+def test_leader_mode_reserves_r_for_revert_and_moves_runners_to_w() -> None:
+    """Leader ``,r`` reverts the selected agent; runners moves to ``,w``."""
+    reg = load_keymap_registry({})
+    assert LeaderModeKeymaps().keys["revert_agent"] == "r"
+    assert LeaderModeKeymaps().keys["runners"] == "w"
+    assert reg.leader_mode.keys["revert_agent"] == "r"
+    assert reg.leader_mode.keys["runners"] == "w"
 
 
 def test_open_command_palette_default_binding() -> None:

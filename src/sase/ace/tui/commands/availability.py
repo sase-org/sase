@@ -34,6 +34,7 @@ from sase.ace.tui.commands.types import CommandContext, CommandSpec
 from sase.ace.tui.models.agent_status import (
     DISMISSABLE_STATUSES,
     is_resumable_done_status,
+    is_revertable_agent_status,
 )
 
 if TYPE_CHECKING:
@@ -282,6 +283,9 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
     if spec.id in {"leader.kill_and_edit", "leader.jump_to_notification"}:
         return agent is not None
+
+    if spec.id == "leader.revert_agent":
+        return agent is not None and is_revertable_agent_status(agent.status)
 
     return True
 
