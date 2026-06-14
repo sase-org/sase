@@ -20,6 +20,7 @@ from sase.skills.inventory import (
     SkillsInventory,
     build_skills_inventory,
 )
+from sase.skills.use_log import read_skill_use_events
 from sase.xprompt.models import XPrompt
 from tests.main.init_skills_handler_helpers import make_args
 
@@ -113,9 +114,22 @@ def test_parser_registers_skills_namespace() -> None:
     assert list_args.command == "skills"
     assert list_args.skills_subcommand == "list"
 
+    log_args = parser.parse_args(["skills", "log", "sase_plan", "-r", "Need plan"])
+    assert log_args.command == "skills"
+    assert log_args.skills_subcommand == "log"
+    assert log_args.name == "sase_plan"
+    assert log_args.reason == "Need plan"
+
     default_args = parser.parse_args(["skills"])
     assert default_args.command == "skills"
     assert default_args.skills_subcommand == "list"
+
+
+def test_parser_requires_skills_log_reason() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["skills", "log", "sase_plan"])
 
 
 def test_bare_skills_defaults_to_list(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -156,6 +170,79 @@ def test_skills_init_dispatches_to_existing_initializer(
     assert calls[0].dry_run is True
     assert calls[0].force is True
     assert calls[0].provider == "codex"
+
+
+def test_skills_log_dispatches_to_logger(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[argparse.Namespace] = []
+
+    def fake_log(args: argparse.Namespace) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(skills_handler, "_handle_skills_log_command", fake_log)
+    args = create_parser().parse_args(["skills", "log", "sase_plan", "-r", "Need"])
+
+    with pytest.raises(SystemExit) as exc:
+        skills_handler.handle_skills_command(args)
+
+    assert exc.value.code == 0
+    assert calls == [args]
+    assert calls[0].name == "sase_plan"
+    assert calls[0].reason == "Need"
+
+
+def test_skills_log_command_writes_attributed_event(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    home = tmp_path / "home"
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        '{"name": "alpha", "llm_provider": "codex"}',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(project)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "alpha")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    args = create_parser().parse_args(["skills", "log", "sase_plan", "-r", "Need"])
+    with pytest.raises(SystemExit) as exc:
+        skills_handler.handle_skills_command(args)
+
+    assert exc.value.code == 0
+    assert "Logged skill use: sase_plan" in capsys.readouterr().out
+    events = read_skill_use_events(project="project")
+    assert len(events) == 1
+    assert events[0].skill_name == "sase_plan"
+    assert events[0].agent_name == "alpha"
+    assert events[0].artifacts_dir == str(artifacts_dir)
+    assert events[0].reason == "Need"
+    assert events[0].runtime == "codex"
+
+
+def test_skills_log_command_reports_missing_agent_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.chdir(project)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    args = create_parser().parse_args(["skills", "log", "sase_plan", "-r", "Need"])
+    with pytest.raises(SystemExit) as exc:
+        skills_handler.handle_skills_command(args)
+
+    assert exc.value.code == 1
+    assert "agent attribution" in capsys.readouterr().err
 
 
 def test_init_skills_alias_remains_accepted(

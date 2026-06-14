@@ -1,4 +1,4 @@
-"""Agent-specific MEMORY READS section helpers for the prompt panel header."""
+"""Agent-specific MEMORY context section helpers for the prompt panel header."""
 
 from __future__ import annotations
 
@@ -14,20 +14,22 @@ MAX_VISIBLE_READS = 5
 REASON_WRAP_WIDTH = 88
 PATH_LIMIT = 64
 
-_COLOR_HEADER = "bold #D7AF5F underline"
+_COLOR_SUBHEADER = "bold #5FD7FF"
 _COLOR_SUMMARY = "dim"
 _COLOR_TIMESTAMP = "dim"
 _COLOR_PATH = "#87D7FF"
 _COLOR_FRONTMATTER = "dim italic"
 _COLOR_REASON = "#D7D7AF"
 _COLOR_TRUNCATION = "dim italic"
+_COLOR_EMPTY = "dim italic"
 _FRONTMATTER_MARKER = "  ↩ frontmatter"
 _REASON_GLYPH = "↳"
 _REASON_PREFIX = f"            {_REASON_GLYPH} "
 _REASON_CONTINUATION_PREFIX = " " * len(_REASON_PREFIX)
+_EMPTY_PLACEHOLDER = "  — none recorded —\n"
 
 
-def _format_local_hhmmss(iso_timestamp: str) -> str:
+def format_local_hhmmss(iso_timestamp: str) -> str:
     try:
         cleaned = iso_timestamp.replace("Z", "+00:00")
         dt = datetime.fromisoformat(cleaned)
@@ -36,7 +38,7 @@ def _format_local_hhmmss(iso_timestamp: str) -> str:
         return "??:??:??"
 
 
-def _format_local_hhmm(iso_timestamp: str) -> str:
+def format_local_hhmm(iso_timestamp: str) -> str:
     try:
         cleaned = iso_timestamp.replace("Z", "+00:00")
         dt = datetime.fromisoformat(cleaned)
@@ -45,19 +47,19 @@ def _format_local_hhmm(iso_timestamp: str) -> str:
         return "??:??"
 
 
-def _normalize_display(value: str) -> str:
+def normalize_context_display(value: str) -> str:
     return " ".join(value.split())
 
 
 def _truncate_path(value: str, limit: int) -> str:
-    value = _normalize_display(value)
+    value = normalize_context_display(value)
     if len(value) > limit:
         return value[: limit - 1] + "…"
     return value
 
 
-def _append_reason(text: Text, reason: str) -> None:
-    reason = _normalize_display(reason)
+def append_context_reason(text: Text, reason: str) -> None:
+    reason = normalize_context_display(reason)
     if not reason:
         text.append(f"{_REASON_PREFIX}\n", style=_COLOR_REASON)
         return
@@ -79,36 +81,40 @@ def append_agent_memory_reads_section(
     text: Text,
     *,
     events: tuple[MemoryReadEvent, ...] = (),
+    show_empty: bool = False,
 ) -> None:
-    """Append a MEMORY READS section listing the agent's audited reads."""
+    """Append a MEMORY sub-section listing the agent's audited reads."""
     if not events:
+        if show_empty:
+            text.append("▸ MEMORY\n", style=_COLOR_SUBHEADER)
+            text.append(_EMPTY_PLACEHOLDER, style=_COLOR_EMPTY)
         return
 
     distinct_paths = len({event.canonical_path for event in events})
     latest = events[0]
 
-    text.append("MEMORY READS\n", style=_COLOR_HEADER)
+    text.append("▸ MEMORY\n", style=_COLOR_SUBHEADER)
     text.append(
-        f"{len(events)} reads · {distinct_paths} files "
-        f"· last {_format_local_hhmmss(latest.timestamp)}\n\n",
+        f"  {len(events)} reads · {distinct_paths} files "
+        f"· last {format_local_hhmmss(latest.timestamp)}\n\n",
         style=_COLOR_SUMMARY,
     )
 
     visible = events[:MAX_VISIBLE_READS]
     for event in visible:
         text.append(
-            f"  {_format_local_hhmmss(event.timestamp)}  ", style=_COLOR_TIMESTAMP
+            f"  {format_local_hhmmss(event.timestamp)}  ", style=_COLOR_TIMESTAMP
         )
         text.append(_truncate_path(event.canonical_path, PATH_LIMIT), style=_COLOR_PATH)
         if event.frontmatter_stripped:
             text.append(_FRONTMATTER_MARKER, style=_COLOR_FRONTMATTER)
         text.append("\n")
-        _append_reason(text, event.reason)
+        append_context_reason(text, event.reason)
 
     overflow = len(events) - len(visible)
     if overflow > 0:
         earliest = events[-1]
         text.append(
-            f"  + {overflow} more  ({_format_local_hhmm(earliest.timestamp)} earliest)\n",
+            f"  + {overflow} more  ({format_local_hhmm(earliest.timestamp)} earliest)\n",
             style=_COLOR_TRUNCATION,
         )

@@ -7,19 +7,26 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 import fcntl
 import json
-import os
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 from uuid import uuid4
 
+from sase.agent.identity import (
+    AgentIdentity,
+    AgentIdentityError,
+    AgentIdentitySource,
+    agent_name_from_meta,
+    discover_agent_identity,
+)
+from sase.agent.identity import (
+    require_agent_identity as _require_agent_identity,
+)
 from sase.core.paths import sase_projects_dir
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.locks import locked_file
 
 READ_LOG_SCHEMA_VERSION = 1
 ALLOWED_READ_SUBDIRS = frozenset({"long"})
-
-AgentIdentitySource = Literal["SASE_AGENT_NAME", "SASE_AGENT", "agent_meta"]
 
 
 class MemoryReadError(ValueError):
@@ -28,10 +35,6 @@ class MemoryReadError(ValueError):
 
 class MemoryReadPathError(MemoryReadError):
     """Raised when a memory-relative read path is not allowed."""
-
-
-class AgentIdentityError(MemoryReadError):
-    """Raised when an auditable agent identity cannot be found."""
 
 
 @dataclass(frozen=True)
@@ -58,13 +61,6 @@ class MemoryReadContent:
     body: str
     byte_count: int
     frontmatter_stripped: bool
-
-
-@dataclass(frozen=True)
-class AgentIdentity:
-    name: str
-    source: AgentIdentitySource
-    artifacts_dir: str | None = None
 
 
 @dataclass(frozen=True)
@@ -251,41 +247,9 @@ def strip_leading_frontmatter(text: str) -> FrontmatterStripResult:
     return FrontmatterStripResult(body=text, stripped=False)
 
 
-def discover_agent_identity(
-    env: Mapping[str, str] | None = None,
-) -> AgentIdentity | None:
-    """Discover the current agent identity from environment and metadata."""
-    current_env = env if env is not None else os.environ
-    artifacts_dir = _clean_value(current_env.get("SASE_ARTIFACTS_DIR"))
-
-    for key in ("SASE_AGENT_NAME", "SASE_AGENT"):
-        value = _clean_value(current_env.get(key))
-        if value is not None:
-            return AgentIdentity(
-                name=value,
-                source=key,  # type: ignore[arg-type]
-                artifacts_dir=artifacts_dir,
-            )
-
-    meta_name = _agent_name_from_meta(artifacts_dir)
-    if meta_name is None:
-        return None
-    return AgentIdentity(
-        name=meta_name,
-        source="agent_meta",
-        artifacts_dir=artifacts_dir,
-    )
-
-
 def require_agent_identity(env: Mapping[str, str] | None = None) -> AgentIdentity:
     """Return the current agent identity or raise a clear auditability error."""
-    identity = discover_agent_identity(env)
-    if identity is None:
-        raise AgentIdentityError(
-            "memory reads require agent attribution; set SASE_AGENT_NAME, "
-            "SASE_AGENT, or provide SASE_ARTIFACTS_DIR/agent_meta.json with a name"
-        )
-    return identity
+    return _require_agent_identity(env, purpose="memory reads")
 
 
 def normalize_read_reason(reason: str) -> str:
@@ -452,32 +416,6 @@ def _is_relative_to(path: Path, root: Path) -> bool:
 
 def _is_frontmatter_delimiter(line: str) -> bool:
     return line.strip() == "---"
-
-
-def _clean_value(value: str | None) -> str | None:
-    if value is None:
-        return None
-    stripped = value.strip()
-    return stripped or None
-
-
-def _agent_name_from_meta(artifacts_dir: str | None) -> str | None:
-    if artifacts_dir is None:
-        return None
-    meta_path = Path(artifacts_dir).expanduser() / "agent_meta.json"
-    try:
-        data = json.loads(meta_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(data, Mapping):
-        return None
-    for key in ("name", "workflow_name", "agent_name"):
-        value = data.get(key)
-        if isinstance(value, str):
-            cleaned = _clean_value(value)
-            if cleaned is not None:
-                return cleaned
-    return None
 
 
 def _event_timestamp(now: datetime) -> str:

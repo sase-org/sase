@@ -1,4 +1,4 @@
-"""Tests for the agent MEMORY READS prompt-panel section renderer."""
+"""Tests for the agent MEMORY prompt-panel sub-section renderer."""
 
 from __future__ import annotations
 
@@ -56,6 +56,13 @@ def test_empty_events_appends_nothing() -> None:
     assert text.plain == ""
 
 
+def test_empty_events_can_render_placeholder() -> None:
+    text = Text()
+    append_agent_memory_reads_section(text, events=(), show_empty=True)
+    assert "▸ MEMORY\n" in text.plain
+    assert "none recorded" in text.plain
+
+
 def test_single_event_renders_timestamp_path_and_reason() -> None:
     text = Text()
     event = _event(
@@ -66,8 +73,8 @@ def test_single_event_renders_timestamp_path_and_reason() -> None:
     append_agent_memory_reads_section(text, events=(event,))
 
     plain = text.plain
-    assert "MEMORY READS\n" in plain
-    assert "1 reads · 1 files · last 14:22:08" in plain
+    assert "▸ MEMORY\n" in plain
+    assert "  1 reads · 1 files · last 14:22:08" in plain
     assert "14:22:08  long/generated_skills.md" in plain
     assert "↳ needed commit hook contract for runtime parity refactor" in plain
     assert "+ " not in plain

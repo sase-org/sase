@@ -1,0 +1,273 @@
+"""Tests for the per-agent skill-uses loader."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
+
+import pytest
+
+from sase.ace.tui import skill_uses as skill_uses_module
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.skill_uses import load_skill_uses_for_agent
+from sase.skills.use_log import (
+    SKILL_USE_LOG_SCHEMA_VERSION,
+    SkillUseEvent,
+    skill_use_log_path,
+)
+
+
+def _make_agent(
+    *,
+    artifacts_dir: Path | None,
+    agent_name: str | None = None,
+    workspace_dir: Path | None = None,
+    raw_suffix: str = "20260614-100000",
+) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="skill-uses-test",
+        project_file="/tmp/skill-uses-test.sase",
+        status="DONE",
+        start_time=datetime(2026, 6, 14, 10, 0, 0),
+        raw_suffix=raw_suffix,
+        agent_name=agent_name,
+        workspace_dir=str(workspace_dir) if workspace_dir else None,
+        artifacts_dir=str(artifacts_dir) if artifacts_dir else None,
+    )
+
+
+def _make_event(
+    *,
+    skill_name: str,
+    timestamp: str,
+    agent_name: str,
+    artifacts_dir: str | None,
+    reason: str = "context",
+    project: str = "skill-uses-test",
+    use_id: str | None = None,
+) -> SkillUseEvent:
+    return SkillUseEvent(
+        schema_version=SKILL_USE_LOG_SCHEMA_VERSION,
+        id=use_id or skill_name + timestamp,
+        timestamp=timestamp,
+        project=project,
+        cwd="/tmp/skill-uses-test",
+        skill_name=skill_name,
+        agent_name=agent_name,
+        agent_source="SASE_AGENT_NAME",
+        artifacts_dir=artifacts_dir,
+        reason=reason,
+        runtime="codex",
+    )
+
+
+def _write_jsonl(path: Path, events: list[SkillUseEvent]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as out:
+        for event in events:
+            json.dump(asdict(event), out, sort_keys=True)
+            out.write("\n")
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache() -> None:
+    skill_uses_module._skill_uses_cache.clear()
+
+
+@pytest.fixture
+def fake_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    monkeypatch.setattr(
+        skill_uses_module,
+        "project_memory_name",
+        lambda _root: "skill-uses-test",
+    )
+    sase_home = tmp_path / "sase-home"
+    sase_home.mkdir()
+    monkeypatch.setenv("HOME", str(sase_home))
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: sase_home))
+    return project_root
+
+
+def test_filter_by_artifacts_dir_exact_match(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    artifacts_a = tmp_path / "artifacts" / "agent_a"
+    artifacts_b = tmp_path / "artifacts" / "agent_b"
+    artifacts_a.mkdir(parents=True)
+    artifacts_b.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            skill_name="sase_plan",
+            timestamp="2026-06-14T10:00:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_a),
+        ),
+        _make_event(
+            skill_name="sase_questions",
+            timestamp="2026-06-14T10:01:00+00:00",
+            agent_name="beta",
+            artifacts_dir=str(artifacts_b),
+        ),
+    ]
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+
+    agent = _make_agent(
+        artifacts_dir=artifacts_a,
+        agent_name="alpha",
+        workspace_dir=fake_project,
+    )
+    result = load_skill_uses_for_agent(agent)
+
+    assert [event.skill_name for event in result] == ["sase_plan"]
+
+
+def test_fallback_to_agent_name_when_artifacts_dir_missing(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    artifacts_dir = tmp_path / "artifacts" / "agent_a"
+    artifacts_dir.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            skill_name="sase_plan",
+            timestamp="2026-06-14T10:00:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=None,
+        ),
+        _make_event(
+            skill_name="sase_questions",
+            timestamp="2026-06-14T10:01:00+00:00",
+            agent_name="beta",
+            artifacts_dir=None,
+        ),
+    ]
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+
+    agent = _make_agent(
+        artifacts_dir=artifacts_dir,
+        agent_name="alpha",
+        workspace_dir=fake_project,
+    )
+    result = load_skill_uses_for_agent(agent)
+
+    assert [event.skill_name for event in result] == ["sase_plan"]
+
+
+def test_results_are_newest_first(fake_project: Path, tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts" / "agent_a"
+    artifacts_dir.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            skill_name="sase_plan",
+            timestamp="2026-06-14T10:00:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_dir),
+        ),
+        _make_event(
+            skill_name="sase_questions",
+            timestamp="2026-06-14T10:05:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_dir),
+        ),
+        _make_event(
+            skill_name="sase_notify",
+            timestamp="2026-06-14T10:02:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_dir),
+        ),
+    ]
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+
+    agent = _make_agent(
+        artifacts_dir=artifacts_dir,
+        agent_name="alpha",
+        workspace_dir=fake_project,
+    )
+    result = load_skill_uses_for_agent(agent)
+
+    assert [event.skill_name for event in result] == [
+        "sase_questions",
+        "sase_notify",
+        "sase_plan",
+    ]
+
+
+def test_limit_caps_returned_events(fake_project: Path, tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts" / "agent_a"
+    artifacts_dir.mkdir(parents=True)
+
+    events = [
+        _make_event(
+            skill_name=f"skill_{index}",
+            timestamp=f"2026-06-14T10:{index:02d}:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_dir),
+            use_id=f"id-{index}",
+        )
+        for index in range(10)
+    ]
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+
+    agent = _make_agent(
+        artifacts_dir=artifacts_dir,
+        agent_name="alpha",
+        workspace_dir=fake_project,
+    )
+    result = load_skill_uses_for_agent(agent, limit=3)
+
+    assert len(result) == 3
+    assert result[0].skill_name == "skill_9"
+
+
+def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts" / "agent_a"
+    artifacts_dir.mkdir(parents=True)
+
+    log_path = skill_use_log_path("skill-uses-test")
+    initial = [
+        _make_event(
+            skill_name="sase_plan",
+            timestamp="2026-06-14T10:00:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_dir),
+        )
+    ]
+    _write_jsonl(log_path, initial)
+
+    agent = _make_agent(
+        artifacts_dir=artifacts_dir,
+        agent_name="alpha",
+        workspace_dir=fake_project,
+    )
+    first = load_skill_uses_for_agent(agent)
+    assert len(first) == 1
+
+    later = list(initial) + [
+        _make_event(
+            skill_name="sase_questions",
+            timestamp="2026-06-14T10:10:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_dir),
+        )
+    ]
+    _write_jsonl(log_path, later)
+    future_mtime_ns = log_path.stat().st_mtime_ns + 10_000_000_000
+    import os as _os
+
+    _os.utime(log_path, ns=(future_mtime_ns, future_mtime_ns))
+
+    for entry in skill_uses_module._skill_uses_cache.values():
+        entry.last_read_monotonic = 0.0
+
+    second = load_skill_uses_for_agent(agent)
+    assert [event.skill_name for event in second] == [
+        "sase_questions",
+        "sase_plan",
+    ]

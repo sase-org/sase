@@ -10,9 +10,16 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
     skills_parser = subparsers.add_parser(
         "skills",
         help="Inspect and initialize generated SASE skills",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Inspect generated SASE skills. With no subcommand, defaults to "
-            "`sase skills list`."
+            "Inspect, initialize, and audit generated SASE skills. With no "
+            "subcommand, defaults to `sase skills list`."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase skills list\n"
+            "  sase skills init --force\n"
+            '  sase skills log sase_plan --reason "Preparing an implementation plan"'
         ),
     )
     skills_subparsers = skills_parser.add_subparsers(
@@ -38,4 +45,30 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
             "Show generated SASE skill sources, provider targets, and target "
             "drift without writing files."
         ),
+    )
+
+    log_parser = skills_subparsers.add_parser(
+        "log",
+        help="Record that the current agent is using a skill",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Append an attributable skill-use audit event for the current "
+            "SASE agent. This is primarily called from generated SKILL.md "
+            "files before a skill's instructions are followed."
+        ),
+        epilog=(
+            "example:\n"
+            '  sase skills log sase_plan --reason "Preparing an implementation plan"'
+        ),
+    )
+    log_parser.add_argument(
+        "name",
+        metavar="skill-name",
+        help="Generated skill name to record, for example sase_plan",
+    )
+    log_parser.add_argument(
+        "-r",
+        "--reason",
+        required=True,
+        help="Non-empty reason for the audited skill use",
     )

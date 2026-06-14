@@ -187,6 +187,41 @@ def test_duplicate_raw_outputs_are_formatted_once_and_reused(
     assert targets[0].content.endswith("formatted\n")
 
 
+def test_rendered_skill_targets_include_audit_directive_for_each_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    xprompt = init_skills_handler.XPrompt(
+        name="foo",
+        content="body\n",
+        description="a test skill",
+        skill=["claude", "codex"],
+    )
+    monkeypatch.setattr(
+        init_skills_handler,
+        "_all_providers",
+        lambda: ["claude", "codex"],
+    )
+    monkeypatch.setattr(init_skills_handler, "_provider_context", lambda _provider: {})
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+
+    targets = init_skills_handler.render_skill_targets(
+        [xprompt],
+        provider_filter=None,
+        use_chezmoi=False,
+        use_prettier=False,
+    )
+
+    assert {target.provider for target in targets} == {"claude", "codex"}
+    for target in targets:
+        content = target.content
+        directive = (
+            'sase skills log foo --reason "<one-line reason for using this skill>"'
+        )
+        assert directive in content
+        assert content.index(directive) < content.index("body")
+
+
 def test_batch_formatter_failure_falls_back_per_unique_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

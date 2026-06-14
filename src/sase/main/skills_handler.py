@@ -13,6 +13,13 @@ def _handle_skills_list_command(args: argparse.Namespace) -> None:
     handle_skills_list_command(args)
 
 
+def _handle_skills_log_command(args: argparse.Namespace) -> None:
+    """Handle ``sase skills log``."""
+    from sase.skills.cli_log import handle_skills_log_command
+
+    handle_skills_log_command(args)
+
+
 def handle_skills_command(args: argparse.Namespace) -> None:
     """Dispatch to the appropriate ``sase skills`` sub-handler."""
     sub = getattr(args, "skills_subcommand", None) or "list"
@@ -26,5 +33,9 @@ def handle_skills_command(args: argparse.Namespace) -> None:
         _handle_skills_list_command(args)
         sys.exit(0)
 
-    print("Usage: sase skills {init,list}", file=sys.stderr)
+    if sub == "log":
+        _handle_skills_log_command(args)
+        sys.exit(0)
+
+    print("Usage: sase skills {init,list,log}", file=sys.stderr)
     sys.exit(1)

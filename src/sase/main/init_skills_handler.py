@@ -207,6 +207,17 @@ def _render_skill(
     return rendered_body, rendered_desc
 
 
+def _skill_use_audit_directive(name: str) -> str:
+    """Return the generated first-step audit directive for a skill."""
+    return (
+        "Before doing anything else, run this command to record that you are "
+        "using this skill:\n\n"
+        "```bash\n"
+        f'sase skills log {name} --reason "<one-line reason for using this skill>"\n'
+        "```\n\n"
+    )
+
+
 def _build_output(name: str, description: str, body: str) -> str:
     """Build the final SKILL.md content with frontmatter."""
     if "\n" in description.strip():
@@ -222,7 +233,7 @@ def _build_output(name: str, description: str, body: str) -> str:
         header = f"---\nname: {name}\ndescription:\n{indented}\n---"
     else:
         header = f"---\nname: {name}\ndescription: {description}\n---"
-    content = header + "\n\n" + body
+    content = header + "\n\n" + _skill_use_audit_directive(name) + body
     if not content.endswith("\n"):
         content += "\n"
     return content

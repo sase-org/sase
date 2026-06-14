@@ -8,6 +8,12 @@ from tests._agent_artifact_marker_audit_helpers import (
 )
 
 _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
+    "src/sase/agent/identity.py:require_agent_identity": PathPassingReview(
+        exemption=(
+            "Read-only audit attribution fallback: artifacts_dir is used only "
+            "to discover an agent name from agent_meta.json."
+        ),
+    ),
     "src/sase/memory/episodes/_record_helpers.py:record_from_artifact_dir": PathPassingReview(
         exemption=(
             "Read-only episode collector fallback: marker paths are parsed into "

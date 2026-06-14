@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 from sase.memory.read_log import (
+    AgentIdentityError,
     MemoryReadError,
     append_memory_read_event,
     build_memory_read_event,
@@ -34,7 +35,7 @@ def handle_memory_read_command(args: argparse.Namespace) -> None:
             cwd=Path.cwd(),
         )
         append_memory_read_event(event)
-    except (MemoryReadError, OSError, UnicodeError) as exc:
+    except (AgentIdentityError, MemoryReadError, OSError, UnicodeError) as exc:
         print(f"sase memory read: {exc}", file=sys.stderr)
         sys.exit(1)
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-14 11:43:32
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_context_memory_skills_panel.md
 ---
 # Plan: "AGENT CONTEXT" metadata panel section (MEMORY + SKILLS)
