@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-14 15:27:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/blog00_paper_crediting.md
 ---
 # Plan: Strengthen the SASE-paper crediting in blog post `[00]`

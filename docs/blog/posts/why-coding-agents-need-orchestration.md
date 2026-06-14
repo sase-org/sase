@@ -26,8 +26,9 @@ see the diff before the robot commits crimes against `just check`?"
 That layer needs reusable prompts, durable plans, dependency-aware work items, review records, background automation,
 notifications, and a control surface that lets humans steer without becoming a full-time air-traffic controller.
 
-SASE calls that layer **Structured Agentic Software Engineering**. This post is the map of the fundamentals: XPrompts,
-SDD, Beads, ACE, AXE, plugins, and why SASE wraps coding-agent CLIs instead of raw model APIs.
+Borrowing the name from the research paper discussed later, SASE calls that layer **Structured Agentic Software
+Engineering**. This post is the map of the fundamentals: XPrompts, SDD, Beads, ACE, AXE, plugins, and why SASE wraps
+coding-agent CLIs instead of raw model APIs.
 
 <!-- more -->
 
@@ -551,9 +552,13 @@ The [CLI reference](../../cli.md) is the full inventory.
 
 SASE is heavily inspired by the paper
 ["Agentic Software Engineering: Foundational Pillars and a Research Roadmap"](https://arxiv.org/abs/2509.06216). The
-paper frames Agentic Software Engineering as more than code generation: humans and agents need new actors, processes,
-tools, and artifacts. Its ACE/AEE vocabulary directly shaped SASE's naming: ACE is the human command environment, and
-AXE is SASE's practical execution/supervision daemon.
+paper presents the **Structured Agentic Software Engineering (SASE)** vision, and this project takes its name and
+framing directly from that vocabulary. It splits the future of software engineering into **SE for Humans** and **SE for
+Agents**, then proposes two workbenches: **ACE**, the **Agent Command Environment**, where humans orchestrate and mentor
+agent teams, and **AEE**, the **Agent Execution Environment**, where agents execute work and call humans in for
+ambiguity or complex trade-offs. SASE maps that lineage into local tooling: its **ACE** cockpit is the **Agentic
+ChangeSpec Explorer**, but it deliberately echoes the paper's Agent Command Environment; **AXE** is the background
+execution/supervision daemon that echoes the paper's Agent Execution Environment.
 
 SASE is also inspired by IBM's [Prompt Declaration Language](https://github.com/IBM/prompt-declaration-language) and the
 [PDL paper](https://arxiv.org/abs/2410.19135). PDL argues for declarative, composable prompt programs that keep prompts
