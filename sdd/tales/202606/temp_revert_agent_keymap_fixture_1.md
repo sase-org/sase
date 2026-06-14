@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-14 13:11:57
-status: wip
+status: done
 prompt: sdd/prompts/202606/temp_revert_agent_keymap_fixture_1.md
 ---
 # Temporary Revert-Agent Keymap Fixture
