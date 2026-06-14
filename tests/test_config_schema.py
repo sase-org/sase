@@ -63,6 +63,27 @@ def test_config_schema_accepts_xprompt_input_descriptions() -> None:
     assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_xprompt_log_skill_use() -> None:
+    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    config = {
+        "xprompts": {
+            "quiet_skill": {
+                "description": "A skill that does not log its own use.",
+                "skill": True,
+                "log_skill_use": False,
+                "content": "Do the thing",
+            }
+        }
+    }
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
+
+
 def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
     schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
 

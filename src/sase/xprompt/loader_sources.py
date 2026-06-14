@@ -41,6 +41,7 @@ def namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
         snippet=xp.snippet,
         description=xp.description,
         skill=xp.skill,
+        log_skill_use=xp.log_skill_use,
         local_xprompts=xp.local_xprompts,
     )
 
@@ -92,6 +93,7 @@ def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
     # Parse description and skill fields if present
     description = front_matter.get("description") if front_matter else None
     skill = front_matter.get("skill") if front_matter else None
+    log_skill_use = front_matter.get("log_skill_use", True) if front_matter else True
 
     local_xprompts = _parse_markdown_local_xprompts(front_matter, str(file_path))
 
@@ -104,6 +106,7 @@ def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
         snippet=snippet,
         description=description,
         skill=skill,
+        log_skill_use=log_skill_use,
         local_xprompts=local_xprompts,
     )
 
@@ -337,6 +340,9 @@ def load_xprompts_from_plugins() -> dict[str, XPrompt]:
             snippet = front_matter.get("snippet") if front_matter else None
             description = front_matter.get("description") if front_matter else None
             skill = front_matter.get("skill") if front_matter else None
+            log_skill_use = (
+                front_matter.get("log_skill_use", True) if front_matter else True
+            )
             source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
             local_xprompts = _parse_markdown_local_xprompts(front_matter, source)
             xprompts[name] = XPrompt(
@@ -348,6 +354,7 @@ def load_xprompts_from_plugins() -> dict[str, XPrompt]:
                 snippet=snippet,
                 description=description,
                 skill=skill,
+                log_skill_use=log_skill_use,
                 local_xprompts=local_xprompts,
             )
 

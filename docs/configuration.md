@@ -1393,9 +1393,10 @@ manual opt-in, refresh, and `--check` audits.
 With no subcommand, `sase skills` defaults to the read-only `sase skills list` dashboard. It reports loaded skill
 sources, provider targets, and deployed-file drift without writing files. `sase skills init` generates and deploys agent
 skill files from xprompt sources marked with the `skill` field. Generated skill files begin with a `sase skills log`
-directive so agent-side skill use can be audited. See [xprompt.md — Skill Field](xprompt.md#skill-field) for the
-skill-source contract and provider targets. Existing files are skipped in non-interactive runs unless `--force` is
-passed; interactive runs prompt before overwriting. `sase init skills` is a compatibility alias for `sase skills init`.
+directive so agent-side skill use can be audited, unless the source sets `log_skill_use: false`. See
+[xprompt.md — Skill Field](xprompt.md#skill-field) for the skill-source contract and provider targets. Existing files
+are skipped in non-interactive runs unless `--force` is passed; interactive runs prompt before overwriting.
+`sase init skills` is a compatibility alias for `sase skills init`.
 
 | Form               | Flags                                                | Description                                                                                 |
 | ------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------- |

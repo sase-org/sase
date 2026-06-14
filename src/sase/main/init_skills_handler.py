@@ -218,8 +218,15 @@ def _skill_use_audit_directive(name: str) -> str:
     )
 
 
-def _build_output(name: str, description: str, body: str) -> str:
-    """Build the final SKILL.md content with frontmatter."""
+def _build_output(
+    name: str, description: str, body: str, log_skill_use: bool = True
+) -> str:
+    """Build the final SKILL.md content with frontmatter.
+
+    When *log_skill_use* is true (the default), the generated skill begins with
+    the audit directive instructing the agent to record its own use. Skills that
+    set ``log_skill_use: false`` in their source omit that directive.
+    """
     if "\n" in description.strip():
         # Multi-line: use YAML literal block scalar (|)
         header = f"---\nname: {name}\ndescription: |\n"
@@ -233,7 +240,8 @@ def _build_output(name: str, description: str, body: str) -> str:
         header = f"---\nname: {name}\ndescription:\n{indented}\n---"
     else:
         header = f"---\nname: {name}\ndescription: {description}\n---"
-    content = header + "\n\n" + _skill_use_audit_directive(name) + body
+    directive = _skill_use_audit_directive(name) if log_skill_use else ""
+    content = header + "\n\n" + directive + body
     if not content.endswith("\n"):
         content += "\n"
     return content
@@ -342,7 +350,12 @@ def _render_skill_targets(
             rendered_body, rendered_desc = _render_skill(
                 xprompt.content, description, context
             )
-            output = _build_output(name, rendered_desc.strip(), rendered_body)
+            output = _build_output(
+                name,
+                rendered_desc.strip(),
+                rendered_body,
+                log_skill_use=xprompt.log_skill_use,
+            )
             for target in _get_target_paths(provider, name, use_chezmoi):
                 raw_targets.append(
                     _RawRenderedSkillTarget(

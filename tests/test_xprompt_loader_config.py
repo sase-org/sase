@@ -98,6 +98,53 @@ Commit with hg"""
         temp_path.unlink()
 
 
+def testload_xprompt_from_file_log_skill_use_false() -> None:
+    """Markdown frontmatter can disable the generated audit directive."""
+    content = """---
+name: quiet_skill
+skill: true
+log_skill_use: false
+---
+Skill body content"""
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False, encoding="utf-8"
+    ) as f:
+        f.write(content)
+        temp_path = Path(f.name)
+
+    try:
+        xprompt = load_xprompt_from_file(temp_path)
+
+        assert xprompt is not None
+        assert xprompt.log_skill_use is False
+    finally:
+        temp_path.unlink()
+
+
+def testload_xprompt_from_file_log_skill_use_defaults_true() -> None:
+    """Markdown frontmatter defaults log_skill_use to True when absent."""
+    content = """---
+name: loud_skill
+skill: true
+---
+Skill body content"""
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False, encoding="utf-8"
+    ) as f:
+        f.write(content)
+        temp_path = Path(f.name)
+
+    try:
+        xprompt = load_xprompt_from_file(temp_path)
+
+        assert xprompt is not None
+        assert xprompt.log_skill_use is True
+    finally:
+        temp_path.unlink()
+
+
 def testload_xprompt_from_file_with_local_xprompts(tmp_path: Path) -> None:
     """Markdown xprompt frontmatter can define file-local helper xprompts."""
     path = tmp_path / "outer.md"

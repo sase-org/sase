@@ -222,6 +222,69 @@ def test_rendered_skill_targets_include_audit_directive_for_each_provider(
         assert content.index(directive) < content.index("body")
 
 
+def test_rendered_skill_targets_omit_audit_directive_when_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A skill with ``log_skill_use=False`` renders without the audit directive."""
+    xprompt = init_skills_handler.XPrompt(
+        name="foo",
+        content="body\n",
+        description="a test skill",
+        skill=["claude"],
+        log_skill_use=False,
+    )
+    monkeypatch.setattr(init_skills_handler, "_all_providers", lambda: ["claude"])
+    monkeypatch.setattr(init_skills_handler, "_provider_context", lambda _provider: {})
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+
+    targets = init_skills_handler.render_skill_targets(
+        [xprompt],
+        provider_filter=None,
+        use_chezmoi=False,
+        use_prettier=False,
+    )
+
+    assert targets
+    for target in targets:
+        assert "sase skills log" not in target.content
+        assert "body" in target.content
+
+
+def test_packaged_skills_respect_log_skill_use_flag() -> None:
+    """Packaged sase_plan/sase_memory_read omit the directive; others keep it."""
+    from sase.xprompt.loader import (
+        get_sase_package_xprompts_dir,
+        load_xprompt_from_file,
+    )
+
+    skills_dir = get_sase_package_xprompts_dir() / "skills"
+    plan_xp = load_xprompt_from_file(skills_dir / "sase_plan.md")
+    memory_xp = load_xprompt_from_file(skills_dir / "sase_memory_read.md")
+    artifact_xp = load_xprompt_from_file(skills_dir / "sase_artifact.md")
+    assert plan_xp is not None
+    assert memory_xp is not None
+    assert artifact_xp is not None
+
+    assert plan_xp.log_skill_use is False
+    assert memory_xp.log_skill_use is False
+    assert artifact_xp.log_skill_use is True
+
+    targets = init_skills_handler.render_skill_targets(
+        [plan_xp, memory_xp, artifact_xp],
+        provider_filter=None,
+        use_chezmoi=False,
+        use_prettier=False,
+    )
+
+    assert targets, "expected rendered targets for registered providers"
+    for target in targets:
+        if target.skill_name == "sase_artifact":
+            assert "sase skills log sase_artifact" in target.content
+        else:
+            assert "sase skills log" not in target.content
+
+
 def test_batch_formatter_failure_falls_back_per_unique_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

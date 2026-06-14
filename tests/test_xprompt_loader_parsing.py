@@ -207,3 +207,41 @@ def test_parse_xprompt_entries_simple_string_has_no_skill() -> None:
     xp = result["simple"]
     assert xp.skill is None
     assert xp.description is None
+
+
+# Tests for log_skill_use in parse_xprompt_entries
+
+
+def test_parse_xprompt_entries_log_skill_use_false() -> None:
+    """Structured config entries can disable the generated audit directive."""
+    entries = {
+        "quiet_skill": {
+            "content": "Do the thing",
+            "skill": True,
+            "log_skill_use": False,
+        }
+    }
+    result = parse_xprompt_entries(entries, "test")
+
+    assert result["quiet_skill"].log_skill_use is False
+
+
+def test_parse_xprompt_entries_log_skill_use_defaults_true() -> None:
+    """Structured config entries default log_skill_use to True when absent."""
+    entries = {
+        "loud_skill": {
+            "content": "Do the thing",
+            "skill": True,
+        }
+    }
+    result = parse_xprompt_entries(entries, "test")
+
+    assert result["loud_skill"].log_skill_use is True
+
+
+def test_parse_xprompt_entries_simple_string_log_skill_use_true() -> None:
+    """Simple string xprompts keep the default log_skill_use of True."""
+    entries = {"simple": "Just a string"}
+    result = parse_xprompt_entries(entries, "test")
+
+    assert result["simple"].log_skill_use is True

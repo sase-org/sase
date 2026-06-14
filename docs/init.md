@@ -249,9 +249,10 @@ inventory: it shows loaded skill sources, the providers they target, and whether
 stale, or missing. Bare `sase skills` shows the same dashboard.
 
 `sase skills init` renders those sources into provider-specific `SKILL.md` files. Sources include bundled skill xprompts
-and user/runtime xprompt catalog entries. Generated skill files include a first-step
+and user/runtime xprompt catalog entries. By default, generated skill files include a first-step
 `sase skills log <name> --reason ...` directive so agent skill usage is attributable in the same project audit surface
-as memory reads. The usual workflow is to inspect first, preview writes, then deploy:
+as memory reads; a source can set `log_skill_use: false` to omit that directive. The usual workflow is to inspect first,
+preview writes, then deploy:
 
 ```bash
 sase skills list

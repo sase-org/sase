@@ -400,6 +400,7 @@ def parse_xprompt_entries(
             snippet: str | bool | None = None
             description: str | None = None
             skill: bool | list[str] | None = None
+            log_skill_use = True
         elif isinstance(value, dict):
             # Structured xprompt with input/content
             content = value.get("content", "")
@@ -410,6 +411,7 @@ def parse_xprompt_entries(
             snippet = value.get("snippet")
             description = value.get("description")
             skill = value.get("skill")
+            log_skill_use = value.get("log_skill_use", True)
         else:
             continue
 
@@ -422,6 +424,7 @@ def parse_xprompt_entries(
             snippet=snippet,
             description=description,
             skill=skill,
+            log_skill_use=log_skill_use,
         )
 
     return xprompts

@@ -166,6 +166,7 @@ class XPrompt:
     snippet: str | bool | None = None
     description: str | None = None
     skill: bool | list[str] | None = None
+    log_skill_use: bool = True
     local_xprompts: dict[str, XPrompt] = field(default_factory=dict)
 
     def has_tag(self, tag: XPromptTag) -> bool:

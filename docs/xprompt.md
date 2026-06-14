@@ -708,8 +708,9 @@ Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`
 XPrompts can be marked as agent skill sources by setting the `skill` field in their front matter. `sase skills list`
 shows the loaded skill catalog without writing files. `sase skills init` reads that catalog, including bundled skill
 sources and runtime config overlays, to determine which xprompts should be rendered into per-provider `SKILL.md` files
-and deployed to agent skill directories. Generated skill files begin with a `sase skills log <name> --reason ...`
-directive so SASE can audit which skills an agent used. The compatibility alias `sase init skills` runs the same
+and deployed to agent skill directories. By default, generated skill files begin with a
+`sase skills log <name> --reason ...` directive so SASE can audit which skills an agent used; set `log_skill_use: false`
+in a skill source to omit that directive (see below). The compatibility alias `sase init skills` runs the same
 initializer.
 
 ```markdown
@@ -733,12 +734,17 @@ The `description` field provides a human-readable summary shown in `sase xprompt
 The structured catalog also marks these entries with `is_skill: true`; ACE and editor clients use that flag to offer
 slash-skill completions such as `/sase_plan` while keeping ordinary xprompts out of slash completion results.
 
+The optional `log_skill_use` boolean field controls the generated audit directive. It defaults to `true`, so generated
+skills instruct the agent to run `sase skills log <name> --reason ...` as their first step. Set `log_skill_use: false`
+to suppress that directive for skills that should not record their own use (the bundled `/sase_plan` and
+`/sase_memory_read` skills set this). The field only affects sources that are also marked as skills.
+
 **Workflow:** Edit packaged skill sources in `src/sase/xprompts/skills/`, or define user/runtime skill xprompts through
-the normal xprompt catalog sources. Do not include the `sase skills log` directive yourself; the generator injects it.
-Then run `sase skills list`, `sase skills init --dry-run`, and finally `sase skills init --force` when the preview is
-correct. When `use_chezmoi` is enabled, `sase skills init` commits, pushes, and applies the generated files unless
-passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit deployed `SKILL.md` files directly. `sase init skills`
-is a compatibility alias for `sase skills init`.
+the normal xprompt catalog sources. Do not include the `sase skills log` directive yourself; the generator injects it
+unless `log_skill_use: false` is set. Then run `sase skills list`, `sase skills init --dry-run`, and finally
+`sase skills init --force` when the preview is correct. When `use_chezmoi` is enabled, `sase skills init` commits,
+pushes, and applies the generated files unless passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit deployed
+`SKILL.md` files directly. `sase init skills` is a compatibility alias for `sase skills init`.
 
 Provider plugins declare where generated skills should be written. A source can target multiple providers, and a
 provider can have multiple filesystem targets; for example, Gemini deploys to both the normal Gemini skills directory

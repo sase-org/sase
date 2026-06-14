@@ -4,6 +4,7 @@ description:
   Guide audited SASE long-term memory reads through `sase memory read`. Use when instructions require reading
   `memory/long/...` context or mention long-term memory procedure.
 skill: true
+log_skill_use: false
 ---
 
 Use this skill when project instructions or a prompt require reading SASE long-term memory.
