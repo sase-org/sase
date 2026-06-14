@@ -30,6 +30,7 @@ from .agent_scan_golden import (
 from .agent_scan_golden.fixture_builder import (
     TS_ACE_RUN_DONE,
     TS_ACE_RUN_FAILED,
+    TS_ACE_RUN_REPEAT_STOPPED,
     TS_ACE_RUN_RETRIED_CHILD,
     TS_ACE_RUN_RETRIED_PARENT,
     TS_ACE_RUN_RUNNING,
@@ -362,6 +363,51 @@ def test_done_record_parses_done_marker(fixture_root: Path) -> None:
     # The agent_meta.json adds a stopped_at timestamp.
     assert rec.agent_meta is not None
     assert rec.agent_meta.stopped_at == "2026-04-27T12:05:00Z"
+
+
+def test_repeat_stopped_record_carries_repeat_stop_fields(
+    fixture_root: Path,
+    tmp_path: Path,
+) -> None:
+    snapshot = scan_agent_artifacts(fixture_root)
+    rec = record_by_timestamp(snapshot, TS_ACE_RUN_REPEAT_STOPPED)
+    assert rec.done is not None
+    # Outcome stays "completed" so %wait cascading still resolves the slot.
+    assert rec.done.outcome == "completed"
+    assert rec.done.repeat_stopped is True
+    assert rec.done.stopped_by == "repeat_slot_1"
+
+    # The fields survive the SQLite index round-trip (stored in record_json).
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(index_path, fixture_root)
+    indexed = query_agent_artifact_index(
+        index_path,
+        fixture_root,
+        AgentArtifactIndexQueryWire(
+            include_active=True,
+            include_recent_completed=True,
+            include_full_history=True,
+            active_limit=None,
+            recent_completed_limit=None,
+            include_hidden=True,
+        ),
+    )
+    indexed_rec = record_by_timestamp(indexed, TS_ACE_RUN_REPEAT_STOPPED)
+    assert indexed_rec.done is not None
+    assert indexed_rec.done.repeat_stopped is True
+    assert indexed_rec.done.stopped_by == "repeat_slot_1"
+
+
+def test_non_repeat_done_record_defaults_repeat_stop_fields(
+    fixture_root: Path,
+) -> None:
+    # Backward-compatible defaults: an ordinary completed marker omits the
+    # repeat-stop fields and must read as not-stopped.
+    snapshot = scan_agent_artifacts(fixture_root)
+    rec = record_by_timestamp(snapshot, TS_ACE_RUN_DONE)
+    assert rec.done is not None
+    assert rec.done.repeat_stopped is False
+    assert rec.done.stopped_by is None
 
 
 def test_failed_record_carries_error_and_traceback(fixture_root: Path) -> None:

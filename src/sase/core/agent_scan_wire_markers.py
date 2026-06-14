@@ -51,6 +51,12 @@ class DoneMarkerWire:
         retry_error_category: Category that triggered the retry.
         approve: Auto-approve flag from launch options.
         hidden: Hidden-from-TUI flag from launch options.
+        repeat_stopped: ``True`` for a repeat-chain slot that a predecessor's
+            ``STOP`` output variable skipped. The marker keeps
+            ``outcome: "completed"`` so ``%wait`` resolution still cascades,
+            but the TUI surfaces a distinct ``STOPPED`` status.
+        stopped_by: Name of the chain predecessor that set ``STOP``, when
+            recorded.
     """
 
     outcome: str | None = None
@@ -78,6 +84,8 @@ class DoneMarkerWire:
     retry_error_category: str | None = None
     approve: bool = False
     hidden: bool = False
+    repeat_stopped: bool = False
+    stopped_by: str | None = None
 
 
 @dataclass(frozen=True)

@@ -41,6 +41,11 @@ AGENT_ASKING_STATUSES: frozenset[str] = frozenset({"PLAN", "QUESTION", "WAITING 
 # post-plan handoff states: the planning work is finished and any code work
 # has been spun off, so they read as **Done**.  ``PLAN APPROVED`` is an
 # actively executing state and reads as **Running**.
+#
+# ``STOPPED`` is a terminal, non-error state for a repeat-chain slot a
+# predecessor's ``STOP`` skipped.  It reads as **Done** (finished, not failed,
+# nothing for the user to act on) — it is intentionally *not* a member of
+# ``_STOPPED_STATUSES`` (those are actionable input pauses).
 _STOPPED_STATUSES: frozenset[str] = frozenset({"PLAN", "QUESTION"})
 
 #: Terminal statuses — agents that have finished and have a meaningful
@@ -48,7 +53,7 @@ _STOPPED_STATUSES: frozenset[str] = frozenset({"PLAN", "QUESTION"})
 #: ``stop_time`` rather than ``start_time``) and status bucketing (which maps
 #: these into the ``Done`` bucket).
 _TERMINAL_STATUSES: frozenset[str] = frozenset(
-    {"DONE", "PLAN DONE", "TALE DONE", "PLAN REJECTED", "EPIC CREATED"}
+    {"DONE", "PLAN DONE", "TALE DONE", "PLAN REJECTED", "EPIC CREATED", "STOPPED"}
 )
 
 # TODO(@user): confirm needs:input mapping. Initial set drawn from

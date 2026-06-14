@@ -22,6 +22,9 @@ from typing import Any
 TS_HOME_RUNNING = "20260427100000"
 TS_ACE_RUN_RUNNING = "20260427110000"
 TS_ACE_RUN_DONE = "20260427120000"
+# Repeat-chain STOP slot. Intentionally older than the retried parent
+# (``...140000``) so the newest-N completed-row ordering tests stay stable.
+TS_ACE_RUN_REPEAT_STOPPED = "20260427125000"
 TS_ACE_RUN_FAILED = "20260427130000"
 TS_ACE_RUN_RETRIED_PARENT = "20260427140000"
 TS_ACE_RUN_RETRIED_CHILD = "20260427140500"
@@ -36,6 +39,7 @@ EXPECTED_TIMESTAMPS: tuple[str, ...] = (
     TS_HOME_RUNNING,
     TS_ACE_RUN_RUNNING,
     TS_ACE_RUN_DONE,
+    TS_ACE_RUN_REPEAT_STOPPED,
     TS_ACE_RUN_FAILED,
     TS_ACE_RUN_RETRIED_PARENT,
     TS_ACE_RUN_RETRIED_CHILD,
@@ -147,6 +151,32 @@ def _build_ace_run_done(root: Path) -> None:
             "image_paths": ["/tmp/images/alpha.png"],
             "response_path": "/tmp/resp_alpha.md",
             "output_path": "/tmp/out_alpha.log",
+        },
+    )
+
+
+def _build_ace_run_repeat_stopped(root: Path) -> None:
+    artifact_dir = root / "myproj" / "artifacts" / "ace-run" / TS_ACE_RUN_REPEAT_STOPPED
+    _write_json(
+        artifact_dir / "agent_meta.json",
+        {
+            "name": "repeat_slot_2",
+            "model": "claude-sonnet-4-6",
+            "llm_provider": "claude",
+            "stopped_at": "2026-04-27T12:55:00Z",
+        },
+    )
+    # Repeat-chain STOP: keeps ``outcome: "completed"`` so %wait cascading
+    # resolves it, but records that a predecessor's STOP skipped the slot.
+    _write_json(
+        artifact_dir / "done.json",
+        {
+            "outcome": "completed",
+            "finished_at": 1745759700.0,
+            "cl_name": "feature_repeat",
+            "name": "repeat_slot_2",
+            "repeat_stopped": True,
+            "stopped_by": "repeat_slot_1",
         },
     )
 
@@ -348,6 +378,7 @@ def build_fixture_tree(root: Path) -> Path:
     _build_home_running(root)
     _build_ace_run_running(root)
     _build_ace_run_done(root)
+    _build_ace_run_repeat_stopped(root)
     _build_ace_run_failed(root)
     _build_ace_run_retried(root)
     _build_workflow(root)
@@ -376,6 +407,7 @@ __all__ = [
     "EXPECTED_TIMESTAMPS",
     "TS_ACE_RUN_DONE",
     "TS_ACE_RUN_FAILED",
+    "TS_ACE_RUN_REPEAT_STOPPED",
     "TS_ACE_RUN_RETRIED_CHILD",
     "TS_ACE_RUN_RETRIED_PARENT",
     "TS_ACE_RUN_RUNNING",

@@ -30,6 +30,7 @@ from sase.core.agent_scan_wire import AgentArtifactRecordWire, AgentMetaWire
 from tests.agent_scan_golden.fixture_builder import (
     TS_ACE_RUN_DONE,
     TS_ACE_RUN_FAILED,
+    TS_ACE_RUN_REPEAT_STOPPED,
     TS_ACE_RUN_RETRIED_CHILD,
     TS_ACE_RUN_RETRIED_PARENT,
     TS_ACE_RUN_RUNNING,
@@ -214,6 +215,10 @@ def test_list_all_agents_includes_done_and_failed(tmp_path: Path) -> None:
         TS_ACE_RUN_RUNNING: "STARTING",
         TS_ACE_RUN_RETRIED_CHILD: "STARTING",
         TS_ACE_RUN_DONE: "DONE",
+        # The repeat-stopped slot keeps ``outcome: "completed"``; the plain CLI
+        # listing surfaces it as DONE (the distinct STOPPED display is a TUI
+        # Agents-tab concern), while still appearing in the all-agents list.
+        TS_ACE_RUN_REPEAT_STOPPED: "DONE",
         TS_ACE_RUN_FAILED: "FAILED",
         TS_ACE_RUN_RETRIED_PARENT: "FAILED",
     }

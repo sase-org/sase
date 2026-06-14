@@ -13,6 +13,7 @@ DISMISSABLE_STATUSES = {
     "TALE DONE",
     "PLAN REJECTED",
     "EPIC CREATED",
+    "STOPPED",
 }
 
 RESUMABLE_DONE_STATUSES = frozenset({"DONE", "PLAN DONE", "TALE DONE"})
@@ -36,9 +37,15 @@ def is_stopped_agent_status(status: str) -> bool:
 def is_revertable_agent_status(status: str) -> bool:
     """Return True for terminal/done agent rows whose commits can be reverted.
 
-    Accepts every status that means the agent has finished its work: the
-    :data:`DISMISSABLE_STATUSES` set plus any displayed ``FAILED*`` status
-    (e.g. ``FAILED (RETRIED)``). Active/input states such as ``RUNNING``,
-    ``STARTING``, ``WAITING``, ``PLAN``, and ``QUESTION`` are rejected.
+    Accepts every status that means the agent finished work that could have
+    produced commits: the :data:`DISMISSABLE_STATUSES` set plus any displayed
+    ``FAILED*`` status (e.g. ``FAILED (RETRIED)``). Active/input states such as
+    ``RUNNING``, ``STARTING``, ``WAITING``, ``PLAN``, and ``QUESTION`` are
+    rejected.
+
+    ``STOPPED`` is dismissable but never revertable: a repeat slot skipped by a
+    predecessor's ``STOP`` never executed, so it has no commits to revert.
     """
+    if status == "STOPPED":
+        return False
     return status in DISMISSABLE_STATUSES or status.startswith("FAILED")

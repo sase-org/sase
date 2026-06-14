@@ -179,6 +179,10 @@ def format_agent_option(
         text.append(agent.status, style="bold #5FD75F")  # Green
     elif agent.status == "PLAN REJECTED":
         text.append(agent.status, style="bold #D7AF5F")  # Muted gold
+    elif agent.status == "STOPPED":
+        # Repeat-chain STOP: terminal but not a success and not a failure —
+        # render in neutral grey so it reads as "skipped/halted".
+        text.append(agent.status, style="bold #9E9E9E")  # Neutral grey
     elif agent.status == "EPIC CREATED":
         text.append(agent.status, style="bold #5FD7AF")  # Sea-green
     elif agent.status == "FAILED":

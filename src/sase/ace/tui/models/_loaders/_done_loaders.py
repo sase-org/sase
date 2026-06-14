@@ -120,6 +120,14 @@ def _load_done_agent_for_dir(
                 status = "FAILED"
             error_message = data.get("error")
             error_traceback = data.get("traceback")
+        elif data.get("repeat_stopped"):
+            # Repeat-chain STOP: the slot was skipped by a predecessor's STOP
+            # output variable. It keeps ``outcome: "completed"`` (so %wait
+            # cascading still resolves it) but is a non-error terminal state,
+            # so it must be checked before the generic completed mapping.
+            status = "STOPPED"
+            error_message = None
+            error_traceback = None
         elif outcome == "plan_rejected":
             status = "PLAN REJECTED"
             error_message = None
@@ -267,6 +275,13 @@ def _build_done_agent_from_record(
             status = "FAILED"
         error_message = done.error
         error_traceback = done.traceback
+    elif done.repeat_stopped:
+        # Repeat-chain STOP: skipped by a predecessor's STOP output variable.
+        # Keeps ``outcome: "completed"`` for %wait cascading but renders as a
+        # non-error terminal STOPPED row (checked before generic completed).
+        status = "STOPPED"
+        error_message = None
+        error_traceback = None
     elif outcome == "plan_rejected":
         status = "PLAN REJECTED"
         error_message = None
