@@ -12,9 +12,12 @@ from sase.core.agent_group_archive_wire import (
     SavedAgentGroupWire,
 )
 
+from ..models.agent_status import STOPPED_COLOR, STOPPED_STATUS
+
 _STATUS_COLORS: dict[str, str] = {
     "DONE": "#5FD75F",
     "FAILED": "#FF5F5F",
+    STOPPED_STATUS: STOPPED_COLOR,
     "WAITING INPUT": "#FF87D7",
     "RUNNING": "#87AFFF",
 }

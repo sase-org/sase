@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sase.ace.tui.models.agent_status import (
+    STOPPED_COLOR,
+    STOPPED_GLYPH,
+    STOPPED_STATUS,
+)
 from sase.ace.tui.modals.revive_agent_modal import DismissedAgentSelectModal
+from sase.ace.tui.modals.revive_agent_rendering import (
+    format_agent_label,
+    get_status_style,
+)
 
 from tests._agent_revive_helpers import make_agent
 
@@ -68,3 +77,20 @@ def test_set_agents_recomputes_workflow_step_counts() -> None:
     modal._step_counts = modal._compute_step_counts()
 
     assert modal._step_counts == {"20260512120000": 1}
+
+
+def test_stopped_status_uses_canonical_style_and_glyph() -> None:
+    agent = make_agent(status=STOPPED_STATUS)
+
+    label = format_agent_label(agent)
+
+    assert get_status_style(STOPPED_STATUS) == f"bold {STOPPED_COLOR}"
+    assert f"{STOPPED_GLYPH} " in label.plain
+    glyph_start = label.plain.index(STOPPED_GLYPH)
+    glyph_end = glyph_start + len(STOPPED_GLYPH)
+    assert any(
+        span.start <= glyph_start
+        and span.end >= glyph_end
+        and str(span.style) == f"bold {STOPPED_COLOR}"
+        for span in label.spans
+    )

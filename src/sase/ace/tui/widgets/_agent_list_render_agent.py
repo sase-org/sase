@@ -11,6 +11,7 @@ from sase.xprompt.workflow_output import get_substep_suffix
 
 from ..provider_styles import provider_emoji_badge
 from ..models.agent import Agent, AgentType, format_compact_duration
+from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
 from ..models.agent_bead import derive_agent_bead_id
 from ._agent_list_helpers import (
     ordered_row_providers,
@@ -179,10 +180,11 @@ def format_agent_option(
         text.append(agent.status, style="bold #5FD75F")  # Green
     elif agent.status == "PLAN REJECTED":
         text.append(agent.status, style="bold #D7AF5F")  # Muted gold
-    elif agent.status == "STOPPED":
-        # Repeat-chain STOP: terminal but not a success and not a failure —
-        # render in neutral grey so it reads as "skipped/halted".
-        text.append(agent.status, style="bold #9E9E9E")  # Neutral grey
+    elif agent.status == STOPPED_STATUS:
+        text.append(
+            f"{STOPPED_GLYPH} {agent.status}",
+            style=f"bold {STOPPED_COLOR}",
+        )
     elif agent.status == "EPIC CREATED":
         text.append(agent.status, style="bold #5FD7AF")  # Sea-green
     elif agent.status == "FAILED":

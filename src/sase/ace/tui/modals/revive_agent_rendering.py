@@ -6,6 +6,7 @@ from rich.text import Text
 from textual.widgets.option_list import Option
 
 from ..models.agent import Agent, AgentType
+from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
 
 _TYPE_COLORS: dict[AgentType, str] = {
     AgentType.RUNNING: "#87AFFF",
@@ -22,6 +23,7 @@ _STEP_TYPE_COLORS: dict[str, str] = {
 _STATUS_COLORS: dict[str, str] = {
     "DONE": "#5FD75F",
     "FAILED": "#FF5F5F",
+    STOPPED_STATUS: STOPPED_COLOR,
     "WAITING INPUT": "#FF87D7",
 }
 
@@ -65,6 +67,8 @@ def format_agent_label(
         text.append("\u2714 ", style="bold #5FD75F")
     elif agent.status == "FAILED":
         text.append("\u2718 ", style="bold #FF5F5F")
+    elif agent.status == STOPPED_STATUS:
+        text.append(f"{STOPPED_GLYPH} ", style=f"bold {STOPPED_COLOR}")
     else:
         text.append("\u25cb ", style="dim")
 

@@ -7,12 +7,14 @@ from datetime import UTC, datetime
 from textual.app import App
 from textual.widgets import OptionList, Static
 
+from sase.ace.tui.models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 from sase.ace.tui.modals.saved_agent_group_revival_modal import (
     SavedAgentGroupRevivalModal,
     SavedAgentGroupRevivalResult,
 )
 from sase.ace.tui.modals.saved_agent_group_revival_rendering import (
     _saved_group_time_label,
+    _status_style,
     build_saved_group_preview,
     format_saved_group_row,
 )
@@ -266,6 +268,10 @@ def test_saved_group_time_label_is_deterministic_with_supplied_now() -> None:
     )
 
     assert label == "1h ago | 2026-05-27 12:00"
+
+
+def test_stopped_status_uses_canonical_style() -> None:
+    assert _status_style(STOPPED_STATUS) == f"bold {STOPPED_COLOR}"
 
 
 def _summary(idx: int, *, name: str | None = None) -> SavedAgentGroupSummaryWire:

@@ -14,6 +14,12 @@ from sase.ace.tui.app import AceApp
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_status import (
+    STOPPED_COLOR,
+    STOPPED_GLYPH,
+    STOPPED_STATUS,
+)
+from sase.ace.tui.modals.zoom_panel_modal import _status_text
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -200,6 +206,13 @@ def test_zoom_and_fold_actions_are_tab_gated() -> None:
     assert agents_app.check_action("zoom_panel", ()) is not False
     assert changespecs_app.check_action("zoom_panel", ()) is False
     assert changespecs_app.check_action("start_fold_mode", ()) is not False
+
+
+def test_zoom_status_text_renders_stopped_identity() -> None:
+    text = _status_text(STOPPED_STATUS)
+
+    assert text.plain == f"{STOPPED_GLYPH} {STOPPED_STATUS}"
+    assert str(text.style) == f"bold {STOPPED_COLOR}"
 
 
 class _ModalTestApp(App[None]):

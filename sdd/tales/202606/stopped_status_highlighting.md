@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-14 18:36:18
-status: wip
+status: done
 prompt: sdd/prompts/202606/stopped_status_highlighting.md
 ---
 # Plan: Distinct, Beautiful Syntax Highlighting for the `STOPPED` Agent Status

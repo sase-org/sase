@@ -100,6 +100,55 @@ def agents() -> list[Agent]:
     ]
 
 
+def agents_with_stopped_status() -> list[Agent]:
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-plan",
+            project_file="/workspace/sase/visual_project.sase",
+            status="DONE",
+            start_time=datetime(2026, 5, 9, 10, 0, 0),
+            stop_time=datetime(2026, 5, 9, 10, 7, 30),
+            raw_suffix="20260509-100000-plan",
+            agent_name="planner",
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-code",
+            project_file="/workspace/sase/visual_project.sase",
+            status="FAILED",
+            start_time=datetime(2026, 5, 9, 10, 8, 0),
+            stop_time=datetime(2026, 5, 9, 10, 9, 5),
+            raw_suffix="20260509-100800-code",
+            agent_name="coder",
+            error_message="focused fixture failure",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-repeat-slot",
+            project_file="/workspace/sase/visual_project.sase",
+            status="STOPPED",
+            start_time=datetime(2026, 5, 9, 10, 9, 30),
+            stop_time=datetime(2026, 5, 9, 10, 9, 30),
+            raw_suffix="20260509-100930-stopped",
+            agent_name="repeat.slot",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-review",
+            project_file="/workspace/sase/visual_project.sase",
+            status="PLAN DONE",
+            start_time=datetime(2026, 5, 9, 10, 10, 0),
+            stop_time=datetime(2026, 5, 9, 10, 12, 0),
+            raw_suffix="20260509-101000-review",
+            agent_name="reviewer",
+            tag="visual",
+        ),
+    ]
+
+
 def project_records() -> list[ProjectRecordWire]:
     """Deterministic project lifecycle records for the management modal.
 

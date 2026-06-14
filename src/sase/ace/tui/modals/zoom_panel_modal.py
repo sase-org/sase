@@ -22,6 +22,7 @@ from textual.widgets import Label, Static
 from sase.core.paths import get_sase_tmpdir
 
 from ..actions.clipboard import copy_to_system_clipboard
+from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
 from ..widgets.file_panel import (
     AgentFilePanel,
     FileListChanged,
@@ -540,8 +541,12 @@ def _status_text(status: str) -> Text:
         "DONE": "bold cyan",
         "FAILED": "bold red",
         "MISSING": "dim",
+        STOPPED_STATUS: f"bold {STOPPED_COLOR}",
     }.get(status, "bold")
-    icon = "▶" if status in _ACTIVE_STATUSES else "●"
+    if status == STOPPED_STATUS:
+        icon = STOPPED_GLYPH
+    else:
+        icon = "▶" if status in _ACTIVE_STATUSES else "●"
     return Text(f"{icon} {status}", style=style)
 
 

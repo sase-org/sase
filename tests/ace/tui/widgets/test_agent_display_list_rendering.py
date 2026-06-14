@@ -6,6 +6,11 @@ import re
 from datetime import UTC, datetime, timedelta
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_status import (
+    STOPPED_COLOR,
+    STOPPED_GLYPH,
+    STOPPED_STATUS,
+)
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
@@ -159,6 +164,24 @@ class TestStartingStatusRendering:
             span.start <= status_start
             and span.end >= status_end
             and str(span.style) == "bold #87D7FF"
+            for span in left.spans
+        )
+
+
+class TestStoppedStatusRendering:
+    def test_agent_row_renders_stopped_status_with_glyph_and_style(self) -> None:
+        agent = make_agent(status=STOPPED_STATUS)
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        stopped_text = f"{STOPPED_GLYPH} {STOPPED_STATUS}"
+        assert f"({stopped_text})" in left.plain
+        status_start = left.plain.index(stopped_text)
+        status_end = status_start + len(stopped_text)
+        assert any(
+            span.start <= status_start
+            and span.end >= status_end
+            and str(span.style) == f"bold {STOPPED_COLOR}"
             for span in left.spans
         )
 

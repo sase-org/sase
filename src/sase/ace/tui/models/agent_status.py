@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from sase.agent.status_buckets import status_bucket_for_values
 
+STOPPED_STATUS = "STOPPED"
+STOPPED_COLOR = "#8787AF"
+# U+2298 (circled division slash) renders as a missing-glyph box in the
+# pinned Fira Code visual snapshots; Ø preserves the slashed-circle identity.
+STOPPED_GLYPH = "Ø"
+
 # Statuses that indicate an agent is dismissable (shows "x dismiss" in footer).
 DISMISSABLE_STATUSES = {
     "DONE",
@@ -13,7 +19,7 @@ DISMISSABLE_STATUSES = {
     "TALE DONE",
     "PLAN REJECTED",
     "EPIC CREATED",
-    "STOPPED",
+    STOPPED_STATUS,
 }
 
 RESUMABLE_DONE_STATUSES = frozenset({"DONE", "PLAN DONE", "TALE DONE"})
@@ -46,6 +52,6 @@ def is_revertable_agent_status(status: str) -> bool:
     ``STOPPED`` is dismissable but never revertable: a repeat slot skipped by a
     predecessor's ``STOP`` never executed, so it has no commits to revert.
     """
-    if status == "STOPPED":
+    if status == STOPPED_STATUS:
         return False
     return status in DISMISSABLE_STATUSES or status.startswith("FAILED")

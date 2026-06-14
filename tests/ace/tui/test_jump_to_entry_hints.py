@@ -24,6 +24,7 @@ from sase.ace.tui.actions.navigation.jump_hints import (
 )
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 from sase.ace.tui.modals.jump_all_modal import JumpAllModal, JumpAllResult
 from sase.ace.tui.widgets.agent_list import AgentList
 from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, BgCmdList
@@ -46,12 +47,12 @@ def _make_changespec(
     )
 
 
-def _make_agent(cl_name: str = "test_feature") -> Agent:
+def _make_agent(cl_name: str = "test_feature", *, status: str = "RUNNING") -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
         project_file="/tmp/test.sase",
-        status="RUNNING",
+        status=status,
         start_time=None,
         raw_suffix="260101_120000",
     )
@@ -452,6 +453,17 @@ def test_jump_all_modal_no_last_position() -> None:
         axe_items=[],
     )
     assert modal._last_position is None
+
+
+def test_jump_all_modal_styles_stopped_agent_status() -> None:
+    modal = JumpAllModal(
+        changespecs=[],
+        agents=[_make_agent(status=STOPPED_STATUS)],
+        axe_items=[],
+    )
+
+    assert modal._entries[0].status == STOPPED_STATUS
+    assert modal._entries[0].status_style == STOPPED_COLOR
 
 
 def test_jump_all_modal_on_key_uses_uppercase_event_character(

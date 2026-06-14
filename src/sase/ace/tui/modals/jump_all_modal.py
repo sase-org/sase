@@ -20,6 +20,7 @@ from textual.widgets import Static
 
 from ..actions.navigation.jump_hints import JUMP_HINT_CHARS, normalize_jump_key
 from ..bgcmd import get_slot_info
+from ..models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 from ..widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
 
 if TYPE_CHECKING:
@@ -58,6 +59,7 @@ _AGENT_STATUS_STYLES: dict[str, str] = {
     "DONE": "dim #87D7FF",
     "FAILED": "#FF5F5F",
     "KILLED": "#FF8C00",
+    STOPPED_STATUS: STOPPED_COLOR,
     "WAITING": "#FFD700",
     "WORKFLOW": "#AF87FF",
 }
