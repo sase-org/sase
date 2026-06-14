@@ -10,14 +10,14 @@ posts and points readers at the current product guides for further reading.
 
 ## The Series
 
-The SASE Blog Series begins with [00], the argument for durable orchestration around coding-agent work, then moves to
-[01], the 15-minute hands-on path for installing SASE and launching a safe first run. Later posts will cover reusable
+The SASE Blog Series begins with [00], the argument for a durable operating layer around coding-agent work, then moves
+to [01], the 15-minute hands-on path for installing SASE and launching a safe first run. Later posts will cover reusable
 prompts, background automation, planning, review state, mobile control, editor integration, and the roadmap.
 
-| Post                                                                                                 | Status               |
-| ---------------------------------------------------------------------------------------------------- | -------------------- |
-| [\[00\] Why Coding Agents Need Orchestration](../blog/posts/why-coding-agents-need-orchestration.md) | Published 2026-05-08 |
-| [\[01\] Hello, SASE: Your First 15 Minutes](../blog/posts/hello-sase-your-first-15-minutes.md)       | Published 2026-05-10 |
+| Post                                                                                                          | Status               |
+| ------------------------------------------------------------------------------------------------------------- | -------------------- |
+| [\[00\] The Missing Operating Layer for Coding Agents](../blog/posts/why-coding-agents-need-orchestration.md) | Published 2026-05-08 |
+| [\[01\] Hello, SASE: Your First 15 Minutes](../blog/posts/hello-sase-your-first-15-minutes.md)                | Published 2026-05-10 |
 
 The remaining series entries are forthcoming. Until each one is published, the public site keeps the draft pages out of
 the navigation, generated archive, RSS feed, search index, and sitemap.

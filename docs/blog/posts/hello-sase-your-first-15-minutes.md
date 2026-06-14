@@ -10,7 +10,7 @@ categories:
 slug: hello-sase-your-first-15-minutes
 links:
   - SASE Blog Series: series/agentic-software-engineering.md
-  - "[00] Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
+  - "[00] The Missing Operating Layer for Coding Agents": blog/posts/why-coding-agents-need-orchestration.md
   - ACE TUI: ace.md
   - Spec-Driven Development: sdd.md
   - View on GitHub: https://github.com/sase-org/sase
@@ -27,8 +27,8 @@ favorite model takes to think.
 <!-- more -->
 
 This is [01] in the SASE Blog Series. If you'd rather read about _why_ a system like this exists before touching it,
-[\[00\] Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md) makes that argument. The two
-posts can be read in either order; this one runs first and names the parts afterward.
+[\[00\] The Missing Operating Layer for Coding Agents](why-coding-agents-need-orchestration.md) makes that argument. The
+two posts can be read in either order; this one runs first and names the parts afterward.
 
 ## Step 1 — Install SASE (≈90 seconds)
 
@@ -188,8 +188,8 @@ The names you'll keep bumping into, in one place:
 
 ## What to read next
 
-- [\[00\] Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md) — the conceptual half of the
-  series, for when you want the _why_ to match the _how_.
+- [\[00\] The Missing Operating Layer for Coding Agents](why-coding-agents-need-orchestration.md) — the conceptual half
+  of the series, for when you want the _why_ to match the _how_.
 - [SASE Blog Series](../../series/agentic-software-engineering.md) — all ten posts in one place.
 - [CLI reference](../../cli.md) — every `sase` subcommand on one page.
 - [The SASE repository](https://github.com/sase-org/sase) — source, issues, and project direction. If something on this
@@ -199,7 +199,7 @@ The names you'll keep bumping into, in one place:
 
 This is [01] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
 
-- Previous: [\[00\] Why Coding Agents Need Orchestration](why-coding-agents-need-orchestration.md).
+- Previous: [\[00\] The Missing Operating Layer for Coding Agents](why-coding-agents-need-orchestration.md).
 - Next: more series posts are forthcoming.
 - Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
   [ACE guide](../../ace.md).

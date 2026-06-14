@@ -54,7 +54,7 @@ nav:
   - Blog:
       - Blog Home: blog/index.md
       - SASE Blog Series: series/agentic-software-engineering.md
-      - "[00] Why Coding Agents Need Orchestration": blog/posts/why-coding-agents-need-orchestration.md
+      - "[00] The Missing Operating Layer for Coding Agents": blog/posts/why-coding-agents-need-orchestration.md
       - "[01] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
 
 theme:

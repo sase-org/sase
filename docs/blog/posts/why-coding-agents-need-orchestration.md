@@ -1,134 +1,628 @@
 ---
-title: "[00] Why Coding Agents Need Orchestration"
+title: "[00] The Missing Operating Layer for Coding Agents"
 date: 2026-05-08
-description:
-  Why coding-agent work needs durable orchestration around planning, state, review, dependencies, retries, and handoff.
+description: >-
+  SASE's first principles: XPrompts, SDD, Beads, ACE, AXE, plugins, and the durable operating layer around coding-agent
+  CLIs.
 categories:
   - Agentic Software Engineering
 slug: why-coding-agents-need-orchestration
 links:
   - SASE Blog Series: series/agentic-software-engineering.md
-  - Start with ACE: ace.md
+  - Hello, SASE: blog/posts/hello-sase-your-first-15-minutes.md
+  - XPrompts: xprompt.md
+  - Spec-Driven Development: sdd.md
+  - ACE TUI: ace.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
-# [00] Why Coding Agents Need Orchestration
+# [00] The Missing Operating Layer for Coding Agents
 
-Coding agents are strongest when they operate inside a workflow that can preserve intent, track state, and recover from
-interruptions. The model can produce a patch, but the surrounding engineering system has to remember what the work was
-for, where the change lives, what it depends on, how it should be reviewed, and what happens if the run stops halfway
-through.
+SASE is not a better model. SASE is the layer I wanted after realizing that the hard part of running coding agents is
+not always "can the model write the patch?" Sometimes the hard part is "where did the patch go?", "what was it trying to
+do?", "who is waiting on it?", "why did it start six follow-up agents while I was brushing my teeth?", and "can I please
+see the diff before the robot commits crimes against `just check`?"
+
+That layer needs reusable prompts, durable plans, dependency-aware work items, review records, background automation,
+notifications, and a control surface that lets humans steer without becoming a full-time air-traffic controller.
+
+SASE calls that layer **Structured Agentic Software Engineering**. This post is the map of the fundamentals: XPrompts,
+SDD, Beads, ACE, AXE, plugins, and why SASE wraps coding-agent CLIs instead of raw model APIs.
 
 <!-- more -->
 
-SASE calls that surrounding system **structured agentic software engineering**: software work where agents operate
-inside durable plans, work queues, review records, tests, commits, dependencies, and handoffs instead of only inside a
-chat transcript.
+If you want to install first and read philosophy later, jump to
+[\[01\] Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minutes.md). That post is the practical quickstart.
+This one explains what the pieces are and why they exist.
 
-If you want to try that system before reading the full argument, start with
-[\[01\] Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minutes.md).
+One notation note before we start:
 
-## The Single-Agent Happy Path Is Too Small
+> **Friction note:** Blocks like this call out SASE pain points, rough edges, or future improvements. SASE is useful
+> today, but it is not a marble statue. It is a useful toolbox with several labels still written in Sharpie.
 
-A one-off coding-agent prompt works well when the task is small, the repository is already checked out, and the result
-can be reviewed immediately. That path starts to break down when the work has any of these properties:
+## What SASE Is
 
-- The task needs planning before implementation.
-- Multiple changes have real dependencies.
-- A reviewer needs to understand why an agent made a change.
-- A failed run needs to be retried without losing the useful workspace state.
-- A later agent needs to continue from an earlier agent's output.
-- The workflow should work across local git, GitHub, or another provider.
+SASE is a local orchestration layer above coding-agent CLIs such as Codex, Claude Code, Gemini CLI, Qwen Code, and
+OpenCode. It gives those agents a common workflow: launch in isolated workspaces, expand reusable prompts, save prompt
+and response artifacts, track CL/PR-sized work as ChangeSpecs, coordinate dependency graphs with Beads, and supervise
+background work through AXE.
 
-Those are not model-quality problems. They are state-management problems.
+The repo split is intentionally boring:
 
-## Durable Intent Beats Chat History
+| Repo                                                         | What it does                                                                                                                                                  |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`sase`](https://github.com/sase-org/sase)                   | The Python host package: CLI, ACE TUI, AXE daemon, XPrompt expansion, SDD, Beads integration, config, and built-in providers.                                 |
+| [`sase-core`](https://github.com/sase-org/sase-core)         | Shared Rust core for deterministic data operations and cross-frontend APIs. It also houses the mobile gateway and XPrompt LSP crates.                         |
+| [`sase-github`](https://github.com/sase-org/sase-github)     | GitHub VCS/workspace provider plugin. It uses `gh` for PR operations and ships GitHub-focused xprompts such as `#gh`, `#new_pr_desc`, and `#prdd`.            |
+| [`sase-telegram`](https://github.com/sase-org/sase-telegram) | Telegram integration package. It runs as inbound/outbound AXE chops so you can receive notifications, answer approvals, and launch or steer agents from chat. |
+| [`sase-nvim`](https://github.com/sase-org/sase-nvim)         | Neovim integration for SASE syntax, xprompt completion, hover, diagnostics, and the XPrompt LSP.                                                              |
 
-Agent plans are ephemeral by default. They live in a session context window and are easy to lose, summarize badly, or
-detach from the code that eventually lands. SASE's [Spec-Driven Development](../../sdd.md) flow writes the expanded
-prompt and the approved plan to disk as first-class artifacts. Ordinary plans live as tales, executable multi-phase
-plans live as epics, and longer coordination plans live as legends.
+The short version: `sase` owns the cockpit, `sase-core` owns shared engine-room logic, and the plugins add providers or
+frontends without forcing the core workflow to become GitHub-only, Telegram-only, or Neovim-only.
 
-That gives future agents and humans a stable reference point:
+<!--
+ARCHITECTURE DIAGRAM BRIEF 1 - place here after the repo table.
+Title: "SASE as the operating layer"
+Shape: horizontal layered architecture diagram.
+Top layer: "Human surfaces" with ACE TUI, Telegram, Neovim/XPrompt LSP, future Web UI, future Mobile app.
+Middle layer: "SASE Python host" with XPrompts, agent launcher, AXE daemon, ChangeSpecs, SDD, Beads, VCS/workspace plugins.
+Right side attached to middle: "Provider CLIs" with Codex, Claude Code, Gemini, Qwen, OpenCode. Draw them as replaceable
+execution engines rather than the center of the system.
+Bottom layer: "sase-core Rust" with state/indexing, mobile gateway, xprompt LSP core, deterministic file/query helpers.
+Persistent storage under everything: ~/.sase plus repo-local sdd/.
+Make the visual point that SASE is not another model wrapper; it is the state/control plane around several CLIs.
+-->
+
+## Install The Smallest Useful Thing
+
+SASE needs Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and at least one authenticated coding-agent CLI. Install
+the core package:
 
 ```bash
-sase sdd list --kind epics
-sase sdd validate
+uv tool install sase --python 3.12
+sase version
+sase doctor
 ```
 
-The point is not paperwork. The point is that a plan can become an artifact with a path, frontmatter, history, and links
-to the work that executed it.
-
-## Work Needs Dependencies, Not Just Prompts
-
-Once work is split across agents, ordering matters. Some tasks can run in parallel; others need a previous phase to
-finish first. SASE uses [Beads](../../beads.md) as git-portable, issue-like work units for that coordination.
-
-A bead can represent a plan, an executable epic, or a phase inside an epic. Phase beads can depend on other phase beads,
-so `sase bead ready` can show only work whose blockers are closed:
+Add GitHub support when you want PR/workspace integration:
 
 ```bash
+uv tool install sase --python 3.12 --with sase-github
+gh auth login
+sase plugin doctor
+```
+
+Add Telegram support when you want chat-driven notifications and remote control:
+
+```bash
+uv tool install sase --python 3.12 --with sase-telegram
+sase plugin doctor
+```
+
+Install both plugins together if that is your normal setup:
+
+```bash
+uv tool install sase --python 3.12 --with sase-github --with sase-telegram
+```
+
+If you are replacing an existing `uv tool` install, add `--force` to the same command. The quickstart has the fuller
+walkthrough: [Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minutes.md).
+
+> **Friction note:** Plugin installation is improving, but it is still a little too easy to install `sase` correctly and
+> forget that `sase-github` also needs an authenticated `gh` CLI, while `sase-telegram` needs Telegram bot secrets and
+> AXE chops configured. `sase doctor` and `sase plugin doctor` are the first places to look when something feels
+> haunted. Technically it is not haunted. Usually.
+
+## SASE Wraps Agents, Not Models
+
+SASE deliberately wraps CLI agents rather than raw model APIs. A SASE provider plugin constructs commands for existing
+agent runtimes: Codex CLI, Claude Code, Gemini CLI, Qwen Code, OpenCode, or another provider that implements the same
+boundary. The [LLM provider docs](../../llms.md) describe that layer in detail.
+
+This buys a lot:
+
+- You inherit each CLI's auth, sandboxing, approval model, local tool behavior, and provider-specific improvements.
+- You can swap providers per prompt with `%model` instead of rewriting the orchestration layer.
+- SASE can focus on work state: prompts, workspaces, plans, Beads, ChangeSpecs, and UI.
+- Users can keep using the agent CLI they already trust, which is a boring advantage and therefore an excellent one.
+
+The trade-off is real: SASE has less direct control over token accounting, tool protocols, streaming details, and model
+semantics than it would have with raw APIs. It also inherits provider pricing and policy shifts. For example,
+[Anthropic says](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan) that
+starting **June 15, 2026**, Claude Agent SDK and `claude -p` usage moves to a separate monthly Agent SDK credit bucket.
+Past that credit, usage can flow to standard API-rate usage credits if enabled; otherwise those requests stop until the
+credit refreshes.
+
+That is not a reason to avoid provider CLIs. It is a reason to make the orchestration layer provider-aware, explicit,
+and replaceable.
+
+## The Codex App Is The Real Competitor
+
+I consider the [Codex app](https://developers.openai.com/codex/app) SASE's closest competitor. Not because it has the
+same architecture, but because it targets the same daily shape of work: many agent threads, local worktrees, review
+surfaces, automations, Git actions, IDE/app integration, and a human trying to keep the whole circus pointed at useful
+software.
+
+OpenAI's docs describe Codex app features such as
+[automations and background worktrees](https://developers.openai.com/codex/app/features) and pricing tiers that include
+Codex on the web, CLI, IDE extension, and app surfaces ([pricing](https://developers.openai.com/codex/pricing)). That is
+exactly the kind of product surface SASE has to take seriously.
+
+The difference is emphasis. Codex app is a polished product around OpenAI's agent stack. SASE is an open, local,
+provider-pluggable operating layer for people who want durable work records, Git-portable state, custom prompt systems,
+AXE automation, and cross-provider routing. That makes SASE less shiny in places and more hackable in others. I have
+made peace with this, mostly.
+
+## The Fundamental Loop
+
+Here is the SASE loop:
+
+1. You type a prompt, usually with one or more XPrompt references.
+2. SASE expands the prompt, strips directives, resolves workspace references, and launches one or more agents.
+3. Each agent runs in a managed workspace and writes prompt, transcript, status, and artifacts.
+4. If the work needs planning, SASE records it in `sdd/` as a prompt snapshot, tale, epic, or bead graph.
+5. ACE shows the live state. AXE watches the background state. Plugins translate VCS and notification operations.
+
+The docs that matter most at first are [XPrompts](../../xprompt.md), [SDD](../../sdd.md), [Beads](../../beads.md),
+[ACE](../../ace.md), [AXE](../../axe.md), [VCS providers](../../vcs.md), and [plugins](../../plugins.md).
+
+<!--
+FUNNY DIAGRAM BRIEF 1 - place here after "The Fundamental Loop".
+Title: "The prompt burrito"
+Shape: silly cutaway diagram of a burrito labeled in layers.
+Center: "tiny user prompt: fix the thing".
+Layers outward: config xprompt, markdown xprompt, multi-agent segments, directives, workspace ref, SDD/Beads metadata.
+Final arrow: "several agents with actual names instead of mystery chat tabs".
+Visual joke: a tiny warning label on the YAML wrapper reading "use only when structurally necessary".
+Keep it funny, but make the hierarchy legible.
+-->
+
+## XPrompts Are The Smallest Load-Bearing Idea
+
+An [XPrompt](../../xprompt.md) is a reusable prompt reference. You write `#foo`, SASE expands `foo`, and the agent sees
+the rendered text. It sounds small. It is not small. XPrompts are how SASE keeps prompts composable enough to reuse and
+structured enough to orchestrate.
+
+The hierarchy runs from tiny to large:
+
+| Level                             | Where it lives                                                                        | Use it for                                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Config xprompt                    | `xprompts:` in `sase.yml`                                                             | Aliases and tiny reusable phrases. Example: `x: "xprompt"` or `xw: "xprompt workflow"`.                                                             |
+| Structured config xprompt         | `sase.yml` with `content`, `description`, `input`                                     | Small templates with typed inputs.                                                                                                                  |
+| Markdown xprompt                  | `.xprompts/`, `xprompts/`, `~/.xprompts/`, project config dirs, plugins, or built-ins | Normal reusable prompt bodies. This is the sweet spot.                                                                                              |
+| Markdown xprompt with frontmatter | Same as above                                                                         | Inputs, snippets, skill metadata, and local helper xprompts.                                                                                        |
+| Multi-agent markdown xprompt      | Markdown file with top-level `---` segment separators                                 | Fan-out or sequenced multi-agent work without needing a YAML workflow. Prefer this for most multi-agent work.                                       |
+| YAML xprompt workflow             | `.yml` workflow file launched with `#!name` or embedded through a `prompt_part`       | Real control flow: `agent`, `bash`, `python`, `parallel`, approvals, step outputs, artifact passing. Use it only when the structure earns its keep. |
+
+My recommendation is simple: prefer markdown xprompts, including multi-agent markdown xprompts, until you genuinely need
+a YAML workflow. YAML workflows are powerful, but power is how a three-line prompt becomes a small enterprise
+resource-planning system wearing a fake mustache.
+
+Cases where YAML workflows really are necessary:
+
+- `#!sase/fix_just`, because it has to run setup/repair/check steps around the agent.
+- `#!sase/pylimit_split`, because it coordinates analysis and mechanical follow-up work.
+- `#!sase/refresh_docs`, because it compares docs drift and launches targeted documentation work.
+- Research swarms, because they need fan-out, aggregation, and artifacts.
+- Bead epic/legend creation workflows, because they write SDD plans, initialize beads, and launch follow-up work.
+
+The key distinction: a multi-agent markdown xprompt is excellent when the structure is "run these prompt segments, maybe
+with `%wait` ordering." A YAML workflow is for "run code, branch, gather outputs, call agents, validate, and continue."
+
+```text
+---
+input:
+  target:
+    type: str
+    description: What to improve.
+---
+%n:plan
+Plan a safe change for {{ target }}.
+---
+%n:code
+%w:plan
+#fork:plan
+Implement the approved safe change for {{ target }}.
+---
+%n:review
+%w:code
+Review the diff and call out risks.
+```
+
+That is a multi-agent markdown xprompt. It is readable. It does not need a workflow engine. It can sit happily in
+`xprompts/three_phase.md` until the day it needs Bash, Python, or step outputs.
+
+> **Friction note:** XPrompt discovery is intentionally flexible: repo-local, user-local, config-defined,
+> plugin-shipped, and built-in sources all participate. That is powerful, but the mental model can get slippery. Use
+> `sase xprompt list`, `sase xprompt explain`, and the ACE XPrompt Browser when you are not sure which `#thing` wins.
+
+## XPrompt Directives, In One Place
+
+Directives are `%` tags that change launch behavior. They are extracted from the prompt before the agent sees it. The
+full reference is in [XPrompts: Directives](../../xprompt.md#directives); this is the practical tour.
+
+| Directive  | Alias | What it does                                                                                                                               | Example                                                                                 |
+| ---------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `%model`   | `%m`  | Select a provider/model. Parenthesized multi-values fan out into one agent per model.                                                      | `%m:claude/opus audit this API` or `%m(codex/gpt-5.5,claude/sonnet) compare the design` |
+| `%name`    | `%n`  | Give an agent a stable name. Bare `%name` auto-names; `@` templates allocate suffixes; `!` force-reuses from confirmed TUI launches.       | `%n:reviewer`, `%n:build-@`, `%n:!reviewer`                                             |
+| `%wait`    | `%w`  | Start only after named agents or workflows complete successfully. Bare `%wait` waits for the most recently named agent.                    | `%w:planner`, `%wait:agent1,agent2`, `%wait`                                            |
+| `%time`    | `%t`  | Delay launch by a duration or until wall-clock time. Dependencies wait first, then the time floor applies.                                 | `%t:5m`, `%time:1h30m`, `%time:1430`, `%time:260415/0900`                               |
+| `%hide`    | `%h`  | Hide the agent from the default Agents tab display. ACE can toggle hidden rows back into view.                                             | `%h %n:background-log-checker inspect logs`                                             |
+| `%approve` | `%a`  | Run autonomously without pausing for human approval.                                                                                       | `%a #!sase/fix_just`                                                                    |
+| `%plan`    | `%p`  | Ask for a plan first, pause for approval, then launch the coder follow-up from the plan.                                                   | `%p %n:auth-plan plan a safe auth refactor`                                             |
+| `%epic`    |       | Plan first, then auto-approve the submitted plan as an SDD epic with beads and follow-up work.                                             | `%epic %n:checkout-epic plan the checkout rewrite`                                      |
+| `%edit`    | `%e`  | Open the editor and return the edited text to the ACE prompt bar instead of launching immediately.                                         | `%e draft a careful prompt for the migration`                                           |
+| `%repeat`  | `%r`  | Run the same prompt serially multiple times; later slots wait on earlier slots. A slot can set `STOP` to stop the chain.                   | `%r:5 %n:flaky-repro try to reproduce the flaky test once`                              |
+| `%group`   | `%g`  | Assign the agent's user-managed tag for ACE grouping and filtering.                                                                        | `%g:review review the latest ChangeSpec`                                                |
+| `%alt`     | `%(`  | Split one prompt into variants. Named variants become child suffixes; multiple `%alt` and multi-model directives form a Cartesian product. | `%alt(sec=focus on auth,perf=focus on hot paths) review this diff`                      |
+
+Directives compose. This launches two named model variants, groups them under `review`, and keeps them hidden unless you
+toggle hidden agents:
+
+```bash
+sase run '%n:api-review %g:review %h %m(codex/gpt-5.5,claude/sonnet) review the API boundary'
+```
+
+And this chains a planner, coder, and reviewer without inventing a YAML workflow:
+
+```text
+%n:planner
+Plan a safe docs refresh.
+---
+%n:coder
+%w:planner
+#fork:planner
+Implement the plan.
+---
+%n:reviewer
+%w:coder
+Review the diff and list follow-ups.
+```
+
+## Forks Instead Of Multi-Turn Agents
+
+SASE does not really have a first-class "multi-turn agent" concept. It has durable agent records, transcripts,
+artifacts, and `#fork`.
+
+`#fork:<agent-name>` injects sanitized previous conversation context into a new agent prompt. That gives you the useful
+part of "continue this agent" without making every workflow depend on one mutable, forever-growing chat session. It also
+plays nicely with `%wait`: wait for the prior agent to finish, then fork from it.
+
+```bash
+sase run '%n:design #cd:$(pwd) propose a small architecture improvement'
+sase run '%n:implement %w:design #fork:design implement the approved part only'
+```
+
+The forked agent gets a new record and a new workspace. You still have lineage, but the unit of work stays inspectable.
+
+## SDD: Prompts, Tales, Epics, And Beads
+
+SASE's [Spec-Driven Development](../../sdd.md) directory is where agent intent becomes durable project state.
+
+The core folders are:
+
+- `sdd/prompts/`: expanded prompt snapshots. XPrompts are resolved, directives are stripped, and the exact prompt that
+  launched work is saved with metadata.
+- `sdd/tales/`: ordinary approved implementation plans. A tale is the plan you want a human or agent to understand
+  later.
+- `sdd/epics/`: executable multi-phase plans. An epic can be turned into Beads and driven by `sase bead work`.
+- `sdd/beads/`: git-portable issue/dependency state: bead data, events, JSONL compatibility output, and the SQLite query
+  cache.
+
+The flow is intentionally concrete:
+
+```bash
+sase sdd list
+sase sdd validate
 sase bead ready
 sase bead show <bead-id>
+sase bead work <epic-id>
 ```
 
-For an epic-tier plan, `sase bead work <epic-id>` builds a dependency schedule from open phase beads, pre-claims the
-phases, launches one agent per phase, and then launches a final land agent after the phase agents complete. That is a
-different control shape from "ask one model to do everything"; it lets the workflow preserve dependency ordering while
-still using parallelism where the plan allows it.
+An epic can produce phase beads. Phase beads can depend on each other. `sase bead ready` shows only unblocked work, and
+`sase bead work <epic-id>` can launch agents for ready phases and then land the result when dependencies are satisfied.
 
-## Review State Has To Survive The Run
+This is where Steve Yegge's [Beads](https://github.com/gastownhall/beads) influence is most obvious. Beads makes
+agent-friendly work items git-portable and dependency-aware. SASE borrows that spirit, then integrates it with SDD
+plans, ChangeSpecs, ACE, AXE, and local workspace orchestration.
 
-Real code review needs more than an agent's final message. SASE's [ChangeSpec](../../change_spec.md) format records
-CL/PR-sized work with fields for the name, description, parent relationship, review identifier, status, commits, hooks,
-comments, mentors, and deltas. ACE, the terminal UI, uses those records as the main object of navigation.
+<!--
+ARCHITECTURE DIAGRAM BRIEF 2 - place here after the SDD/Beads section.
+Title: "Durable work state graph"
+Shape: graph/flow diagram, not a stack.
+Nodes: user prompt -> sdd/prompts snapshot -> tale OR epic -> phase beads in sdd/beads -> agent runs -> commits ->
+ChangeSpec -> PR/CL provider -> final archive.
+Side nodes: ACE reads ChangeSpecs/agents/beads; AXE watches waits/hooks/chops; Telegram emits/receives notifications.
+Draw dependencies between phase beads clearly, with ready beads highlighted.
+Purpose: show that chat history is not the source of truth; durable files and state records are.
+-->
 
-That separation matters because the review state stays outside the chat transcript. An operator can inspect a
-ChangeSpec, open the diff, run a follow-up agent, review mentor comments, or mail/submit the change through the
-workspace provider that matches the project.
+> **Friction note:** SDD has a lot of nouns. Prompt, tale, epic, legend, bead, ChangeSpec. The nouns are there because
+> the lifecycle stages are different, but the docs and UI need to keep doing better at teaching "what do I touch today?"
+> versus "what exists for the full research roadmap?"
 
-## Supervision Belongs Outside The Agent
+## ACE: The Cockpit
 
-Agents are not the right place to poll for background state forever. SASE's [Axe daemon](../../axe.md) runs lifecycle
-jobs such as hook completion, mentor launch, workflow cleanup, comment polling, `%wait` dependency checks, and error
-digests. The [ACE TUI](../../ace.md) starts Axe by default and gives operators one place to inspect ChangeSpecs, live
-agents, notifications, and automation state:
+`sase ace` opens the Agentic ChangeSpec Explorer, the terminal UI for daily work. ACE has three main tabs:
+
+- **PRs**: ChangeSpecs, statuses, commits, hooks, comments, mentor output, diffs, file deltas, mail/submit flows,
+  rewind, revert, restore, and archive operations.
+- **Agents**: live and recent agents, groups, tags, hidden rows, child workflow steps, prompt panels, transcript panels,
+  artifact viewers, tool metadata, file panels, retry/fork/wait/kill actions, and model/provider badges.
+- **Axe**: the daemon view: lumberjacks, chops, run history, live output, wait checks, hook checks, mentor checks,
+  comment polling, and error digests.
+
+<!--
+SCREENSHOT BRIEF 1 - place immediately after the ACE tab list.
+Asset suggestion: docs/images/blog/00-ace-agents-tab.png
+View: ACE Agents tab in a real terminal, 16:10 or 16:9 crop.
+Show several grouped agents: at least one running, one waiting via %wait, one completed, and one hidden/toggled row.
+Include the prompt preview panel on the right and a bottom prompt bar with completion hints visible.
+Make sure provider/model badges are legible, and include one group/tag side panel so the screenshot says "control
+surface" rather than "log list".
+Alt text: "ACE Agents tab showing grouped coding-agent runs, provider badges, wait state, prompt preview, and prompt
+input completion."
+-->
+
+ACE is fun because it treats agents as work records, not mystical chat bubbles. You can fork an agent, wait on one,
+retry a failed run, inspect its artifacts, view its changed files, jump to the workspace, or hide background noise until
+you care about it. You can also open the XPrompt Browser, insert snippets, complete directives, complete file paths, and
+compose multi-agent prompts directly in the prompt input widget.
+
+The VCS support is the part that makes ACE feel like engineering software instead of a prettier terminal. SASE's VCS
+providers are pluggy-based. Bare Git support ships with `sase`; GitHub support lives in `sase-github`. ACE shows the
+same review objects either way: file deltas, diffs, commit lists, ChangeSpec status, and provider-backed actions.
+
+In practice, this means you can:
+
+- inspect a ChangeSpec's diff from the TUI;
+- view added/modified/deleted file counts and line deltas;
+- rewind a PR/CL to an earlier state;
+- revert an agent's committed work and archive the ChangeSpec;
+- restore a reverted ChangeSpec by re-applying its diff;
+- launch follow-up agents against the exact work record you are looking at.
+
+<!--
+SCREENSHOT BRIEF 2 - place after the VCS paragraph above.
+Asset suggestion: docs/images/blog/00-ace-prs-diff.png
+View: ACE PRs tab focused on one ChangeSpec with file deltas and diff preview visible.
+Show status, commits, and at least one action hint for diff/revert/rewind. The key visual should be "this is not just
+chat; this is reviewable code state."
+Alt text: "ACE PRs tab showing a ChangeSpec with file deltas, commits, diff preview, and VCS actions."
+-->
+
+## AXE, Lumberjacks, And Chops
+
+[AXE](../../axe.md) is the background daemon. It runs **lumberjacks**, and lumberjacks run **chops**. Yes, the naming
+theme got away from me. No, I am not apologizing yet.
+
+A lumberjack is a scheduled lane of background work. A chop is one unit of work in that lane. Chops can be scripts or
+agent prompts. Built-in lumberjacks handle things like hook checks, wait checks, mentor checks, workflow cleanup,
+comment polling, stale-running cleanup, and error digests.
+
+My own machine has more opinionated chops in my chezmoi config:
+
+- `sase_fix_just`: periodically runs `#!sase/fix_just` against `sase` when there is not already an open fixer
+  ChangeSpec.
+- `sase_pylimit_split`: runs `#!sase/pylimit_split` to keep Python files from turning into archaeology sites.
+- `sase_refresh_docs`, `sase_core_refresh_docs`, `sase_github_refresh_docs`, `sase_nvim_refresh_docs`, and
+  `sase_telegram_refresh_docs`: keep docs fresh across the sibling repos when drift passes a threshold.
+- `gh_actions_fix`: checks configured GitHub repositories for failed Actions runs, de-dupes seen failures, fetches logs,
+  and launches a focused fixer agent.
+- `memory_episodes`: turns useful agent activity into memory episode candidates.
+- `tg_inbound` and `tg_outbound`: connect AXE to `sase-telegram`, polling chat input and sending notifications.
+
+That is the pattern: AXE is not "one more agent." It is the supervisor that notices state changes and schedules the
+right scripts or agents.
+
+<!--
+SCREENSHOT BRIEF 3 - optional, place after the AXE examples if the final post wants a third TUI image.
+Asset suggestion: docs/images/blog/00-ace-axe-tab.png
+View: ACE Axe tab with lumberjack tree on the left, recent chop runs in the center, and live output/history panel on the
+right. Include a Telegram chop and a GitHub Actions fixer chop if possible.
+Alt text: "ACE Axe tab showing lumberjacks, scheduled chops, recent run status, and live chop output."
+-->
+
+> **Friction note:** AXE is powerful, but it needs more friendly defaults and clearer onboarding. The daemon model is
+> correct; the "why is a lumberjack holding my CI logs?" learning curve is still a curve.
+
+## Telegram: The Pocket Cockpit
+
+[`sase-telegram`](https://github.com/sase-org/sase-telegram) gives SASE a chat bridge. It is implemented as AXE chops:
+an outbound chop reads notifications and sends them to Telegram, while an inbound chop polls Telegram and turns replies
+or slash commands into SASE actions.
+
+Useful things it can do:
+
+- notify you when an agent finishes, fails, asks a question, or needs plan approval;
+- let you approve, reject, or give feedback on plans from your phone;
+- list, kill, fork, retry, or inspect agents with slash commands;
+- show ChangeSpec and Bead summaries;
+- launch agents from messages, including messages with images or PDF attachments;
+- keep outbound notifications quiet when ACE sees you actively working at the terminal.
+
+<!--
+TELEGRAM SCREENSHOT BRIEF 1 - place after the feature list.
+Asset suggestion: docs/images/blog/00-telegram-plan-approval.png
+View: Telegram chat showing a SASE plan approval message with concise plan summary and inline buttons.
+Buttons should include Tale, Epic, Legend, Reject, and Feedback if the current UI supports them.
+The message should make clear which repo/workspace/agent produced the plan.
+Alt text: "Telegram message from SASE asking for plan approval with action buttons for Tale, Epic, Legend, Reject, and
+Feedback."
+-->
+
+<!--
+TELEGRAM SCREENSHOT BRIEF 2 - place after the paragraph below.
+Asset suggestion: docs/images/blog/00-telegram-agent-actions.png
+View: Telegram chat showing an agent completion notification with action buttons such as Fork, Wait, Retry, Kill, Files,
+or Changes, plus a small prompt excerpt.
+Include one example where the user replies with a slash command like /list or /changes.
+Alt text: "Telegram chat showing a SASE agent notification with follow-up action buttons and slash-command control."
+-->
+
+Telegram is not meant to replace ACE. It is the thing you use when an agent asks a yes/no question while you are away
+from the keyboard and your laptop is, unreasonably, not strapped to your face.
+
+## Neovim, The XPrompt LSP, And The Prompt Widget
+
+[`sase-nvim`](https://github.com/sase-org/sase-nvim) is the canonical editor integration. The important idea is not
+"Neovim gets a plugin," although it does. The important idea is that SASE exposes an XPrompt language server.
+
+The XPrompt LSP can provide:
+
+- completion for `#xprompt`, `#!workflow`, slash skills, directives, arguments, and file paths;
+- hover text for xprompt definitions and inputs;
+- diagnostics for malformed references or arguments;
+- go-to-definition for xprompt files;
+- snippets and skeleton insertion for typed xprompt inputs;
+- YAML schema help for workflow files.
+
+ACE's prompt input widget overlaps with that on purpose. It uses the same catalog and helper machinery for directive
+completion, xprompt insertion, slash-skill insertion, argument hints, snippets, file completion, and prompt history.
+
+The division of labor is ergonomic: ACE is fastest for launching and steering work in the cockpit; Neovim is better for
+writing longer prompt files, editing workflow YAML, navigating xprompt definitions, and using editor-native muscle
+memory. The same prompt system should feel familiar in both places.
+
+> **Friction note:** The editor story should not be Neovim-only forever. `sase-nvim` is the reference client because I
+> live there, but the LSP exists so other editors can use the same xprompt intelligence without copying SASE internals.
+
+## Scarcity Is Coming For Our Robot Budgets
+
+I am using **AI era of scarcity** as my shorthand for a trend I picked up from
+[The AI Daily Brief](https://podcasts.apple.com/us/podcast/the-ai-daily-brief-artificial-intelligence-news/id1680633614)
+and its "token scarcity" framing: the era of infinite-feeling subsidized inference is giving way to usage limits,
+provider tiers, routing decisions, and pricing details that matter.
+
+SASE is an answer to that world because it assumes agent work should be schedulable, inspectable, and routable across
+providers. The `worker_models` config field is a small example:
+
+```yaml
+llm_provider:
+  provider: codex
+  worker_models:
+    claude: codex/gpt-5.5
+    codex: claude/opus
+```
+
+That means delegated worker-lane jobs can use a different provider/model than the primary lane. If the primary planner
+is Claude, workers can go to Codex. If the primary planner is Codex, workers can go to Claude Opus. The goal is not
+"always use the biggest model." The goal is "put scarce reasoning where it matters and route routine follow-up work
+somewhere sensible."
+
+The same idea appears in prompts:
 
 ```bash
-sase ace
-sase axe lumberjack status
+sase run '%n:api-audit %m(codex/gpt-5.5,claude/sonnet) audit the API boundary and compare findings'
 ```
 
-This keeps long-running supervision in the orchestration layer. The agent can focus on the current engineering task,
-while the daemon handles recurring checks and dependency unblocking.
+That launches a model fan-out. Sometimes the right answer is not trusting one model harder. Sometimes it is asking two
+models, comparing the overlap, and letting ACE keep the results from turning into tab soup.
 
-## Provider CLIs Are Tools, Not The System
+> **Friction note:** SASE needs better budget visibility. It can route work today, but the future version should make
+> cost, quota, rate limits, and provider health visible in the same way ACE makes agent state visible.
 
-Coding-agent CLIs and hosted model APIs are valuable execution engines, but they should not own every part of the
-engineering workflow. SASE puts a provider-independent layer above them:
+## Useful Commands
 
-- [XPrompts](../../xprompt.md) package reusable prompt fragments, standalone workflows, typed inputs, and multi-agent
-  fan-out.
-- [Workflow specs](../../workflow_spec.md) define repeatable multi-step pipelines with agent, bash, Python, prompt-part,
-  parallel, and approval steps.
-- [Workspace providers](../../workspace.md) resolve references such as `#cd:<path>`, `#git:<ref>`, or GitHub-backed refs
-  into project workspaces and review operations.
+These are the commands I reach for most:
 
-The goal is portability. The durable objects are plans, beads, ChangeSpecs, workflow definitions, and workspace
-references. Individual model providers and VCS hosts remain replaceable parts of the execution path.
+| Command                                | Why you use it                                                       |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `sase doctor`                          | Read-only install, config, provider, project, and state diagnostics. |
+| `sase version`                         | Exact SASE, Rust core, and plugin package inventory.                 |
+| `sase ace`                             | Open the TUI cockpit.                                                |
+| `sase run "..."`                       | Launch an agent, xprompt, or workflow.                               |
+| `sase agents status`                   | See active and recent agent runs from the terminal.                  |
+| `sase xprompt list`                    | See available xprompts and workflows.                                |
+| `sase xprompt explain "#foo"`          | Inspect how a prompt reference resolves.                             |
+| `sase xprompt graph "#!workflow"`      | Visualize workflow structure.                                        |
+| `sase plan`                            | Review, approve, and manage submitted plans.                         |
+| `sase sdd list` / `sase sdd validate`  | Inspect and validate SDD artifacts.                                  |
+| `sase bead ready` / `sase bead work`   | Find unblocked bead work or execute an epic.                         |
+| `sase axe lumberjack status`           | Check scheduled background automation.                               |
+| `sase plugin doctor`                   | Verify plugin entry points and chop scripts.                         |
+| `sase workspace open -p <project> <n>` | Open the matching numbered workspace for a sibling project.          |
+| `sase lsp`                             | Start the XPrompt language server for editor integrations.           |
+| `sase mobile gateway start`            | Start the workstation-hosted mobile gateway.                         |
 
-## What Orchestration Buys
+The [CLI reference](../../cli.md) is the full inventory.
 
-Orchestration is useful when it turns agent output into normal engineering work:
+## The Papers Behind The Name
 
-- A plan has a path and a history.
-- A task has dependencies and a status.
-- A change has review metadata and commits.
-- A retry can see what already happened.
-- A handoff can point to artifacts instead of asking someone to reconstruct context from chat.
+SASE is heavily inspired by the paper
+["Agentic Software Engineering: Foundational Pillars and a Research Roadmap"](https://arxiv.org/abs/2509.06216). The
+paper frames Agentic Software Engineering as more than code generation: humans and agents need new actors, processes,
+tools, and artifacts. Its ACE/AEE vocabulary directly shaped SASE's naming: ACE is the human command environment, and
+AXE is SASE's practical execution/supervision daemon.
 
-That is the practical reason coding agents need orchestration. The model can write code, but the system around the model
-has to make the work durable, reviewable, resumable, and transferable.
+SASE is also inspired by IBM's [Prompt Declaration Language](https://github.com/IBM/prompt-declaration-language) and the
+[PDL paper](https://arxiv.org/abs/2410.19135). PDL argues for declarative, composable prompt programs that keep prompts
+visible rather than burying them in framework code. SASE's YAML xprompt workflows borrow that idea, then specialize it
+for local software-engineering work: agent steps, Bash/Python steps, workspace references, SDD files, Beads, and VCS
+state.
+
+The lesson from both papers is the same: agentic coding becomes agentic software engineering only when prompts,
+artifacts, process, and supervision become first-class.
+
+## Gastown, Beads, And The Interface Question
+
+Steve Yegge's [Beads](https://github.com/gastownhall/beads) and [Gas Town](https://docs.gastownhall.ai/) have also
+influenced SASE. Gas Town's docs describe a world of towns, rigs, the Mayor, Deacon, Witness, Refinery, crew workspaces,
+and polecat worker worktrees. The phrase from the docs that best captures the philosophy is the "Propulsion Principle":
+if work lands on an agent's hook, the agent runs it.
+
+SASE agrees with the premise that agents can run agents and perform useful autonomous work. Where it differs is focus.
+Gas Town appears to explore what becomes possible when a town of agents dispatches and executes work through roles and
+autonomous propulsion. SASE assumes that premise is true, then asks a narrower product question: what is the right local
+interface for one developer supervising many coding agents across real repos, real diffs, real plans, and real PRs?
+
+One concrete difference is xprompt workflows. SASE YAML workflows can intersperse agent calls with Python and Bash
+steps, pass outputs, branch, parallelize, and validate. I did not find an equivalent control surface in the public Gas
+Town docs; Gas Town's public model is more role/rig/dispatch oriented. That does not make one approach universally
+better. It just means SASE leans harder into "prompt/workflow as local programmable artifact."
+
+<!--
+FUNNY DIAGRAM BRIEF 2 - place here after the Gastown comparison.
+Title: "Mayor vs cockpit"
+Shape: split-panel cartoon.
+Left panel: Gas Town as city hall. A Mayor at a desk dispatches beads to rigs, with polecats in hard hats running to
+worktrees. Label it "autonomous town experiments".
+Right panel: SASE as a terminal cockpit. A developer sits at ACE with levers labeled XPrompts, Beads, AXE, VCS, and
+worker_models; several agent planes are queued on a runway.
+Caption: "Both believe agents can do work. SASE obsesses over the control surface."
+Keep it affectionate and clearly respectful of Gastown/Beads.
+-->
+
+## Future Directions: Memory, Mobile, Web
+
+Three directions are incomplete but important:
+
+- [Memory](../../memory.md): SASE already has short-term project memory, audited long-term memory reads, proposal-based
+  writes, and memory episodes. The next frontier is better retrieval, staleness handling, trust boundaries, and UI.
+- Mobile: the [mobile gateway](../../mobile_gateway.md) and Android MVP work point toward a real mobile SASE client.
+  Telegram covers a lot today, but a purpose-built app can expose richer state than chat buttons.
+- Web: the Rust core boundary exists partly so a future web interface can share the same domain behavior as ACE,
+  Telegram, and editor integrations instead of becoming a separate almost-SASE.
+
+These are exciting because they all point at the same principle: the agent state should be durable and shared across
+surfaces. The terminal should not be the only window into the work.
+
+> **Friction note:** The future-surface story is promising but unfinished. Today, ACE is the daily driver; Telegram and
+> Neovim are useful companions; mobile and web are still early. The architecture is moving in the right direction, but
+> nobody should pretend the phone app is already the Death Star. Also, given my luck, the exhaust port would be YAML.
+
+## The Point
+
+Coding agents need more than better prompts. They need an operating layer: a place where intent, workspaces, plans,
+dependencies, review state, automation, notifications, and provider choices become explicit.
+
+That is what SASE is trying to be.
+
+Not the model. Not the IDE. Not the VCS host. The layer that lets those pieces cooperate without making a human keep the
+entire system in short-term memory and twelve terminal tabs.
+
+The next post is the practical on-ramp:
+[\[01\] Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minutes.md).
 
 ## Series Navigation
 
