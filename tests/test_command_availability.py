@@ -374,6 +374,29 @@ def test_jump_to_next_unread_done_agent_requires_unread_completed_agent() -> Non
     )
 
 
+def test_revert_agent_available_with_marks_or_revertable_focus() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["leader.revert_agent"]
+    running = _make_agent(status="RUNNING")
+    done = _make_agent(status="DONE")
+
+    # No marks: needs a focused revertable agent.
+    assert not is_command_available(spec, CommandContext(tab="agents", agent=running))
+    assert is_command_available(spec, CommandContext(tab="agents", agent=done))
+
+    # Marks present: runnable even when the focused row is non-revertable or
+    # there is no focused agent at all (group banner).
+    assert is_command_available(
+        spec, CommandContext(tab="agents", agent=running, mark_count=2)
+    )
+    assert is_command_available(spec, CommandContext(tab="agents", mark_count=2))
+
+    # Tab scoping still applies — marks on the CLs tab don't surface it.
+    assert not is_command_available(
+        spec, CommandContext(tab="changespecs", mark_count=2)
+    )
+
+
 def test_jump_to_next_stopped_agent_requires_stopped_agent() -> None:
     catalog = _catalog_by_id()
     spec = catalog["leader.jump_to_next_stopped_agent"]

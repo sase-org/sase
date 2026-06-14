@@ -543,6 +543,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         has_unread_completed_agent: bool = False,
         has_stopped_agent: bool = False,
         has_revertable_agent: bool = False,
+        marked_agent_count: int = 0,
     ) -> None:
         """Update bindings to show leader mode options.
 
@@ -555,6 +556,9 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             has_stopped_agent: Whether any stopped agent is loaded.
             has_revertable_agent: Whether the selected Agents-tab row is a
                 done/failed agent whose commits can be reverted.
+            marked_agent_count: Number of marked agents; when non-zero ``,r``
+                reverts every marked agent and the footer reads
+                ``revert marked (N)``.
         """
         d = footer_key_display
         keys = self._kr().leader_mode.keys
@@ -596,7 +600,11 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         bindings.append((k("prompt_history_cancelled"), "history (+cancelled)"))
         if current_tab == "agents":
             bindings.append((k("kill_and_edit"), "kill & edit"))
-            if has_revertable_agent:
+            if marked_agent_count > 0:
+                bindings.append(
+                    (k("revert_agent"), f"revert marked ({marked_agent_count})")
+                )
+            elif has_revertable_agent:
                 bindings.append((k("revert_agent"), "revert agent"))
             bindings.append((k("capture_agents_repro"), "capture repro"))
             bindings.append((k("toggle_agents_repro_checks"), "repro checks"))

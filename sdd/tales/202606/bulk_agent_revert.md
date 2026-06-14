@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-14 11:46:16
-status: wip
+status: done
 prompt: sdd/prompts/202606/bulk_agent_revert.md
 ---
 # Bulk Agent Revert Plan

@@ -285,6 +285,11 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return agent is not None
 
     if spec.id == "leader.revert_agent":
+        # Marks drive a bulk revert of every marked agent, so the command is
+        # runnable when marks exist even if the focused row is a group banner
+        # or a non-revertable agent.
+        if ctx.mark_count > 0:
+            return True
         return agent is not None and is_revertable_agent_status(agent.status)
 
     return True

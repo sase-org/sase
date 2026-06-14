@@ -664,3 +664,25 @@ def test_footer_omits_revert_on_non_agents_tabs() -> None:
     for tab in ("changespecs", "axe"):
         footer.update_leader_bindings(current_tab=tab, has_revertable_agent=True)
         assert "revert agent" not in _last_labels(captured)
+
+
+def test_footer_advertises_revert_marked_when_marks_exist() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    footer.update_leader_bindings(current_tab="agents", marked_agent_count=3)
+    assert "r" in _last_keys(captured)
+    assert "revert marked (3)" in _last_labels(captured)
+    assert "revert agent" not in _last_labels(captured)
+
+
+def test_footer_marked_revert_overrides_single_revert_label() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    # Marks take priority over the single-agent "revert agent" label.
+    footer.update_leader_bindings(
+        current_tab="agents", has_revertable_agent=True, marked_agent_count=2
+    )
+    assert "revert marked (2)" in _last_labels(captured)
+    assert "revert agent" not in _last_labels(captured)

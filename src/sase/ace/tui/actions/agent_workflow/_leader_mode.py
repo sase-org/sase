@@ -320,6 +320,7 @@ class LeaderModeMixin:
         has_unread_completed_agent = False
         has_stopped_agent = False
         has_revertable_agent = False
+        marked_agent_count = 0
         if current_tab == "agents":
             from ...models.agent_status import is_revertable_agent_status
 
@@ -329,6 +330,7 @@ class LeaderModeMixin:
                 has_revertable_agent = is_revertable_agent_status(agent.status)
             has_unread_completed_agent = self._has_unread_completed_agent()  # type: ignore[attr-defined]
             has_stopped_agent = self._has_stopped_agent()  # type: ignore[attr-defined]
+            marked_agent_count = len(getattr(self, "_marked_agents", set()))
 
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
@@ -340,6 +342,7 @@ class LeaderModeMixin:
                 has_unread_completed_agent=has_unread_completed_agent,
                 has_stopped_agent=has_stopped_agent,
                 has_revertable_agent=has_revertable_agent,
+                marked_agent_count=marked_agent_count,
             )
         except Exception:
             pass

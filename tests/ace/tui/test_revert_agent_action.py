@@ -5,7 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.ace.revert_agent import RevertCommit, RevertPreview
+from sase.ace.revert_agent import (
+    BulkRevertPreview,
+    RevertCommit,
+    RevertPreview,
+    RevertTarget,
+)
 from sase.ace.tui.actions.agents._revert import AgentRevertMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -19,6 +24,8 @@ class _FakeApp(AgentRevertMixin):
         self.pushed_modals: list[Any] = []
         self.modal_callbacks: list[Any] = []
         self.refresh_sources: list[str] = []
+        self._agents_with_children: list[Agent] = []
+        self._marked_agents: set[Any] = set()
 
     def _get_selected_agent(self) -> Agent | None:
         return self._selected
@@ -37,11 +44,21 @@ class _FakeApp(AgentRevertMixin):
     def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
         self.refresh_sources.append(source)
 
+    def _prune_stale_marked_agents(self) -> None:
+        live = {a.identity for a in self._agents_with_children}
+        self._marked_agents &= live
 
-def _agent(status: str, *, name: str | None = "foo", ws: str | None = None) -> Agent:
+
+def _agent(
+    status: str,
+    *,
+    name: str | None = "foo",
+    ws: str | None = None,
+    cl: str = "cl",
+) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="cl",
+        cl_name=cl,
         project_file="/proj/cl/spec",
         status=status,
         start_time=None,
@@ -49,6 +66,14 @@ def _agent(status: str, *, name: str | None = "foo", ws: str | None = None) -> A
         workspace_num=0,
         workspace_dir=ws,
     )
+
+
+def _bulk_app(marked: list[Agent], current_tab: str = "agents") -> _FakeApp:
+    """A FakeApp whose marked set + children are the given agents."""
+    app = _FakeApp(None, current_tab=current_tab)
+    app._agents_with_children = list(marked)
+    app._marked_agents = {a.identity for a in marked}
+    return app
 
 
 def test_noop_on_non_agents_tab() -> None:
@@ -129,6 +154,128 @@ def test_confirm_modal_submits_revert_and_callback_refreshes(tmp_path: Path) -> 
     assert app.submitted[0]["task_type"] == "revert_agent"
 
     # Simulate task completion success -> Agents tab refresh scheduled.
+    on_complete = app.submitted[0]["kwargs"]["on_complete"]
+
+    class _Completion:
+        success = True
+
+    on_complete(_Completion())
+    assert app.refresh_sources == ["revert_agent"]
+
+
+# ---------------------------------------------------------------------------
+# Bulk (marked-agent) revert
+# ---------------------------------------------------------------------------
+
+
+def test_no_marks_keeps_selected_agent_behavior(tmp_path: Path) -> None:
+    app = _FakeApp(_agent("DONE", name="foo", ws=str(tmp_path)))
+    # No marks -> single selected-agent preview, not a bulk dedup key.
+    app._start_revert_selected_agent()
+    assert len(app.submitted) == 1
+    dedup = app.submitted[0]["kwargs"]["dedup_key"]
+    assert dedup == f"revert_preview:foo:{tmp_path}"
+    assert "bulk" not in dedup
+
+
+def test_marks_route_to_single_bulk_preview(tmp_path: Path) -> None:
+    foo = _agent("DONE", name="foo", ws=str(tmp_path), cl="cl_foo")
+    bar = _agent("DONE", name="bar", ws=str(tmp_path), cl="cl_bar")
+    app = _bulk_app([foo, bar])
+
+    app._start_revert_selected_agent()
+
+    assert len(app.submitted) == 1
+    submitted = app.submitted[0]
+    assert submitted["task_type"] == "revert_preview"
+    dedup = submitted["kwargs"]["dedup_key"]
+    assert dedup.startswith("revert_preview:bulk:")
+    assert "bar,foo" in dedup  # sorted agent names
+    assert submitted["kwargs"]["reload_on_complete"] is False
+
+
+def test_stale_marks_warn_and_do_not_submit() -> None:
+    foo = _agent("DONE", name="foo", ws=None, cl="cl_foo")
+    app = _bulk_app([])  # no live children
+    app._marked_agents = {foo.identity}  # mark references a vanished row
+
+    app._start_revert_selected_agent()
+
+    assert app.submitted == []
+    assert app.notifications[-1] == ("No marked agents remain", "warning")
+
+
+def test_non_revertable_marks_skipped_with_feedback(tmp_path: Path) -> None:
+    done = _agent("DONE", name="foo", ws=str(tmp_path), cl="cl_foo")
+    running = _agent("RUNNING", name="bar", ws=str(tmp_path), cl="cl_bar")
+    app = _bulk_app([done, running])
+
+    app._start_revert_selected_agent()
+
+    # The running agent is skipped (with feedback) but the done one proceeds.
+    assert len(app.submitted) == 1
+    assert app.submitted[0]["task_type"] == "revert_preview"
+    assert any("Skipping" in msg and sev == "warning" for msg, sev in app.notifications)
+
+
+def test_all_non_revertable_marks_do_not_submit(tmp_path: Path) -> None:
+    a = _agent("RUNNING", name="foo", ws=str(tmp_path), cl="cl_foo")
+    b = _agent("RUNNING", name="bar", ws=str(tmp_path), cl="cl_bar")
+    app = _bulk_app([a, b])
+
+    app._start_revert_selected_agent()
+
+    assert app.submitted == []
+    assert any("revertable" in msg for msg, _ in app.notifications)
+
+
+def test_mixed_workspace_marks_error_and_do_not_submit(tmp_path: Path) -> None:
+    ws1 = tmp_path / "w1"
+    ws2 = tmp_path / "w2"
+    ws1.mkdir()
+    ws2.mkdir()
+    foo = _agent("DONE", name="foo", ws=str(ws1), cl="cl_foo")
+    bar = _agent("DONE", name="bar", ws=str(ws2), cl="cl_bar")
+    app = _bulk_app([foo, bar])
+
+    app._start_revert_selected_agent()
+
+    assert app.submitted == []
+    assert app.pushed_modals == []
+    assert any(
+        "multiple workspaces" in msg and sev == "error"
+        for msg, sev in app.notifications
+    )
+
+
+def test_confirm_bulk_preview_submits_execute_and_refreshes(tmp_path: Path) -> None:
+    app = _FakeApp(None)
+    preview = BulkRevertPreview(
+        workspace_dir=str(tmp_path),
+        targets=(
+            RevertTarget("foo", "foo", str(tmp_path)),
+            RevertTarget("bar", "bar", str(tmp_path)),
+        ),
+        commits=(
+            RevertCommit(sha="abc", full_sha="abc123", subject="s", agent_tag="foo"),
+        ),
+        matched_target_names=("foo", "bar"),
+    )
+    representative = _agent("DONE", name="foo", ws=str(tmp_path), cl="cl_foo")
+
+    app._open_confirm_bulk_revert_modal(preview, representative)
+    assert len(app.pushed_modals) == 1
+
+    # Decline -> nothing submitted.
+    app.modal_callbacks[0](False)
+    assert app.submitted == []
+
+    # Confirm -> one bulk execute task is submitted.
+    app.modal_callbacks[0](True)
+    assert len(app.submitted) == 1
+    assert app.submitted[0]["task_type"] == "revert_agent"
+    assert app.submitted[0]["kwargs"]["dedup_key"].startswith("revert_agent:bulk:")
+
     on_complete = app.submitted[0]["kwargs"]["on_complete"]
 
     class _Completion:
