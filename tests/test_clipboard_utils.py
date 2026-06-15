@@ -4,7 +4,11 @@ import subprocess
 from subprocess import CalledProcessError
 from unittest.mock import call, patch
 
+import pytest
+
 from sase.core.clipboard import _clipboard_commands, copy_to_system_clipboard
+
+pytestmark = pytest.mark.real_clipboard
 
 
 def test_copy_to_system_clipboard_tries_linux_fallbacks() -> None:

@@ -157,9 +157,13 @@ def _default_test_llm_cli(monkeypatch: pytest.MonkeyPatch, _test_llm_bin: Path) 
 
 
 @pytest.fixture(autouse=True)
-def _mock_system_clipboard():
-    """Prevent tests from touching the real system clipboard."""
-    with patch("sase.ace.tui.widgets._vim_normal_ops.copy_to_system_clipboard"):
+def _mock_system_clipboard(request: pytest.FixtureRequest):
+    """Prevent tests from touching the real system clipboard / X11 display."""
+    if request.node.get_closest_marker("real_clipboard"):
+        yield
+        return
+
+    with patch("sase.core.clipboard._clipboard_commands", return_value=[]):
         yield
 
 

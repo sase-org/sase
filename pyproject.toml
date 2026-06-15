@@ -209,6 +209,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "terminal_smoke: marks optional real-terminal TUI smoke tests",
     "visual: marks visual regression tests",
+    "real_clipboard: test exercises the real clipboard command resolution (opts out of the clipboard guard)",
 ]
 
 # --- Coverage ---

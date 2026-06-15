@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-15 19:04:59
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_x11_clipboard_test_leak.md
 ---
 # Fix X11 authentication errors triggered by the test suite
