@@ -535,6 +535,7 @@ def _status_text(status: str) -> Text:
         "WAITING": "bold yellow",
         "WAITING INPUT": "bold yellow",
         "QUESTION": "bold yellow",
+        "ANSWERED": "bold #5FD7FF",
         "PLAN": "bold #FFD787",
         "PLAN APPROVED": "bold #FFD787",
         "TALE APPROVED": "bold #FFD787",
@@ -568,6 +569,7 @@ _ACTIVE_STATUSES = frozenset(
         "PLAN APPROVED",
         "TALE APPROVED",
         "QUESTION",
+        "ANSWERED",
         "RETRYING",
     }
 )

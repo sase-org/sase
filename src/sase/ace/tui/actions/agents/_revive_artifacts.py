@@ -179,6 +179,7 @@ class ArtifactRestorationMixin:
             "PLAN APPROVED",
             "TALE APPROVED",
             "QUESTION",
+            "ANSWERED",
         }:
             return "running"
         return status
@@ -208,6 +209,7 @@ class ArtifactRestorationMixin:
             "PLAN APPROVED",
             "TALE APPROVED",
             "QUESTION",
+            "ANSWERED",
         }:
             return "in_progress"
         return status

@@ -342,6 +342,70 @@ def test_status_override_plan_clears_stale_question_for_running_root() -> None:
     assert root.identity not in app._agent_pre_question_status
 
 
+def test_status_override_plan_applies_answered_over_loaded_question() -> None:
+    """An ANSWERED override wins over a loader-produced QUESTION row.
+
+    The loader still sees ``pending_question.json`` (status QUESTION) until the
+    runner consumes the response; the optimistic ANSWERED override must hold.
+    """
+    agent = _make_agent(cl_name="ask", status="QUESTION")
+    app = FakeAgentApp()
+    app._agent_status_overrides = {agent.identity: "ANSWERED"}
+    app._agents = [agent]
+
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+    )
+    plan = _compute_finalize_plan([agent], snapshot)
+
+    assert plan.overrides.overrides_to_apply == [(agent.identity, "ANSWERED")]
+    assert plan.overrides.cleared_identities == []
+
+    app._finalize_agent_list(
+        on_agents_tab=False,
+        selected_identity=None,
+        save_unfiltered=False,
+        fold_filter_already_applied=True,
+        precomputed_plan=plan,
+    )
+
+    assert agent.status == "ANSWERED"
+    assert app._agent_status_overrides[agent.identity] == "ANSWERED"
+
+
+def test_status_override_plan_clears_answered_when_running() -> None:
+    """An ANSWERED override clears once the loader shows the agent running."""
+    agent = _make_agent(cl_name="ask", status="RUNNING")
+    app = FakeAgentApp()
+    app._agent_status_overrides = {agent.identity: "ANSWERED"}
+    app._agent_pre_question_status = {agent.identity: "RUNNING"}
+    app._agents = [agent]
+
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+    )
+    plan = _compute_finalize_plan([agent], snapshot)
+
+    assert plan.overrides.overrides_to_apply == []
+    assert plan.overrides.cleared_identities == [agent.identity]
+
+    app._finalize_agent_list(
+        on_agents_tab=False,
+        selected_identity=None,
+        save_unfiltered=False,
+        fold_filter_already_applied=True,
+        precomputed_plan=plan,
+    )
+
+    assert agent.status == "RUNNING"
+    assert agent.identity not in app._agent_status_overrides
+    assert agent.identity not in app._agent_pre_question_status
+
+
 def test_sync_finalize_clears_stale_question_for_running_root() -> None:
     """The synchronous finalizer matches the worker status-override plan."""
     root = _make_agent(

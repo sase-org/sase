@@ -194,6 +194,41 @@ def test_format_agent_option_plan_approved_active_suffix_has_running_marker() ->
     assert "✋" not in suffix.plain
 
 
+def test_format_agent_option_answered_active_suffix_has_running_marker() -> None:
+    """An ANSWERED row with a run_start keeps ticking (no user-paused hand)."""
+    _, suffix, _ = format_agent_option(
+        agent(
+            status="ANSWERED",
+            start=datetime(2026, 5, 6, 14, 0, 0),
+            run_start=datetime(2026, 5, 6, 14, 0, 0),
+        ),
+        0,
+        is_selected=False,
+        now=datetime(2026, 5, 6, 14, 5, 30),
+    )
+
+    assert suffix.plain == "🏃‍♂️ 5m30s"
+    assert "✋" not in suffix.plain
+
+
+def test_format_agent_option_answered_status_uses_explicit_style() -> None:
+    """The ANSWERED status renders with its explicit bright-azure style."""
+    left, _, _ = format_agent_option(
+        agent(status="ANSWERED", start=datetime(2026, 5, 6, 14, 0, 0)),
+        0,
+        is_selected=False,
+        now=datetime(2026, 5, 6, 14, 5, 0),
+    )
+
+    assert "ANSWERED" in left.plain
+    answered_styles = [
+        span.style
+        for span in left.spans
+        if left.plain[span.start : span.end] == "ANSWERED"
+    ]
+    assert answered_styles == ["bold #5FD7FF"]
+
+
 def test_format_agent_option_approved_linked_coder_child_has_running_marker() -> None:
     row_agent = agent(
         status="TALE APPROVED",

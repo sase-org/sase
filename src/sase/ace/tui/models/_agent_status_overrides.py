@@ -207,8 +207,8 @@ def _planner_child_status(
     """Status for the logical planner child derived from a family root."""
     if parent.status in {"STARTING", "WAITING", "RUNNING", "FAILED", "PLAN REJECTED"}:
         return parent.status
-    if parent.status == "QUESTION":
-        return "QUESTION"
+    if parent.status in {"QUESTION", "ANSWERED"}:
+        return parent.status
     if all_agents is not None and _has_family_followup_child(parent, all_agents):
         return "DONE"
     if _has_unanswered_completed_question(parent):

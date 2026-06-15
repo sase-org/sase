@@ -55,6 +55,7 @@ _LIVE_FILE_REFRESH_STATUSES = frozenset(
         "PLAN APPROVED",
         "TALE APPROVED",
         "QUESTION",
+        "ANSWERED",
         "RETRYING",
     }
 )

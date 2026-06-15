@@ -238,6 +238,10 @@ def format_agent_option(
                 )
     elif agent.status == "QUESTION":
         text.append(agent.status, style="bold #FFAF00")  # Amber/orange
+    elif agent.status == "ANSWERED":
+        # Transient post-answer state: distinct bright azure, set apart from
+        # QUESTION amber, RUNNING gold, and approved-plan teal.
+        text.append(agent.status, style="bold #5FD7FF")  # Bright cyan/azure
     elif agent.status == "RETRYING":
         countdown = ""
         if agent.retry_next_at_epoch:

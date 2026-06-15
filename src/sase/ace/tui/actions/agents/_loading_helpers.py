@@ -20,6 +20,9 @@ from ._refresh_trace import classify_agents_data_cost
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
 
+# Loaded statuses that mean the agent has resumed past an asking/answered
+# pause: it is executing again or a plan-action milestone landed. An in-memory
+# QUESTION or ANSWERED override is stale once the loader reports any of these.
 _QUESTION_OVERRIDE_PROGRESS_STATUSES = frozenset(
     {
         "RUNNING",
@@ -66,9 +69,16 @@ def should_clear_loaded_agent_status_override(agent: Agent, override: str) -> bo
     """Return True when a loaded row should discard an in-memory override."""
     if agent.status in DISMISSABLE_STATUSES:
         return True
-    return (
-        override == "QUESTION" and agent.status in _QUESTION_OVERRIDE_PROGRESS_STATUSES
-    )
+    if override in ("QUESTION", "ANSWERED"):
+        if agent.status in _QUESTION_OVERRIDE_PROGRESS_STATUSES:
+            return True
+        # A QUESTION override yields to a freshly loaded ANSWERED row (the
+        # user's response reached disk). The reverse must NOT clear: an
+        # optimistic ANSWERED override survives a loader-produced QUESTION row
+        # until the runner consumes the response and the marker clears.
+        if override == "QUESTION" and agent.status == "ANSWERED":
+            return True
+    return False
 
 
 def is_axe_spawned_agent(agent: Agent) -> bool:

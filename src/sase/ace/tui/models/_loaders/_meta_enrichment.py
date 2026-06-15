@@ -78,6 +78,36 @@ def _plan_enrichment_status(
     return None
 
 
+def _pending_question_status_for_request_path(request_path: object) -> str:
+    """Map a pending-question ``request_path`` to ``QUESTION`` or ``ANSWERED``.
+
+    The pending-question marker's ``request_path`` points at the
+    ``question_request.json`` written in the user-question session directory.
+    The sibling ``question_response.json`` appears there once the user answers
+    but before the runner consumes the response and clears the marker, so its
+    presence is the transient ``ANSWERED`` signal. When no response is visible
+    yet, the agent is still blocked and the status stays ``QUESTION``.
+    """
+    if isinstance(request_path, str) and request_path:
+        response_path = Path(request_path).parent / "question_response.json"
+        try:
+            if response_path.exists():
+                return "ANSWERED"
+        except OSError:
+            pass
+    return "QUESTION"
+
+
+def _pending_question_status_from_marker(marker_path: Path) -> str:
+    """Read a filesystem ``pending_question.json`` and map it to a status."""
+    try:
+        marker = load_json_cached(marker_path)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return "QUESTION"
+    request_path = marker.get("request_path") if isinstance(marker, dict) else None
+    return _pending_question_status_for_request_path(request_path)
+
+
 def _valid_meta_tag(raw_value: object) -> str | None:
     if not isinstance(raw_value, str):
         return None
@@ -402,14 +432,17 @@ def enrich_agent_from_meta(
         if isinstance(raw_until, str) and raw_until:
             agent.wait_until = raw_until
 
-    # Check for pending_question.json to set QUESTION status. The marker is
-    # written by handle_questions_flow() before the response-wait poll loop
-    # and cleared on every exit path, so its presence is the authoritative
-    # signal that the agent is currently blocked on user input — independent
-    # of the notification's dismissed/read state.
+    # Check for pending_question.json to set QUESTION/ANSWERED status. The
+    # marker is written by handle_questions_flow() before the response-wait
+    # poll loop and cleared on every exit path, so its presence is the
+    # authoritative signal that the agent is currently blocked on user input —
+    # independent of the notification's dismissed/read state. When the user has
+    # already written question_response.json (but the runner has not yet
+    # consumed it and cleared the marker) the transient ANSWERED status shows
+    # instead of QUESTION.
     pending_question_path = Path(artifacts_dir) / "pending_question.json"
     if pending_question_path.exists() and agent.status in _ACTIVE_ENRICHMENT_STATUSES:
-        agent.status = "QUESTION"
+        agent.status = _pending_question_status_from_marker(pending_question_path)
 
     # Set plan review / approval statuses for agents whose agent_meta carries
     # plan: true (the %epic directive and submitted-plan flows). PLAN means a
@@ -608,9 +641,13 @@ def enrich_agent_from_meta_wire(
     if agent.wait_until is None and meta.wait_until:
         agent.wait_until = meta.wait_until
 
-    # pending_question.json: marker presence flips active rows to QUESTION.
+    # pending_question.json: marker presence flips active rows to QUESTION, or
+    # ANSWERED once the user's question_response.json has landed but the runner
+    # has not yet consumed it (mirrors the filesystem helper above).
     if pending_question is not None and agent.status in _ACTIVE_ENRICHMENT_STATUSES:
-        agent.status = "QUESTION"
+        agent.status = _pending_question_status_for_request_path(
+            pending_question.request_path
+        )
 
     if meta.plan and agent.status in _ACTIVE_ENRICHMENT_STATUSES:
         plan_status = _plan_enrichment_status(

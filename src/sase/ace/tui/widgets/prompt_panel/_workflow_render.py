@@ -74,6 +74,7 @@ def build_workflow_detail_renderable(
         "PLAN REJECTED": "#D7AF5F",
         "EPIC CREATED": "#5FD7AF",
         "QUESTION": "#FFAF00",
+        "ANSWERED": "#5FD7FF",
     }.get(agent.status, "#D7D7FF")
     header_text.append(f"{agent.status}\n", style=status_style)
     if agent.activity:

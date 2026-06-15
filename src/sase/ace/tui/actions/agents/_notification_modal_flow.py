@@ -122,7 +122,7 @@ class AgentNotificationModalMixin:
         if not isinstance(request_path, str) or not request_path:
             return False
         response_dir = str(Path(request_path).parent)
-        return open_user_question_modal_from_marker(self, response_dir)
+        return open_user_question_modal_from_marker(self, response_dir, agent)
 
     def _show_notification_modal(self: Any, *, initial_index: int = 0) -> None:
         """Show the notification modal with optional pre-selection.

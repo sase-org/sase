@@ -33,6 +33,11 @@ def test_status_bucket_plan_approved_is_running() -> None:
     assert _status_bucket_for(_agent(status="PLAN APPROVED")) == "Running"
 
 
+def test_status_bucket_answered_is_running() -> None:
+    """ANSWERED is transient post-answer progress → Running, not Stopped."""
+    assert _status_bucket_for(_agent(status="ANSWERED")) == "Running"
+
+
 def test_status_bucket_plan_done_is_done() -> None:
     """``PLAN DONE`` is a post-plan handoff state — planning work is finished."""
     assert _status_bucket_for(_agent(status="PLAN DONE")) == "Done"

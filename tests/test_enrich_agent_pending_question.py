@@ -159,3 +159,96 @@ def test_pending_question_marker_wire_does_not_override_done() -> None:
         PendingQuestionMarkerWire(session_id="abc"),
     )
     assert agent.status == "DONE"
+
+
+def _write_pending_marker(artifacts_dir: Path, request_path: Path) -> None:
+    (artifacts_dir / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
+    (artifacts_dir / "pending_question.json").write_text(
+        json.dumps(
+            {
+                "session_id": "abc",
+                "request_path": str(request_path),
+                "submitted_at": "t",
+            }
+        )
+    )
+
+
+def test_pending_question_marker_with_response_flips_to_answered(
+    tmp_path: Path,
+) -> None:
+    """A sibling question_response.json flips the active row to ANSWERED."""
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    request_path = session_dir / "question_request.json"
+    request_path.write_text(json.dumps({"questions": []}))
+    (session_dir / "question_response.json").write_text(json.dumps({"answers": []}))
+
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    _write_pending_marker(artifacts_dir, request_path)
+
+    agent = make_agent(status="RUNNING")
+    enrich_agent_from_meta(agent, str(artifacts_dir))
+
+    assert agent.status == "ANSWERED"
+
+
+def test_pending_question_marker_without_response_stays_question(
+    tmp_path: Path,
+) -> None:
+    """With the request but no response yet, the row stays QUESTION."""
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    request_path = session_dir / "question_request.json"
+    request_path.write_text(json.dumps({"questions": []}))
+
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    _write_pending_marker(artifacts_dir, request_path)
+
+    agent = make_agent(status="RUNNING")
+    enrich_agent_from_meta(agent, str(artifacts_dir))
+
+    assert agent.status == "QUESTION"
+
+
+def test_pending_question_marker_wire_with_response_flips_to_answered(
+    tmp_path: Path,
+) -> None:
+    """Snapshot enrichment derives ANSWERED from the marker's request_path."""
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    request_path = session_dir / "question_request.json"
+    request_path.write_text("{}")
+    (session_dir / "question_response.json").write_text("{}")
+
+    agent = make_agent(status="RUNNING")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(),
+        None,
+        PendingQuestionMarkerWire(session_id="abc", request_path=str(request_path)),
+    )
+
+    assert agent.status == "ANSWERED"
+
+
+def test_pending_question_marker_wire_without_response_stays_question(
+    tmp_path: Path,
+) -> None:
+    """Snapshot enrichment keeps QUESTION when no response file exists yet."""
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    request_path = session_dir / "question_request.json"
+    request_path.write_text("{}")
+
+    agent = make_agent(status="RUNNING")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(),
+        None,
+        PendingQuestionMarkerWire(session_id="abc", request_path=str(request_path)),
+    )
+
+    assert agent.status == "QUESTION"

@@ -86,7 +86,10 @@ def status_bucket_for_values(
         return "Stopped"
     if status_text == "STARTING":
         return "Starting"
-    if status_text in {"PLAN APPROVED", "TALE APPROVED"}:
+    # ``ANSWERED`` is the transient post-answer state: the user replied and the
+    # agent is expected to resume, so it buckets with the actively-running rows
+    # rather than the input-needed ``Stopped`` group.
+    if status_text in {"PLAN APPROVED", "TALE APPROVED", "ANSWERED"}:
         return "Running"
     if status_text == "WAITING":
         return "Waiting"

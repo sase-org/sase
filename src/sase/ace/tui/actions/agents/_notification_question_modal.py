@@ -13,6 +13,8 @@ from ._notification_utils import refresh_notification_agent_or_request
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
+    from ...models import Agent
+
 
 def handle_user_question(app: object, notification: Notification) -> bool:
     """Show the user question modal for a Claude Code AskUserQuestion hook.
@@ -44,20 +46,34 @@ def _on_user_question_response_written(app: object, notification: Notification) 
     from sase.notifications import mark_dismissed
 
     mark_dismissed(notification.id)
-    _restore_pre_question_status(app, notification)
+    _mark_answered_for_notification(app, notification)
 
 
-def open_user_question_modal_from_marker(app: object, response_dir: str) -> bool:
+def open_user_question_modal_from_marker(
+    app: object, response_dir: str, agent: Agent | None = None
+) -> bool:
     """Open the UserQuestionModal directly from a pending_question.json marker.
 
     Used by the "jump to current agent's question" keybind when the matching
     notification has been dismissed but the agent is still blocked on user
     input (marker is still present). No notification is dismissed because
     none is present; the marker is cleared by ``handle_questions_flow()``
-    itself once the response is consumed.
+    itself once the response is consumed. When *agent* is supplied, the row is
+    flipped to the transient ``ANSWERED`` override once the response is written
+    (mirroring the notification-driven path).
     """
+    if agent is None:
+        return _open_user_question_modal(
+            app, response_dir, notification_id=None, on_response_written=None
+        )
+
+    matched = agent
+
+    def on_written() -> None:
+        _mark_agent_answered(app, matched)
+
     return _open_user_question_modal(
-        app, response_dir, notification_id=None, on_response_written=None
+        app, response_dir, notification_id=None, on_response_written=on_written
     )
 
 
@@ -124,25 +140,27 @@ def _open_user_question_modal(
     return True
 
 
-def _restore_pre_question_status(app: object, notification: Notification) -> None:
-    """Restore agent status override after a user question is answered.
-
-    Looks up the agent's pre-question status and either restores it as the
-    override (e.g. "PLAN APPROVED") or removes the override entirely (reverting
-    the agent to its disk status, e.g. "RUNNING").
-    """
+def _mark_answered_for_notification(app: object, notification: Notification) -> None:
+    """Flip the agent matching *notification* to the transient ANSWERED state."""
     from ._notification_navigation import agent_matches_notification_identity
 
     for agent in app._agents:  # type: ignore[attr-defined]
-        if not agent_matches_notification_identity(agent, notification):
-            continue
+        if agent_matches_notification_identity(agent, notification):
+            _mark_agent_answered(app, agent)
+            break
 
-        identity = agent.identity
-        pre_status = app._agent_pre_question_status.pop(identity, None)  # type: ignore[attr-defined]
-        if pre_status is not None:
-            app._agent_status_overrides[identity] = pre_status  # type: ignore[attr-defined]
-        else:
-            app._agent_status_overrides.pop(identity, None)  # type: ignore[attr-defined]
 
-        refresh_notification_agent_or_request(app, agent=agent)
-        break
+def _mark_agent_answered(app: object, agent: Agent) -> None:
+    """Record the transient ANSWERED override for *agent* after a response.
+
+    The user has written ``question_response.json`` but the runner has not yet
+    consumed it. ANSWERED reads as an active/progress state until a fresh load
+    shows the agent resuming (or a terminal status), at which point the
+    override is reconciled away. The stale ``_agent_pre_question_status`` entry
+    is dropped — the transient ANSWERED state replaces the pre-question
+    restore behavior.
+    """
+    identity = agent.identity
+    app._agent_pre_question_status.pop(identity, None)  # type: ignore[attr-defined]
+    app._agent_status_overrides[identity] = "ANSWERED"  # type: ignore[attr-defined]
+    refresh_notification_agent_or_request(app, agent=agent)

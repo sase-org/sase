@@ -453,10 +453,11 @@ def test_commit_only_copies_saved_plan_path_after_background_work(
     assert data["saved_plan_path"] == saved_plan_path
 
 
-def test_user_question_response_dismisses_notification_and_restores_status(
+def test_user_question_response_dismisses_notification_and_marks_answered(
     tmp_path: Path,
 ) -> None:
-    """Answering a question writes the response and dismisses the source notification."""
+    """Answering a question writes the response, dismisses the source
+    notification, and flips the agent to the transient ANSWERED state."""
     response_dir = tmp_path / "response"
     response_dir.mkdir()
     (response_dir / "question_request.json").write_text(
@@ -519,7 +520,9 @@ def test_user_question_response_dismisses_notification_and_restores_status(
         "global_note": "thanks",
     }
     mark_dismissed.assert_called_once_with("question-notif")
-    assert app._agent_status_overrides[agent.identity] == "PLAN APPROVED"
+    # The pre-question status is no longer restored; the row shows the
+    # transient ANSWERED state until a fresh load reconciles it away.
+    assert app._agent_status_overrides[agent.identity] == "ANSWERED"
     assert agent.identity not in app._agent_pre_question_status
     app._refilter_agents.assert_called_once()
     app._schedule_agents_async_refresh.assert_not_called()
@@ -574,6 +577,56 @@ def test_open_user_question_modal_from_marker_dismissed_notification(
         ],
         "global_note": "",
     }
+
+
+def test_open_user_question_modal_from_marker_marks_answered(tmp_path: Path) -> None:
+    """The marker fallback flips the supplied agent to ANSWERED on response.
+
+    Mirrors the notification-driven path: answering from a dismissed-notification
+    marker records the transient ANSWERED override for the matched agent.
+    """
+    response_dir = tmp_path / "response"
+    response_dir.mkdir()
+    (response_dir / "question_request.json").write_text(
+        json.dumps({"questions": [{"question": "Resume from marker?"}]})
+    )
+
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="QUESTION",
+        start_time=None,
+        raw_suffix="20260425120000",
+    )
+    app = MagicMock()
+    app._agents = [agent]
+    app._agent_status_overrides = {agent.identity: "QUESTION"}
+    app._agent_pre_question_status = {agent.identity: "RUNNING"}
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        open_user_question_modal_from_marker,
+    )
+
+    assert open_user_question_modal_from_marker(app, str(response_dir), agent) is True
+    on_dismiss = app.push_screen.call_args[0][1]
+
+    on_dismiss(
+        UserQuestionResult(
+            answers=[
+                _QuestionAnswer(
+                    question="Resume from marker?",
+                    selected=["yes"],
+                    custom_feedback=None,
+                )
+            ],
+            global_note="",
+        )
+    )
+
+    assert (response_dir / "question_response.json").exists()
+    assert app._agent_status_overrides[agent.identity] == "ANSWERED"
+    assert agent.identity not in app._agent_pre_question_status
 
 
 def test_open_user_question_modal_from_marker_missing_request(tmp_path: Path) -> None:

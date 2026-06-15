@@ -23,6 +23,7 @@ ACTIVE_STATUSES = frozenset(
         "PLAN APPROVED",
         "TALE APPROVED",
         "QUESTION",
+        "ANSWERED",
     }
 )
 

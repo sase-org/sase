@@ -183,6 +183,12 @@ def test_needs_input_no_match_for_running() -> None:
     assert not _eval("needs:input", agent)
 
 
+def test_needs_input_no_match_for_answered() -> None:
+    """ANSWERED is an active/progress state, not an input-needed one."""
+    agent = _make_agent(status="ANSWERED")
+    assert not _eval("needs:input", agent)
+
+
 # --- tag / pinned / hidden / attention (bool / exact) ------------------------
 
 
@@ -239,6 +245,13 @@ def test_attention_true_for_question() -> None:
 def test_attention_false_for_running() -> None:
     agent = _make_agent(status="RUNNING")
     assert _eval("attention:false", agent)
+
+
+def test_attention_false_for_answered() -> None:
+    """ANSWERED does not demand attention; the user already replied."""
+    agent = _make_agent(status="ANSWERED")
+    assert _eval("attention:false", agent)
+    assert not _eval("attention:true", agent)
 
 
 # --- age comparisons ---------------------------------------------------------
