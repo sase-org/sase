@@ -42,7 +42,7 @@ jobs:
       - name: Initialize SASE home
         run: |
           ./.venv/bin/sase init memory --no-commit
-          ./.venv/bin/sase skills init --force
+          ./.venv/bin/sase skill init --force
       - uses: actions/setup-go@v5
         with:
           go-version: 'stable'

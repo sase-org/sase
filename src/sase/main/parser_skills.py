@@ -1,4 +1,4 @@
-"""Argument parser definition for the ``sase skills`` command group."""
+"""Argument parser definition for the ``sase skill`` command group."""
 
 import argparse
 
@@ -6,26 +6,26 @@ from sase.main.parser_init import add_skills_init_arguments
 
 
 def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the ``skills`` command group."""
+    """Register the ``skill`` command group."""
     skills_parser = subparsers.add_parser(
-        "skills",
+        "skill",
         help="Inspect and initialize generated SASE skills",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Inspect, initialize, and audit generated SASE skills. With no "
-            "subcommand, defaults to `sase skills list`."
+            "subcommand, defaults to `sase skill list`."
         ),
         epilog=(
             "examples:\n"
-            "  sase skills list\n"
-            "  sase skills init --force\n"
-            "  sase skills log --runtime codex\n"
-            '  sase skills use sase_plan --reason "Preparing an implementation plan"'
+            "  sase skill list\n"
+            "  sase skill init --force\n"
+            "  sase skill log --runtime codex\n"
+            '  sase skill use sase_plan --reason "Preparing an implementation plan"'
         ),
     )
     skills_subparsers = skills_parser.add_subparsers(
-        dest="skills_subcommand",
-        help="Skills subcommands",
+        dest="skill_subcommand",
+        help="Skill subcommands",
         required=False,
     )
 
@@ -34,7 +34,7 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Generate and deploy agent skill files from xprompt sources",
         description=(
             "Generate and deploy agent skill files from xprompt sources. "
-            "`sase init skills` is a compatibility alias for this command."
+            "`sase init skills` is a compatibility alias for `sase skill init`."
         ),
     )
     add_skills_init_arguments(init_parser)
@@ -53,16 +53,16 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Summarize or inspect auditable skill-use events",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Summarize auditable skill-use events recorded by `sase skills "
+            "Summarize auditable skill-use events recorded by `sase skill "
             "use`, or inspect matching events with --skill, --agent, "
             "--runtime, or --id."
         ),
         epilog=(
             "examples:\n"
-            "  sase skills log\n"
-            "  sase skills log --runtime codex\n"
-            "  sase skills log --skill sase_plan\n"
-            "  sase skills log --id <use-id>"
+            "  sase skill log\n"
+            "  sase skill log --runtime codex\n"
+            "  sase skill log --skill sase_plan\n"
+            "  sase skill log --id <use-id>"
         ),
     )
     log_parser.add_argument(
@@ -107,7 +107,7 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         epilog=(
             "example:\n"
-            '  sase skills use sase_plan --reason "Preparing an implementation plan"'
+            '  sase skill use sase_plan --reason "Preparing an implementation plan"'
         ),
     )
     use_parser.add_argument(

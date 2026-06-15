@@ -1,4 +1,4 @@
-"""Handler for the 'sase init skills' command."""
+"""Handler for the 'sase skill init' command (and its 'sase init skills' alias)."""
 
 import argparse
 from collections.abc import Sequence
@@ -25,7 +25,7 @@ from sase.main.init_plan import InitAction, InitOperation, InitPlan
 from sase.xprompt.loader import get_all_xprompts, load_xprompts_from_internal
 from sase.xprompt.models import XPrompt
 
-_COMMAND_LABEL = "init skills"
+_COMMAND_LABEL = "skill init"
 _PRETTIER_WARNING = (
     f"{_COMMAND_LABEL}: prettier not found on PATH; output may not match "
     "chezmoi CI formatting"
@@ -213,7 +213,7 @@ def _skill_use_audit_directive(name: str) -> str:
         "Before doing anything else, run this command to record that you are "
         "using this skill:\n\n"
         "```bash\n"
-        f'sase skills use {name} --reason "<one-line reason for using this skill>"\n'
+        f'sase skill use {name} --reason "<one-line reason for using this skill>"\n'
         "```\n\n"
     )
 
@@ -478,9 +478,9 @@ def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> i
     no_apply: bool = getattr(args, "no_apply", False)
     provider_filter: str | None = getattr(args, "provider", None)
 
-    message = "chore: regenerate skills via sase init skills"
+    message = "chore: regenerate skills via sase skill init"
     if provider_filter:
-        message = f"chore: regenerate {provider_filter} skills via sase init skills"
+        message = f"chore: regenerate {provider_filter} skills via sase skill init"
 
     return deploy_to_chezmoi(
         written_paths,

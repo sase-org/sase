@@ -341,8 +341,8 @@ def main() -> NoReturn:
 
         handle_sdd_command(args)
 
-    # --- skills ---
-    if args.command == "skills":
+    # --- skill ---
+    if args.command == "skill":
         from .skills_handler import handle_skills_command
 
         handle_skills_command(args)

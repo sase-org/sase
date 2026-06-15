@@ -38,14 +38,14 @@ sase memory episodes build -s 2026-05-01 -u 2026-05-26 --split
 sase memory episodes recall -q "retry feedback"
 sase init sdd
 sase init sdd --check
-sase skills list
-sase skills init --dry-run
-sase skills log
-sase skills log --runtime codex
+sase skill list
+sase skill init --dry-run
+sase skill log
+sase skill log --runtime codex
 
 # Agent-side audited operations, normally run from a SASE-launched agent:
 sase memory read long/generated_skills.md --reason "Need generated skill context"
-sase skills use sase_plan --reason "Need to prepare an implementation plan"
+sase skill use sase_plan --reason "Need to prepare an implementation plan"
 sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
 ```
 
@@ -54,7 +54,7 @@ After that, `sase memory init --no-commit` is the usual first apply run for memo
 but skips the project git commit/pull/push path. It is not a dry run: it can still write project files, write home
 memory, and follow home-level `use_chezmoi` deployment. `sase init amd` remains a compatibility alias for
 `sase amd init`, `sase init memory` remains a compatibility alias for `sase memory init`, and `sase init skills` remains
-a compatibility alias for `sase skills init`.
+a compatibility alias for `sase skill init`.
 
 ## Commands
 
@@ -84,15 +84,15 @@ a compatibility alias for `sase skills init`.
 | `sase init memory`                    | Compatibility alias for `sase memory init`.                                                   |
 | `sase init sdd`                       | Alias for `sase sdd init`; enables version-controlled SDD and refreshes generated guides.     |
 | `sase init sdd --check`               | Report SDD config and generated-file drift without writing files.                             |
-| `sase skills`                         | Alias for `sase skills list`.                                                                 |
-| `sase skills list`                    | Inspect generated skill sources, provider targets, and deployed-file drift without writing.   |
-| `sase skills init`                    | Generate skill files; existing files require confirmation or `--force`.                       |
-| `sase skills init --dry-run`          | Preview generated skill target paths without writing files.                                   |
-| `sase skills init --force`            | Generate and overwrite deployed skill files without confirmation.                             |
-| `sase skills init -p <provider>`      | Deploy only one provider's generated skill files.                                             |
-| `sase skills log`                     | Summarize or inspect audited generated skill-use events.                                      |
-| `sase skills use <name>`              | Agent-side audit event recording that a generated skill was used.                             |
-| `sase init skills`                    | Compatibility alias for `sase skills init`.                                                   |
+| `sase skill`                          | Alias for `sase skill list`.                                                                  |
+| `sase skill list`                     | Inspect generated skill sources, provider targets, and deployed-file drift without writing.   |
+| `sase skill init`                     | Generate skill files; existing files require confirmation or `--force`.                       |
+| `sase skill init --dry-run`           | Preview generated skill target paths without writing files.                                   |
+| `sase skill init --force`             | Generate and overwrite deployed skill files without confirmation.                             |
+| `sase skill init -p <provider>`       | Deploy only one provider's generated skill files.                                             |
+| `sase skill log`                      | Summarize or inspect audited generated skill-use events.                                      |
+| `sase skill use <name>`               | Agent-side audit event recording that a generated skill was used.                             |
+| `sase init skills`                    | Compatibility alias for `sase skill init`.                                                    |
 
 Advanced deploy controls such as `--no-commit`, `--no-push`, and `--no-apply` live on explicit subcommands rather than
 the bare coordinator. Scoped `--check` flags also live on explicit subcommands when you want to validate only memory or
@@ -247,25 +247,25 @@ useful when you want an explicit refresh or a drift check.
 
 ## Skill Initialization
 
-Generated skills start as xprompt sources marked with a `skill` frontmatter field. `sase skills list` is the read-only
+Generated skills start as xprompt sources marked with a `skill` frontmatter field. `sase skill list` is the read-only
 inventory: it shows loaded skill sources, the providers they target, and whether generated `SKILL.md` files are current,
-stale, or missing. Bare `sase skills` shows the same dashboard.
+stale, or missing. Bare `sase skill` shows the same dashboard.
 
-`sase skills init` renders those sources into provider-specific `SKILL.md` files. Sources include bundled skill xprompts
+`sase skill init` renders those sources into provider-specific `SKILL.md` files. Sources include bundled skill xprompts
 and user/runtime xprompt catalog entries. By default, generated skill files include a first-step
-`sase skills use <name> --reason ...` directive so agent skill usage is attributable in the same project audit surface
-as memory reads; `sase skills log` summarizes and inspects those recorded skill-use rows. A source can set
+`sase skill use <name> --reason ...` directive so agent skill usage is attributable in the same project audit surface as
+memory reads; `sase skill log` summarizes and inspects those recorded skill-use rows. A source can set
 `log_skill_use: false` to omit that directive. The usual workflow is to inspect first, preview writes, then deploy:
 
 ```bash
-sase skills list
-sase skills init --dry-run
-sase skills init --force
+sase skill list
+sase skill init --dry-run
+sase skill init --force
 ```
 
 Without `use_chezmoi`, generated skill files are written directly under the provider's home-directory skill targets.
 When `use_chezmoi: true`, skill initialization writes through the chezmoi-managed home tree and can commit, push, and
 apply those dotfile changes. The `--no-commit`, `--no-push`, and `--no-apply` flags only affect that chezmoi deployment
-sequence. `sase init skills` still works as a compatibility alias for `sase skills init`.
+sequence. `sase init skills` still works as a compatibility alias for `sase skill init`.
 
 See [XPrompt Skill Field](xprompt.md#skill-field) for the skill-source contract and bundled skill list.

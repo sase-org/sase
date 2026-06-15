@@ -152,7 +152,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
         "sase plugin",
         "sase prompt",
         "sase sdd",
-        "sase skills",
+        "sase skill",
         "sase telemetry",
         "sase workspace",
         "sase xprompt",
@@ -560,14 +560,14 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
 
 def test_skills_help_documents_log_command() -> None:
     """Skills help text documents list/init/log/use and public log aliases."""
-    skills_help = _flat_help(_parser_for(("sase", "skills")).format_help())
-    skills_log_help = _flat_help(_parser_for(("sase", "skills", "log")).format_help())
-    skills_use_help = _flat_help(_parser_for(("sase", "skills", "use")).format_help())
+    skills_help = _flat_help(_parser_for(("sase", "skill")).format_help())
+    skills_log_help = _flat_help(_parser_for(("sase", "skill", "log")).format_help())
+    skills_use_help = _flat_help(_parser_for(("sase", "skill", "use")).format_help())
 
-    assert "`sase skills list`" in skills_help
+    assert "`sase skill list`" in skills_help
     assert "{init,list,log,use}" in skills_help
-    assert "sase skills log --runtime codex" in skills_help
-    assert "sase skills use sase_plan --reason" in skills_help
+    assert "sase skill log --runtime codex" in skills_help
+    assert "sase skill use sase_plan --reason" in skills_help
     assert "--agent AGENT_NAME" in skills_log_help
     assert "-a AGENT_NAME" in skills_log_help
     assert "--id USE_ID" in skills_log_help
@@ -578,7 +578,7 @@ def test_skills_help_documents_log_command() -> None:
     assert "-R RUNTIME" in skills_log_help
     assert "--skill SKILL_NAME" in skills_log_help
     assert "-s SKILL_NAME" in skills_log_help
-    assert "sase skills log --id <use-id>" in skills_log_help
+    assert "sase skill log --id <use-id>" in skills_log_help
     assert "--reason REASON" in skills_use_help
 
 

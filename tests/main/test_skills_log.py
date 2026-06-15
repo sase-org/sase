@@ -1,4 +1,4 @@
-"""Tests for ``sase skills log`` rendering and filtering."""
+"""Tests for ``sase skill log`` rendering and filtering."""
 
 from __future__ import annotations
 
@@ -285,7 +285,7 @@ def test_skills_log_json_output_filters_and_summarizes(
         )
     )
     args = create_parser().parse_args(
-        ["skills", "log", "--skill", "sase_plan", "--runtime", "claude", "--json"]
+        ["skill", "log", "--skill", "sase_plan", "--runtime", "claude", "--json"]
     )
 
     handle_skills_log_command(args)
@@ -330,7 +330,7 @@ def test_skills_log_json_id_output_emits_raw_event(
         project=project,
     )
     append_skill_use_event(event)
-    args = create_parser().parse_args(["skills", "log", "--id", "use-ab", "--json"])
+    args = create_parser().parse_args(["skill", "log", "--id", "use-ab", "--json"])
 
     handle_skills_log_command(args)
 
@@ -378,12 +378,12 @@ def test_skills_log_unknown_id_reports_prefixed_error(
             project=project,
         )
     )
-    args = create_parser().parse_args(["skills", "log", "--id", "missing"])
+    args = create_parser().parse_args(["skill", "log", "--id", "missing"])
 
     with pytest.raises(SystemExit) as exc:
         handle_skills_log_command(args)
 
     assert exc.value.code == 1
     err = capsys.readouterr().err
-    assert err.startswith("sase skills log:")
+    assert err.startswith("sase skill log:")
     assert "unknown skill-use event id: missing" in err

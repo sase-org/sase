@@ -1,4 +1,4 @@
-"""Tests for the ``sase skills`` parser, handler, inventory, and list output."""
+"""Tests for the ``sase skill`` parser, handler, inventory, and list output."""
 
 from __future__ import annotations
 
@@ -90,7 +90,7 @@ def test_parser_registers_skills_namespace() -> None:
 
     init_args = parser.parse_args(
         [
-            "skills",
+            "skill",
             "init",
             "--no-apply",
             "--no-commit",
@@ -101,8 +101,8 @@ def test_parser_registers_skills_namespace() -> None:
             "codex",
         ]
     )
-    assert init_args.command == "skills"
-    assert init_args.skills_subcommand == "init"
+    assert init_args.command == "skill"
+    assert init_args.skill_subcommand == "init"
     assert init_args.no_apply is True
     assert init_args.no_commit is True
     assert init_args.force is True
@@ -110,13 +110,13 @@ def test_parser_registers_skills_namespace() -> None:
     assert init_args.no_push is True
     assert init_args.provider == "codex"
 
-    list_args = parser.parse_args(["skills", "list"])
-    assert list_args.command == "skills"
-    assert list_args.skills_subcommand == "list"
+    list_args = parser.parse_args(["skill", "list"])
+    assert list_args.command == "skill"
+    assert list_args.skill_subcommand == "list"
 
     log_args = parser.parse_args(
         [
-            "skills",
+            "skill",
             "log",
             "-a",
             "agent-a",
@@ -129,30 +129,38 @@ def test_parser_registers_skills_namespace() -> None:
             "sase_plan",
         ]
     )
-    assert log_args.command == "skills"
-    assert log_args.skills_subcommand == "log"
+    assert log_args.command == "skill"
+    assert log_args.skill_subcommand == "log"
     assert log_args.agent == "agent-a"
     assert log_args.id == "use-a"
     assert log_args.json is True
     assert log_args.runtime == "codex"
     assert log_args.skill == "sase_plan"
 
-    use_args = parser.parse_args(["skills", "use", "sase_plan", "-r", "Need plan"])
-    assert use_args.command == "skills"
-    assert use_args.skills_subcommand == "use"
+    use_args = parser.parse_args(["skill", "use", "sase_plan", "-r", "Need plan"])
+    assert use_args.command == "skill"
+    assert use_args.skill_subcommand == "use"
     assert use_args.name == "sase_plan"
     assert use_args.reason == "Need plan"
 
-    default_args = parser.parse_args(["skills"])
-    assert default_args.command == "skills"
-    assert default_args.skills_subcommand == "list"
+    default_args = parser.parse_args(["skill"])
+    assert default_args.command == "skill"
+    assert default_args.skill_subcommand == "list"
+
+
+def test_parser_rejects_legacy_skills_namespace() -> None:
+    """The old top-level ``sase skills`` spelling is a hard rename, not an alias."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["skills", "list"])
 
 
 def test_parser_requires_skills_use_reason() -> None:
     parser = create_parser()
 
     with pytest.raises(SystemExit):
-        parser.parse_args(["skills", "use", "sase_plan"])
+        parser.parse_args(["skill", "use", "sase_plan"])
 
 
 def test_bare_skills_defaults_to_list(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -162,7 +170,7 @@ def test_bare_skills_defaults_to_list(monkeypatch: pytest.MonkeyPatch) -> None:
         calls.append(args)
 
     monkeypatch.setattr(skills_handler, "_handle_skills_list_command", fake_list)
-    args = create_parser().parse_args(["skills"])
+    args = create_parser().parse_args(["skill"])
 
     with pytest.raises(SystemExit) as exc:
         skills_handler.handle_skills_command(args)
@@ -182,7 +190,7 @@ def test_skills_init_dispatches_to_existing_initializer(
 
     monkeypatch.setattr(init_skills_handler, "run_init_skills", fake_init)
     args = create_parser().parse_args(
-        ["skills", "init", "--dry-run", "--force", "--provider", "codex"]
+        ["skill", "init", "--dry-run", "--force", "--provider", "codex"]
     )
 
     with pytest.raises(SystemExit) as exc:
@@ -202,7 +210,7 @@ def test_skills_log_dispatches_to_renderer(monkeypatch: pytest.MonkeyPatch) -> N
         calls.append(args)
 
     monkeypatch.setattr(skills_handler, "_handle_skills_log_command", fake_log)
-    args = create_parser().parse_args(["skills", "log", "-s", "sase_plan"])
+    args = create_parser().parse_args(["skill", "log", "-s", "sase_plan"])
 
     with pytest.raises(SystemExit) as exc:
         skills_handler.handle_skills_command(args)
@@ -219,7 +227,7 @@ def test_skills_use_dispatches_to_recorder(monkeypatch: pytest.MonkeyPatch) -> N
         calls.append(args)
 
     monkeypatch.setattr(skills_handler, "_handle_skills_use_command", fake_use)
-    args = create_parser().parse_args(["skills", "use", "sase_plan", "-r", "Need"])
+    args = create_parser().parse_args(["skill", "use", "sase_plan", "-r", "Need"])
 
     with pytest.raises(SystemExit) as exc:
         skills_handler.handle_skills_command(args)
@@ -249,7 +257,7 @@ def test_skills_use_command_writes_attributed_event(
     monkeypatch.setenv("SASE_AGENT_NAME", "alpha")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
 
-    args = create_parser().parse_args(["skills", "use", "sase_plan", "-r", "Need"])
+    args = create_parser().parse_args(["skill", "use", "sase_plan", "-r", "Need"])
     with pytest.raises(SystemExit) as exc:
         skills_handler.handle_skills_command(args)
 
@@ -277,13 +285,13 @@ def test_skills_use_command_reports_missing_agent_identity(
     monkeypatch.delenv("SASE_AGENT", raising=False)
     monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
 
-    args = create_parser().parse_args(["skills", "use", "sase_plan", "-r", "Need"])
+    args = create_parser().parse_args(["skill", "use", "sase_plan", "-r", "Need"])
     with pytest.raises(SystemExit) as exc:
         skills_handler.handle_skills_command(args)
 
     assert exc.value.code == 1
     err = capsys.readouterr().err
-    assert err.startswith("sase skills use:")
+    assert err.startswith("sase skill use:")
     assert "agent attribution" in err
 
 
@@ -371,12 +379,12 @@ def test_skills_list_dashboard_renders_summary_and_drift(
     assert "current description" in text
     assert "…" not in text
     assert "..." not in text.replace(
-        "sase skills init --force refreshes generated skill files.", ""
+        "sase skill init --force refreshes generated skill files.", ""
     ).replace("sase init skills remains an alias-compatible initializer.", "")
     assert "Drift" in text
     assert "claude/missing" in text
     assert "claude/stale" in text
-    assert "sase skills init --force refreshes generated skill files" in text
+    assert "sase skill init --force refreshes generated skill files" in text
     assert "sase init skills remains an alias-compatible initializer" in text
 
 

@@ -33,5 +33,5 @@ def test_lint_job_initializes_sase_home_before_lint() -> None:
     assert install_index < init_index < lint_index
     assert steps[init_index]["run"] == (
         "./.venv/bin/sase init memory --no-commit\n"
-        "./.venv/bin/sase skills init --force\n"
+        "./.venv/bin/sase skill init --force\n"
     )

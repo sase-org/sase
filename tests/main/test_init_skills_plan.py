@@ -216,7 +216,7 @@ def test_rendered_skill_targets_include_audit_directive_for_each_provider(
     for target in targets:
         content = target.content
         directive = (
-            'sase skills use foo --reason "<one-line reason for using this skill>"'
+            'sase skill use foo --reason "<one-line reason for using this skill>"'
         )
         assert directive in content
         assert content.index(directive) < content.index("body")
@@ -247,7 +247,7 @@ def test_rendered_skill_targets_omit_audit_directive_when_disabled(
 
     assert targets
     for target in targets:
-        assert "sase skills use" not in target.content
+        assert "sase skill use" not in target.content
         assert "body" in target.content
 
 
@@ -280,9 +280,9 @@ def test_packaged_skills_respect_log_skill_use_flag() -> None:
     assert targets, "expected rendered targets for registered providers"
     for target in targets:
         if target.skill_name == "sase_artifact":
-            assert "sase skills use sase_artifact" in target.content
+            assert "sase skill use sase_artifact" in target.content
         else:
-            assert "sase skills use" not in target.content
+            assert "sase skill use" not in target.content
 
 
 def test_batch_formatter_failure_falls_back_per_unique_output(

@@ -1,4 +1,4 @@
-"""Rich and JSON rendering for ``sase skills log`` summaries."""
+"""Rich and JSON rendering for ``sase skill log`` summaries."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def handle_skills_log_command(
         try:
             event = _select_skill_use_event(filtered_events, use_id)
         except _SkillsLogLookupError as exc:
-            print(f"sase skills log: {exc}", file=sys.stderr)
+            print(f"sase skill log: {exc}", file=sys.stderr)
             sys.exit(1)
 
         if getattr(args, "json", False):

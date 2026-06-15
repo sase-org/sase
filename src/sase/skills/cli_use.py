@@ -1,4 +1,4 @@
-"""CLI handler for ``sase skills use``."""
+"""CLI handler for ``sase skill use``."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def handle_skills_use_command(args: argparse.Namespace) -> None:
         )
         append_skill_use_event(event)
     except (AgentIdentityError, SkillUseError, OSError, UnicodeError) as exc:
-        print(f"sase skills use: {exc}", file=sys.stderr)
+        print(f"sase skill use: {exc}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Logged skill use: {skill_name}")

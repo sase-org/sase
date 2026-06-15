@@ -48,7 +48,7 @@ def register_git_parser(subparsers: argparse._SubParsersAction) -> None:
 
 
 def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
-    """Add flags shared by ``sase init skills`` and ``sase skills init``."""
+    """Add flags shared by ``sase skill init`` and its ``sase init skills`` alias."""
     parser.add_argument(
         "-A",
         "--no-apply",
@@ -99,7 +99,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "Advanced deploy controls live on explicit subcommands; for example, "
             "use `sase init amd --check`, `sase init memory --no-commit`, "
-            "or `sase skills init --no-push`."
+            "or `sase skill init --no-push`."
         ),
     )
     init_parser.add_argument(
@@ -168,9 +168,9 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
 
     skills_parser = init_subparsers.add_parser(
         "skills",
-        help="Alias for `sase skills init`",
+        help="Alias for `sase skill init`",
         description=(
-            "Compatibility alias for `sase skills init`, which generates and "
+            "Compatibility alias for `sase skill init`, which generates and "
             "deploys agent skill files from xprompt sources."
         ),
     )

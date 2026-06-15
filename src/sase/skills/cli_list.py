@@ -1,4 +1,4 @@
-"""Rich rendering for ``sase skills list``."""
+"""Rich rendering for ``sase skill list``."""
 
 from __future__ import annotations
 
@@ -163,7 +163,7 @@ def _drift_panel(inventory: SkillsInventory) -> Panel | None:
         table.add_row(
             Text("...", style="dim"),
             Text(f"+{extra_count} more", style="dim"),
-            Text("run `sase skills init --force` to refresh", style="dim"),
+            Text("run `sase skill init --force` to refresh", style="dim"),
         )
 
     return Panel(table, title="Drift", border_style="yellow")
@@ -171,7 +171,7 @@ def _drift_panel(inventory: SkillsInventory) -> Panel | None:
 
 def _notes_panel() -> Panel:
     notes = Text()
-    notes.append("sase skills init --force refreshes generated skill files.\n")
+    notes.append("sase skill init --force refreshes generated skill files.\n")
     notes.append("sase init skills remains an alias-compatible initializer.")
     return Panel(notes, title="Notes", border_style="dim")
 

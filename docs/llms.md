@@ -280,7 +280,7 @@ producing a malformed record.
 
 ### Skill Deployment
 
-`sase skills init` writes Gemini skills to both `~/.gemini/skills/` and `~/.gemini/jetski/skills/`. With
+`sase skill init` writes Gemini skills to both `~/.gemini/skills/` and `~/.gemini/jetski/skills/`. With
 `use_chezmoi: true`, those targets are remapped to the matching chezmoi-managed paths under
 `~/.local/share/chezmoi/home/dot_gemini/`.
 

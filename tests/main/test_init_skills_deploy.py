@@ -273,7 +273,7 @@ def test_deploy_provider_filter_in_commit_message() -> None:
     commit_calls = [c for c in captured if "commit" in c and "-m" in c]
     assert commit_calls, "No commit call observed"
     msg = commit_calls[0][commit_calls[0].index("-m") + 1]
-    assert msg == "chore: regenerate claude skills via sase init skills\n\nTYPE=skills"
+    assert msg == "chore: regenerate claude skills via sase skill init\n\nTYPE=skills"
 
 
 def test_deploy_behavior_auto_commit_type_tags_message() -> None:

@@ -711,7 +711,7 @@ live home files directly. For example, `~/.xprompts/` is remapped to `~/.local/s
 
 This affects initialization workflow as well as xprompt editing. `sase amd init` targets the chezmoi home source root
 when it needs to initialize home-level `AGENTS.md`; `sase memory init` writes home memory there and may run the
-configured chezmoi deploy path; `sase skills init` writes provider skill files there before optional commit, push, and
+configured chezmoi deploy path; `sase skill init` writes provider skill files there before optional commit, push, and
 apply steps.
 
 Home-level AMD provider shims in the chezmoi source are managed as `*.md.tmpl` files containing
@@ -1287,7 +1287,7 @@ planner only generates managed project `AGENTS.md` from bare `sase init` when th
 sets `amd_h1_title`.
 
 Advanced deploy controls stay on explicit subcommands such as `sase init amd --check`, `sase init memory --no-commit`,
-and `sase skills init --no-push`.
+and `sase skill init --no-push`.
 
 | Flag          | Values | Default | Description                                                                          |
 | ------------- | ------ | ------- | ------------------------------------------------------------------------------------ |
@@ -1387,29 +1387,29 @@ manual opt-in, refresh, and `--check` audits.
 | `-c, --check` | flag   | -                        | Report SDD config and generated-file drift without writing files. |
 | `-p, --path`  | path   | `./sdd` or `./.sase/sdd` | SDD root or project root path.                                    |
 
-### `sase skills`
+### `sase skill`
 
-With no subcommand, `sase skills` defaults to the read-only `sase skills list` dashboard. It reports loaded skill
-sources, provider targets, and deployed-file drift without writing files. `sase skills init` generates and deploys agent
-skill files from xprompt sources marked with the `skill` field. Generated skill files begin with a `sase skills use`
-directive so agent-side skill use can be audited and later summarized with `sase skills log`, unless the source sets
+With no subcommand, `sase skill` defaults to the read-only `sase skill list` dashboard. It reports loaded skill sources,
+provider targets, and deployed-file drift without writing files. `sase skill init` generates and deploys agent skill
+files from xprompt sources marked with the `skill` field. Generated skill files begin with a `sase skill use` directive
+so agent-side skill use can be audited and later summarized with `sase skill log`, unless the source sets
 `log_skill_use: false`. See [xprompt.md — Skill Field](xprompt.md#skill-field) for the skill-source contract and
 provider targets. Existing files are skipped in non-interactive runs unless `--force` is passed; interactive runs prompt
-before overwriting. `sase init skills` is a compatibility alias for `sase skills init`.
+before overwriting. `sase init skills` is a compatibility alias for `sase skill init`.
 
 | Form               | Flags                                                                   | Description                                                                                 |
 | ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `sase skills`      | -                                                                       | Show the same read-only dashboard as `sase skills list`.                                    |
-| `sase skills list` | -                                                                       | Inspect generated skill sources, provider targets, and deployed-file drift.                 |
-| `sase skills init` | `-f, --force`                                                           | Overwrite existing deployed skill files without confirmation.                               |
-| `sase skills init` | `-n, --dry-run`                                                         | Show what would be written without writing files.                                           |
-| `sase skills init` | `-p, --provider {claude,gemini,codex,opencode,qwen}`                    | Deploy only for one provider.                                                               |
-| `sase skills init` | `-A, --no-apply`                                                        | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.    |
-| `sase skills init` | `-C, --no-commit`                                                       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                   |
-| `sase skills init` | `-P, --no-push`                                                         | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`. |
-| `sase skills log`  | `-a, --agent`; `-R, --runtime`; `-s, --skill`; `-i, --id`; `-j, --json` | Summarize or inspect audited generated skill-use events.                                    |
-| `sase skills use`  | `-r, --reason <reason>` required                                        | Agent-side audit event recording that the current agent is using a generated skill.         |
-| `sase init skills` | same as `sase skills init`                                              | Compatibility alias for `sase skills init`.                                                 |
+| `sase skill`       | -                                                                       | Show the same read-only dashboard as `sase skill list`.                                     |
+| `sase skill list`  | -                                                                       | Inspect generated skill sources, provider targets, and deployed-file drift.                 |
+| `sase skill init`  | `-f, --force`                                                           | Overwrite existing deployed skill files without confirmation.                               |
+| `sase skill init`  | `-n, --dry-run`                                                         | Show what would be written without writing files.                                           |
+| `sase skill init`  | `-p, --provider {claude,gemini,codex,opencode,qwen}`                    | Deploy only for one provider.                                                               |
+| `sase skill init`  | `-A, --no-apply`                                                        | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.    |
+| `sase skill init`  | `-C, --no-commit`                                                       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                   |
+| `sase skill init`  | `-P, --no-push`                                                         | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`. |
+| `sase skill log`   | `-a, --agent`; `-R, --runtime`; `-s, --skill`; `-i, --id`; `-j, --json` | Summarize or inspect audited generated skill-use events.                                    |
+| `sase skill use`   | `-r, --reason <reason>` required                                        | Agent-side audit event recording that the current agent is using a generated skill.         |
+| `sase init skills` | same as `sase skill init`                                               | Compatibility alias for `sase skill init`.                                                  |
 
 ### `sase git init`
 

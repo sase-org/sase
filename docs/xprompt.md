@@ -228,14 +228,14 @@ Hello, {{ user_name }}! Welcome aboard.
 
 ### Front Matter Fields
 
-| Field         | Required | Description                                                                    |
-| ------------- | -------- | ------------------------------------------------------------------------------ |
-| `name`        | No       | XPrompt name (defaults to filename stem)                                       |
-| `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))                |
-| `snippet`     | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below)    |
-| `description` | No       | Human-readable one-line description of what the xprompt does                   |
-| `skill`       | No       | Marks this xprompt as an agent skill source for `sase skills init` (see below) |
-| `xprompts`    | No       | File-local helper xprompts whose names must start with `_`                     |
+| Field         | Required | Description                                                                   |
+| ------------- | -------- | ----------------------------------------------------------------------------- |
+| `name`        | No       | XPrompt name (defaults to filename stem)                                      |
+| `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))               |
+| `snippet`     | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below)   |
+| `description` | No       | Human-readable one-line description of what the xprompt does                  |
+| `skill`       | No       | Marks this xprompt as an agent skill source for `sase skill init` (see below) |
+| `xprompts`    | No       | File-local helper xprompts whose names must start with `_`                    |
 
 If no front matter is present, the entire file content is the template body and the filename stem is the name.
 
@@ -705,13 +705,13 @@ Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`
 
 ## Skill Field
 
-XPrompts can be marked as agent skill sources by setting the `skill` field in their front matter. `sase skills list`
-shows the loaded skill catalog without writing files. `sase skills init` reads that catalog, including bundled skill
+XPrompts can be marked as agent skill sources by setting the `skill` field in their front matter. `sase skill list`
+shows the loaded skill catalog without writing files. `sase skill init` reads that catalog, including bundled skill
 sources and runtime config overlays, to determine which xprompts should be rendered into per-provider `SKILL.md` files
 and deployed to agent skill directories. By default, generated skill files begin with a
-`sase skills use <name> --reason ...` directive so SASE can audit which skills an agent used; set `log_skill_use: false`
+`sase skill use <name> --reason ...` directive so SASE can audit which skills an agent used; set `log_skill_use: false`
 in a skill source to omit that directive (see below). Recorded skill uses can be summarized and inspected with
-`sase skills log`. The compatibility alias `sase init skills` runs the same initializer.
+`sase skill log`. The compatibility alias `sase init skills` runs the same initializer.
 
 ```markdown
 ---
@@ -730,21 +730,21 @@ Commit instructions here...
 | `true`                 | Deploy to all registered providers  |
 | `["claude", "gemini"]` | Deploy only to the listed providers |
 
-The `description` field provides a human-readable summary shown in `sase xprompt list` and `sase skills list` output.
-The structured catalog also marks these entries with `is_skill: true`; ACE and editor clients use that flag to offer
+The `description` field provides a human-readable summary shown in `sase xprompt list` and `sase skill list` output. The
+structured catalog also marks these entries with `is_skill: true`; ACE and editor clients use that flag to offer
 slash-skill completions such as `/sase_plan` while keeping ordinary xprompts out of slash completion results.
 
 The optional `log_skill_use` boolean field controls the generated audit directive. It defaults to `true`, so generated
-skills instruct the agent to run `sase skills use <name> --reason ...` as their first step. Set `log_skill_use: false`
-to suppress that directive for skills that should not record their own use (the bundled `/sase_plan` and
+skills instruct the agent to run `sase skill use <name> --reason ...` as their first step. Set `log_skill_use: false` to
+suppress that directive for skills that should not record their own use (the bundled `/sase_plan` and
 `/sase_memory_read` skills set this). The field only affects sources that are also marked as skills.
 
 **Workflow:** Edit packaged skill sources in `src/sase/xprompts/skills/`, or define user/runtime skill xprompts through
-the normal xprompt catalog sources. Do not include the `sase skills use` directive yourself; the generator injects it
-unless `log_skill_use: false` is set. Then run `sase skills list`, `sase skills init --dry-run`, and finally
-`sase skills init --force` when the preview is correct. When `use_chezmoi` is enabled, `sase skills init` commits,
-pushes, and applies the generated files unless passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit deployed
-`SKILL.md` files directly. `sase init skills` is a compatibility alias for `sase skills init`.
+the normal xprompt catalog sources. Do not include the `sase skill use` directive yourself; the generator injects it
+unless `log_skill_use: false` is set. Then run `sase skill list`, `sase skill init --dry-run`, and finally
+`sase skill init --force` when the preview is correct. When `use_chezmoi` is enabled, `sase skill init` commits, pushes,
+and applies the generated files unless passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit deployed
+`SKILL.md` files directly. `sase init skills` is a compatibility alias for `sase skill init`.
 
 Provider plugins declare where generated skills should be written. A source can target multiple providers, and a
 provider can have multiple filesystem targets; for example, Gemini deploys to both the normal Gemini skills directory
@@ -760,10 +760,10 @@ and the Jetski compatibility directory. Built-in targets are:
 
 ### Bundled Skills
 
-The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase skills init`. They are packaged with
+The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase skill init`. They are packaged with
 sase, included in `sase xprompt list`, and available to prompt completion clients even when a checkout does not have
 local skill files. Coding agents invoke them as `/sase_<name>`. Runtime config overlays can add more skill sources, so
-`sase skills list` may show entries that are not bundled here:
+`sase skill list` may show entries that are not bundled here:
 
 | Skill                | Purpose                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------- |
