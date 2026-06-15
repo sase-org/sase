@@ -7,7 +7,6 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_requests import (
 )
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 
 def _ctx() -> PromptContext:
@@ -38,7 +37,7 @@ class _Bar:
     def __init__(self, text_area: _TextArea) -> None:
         self.text_area = text_area
 
-    def query_one(self, _selector: str, _cls: type[PromptTextArea]) -> _TextArea:
+    def active_text_area(self) -> _TextArea:
         return self.text_area
 
 

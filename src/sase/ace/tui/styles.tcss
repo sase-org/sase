@@ -1181,17 +1181,60 @@ PromptInputBar #prompt-completion.hidden {
     display: none;
 }
 
-PromptInputBar #prompt-input {
+/* The prompt stack: a vertical list of one-or-more prompt panes. */
+PromptInputBar #prompt-stack {
     width: 100%;
     height: 1fr;
-    border: none;
+}
+
+/* Shared text-area styling for every pane. */
+PromptInputBar .prompt-input {
+    width: 100%;
     background: $background;
     color: $text;
 }
 
-PromptInputBar #prompt-input:focus {
+/* Single-pane (solo) mode is visually identical to the pre-stack bar: the
+   text area fills the bar and carries no border of its own. */
+PromptInputBar .prompt-input.solo {
+    height: 1fr;
+    border: none;
+}
+
+PromptInputBar .prompt-input.solo:focus {
     border: none;
     background: $background;
+}
+
+/* Multi-pane mode: each pane is a quiet framed item.  A left accent bar marks
+   the active pane; inactive panes dim and compact.  No top/bottom border keeps
+   panes from reading as nested cards stacked inside the docked bar. */
+PromptInputBar .prompt-pane {
+    border-left: thick $surface-lighten-2;
+    padding: 0 0 0 1;
+    margin: 0;
+}
+
+PromptInputBar .prompt-pane.active {
+    border-left: thick $accent;
+}
+
+PromptInputBar .prompt-pane.inactive {
+    color: $text-muted;
+}
+
+/* Separator rows: a quiet, centered agent label above each pane. */
+PromptInputBar .prompt-stack-separator {
+    width: 100%;
+    height: 1;
+    text-align: center;
+    text-style: dim;
+    color: $text-muted;
+}
+
+PromptInputBar .prompt-stack-separator.active {
+    color: $accent;
+    text-style: bold;
 }
 
 PromptInputBar.feedback-mode {

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-
 from ._prompt_bar_mount import has_edit_directive
 from ._types import PromptContext
 
@@ -77,8 +75,7 @@ class PromptBarRequestsMixin:
                 if event.preserve_prompt_bar:
                     try:
                         bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-                        text_area = bar.query_one("#prompt-input", PromptTextArea)
-                        text_area.focus()
+                        bar.active_text_area().focus()
                     except Exception:
                         pass
                     return
@@ -91,12 +88,12 @@ class PromptBarRequestsMixin:
                 # Direct submit - skip editor
                 self._finish_agent_launch(_build_prompt(result.prompt_text))  # type: ignore[attr-defined]
             elif result.action == PromptHistoryAction.LOAD:
-                # Load into prompt input widget for inline editing
+                # Load into the prompt bar for inline editing.  A multi-prompt
+                # history entry renders as stacked panes; a single entry stays
+                # one pane (canonical split decides).
                 try:
                     bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-                    text_area = bar.query_one("#prompt-input", PromptTextArea)
-                    text_area.load_text(_build_prompt(result.prompt_text))
-                    text_area.focus()
+                    bar.load_stack_from_text(_build_prompt(result.prompt_text))
                 except Exception:
                     pass
             else:
@@ -158,7 +155,7 @@ class PromptBarRequestsMixin:
         extra_prompts = None
         try:
             bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-            prompt_text = bar.query_one("#prompt-input", PromptTextArea).text
+            prompt_text = bar.active_text()
             if prompt_text:
                 from sase.xprompt._parsing import (
                     extract_project_from_vcs_tag,

@@ -6,7 +6,6 @@ import os
 import re
 
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
-from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.core.paths import sase_projects_dir
 
 from ._types import PromptContext
@@ -108,8 +107,7 @@ class PromptBarMountMixin:
         never downgrades a non-cancelled entry to cancelled.
         """
         try:
-            text_area = bar.query_one("#prompt-input", PromptTextArea)  # type: ignore[attr-defined]
-            text = text_area.text.strip()
+            text = bar.current_prompt_text().strip()  # type: ignore[attr-defined]
         except Exception:
             return
 
@@ -279,14 +277,16 @@ class PromptBarMountMixin:
         )
 
     def _load_prompt_into_bar(self, prompt: str) -> None:
-        """Load text into the mounted prompt input bar's text area."""
+        """Replace the prompt bar's stack with panes parsed from *prompt*.
+
+        Used for deliberate whole-bar loads (e.g. ``%edit`` editor return), so a
+        multi-prompt result renders as stacked panes rather than one text box.
+        """
         from ...widgets import PromptInputBar
 
         try:
             bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-            text_area = bar.query_one("#prompt-input", PromptTextArea)
-            text_area.load_text(prompt)
-            text_area.focus()
+            bar.load_stack_from_text(prompt)
         except Exception:
             pass
 

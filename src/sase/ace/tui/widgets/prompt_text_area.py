@@ -460,6 +460,20 @@ class PromptTextArea(
         return last_row, len(self.document.get_line(last_row))
 
     def _refocus_if_needed(self) -> None:
-        """Refocus this text area unless a modal is active."""
-        if self.is_mounted and not isinstance(self.app.screen, ModalScreen):
-            self.focus()
+        """Refocus this text area unless a modal is active or a sibling pane owns it.
+
+        With a multi-pane prompt stack, focus intentionally moves between panes;
+        the just-blurred pane must not steal focus back.  Only the bar's active
+        pane refocuses itself (the single-pane bar always treats itself as
+        active), preserving the original "keep the prompt focused" behavior.
+        """
+        if not self.is_mounted or isinstance(self.app.screen, ModalScreen):
+            return
+        bar = self._find_prompt_bar()
+        if bar is not None:
+            try:
+                if bar.active_text_area() is not self:
+                    return
+            except Exception:
+                pass
+        self.focus()

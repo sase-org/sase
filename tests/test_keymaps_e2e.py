@@ -102,7 +102,7 @@ async def test_prompt_input_space_is_text_after_home_prompt_opens() -> None:
             await page.press("space")
             await page.pause()
 
-            text_area = page.query_one_widget("#prompt-input", PromptTextArea)
+            text_area = page.query_one_widget(".prompt-input", PromptTextArea)
             await page.press("a", "space", "b")
             await page.pause()
 
