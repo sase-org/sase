@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-15 09:53:29
-status: wip
+status: done
 prompt: sdd/prompts/202606/run_cwd_project_creation.md
 ---
 # Fix `sase run` CWD Project Creation

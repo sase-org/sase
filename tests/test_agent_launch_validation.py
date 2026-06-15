@@ -237,7 +237,7 @@ def test_launch_agents_from_cwd_cancels_history_and_skips_spawn(
     monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_FILE", history_path)
     monkeypatch.setattr(
         "sase.main.utils.ensure_project_file_and_get_workspace_num",
-        lambda: (None, 0, "home"),
+        lambda **_kwargs: (None, 0, "home"),
     )
     monkeypatch.setattr(
         "sase.agent.launcher.spawn_agent_subprocess",

@@ -161,8 +161,12 @@ def launch_agents_from_cwd(
     from sase.workspace_provider import get_workflow_names
 
     # --- Resolve project context ---
+    # Read-only lookup: a plain launch from a git checkout must not register
+    # that checkout as a SASE project. Explicit VCS/known-project refs resolved
+    # below still activate their real project, and bare prompts fall back to
+    # home mode rather than bootstrapping a CWD ProjectSpec.
     project_file, workspace_num, project_name = (
-        ensure_project_file_and_get_workspace_num()
+        ensure_project_file_and_get_workspace_num(create_missing=False)
     )
 
     is_home_mode = project_file is None

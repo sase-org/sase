@@ -81,15 +81,26 @@ def kill_agent_runner_group(artifacts_dir: str) -> NoReturn:
     sys.exit(0)
 
 
-def ensure_project_file_and_get_workspace_num() -> ProjectInfo:
-    """Get project file and workspace num, creating project file if needed.
+def ensure_project_file_and_get_workspace_num(
+    *,
+    create_missing: bool = True,
+) -> ProjectInfo:
+    """Get project file and workspace num for the current directory.
 
-    This function will create the project file if it doesn't exist yet
-    (without a BUG field, which can be added later via `sase ace`).
+    By default this bootstraps a missing project file (without a BUG field,
+    which can be added later via `sase ace`). Pass ``create_missing=False``
+    to make the lookup read-only: when the inferred project has no existing
+    ProjectSpec, nothing is created and ``(None, None, None)`` is returned.
+
+    Args:
+        create_missing: When True (default), create the project file if it
+            doesn't exist yet. When False, only resolve a project whose
+            ProjectSpec already exists and never create anything.
 
     Returns:
         Tuple of (project_file, workspace_num, project_name)
-        All None if not in a recognized workspace or creation failed.
+        All None if not in a recognized workspace, the project file does not
+        exist and ``create_missing`` is False, or creation failed.
     """
     from sase.workflows.commit.project_file_utils import create_project_file
 
@@ -104,8 +115,12 @@ def ensure_project_file_and_get_workspace_num() -> ProjectInfo:
     project_dir = str(sase_projects_dir() / project_name)
     project_file = preferred_project_spec_path(project_dir, project_name)
 
-    # Create project file if it doesn't exist
+    # Create the project file if it doesn't exist, unless the caller asked for
+    # a read-only lookup (e.g. plain `sase run` launch-context resolution that
+    # must not register the current checkout as a SASE project).
     if not os.path.exists(project_file):
+        if not create_missing:
+            return (None, None, None)
         if not create_project_file(project_name):
             return (None, None, None)
 

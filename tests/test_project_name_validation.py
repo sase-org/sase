@@ -70,3 +70,70 @@ def test_ensure_project_file_ignores_invalid_inferred_project_name(
         None,
     )
     assert not (sase_home / "projects" / ".sase").exists()
+
+
+def test_ensure_project_file_read_only_skips_missing_project(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """``create_missing=False`` must not register a CWD-inferred project."""
+    from sase.main import utils as main_utils
+
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setattr(main_utils, "get_workspace_name", lambda _cwd: "myrepo")
+
+    assert main_utils.ensure_project_file_and_get_workspace_num(
+        create_missing=False
+    ) == (None, None, None)
+    assert not (sase_home / "projects" / "myrepo").exists()
+
+
+def test_ensure_project_file_default_creates_missing_project(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The default (creating) behavior still bootstraps a missing project."""
+    import os
+
+    from sase.main import utils as main_utils
+
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setattr(main_utils, "get_workspace_name", lambda _cwd: "myrepo")
+
+    project_file, workspace_num, project_name = (
+        main_utils.ensure_project_file_and_get_workspace_num()
+    )
+
+    assert project_name == "myrepo"
+    assert workspace_num == 1
+    assert project_file is not None
+    assert os.path.exists(project_file)
+    assert (sase_home / "projects" / "myrepo").is_dir()
+
+
+def test_ensure_project_file_read_only_returns_existing_project(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """``create_missing=False`` still resolves an already-existing project."""
+    import os
+
+    from sase.main import utils as main_utils
+
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setattr(main_utils, "get_workspace_name", lambda _cwd: "myrepo")
+
+    # Bootstrap the project file first via the default (creating) path.
+    created_file, _, _ = main_utils.ensure_project_file_and_get_workspace_num()
+    assert created_file is not None and os.path.exists(created_file)
+
+    # A subsequent read-only lookup returns the same project without creating.
+    project_file, workspace_num, project_name = (
+        main_utils.ensure_project_file_and_get_workspace_num(create_missing=False)
+    )
+    assert project_file == created_file
+    assert workspace_num == 1
+    assert project_name == "myrepo"

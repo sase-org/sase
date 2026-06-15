@@ -189,13 +189,26 @@ def run_query(
     else:
         vcs_project, vcs_ref = None, None
 
-    # Get project info for workspace claiming (creates project file if needed)
-    project_file, workspace_num, _ = ensure_project_file_and_get_workspace_num()
+    # Get project info for workspace claiming. Use a read-only lookup so a
+    # plain `sase run` from a git checkout never registers that checkout as a
+    # SASE project; only an already-existing ProjectSpec is returned here.
+    project_file, workspace_num, _ = ensure_project_file_and_get_workspace_num(
+        create_missing=False
+    )
 
     # Resolve cl_name from VCS ref (the actual CL name, e.g. "yserve_batch_create_update")
     cl_name = vcs_ref
     if cl_name is None and project_file:
         cl_name = os.path.basename(os.path.dirname(project_file))
+
+    # Project name for artifacts: prefer the resolved ref's project (e.g.
+    # ``home`` for a bare prompt normalized to ``#git:home``), then an existing
+    # CWD ProjectSpec. When neither exists we skip artifacts/claiming rather
+    # than letting ``create_artifacts_directory`` re-derive (and create) a
+    # project from the current checkout.
+    resolved_project_name: str | None = vcs_project
+    if resolved_project_name is None and project_file:
+        resolved_project_name = os.path.basename(os.path.dirname(project_file))
 
     agent_model: str | None = None
     agent_llm_provider: str | None = None
@@ -258,16 +271,22 @@ def run_query(
         # Capture start timestamp for accurate duration calculation
         shared_timestamp = generate_timestamp()
 
-        # Create artifacts directory for prompt persistence
+        # Create artifacts directory for prompt persistence. Anchor it to the
+        # resolved project name so we never materialize a CWD-derived project;
+        # when no project resolved, skip artifacts entirely.
         artifacts_timestamp: str | None = None
-        try:
-            artifacts_dir: str | None = create_artifacts_directory("run")
-            # Extract timestamp from the directory path (last component)
-            if artifacts_dir:
-                artifacts_timestamp = os.path.basename(artifacts_dir)
-        except RuntimeError:
-            # Not in a recognized project - skip artifacts
-            artifacts_dir = None
+        artifacts_dir: str | None = None
+        if resolved_project_name:
+            try:
+                artifacts_dir = create_artifacts_directory(
+                    "run", project_name=resolved_project_name
+                )
+                # Extract timestamp from the directory path (last component)
+                if artifacts_dir:
+                    artifacts_timestamp = os.path.basename(artifacts_dir)
+            except RuntimeError:
+                # Not in a recognized project - skip artifacts
+                artifacts_dir = None
 
         # Save raw prompt for TUI display (matches daemon runner behavior)
         if artifacts_dir:
