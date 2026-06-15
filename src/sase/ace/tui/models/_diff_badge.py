@@ -34,6 +34,19 @@ def _is_plan_prompt_bookkeeping_path(path: str) -> bool:
     )
 
 
+def diff_text_has_real_edits(diff_text: str) -> bool:
+    """Return False only when every changed path is plan/prompt bookkeeping.
+
+    Shared by the persisted-diff classifier (:func:`diff_has_real_edits`) and
+    the live workspace hint. Empty or unparsed diff text fails open (True) so
+    an unusual diff keeps the historical "diff means pencil" behavior.
+    """
+    changed_files = changed_files_from_diff(diff_text)
+    if not changed_files:
+        return True
+    return any(not _is_plan_prompt_bookkeeping_path(path) for path in changed_files)
+
+
 def diff_has_real_edits(diff_path: str) -> bool:
     """Return False only when a diff touches known plan/prompt bookkeeping.
 
@@ -54,13 +67,7 @@ def diff_has_real_edits(diff_path: str) -> bool:
 
     try:
         diff_text = Path(expanded).read_text(encoding="utf-8", errors="ignore")
-        changed_files = changed_files_from_diff(diff_text)
-        if not changed_files:
-            result = True
-        else:
-            result = any(
-                not _is_plan_prompt_bookkeeping_path(path) for path in changed_files
-            )
+        result = diff_text_has_real_edits(diff_text)
     except Exception:
         result = True
 

@@ -192,6 +192,40 @@ def _compute_diff_cache_key(agent: Agent) -> DiffCacheKey | None:
     return (diff_source.identity, workspace_dir, provider_name, fingerprint, ttl_bucket)
 
 
+_LIVE_HINT_TERMINAL_STATUSES = frozenset({"DONE", "FAILED"})
+
+
+def live_agent_file_change_hint(agent: Agent) -> bool | None:
+    """Classify an active agent's live workspace edits for the Agents-tab badge.
+
+    Mirrors the detail pane's live-diff path so a running agent's row shows the
+    pencil badge as soon as its workspace has real edits, even before a
+    ``diff_path`` is persisted at finalization.
+
+    Returns ``None`` when the live signal does not apply: the resolved diff
+    source already has a persisted ``diff_path`` (the persisted classification
+    is authoritative), the agent is terminal, or no workspace/VCS provider
+    resolves. Otherwise returns whether the live diff touches non-bookkeeping
+    paths, using the same exclusion as :func:`diff_has_real_edits`.
+    """
+    diff_source = _resolve_agent_diff_source(agent)
+    if diff_source.diff_path:
+        return None
+    if diff_source.status in _LIVE_HINT_TERMINAL_STATUSES:
+        return None
+
+    diff_text = get_agent_diff(agent)
+    if not diff_text:
+        # No resolvable workspace, a provider error, or a genuinely clean
+        # working tree all collapse to "no live edits": fail closed so the row
+        # badge stays stable rather than guessing a pencil.
+        return False
+
+    from ...models._diff_badge import diff_text_has_real_edits
+
+    return diff_text_has_real_edits(diff_text)
+
+
 def get_agent_diff(agent: Agent) -> str | None:
     """Get diff output for an agent.
 

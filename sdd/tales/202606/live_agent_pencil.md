@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-15 19:02:59
-status: wip
+status: done
 prompt: sdd/prompts/202606/live_agent_pencil.md
 ---
 # Plan: Live Agent Pencil Badge

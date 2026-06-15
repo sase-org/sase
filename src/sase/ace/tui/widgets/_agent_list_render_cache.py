@@ -59,6 +59,9 @@ def agent_file_change_hint(agent: Agent) -> bool:
     classified = agent.diff_has_real_edits
     if classified is not None:
         return classified
+    live = agent.live_file_change_hint
+    if live is not None:
+        return live
     return bool(agent.diff_path)
 
 

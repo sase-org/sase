@@ -496,3 +496,108 @@ def test_resolve_managed_workspace_dir_one_is_primary(
 
     assert resolved is not None
     assert resolved.rstrip("/") == "/proj/primary"
+
+
+# --- live_agent_file_change_hint ---------------------------------------------
+
+
+def _git_diff(path: str) -> str:
+    return f"""diff --git a/{path} b/{path}
+--- a/{path}
++++ b/{path}
+@@ -1 +1 @@
+-old
++new
+"""
+
+
+class _DiffTextProvider:
+    """VCS provider stub returning a fixed unified diff for the live hint."""
+
+    def __init__(self, diff_text: str) -> None:
+        self.diff_text = diff_text
+        self.calls = 0
+
+    def diff_with_untracked(self, cwd: str, *, timeout: int = 10):  # type: ignore[no-untyped-def]
+        self.calls += 1
+        return (True, self.diff_text)
+
+
+def test_live_hint_true_for_real_workspace_edits(tmp_path: Path) -> None:
+    diff_mod._diff_cache.clear()
+    workspace = _setup_workspace(tmp_path)
+    agent = _make_running_agent(workspace_dir=str(workspace))
+    provider = _DiffTextProvider(_git_diff("src/app.py"))
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            hint = diff_mod.live_agent_file_change_hint(agent)
+
+    assert hint is True
+
+
+def test_live_hint_false_for_bookkeeping_only_edits(tmp_path: Path) -> None:
+    diff_mod._diff_cache.clear()
+    workspace = _setup_workspace(tmp_path)
+    agent = _make_running_agent(workspace_dir=str(workspace))
+    provider = _DiffTextProvider(_git_diff("sdd/tales/202606/change.md"))
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            hint = diff_mod.live_agent_file_change_hint(agent)
+
+    assert hint is False
+
+
+def test_live_hint_false_for_clean_workspace(tmp_path: Path) -> None:
+    diff_mod._diff_cache.clear()
+    workspace = _setup_workspace(tmp_path)
+    agent = _make_running_agent(workspace_dir=str(workspace))
+    provider = _DiffTextProvider("")
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            hint = diff_mod.live_agent_file_change_hint(agent)
+
+    assert hint is False
+
+
+def test_live_hint_none_for_persisted_diff_path(tmp_path: Path) -> None:
+    diff_mod._diff_cache.clear()
+    workspace = _setup_workspace(tmp_path)
+    agent = _make_running_agent(workspace_dir=str(workspace))
+    agent.diff_path = "/tmp/sase/demo.diff"
+
+    with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
+        hint = diff_mod.live_agent_file_change_hint(agent)
+
+    assert hint is None
+    mock_get_provider.assert_not_called()
+
+
+def test_live_hint_none_for_completed_agent(tmp_path: Path) -> None:
+    diff_mod._diff_cache.clear()
+    workspace = _setup_workspace(tmp_path)
+    agent = _make_running_agent(workspace_dir=str(workspace))
+    agent.status = "DONE"
+
+    with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
+        hint = diff_mod.live_agent_file_change_hint(agent)
+
+    assert hint is None
+    mock_get_provider.assert_not_called()
+
+
+def test_live_hint_false_without_resolvable_workspace(tmp_path: Path) -> None:
+    diff_mod._diff_cache.clear()
+    project_file = tmp_path / "projects" / "myproj.sase"
+    project_file.parent.mkdir(parents=True)
+    project_file.write_text("NAME: my-feature\n", encoding="utf-8")
+    agent = _make_running_agent(workspace_num=3, project_file=str(project_file))
+
+    with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
+        hint = diff_mod.live_agent_file_change_hint(agent)
+
+    # No workspace metadata resolves -> no live diff -> fail closed (no pencil).
+    assert hint is False
+    mock_get_provider.assert_not_called()

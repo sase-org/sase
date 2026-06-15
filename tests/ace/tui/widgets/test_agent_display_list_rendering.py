@@ -111,6 +111,34 @@ class TestAgentListFileChangePencil:
 
         assert "✏️" not in left.plain
 
+    def test_row_with_live_hint_renders_pencil_without_diff_path(self) -> None:
+        agent = make_agent(live_file_change_hint=True, llm_provider=None)
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "✏️ test_cl (RUNNING)" in left.plain
+
+    def test_row_with_false_live_hint_omits_pencil(self) -> None:
+        agent = make_agent(live_file_change_hint=False, llm_provider=None)
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "✏️" not in left.plain
+
+    def test_persisted_classification_wins_over_live_hint(self) -> None:
+        # A persisted bookkeeping-only classification stays authoritative even
+        # if a stale live hint says otherwise.
+        agent = make_agent(
+            diff_path="/tmp/sase/demo.diff",
+            diff_has_real_edits=False,
+            live_file_change_hint=True,
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "✏️" not in left.plain
+
     def test_pencil_flows_before_display_name_not_bead_metadata(self) -> None:
         agent = make_agent(
             agent_name="sase-x.3",

@@ -283,11 +283,29 @@ def _copy_missing_display_metadata(parent: Agent, child: Agent) -> None:
         parent.workspace_dir = child.workspace_dir
 
 
+def _classify_live_file_change_hint(agent: Agent) -> bool | None:
+    """Compute the active-workspace pencil hint for a row without a diff_path.
+
+    Runs off the event loop as part of the loader classification pass. Fails
+    closed (returns None) on any error so live VCS access can never destabilize
+    row rendering.
+    """
+    if agent.diff_path:
+        return None
+    from sase.ace.tui.widgets.file_panel._diff import live_agent_file_change_hint
+
+    try:
+        return live_agent_file_change_hint(agent)
+    except Exception:
+        return None
+
+
 def _classify_diff_badges(agents: list[Agent]) -> None:
     for agent in agents:
         agent.diff_has_real_edits = (
             diff_has_real_edits(agent.diff_path) if agent.diff_path else None
         )
+        agent.live_file_change_hint = _classify_live_file_change_hint(agent)
 
 
 def _root_child_suffix(parent: Agent) -> str:

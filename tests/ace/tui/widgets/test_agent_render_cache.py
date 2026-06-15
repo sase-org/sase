@@ -353,6 +353,50 @@ def test_render_key_changes_when_diff_badge_classification_changes() -> None:
     assert k1 == k3
 
 
+def test_render_key_changes_when_live_file_change_hint_changes() -> None:
+    a = _agent(status="RUNNING")
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    a.live_file_change_hint = True
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    a.live_file_change_hint = False
+    k3 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    # The pencil appears (k1 -> k2) and disappears (k2 -> k3) as the live hint
+    # flips, so the selective-patch cache must see distinct keys.
+    assert k1 != k2
+    assert k2 != k3
+    assert k1 == k3
+
+
 def test_render_key_changes_across_seconds_for_ticking_parent_status() -> None:
     a = _agent(status="PLAN APPROVED")
     child = _agent(

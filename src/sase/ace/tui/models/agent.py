@@ -79,6 +79,14 @@ class Agent:
     # has not gone through the loader classification pass yet.
     diff_has_real_edits: bool | None = field(default=None, compare=False)
 
+    # Precomputed live file-change hint for active agents that have made real
+    # workspace edits but have not persisted a ``diff_path`` yet. Populated by
+    # the loader classification pass (off the event loop), separate from
+    # ``diff_has_real_edits`` so the persisted classification stays
+    # authoritative for completed rows. None means "no live signal" (not
+    # active, no resolvable workspace, or the live check failed closed).
+    live_file_change_hint: bool | None = field(default=None, compare=False)
+
     # Additional file paths (plans, etc.) for multi-file panel display
     extra_files: list[str] = field(default_factory=list)
 

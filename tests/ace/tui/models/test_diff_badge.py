@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.ace.tui.models._diff_badge import diff_has_real_edits
+from sase.ace.tui.models._diff_badge import (
+    diff_has_real_edits,
+    diff_text_has_real_edits,
+)
 
 
 def _git_diff(path: str) -> str:
@@ -15,6 +18,20 @@ def _git_diff(path: str) -> str:
 -old
 +new
 """
+
+
+def test_diff_text_has_real_edits_classifies_paths() -> None:
+    assert diff_text_has_real_edits(_git_diff("src/app.py")) is True
+    assert diff_text_has_real_edits(_git_diff("sdd/tales/202606/change.md")) is False
+    # Mixed code + bookkeeping counts as a real edit.
+    assert (
+        diff_text_has_real_edits(
+            _git_diff("sdd/prompts/202606/p.md") + _git_diff("src/app.py")
+        )
+        is True
+    )
+    # Unparsed text fails open, matching the persisted classifier.
+    assert diff_text_has_real_edits("not a unified diff\n") is True
 
 
 def test_diff_has_real_edits_is_false_for_sdd_only_diff(tmp_path: Path) -> None:
