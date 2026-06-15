@@ -463,4 +463,8 @@ def handle_accepted_plan(
             f"Implement it now.{coder_extra}\n{embedded_refs}"
         )
 
+    # A ``/sase_questions`` interruption from this follow-up phase must rebuild
+    # from the exact code/epic/legend prompt (with its resolved ``%model``
+    # directive), not the initial planner prompt.
+    state.question_base_prompt = state.current_prompt
     return None  # continue loop

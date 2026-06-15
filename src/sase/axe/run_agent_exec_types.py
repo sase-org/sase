@@ -61,6 +61,14 @@ class LoopState:
     sdd_spec_path: str | None
     # The bare initial prompt with no accumulated Q&A or feedback appended.
     original_prompt: str
+    # Base prompt for question continuations: the currently executing phase's
+    # prompt before merged Q&A is appended. Refreshed on phase transitions
+    # (accepted-plan code/epic/legend handoff and plan-feedback replan) so a
+    # ``/sase_questions`` interruption from the code phase rebuilds from the
+    # code-agent prompt rather than the initial planner prompt. Defaults to the
+    # initial prompt at loop start (see ``__post_init__``). Unlike
+    # ``original_prompt`` it is mutable, tracking the live phase.
+    question_base_prompt: str = ""
     qa_rounds: list[QARound] = field(default_factory=list)
     feedback_bullets: list[str] = field(default_factory=list)
     feedback_round: int = 0
@@ -68,6 +76,10 @@ class LoopState:
     saved_chat_paths: list[tuple[str, str]] = field(default_factory=list)
     # Snapshot of SASE_AGENT_TIMESTAMP at loop entry, restored after finalization.
     original_agent_timestamp: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.question_base_prompt:
+            self.question_base_prompt = self.original_prompt
 
 
 _AgentExecResult = AgentExecResult

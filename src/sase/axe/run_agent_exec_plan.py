@@ -204,6 +204,9 @@ def handle_plan_marker(
             base += "\n\n" + merge_qa_for_prompt(state.qa_rounds)
         reqs = "\n".join(f"- {fb}" for fb in state.feedback_bullets)
         state.current_prompt = f"{base}\n\n### Additional Requirements\n\n{reqs}"
+        # A ``/sase_questions`` interruption from the replan phase rebuilds from
+        # this feedback prompt rather than the bare planner prompt.
+        state.question_base_prompt = state.current_prompt
         _store_followup_prompt_artifact(
             state.current_artifacts_dir,
             state.current_prompt,

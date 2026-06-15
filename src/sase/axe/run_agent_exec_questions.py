@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -38,6 +39,26 @@ if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
 
 _store_followup_prompt_artifact = store_followup_prompt_artifact
+
+
+def _interrupted_phase_meta(
+    artifacts_dir: str,
+    fallback_meta: dict[str, Any],
+) -> dict[str, Any]:
+    """Return the interrupted phase's ``agent_meta.json`` as follow-up base meta.
+
+    A code-phase question continuation must inherit the concrete worker
+    provider/model ``handle_accepted_plan`` recorded for the interrupted phase,
+    not the planner metadata carried in ``ctx.agent_meta``. Falls back to
+    *fallback_meta* when the file is missing or unreadable.
+    """
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    try:
+        with meta_path.open(encoding="utf-8") as f:
+            loaded = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return fallback_meta
+    return loaded if isinstance(loaded, dict) and loaded else fallback_meta
 
 
 def handle_questions_marker(
@@ -129,9 +150,13 @@ def handle_questions_marker(
         )
     followup_suffix = plan_chain_feedback_suffix(state.agent_step - 1)
     state.current_role_suffix = followup_suffix
+    # Inherit the interrupted phase's concrete model/provider (e.g. the worker
+    # model that ``handle_accepted_plan`` wrote for the code phase) instead of
+    # the initial planner metadata in ``ctx.agent_meta``.
+    base_meta = _interrupted_phase_meta(state.current_artifacts_dir, ctx.agent_meta)
     state.current_artifacts_dir = create_followup_artifacts(
         ctx.project_name,
-        ctx.agent_meta,
+        base_meta,
         followup_suffix,
         convert_timestamp_to_artifacts_format(ctx.timestamp),
         workspace_num=ctx.workspace_num,
@@ -147,7 +172,9 @@ def handle_questions_marker(
             "source_plan_agent_name": agent_name_for_suffix(ctx, previous_role_suffix),
         },
     )
-    state.current_prompt = state.original_prompt + "\n\n" + merged_qa_text
+    # Rebuild from the current phase base (code/feedback/planner prompt) so a
+    # code-phase question keeps the code prompt and its ``%model`` directive.
+    state.current_prompt = state.question_base_prompt + "\n\n" + merged_qa_text
     _store_followup_prompt_artifact(
         state.current_artifacts_dir,
         state.current_prompt,
