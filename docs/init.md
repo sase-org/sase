@@ -43,7 +43,7 @@ sase skills init --dry-run
 
 # Agent-side audited operations, normally run from a SASE-launched agent:
 sase memory read long/generated_skills.md --reason "Need generated skill context"
-sase skills log sase_plan --reason "Need to prepare an implementation plan"
+sase skills use sase_plan --reason "Need to prepare an implementation plan"
 sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
 ```
 
@@ -88,7 +88,7 @@ a compatibility alias for `sase skills init`.
 | `sase skills init --dry-run`          | Preview generated skill target paths without writing files.                                   |
 | `sase skills init --force`            | Generate and overwrite deployed skill files without confirmation.                             |
 | `sase skills init -p <provider>`      | Deploy only one provider's generated skill files.                                             |
-| `sase skills log <name>`              | Agent-side audit event recording that a generated skill was used.                             |
+| `sase skills use <name>`              | Agent-side audit event recording that a generated skill was used.                             |
 | `sase init skills`                    | Compatibility alias for `sase skills init`.                                                   |
 
 Advanced deploy controls such as `--no-commit`, `--no-push`, and `--no-apply` live on explicit subcommands rather than
@@ -250,7 +250,7 @@ stale, or missing. Bare `sase skills` shows the same dashboard.
 
 `sase skills init` renders those sources into provider-specific `SKILL.md` files. Sources include bundled skill xprompts
 and user/runtime xprompt catalog entries. By default, generated skill files include a first-step
-`sase skills log <name> --reason ...` directive so agent skill usage is attributable in the same project audit surface
+`sase skills use <name> --reason ...` directive so agent skill usage is attributable in the same project audit surface
 as memory reads; a source can set `log_skill_use: false` to omit that directive. The usual workflow is to inspect first,
 preview writes, then deploy:
 

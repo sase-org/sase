@@ -213,7 +213,7 @@ def _skill_use_audit_directive(name: str) -> str:
         "Before doing anything else, run this command to record that you are "
         "using this skill:\n\n"
         "```bash\n"
-        f'sase skills log {name} --reason "<one-line reason for using this skill>"\n'
+        f'sase skills use {name} --reason "<one-line reason for using this skill>"\n'
         "```\n\n"
     )
 

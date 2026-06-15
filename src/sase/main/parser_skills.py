@@ -19,7 +19,7 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase skills list\n"
             "  sase skills init --force\n"
-            '  sase skills log sase_plan --reason "Preparing an implementation plan"'
+            '  sase skills use sase_plan --reason "Preparing an implementation plan"'
         ),
     )
     skills_subparsers = skills_parser.add_subparsers(
@@ -47,8 +47,8 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
 
-    log_parser = skills_subparsers.add_parser(
-        "log",
+    use_parser = skills_subparsers.add_parser(
+        "use",
         help="Record that the current agent is using a skill",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
@@ -58,15 +58,15 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         epilog=(
             "example:\n"
-            '  sase skills log sase_plan --reason "Preparing an implementation plan"'
+            '  sase skills use sase_plan --reason "Preparing an implementation plan"'
         ),
     )
-    log_parser.add_argument(
+    use_parser.add_argument(
         "name",
         metavar="skill-name",
         help="Generated skill name to record, for example sase_plan",
     )
-    log_parser.add_argument(
+    use_parser.add_argument(
         "-r",
         "--reason",
         required=True,

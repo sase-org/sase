@@ -114,22 +114,22 @@ def test_parser_registers_skills_namespace() -> None:
     assert list_args.command == "skills"
     assert list_args.skills_subcommand == "list"
 
-    log_args = parser.parse_args(["skills", "log", "sase_plan", "-r", "Need plan"])
-    assert log_args.command == "skills"
-    assert log_args.skills_subcommand == "log"
-    assert log_args.name == "sase_plan"
-    assert log_args.reason == "Need plan"
+    use_args = parser.parse_args(["skills", "use", "sase_plan", "-r", "Need plan"])
+    assert use_args.command == "skills"
+    assert use_args.skills_subcommand == "use"
+    assert use_args.name == "sase_plan"
+    assert use_args.reason == "Need plan"
 
     default_args = parser.parse_args(["skills"])
     assert default_args.command == "skills"
     assert default_args.skills_subcommand == "list"
 
 
-def test_parser_requires_skills_log_reason() -> None:
+def test_parser_requires_skills_use_reason() -> None:
     parser = create_parser()
 
     with pytest.raises(SystemExit):
-        parser.parse_args(["skills", "log", "sase_plan"])
+        parser.parse_args(["skills", "use", "sase_plan"])
 
 
 def test_bare_skills_defaults_to_list(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -172,14 +172,14 @@ def test_skills_init_dispatches_to_existing_initializer(
     assert calls[0].provider == "codex"
 
 
-def test_skills_log_dispatches_to_logger(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_skills_use_dispatches_to_recorder(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[argparse.Namespace] = []
 
-    def fake_log(args: argparse.Namespace) -> None:
+    def fake_use(args: argparse.Namespace) -> None:
         calls.append(args)
 
-    monkeypatch.setattr(skills_handler, "_handle_skills_log_command", fake_log)
-    args = create_parser().parse_args(["skills", "log", "sase_plan", "-r", "Need"])
+    monkeypatch.setattr(skills_handler, "_handle_skills_use_command", fake_use)
+    args = create_parser().parse_args(["skills", "use", "sase_plan", "-r", "Need"])
 
     with pytest.raises(SystemExit) as exc:
         skills_handler.handle_skills_command(args)
@@ -190,7 +190,7 @@ def test_skills_log_dispatches_to_logger(monkeypatch: pytest.MonkeyPatch) -> Non
     assert calls[0].reason == "Need"
 
 
-def test_skills_log_command_writes_attributed_event(
+def test_skills_use_command_writes_attributed_event(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -209,7 +209,7 @@ def test_skills_log_command_writes_attributed_event(
     monkeypatch.setenv("SASE_AGENT_NAME", "alpha")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
 
-    args = create_parser().parse_args(["skills", "log", "sase_plan", "-r", "Need"])
+    args = create_parser().parse_args(["skills", "use", "sase_plan", "-r", "Need"])
     with pytest.raises(SystemExit) as exc:
         skills_handler.handle_skills_command(args)
 
@@ -224,7 +224,7 @@ def test_skills_log_command_writes_attributed_event(
     assert events[0].runtime == "codex"
 
 
-def test_skills_log_command_reports_missing_agent_identity(
+def test_skills_use_command_reports_missing_agent_identity(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -237,12 +237,14 @@ def test_skills_log_command_reports_missing_agent_identity(
     monkeypatch.delenv("SASE_AGENT", raising=False)
     monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
 
-    args = create_parser().parse_args(["skills", "log", "sase_plan", "-r", "Need"])
+    args = create_parser().parse_args(["skills", "use", "sase_plan", "-r", "Need"])
     with pytest.raises(SystemExit) as exc:
         skills_handler.handle_skills_command(args)
 
     assert exc.value.code == 1
-    assert "agent attribution" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert err.startswith("sase skills use:")
+    assert "agent attribution" in err
 
 
 def test_init_skills_alias_remains_accepted(

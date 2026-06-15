@@ -1,4 +1,4 @@
-"""CLI handler for ``sase skills log``."""
+"""CLI handler for ``sase skills use``."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from sase.skills.use_log import (
 )
 
 
-def handle_skills_log_command(args: argparse.Namespace) -> None:
+def handle_skills_use_command(args: argparse.Namespace) -> None:
     """Append one audited skill-use event for the current agent."""
     try:
         skill_name = normalize_skill_name(args.name)
@@ -30,7 +30,7 @@ def handle_skills_log_command(args: argparse.Namespace) -> None:
         )
         append_skill_use_event(event)
     except (AgentIdentityError, SkillUseError, OSError, UnicodeError) as exc:
-        print(f"sase skills log: {exc}", file=sys.stderr)
+        print(f"sase skills use: {exc}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Logged skill use: {skill_name}")

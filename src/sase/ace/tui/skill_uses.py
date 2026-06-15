@@ -1,4 +1,4 @@
-"""Loader for per-agent ``sase skills log`` audit events."""
+"""Loader for per-agent ``sase skills use`` audit events."""
 
 from __future__ import annotations
 
