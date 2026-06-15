@@ -1,0 +1,347 @@
+"""Tests for question follow-up prompt reconstruction."""
+
+import json
+from unittest.mock import patch
+
+import pytest
+
+from sase.axe import run_agent_exec_plan as plan_mod
+from sase.axe import run_agent_exec_questions as questions_mod
+from sase.axe.run_agent_exec_questions import handle_questions_marker
+from sase.llm_provider import WorkerModelResolution
+from sase.llm_provider._plan_utils import PlanApprovalResult
+from tests._axe_run_agent_exec_plan_followup_prompt_helpers import (
+    approve_followup_plan,
+    patch_plan_deps,
+    run_plan_approval,
+    stub_worker_resolution,
+    write_plan_file,
+)
+from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
+
+pytestmark = pytest.mark.usefixtures(
+    patch_plan_deps.__name__,
+    stub_worker_resolution.__name__,
+)
+
+
+class TestPlanFollowupQuestions:
+    """Verify feedback and question follow-up prompts."""
+
+    def test_feedback_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
+        """Plan feedback follow-up exposes the rebuilt prompt as an artifact."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = write_plan_file(tmp_path)
+        approval = PlanApprovalResult(
+            action="feedback",
+            plan_file=plan_file,
+            feedback="Add failure handling",
+        )
+        _, state, outcome = run_plan_approval(
+            tmp_path,
+            approval=approval,
+            ctx=ctx,
+            state=state,
+        )
+
+        assert outcome is None
+        assert state.current_prompt == (
+            "original prompt\n\n### Additional Requirements\n\n- Add failure handling"
+        )
+        plan_mod._store_followup_prompt_artifact.assert_called_once_with(
+            "/tmp/followup",
+            state.current_prompt,
+            label="Full feedback prompt",
+        )
+
+    def test_question_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
+        """Question answers follow-up exposes the rebuilt prompt as an artifact."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        questions = [
+            {
+                "question": "Which API?",
+                "options": [{"label": "REST"}, {"label": "GraphQL"}],
+            }
+        ]
+        response = {
+            "answers": [
+                {
+                    "question": "Which API?",
+                    "selected": ["REST"],
+                    "custom_feedback": None,
+                }
+            ],
+            "global_note": "Keep it simple",
+        }
+
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value=response,
+        ):
+            outcome = handle_questions_marker({"questions": questions}, ctx, state)
+
+        assert outcome is None
+        assert "Which API?" in state.current_prompt
+        assert "REST" in state.current_prompt
+        assert "Keep it simple" in state.current_prompt
+        questions_mod._store_followup_prompt_artifact.assert_called_once_with(
+            "/tmp/followup",
+            state.current_prompt,
+            label="Full question prompt",
+        )
+        assert state.current_role_suffix == "--2"
+        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--2"
+
+    def test_question_followup_second_round_uses_next_numeric_suffix(
+        self, tmp_path
+    ) -> None:
+        """Question continuations advance through numeric family suffixes."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        state.agent_step = 2
+        state.current_role_suffix = "-2"
+
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value={"answers": [], "global_note": ""},
+        ):
+            outcome = handle_questions_marker({"questions": []}, ctx, state)
+
+        assert outcome is None
+        assert state.current_role_suffix == "--3"
+        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--3"
+
+    def test_multiple_question_rounds_merge_into_one_section(self, tmp_path) -> None:
+        """Two question rounds produce one merged Q&A section with continuous numbering."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+
+        round1_questions = [
+            {
+                "question": "Q1 text",
+                "options": [{"label": "A"}],
+                "header": "Repro",
+            },
+            {
+                "question": "Q2 text",
+                "options": [{"label": "B"}],
+                "header": "Symptom",
+            },
+        ]
+        round1_response = {
+            "answers": [
+                {"selected": ["A"], "custom_feedback": None},
+                {"selected": ["B"], "custom_feedback": None},
+            ],
+            "global_note": "",
+        }
+
+        round2_questions = [
+            {
+                "question": "Q3 text",
+                "options": [{"label": "C"}],
+                "header": "Launch surface",
+            },
+            {
+                "question": "Q4 text",
+                "options": [{"label": "D"}],
+                "header": "Symptom",
+            },
+        ]
+        round2_response = {
+            "answers": [
+                {"selected": ["C"], "custom_feedback": None},
+                {"selected": ["D"], "custom_feedback": None},
+            ],
+            "global_note": "final note",
+        }
+
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value=round1_response,
+        ):
+            handle_questions_marker({"questions": round1_questions}, ctx, state)
+
+        assert state.current_prompt.count("### Questions and Answers") == 1
+        assert "#### Q1: Repro" in state.current_prompt
+        assert "#### Q2: Symptom" in state.current_prompt
+        assert len(state.qa_rounds) == 1
+
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value=round2_response,
+        ):
+            handle_questions_marker({"questions": round2_questions}, ctx, state)
+
+        assert state.current_prompt.count("### Questions and Answers") == 1
+        assert "#### Q1: Repro" in state.current_prompt
+        assert "#### Q2: Symptom" in state.current_prompt
+        assert "#### Q3: Launch surface" in state.current_prompt
+        assert "#### Q4: Symptom" in state.current_prompt
+        assert state.current_prompt.count("%xprompts_enabled:false") == 1
+        assert state.current_prompt.count("%xprompts_enabled:true") == 1
+        assert "final note" in state.current_prompt
+        assert len(state.qa_rounds) == 2
+
+    def test_question_from_code_phase_rebuilds_from_code_prompt(self, tmp_path) -> None:
+        """A code-phase question keeps the code prompt + worker model, not the planner.
+
+        Approve a plan with a ``worker_models`` resolution, then simulate
+        ``/sase_questions`` from the resulting code phase. The follow-up prompt
+        must be the code-agent prompt (concrete worker ``%model`` directive,
+        ``@plan`` ref, "implement it now") plus the merged Q&A.
+        """
+        resolution = WorkerModelResolution(
+            provider="codex",
+            model="gpt-5.5",
+            source="config",
+            primary_provider="claude",
+            primary_model="opus",
+            matched_key="claude/opus",
+            configured_target="codex/gpt-5.5",
+        )
+        ctx, state = approve_followup_plan(
+            tmp_path,
+            agent_model="opus",
+            agent_llm_provider="claude",
+            resolution=resolution,
+        )
+        code_prompt = state.current_prompt
+        assert code_prompt.startswith("%model:codex/gpt-5.5\n")
+        assert state.question_base_prompt == code_prompt
+
+        # The coder ran in a real (interrupted) phase dir; keep marker writes
+        # inside tmp_path (the mocked follow-up dir is the throwaway /tmp path).
+        code_dir = tmp_path / "code_phase"
+        code_dir.mkdir()
+        state.current_artifacts_dir = str(code_dir)
+
+        questions = [
+            {
+                "question": "Which API?",
+                "options": [{"label": "REST"}, {"label": "GraphQL"}],
+            }
+        ]
+        response = {
+            "answers": [
+                {
+                    "question": "Which API?",
+                    "selected": ["REST"],
+                    "custom_feedback": None,
+                }
+            ],
+            "global_note": "",
+        }
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value=response,
+        ):
+            outcome = handle_questions_marker({"questions": questions}, ctx, state)
+
+        assert outcome is None
+        assert state.current_prompt.startswith("%model:codex/gpt-5.5\n")
+        assert "@plan.md" in state.current_prompt
+        assert "Implement it now." in state.current_prompt
+        assert "Which API?" in state.current_prompt
+        assert "REST" in state.current_prompt
+        assert not state.current_prompt.startswith("original prompt")
+        assert state.current_prompt.count("### Questions and Answers") == 1
+        assert state.question_base_prompt == code_prompt
+
+    def test_code_phase_repeated_question_rounds_keep_one_section(
+        self, tmp_path
+    ) -> None:
+        """Repeated code-phase questions rebuild from one code base, one Q&A section."""
+        ctx, state = approve_followup_plan(tmp_path, agent_model="opus")
+        code_prompt = state.current_prompt
+        assert code_prompt.startswith("%model:anthropic/opus\n")
+
+        round1_q = [
+            {"question": "Q1 text", "options": [{"label": "A"}], "header": "Repro"}
+        ]
+        round1 = {
+            "answers": [{"selected": ["A"], "custom_feedback": None}],
+            "global_note": "",
+        }
+        round2_q = [
+            {"question": "Q2 text", "options": [{"label": "B"}], "header": "Symptom"}
+        ]
+        round2 = {
+            "answers": [{"selected": ["B"], "custom_feedback": None}],
+            "global_note": "",
+        }
+
+        # Keep episode-trace writes inside tmp_path for each round.
+        round1_dir = tmp_path / "code_phase_r1"
+        round1_dir.mkdir()
+        state.current_artifacts_dir = str(round1_dir)
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value=round1,
+        ):
+            handle_questions_marker({"questions": round1_q}, ctx, state)
+        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+        assert state.current_prompt.count("### Questions and Answers") == 1
+        assert state.question_base_prompt == code_prompt
+
+        round2_dir = tmp_path / "code_phase_r2"
+        round2_dir.mkdir()
+        state.current_artifacts_dir = str(round2_dir)
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value=round2,
+        ):
+            handle_questions_marker({"questions": round2_q}, ctx, state)
+        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+        assert state.current_prompt.count("### Questions and Answers") == 1
+        assert "#### Q1: Repro" in state.current_prompt
+        assert "#### Q2: Symptom" in state.current_prompt
+        assert state.question_base_prompt == code_prompt
+
+    def test_question_followup_inherits_code_phase_model_metadata(
+        self, tmp_path
+    ) -> None:
+        """Follow-up meta is seeded from the interrupted phase's agent_meta.json."""
+        ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
+        state = make_state(tmp_path)
+        code_dir = tmp_path / "code_phase"
+        code_dir.mkdir()
+        (code_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "model": "gpt-5.5",
+                    "llm_provider": "codex",
+                    "name": "test_agent--code",
+                }
+            )
+        )
+        state.current_artifacts_dir = str(code_dir)
+
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value={"answers": [], "global_note": ""},
+        ):
+            handle_questions_marker({"questions": []}, ctx, state)
+
+        base_meta = questions_mod.create_followup_artifacts.call_args.args[1]
+        assert base_meta["model"] == "gpt-5.5"
+        assert base_meta["llm_provider"] == "codex"
+
+    def test_question_followup_metadata_falls_back_when_meta_unreadable(
+        self, tmp_path
+    ) -> None:
+        """Missing interrupted agent_meta.json falls back to ctx.agent_meta."""
+        ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
+        state = make_state(tmp_path)
+        state.current_artifacts_dir = str(tmp_path / "does_not_exist")
+
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value={"answers": [], "global_note": ""},
+        ):
+            handle_questions_marker({"questions": []}, ctx, state)
+
+        base_meta = questions_mod.create_followup_artifacts.call_args.args[1]
+        assert base_meta is ctx.agent_meta
