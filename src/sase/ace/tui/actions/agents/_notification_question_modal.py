@@ -49,6 +49,15 @@ def _on_user_question_response_written(app: object, notification: Notification) 
     _mark_answered_for_notification(app, notification)
 
 
+def _normalize_timestamp(value: object) -> str | None:
+    """Normalize a raw_suffix/parent_timestamp value to 14-digit form."""
+    if not isinstance(value, str):
+        return None
+    from sase.ace.tui.models._timestamps import normalize_to_14_digit
+
+    return normalize_to_14_digit(value.strip())
+
+
 def open_user_question_modal_from_marker(
     app: object, response_dir: str, agent: Agent | None = None
 ) -> bool:
@@ -70,7 +79,7 @@ def open_user_question_modal_from_marker(
     matched = agent
 
     def on_written() -> None:
-        _mark_agent_answered(app, matched)
+        _mark_marker_agent_answered(app, matched)
 
     return _open_user_question_modal(
         app, response_dir, notification_id=None, on_response_written=on_written
@@ -141,17 +150,55 @@ def _open_user_question_modal(
 
 
 def _mark_answered_for_notification(app: object, notification: Notification) -> None:
-    """Flip the agent matching *notification* to the transient ANSWERED state."""
-    from ._notification_navigation import agent_matches_notification_identity
+    """Flip every loaded row matching *notification* to transient ANSWERED.
 
-    for agent in app._agents:  # type: ignore[attr-defined]
-        if agent_matches_notification_identity(agent, notification):
-            _mark_agent_answered(app, agent)
-            break
+    A single ``UserQuestion`` notification carries both ``agent_timestamp``
+    (the concrete asking child row) and ``agent_root_timestamp`` (the
+    root/aggregate row). Because ``Agent.identity`` includes ``raw_suffix``,
+    each row holds a separate override key, so marking only the first match
+    would leave the other row stuck on its stale ``QUESTION`` override. Mark
+    them all.
+    """
+    from ._notification_navigation import find_agents_for_notification
+
+    _mark_agents_answered(app, find_agents_for_notification(app, notification))
 
 
-def _mark_agent_answered(app: object, agent: Agent) -> None:
-    """Record the transient ANSWERED override for *agent* after a response.
+def _mark_marker_agent_answered(app: object, agent: Agent) -> None:
+    """Mark a marker-supplied row ANSWERED, plus its loaded root row.
+
+    The dismissed-notification marker fallback has no notification carrying
+    both timestamps, so the related root/aggregate row is resolved from the
+    asking child's ``parent_timestamp`` when that row is currently loaded.
+    """
+    _mark_agents_answered(app, [agent, *_loaded_root_rows_for_child(app, agent)])
+
+
+def _loaded_root_rows_for_child(app: object, agent: Agent) -> list[Agent]:
+    """Return loaded root rows whose ``raw_suffix`` is *agent*'s parent.
+
+    Timestamp matching is the primary signal here: a child's
+    ``parent_timestamp`` points at exactly its root row's ``raw_suffix``, so
+    this does not broaden to unrelated rows that merely share a ChangeSpec
+    name.
+    """
+    parent_timestamp = _normalize_timestamp(getattr(agent, "parent_timestamp", None))
+    if not parent_timestamp:
+        return []
+    rows: list[Agent] = []
+    for candidate in getattr(app, "_agents", []):
+        if candidate is agent:
+            continue
+        if (
+            _normalize_timestamp(getattr(candidate, "raw_suffix", None))
+            == parent_timestamp
+        ):
+            rows.append(candidate)
+    return rows
+
+
+def _mark_agents_answered(app: object, agents: list[Agent]) -> None:
+    """Record the transient ANSWERED override for each row after a response.
 
     The user has written ``question_response.json`` but the runner has not yet
     consumed it. ANSWERED reads as an active/progress state until a fresh load
@@ -159,8 +206,13 @@ def _mark_agent_answered(app: object, agent: Agent) -> None:
     override is reconciled away. The stale ``_agent_pre_question_status`` entry
     is dropped — the transient ANSWERED state replaces the pre-question
     restore behavior.
+
+    All overrides are written before any row refresh so a refilter-based
+    refresh observes every ANSWERED override at once.
     """
-    identity = agent.identity
-    app._agent_pre_question_status.pop(identity, None)  # type: ignore[attr-defined]
-    app._agent_status_overrides[identity] = "ANSWERED"  # type: ignore[attr-defined]
-    refresh_notification_agent_or_request(app, agent=agent)
+    for agent in agents:
+        identity = agent.identity
+        app._agent_pre_question_status.pop(identity, None)  # type: ignore[attr-defined]
+        app._agent_status_overrides[identity] = "ANSWERED"  # type: ignore[attr-defined]
+    for agent in agents:
+        refresh_notification_agent_or_request(app, agent=agent)

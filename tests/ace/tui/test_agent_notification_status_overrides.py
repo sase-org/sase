@@ -125,6 +125,42 @@ def test_find_agent_for_notification_matches_agent_name_timestamp() -> None:
     )
 
 
+def test_user_question_sets_question_override_on_root_and_child() -> None:
+    """A UserQuestion referencing both timestamps marks the root AND the child.
+
+    This keeps the ask path symmetric with the answer path: both the visible
+    root/aggregate row and the child that actually asked receive QUESTION, so
+    answering can clear both.
+    """
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="oo",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 12, 9, 0, 0),
+        raw_suffix="20260512090000",
+        role_suffix=".plan",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="oo",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 12, 9, 43, 33),
+        raw_suffix="20260512094333",
+        parent_timestamp="20260512090000",
+        parent_workflow="oo.plan",
+    )
+    app = _NotificationApp([parent, child])
+
+    app._apply_notification_status_overrides([_notification(action="UserQuestion")])
+
+    assert app._agent_status_overrides[parent.identity] == "QUESTION"
+    assert app._agent_status_overrides[child.identity] == "QUESTION"
+    assert app._agent_pre_question_status[parent.identity] == "RUNNING"
+    assert app._agent_pre_question_status[child.identity] == "RUNNING"
+
+
 def test_user_question_root_timestamp_sets_parent_question_override() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,

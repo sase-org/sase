@@ -18,10 +18,13 @@ class AgentNotificationStatusMixin:
     ) -> None:
         """Scan unread notifications and set PLAN/QUESTION status overrides.
 
-        For PlanApproval notifications, sets the matching agent's override to
-        PLAN. For UserQuestion notifications, sets the override to QUESTION
-        and conditionally saves the pre-question status (only if not already
-        saved, to preserve the original status across multiple questions).
+        For PlanApproval notifications, sets the first matching agent's
+        override to PLAN. For UserQuestion notifications, sets the override to
+        QUESTION on every matched row (a single notification can reference both
+        the asking child and the root/aggregate row) and conditionally saves
+        each row's pre-question status (only if not already saved, to preserve
+        the original status across multiple questions). The answer path clears
+        every matched row symmetrically.
 
         Also auto-dismisses PlanApproval notifications that were responded to
         externally (e.g. user approved via Telegram), updating agent status
@@ -42,25 +45,33 @@ class AgentNotificationStatusMixin:
 
             from ._notification_navigation import agent_matches_notification_identity
 
+            is_question = notification.action == "UserQuestion"
             for agent in self._agents:  # type: ignore[attr-defined]
                 if not agent_matches_notification_identity(agent, notification):
                     continue
 
                 if agent.status in ("DONE", "FAILED"):
+                    # Skip terminal rows. A UserQuestion can reference both the
+                    # asking child and the root row, so keep scanning to give
+                    # any other matched row its QUESTION override.
+                    if is_question:
+                        continue
                     break
 
                 if notification.action == "PlanApproval":
                     if self._agent_status_overrides.get(agent.identity) != "PLAN":  # type: ignore[attr-defined]
                         self._agent_status_overrides[agent.identity] = "PLAN"  # type: ignore[attr-defined]
                         changed_agents.append(agent)
-                elif notification.action == "UserQuestion":
-                    if agent.identity not in self._agent_pre_question_status:  # type: ignore[attr-defined]
-                        self._agent_pre_question_status[agent.identity] = agent.status  # type: ignore[attr-defined]
-                    if self._agent_status_overrides.get(agent.identity) != "QUESTION":  # type: ignore[attr-defined]
-                        self._agent_status_overrides[agent.identity] = "QUESTION"  # type: ignore[attr-defined]
-                        changed_agents.append(agent)
+                    break
 
-                break
+                # UserQuestion: mark every matched row (asking child + root) so
+                # the visible aggregate row and the row that actually asked stay
+                # in sync; the answer path clears them symmetrically.
+                if agent.identity not in self._agent_pre_question_status:  # type: ignore[attr-defined]
+                    self._agent_pre_question_status[agent.identity] = agent.status  # type: ignore[attr-defined]
+                if self._agent_status_overrides.get(agent.identity) != "QUESTION":  # type: ignore[attr-defined]
+                    self._agent_status_overrides[agent.identity] = "QUESTION"  # type: ignore[attr-defined]
+                    changed_agents.append(agent)
 
         for agent in changed_agents:
             refresh_notification_agent_or_request(self, agent=agent)

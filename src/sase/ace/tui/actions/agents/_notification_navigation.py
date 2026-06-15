@@ -63,6 +63,36 @@ def find_agent_for_notification(
     return None
 
 
+def find_agents_for_notification(
+    app: object, notification: Notification
+) -> list[Agent]:
+    """Find every loaded agent row matching a notification's identity.
+
+    Unlike :func:`find_agent_for_notification`, this returns all matches. A
+    single ``UserQuestion`` (or ``PlanApproval``) notification carries both
+    ``agent_timestamp`` (the concrete asking child row) and
+    ``agent_root_timestamp`` (the root/aggregate row); both rows can be loaded
+    at the same time and each holds its own status override keyed by
+    ``Agent.identity`` (which includes ``raw_suffix``). Status mutations must
+    visit every matched row so the visible root and its asking child stay in
+    sync.
+
+    Args:
+        app: The AceApp instance.
+        notification: The notification with action_data containing
+            agent identity and optionally agent_timestamp / agent_root_timestamp.
+
+    Returns:
+        The list of matching agents, in their loaded order (possibly empty).
+    """
+    agents: list[Agent] = app._agents  # type: ignore[attr-defined]
+    return [
+        agent
+        for agent in agents
+        if agent_matches_notification_identity(agent, notification)
+    ]
+
+
 def get_meta_changespec_name(agent: Agent) -> str | None:
     """Extract ChangeSpec name from step output meta variables.
 
