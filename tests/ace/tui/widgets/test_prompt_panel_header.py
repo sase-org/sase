@@ -225,11 +225,11 @@ def test_header_renders_skill_uses_without_memory_reads(tmp_path: Path) -> None:
     plain = header.plain
 
     assert "AGENT CONTEXT\n" in plain
-    assert "▸ MEMORY · none recorded\n" in plain
     assert "▸ SKILLS · 1 use · 1 skill\n" in plain
     assert "sase_plan" in plain
     assert "↳ needed an implementation plan" in plain
-    assert "none recorded" in plain
+    assert "▸ MEMORY" not in plain
+    assert "none recorded" not in plain
 
 
 def test_cheap_header_omits_agent_context(tmp_path: Path) -> None:

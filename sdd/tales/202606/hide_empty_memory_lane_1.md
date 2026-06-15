@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-15 07:05:36
-status: wip
+status: done
 prompt: sdd/prompts/202606/hide_empty_memory_lane_1.md
 ---
 # Hide Empty MEMORY Lane in Agents Metadata Context

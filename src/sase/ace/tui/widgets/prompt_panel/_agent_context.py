@@ -33,10 +33,12 @@ def append_agent_context_section(
     _append_major_section_divider(text)
     text.append("AGENT CONTEXT\n", style=_COLOR_HEADER)
     text.append("\n")
-    append_agent_memory_reads_section(text, events=memory_reads, show_empty=True)
-    # Omit the SKILLS lane entirely when the family used no xprompt skills, so a
-    # memory-only context does not render a "▸ SKILLS · none recorded" placeholder
-    # (nor a dangling lane separator after MEMORY).
-    if skill_uses:
+    # Render only the lanes that recorded events so an empty lane never shows a
+    # "▸ MEMORY · none recorded" / "▸ SKILLS · none recorded" placeholder. The
+    # blank separator between lanes is inserted only when both lanes render.
+    if memory_reads:
+        append_agent_memory_reads_section(text, events=memory_reads)
+    if memory_reads and skill_uses:
         text.append("\n")
-        append_agent_skills_section(text, events=skill_uses, show_empty=True)
+    if skill_uses:
+        append_agent_skills_section(text, events=skill_uses)

@@ -95,16 +95,16 @@ def test_memory_only_context_omits_empty_skills_lane() -> None:
     assert "none recorded" not in plain
 
 
-def test_skills_only_context_shows_empty_memory_placeholder() -> None:
+def test_skills_only_context_omits_empty_memory_lane() -> None:
     text = Text()
     append_agent_context_section(text, memory_reads=(), skill_uses=(_skill_event(),))
 
     plain = text.plain
     assert "AGENT CONTEXT\n" in plain
-    assert "▸ MEMORY · none recorded\n" in plain
     assert "▸ SKILLS · 1 use · 1 skill\n" in plain
     assert "sase_plan" in plain
-    assert "none recorded" in plain
+    assert "▸ MEMORY" not in plain
+    assert "none recorded" not in plain
 
 
 def test_memory_and_skills_render_in_parent_context_order() -> None:
