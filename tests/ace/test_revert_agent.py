@@ -49,6 +49,13 @@ def _commit(repo: Path, message: str, files: dict[str, str]) -> str:
     return _git(repo, "rev-parse", "HEAD").strip()
 
 
+def _add_bare_origin(repo: Path, remote: Path) -> None:
+    """Create a bare ``origin`` remote for *repo* (no initial push)."""
+    remote.mkdir(parents=True, exist_ok=True)
+    _git(remote, "init", "-q", "--bare", "-b", "main")
+    _git(repo, "remote", "add", "origin", str(remote))
+
+
 def _msg(subject: str, agent: str) -> str:
     return f"{subject}\n\nAGENT={agent}\nTYPE=sdd"
 
@@ -212,6 +219,105 @@ def test_execute_rejects_missing_commit(tmp_path: Path) -> None:
 
     assert not result.success
     assert result.error == "missing commits"
+
+
+def test_execute_pushes_to_bare_origin(tmp_path: Path) -> None:
+    repo = tmp_path / "ws"
+    _init_repo(repo)
+    remote = tmp_path / "remote.git"
+    _add_bare_origin(repo, remote)
+    _commit(repo, _msg("add feature", "foo"), {"feature.txt": "feature\n"})
+
+    preview = preview_agent_revert(str(repo), "foo")
+    assert preview.ok
+    shas = tuple(c.full_sha for c in preview.commits)
+
+    result = execute_agent_revert(str(repo), shas, agent_name="foo")
+
+    assert result.success is True, result.message
+    assert result.pushed is True
+    # The remote branch now points at the local revert commit.
+    local_head = _git(repo, "rev-parse", "HEAD").strip()
+    remote_head = _git(remote, "rev-parse", "main").strip()
+    assert remote_head == local_head
+
+
+def test_execute_no_origin_records_skip_reason(tmp_path: Path) -> None:
+    repo = tmp_path / "ws"
+    _init_repo(repo)
+    _commit(repo, _msg("add feature", "foo"), {"feature.txt": "feature\n"})
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+
+    preview = preview_agent_revert(str(repo), "foo")
+    shas = tuple(c.full_sha for c in preview.commits)
+
+    result = execute_agent_revert(
+        str(repo), shas, agent_name="foo", artifacts_dir=str(artifacts)
+    )
+
+    assert result.success is True
+    assert result.pushed is False
+    saved = json.loads((artifacts / "revert_result.json").read_text())
+    assert saved["pushed"] is False
+    assert saved["push_skipped_reason"] == "no origin remote"
+    assert "push_error" not in saved
+
+
+def test_execute_push_failure_after_local_revert(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.ace.revert_agent as ra
+
+    repo = tmp_path / "ws"
+    _init_repo(repo)
+    remote = tmp_path / "remote.git"
+    _add_bare_origin(repo, remote)
+    _commit(repo, _msg("add feature", "foo"), {"feature.txt": "feature\n"})
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+
+    preview = preview_agent_revert(str(repo), "foo")
+    assert preview.ok
+    shas = tuple(c.full_sha for c in preview.commits)
+    head_before = _git(repo, "rev-parse", "HEAD").strip()
+
+    real_run_git = ra._run_git
+
+    def fake_run_git(
+        workspace_dir: str, args: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        # Fail only the push; the local revert commit is created for real.
+        if args and args[0] == "push":
+            return subprocess.CompletedProcess(
+                args, returncode=1, stdout="", stderr="remote rejected"
+            )
+        return real_run_git(workspace_dir, args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ra, "_run_git", fake_run_git)
+
+    result = execute_agent_revert(
+        str(repo), shas, agent_name="foo", artifacts_dir=str(artifacts)
+    )
+
+    # The push failed, so the operation is not a success...
+    assert result.success is False
+    assert result.pushed is False
+    assert result.error is not None and "push" in result.error.lower()
+    # ...but the local revert commit was preserved (not rolled back).
+    assert result.reverted_shas == shas
+    assert _git(repo, "status", "--porcelain").strip() == ""
+    head_after = _git(repo, "rev-parse", "HEAD").strip()
+    assert head_after != head_before
+    assert _git(repo, "rev-list", "--count", f"{head_before}..HEAD").strip() == "1"
+    # The message points at the recovery path.
+    assert "locally" in result.message.lower()
+    assert "push" in result.message.lower()
+    # The artifact records the local revert plus the push failure detail.
+    saved = json.loads((artifacts / "revert_result.json").read_text())
+    assert saved["reverted_shas"] == list(shas)
+    assert saved["pushed"] is False
+    assert "remote rejected" in saved["push_error"]
 
 
 # ---------------------------------------------------------------------------
@@ -439,3 +545,26 @@ def test_bulk_execute_commit_failure_rolls_back(
     assert _git(repo, "status", "--porcelain").strip() == ""
     assert _git(repo, "rev-parse", "HEAD").strip() == head_before
     assert (repo / "foo.txt").read_text() == "foo\n"
+
+
+def test_bulk_execute_pushes_to_bare_origin(tmp_path: Path) -> None:
+    repo = tmp_path / "ws"
+    _init_repo(repo)
+    remote = tmp_path / "remote.git"
+    _add_bare_origin(repo, remote)
+    _commit(repo, _msg("foo feature", "foo"), {"foo.txt": "foo\n"})
+    _commit(repo, _msg("bar feature", "bar"), {"bar.txt": "bar\n"})
+
+    preview = preview_agents_revert([_target(repo, "foo"), _target(repo, "bar")])
+    assert preview.ok
+    head_before = _git(repo, "rev-parse", "HEAD").strip()
+
+    result = execute_agents_revert(preview)
+
+    assert result.success is True, result.message
+    assert result.pushed is True
+    # Exactly one local revert commit, and the remote branch tracks it.
+    assert _git(repo, "rev-list", "--count", f"{head_before}..HEAD").strip() == "1"
+    local_head = _git(repo, "rev-parse", "HEAD").strip()
+    remote_head = _git(remote, "rev-parse", "main").strip()
+    assert remote_head == local_head

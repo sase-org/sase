@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-15 10:34:40
-status: wip
+status: done
 prompt: sdd/prompts/202606/revert_agent_push.md
 ---
 # Plan: Push Agents-Tab Revert Commits To GitHub

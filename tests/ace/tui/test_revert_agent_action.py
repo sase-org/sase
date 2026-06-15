@@ -7,8 +7,10 @@ from typing import Any
 
 from sase.ace.revert_agent import (
     BulkRevertPreview,
+    BulkRevertResult,
     RevertCommit,
     RevertPreview,
+    RevertResult,
     RevertTarget,
 )
 from sase.ace.tui.actions.agents._revert import AgentRevertMixin
@@ -158,9 +160,65 @@ def test_confirm_modal_submits_revert_and_callback_refreshes(tmp_path: Path) -> 
 
     class _Completion:
         success = True
+        payload = None
 
     on_complete(_Completion())
     assert app.refresh_sources == ["revert_agent"]
+
+
+def _submit_single_revert(app: _FakeApp, tmp_path: Path) -> Any:
+    """Push a confirm modal, accept it, and return the execute on_complete."""
+    agent = app._selected
+    assert agent is not None
+    preview = RevertPreview(
+        agent_name="foo",
+        scope="agent",
+        workspace_dir=str(tmp_path),
+        commits=(
+            RevertCommit(sha="abc", full_sha="abc123", subject="s", agent_tag="foo"),
+        ),
+    )
+    app._open_confirm_revert_modal(preview, agent, None)
+    app.modal_callbacks[0](True)
+    return app.submitted[0]["kwargs"]["on_complete"]
+
+
+def test_failed_push_completion_with_revert_still_refreshes(tmp_path: Path) -> None:
+    app = _FakeApp(_agent("DONE", name="foo", ws=str(tmp_path)))
+    on_complete = _submit_single_revert(app, tmp_path)
+
+    # Local revert succeeded but the push failed: success is False yet the
+    # payload carries reverted_shas, so the Agents tab must still refresh.
+    class _Completion:
+        success = False
+        payload = RevertResult(
+            False,
+            "Reverted 1 commit(s) for 'foo' locally, but push to GitHub failed: boom",
+            reverted_shas=("abc123",),
+            pushed=False,
+            error="git push failed: boom",
+        )
+
+    on_complete(_Completion())
+    assert app.refresh_sources == ["revert_agent"]
+
+
+def test_failed_completion_without_revert_does_not_refresh(tmp_path: Path) -> None:
+    app = _FakeApp(_agent("DONE", name="foo", ws=str(tmp_path)))
+    on_complete = _submit_single_revert(app, tmp_path)
+
+    # The revert itself failed (rolled back, no commit): nothing changed, so
+    # no refresh should be scheduled.
+    class _Completion:
+        success = False
+        payload = RevertResult(
+            False,
+            "Revert failed and was rolled back: conflict",
+            error="conflict",
+        )
+
+    on_complete(_Completion())
+    assert app.refresh_sources == []
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +338,44 @@ def test_confirm_bulk_preview_submits_execute_and_refreshes(tmp_path: Path) -> N
 
     class _Completion:
         success = True
+        payload = None
+
+    on_complete(_Completion())
+    assert app.refresh_sources == ["revert_agent"]
+
+
+def test_failed_bulk_push_completion_with_revert_still_refreshes(
+    tmp_path: Path,
+) -> None:
+    app = _FakeApp(None)
+    preview = BulkRevertPreview(
+        workspace_dir=str(tmp_path),
+        targets=(
+            RevertTarget("foo", "foo", str(tmp_path)),
+            RevertTarget("bar", "bar", str(tmp_path)),
+        ),
+        commits=(
+            RevertCommit(sha="abc", full_sha="abc123", subject="s", agent_tag="foo"),
+        ),
+        matched_target_names=("foo", "bar"),
+    )
+    representative = _agent("DONE", name="foo", ws=str(tmp_path), cl="cl_foo")
+    app._open_confirm_bulk_revert_modal(preview, representative)
+    app.modal_callbacks[0](True)
+    on_complete = app.submitted[0]["kwargs"]["on_complete"]
+
+    # Local bulk revert succeeded but the push failed: refresh anyway.
+    class _Completion:
+        success = False
+        payload = BulkRevertResult(
+            False,
+            "Reverted 1 commit(s) across 2 agent(s) locally, "
+            "but push to GitHub failed: boom",
+            reverted_shas=("abc123",),
+            agent_names=("foo", "bar"),
+            pushed=False,
+            error="git push failed: boom",
+        )
 
     on_complete(_Completion())
     assert app.refresh_sources == ["revert_agent"]

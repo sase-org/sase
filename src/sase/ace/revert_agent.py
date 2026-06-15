@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -51,6 +52,21 @@ from sase.ace.revert_agent_resolution import (
     resolve_revert_family_base,
     resolve_revert_workspace_dir,
 )
+
+
+@dataclass(frozen=True)
+class _PushOutcome:
+    """Result of attempting to push a revert commit to ``origin``.
+
+    Distinguishes three outcomes the old ``bool`` return collapsed: a skipped
+    push (no remote/branch, ``attempted=False``), a successful push
+    (``pushed=True``), and a failed push to an available remote (``error`` set).
+    """
+
+    attempted: bool
+    pushed: bool
+    skipped_reason: str | None = None
+    error: str | None = None
 
 
 def preview_agent_revert(
@@ -146,17 +162,27 @@ def execute_agent_revert(
             error=detail,
         )
 
-    pushed = _maybe_push(workspace_dir)
+    push = _push_revert_commit(workspace_dir)
     if artifacts_dir:
-        _write_revert_result(artifacts_dir, agent_name, ordered, pushed=pushed)
+        _write_revert_result(artifacts_dir, agent_name, ordered, push=push)
+
+    if push.error is not None:
+        return RevertResult(
+            False,
+            f"Reverted {len(ordered)} commit(s) for '{agent_name}' locally, "
+            f"but push to GitHub failed: {push.error}",
+            reverted_shas=ordered,
+            pushed=False,
+            error=f"git push failed: {push.error}",
+        )
 
     summary = f"Reverted {len(ordered)} commit(s) for '{agent_name}'"
-    summary += " and pushed" if pushed else ""
+    summary += " and pushed" if push.pushed else ""
     return RevertResult(
         True,
         summary,
         reverted_shas=ordered,
-        pushed=pushed,
+        pushed=push.pushed,
     )
 
 
@@ -262,22 +288,33 @@ def execute_agents_revert(preview: BulkRevertPreview) -> BulkRevertResult:
             error=detail,
         )
 
-    pushed = _maybe_push(workspace_dir)
+    push = _push_revert_commit(workspace_dir)
     matched_set = set(matched_names)
     for target in preview.targets:
         if target.artifacts_dir and target.agent_name in matched_set:
             _write_revert_result(
-                target.artifacts_dir, target.agent_name, ordered, pushed=pushed
+                target.artifacts_dir, target.agent_name, ordered, push=push
             )
 
+    if push.error is not None:
+        return BulkRevertResult(
+            False,
+            f"Reverted {len(ordered)} commit(s) across {len(matched_names)} "
+            f"agent(s) locally, but push to GitHub failed: {push.error}",
+            reverted_shas=ordered,
+            agent_names=matched_names,
+            pushed=False,
+            error=f"git push failed: {push.error}",
+        )
+
     summary = f"Reverted {len(ordered)} commit(s) across {len(matched_names)} agent(s)"
-    summary += " and pushed" if pushed else ""
+    summary += " and pushed" if push.pushed else ""
     return BulkRevertResult(
         True,
         summary,
         reverted_shas=ordered,
         agent_names=matched_names,
-        pushed=pushed,
+        pushed=push.pushed,
     )
 
 
@@ -364,19 +401,31 @@ def _build_bulk_revert_message(
     return "\n".join(lines)
 
 
-def _maybe_push(workspace_dir: str) -> bool:
-    """Push the current branch to ``origin`` when both are available."""
+def _push_revert_commit(workspace_dir: str) -> _PushOutcome:
+    """Push the current branch to ``origin`` when both are available.
+
+    Skips (``attempted=False``) when there is no ``origin`` remote or no
+    current branch. Otherwise runs ``git push origin <branch>`` and reports
+    success or the push failure detail so callers can surface it.
+    """
     remote = _run_git(workspace_dir, ["remote", "get-url", "origin"])
     if remote.returncode != 0 or not remote.stdout.strip():
-        return False
+        return _PushOutcome(
+            attempted=False, pushed=False, skipped_reason="no origin remote"
+        )
     branch = _run_git(workspace_dir, ["symbolic-ref", "--short", "HEAD"])
-    if branch.returncode != 0:
-        return False
     branch_name = branch.stdout.strip()
-    if not branch_name:
-        return False
+    if branch.returncode != 0 or not branch_name:
+        return _PushOutcome(
+            attempted=False,
+            pushed=False,
+            skipped_reason="detached HEAD or no current branch",
+        )
     push = _run_git(workspace_dir, ["push", "origin", branch_name])
-    return push.returncode == 0
+    if push.returncode == 0:
+        return _PushOutcome(attempted=True, pushed=True)
+    detail = (push.stderr or push.stdout or "git push failed").strip()
+    return _PushOutcome(attempted=True, pushed=False, error=detail)
 
 
 def _write_revert_result(
@@ -384,15 +433,19 @@ def _write_revert_result(
     agent_name: str,
     shas: tuple[str, ...],
     *,
-    pushed: bool,
+    push: _PushOutcome,
 ) -> None:
     try:
-        payload = {
+        payload: dict[str, object] = {
             "agent_name": agent_name,
             "reverted_shas": list(shas),
-            "pushed": pushed,
+            "pushed": push.pushed,
             "reverted_at": datetime.now().isoformat(timespec="seconds"),
         }
+        if push.error is not None:
+            payload["push_error"] = push.error
+        if push.skipped_reason is not None:
+            payload["push_skipped_reason"] = push.skipped_reason
         path = Path(artifacts_dir) / "revert_result.json"
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     except OSError:

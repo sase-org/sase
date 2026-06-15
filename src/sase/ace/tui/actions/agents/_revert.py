@@ -185,7 +185,10 @@ class AgentRevertMixin:
             )
 
         def _on_complete(completion: TrackedTaskCompletion[RevertResult]) -> None:
-            if completion.success:
+            # Refresh on success or when a local revert commit was created even
+            # though the post-commit push failed (the worktree state changed).
+            payload = completion.payload
+            if completion.success or (payload is not None and payload.reverted_shas):
                 self._schedule_agents_async_refresh(source="revert_agent")  # type: ignore[attr-defined]
 
         self._submit_tracked_task(  # type: ignore[attr-defined]
@@ -381,7 +384,10 @@ class AgentRevertMixin:
         def _on_complete(
             completion: TrackedTaskCompletion[BulkRevertResult],
         ) -> None:
-            if completion.success:
+            # Refresh on success or when a local revert commit was created even
+            # though the post-commit push failed (the worktree state changed).
+            payload = completion.payload
+            if completion.success or (payload is not None and payload.reverted_shas):
                 self._schedule_agents_async_refresh(source="revert_agent")  # type: ignore[attr-defined]
 
         self._submit_tracked_task(  # type: ignore[attr-defined]
