@@ -98,8 +98,10 @@ class TestFeedbackRoundChatPath:
         assert captured["agent"] is None
         assert captured["metadata_agent"] is None
 
-    def test_handle_questions_marker_uses_suffix_in_agent_name(self, tmp_path) -> None:
-        """Questions handler uses current_role_suffix (post-`--q` accumulation)."""
+    def test_handle_questions_marker_uses_root_question_child_name(
+        self, tmp_path
+    ) -> None:
+        """First-agent questions relabel the root logical child to '--0'."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         state.current_role_suffix = ".2"
@@ -122,7 +124,7 @@ class TestFeedbackRoundChatPath:
         ):
             handle_questions_marker({"questions": []}, ctx, state)
 
-        assert captured["agent"] == "test_agent--2--q"
-        assert captured["metadata_agent"] == "test_agent--2--q"
+        assert captured["agent"] == "test_agent--0"
+        assert captured["metadata_agent"] == "test_agent--0"
         assert "metadata_model" not in captured
         assert "metadata_llm_provider" not in captured

@@ -3,13 +3,12 @@
 from datetime import datetime
 
 from sase.plan_chain import (
-    PLAN_CHAIN_CODER_SUFFIX,
-    PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_base,
+    agent_family_role_for_suffix,
     agent_family_phase_name,
     canonical_plan_chain_suffix,
-    plan_chain_feedback_round,
+    is_plan_feedback_suffix,
 )
 
 from .agent import Agent, AgentType
@@ -19,14 +18,47 @@ from ._diff_badge import diff_has_real_edits
 _APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "legend", "commit"})
 
 
-def is_feedback_suffix(suffix: str | None) -> bool:
+def is_feedback_suffix(
+    suffix: str | None,
+    *,
+    agent_family_role: str | None = None,
+) -> bool:
     """Check if a role suffix is a plan feedback round (e.g., "--2" or ".2")."""
-    return plan_chain_feedback_round(suffix) is not None
+    return is_plan_feedback_suffix(suffix, agent_family_role=agent_family_role)
 
 
-def is_coder_followup_suffix(suffix: str | None) -> bool:
+def is_coder_followup_suffix(
+    suffix: str | None,
+    *,
+    agent_family_role: str | None = None,
+) -> bool:
     """Check if a role suffix is the coder follow-up suffix."""
-    return canonical_plan_chain_suffix(suffix) == PLAN_CHAIN_CODER_SUFFIX
+    role = agent_family_role_for_suffix(
+        suffix,
+        agent_family_role=agent_family_role,
+    )
+    return role == "code"
+
+
+def _agent_family_role(agent: Agent) -> str | None:
+    return agent_family_role_for_suffix(
+        agent.role_suffix,
+        agent_family_role=agent.agent_family_role,
+    )
+
+
+def _is_feedback_agent(agent: Agent) -> bool:
+    return is_feedback_suffix(
+        agent.role_suffix,
+        agent_family_role=agent.agent_family_role,
+    )
+
+
+def _is_coder_agent(agent: Agent) -> bool:
+    return is_coder_followup_suffix(
+        agent.role_suffix,
+        agent_family_role=agent.agent_family_role,
+    )
 
 
 def _append_unique_timestamps(target: list[datetime], source: list[datetime]) -> None:
@@ -103,7 +135,7 @@ def _active_approved_plan_handoff_status(parent: Agent, child: Agent) -> str | N
     """Return the visible status for an active approved-plan code handoff."""
     if child.parent_workflow or child.status != "RUNNING":
         return None
-    if canonical_plan_chain_suffix(child.role_suffix) != PLAN_CHAIN_CODER_SUFFIX:
+    if not _is_coder_agent(child):
         return None
     if (
         parent.plan_action == "tale"
@@ -118,20 +150,17 @@ def _is_completed_plan_handoff_child(agent: Agent) -> bool:
     """Return True for completed approved-plan continuation rows."""
     if agent.status != "DONE":
         return False
-    role_suffix = canonical_plan_chain_suffix(agent.role_suffix)
-    if role_suffix == PLAN_CHAIN_CODER_SUFFIX:
+    role = _agent_family_role(agent)
+    if role == "code":
         return True
-    if is_feedback_suffix(role_suffix) and agent.question_response_path:
+    if role == "feedback" and agent.question_response_path:
         return True
     return False
 
 
 def _is_completed_epic_followup_child(agent: Agent) -> bool:
     """Return True for completed epic creation follow-up rows."""
-    return (
-        agent.status == "DONE"
-        and canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_EPIC_SUFFIX
-    )
+    return agent.status == "DONE" and _agent_family_role(agent) == "epic"
 
 
 def _agent_family_name(agent: Agent) -> str | None:
@@ -261,26 +290,31 @@ def _classify_diff_badges(agents: list[Agent]) -> None:
         )
 
 
+def _root_child_suffix(parent: Agent) -> str:
+    return canonical_plan_chain_suffix(parent.role_suffix) or PLAN_CHAIN_PLAN_SUFFIX
+
+
 def _ensure_synthetic_planner_children(
     agents: list[Agent],
     all_agents: list[Agent],
     parent_by_suffix: dict[str, Agent],
 ) -> None:
-    """Add a logical planner child when no concrete main agent step exists."""
-    existing_planner_parent_ts = {
-        agent.parent_timestamp
-        for agent in all_agents
-        if canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
-        and agent.parent_timestamp
-        and (_is_main_workflow_agent_step(agent) or not agent.parent_workflow)
-    }
+    """Add a logical root child when no concrete main agent step exists."""
     for parent in list(parent_by_suffix.values()):
         if not is_root_plan_workflow(parent) or not parent.raw_suffix:
             continue
-        if parent.raw_suffix in existing_planner_parent_ts:
+        child_suffix = _root_child_suffix(parent)
+        has_existing_child = any(
+            agent.parent_timestamp == parent.raw_suffix
+            and canonical_plan_chain_suffix(agent.role_suffix) == child_suffix
+            and (_is_main_workflow_agent_step(agent) or not agent.parent_workflow)
+            for agent in all_agents
+        )
+        if has_existing_child:
             continue
         family = _agent_family_name(parent) or parent.agent_name or parent.display_name
-        planner_name = agent_family_phase_name(family, PLAN_CHAIN_PLAN_SUFFIX)
+        planner_name = agent_family_phase_name(family, child_suffix)
+        child_role = agent_family_role_for_suffix(child_suffix)
         planner = Agent(
             agent_type=AgentType.RUNNING,
             cl_name=planner_name,
@@ -291,7 +325,7 @@ def _ensure_synthetic_planner_children(
             stop_time=parent.stop_time,
             workflow=parent.workflow,
             parent_timestamp=parent.raw_suffix,
-            role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+            role_suffix=child_suffix,
             artifacts_dir=parent.artifacts_dir,
             response_path=parent.response_path,
             diff_path=parent.diff_path,
@@ -299,7 +333,7 @@ def _ensure_synthetic_planner_children(
             step_output=dict(parent.step_output) if parent.step_output else None,
             agent_name=planner_name,
             agent_family=family,
-            agent_family_role="plan",
+            agent_family_role=child_role,
             model=parent.model,
             llm_provider=parent.llm_provider,
             vcs_provider=parent.vcs_provider,
@@ -353,7 +387,7 @@ def apply_status_overrides(
         if (
             agent.parent_timestamp
             and not agent.parent_workflow
-            and is_feedback_suffix(agent.role_suffix)
+            and _is_feedback_agent(agent)
         ):
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
@@ -392,16 +426,20 @@ def apply_status_overrides(
 
     for agent in all_agents:
         if (
-            canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
-            and agent.parent_workflow
+            agent.parent_workflow
             and agent.parent_timestamp
             and _is_main_workflow_agent_step(agent)
         ):
             parent = parent_by_suffix.get(agent.parent_timestamp)
-            if parent and is_root_plan_workflow(parent):
+            if (
+                parent
+                and is_root_plan_workflow(parent)
+                and canonical_plan_chain_suffix(agent.role_suffix)
+                == _root_child_suffix(parent)
+            ):
                 _sync_planner_child_from_parent(parent, agent, all_agents)
         elif (
-            is_feedback_suffix(agent.role_suffix)
+            _is_feedback_agent(agent)
             and agent.status in {"DONE", "RUNNING"}
             and _is_awaiting_plan_review(agent)
         ):
@@ -418,7 +456,7 @@ def apply_status_overrides(
         ):
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
-                role_suffix = canonical_plan_chain_suffix(agent.role_suffix)
+                role = _agent_family_role(agent)
                 if _has_unanswered_completed_question(agent, parents_with_followup):
                     agent.status = "QUESTION"
 
@@ -438,9 +476,9 @@ def apply_status_overrides(
 
                 # Propagate code_time from coder follow-up to parent so
                 # the metadata panel shows when the coder was launched.
-                if is_coder_followup_suffix(agent.role_suffix):
+                if _is_coder_agent(agent):
                     parent.code_time = agent.run_start_time or agent.start_time
-                if role_suffix == PLAN_CHAIN_EPIC_SUFFIX:
+                if role == "epic":
                     parent.epic_time = (
                         agent.epic_time or agent.run_start_time or agent.start_time
                     )
@@ -450,9 +488,7 @@ def apply_status_overrides(
                 # the planner's own diff). Planner rows only fill a missing
                 # parent diff; synthetic planner rows copy the parent diff and
                 # must not clobber a coder diff propagated earlier in the pass.
-                if agent.diff_path and (
-                    role_suffix != PLAN_CHAIN_PLAN_SUFFIX or not parent.diff_path
-                ):
+                if agent.diff_path and (role != "plan" or not parent.diff_path):
                     parent.diff_path = agent.diff_path
 
     # Override DONE -> QUESTION for agents whose last question was never answered.

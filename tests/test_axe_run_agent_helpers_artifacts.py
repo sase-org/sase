@@ -117,6 +117,32 @@ def test_create_followup_with_name_override(tmp_path) -> None:
     assert meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] == "20260326120000"
 
 
+def test_create_followup_persists_root_question_role_override(tmp_path) -> None:
+    """Ambiguous numeric root question rows persist agent_family_role='q'."""
+    new_dir = tmp_path / "new"
+    new_dir.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(new_dir),
+    ):
+        create_followup_artifacts(
+            "proj",
+            {"name": "a", "model": "test"},
+            "--2",
+            "20260326120000",
+            agent_name_override="a--2",
+            workflow_name="a",
+            agent_family_role="q",
+        )
+
+    meta = json.loads((tmp_path / "new" / "agent_meta.json").read_text())
+    assert meta["name"] == "a--2"
+    assert meta["agent_family"] == "a"
+    assert meta["agent_family_role"] == "q"
+    assert meta["role_suffix"] == "--2"
+
+
 def test_create_followup_inherits_name_without_override(tmp_path) -> None:
     """Without agent_name_override, name is inherited from base_meta."""
     new_dir = tmp_path / "new"

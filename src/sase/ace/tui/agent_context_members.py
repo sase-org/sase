@@ -21,6 +21,7 @@ from sase.plan_chain import (
     PLAN_CHAIN_LEGEND_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
+    agent_family_role_for_suffix,
     canonical_plan_chain_suffix,
     plan_chain_feedback_round,
 )
@@ -76,8 +77,21 @@ def _compact_role_label(agent: Agent) -> str:
     name. The renderer is responsible for truncating long labels.
     """
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
+    role = agent_family_role_for_suffix(
+        agent.role_suffix,
+        agent_family_role=agent.agent_family_role,
+    )
+    if role == "q":
+        return "q"
+    if role == "code":
+        return "coder"
+    if role in {"epic", "legend", "commit"}:
+        return role
     if suffix is not None:
-        feedback_round = plan_chain_feedback_round(suffix)
+        feedback_round = plan_chain_feedback_round(
+            suffix,
+            agent_family_role=agent.agent_family_role,
+        )
         if feedback_round is not None:
             return f"fb{feedback_round}"
         label = _SUFFIX_LABELS.get(suffix)

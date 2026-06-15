@@ -46,6 +46,8 @@ class TestPlanFollowupQuestions:
         )
 
         assert outcome is None
+        assert state.current_role_suffix == "--plan-0"
+        assert plan_mod.create_followup_artifacts.call_args.args[2] == "--plan-0"
         assert state.current_prompt == (
             "original prompt\n\n### Additional Requirements\n\n- Add failure handling"
         )
@@ -54,6 +56,39 @@ class TestPlanFollowupQuestions:
             state.current_prompt,
             label="Full feedback prompt",
         )
+
+    def test_feedback_followup_second_round_uses_next_plan_token(
+        self, tmp_path
+    ) -> None:
+        """Plan feedback rounds allocate '--plan-0', then '--plan-1'."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        first_plan = write_plan_file(tmp_path, "plan1.md")
+        first = PlanApprovalResult(
+            action="feedback",
+            plan_file=first_plan,
+            feedback="Add failure handling",
+        )
+        run_plan_approval(tmp_path, approval=first, ctx=ctx, state=state)
+        assert state.current_role_suffix == "--plan-0"
+
+        plan_mod.create_followup_artifacts.reset_mock()
+        second_plan = write_plan_file(tmp_path, "plan2.md")
+        second = PlanApprovalResult(
+            action="feedback",
+            plan_file=second_plan,
+            feedback="Add retries",
+        )
+        _, state, outcome = run_plan_approval(
+            tmp_path,
+            approval=second,
+            ctx=ctx,
+            state=state,
+        )
+
+        assert outcome is None
+        assert state.current_role_suffix == "--plan-1"
+        assert plan_mod.create_followup_artifacts.call_args.args[2] == "--plan-1"
 
     def test_question_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
         """Question answers follow-up exposes the rebuilt prompt as an artifact."""
@@ -91,17 +126,48 @@ class TestPlanFollowupQuestions:
             state.current_prompt,
             label="Full question prompt",
         )
-        assert state.current_role_suffix == "--2"
-        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--2"
+        assert state.current_role_suffix == "--1"
+        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--1"
+        assert (
+            questions_mod.create_followup_artifacts.call_args.kwargs[
+                "agent_family_role"
+            ]
+            == "q"
+        )
 
-    def test_question_followup_second_round_uses_next_numeric_suffix(
+    def test_question_followup_second_round_uses_next_root_suffix(
         self, tmp_path
     ) -> None:
         """Question continuations advance through numeric family suffixes."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         state.agent_step = 2
-        state.current_role_suffix = "-2"
+        state.current_role_suffix = "--1"
+
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value={"answers": [], "global_note": ""},
+        ):
+            outcome = handle_questions_marker({"questions": []}, ctx, state)
+
+        assert outcome is None
+        assert state.current_role_suffix == "--2"
+        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--2"
+
+    def test_question_followup_ambiguous_root_numeric_uses_q_metadata(
+        self, tmp_path
+    ) -> None:
+        """A root question '--2' row uses metadata to continue as '--3'."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        state.agent_step = 3
+        state.current_role_suffix = "--2"
+        state.saved_chat_paths.append(("--1", "/fake/round1.md"))
+        meta_path = tmp_path / "artifacts" / "agent_meta.json"
+        meta_path.write_text(
+            json.dumps({"role_suffix": "--2", "agent_family_role": "q"}),
+            encoding="utf-8",
+        )
 
         with patch(
             "sase.axe.run_agent_exec_questions.handle_questions_flow",
@@ -112,6 +178,12 @@ class TestPlanFollowupQuestions:
         assert outcome is None
         assert state.current_role_suffix == "--3"
         assert questions_mod.create_followup_artifacts.call_args.args[2] == "--3"
+        assert (
+            questions_mod.create_followup_artifacts.call_args.kwargs[
+                "agent_family_role"
+            ]
+            == "q"
+        )
 
     def test_multiple_question_rounds_merge_into_one_section(self, tmp_path) -> None:
         """Two question rounds produce one merged Q&A section with continuous numbering."""
@@ -241,6 +313,14 @@ class TestPlanFollowupQuestions:
             outcome = handle_questions_marker({"questions": questions}, ctx, state)
 
         assert outcome is None
+        assert state.current_role_suffix == "--code-0"
+        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--code-0"
+        assert (
+            questions_mod.create_followup_artifacts.call_args.kwargs[
+                "agent_family_role"
+            ]
+            == "code"
+        )
         assert state.current_prompt.startswith("%model:codex/gpt-5.5\n")
         assert "@plan.md" in state.current_prompt
         assert "Implement it now." in state.current_prompt
@@ -282,6 +362,7 @@ class TestPlanFollowupQuestions:
             return_value=round1,
         ):
             handle_questions_marker({"questions": round1_q}, ctx, state)
+        assert state.current_role_suffix == "--code-0"
         assert state.current_prompt.startswith("%model:anthropic/opus\n")
         assert state.current_prompt.count("### Questions and Answers") == 1
         assert state.question_base_prompt == code_prompt
@@ -294,6 +375,7 @@ class TestPlanFollowupQuestions:
             return_value=round2,
         ):
             handle_questions_marker({"questions": round2_q}, ctx, state)
+        assert state.current_role_suffix == "--code-1"
         assert state.current_prompt.startswith("%model:anthropic/opus\n")
         assert state.current_prompt.count("### Questions and Answers") == 1
         assert "#### Q1: Repro" in state.current_prompt

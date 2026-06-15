@@ -19,6 +19,7 @@ from sase.plan_chain import (
     PLAN_CHAIN_LEGEND_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
+    agent_family_role_for_suffix,
     canonical_plan_chain_suffix,
     plan_chain_feedback_round,
 )
@@ -145,9 +146,28 @@ def render_timestamp_divider(iso_timestamp: str) -> Text:
 def get_phase_label(agent: Agent) -> str:
     """Map role_suffix to human-readable phase label."""
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
+    role = agent_family_role_for_suffix(
+        agent.role_suffix,
+        agent_family_role=agent.agent_family_role,
+    )
+    if role == "q":
+        return "QUESTIONS"
+    if role == "code":
+        return "CODER"
+    if role == "epic":
+        return "EPIC"
+    if role == "legend":
+        return "LEGEND"
+    if role == "commit":
+        return "COMMIT"
+    if role == "plan":
+        return "PLANNER"
     if suffix in _PHASE_LABELS:
         return _PHASE_LABELS[suffix]
-    feedback_round = plan_chain_feedback_round(suffix)
+    feedback_round = plan_chain_feedback_round(
+        suffix,
+        agent_family_role=agent.agent_family_role,
+    )
     if feedback_round is not None:
         return f"PLANNER (round {feedback_round})"
     return "AGENT"

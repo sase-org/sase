@@ -25,8 +25,8 @@ from sase.axe.run_agent_helpers import (
 from sase.axe.runner_utils import reset_killed, was_killed
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
+    allocate_agent_family_child_suffix,
     plan_chain_agent_name,
-    plan_chain_feedback_suffix,
 )
 
 if TYPE_CHECKING:
@@ -40,6 +40,14 @@ def agent_name_for_suffix(ctx: AgentExecContext, suffix: str | None) -> str | No
     if not ctx.agent_name or not suffix:
         return None
     return plan_chain_agent_name(ctx.agent_name, suffix)
+
+
+def _state_reserved_suffixes(state: LoopState, *extra: str | None) -> tuple[str, ...]:
+    suffixes = [suffix for suffix, _path in state.saved_chat_paths if suffix]
+    if state.current_role_suffix:
+        suffixes.append(state.current_role_suffix)
+    suffixes.extend(suffix for suffix in extra if suffix)
+    return tuple(suffixes)
 
 
 def record_workflow_metadata(
@@ -161,7 +169,15 @@ def handle_plan_marker(
             feedback_submitted_at,
         )
 
-        suffix = plan_chain_feedback_suffix(state.feedback_round)
+        suffix = (
+            allocate_agent_family_child_suffix(
+                ctx.agent_name,
+                f"{PLAN_CHAIN_PLAN_SUFFIX}-@",
+                extra_reserved_suffixes=_state_reserved_suffixes(state),
+            )
+            if ctx.agent_name
+            else f"{PLAN_CHAIN_PLAN_SUFFIX}-{state.feedback_round - 1}"
+        )
         feedback_agent_name = agent_name_for_suffix(ctx, suffix)
         record_workflow_metadata(
             state.current_artifacts_dir,
@@ -192,9 +208,7 @@ def handle_plan_marker(
                 "plan_path": plan_result.plan_file,
                 "feedback_submitted_at": feedback_submitted_at,
                 "changespec_name": ctx.cl_name,
-                "source_plan_agent_name": agent_name_for_suffix(
-                    ctx, PLAN_CHAIN_PLAN_SUFFIX
-                ),
+                "source_plan_agent_name": planner_agent,
             },
         )
 

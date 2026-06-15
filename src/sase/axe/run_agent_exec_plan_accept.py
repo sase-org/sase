@@ -170,6 +170,9 @@ def handle_accepted_plan(
         "plan_action",
         _accepted_plan_action_for_meta(plan_result),
     )
+    source_plan_agent_name = agent_name_for_suffix(
+        ctx, state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
+    )
 
     # Write SDD files (spec + plan) to project
     from sase.sdd.beads import get_effective_sdd_config
@@ -325,9 +328,7 @@ def handle_accepted_plan(
                     legend_bead_id if plan_result.action == "epic" else None
                 ),
                 "changespec_name": ctx.cl_name,
-                "source_plan_agent_name": agent_name_for_suffix(
-                    ctx, PLAN_CHAIN_PLAN_SUFFIX
-                ),
+                "source_plan_agent_name": source_plan_agent_name,
             },
         )
         update_meta_field(
@@ -403,9 +404,7 @@ def handle_accepted_plan(
                 "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
                 "plan_committed": plan_committed,
                 "changespec_name": ctx.cl_name,
-                "source_plan_agent_name": agent_name_for_suffix(
-                    ctx, PLAN_CHAIN_PLAN_SUFFIX
-                ),
+                "source_plan_agent_name": source_plan_agent_name,
             },
         )
         coder_extra = ""

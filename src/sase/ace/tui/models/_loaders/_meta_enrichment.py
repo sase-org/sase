@@ -23,6 +23,7 @@ from sase.core.agent_scan_wire import (
 from sase.core.time import get_timezone
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
+    agent_family_role_for_suffix,
     agent_family_phase_name,
     canonical_plan_chain_suffix,
 )
@@ -168,14 +169,14 @@ def _parent_timestamp_from_meta(
     return parent_timestamp
 
 
-def _root_plan_family_name_from_meta(data: dict[str, object]) -> str | None:
+def _root_family_name_from_meta(data: dict[str, object]) -> str | None:
     role_suffix = canonical_plan_chain_suffix(data.get("role_suffix"))
-    is_root_plan = (
+    is_root = (
         data.get("plan_chain_root")
         or data.get("agent_family_role") == "root"
         or role_suffix == PLAN_CHAIN_PLAN_SUFFIX
     )
-    if not is_root_plan:
+    if not is_root:
         return None
     family = data.get("agent_family")
     if isinstance(family, str) and family:
@@ -186,6 +187,12 @@ def _root_plan_family_name_from_meta(data: dict[str, object]) -> str | None:
     return None
 
 
+def _root_child_suffix_from_meta(data: dict[str, object]) -> str:
+    return (
+        canonical_plan_chain_suffix(data.get("role_suffix")) or PLAN_CHAIN_PLAN_SUFFIX
+    )
+
+
 def _apply_workflow_child_identity_from_meta(
     agent: Agent,
     data: dict[str, object],
@@ -193,14 +200,15 @@ def _apply_workflow_child_identity_from_meta(
     """Derive concrete family identity for the main agent workflow step."""
     if not _is_main_workflow_agent_step(agent):
         return
-    family = _root_plan_family_name_from_meta(data)
+    family = _root_family_name_from_meta(data)
     if family is None:
         return
-    planner_name = agent_family_phase_name(family, PLAN_CHAIN_PLAN_SUFFIX)
-    agent.agent_name = planner_name
+    child_suffix = _root_child_suffix_from_meta(data)
+    child_name = agent_family_phase_name(family, child_suffix)
+    agent.agent_name = child_name
     agent.agent_family = family
-    agent.agent_family_role = "plan"
-    agent.role_suffix = PLAN_CHAIN_PLAN_SUFFIX
+    agent.agent_family_role = agent_family_role_for_suffix(child_suffix)
+    agent.role_suffix = child_suffix
 
 
 def enrich_agent_from_meta(

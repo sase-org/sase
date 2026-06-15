@@ -59,6 +59,10 @@ class TestGetPhaseLabel:
         agent = make_agent(role_suffix=".2")
         assert get_phase_label(agent) == "PLANNER (round 2)"
 
+    def test_new_feedback_round_2(self) -> None:
+        agent = make_agent(role_suffix="--plan-0", agent_family_role="feedback")
+        assert get_phase_label(agent) == "PLANNER (round 2)"
+
     def test_feedback_round_2_hyphen_suffix(self) -> None:
         agent = make_agent(role_suffix="-2")
         assert get_phase_label(agent) == "PLANNER (round 2)"
@@ -70,6 +74,14 @@ class TestGetPhaseLabel:
     def test_feedback_round_10_hyphen_suffix(self) -> None:
         agent = make_agent(role_suffix="-10")
         assert get_phase_label(agent) == "PLANNER (round 10)"
+
+    def test_root_question_numeric_label(self) -> None:
+        agent = make_agent(role_suffix="--2", agent_family_role="q")
+        assert get_phase_label(agent) == "QUESTIONS"
+
+    def test_code_question_continuation_label(self) -> None:
+        agent = make_agent(role_suffix="--code-0", agent_family_role="code")
+        assert get_phase_label(agent) == "CODER"
 
     def test_no_suffix(self) -> None:
         agent = make_agent(role_suffix=None)

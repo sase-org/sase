@@ -28,11 +28,13 @@ from sase.axe.run_agent_helpers import (
 )
 from sase.axe.runner_utils import reset_killed
 from sase.plan_chain import (
-    PLAN_CHAIN_QUESTION_SUFFIX,
+    AGENT_FAMILY_SEPARATOR,
+    allocate_agent_family_child_suffix,
+    agent_family_role_for_suffix,
     canonical_plan_chain_suffix,
+    is_root_question_suffix,
     plan_chain_agent_name,
-    plan_chain_feedback_round,
-    plan_chain_feedback_suffix,
+    question_followup_suffix_template,
 )
 
 if TYPE_CHECKING:
@@ -61,6 +63,16 @@ def _interrupted_phase_meta(
     return loaded if isinstance(loaded, dict) and loaded else fallback_meta
 
 
+def _meta_family_role(meta: dict[str, Any]) -> str | None:
+    role = meta.get("agent_family_role")
+    return role if isinstance(role, str) and role else None
+
+
+def _fallback_question_suffix(template: str, *, root_sequence: bool) -> str:
+    token = "1" if root_sequence else "0"
+    return template.replace("@", token)
+
+
 def handle_questions_marker(
     q_data: dict[str, Any],
     ctx: AgentExecContext,
@@ -73,11 +85,21 @@ def handle_questions_marker(
     normalize_handoff_interruption_state(state.current_artifacts_dir)
     finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
     previous_role_suffix = state.current_role_suffix
-    state.current_role_suffix = PLAN_CHAIN_QUESTION_SUFFIX
-    update_meta_suffix(
-        state.current_artifacts_dir,
-        state.current_role_suffix or PLAN_CHAIN_QUESTION_SUFFIX,
+    base_meta = _interrupted_phase_meta(state.current_artifacts_dir, ctx.agent_meta)
+    interrupted_role = _meta_family_role(base_meta)
+    first_family_agent_question = state.agent_step == 1
+    interrupted_suffix = (
+        f"{AGENT_FAMILY_SEPARATOR}0"
+        if first_family_agent_question
+        else canonical_plan_chain_suffix(previous_role_suffix)
     )
+    if interrupted_suffix is None:
+        interrupted_suffix = (
+            canonical_plan_chain_suffix(base_meta.get("role_suffix"))
+            or f"{AGENT_FAMILY_SEPARATOR}0"
+        )
+    if first_family_agent_question:
+        update_meta_suffix(state.current_artifacts_dir, interrupted_suffix)
 
     questions_submitted_at = datetime.now(UTC).isoformat()
     update_meta_field(
@@ -108,13 +130,8 @@ def handle_questions_marker(
     from sase.history.chat import save_chat_history
     from sase.history.chat_extras import format_extra_sections
 
-    previous_suffix = canonical_plan_chain_suffix(previous_role_suffix)
-    _q_suffix = (
-        f"{previous_suffix}{PLAN_CHAIN_QUESTION_SUFFIX}"
-        if plan_chain_feedback_round(previous_suffix) is not None
-        else state.current_role_suffix or PLAN_CHAIN_QUESTION_SUFFIX
-    )
-    _q_agent = f"{ctx.agent_name}{_q_suffix}" if ctx.agent_name else None
+    _q_suffix = interrupted_suffix
+    _q_agent = agent_name_for_suffix(ctx, _q_suffix)
     _q_extra = format_extra_sections(state.current_artifacts_dir)
 
     # Append this round before rendering so the chat transcript and the
@@ -142,18 +159,48 @@ def handle_questions_marker(
     )
 
     state.agent_step += 1
-    if state.agent_step == 2 and ctx.agent_name:
+    if first_family_agent_question and state.agent_step == 2 and ctx.agent_name:
         promote_to_workflow(
             ctx.artifacts_dir,
             ctx.agent_name,
-            role_suffix=PLAN_CHAIN_QUESTION_SUFFIX,
+            role_suffix=interrupted_suffix,
         )
-    followup_suffix = plan_chain_feedback_suffix(state.agent_step - 1)
+    root_sequence = first_family_agent_question or is_root_question_suffix(
+        interrupted_suffix,
+        agent_family_role=interrupted_role,
+    )
+    suffix_template = (
+        f"{AGENT_FAMILY_SEPARATOR}@"
+        if root_sequence
+        else question_followup_suffix_template(
+            interrupted_suffix,
+            agent_family_role=interrupted_role,
+        )
+    )
+    followup_suffix = (
+        allocate_agent_family_child_suffix(
+            ctx.agent_name,
+            suffix_template,
+            extra_reserved_suffixes=(
+                *[suffix for suffix, _path in state.saved_chat_paths if suffix],
+                interrupted_suffix,
+            ),
+        )
+        if ctx.agent_name
+        else _fallback_question_suffix(suffix_template, root_sequence=root_sequence)
+    )
     state.current_role_suffix = followup_suffix
+    followup_role = (
+        "q"
+        if root_sequence
+        else agent_family_role_for_suffix(
+            followup_suffix,
+            agent_family_role=interrupted_role,
+        )
+    )
     # Inherit the interrupted phase's concrete model/provider (e.g. the worker
     # model that ``handle_accepted_plan`` wrote for the code phase) instead of
     # the initial planner metadata in ``ctx.agent_meta``.
-    base_meta = _interrupted_phase_meta(state.current_artifacts_dir, ctx.agent_meta)
     state.current_artifacts_dir = create_followup_artifacts(
         ctx.project_name,
         base_meta,
@@ -167,9 +214,10 @@ def handle_questions_marker(
         if ctx.agent_name
         else None,
         workflow_name=ctx.agent_name,
+        agent_family_role=followup_role,
         relationships={
             **question_relationships,
-            "source_plan_agent_name": agent_name_for_suffix(ctx, previous_role_suffix),
+            "source_plan_agent_name": _q_agent,
         },
     )
     # Rebuild from the current phase base (code/feedback/planner prompt) so a

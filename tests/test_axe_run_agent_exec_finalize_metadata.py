@@ -113,6 +113,46 @@ def test_finalize_loop_prefers_latest_agent_meta_for_transcript_metadata(
     assert captured["metadata_llm_provider"] == "codex"
 
 
+def test_finalize_loop_uses_new_phase_question_suffix_for_agent_name(
+    tmp_path: Path,
+) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="--code-0",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+        agent_step=3,
+    )
+    captured: dict = {}
+
+    def capture_save_chat(**kwargs):
+        captured.update(kwargs)
+        return str(tmp_path / "chat.md")
+
+    with (
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            side_effect=capture_save_chat,
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch("sase.axe.image_attachments.collect_agent_image_paths", return_value=[]),
+    ):
+        _finalize_loop(
+            ctx,
+            state,
+            RetryTracker(retry_cfg=None),
+            SimpleNamespace(response_text="done"),
+        )
+
+    assert captured["metadata_agent"] == "agent--code-0"
+
+
 def test_finalize_loop_uses_retry_fallback_model_for_transcript_metadata(
     tmp_path: Path,
     monkeypatch,

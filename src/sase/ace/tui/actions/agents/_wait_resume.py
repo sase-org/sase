@@ -5,9 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from sase.plan_chain import (
-    PLAN_CHAIN_CODER_SUFFIX,
     agent_family_base,
-    canonical_plan_chain_suffix,
+    agent_family_role_for_suffix,
 )
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -30,7 +29,7 @@ _PLAN_HANDOFF_DONE_STATUSES: frozenset[str] = frozenset({"PLAN DONE", "TALE DONE
 
 def _is_coder_followup_suffix(suffix: str | None) -> bool:
     """Return True for the coder follow-up suffix."""
-    return canonical_plan_chain_suffix(suffix) == PLAN_CHAIN_CODER_SUFFIX
+    return agent_family_role_for_suffix(suffix) == "code"
 
 
 def _is_agent_family_root(agent: Agent) -> bool:

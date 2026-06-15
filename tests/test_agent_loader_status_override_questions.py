@@ -311,6 +311,43 @@ def test_apply_status_overrides_numeric_answered_continuation_is_plan_done() -> 
     assert parent.status == "PLAN DONE"
 
 
+def test_apply_status_overrides_root_numeric_question_is_not_feedback_done() -> None:
+    """A '--2' root question row with q metadata is not legacy feedback."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 0, 0),
+        raw_suffix="20260511090000",
+        role_suffix="--0",
+        agent_name="aj5",
+        agent_family="aj5",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    latest_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 11, 9, 40, 0),
+        raw_suffix="20260511094000",
+        parent_timestamp="20260511090000",
+        role_suffix="--2",
+        agent_name="aj5--2",
+        agent_family="aj5",
+        agent_family_role="q",
+        questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
+        question_response_path="/tmp/question_response.json",
+    )
+    agents = [parent, latest_child]
+    _apply_status_overrides(agents)
+
+    assert latest_child.status == "DONE"
+    assert parent.status == "DONE"
+
+
 def test_apply_status_overrides_numeric_unanswered_continuation_is_question() -> None:
     """A completed numeric family continuation without a response remains blocked."""
     parent = Agent(

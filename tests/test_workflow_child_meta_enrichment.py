@@ -65,3 +65,26 @@ def test_workflow_child_enrichment_derives_planner_identity_only_for_main_agent(
     assert bash.model == "gpt-test"
     assert planner.plan_times
     assert bash.plan_times
+
+
+def test_workflow_child_enrichment_uses_root_question_suffix(tmp_path) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "ap5",
+                "agent_family": "ap5",
+                "agent_family_role": "root",
+                "plan_chain_root": True,
+                "role_suffix": "--0",
+            }
+        ),
+        encoding="utf-8",
+    )
+    question_child = _workflow_step("agent")
+
+    enrich_agent_from_meta(question_child, str(tmp_path), workflow_child=True)
+
+    assert question_child.agent_name == "ap5--0"
+    assert question_child.agent_family == "ap5"
+    assert question_child.agent_family_role == "q"
+    assert question_child.role_suffix == "--0"

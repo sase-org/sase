@@ -288,6 +288,7 @@ def create_followup_artifacts(
     workspace_num: int | None = None,
     agent_name_override: str | None = None,
     workflow_name: str | None = None,
+    agent_family_role: str | None = None,
     relationships: dict[str, Any] | None = None,
 ) -> str:
     """Create a new timestamped artifacts directory for a follow-up agent.
@@ -334,7 +335,7 @@ def create_followup_artifacts(
     )
     if family_name:
         followup_meta[AGENT_FAMILY_FIELD] = family_name
-    family_role = agent_family_role_for_suffix(canonical_suffix)
+    family_role = agent_family_role or agent_family_role_for_suffix(canonical_suffix)
     if family_role:
         followup_meta[AGENT_FAMILY_ROLE_FIELD] = family_role
     followup_meta["parent_timestamp"] = prev_artifacts_timestamp

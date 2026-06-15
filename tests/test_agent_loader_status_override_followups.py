@@ -33,6 +33,35 @@ def test_apply_status_overrides_root_awaiting_plan_review_mirrors_planner() -> N
     assert planner.status == "PLAN"
 
 
+def test_apply_status_overrides_root_question_synthesizes_zero_child() -> None:
+    """A first-agent question root synthesizes the logical '--0' child."""
+    question_time = datetime(2026, 5, 17, 9, 0, 0)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix="20260517085500",
+        role_suffix="--0",
+        agent_name="root",
+        agent_family="root",
+        agent_family_role="root",
+        plan_chain_root=True,
+        questions_times=[question_time],
+    )
+    agents = [parent]
+
+    _apply_status_overrides(agents)
+
+    assert parent.status == "QUESTION"
+    question_child = next(a for a in agents if a.parent_timestamp == parent.raw_suffix)
+    assert question_child.agent_name == "root--0"
+    assert question_child.agent_family_role == "q"
+    assert question_child.role_suffix == "--0"
+    assert question_child.status == "QUESTION"
+
+
 def test_apply_status_overrides_ap5_workflow_children_after_code_handoff() -> None:
     """Planner and embedded workflow children stay terminal after family handoff."""
     plan_time = datetime(2026, 5, 17, 9, 0, 0)
@@ -130,6 +159,42 @@ def test_apply_status_overrides_feedback_child_awaiting_review_mirrors_plan() ->
         start_time=datetime(2026, 5, 17, 9, 5, 0),
         parent_timestamp="20260517085500",
         role_suffix="-2",
+        feedback_times=[feedback_time],
+        plan_times=[plan_time],
+    )
+
+    _apply_status_overrides([parent, feedback_child])
+
+    assert feedback_child.status == "PLAN"
+    assert parent.status == "PLAN"
+
+
+def test_apply_status_overrides_new_plan_feedback_child_awaiting_review() -> None:
+    """A '--plan-0' replan child is treated as feedback, not a root question."""
+    feedback_time = datetime(2026, 5, 17, 9, 0, 0)
+    plan_time = datetime(2026, 5, 17, 9, 10, 0)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 8, 55, 0),
+        raw_suffix="20260517085500",
+        role_suffix="-plan",
+        agent_name="root",
+        agent_family="root",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 17, 9, 5, 0),
+        parent_timestamp="20260517085500",
+        role_suffix="--plan-0",
+        agent_family_role="feedback",
         feedback_times=[feedback_time],
         plan_times=[plan_time],
     )
@@ -400,6 +465,36 @@ def test_apply_status_overrides_active_code_child_stays_plan_approved() -> None:
         start_time=datetime(2026, 4, 20, 10, 10, 0),
         parent_timestamp="20260420100000",
         role_suffix=".code",
+    )
+    agents = [parent, code_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN APPROVED"
+    assert code_child.status == "PLAN APPROVED"
+
+
+def test_apply_status_overrides_active_code_question_child_stays_plan_approved() -> (
+    None
+):
+    """An active '--code-0' continuation is still a code handoff row."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 4, 20, 10, 0, 0),
+        raw_suffix="20260420100000",
+        role_suffix=".plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 20, 10, 10, 0),
+        parent_timestamp="20260420100000",
+        role_suffix="--code-0",
+        agent_family_role="code",
     )
     agents = [parent, code_child]
     _apply_status_overrides(agents)
