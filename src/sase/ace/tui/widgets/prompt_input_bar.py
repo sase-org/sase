@@ -2,7 +2,6 @@
 
 from typing import Any
 
-from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.dom import NoScreen
@@ -10,22 +9,20 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Static, TextArea
 
-from sase.ace.tui.widgets.directive_completion import DirectiveCompletionMetadata
-from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
-from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
+from sase.ace.tui.widgets._prompt_input_bar_actions import (
+    PromptInputBarActionsMixin,
+)
+from sase.ace.tui.widgets._prompt_input_bar_completion import (
+    PromptInputBarCompletionMixin,
+)
+from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
+    PromptInputBarStackActionsMixin,
+)
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
     split_prompt_text,
 )
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    ActiveXPromptArgHint,
-    XPromptAssistEntry,
-    append_input_hints,
-    detect_xprompt_arg_hint_at_cursor,
-    xprompt_completion_suffix_skeleton,
-)
-
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 # Inactive panes never grow past this many content rows so the active pane
@@ -33,7 +30,12 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 _INACTIVE_PANE_MAX_ROWS = 4
 
 
-class PromptInputBar(Static):
+class PromptInputBar(
+    PromptInputBarStackActionsMixin,
+    PromptInputBarActionsMixin,
+    PromptInputBarCompletionMixin,
+    Static,
+):
     """Prompt input bar for agent workflow, positioned at bottom of screen."""
 
     class Submitted(Message):
@@ -328,94 +330,6 @@ class PromptInputBar(Static):
         self._schedule_height_update()
         return self._stack.selected_index
 
-    # -- Phase 3 stack keymaps -----------------------------------------------
-
-    def focus_relative(self, delta: int) -> bool:
-        """Move pane focus by *delta* in normal mode (``,j`` / ``,k``).
-
-        Navigation is a pure focus change — no pane is rebuilt, so each pane
-        keeps its cursor and edit state.  The newly active pane enters vim
-        normal mode so the user can keep browsing the stack with the comma
-        leader.  Returns ``True`` when the selection moved.
-        """
-        if len(self._stack) <= 1:
-            return False
-        self._clear_active_completion_state()
-        if not self._stack.move_focus(delta):
-            return False
-        self._apply_active_classes()
-        text_area = self.active_text_area()
-        text_area.focus()
-        text_area._enter_normal_mode()
-        self._schedule_height_update()
-        return True
-
-    def move_active_pane(self, delta: int) -> bool:
-        """Reorder the active pane by *delta* (``,J`` down / ``,K`` up).
-
-        The live pane texts are synced into the model first so the rebuild
-        preserves what the user has typed; the moved pane stays active and in
-        normal mode for repeated reordering.  Returns ``True`` when it moved.
-        """
-        if len(self._stack) <= 1:
-            return False
-        self._sync_state_from_widgets()
-        self._clear_active_completion_state()
-        if not self._stack.move_selected(delta):
-            return False
-        self._rebuild_stack(enter_mode="normal")
-        return True
-
-    def add_bottom_pane(self) -> None:
-        """Append a new empty bottom pane and drop into it (the ``-`` keymap).
-
-        Only meaningful in prompt mode — feedback / approve-prompt bars are not
-        multi-agent surfaces — so it is a no-op elsewhere.  The new pane is
-        focused in insert mode so the user can immediately type the next agent
-        prompt, pushing the previous panes up.
-        """
-        if self._mode != "prompt":
-            return
-        self._sync_state_from_widgets()
-        self._clear_active_completion_state()
-        self._stack.append_bottom("")
-        self._rebuild_stack(enter_mode="insert")
-
-    def _live_split_active_pane(self) -> None:
-        """Split the active pane when a ``---`` line was just typed into it.
-
-        Deferred from :meth:`on_text_area_changed` so the pane is never
-        unmounted while still handling its own text change.  The canonical
-        parser decides whether a real split happens, so separators inside fenced
-        code blocks or YAML frontmatter never trigger one.  After a split the
-        new bottom pane is focused in insert mode to keep drafting.
-        """
-        self._live_split_pending = False
-        if self._mode != "prompt":
-            return
-        self._sync_state_from_widgets()
-        if not self._stack.split_selected_live():
-            return
-        self._clear_active_completion_state()
-        self._rebuild_stack(enter_mode="insert")
-
-    def _clear_active_completion_state(self) -> None:
-        """Drop completion / soft-completion / arg-hint state before a mutation.
-
-        Stack navigation and structural changes move or replace panes, so any
-        completion panel anchored to the old active pane must be cleared first.
-        """
-        try:
-            text_area = self.active_text_area()
-        except Exception:
-            text_area = None
-        if text_area is not None:
-            text_area._clear_file_completion()
-            text_area._clear_soft_completion(cancel_timer=True)
-            text_area._clear_xprompt_arg_hint()
-        self.hide_file_completions()
-        self.hide_soft_completion()
-
     def _sync_state_from_widgets(self) -> None:
         """Copy each mounted pane's live text back into the stack model."""
         for item in self._stack.items:
@@ -450,24 +364,6 @@ class PromptInputBar(Static):
         text_area._on_prompt_completion_context_changed()
         self._schedule_height_update()
         self._maybe_live_split(text_area)
-
-    def _maybe_live_split(self, text_area: PromptTextArea) -> None:
-        """Schedule a live split when *text_area*'s cursor line became ``---``.
-
-        Only a freshly typed separator line in insert mode triggers a split; the
-        canonical parser still has the final say (fenced / frontmatter ``---``
-        are left alone) inside :meth:`_live_split_active_pane`.  The rebuild is
-        deferred so this never fires while the change is still being processed.
-        """
-        if self._mode != "prompt" or self._live_split_pending:
-            return
-        if getattr(text_area, "_vim_mode", "insert") != "insert":
-            return
-        row = text_area.cursor_location[0]
-        if text_area.document.get_line(row).rstrip() != "---":
-            return
-        self._live_split_pending = True
-        self.call_after_refresh(self._live_split_active_pane)
 
     def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
         """Refresh soft completion when the prompt cursor moves."""
@@ -567,278 +463,3 @@ class PromptInputBar(Static):
     def on_resize(self) -> None:
         """Recalculate height when the terminal is resized."""
         self._schedule_height_update()
-
-    def show_file_completions(
-        self,
-        token: str,
-        rows: list[CompletionCandidate],
-        selected_index: int,
-        scroll_offset: int = 0,
-        completion_kind: str = "file",
-    ) -> None:
-        """Show the path/xprompt completion panel with Rich styling.
-
-        Args:
-            token: Current token being completed.
-            rows: Completion entries.
-            selected_index: Highlighted row index.
-            scroll_offset: First visible entry index for scrolling.
-            completion_kind: "file" for path completion, "xprompt" for xprompt.
-        """
-        panel = self.query_one("#prompt-completion", Static)
-        total = len(rows)
-        visible = rows[scroll_offset : scroll_offset + MAX_VISIBLE]
-
-        is_xprompt = completion_kind == "xprompt"
-        is_directive = completion_kind == "directive"
-        is_history = completion_kind == "file_history"
-        is_arg_completion = completion_kind in ("xprompt_arg_name", "xprompt_arg_value")
-        content = Text()
-        for i, candidate in enumerate(visible):
-            actual_idx = scroll_offset + i
-            is_selected = actual_idx == selected_index
-
-            if is_selected:
-                content.append("\u25b8 ", style="bold")
-            else:
-                content.append("  ")
-
-            if is_xprompt:
-                self._append_xprompt_completion_row(content, candidate, is_selected)
-            elif is_directive:
-                self._append_directive_completion_row(content, candidate, is_selected)
-            elif is_arg_completion:
-                content.append(
-                    candidate.display,
-                    style="bold yellow" if is_selected else "yellow",
-                )
-            elif candidate.is_dir:
-                content.append("\U0001f4c1 ")
-                content.append(
-                    candidate.display, style="bold cyan" if is_selected else "cyan"
-                )
-            else:
-                content.append("\U0001f4c4 ")
-                content.append(candidate.display, style="bold" if is_selected else "")
-
-            if i < len(visible) - 1:
-                content.append("\n")
-
-        remaining = total - (scroll_offset + len(visible))
-        if remaining > 0:
-            content.append(f"\n  \u2193 {remaining} more\u2026", style="dim")
-
-        # Border title: "xprompts" for xprompt completion, "recent files"
-        # for file-history completion, directory for file.
-        if is_xprompt:
-            panel.border_title = "xprompts"
-        elif is_directive:
-            panel.border_title = "directives"
-        elif completion_kind == "xprompt_arg_name":
-            panel.border_title = "xprompt arg names"
-        elif completion_kind == "xprompt_arg_value":
-            panel.border_title = "xprompt arg values"
-        elif completion_kind == "xprompt_arg_path":
-            panel.border_title = "xprompt path"
-        elif is_history:
-            panel.border_title = "recent files"
-        elif "/" in token:
-            panel.border_title = token[: token.rindex("/") + 1]
-        else:
-            panel.border_title = token
-
-        if is_history:
-            panel.border_subtitle = "[^L] accept  [^D] delete"
-        else:
-            panel.border_subtitle = ""
-
-        panel.update(content)
-        panel.remove_class("hidden")
-        self._completion_visible = True
-        line_count = len(content.plain.splitlines()) if content.plain else 0
-        self._completion_line_count = line_count + 3  # +3 for panel border + margin
-        self._update_height()
-
-    def _append_xprompt_completion_row(
-        self,
-        content: Text,
-        candidate: CompletionCandidate,
-        is_selected: bool,
-    ) -> None:
-        """Append one xprompt completion row using assist metadata when present."""
-        content.append(
-            candidate.display,
-            style="bold green" if is_selected else "green",
-        )
-        entry = (
-            candidate.metadata
-            if isinstance(candidate.metadata, XPromptAssistEntry)
-            else None
-        )
-        if entry is None:
-            return
-
-        kind = "skill" if entry.is_skill else entry.kind
-        content.append(f"  {kind}", style="dim")
-        if entry.description:
-            content.append(f"  {entry.description}", style="dim")
-        append_input_hints(content, entry.inputs)
-
-    def _append_directive_completion_row(
-        self,
-        content: Text,
-        candidate: CompletionCandidate,
-        is_selected: bool,
-    ) -> None:
-        """Append one prompt directive completion row."""
-        content.append(
-            candidate.display,
-            style="bold magenta" if is_selected else "magenta",
-        )
-        metadata = (
-            candidate.metadata
-            if isinstance(candidate.metadata, DirectiveCompletionMetadata)
-            else None
-        )
-        if metadata is None:
-            return
-
-        details: list[str] = []
-        if metadata.argument_hint:
-            details.append(metadata.argument_hint)
-        if metadata.aliases:
-            details.append(
-                "alias " + ", ".join(f"%{alias}" for alias in metadata.aliases)
-            )
-        if metadata.description:
-            details.append(metadata.description)
-        if details:
-            content.append(f"  {'  '.join(details)}", style="dim")
-
-    def hide_file_completions(self) -> None:
-        """Hide the path completion panel."""
-        panel = self.query_one("#prompt-completion", Static)
-        panel.update("")
-        panel.add_class("hidden")
-        self._completion_visible = False
-        self._completion_line_count = 0
-        self._update_height()
-
-    def set_prompt_mode_subtitle(self, subtitle: str) -> None:
-        """Set the prompt mode subtitle, preserving any visible soft suggestion."""
-        self._mode_subtitle = subtitle
-        if not self._soft_completion_visible:
-            self.border_subtitle = subtitle
-
-    def show_soft_completion(self, suggestion: PromptSoftCompletion) -> None:
-        """Render a soft completion in the prompt bar subtitle."""
-        display = suggestion.display.replace("\n", " ").strip()
-        if len(display) > 48:
-            display = f"{display[:45]}..."
-        self._soft_completion_visible = True
-        self.border_subtitle = f"[^L] accept {display}"
-
-    def hide_soft_completion(self) -> None:
-        """Restore the mode subtitle when no soft completion is visible."""
-        if not self._soft_completion_visible:
-            return
-        self._soft_completion_visible = False
-        self.border_subtitle = self._mode_subtitle
-
-    def show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
-        """Show the post-accept xprompt argument hint panel."""
-        panel = self.query_one("#prompt-completion", Static)
-        content = Text()
-        content.append(hint.reference_text, style="bold green")
-        content.append(" arguments", style="dim")
-        append_input_hints(
-            content,
-            hint.entry.inputs,
-            active_index=hint.active_input_index,
-            include_descriptions=True,
-        )
-
-        panel.border_title = "xprompt args"
-        panel.border_subtitle = "[:] colon  [(] named args"
-        panel.update(content)
-        panel.remove_class("hidden")
-        self._completion_visible = True
-        line_count = len(content.plain.splitlines()) if content.plain else 0
-        self._completion_line_count = line_count + 3
-        self._update_height()
-
-    def _handle_text_submission(self, _text: str) -> None:
-        """Process text submission from a pane's TextArea.
-
-        Phase 2 preserves the pre-stack contract: ``<enter>`` submits the whole
-        prompt.  The whole stack is joined back into one canonical multi-prompt
-        string so dispatch splits it exactly as it did when the bar was a single
-        text box.  (Per-pane submit semantics arrive in Phase 4.)
-        """
-        self.post_message(self.Submitted(self.current_prompt_text(), mode=self._mode))
-
-    def action_cancel(self) -> None:
-        """Cancel the input bar."""
-        text_area = self.active_text_area()
-        text_area._clear_soft_completion(cancel_timer=True)
-        text_area._clear_xprompt_arg_hint()
-        self.post_message(
-            self.Cancelled(cancelled_text=self.current_prompt_text(), mode=self._mode)
-        )
-
-    def insert_snippet(
-        self,
-        snippet_name: str,
-        entry: XPromptAssistEntry | None = None,
-    ) -> None:
-        """Insert a snippet reference at the cursor position.
-
-        The '#' from the '#@' trigger is already in the input
-        ('@' was prevented), so we just append the snippet name.
-
-        Args:
-            snippet_name: The snippet name to insert (without #)
-            entry: Optional selected xprompt metadata for smart argument insertion.
-        """
-        text_area = self.active_text_area()
-        start, end = text_area.selection
-        if entry is not None and self._insert_xprompt_smart_snippet(
-            text_area,
-            entry,
-            start,
-            end,
-        ):
-            text_area.focus()
-            return
-
-        reference_start = max(0, text_area._absolute_offset(start) - 1)
-        text_area._replace_via_keyboard(snippet_name, start, end)
-        reference_end = reference_start + 1 + len(snippet_name)
-        text_area._maybe_show_inserted_xprompt_arg_hint(reference_start, reference_end)
-        text_area.focus()
-
-    def _insert_xprompt_smart_snippet(
-        self,
-        text_area: PromptTextArea,
-        entry: XPromptAssistEntry,
-        start: tuple[int, int],
-        end: tuple[int, int],
-    ) -> bool:
-        """Insert a selected xprompt using the Ctrl+T completion skeleton."""
-        skeleton = xprompt_completion_suffix_skeleton(entry)
-        if not text_area._expand_snippet_template_at_range(skeleton, start, end):
-            return False
-
-        cursor_offset = text_area._absolute_offset(text_area.cursor_location)
-        hint = detect_xprompt_arg_hint_at_cursor(
-            text_area.text,
-            cursor_offset,
-            [entry],
-        )
-        if hint is None:
-            text_area._clear_xprompt_arg_hint()
-            return True
-
-        text_area._active_xprompt_arg_hint = hint
-        text_area._show_xprompt_arg_hint(hint)
-        return True
