@@ -208,6 +208,9 @@ class VimNormalModeMixin(VimVisualModeMixin):
                         sr, sc, er, ec = text_object
                         self._execute_charwise_operator((sr, sc), (er, ec), op)
                     self._update_count_display()
+            elif pending == ",":
+                # Prompt-stack comma leader: ,j/,k navigate, ,J/,K reorder.
+                self._handle_stack_leader_key(key)
             self._update_count_display()
             return True
 
@@ -506,6 +509,22 @@ class VimNormalModeMixin(VimVisualModeMixin):
             self._update_count_display()
             return True
 
+        # Prompt-stack comma leader (Phase 3) --------------------------------
+        # In a multi-pane prompt stack, `,` opens a prompt-local leader for pane
+        # navigation/reorder (,j ,k ,J ,K).  In a single pane it keeps vim's
+        # reverse char-search repeat.  Either way `,` is consumed whenever a
+        # prompt bar owns focus, so the app-level comma leader stays inactive
+        # under the focused prompt.
+        if key == "," and not self._pending_operator:
+            bar = self._find_prompt_bar()
+            if bar is not None:
+                if len(getattr(bar, "_stack", ())) > 1:
+                    self._pending_keys = ","
+                    self._update_count_display()
+                    return True
+                if not self._last_char_search:
+                    return True
+
         # Repeat last character search (; = same direction, , = reverse)
         if key in ";," and self._last_char_search:
             motion, target_char = self._last_char_search
@@ -688,5 +707,30 @@ class VimNormalModeMixin(VimVisualModeMixin):
             self._join_lines(count)
             return True
 
+        # Prompt-stack: add a new bottom pane (Phase 3 `-` keymap).
+        if key == "-":
+            bar = self._find_prompt_bar()
+            if bar is not None and getattr(bar, "_mode", "") == "prompt":
+                bar.add_bottom_pane()
+                return True
+
         # Unhandled key - let it through for arrow keys, etc.
         return False
+
+    def _handle_stack_leader_key(self, key: str) -> None:
+        """Dispatch the key following the prompt-stack comma leader.
+
+        ``,j``/``,k`` move focus down/up; ``,J``/``,K`` reorder the active pane
+        down/up.  Any other follow-up key is ignored (the leader is dropped).
+        """
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return
+        if key == "j":
+            bar.focus_relative(1)
+        elif key == "k":
+            bar.focus_relative(-1)
+        elif key == "J":
+            bar.move_active_pane(1)
+        elif key == "K":
+            bar.move_active_pane(-1)

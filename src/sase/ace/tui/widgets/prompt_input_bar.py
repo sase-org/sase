@@ -108,6 +108,9 @@ class PromptInputBar(Static):
         # previous panes are still being detached never collides on widget ids.
         self._generation = 0
         self._placeholder = ""
+        # Guards against piling up deferred live-split passes while the user
+        # keeps typing past a freshly completed ``---`` separator line.
+        self._live_split_pending = False
         self._stack = self._state_from_text(initial_value)
 
     @property
@@ -214,12 +217,16 @@ class PromptInputBar(Static):
         state = "active" if index == self._stack.selected_index else "inactive"
         return f"prompt-input prompt-pane {state}"
 
-    def _rebuild_stack(self) -> None:
+    def _rebuild_stack(self, enter_mode: str | None = None) -> None:
         """Re-render the prompt stack to match ``self._stack`` from scratch.
 
-        Used by deliberate whole-stack replacements (``load_stack_from_text``).
+        Used by deliberate whole-stack replacements (``load_stack_from_text``)
+        and by the Phase 3 structural keymaps (reorder, add pane, live split).
         Bumps the generation so freshly mounted panes never share ids with the
-        panes still being detached asynchronously.
+        panes still being detached asynchronously.  *enter_mode* optionally puts
+        the rebuilt active pane into vim ``"normal"`` or ``"insert"`` mode once
+        it has mounted, so reorder keeps the user in normal mode while adding /
+        splitting drops them into the new pane ready to type.
         """
         self._generation += 1
         try:
@@ -228,9 +235,9 @@ class PromptInputBar(Static):
             return
         container.remove_children()
         container.mount(*self._build_pane_widgets())
-        self.call_after_refresh(self._after_rebuild)
+        self.call_after_refresh(lambda: self._after_rebuild(enter_mode))
 
-    def _after_rebuild(self) -> None:
+    def _after_rebuild(self, enter_mode: str | None = None) -> None:
         """Focus + style the active pane once a rebuilt stack has mounted."""
         try:
             text_area = self.active_text_area()
@@ -241,6 +248,10 @@ class PromptInputBar(Static):
         text_area._warm_current_xprompt_assist_entries()
         text_area._on_prompt_completion_context_changed()
         self._apply_active_classes()
+        if enter_mode == "normal":
+            text_area._enter_normal_mode()
+        elif enter_mode == "insert":
+            text_area._enter_insert_mode()
         self._schedule_height_update()
 
     @staticmethod
@@ -317,6 +328,94 @@ class PromptInputBar(Static):
         self._schedule_height_update()
         return self._stack.selected_index
 
+    # -- Phase 3 stack keymaps -----------------------------------------------
+
+    def focus_relative(self, delta: int) -> bool:
+        """Move pane focus by *delta* in normal mode (``,j`` / ``,k``).
+
+        Navigation is a pure focus change — no pane is rebuilt, so each pane
+        keeps its cursor and edit state.  The newly active pane enters vim
+        normal mode so the user can keep browsing the stack with the comma
+        leader.  Returns ``True`` when the selection moved.
+        """
+        if len(self._stack) <= 1:
+            return False
+        self._clear_active_completion_state()
+        if not self._stack.move_focus(delta):
+            return False
+        self._apply_active_classes()
+        text_area = self.active_text_area()
+        text_area.focus()
+        text_area._enter_normal_mode()
+        self._schedule_height_update()
+        return True
+
+    def move_active_pane(self, delta: int) -> bool:
+        """Reorder the active pane by *delta* (``,J`` down / ``,K`` up).
+
+        The live pane texts are synced into the model first so the rebuild
+        preserves what the user has typed; the moved pane stays active and in
+        normal mode for repeated reordering.  Returns ``True`` when it moved.
+        """
+        if len(self._stack) <= 1:
+            return False
+        self._sync_state_from_widgets()
+        self._clear_active_completion_state()
+        if not self._stack.move_selected(delta):
+            return False
+        self._rebuild_stack(enter_mode="normal")
+        return True
+
+    def add_bottom_pane(self) -> None:
+        """Append a new empty bottom pane and drop into it (the ``-`` keymap).
+
+        Only meaningful in prompt mode — feedback / approve-prompt bars are not
+        multi-agent surfaces — so it is a no-op elsewhere.  The new pane is
+        focused in insert mode so the user can immediately type the next agent
+        prompt, pushing the previous panes up.
+        """
+        if self._mode != "prompt":
+            return
+        self._sync_state_from_widgets()
+        self._clear_active_completion_state()
+        self._stack.append_bottom("")
+        self._rebuild_stack(enter_mode="insert")
+
+    def _live_split_active_pane(self) -> None:
+        """Split the active pane when a ``---`` line was just typed into it.
+
+        Deferred from :meth:`on_text_area_changed` so the pane is never
+        unmounted while still handling its own text change.  The canonical
+        parser decides whether a real split happens, so separators inside fenced
+        code blocks or YAML frontmatter never trigger one.  After a split the
+        new bottom pane is focused in insert mode to keep drafting.
+        """
+        self._live_split_pending = False
+        if self._mode != "prompt":
+            return
+        self._sync_state_from_widgets()
+        if not self._stack.split_selected_live():
+            return
+        self._clear_active_completion_state()
+        self._rebuild_stack(enter_mode="insert")
+
+    def _clear_active_completion_state(self) -> None:
+        """Drop completion / soft-completion / arg-hint state before a mutation.
+
+        Stack navigation and structural changes move or replace panes, so any
+        completion panel anchored to the old active pane must be cleared first.
+        """
+        try:
+            text_area = self.active_text_area()
+        except Exception:
+            text_area = None
+        if text_area is not None:
+            text_area._clear_file_completion()
+            text_area._clear_soft_completion(cancel_timer=True)
+            text_area._clear_xprompt_arg_hint()
+        self.hide_file_completions()
+        self.hide_soft_completion()
+
     def _sync_state_from_widgets(self) -> None:
         """Copy each mounted pane's live text back into the stack model."""
         for item in self._stack.items:
@@ -350,6 +449,25 @@ class PromptInputBar(Static):
         text_area.show_line_numbers = text_area.document.line_count > 1
         text_area._on_prompt_completion_context_changed()
         self._schedule_height_update()
+        self._maybe_live_split(text_area)
+
+    def _maybe_live_split(self, text_area: PromptTextArea) -> None:
+        """Schedule a live split when *text_area*'s cursor line became ``---``.
+
+        Only a freshly typed separator line in insert mode triggers a split; the
+        canonical parser still has the final say (fenced / frontmatter ``---``
+        are left alone) inside :meth:`_live_split_active_pane`.  The rebuild is
+        deferred so this never fires while the change is still being processed.
+        """
+        if self._mode != "prompt" or self._live_split_pending:
+            return
+        if getattr(text_area, "_vim_mode", "insert") != "insert":
+            return
+        row = text_area.cursor_location[0]
+        if text_area.document.get_line(row).rstrip() != "---":
+            return
+        self._live_split_pending = True
+        self.call_after_refresh(self._live_split_active_pane)
 
     def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
         """Refresh soft completion when the prompt cursor moves."""
