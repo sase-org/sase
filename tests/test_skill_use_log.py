@@ -19,6 +19,7 @@ from sase.skills.use_log import (
     read_skill_use_events,
     skill_use_log_path,
     summarize_skill_uses_by_agent,
+    summarize_skill_uses_by_runtime,
     summarize_skill_uses_by_skill,
 )
 
@@ -122,6 +123,7 @@ def test_skill_use_aggregation_groups_by_skill_and_agent(tmp_path: Path) -> None
         timestamp="2026-06-14T12:01:00+00:00",
         agent_name="agent-b",
         reason="Second",
+        runtime=None,
     )
     other = replace(
         base,
@@ -134,6 +136,7 @@ def test_skill_use_aggregation_groups_by_skill_and_agent(tmp_path: Path) -> None
 
     skill_summaries = summarize_skill_uses_by_skill([base, second, other])
     agent_summaries = summarize_skill_uses_by_agent([base, second, other])
+    runtime_summaries = summarize_skill_uses_by_runtime([base, second, other])
 
     assert skill_summaries[0].skill_name == "sase_plan"
     assert skill_summaries[0].use_count == 2
@@ -145,8 +148,17 @@ def test_skill_use_aggregation_groups_by_skill_and_agent(tmp_path: Path) -> None
     assert agent_summaries[0].use_count == 2
     assert agent_summaries[0].distinct_skill_count == 2
     assert agent_summaries[1].agent_name == "agent-b"
+    assert runtime_summaries[0].runtime == "codex"
+    assert runtime_summaries[0].use_count == 2
+    assert runtime_summaries[0].distinct_skill_count == 2
+    assert runtime_summaries[0].distinct_agent_count == 1
+    assert runtime_summaries[0].last_reason == "Third"
+    assert runtime_summaries[1].runtime == "unknown"
+    assert runtime_summaries[1].use_count == 1
+    assert runtime_summaries[1].last_reason == "Second"
     assert filter_skill_use_events(
         [base, second, other],
         skill_name="sase_plan",
         agent_name="agent-b",
+        runtime="unknown",
     ) == (second,)

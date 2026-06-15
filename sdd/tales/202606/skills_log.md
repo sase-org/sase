@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-15 16:39:55
-status: wip
+status: done
 prompt: sdd/prompts/202606/skills_log.md
 ---
 # Plan: Add the `sase skills log` Inspection Command

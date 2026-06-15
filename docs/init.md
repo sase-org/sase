@@ -40,6 +40,8 @@ sase init sdd
 sase init sdd --check
 sase skills list
 sase skills init --dry-run
+sase skills log
+sase skills log --runtime codex
 
 # Agent-side audited operations, normally run from a SASE-launched agent:
 sase memory read long/generated_skills.md --reason "Need generated skill context"
@@ -88,6 +90,7 @@ a compatibility alias for `sase skills init`.
 | `sase skills init --dry-run`          | Preview generated skill target paths without writing files.                                   |
 | `sase skills init --force`            | Generate and overwrite deployed skill files without confirmation.                             |
 | `sase skills init -p <provider>`      | Deploy only one provider's generated skill files.                                             |
+| `sase skills log`                     | Summarize or inspect audited generated skill-use events.                                      |
 | `sase skills use <name>`              | Agent-side audit event recording that a generated skill was used.                             |
 | `sase init skills`                    | Compatibility alias for `sase skills init`.                                                   |
 
@@ -251,8 +254,8 @@ stale, or missing. Bare `sase skills` shows the same dashboard.
 `sase skills init` renders those sources into provider-specific `SKILL.md` files. Sources include bundled skill xprompts
 and user/runtime xprompt catalog entries. By default, generated skill files include a first-step
 `sase skills use <name> --reason ...` directive so agent skill usage is attributable in the same project audit surface
-as memory reads; a source can set `log_skill_use: false` to omit that directive. The usual workflow is to inspect first,
-preview writes, then deploy:
+as memory reads; `sase skills log` summarizes and inspects those recorded skill-use rows. A source can set
+`log_skill_use: false` to omit that directive. The usual workflow is to inspect first, preview writes, then deploy:
 
 ```bash
 sase skills list

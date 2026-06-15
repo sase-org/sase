@@ -710,8 +710,8 @@ shows the loaded skill catalog without writing files. `sase skills init` reads t
 sources and runtime config overlays, to determine which xprompts should be rendered into per-provider `SKILL.md` files
 and deployed to agent skill directories. By default, generated skill files begin with a
 `sase skills use <name> --reason ...` directive so SASE can audit which skills an agent used; set `log_skill_use: false`
-in a skill source to omit that directive (see below). The compatibility alias `sase init skills` runs the same
-initializer.
+in a skill source to omit that directive (see below). Recorded skill uses can be summarized and inspected with
+`sase skills log`. The compatibility alias `sase init skills` runs the same initializer.
 
 ```markdown
 ---

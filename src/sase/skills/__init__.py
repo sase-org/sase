@@ -5,6 +5,7 @@ from sase.skills.use_log import (
     SkillUseAgentSummary,
     SkillUseError,
     SkillUseEvent,
+    SkillUseRuntimeSummary,
     SkillUseSkillSummary,
     append_skill_use_event,
     build_skill_use_event,
@@ -14,6 +15,7 @@ from sase.skills.use_log import (
     read_skill_use_events,
     skill_use_log_path,
     summarize_skill_uses_by_agent,
+    summarize_skill_uses_by_runtime,
     summarize_skill_uses_by_skill,
 )
 
@@ -22,6 +24,7 @@ __all__ = [
     "SkillUseAgentSummary",
     "SkillUseError",
     "SkillUseEvent",
+    "SkillUseRuntimeSummary",
     "SkillUseSkillSummary",
     "append_skill_use_event",
     "build_skill_use_event",
@@ -31,5 +34,6 @@ __all__ = [
     "read_skill_use_events",
     "skill_use_log_path",
     "summarize_skill_uses_by_agent",
+    "summarize_skill_uses_by_runtime",
     "summarize_skill_uses_by_skill",
 ]

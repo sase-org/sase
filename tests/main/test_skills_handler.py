@@ -114,6 +114,29 @@ def test_parser_registers_skills_namespace() -> None:
     assert list_args.command == "skills"
     assert list_args.skills_subcommand == "list"
 
+    log_args = parser.parse_args(
+        [
+            "skills",
+            "log",
+            "-a",
+            "agent-a",
+            "-i",
+            "use-a",
+            "-j",
+            "-R",
+            "codex",
+            "-s",
+            "sase_plan",
+        ]
+    )
+    assert log_args.command == "skills"
+    assert log_args.skills_subcommand == "log"
+    assert log_args.agent == "agent-a"
+    assert log_args.id == "use-a"
+    assert log_args.json is True
+    assert log_args.runtime == "codex"
+    assert log_args.skill == "sase_plan"
+
     use_args = parser.parse_args(["skills", "use", "sase_plan", "-r", "Need plan"])
     assert use_args.command == "skills"
     assert use_args.skills_subcommand == "use"
@@ -170,6 +193,23 @@ def test_skills_init_dispatches_to_existing_initializer(
     assert calls[0].dry_run is True
     assert calls[0].force is True
     assert calls[0].provider == "codex"
+
+
+def test_skills_log_dispatches_to_renderer(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[argparse.Namespace] = []
+
+    def fake_log(args: argparse.Namespace) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(skills_handler, "_handle_skills_log_command", fake_log)
+    args = create_parser().parse_args(["skills", "log", "-s", "sase_plan"])
+
+    with pytest.raises(SystemExit) as exc:
+        skills_handler.handle_skills_command(args)
+
+    assert exc.value.code == 0
+    assert calls == [args]
+    assert calls[0].skill == "sase_plan"
 
 
 def test_skills_use_dispatches_to_recorder(monkeypatch: pytest.MonkeyPatch) -> None:

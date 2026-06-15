@@ -58,6 +58,16 @@ class SkillUseAgentSummary:
     last_reason: str
 
 
+@dataclass(frozen=True)
+class SkillUseRuntimeSummary:
+    runtime: str
+    use_count: int
+    distinct_skill_count: int
+    distinct_agent_count: int
+    last_used_at: str
+    last_reason: str
+
+
 def normalize_skill_name(skill_name: str) -> str:
     """Normalize and validate a skill name for audit logging."""
     normalized = skill_name.strip()
@@ -168,15 +178,18 @@ def filter_skill_use_events(
     *,
     skill_name: str | None = None,
     agent_name: str | None = None,
+    runtime: str | None = None,
 ) -> tuple[SkillUseEvent, ...]:
-    """Filter skill-use events by skill name and/or agent name."""
+    """Filter skill-use events by skill name, agent name, and/or runtime."""
     skill_filter = skill_name.strip() if skill_name else None
     agent_filter = agent_name.strip() if agent_name else None
+    runtime_filter = runtime.strip() if runtime else None
     return tuple(
         event
         for event in events
         if (skill_filter is None or event.skill_name == skill_filter)
         and (agent_filter is None or event.agent_name == agent_filter)
+        and (runtime_filter is None or _runtime_bucket(event.runtime) == runtime_filter)
     )
 
 
@@ -222,6 +235,28 @@ def summarize_skill_uses_by_agent(
         for agent_name, agent_events in grouped.items()
     ]
     return tuple(sorted(summaries, key=lambda summary: summary.agent_name))
+
+
+def summarize_skill_uses_by_runtime(
+    events: Iterable[SkillUseEvent],
+) -> tuple[SkillUseRuntimeSummary, ...]:
+    """Aggregate use counts and latest-use context by agent runtime."""
+    grouped: dict[str, list[SkillUseEvent]] = {}
+    for event in events:
+        grouped.setdefault(_runtime_bucket(event.runtime), []).append(event)
+
+    summaries = [
+        SkillUseRuntimeSummary(
+            runtime=runtime,
+            use_count=len(runtime_events),
+            distinct_skill_count=len({event.skill_name for event in runtime_events}),
+            distinct_agent_count=len({event.agent_name for event in runtime_events}),
+            last_used_at=_latest_event(runtime_events).timestamp,
+            last_reason=_latest_event(runtime_events).reason,
+        )
+        for runtime, runtime_events in grouped.items()
+    ]
+    return tuple(sorted(summaries, key=lambda summary: summary.runtime))
 
 
 def _event_timestamp(now: datetime) -> str:
@@ -272,11 +307,19 @@ def _latest_event(events: list[SkillUseEvent]) -> SkillUseEvent:
     return max(events, key=lambda event: event.timestamp)
 
 
+def _runtime_bucket(runtime: str | None) -> str:
+    if runtime is None:
+        return "unknown"
+    stripped = runtime.strip()
+    return stripped or "unknown"
+
+
 __all__ = [
     "SKILL_USE_LOG_SCHEMA_VERSION",
     "SkillUseAgentSummary",
     "SkillUseError",
     "SkillUseEvent",
+    "SkillUseRuntimeSummary",
     "SkillUseSkillSummary",
     "append_skill_use_event",
     "build_skill_use_event",
@@ -286,5 +329,6 @@ __all__ = [
     "read_skill_use_events",
     "skill_use_log_path",
     "summarize_skill_uses_by_agent",
+    "summarize_skill_uses_by_runtime",
     "summarize_skill_uses_by_skill",
 ]

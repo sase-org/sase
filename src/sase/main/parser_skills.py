@@ -19,6 +19,7 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase skills list\n"
             "  sase skills init --force\n"
+            "  sase skills log --runtime codex\n"
             '  sase skills use sase_plan --reason "Preparing an implementation plan"'
         ),
     )
@@ -45,6 +46,54 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
             "Show generated SASE skill sources, provider targets, and target "
             "drift without writing files."
         ),
+    )
+
+    log_parser = skills_subparsers.add_parser(
+        "log",
+        help="Summarize or inspect auditable skill-use events",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Summarize auditable skill-use events recorded by `sase skills "
+            "use`, or inspect matching events with --skill, --agent, "
+            "--runtime, or --id."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase skills log\n"
+            "  sase skills log --runtime codex\n"
+            "  sase skills log --skill sase_plan\n"
+            "  sase skills log --id <use-id>"
+        ),
+    )
+    log_parser.add_argument(
+        "-a",
+        "--agent",
+        metavar="AGENT_NAME",
+        help="Only include uses by the given agent",
+    )
+    log_parser.add_argument(
+        "-i",
+        "--id",
+        metavar="USE_ID",
+        help="Show one skill-use event by id or unambiguous id prefix",
+    )
+    log_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit deterministic machine-readable JSON",
+    )
+    log_parser.add_argument(
+        "-R",
+        "--runtime",
+        metavar="RUNTIME",
+        help="Only include uses recorded under the given runtime",
+    )
+    log_parser.add_argument(
+        "-s",
+        "--skill",
+        metavar="SKILL_NAME",
+        help="Only include uses of the given skill",
     )
 
     use_parser = skills_subparsers.add_parser(

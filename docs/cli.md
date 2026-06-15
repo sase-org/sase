@@ -159,6 +159,7 @@ digests. ACE starts axe automatically unless launched with `sase ace --no-axe`.
 | `sase file-history delete`         | Remove one path from the file-reference history.                            | [Editor completion commands](configuration.md#sase-file-history)                            |
 | `sase skills` / `sase skills list` | Inspect generated skill sources, provider targets, and deployed-file drift. | [Initialization](init.md#skill-initialization), [bundled skills](xprompt.md#bundled-skills) |
 | `sase skills init`                 | Generate and deploy agent skill files from xprompt source templates.        | [Initialization](init.md#skill-initialization), [bundled skills](xprompt.md#bundled-skills) |
+| `sase skills log`                  | Summarize or inspect audited generated skill-use events.                    | [Skill field](xprompt.md#skill-field)                                                       |
 | `sase skills use`                  | Agent-side audit event recording that a generated skill was used.           | [Skill field](xprompt.md#skill-field)                                                       |
 | `sase init skills`                 | Compatibility alias for `sase skills init`.                                 | [Initialization](init.md#skill-initialization)                                              |
 

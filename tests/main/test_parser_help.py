@@ -558,6 +558,30 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "Compatibility alias for `sase memory init`" in init_alias_help
 
 
+def test_skills_help_documents_log_command() -> None:
+    """Skills help text documents list/init/log/use and public log aliases."""
+    skills_help = _flat_help(_parser_for(("sase", "skills")).format_help())
+    skills_log_help = _flat_help(_parser_for(("sase", "skills", "log")).format_help())
+    skills_use_help = _flat_help(_parser_for(("sase", "skills", "use")).format_help())
+
+    assert "`sase skills list`" in skills_help
+    assert "{init,list,log,use}" in skills_help
+    assert "sase skills log --runtime codex" in skills_help
+    assert "sase skills use sase_plan --reason" in skills_help
+    assert "--agent AGENT_NAME" in skills_log_help
+    assert "-a AGENT_NAME" in skills_log_help
+    assert "--id USE_ID" in skills_log_help
+    assert "-i USE_ID" in skills_log_help
+    assert "--json" in skills_log_help
+    assert "-j" in skills_log_help
+    assert "--runtime RUNTIME" in skills_log_help
+    assert "-R RUNTIME" in skills_log_help
+    assert "--skill SKILL_NAME" in skills_log_help
+    assert "-s SKILL_NAME" in skills_log_help
+    assert "sase skills log --id <use-id>" in skills_log_help
+    assert "--reason REASON" in skills_use_help
+
+
 def test_init_and_git_namespace_parsers() -> None:
     """New init and git namespaces parse their migrated leaf commands."""
     parser = create_parser()
