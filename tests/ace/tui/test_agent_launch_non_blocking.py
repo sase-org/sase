@@ -138,8 +138,9 @@ async def test_launch_body_runs_in_worker_thread_not_blocking_loop() -> None:
 
     slow_done = asyncio.Event()
 
-    def slow_body(prompt: str) -> None:
+    def slow_body(prompt: str, ctx: object = None) -> None:
         # Sleeps on a worker thread; the event loop must stay responsive.
+        del ctx
         time.sleep(0.2)
         app.body_calls.append(prompt)
 
@@ -167,8 +168,8 @@ async def test_launch_body_exception_surfaces_as_error_notification() -> None:
     """Exceptions from the worker are surfaced via notify (error severity)."""
     app = _FakeApp()
 
-    def failing_body(prompt: str) -> None:
-        del prompt
+    def failing_body(prompt: str, ctx: object = None) -> None:
+        del prompt, ctx
         raise RuntimeError("boom")
 
     with patch.object(_FakeApp, "_run_agent_launch_body", side_effect=failing_body):

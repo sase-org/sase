@@ -41,12 +41,18 @@ class PromptBarSubmitMixin:
 
         prompt = event.value
         if not prompt:
+            # A multi-pane single submit with an empty pane is dropped by the
+            # widget without posting, so an empty value here is always a
+            # whole-bar submit: cancel and unmount as before.
             self.notify("Empty prompt - cancelled", severity="warning")  # type: ignore[attr-defined]
             self._unmount_prompt_bar()  # type: ignore[attr-defined]
             self._prompt_context = None
             return
 
-        self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
+        # ``keep_bar`` is set for a single-pane submit while other panes remain:
+        # launch the selected pane but leave the bar mounted (and the base
+        # prompt context intact) so the remaining panes can be submitted next.
+        self._finish_agent_launch(prompt, keep_bar=event.keep_bar)  # type: ignore[attr-defined]
 
     def on_prompt_input_bar_cancelled(self, event: object) -> None:
         """Handle cancellation from the input bar."""
@@ -61,6 +67,15 @@ class PromptBarSubmitMixin:
 
         if event.mode == "approve_prompt":
             self._handle_approve_prompt_cancelled()
+            return
+
+        if event.keep_bar:
+            # Per-pane cancel in a multi-pane stack: the widget already removed
+            # the pane and kept the bar mounted, so just record that pane's text
+            # as cancelled history. The base prompt context stays valid for the
+            # remaining panes.
+            self._save_text_as_cancelled(event.cancelled_text)  # type: ignore[attr-defined]
+            self.notify("Prompt pane cancelled")  # type: ignore[attr-defined]
             return
 
         self.notify("Prompt input cancelled")  # type: ignore[attr-defined]

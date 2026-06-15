@@ -132,7 +132,7 @@ class PromptTextArea(
         return None
 
     def action_submit_prompt(self) -> None:
-        """Submit the prompt text."""
+        """Submit the prompt text (only the selected pane in a stack)."""
         self._snippet_tabstops = []
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
@@ -141,6 +141,17 @@ class PromptTextArea(
         bar = self._find_prompt_bar()
         if bar:
             bar._handle_text_submission(self.text)
+
+    def action_submit_prompt_stack(self) -> None:
+        """Submit the whole prompt stack as one multi-prompt (``<shift+enter>``)."""
+        self._snippet_tabstops = []
+        self._clear_soft_completion(cancel_timer=True)
+        self._clear_file_completion()
+        self._clear_xprompt_arg_hint()
+        self._vcs_mru_index = None
+        bar = self._find_prompt_bar()
+        if bar:
+            bar._handle_whole_stack_submission()
 
     def action_open_prompt_history(self) -> None:
         """Request prompt history, filtered by the current single-line prompt."""
@@ -278,7 +289,7 @@ class PromptTextArea(
         bar = self._find_prompt_bar()
         if bar:
             bar.border_title = bar._base_title
-            bar.set_prompt_mode_subtitle("[Enter] send  [Esc] normal  [^C] cancel")
+            bar.set_prompt_mode_subtitle(bar.insert_mode_subtitle())
 
     async def _on_key(self, event: Key) -> None:
         """Intercept keys before TextArea's default handler inserts characters."""
@@ -290,6 +301,15 @@ class PromptTextArea(
             else:
                 self._clear_xprompt_arg_hint()
                 self.action_submit_prompt()
+            return
+
+        # Whole-stack submit. ``<shift+enter>`` is the intended key but is not
+        # portable (many terminals deliver it as plain ``<enter>``), so ``^S``
+        # is the reliable fallback; both join the stack into one multi-prompt.
+        if event.key in ("shift+enter", "ctrl+s"):
+            event.stop()
+            event.prevent_default()
+            self.action_submit_prompt_stack()
             return
 
         if event.key == "ctrl+c":

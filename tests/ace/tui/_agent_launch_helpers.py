@@ -27,6 +27,7 @@ class _FakeApp(AgentLaunchMixin):
         self.scheduled: list[tuple[Any, tuple[Any, ...]]] = []
         self.pushed_screens: list[tuple[Any, Any]] = []
         self.body_calls: list[str] = []
+        self.body_call_contexts: list[PromptContext | None] = []
         self.unmount_calls: list[str] = []
         self.launch_tasks: list[dict[str, Any]] = []
         self._prompt_context: PromptContext | None = _fake_context()
@@ -49,8 +50,11 @@ class _FakeApp(AgentLaunchMixin):
     def _unmount_prompt_bar_after_submit(self) -> None:
         self.unmount_calls.append("submit")
 
-    def _run_agent_launch_body(self, prompt: str) -> LaunchTaskOutcome:
+    def _run_agent_launch_body(
+        self, prompt: str, ctx: PromptContext | None = None
+    ) -> LaunchTaskOutcome:
         self.body_calls.append(prompt)
+        self.body_call_contexts.append(ctx)
         return LaunchTaskOutcome("done", notify=False)
 
     def _submit_launch_task(

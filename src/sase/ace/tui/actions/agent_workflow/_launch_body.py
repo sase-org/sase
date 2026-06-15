@@ -30,7 +30,9 @@ class AgentLaunchBodyMixin:
     _prompt_context: PromptContext | None
     _last_custom_agent_selection: SelectionItem | None
 
-    async def _run_agent_launch_body_async(self, prompt: str) -> None:
+    async def _run_agent_launch_body_async(
+        self, prompt: str, ctx: PromptContext | None = None
+    ) -> None:
         """Run :meth:`_run_agent_launch_body` in a worker thread.
 
         Keeps blocking I/O (disk reads, history writes, xprompt expansion)
@@ -40,7 +42,7 @@ class AgentLaunchBodyMixin:
         import asyncio
 
         try:
-            outcome = await asyncio.to_thread(self._run_agent_launch_body, prompt)
+            outcome = await asyncio.to_thread(self._run_agent_launch_body, prompt, ctx)
         except Exception:
             log.exception("Agent launch body failed")
             self.notify(  # type: ignore[attr-defined]
@@ -62,7 +64,9 @@ class AgentLaunchBodyMixin:
         if outcome.notify and outcome.message:
             self.notify(outcome.message, severity=outcome.severity)  # type: ignore[attr-defined]
 
-    def _run_agent_launch_body(self, prompt: str) -> LaunchTaskOutcome:
+    def _run_agent_launch_body(
+        self, prompt: str, ctx: PromptContext | None = None
+    ) -> LaunchTaskOutcome:
         """Heavy body of ``_finish_agent_launch``, run in a worker thread.
 
         Executes blocking I/O (VCS resolution, history writes, xprompt
@@ -70,8 +74,17 @@ class AgentLaunchBodyMixin:
         UI-touching sub-launch helpers that mutate widget state are marshalled
         back to the main thread via ``self.call_later``. Direct completion
         effects are returned for the task-queue completion callback.
+
+        When ``ctx`` is given (the Phase 4 keep-bar single-pane submit) the body
+        operates on that explicit snapshot and never touches
+        ``self._prompt_context``, leaving the mounted stack's base context
+        intact. When ``ctx`` is ``None`` the body reads the app's
+        ``self._prompt_context`` and clears it on consumption, as before.
         """
-        if self._prompt_context is None:
+        owns_context = ctx is None
+        if ctx is None:
+            ctx = self._prompt_context
+        if ctx is None:
             # Context was cleared between the submit and the worker tick
             # (e.g. another launch path ran); nothing to do.
             return LaunchTaskOutcome(
@@ -94,7 +107,8 @@ class AgentLaunchBodyMixin:
                 from sase.history.prompt import record_failed_launch_prompt
 
                 record_failed_launch_prompt(original_submitted_prompt)
-                self._prompt_context = None
+                if owns_context:
+                    self._prompt_context = None
                 return LaunchTaskOutcome(
                     "Agent name reuse failed (see log)", severity="error"
                 )
@@ -104,7 +118,6 @@ class AgentLaunchBodyMixin:
 
         prompt = canonicalize_project_aliases_in_prompt(prompt)
         submitted_xprompt = prompt
-        ctx = self._prompt_context
         from sase.agent.names import ensure_historical_auto_name_migration
         from sase.agent.launch_timing import LaunchTimingRecorder
 
@@ -128,7 +141,8 @@ class AgentLaunchBodyMixin:
 
                 record_failed_launch_prompt(prompt)
                 self._bulk_changespecs = None
-                self._prompt_context = None
+                if owns_context:
+                    self._prompt_context = None
                 return LaunchTaskOutcome(
                     "Multi-prompt is not supported with bulk launch",
                     severity="error",
@@ -212,7 +226,8 @@ class AgentLaunchBodyMixin:
                 except RuntimeError as exc:
                     err_msg = str(exc)
                     record_failed_launch_prompt(submitted_xprompt)
-                    self._prompt_context = None
+                    if owns_context:
+                        self._prompt_context = None
                     timer.finish(dispatch="multi_prompt", outcome="cancelled")
                     return LaunchTaskOutcome(err_msg, severity="error")
                 add_or_update_prompt(
@@ -220,7 +235,8 @@ class AgentLaunchBodyMixin:
                     allow_short=True,
                 )
                 record_prompt_file_references(submitted_xprompt)
-            self._prompt_context = None
+            if owns_context:
+                self._prompt_context = None
             timer.finish(dispatch="multi_prompt", segment_count=len(multi.segments))
             self.call_later(  # type: ignore[attr-defined]
                 self._launch_multi_prompt_agents,  # type: ignore[attr-defined]
@@ -358,7 +374,8 @@ class AgentLaunchBodyMixin:
                 ctx.display_name = ref_label
                 ctx.history_sort_key = ref_label
                 record_failed_launch_prompt(prompt)
-                self._prompt_context = None
+                if owns_context:
+                    self._prompt_context = None
                 timer.finish(dispatch="single", outcome="cancelled")
                 err_msg = f"Cannot resolve {leading_tag.strip()}; not launching"
                 return LaunchTaskOutcome(err_msg, severity="error")
@@ -373,7 +390,8 @@ class AgentLaunchBodyMixin:
             except RuntimeError as exc:
                 err_msg = str(exc)
                 record_failed_launch_prompt(prompt)
-                self._prompt_context = None
+                if owns_context:
+                    self._prompt_context = None
                 timer.finish(dispatch="single", outcome="cancelled")
                 return LaunchTaskOutcome(err_msg, severity="error")
             add_or_update_prompt(prompt)
@@ -429,7 +447,8 @@ class AgentLaunchBodyMixin:
                 )
             if workflow_result is True:
                 # Full workflow executed successfully
-                self._prompt_context = None
+                if owns_context:
+                    self._prompt_context = None
                 timer.finish(dispatch="workflow")
                 return LaunchTaskOutcome(
                     "Workflow launch queued",
@@ -451,7 +470,8 @@ class AgentLaunchBodyMixin:
 
         raw_prompt = prompt
 
-        self._prompt_context = None
+        if owns_context:
+            self._prompt_context = None
 
         # Check for launch fan-out directives (e.g., %m(opus,sonnet) or %alt(a,b)).
         from sase.xprompt.directives import plan_prompt_fanout_variants

@@ -107,10 +107,20 @@ class PromptBarMountMixin:
         never downgrades a non-cancelled entry to cancelled.
         """
         try:
-            text = bar.current_prompt_text().strip()  # type: ignore[attr-defined]
+            text = bar.current_prompt_text()  # type: ignore[attr-defined]
         except Exception:
             return
+        self._save_text_as_cancelled(text)
 
+    def _save_text_as_cancelled(self, text: str) -> None:
+        """Save *text* to prompt history as cancelled, with file references.
+
+        Shared by the whole-bar cancel safety net and the Phase 4 per-pane
+        ``<ctrl+c>`` cancel, which records only the cancelled pane's text.
+        Empty / whitespace-only text is ignored, and ``add_or_update_prompt``
+        never downgrades a non-cancelled entry to cancelled.
+        """
+        text = text.strip()
         if not text:
             return
 

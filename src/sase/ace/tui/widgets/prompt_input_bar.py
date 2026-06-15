@@ -39,20 +39,53 @@ class PromptInputBar(
     """Prompt input bar for agent workflow, positioned at bottom of screen."""
 
     class Submitted(Message):
-        """Message sent when prompt is submitted."""
+        """Message sent when prompt is submitted.
 
-        def __init__(self, value: str, mode: str = "prompt") -> None:
+        Phase 4 distinguishes the two stack submit shapes:
+
+        - ``whole_stack`` is set when the whole stack was joined into one
+          multi-prompt string (``<shift+enter>`` / ``<ctrl+s>``); the app
+          unmounts the bar and routes ``value`` through the existing
+          multi-prompt launch rules.
+        - ``keep_bar`` is set when only the selected pane was submitted while
+          other panes remain; the app launches ``value`` but leaves the bar
+          mounted so the remaining panes can be submitted next.
+        """
+
+        def __init__(
+            self,
+            value: str,
+            mode: str = "prompt",
+            *,
+            whole_stack: bool = False,
+            keep_bar: bool = False,
+        ) -> None:
             super().__init__()
             self.value = value
             self.mode = mode
+            self.whole_stack = whole_stack
+            self.keep_bar = keep_bar
 
     class Cancelled(Message):
-        """Message sent when input is cancelled."""
+        """Message sent when input is cancelled.
 
-        def __init__(self, cancelled_text: str = "", mode: str = "prompt") -> None:
+        ``keep_bar`` is set when only the selected pane was cancelled while
+        other panes remain; the app records ``cancelled_text`` as cancelled
+        history but leaves the bar mounted.  Without it the whole bar is being
+        dismissed, as before.
+        """
+
+        def __init__(
+            self,
+            cancelled_text: str = "",
+            mode: str = "prompt",
+            *,
+            keep_bar: bool = False,
+        ) -> None:
             super().__init__()
             self.cancelled_text = cancelled_text
             self.mode = mode
+            self.keep_bar = keep_bar
 
     class EditorRequested(Message):
         """Message sent when user requests external editor (Ctrl+G)."""
@@ -124,6 +157,18 @@ class PromptInputBar(
             return "Coder Prompt"
         return "Prompt"
 
+    def insert_mode_subtitle(self) -> str:
+        """Return the insert-mode subtitle, advertising ``^S`` when stacked.
+
+        ``<enter>`` submits only the selected pane, so a multi-pane stack adds a
+        ``[^S] all`` hint for the whole-stack submit (the portable fallback for
+        ``<shift+enter>``).
+        """
+        base = "[Enter] send  [Esc] normal  [^C] cancel"
+        if self._mode == "prompt" and len(self._stack) > 1:
+            return f"{base}  [^S] all"
+        return base
+
     def compose(self) -> ComposeResult:
         """Compose the input bar: a shared completion panel + the prompt stack."""
         self._placeholder = self._compute_placeholder()
@@ -150,7 +195,7 @@ class PromptInputBar(
 
         # Border title and subtitle
         self.border_title = self._base_title
-        self.set_prompt_mode_subtitle("[Enter] send  [Esc] normal  [^C] cancel")
+        self.set_prompt_mode_subtitle(self.insert_mode_subtitle())
         if self._mode in ("feedback", "approve_prompt"):
             self.add_class("feedback-mode")
         text_area._warm_current_xprompt_assist_entries()

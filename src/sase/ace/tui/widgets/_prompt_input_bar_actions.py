@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from sase.ace.tui.widgets.prompt_stack import PromptStackState
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
@@ -24,25 +25,83 @@ class PromptInputBarActionsMixin(_MixinBase):
         Cancelled: Any
         Submitted: Any
         _mode: str
+        _stack: PromptStackState
 
         def active_text_area(self) -> PromptTextArea: ...
         def current_prompt_text(self) -> str: ...
+        def _sync_state_from_widgets(self) -> None: ...
+        def _clear_active_completion_state(self) -> None: ...
+        def _rebuild_stack(self, enter_mode: str | None = None) -> None: ...
 
     def _handle_text_submission(self, _text: str) -> None:
-        """Process text submission from a pane's TextArea.
+        """Process an ``<enter>`` submission from a pane's TextArea.
 
-        Phase 2 preserves the pre-stack contract: ``<enter>`` submits the whole
-        prompt.  The whole stack is joined back into one canonical multi-prompt
-        string so dispatch splits it exactly as it did when the bar was a single
-        text box.  (Per-pane submit semantics arrive in Phase 4.)
+        Phase 4: ``<enter>`` submits only the *selected* pane.  In a single-pane
+        bar (or feedback / approve-prompt mode, which are never stacks) this is
+        the pre-stack contract — the whole bar is submitted and the app unmounts
+        it.  In a multi-pane stack the selected pane is launched while the bar
+        stays mounted (``keep_bar``) so the remaining panes can be submitted in
+        turn; an empty selected pane is simply dropped instead of launched.
         """
-        self.post_message(self.Submitted(self.current_prompt_text(), mode=self._mode))
+        self._sync_state_from_widgets()
+        if self._mode != "prompt" or len(self._stack) <= 1:
+            self.post_message(
+                self.Submitted(self.current_prompt_text(), mode=self._mode)
+            )
+            return
+
+        selected_text = self._stack.selected_item.text.strip()
+        self._stack.remove_selected()
+        self._clear_active_completion_state()
+        if selected_text:
+            self.post_message(
+                self.Submitted(selected_text, mode=self._mode, keep_bar=True)
+            )
+        self._rebuild_stack(enter_mode="insert")
+
+    def _handle_whole_stack_submission(self) -> None:
+        """Submit the whole stack as one multi-prompt (``<shift+enter>``/``^S``).
+
+        Only meaningful in prompt mode — feedback / approve-prompt bars are not
+        multi-agent surfaces — so it is a no-op elsewhere.  The non-empty panes
+        are joined with ``\\n---\\n`` and handed to the app, which unmounts the
+        bar and routes the joined text through the existing multi-prompt /
+        multi-agent xprompt launch rules.
+        """
+        if self._mode != "prompt":
+            return
+        self._sync_state_from_widgets()
+        self.post_message(
+            self.Submitted(
+                self.current_prompt_text(), mode=self._mode, whole_stack=True
+            )
+        )
 
     def action_cancel(self) -> None:
-        """Cancel the input bar."""
+        """Cancel the input bar (``<ctrl+c>``).
+
+        Phase 4: in a multi-pane stack ``<ctrl+c>`` cancels only the selected
+        pane — its text is recorded as cancelled history and the pane is removed
+        while the bar stays mounted.  In a single-pane bar (or feedback /
+        approve-prompt mode) the whole bar is dismissed as before.
+        """
         text_area = self.active_text_area()
         text_area._clear_soft_completion(cancel_timer=True)
         text_area._clear_xprompt_arg_hint()
+
+        if self._mode == "prompt" and len(self._stack) > 1:
+            self._sync_state_from_widgets()
+            cancelled_text = self._stack.selected_item.text.strip()
+            self._stack.remove_selected()
+            self._clear_active_completion_state()
+            self.post_message(
+                self.Cancelled(
+                    cancelled_text=cancelled_text, mode=self._mode, keep_bar=True
+                )
+            )
+            self._rebuild_stack(enter_mode="insert")
+            return
+
         self.post_message(
             self.Cancelled(cancelled_text=self.current_prompt_text(), mode=self._mode)
         )

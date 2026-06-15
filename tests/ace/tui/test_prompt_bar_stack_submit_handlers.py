@@ -1,0 +1,189 @@
+"""App-handler tests for Phase 4 stack submit / cancel routing + lifecycle.
+
+These pin the contracts the launch path depends on:
+
+- A single-pane (``keep_bar``) submit launches the selected pane but does NOT
+  unmount the bar or clear the base prompt context, and never routes the
+  remaining panes through the cancel-save safety net.
+- A whole-stack submit unmounts and launches the joined multi-prompt.
+- A per-pane ``<ctrl+c>`` records only the cancelled pane's text as cancelled
+  history and keeps the bar mounted.
+- ``_finish_agent_launch(keep_bar=True)`` clones an independent launch context
+  per submit (fresh timestamp / workflow name) and leaves the base untouched,
+  so back-to-back single submits never race on ``self._prompt_context``.
+"""
+
+from __future__ import annotations
+
+from sase.ace.tui.actions.agent_workflow._prompt_bar_submit import (
+    PromptBarSubmitMixin,
+)
+from sase.ace.tui.actions.agent_workflow._types import PromptContext
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+
+from tests.ace.tui._agent_launch_helpers import _FakeApp
+
+
+def _ctx() -> PromptContext:
+    return PromptContext(
+        project_name="proj",
+        cl_name="cl",
+        project_file="/tmp/proj.sase",
+        workspace_dir="/tmp/ws",
+        workspace_num=1,
+        workflow_name="ace(run)-ts",
+        timestamp="ts",
+        history_sort_key="branch",
+        display_name="proj",
+        update_target="",
+        is_home_mode=False,
+    )
+
+
+class _SubmitHarness(PromptBarSubmitMixin):
+    """Drive the submit/cancel handlers without a live Textual DOM."""
+
+    def __init__(self) -> None:
+        self._prompt_context: PromptContext | None = _ctx()
+        self._plan_feedback_context = None
+        self._approve_prompt_context = None
+        self.finish_calls: list[tuple[str, bool]] = []
+        self.saved_cancelled: list[str] = []
+        self.unmount_calls = 0
+        self.notifications: list[tuple[str, str | None]] = []
+
+    def notify(self, msg: str, *, severity: str | None = None) -> None:
+        self.notifications.append((msg, severity))
+
+    def _finish_agent_launch(self, prompt: str, *, keep_bar: bool = False) -> None:
+        self.finish_calls.append((prompt, keep_bar))
+
+    def _save_text_as_cancelled(self, text: str) -> None:
+        self.saved_cancelled.append(text)
+
+    def _unmount_prompt_bar(self) -> None:
+        self.unmount_calls += 1
+
+
+# --- submit routing --------------------------------------------------------
+
+
+def test_single_pane_submit_keeps_bar_and_context() -> None:
+    harness = _SubmitHarness()
+
+    harness.on_prompt_input_bar_submitted(
+        PromptInputBar.Submitted("pane text", "prompt", keep_bar=True)
+    )
+
+    assert harness.finish_calls == [("pane text", True)]
+    assert harness.unmount_calls == 0
+    assert harness._prompt_context is not None  # base preserved for next submit
+
+
+def test_whole_stack_submit_routes_joined_prompt() -> None:
+    harness = _SubmitHarness()
+
+    harness.on_prompt_input_bar_submitted(
+        PromptInputBar.Submitted(
+            "a\n---\nb", "prompt", whole_stack=True, keep_bar=False
+        )
+    )
+
+    assert harness.finish_calls == [("a\n---\nb", False)]
+    assert harness.unmount_calls == 0  # _finish_agent_launch owns the unmount
+
+
+def test_empty_whole_bar_submit_unmounts_and_clears_context() -> None:
+    harness = _SubmitHarness()
+
+    harness.on_prompt_input_bar_submitted(PromptInputBar.Submitted("", "prompt"))
+
+    assert harness.finish_calls == []
+    assert harness.unmount_calls == 1
+    assert harness._prompt_context is None
+    assert harness.notifications == [("Empty prompt - cancelled", "warning")]
+
+
+# --- cancel routing --------------------------------------------------------
+
+
+def test_per_pane_cancel_saves_only_that_pane_and_keeps_bar() -> None:
+    harness = _SubmitHarness()
+
+    harness.on_prompt_input_bar_cancelled(
+        PromptInputBar.Cancelled("cancelled pane", "prompt", keep_bar=True)
+    )
+
+    assert harness.saved_cancelled == ["cancelled pane"]
+    assert harness.unmount_calls == 0
+    assert harness._prompt_context is not None
+
+
+def test_whole_bar_cancel_unmounts_and_clears_context() -> None:
+    harness = _SubmitHarness()
+
+    harness.on_prompt_input_bar_cancelled(PromptInputBar.Cancelled("text", "prompt"))
+
+    # The whole-bar cancel saves through the unmount safety net, not the
+    # explicit per-pane save helper.
+    assert harness.saved_cancelled == []
+    assert harness.unmount_calls == 1
+    assert harness._prompt_context is None
+
+
+# --- keep_bar context lifecycle (the race the design calls out) ------------
+
+
+def test_keep_bar_launch_clones_context_and_preserves_base() -> None:
+    app = _FakeApp()
+    base = app._prompt_context
+    assert base is not None
+
+    app._finish_agent_launch("pane one", keep_bar=True)
+
+    # The bar is NOT unmounted and the base context is untouched.
+    assert app.unmount_calls == []
+    assert app._prompt_context is base
+    assert base.timestamp == "ts"
+
+    # The worker received an independent snapshot with a fresh timestamp.
+    assert len(app.launch_tasks) == 1
+    app.launch_tasks[0]["task_callable"]()
+    assert app.body_calls == ["pane one"]
+    snapshot = app.body_call_contexts[0]
+    assert snapshot is not None
+    assert snapshot is not base
+    assert snapshot.timestamp != "ts"
+
+
+def test_back_to_back_keep_bar_launches_use_distinct_contexts() -> None:
+    app = _FakeApp()
+    base = app._prompt_context
+
+    app._finish_agent_launch("pane one", keep_bar=True)
+    app._finish_agent_launch("pane two", keep_bar=True)
+
+    assert app._prompt_context is base  # base never mutated
+    for task in app.launch_tasks:
+        task["task_callable"]()
+
+    assert app.body_calls == ["pane one", "pane two"]
+    first, second = app.body_call_contexts
+    assert first is not None
+    assert second is not None
+    # Independent snapshots -> no cross-submit clobbering of launch identity.
+    assert first is not second
+    assert first.timestamp != second.timestamp
+    assert first.workflow_name != second.workflow_name
+
+
+def test_keep_bar_false_launch_unmounts_like_today() -> None:
+    app = _FakeApp()
+
+    app._finish_agent_launch("solo prompt")
+
+    assert app.unmount_calls == ["submit"]
+    assert len(app.launch_tasks) == 1
+    # keep_bar=False threads ``None`` so the worker consumes the app context.
+    app.launch_tasks[0]["task_callable"]()
+    assert app.body_call_contexts == [None]
