@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ._prompt_bar_mount import has_edit_directive
 from ._types import PromptContext
+
+if TYPE_CHECKING:
+    from sase.ace.tui.widgets import PromptInputBar
 
 
 class PromptBarRequestsMixin:
@@ -21,6 +26,12 @@ class PromptBarRequestsMixin:
         if self._prompt_context is None:
             return
 
+        # ``^G`` edits the active pane: in a multi-pane stack the editor opens on
+        # the selected pane's text alone, so its result is loaded back into that
+        # pane without launching or disturbing the rest of the stack. Capture the
+        # stacked state before suspending the TUI for the editor.
+        stacked_bar = self._stacked_prompt_bar()
+
         # Suspend TUI and open editor with current text
         prompt = self._open_editor_for_agent_prompt(  # type: ignore[attr-defined]
             event.current_text,
@@ -29,14 +40,38 @@ class PromptBarRequestsMixin:
         )
         if prompt:
             has_edit, cleaned = has_edit_directive(prompt)
-            if has_edit:
+            if stacked_bar is not None:
+                stacked_bar.update_active_pane(cleaned if has_edit else prompt)
+            elif has_edit:
                 self._load_prompt_into_bar(cleaned)  # type: ignore[attr-defined]
             else:
                 self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
+        elif stacked_bar is not None:
+            # An empty editor return on a multi-pane stack is a no-op edit: keep
+            # the stack mounted and just refocus the pane being edited.
+            try:
+                stacked_bar.active_text_area().focus()
+            except Exception:
+                pass
         else:
             self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
             self._unmount_prompt_bar()  # type: ignore[attr-defined]
             self._prompt_context = None
+
+    def _stacked_prompt_bar(self) -> PromptInputBar | None:
+        """Return the mounted prompt bar when it holds more than one pane.
+
+        Used by the editor-return path to decide whether ``^G`` edits a single
+        pane of a stack (keep the bar, update that pane) versus the legacy
+        single-pane behavior (load/launch the whole bar).
+        """
+        from ...widgets import PromptInputBar
+
+        try:
+            bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
+        except Exception:
+            return None
+        return bar if bar.is_stacked() else None
 
     def on_prompt_input_bar_history_requested(self, event: object) -> None:
         """Handle request to show prompt history picker."""

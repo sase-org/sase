@@ -71,6 +71,28 @@ async def test_enter_submits_selected_pane_and_keeps_bar() -> None:
         assert app.cancelled == []
 
 
+async def test_enter_reattaches_frontmatter_to_single_pane_submit() -> None:
+    # Prompt-level YAML frontmatter is held on the stack, not as a pane; a lone
+    # pane submit must carry it so referenced local xprompts still resolve.
+    app = _CaptureApp("---\nmodel: opus\n---\nalpha\n---\nbeta")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        assert bar.all_prompt_texts() == ["alpha", "beta"]
+
+        await pilot.press("enter")  # submit bottom pane "beta"
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.submitted) == 1
+        event = app.submitted[0]
+        assert event.value == "---\nmodel: opus\n---\nbeta"
+        assert event.keep_bar is True
+        # The remaining pane keeps the frontmatter for its own later submit.
+        assert bar.current_prompt_text() == "---\nmodel: opus\n---\nalpha"
+
+
 async def test_enter_on_empty_selected_pane_drops_it_without_submitting() -> None:
     app = _CaptureApp("first\n---\nsecond")
 

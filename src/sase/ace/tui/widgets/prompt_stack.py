@@ -198,6 +198,19 @@ class PromptStackState:
             return f"{self.frontmatter}\n{body}" if body else self.frontmatter
         return body
 
+    def attach_frontmatter(self, body: str) -> str:
+        """Prepend prompt-level frontmatter to *body* for a single-pane submit.
+
+        A single pane launched on its own (``<enter>`` while the stack still has
+        panes) must carry the stack's prompt-level YAML frontmatter so any local
+        xprompt definitions it references still resolve at launch — matching what
+        :meth:`join` re-attaches for the whole-stack submit.  When there is no
+        frontmatter (or no body) *body* is returned unchanged.
+        """
+        if self.frontmatter and body:
+            return f"{self.frontmatter}\n{body}"
+        return body
+
     # -- selection ------------------------------------------------------------
 
     def _clamp(self, index: int) -> int:

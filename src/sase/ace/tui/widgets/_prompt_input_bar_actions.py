@@ -54,8 +54,12 @@ class PromptInputBarActionsMixin(_MixinBase):
         self._stack.remove_selected()
         self._clear_active_completion_state()
         if selected_text:
+            # Re-attach any prompt-level frontmatter so a lone pane still
+            # resolves local xprompts it references, matching the whole-stack
+            # join contract.
+            submit_text = self._stack.attach_frontmatter(selected_text)
             self.post_message(
-                self.Submitted(selected_text, mode=self._mode, keep_bar=True)
+                self.Submitted(submit_text, mode=self._mode, keep_bar=True)
             )
         self._rebuild_stack(enter_mode="insert")
 

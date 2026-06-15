@@ -109,6 +109,21 @@ def test_no_frontmatter_means_empty_string() -> None:
     assert state.frontmatter == ""
 
 
+def test_attach_frontmatter_prepends_to_single_pane_body() -> None:
+    state = PromptStackState.from_text("---\ntitle: x\n---\nseg1\n---\nseg2")
+    assert state.attach_frontmatter("seg1") == "---\ntitle: x\n---\nseg1"
+
+
+def test_attach_frontmatter_is_noop_without_frontmatter() -> None:
+    state = PromptStackState.from_text("a\n---\nb")
+    assert state.attach_frontmatter("a") == "a"
+
+
+def test_attach_frontmatter_is_noop_for_empty_body() -> None:
+    state = PromptStackState.from_text("---\ntitle: x\n---\nseg1\n---\nseg2")
+    assert state.attach_frontmatter("") == ""
+
+
 # --- split/join parity ----------------------------------------------------
 
 

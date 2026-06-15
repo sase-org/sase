@@ -244,6 +244,80 @@ async def test_load_stack_from_text_rebuilds_panes() -> None:
         assert bar.active_text() == "collapsed"
 
 
+async def test_load_multi_agent_xprompt_invocation_stays_single_pane() -> None:
+    """A ``#!`` multi-agent xprompt invocation has no literal ``---`` separators.
+
+    Loading it from history must keep it as the authored single-pane invocation
+    (the runner expands it into agents later), not split it into stacked panes.
+    """
+    app = _PromptBarApp("only one")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.load_stack_from_text("#!research_swarm investigate the flake")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.query(".prompt-input")) == 1
+        assert bar.active_text() == "#!research_swarm investigate the flake"
+
+
+async def test_load_single_cancelled_prompt_stays_single_pane() -> None:
+    app = _PromptBarApp("only one")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.load_stack_from_text("a previously cancelled prompt")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.query(".prompt-input")) == 1
+        assert bar.active_text() == "a previously cancelled prompt"
+
+
+# --- ^G edits the active pane only -----------------------------------------
+
+
+async def test_update_active_pane_replaces_only_selected_pane() -> None:
+    app = _PromptBarApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.focus_item(1)  # edit the middle pane
+        await pilot.pause()
+
+        bar.update_active_pane("second EDITED")
+        await pilot.pause()
+        await pilot.pause()
+
+        # Only the edited pane changed; the rest of the stack is intact.
+        assert bar.all_prompt_texts() == ["first", "second EDITED", "third"]
+        assert len(app.query(".prompt-input")) == 3
+        assert bar._stack.selected_index == 1
+        assert app.focused is bar.active_text_area()
+
+
+async def test_is_stacked_reflects_pane_count() -> None:
+    app = _PromptBarApp("solo")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        assert bar.is_stacked() is False
+
+        bar.load_stack_from_text("a\n---\nb")
+        await pilot.pause()
+        await pilot.pause()
+        assert bar.is_stacked() is True
+
+
 # --- mode guards -----------------------------------------------------------
 
 

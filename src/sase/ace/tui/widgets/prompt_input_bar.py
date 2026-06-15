@@ -357,15 +357,33 @@ class PromptInputBar(
         self._sync_state_from_widgets()
         return self._stack.join()
 
+    def is_stacked(self) -> bool:
+        """True when the bar currently holds more than one prompt pane."""
+        return len(self._stack) > 1
+
     def load_stack_from_text(self, text: str) -> None:
         """Replace the whole stack with panes parsed from *text*.
 
         Real ``---`` separators render as stacked panes; anything else loads as
-        a single pane.  Used by deliberate whole-bar loads (editor return,
-        history load) rather than active-pane edits.
+        a single pane.  Used by deliberate whole-bar loads (history load, or an
+        editor return when the bar is a single pane) rather than active-pane
+        edits.
         """
         self._stack = self._state_from_text(text)
         self._rebuild_stack()
+
+    def update_active_pane(self, text: str) -> None:
+        """Replace only the active pane's text with *text* (the ``^G`` path).
+
+        Used when the external editor is opened on one pane of a multi-pane
+        stack: the edit applies to that pane alone, leaving the rest of the
+        stack — and its order — intact.  The edited text is loaded verbatim
+        (embedded ``---`` is left in the pane and resolved by the launch parser
+        on a later whole-stack submit), and the pane is re-focused for typing.
+        """
+        self._sync_state_from_widgets()
+        self._stack.selected_item.text = text
+        self._rebuild_stack(enter_mode="insert")
 
     def focus_item(self, index: int) -> int:
         """Focus the pane at *index* (clamped); return the clamped index."""
