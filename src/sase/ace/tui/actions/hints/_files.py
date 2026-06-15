@@ -115,6 +115,33 @@ class FileViewingMixin(HintMixinBase):
         with self.suspend():  # type: ignore[attr-defined]
             run_viewer()
 
+    def _view_files_with_artifact_viewer(self, files: list[str]) -> None:
+        """View selected files through the terminal artifact viewer.
+
+        Used when the selection contains at least one supported image so image
+        binaries render with ``kitten icat`` instead of being piped through
+        ``bat``/``cat``. Non-image files in a mixed selection keep the artifact
+        viewer's existing mode detection (markdown, PDF, text). Requires
+        suspend, matching the pager flow.
+        """
+        from ...graphics import (
+            ArtifactViewSpec,
+            is_supported_image_path,
+            view_artifact_files,
+        )
+
+        specs = [
+            ArtifactViewSpec(
+                f,
+                kind="image" if is_supported_image_path(f) else "file",
+            )
+            for f in files
+        ]
+        with self.suspend():  # type: ignore[attr-defined]
+            result = view_artifact_files(specs)
+        if result.warning is not None:
+            self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
+
     def _copy_files_to_clipboard(self, files: list[str]) -> None:
         """Copy file paths to system clipboard."""
         import subprocess

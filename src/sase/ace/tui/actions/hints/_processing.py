@@ -94,7 +94,12 @@ class InputProcessingMixin(HintMixinBase):
             )
             self._open_files_in_editor(result)  # type: ignore[attr-defined]
         else:
-            self._view_files_with_pager(files)  # type: ignore[attr-defined]
+            from ...graphics import is_supported_image_path
+
+            if any(is_supported_image_path(f) for f in files):
+                self._view_files_with_artifact_viewer(files)  # type: ignore[attr-defined]
+            else:
+                self._view_files_with_pager(files)  # type: ignore[attr-defined]
 
     def _process_hooks_input(self, user_input: str) -> None:
         """Process edit hooks input."""

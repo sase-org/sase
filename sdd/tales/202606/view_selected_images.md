@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-15 19:03:13
-status: wip
+status: done
 prompt: sdd/prompts/202606/view_selected_images.md
 ---
 # Display `v`-Selected Images With The Artifact Viewer
