@@ -89,8 +89,7 @@ def prompt_stash_snapshot_from_dict(
     return PromptStashSnapshotWire(
         schema_version=schema,
         entries=[
-            _prompt_stash_entry_from_dict(item)
-            for item in data.get("entries") or []
+            _prompt_stash_entry_from_dict(item) for item in data.get("entries") or []
         ],
         stats=_PromptStashStoreStatsWire(**(data.get("stats") or {})),
     )
@@ -104,8 +103,7 @@ def prompt_stash_pop_outcome_from_dict(
     return PromptStashPopOutcomeWire(
         schema_version=schema,
         removed=[
-            _prompt_stash_entry_from_dict(item)
-            for item in data.get("removed") or []
+            _prompt_stash_entry_from_dict(item) for item in data.get("removed") or []
         ],
         snapshot=prompt_stash_snapshot_from_dict(data["snapshot"]),
     )

@@ -30,9 +30,7 @@ def append_prompt_stash(
 ) -> PromptStashSnapshotWire:
     """Append one stash entry through Rust and return the updated snapshot."""
     binding = require_rust_binding("append_prompt_stash")
-    payload: dict[str, Any] = binding(
-        str(path), prompt_stash_wire_to_json_dict(entry)
-    )
+    payload: dict[str, Any] = binding(str(path), prompt_stash_wire_to_json_dict(entry))
     return prompt_stash_snapshot_from_dict(payload)
 
 
