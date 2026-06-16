@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-16 12:27:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/jinja2_prompt_input.md
 ---
 # Plan: Beautiful Jinja2 Support & Visual Aid in the Prompt Input Widget

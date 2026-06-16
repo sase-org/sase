@@ -224,8 +224,10 @@ class PromptInputBar(
         self._mode = mode
         self._completion_visible = False
         self._completion_line_count = 0
+        self._completion_panel_kind: str | None = None
         self._mode_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
         self._soft_completion_visible = False
+        self._title_mode_suffix = ""
         # Monotonic per-rebuild id namespace so a fresh stack mounted while the
         # previous panes are still being detached never collides on widget ids.
         self._generation = 0
@@ -246,6 +248,7 @@ class PromptInputBar(
 
     def _refresh_title(self, mode_suffix: str = "") -> None:
         """Refresh the border title, including stack count in prompt stacks."""
+        self._title_mode_suffix = mode_suffix
         title = self._base_title
         if self._mode == "prompt" and len(self._stack) > 1:
             title = f"{title} · {len(self._stack)} agents"
@@ -253,7 +256,21 @@ class PromptInputBar(
             # Border titles parse Rich markup; escape literal mode brackets.
             mode_suffix = mode_suffix.replace("[", "\\[")
             title = f"{title} {mode_suffix}"
+        chip = self._active_jinja_chip_markup()
+        if chip:
+            title = f"{title}  {chip}"
         self.border_title = title
+
+    def _active_jinja_chip_markup(self) -> str:
+        """Return the active pane's Jinja2 status chip markup."""
+        try:
+            text_area = self.active_text_area()
+        except Exception:
+            return ""
+        chip = getattr(text_area, "_jinja_chip_markup", None)
+        if not callable(chip):
+            return ""
+        return str(chip())
 
     def insert_mode_subtitle(self) -> str:
         """Return the insert-mode subtitle, advertising the stack when stacked.
@@ -556,6 +573,21 @@ class PromptInputBar(
         """Refresh soft completion when the prompt cursor moves."""
         if isinstance(event.text_area, PromptTextArea):
             event.text_area._on_prompt_completion_context_changed()
+
+    def _maybe_show_active_jinja_diagnostics(self) -> None:
+        """Restore active Jinja diagnostics after a higher-priority panel hides."""
+        try:
+            text_area = self.active_text_area()
+        except Exception:
+            return
+        diagnostics = getattr(text_area, "_jinja_diagnostics", None)
+        if diagnostics is None:
+            return
+        has_jinja = bool(getattr(diagnostics, "has_jinja", False))
+        ok = bool(getattr(diagnostics, "ok", True))
+        unknown = tuple(getattr(diagnostics, "unknown_variables", ()) or ())
+        if has_jinja and (not ok or unknown):
+            self.show_jinja_diagnostics(diagnostics)
 
     @staticmethod
     def _text_area_visual_rows(text_area: PromptTextArea) -> int:

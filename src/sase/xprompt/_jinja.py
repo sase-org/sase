@@ -42,6 +42,11 @@ def _get_jinja_env() -> Environment:
     return _jinja_env
 
 
+def get_jinja_env() -> Environment:
+    """Return the Jinja2 environment used by prompt rendering."""
+    return _get_jinja_env()
+
+
 def get_global_template_vars() -> dict[str, Any]:
     """Compute global Jinja2 template variables available to all prompts.
 

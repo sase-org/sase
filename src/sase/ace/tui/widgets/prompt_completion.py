@@ -19,6 +19,7 @@ from sase.ace.tui.widgets.file_completion import (
     extract_token_around_cursor,
     is_path_like_token,
 )
+from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     detect_xprompt_arg_completion_at_cursor,
@@ -95,6 +96,24 @@ def build_prompt_soft_completion(
         return None
     if cursor_offset < 0 or cursor_offset > len(text):
         return None
+
+    jinja_result = build_jinja_completion_result(text, cursor_offset)
+    if jinja_result is not None:
+        candidate = _first_candidate_that_changes(
+            jinja_result.candidates,
+            jinja_result.prefix,
+        )
+        if candidate is not None:
+            return PromptSoftCompletion(
+                candidate=candidate,
+                completion_kind="jinja",
+                replacement_start=jinja_result.replacement_start,
+                replacement_end=jinja_result.replacement_end,
+                replacement_token=text[
+                    jinja_result.replacement_start : jinja_result.replacement_end
+                ],
+                display=candidate.display,
+            )
 
     if xprompt_entries is not None and "#" in text:
         arg_suggestion = _build_xprompt_arg_suggestion(

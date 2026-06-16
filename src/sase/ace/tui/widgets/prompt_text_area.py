@@ -9,6 +9,8 @@ from textual.screen import ModalScreen
 from textual.widgets import TextArea
 
 from sase.ace.tui.widgets._file_completion import FileCompletionMixin
+from sase.ace.tui.widgets._jinja_diagnostics import JinjaDiagnosticsMixin
+from sase.ace.tui.widgets._jinja_highlight import JinjaHighlightMixin
 from sase.ace.tui.widgets._line_rendering import LineRenderingMixin
 from sase.ace.tui.widgets._prompt_soft_completion import PromptSoftCompletionMixin
 from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
@@ -55,6 +57,8 @@ __all__ = [
 
 
 class PromptTextArea(
+    JinjaDiagnosticsMixin,
+    JinjaHighlightMixin,
     VimNormalModeMixin,
     FileCompletionMixin,
     PromptSoftCompletionMixin,
@@ -428,6 +432,11 @@ class PromptTextArea(
             self._try_advance_tabstop()
             return
 
+        if self._try_jinja_auto_pair(event):
+            event.stop()
+            event.prevent_default()
+            return
+
         # Detect '#@' trigger before the '@' is inserted (skip in feedback mode)
         if event.character == "@":
             bar = self._find_prompt_bar()
@@ -450,6 +459,36 @@ class PromptTextArea(
         self._refresh_file_completion_from_cursor()
         self._refresh_xprompt_arg_hint_from_cursor()
         self._on_prompt_completion_context_changed()
+
+    def _try_jinja_auto_pair(self, event: Key) -> bool:
+        """Auto-pair Jinja delimiters after the second opener character."""
+        if event.character not in ("{", "%", "#"):
+            return False
+        start, end = self.selection
+        if start != end:
+            return False
+        row, col = self.cursor_location
+        if col <= 0:
+            return False
+        line = self.document.get_line(row)
+        if line[col - 1] != "{":
+            return False
+        if col < len(line) and not line[col].isspace():
+            return False
+
+        pairs = {
+            "{": ("{  }}", 2),
+            "%": ("%  %}", 2),
+            "#": ("#  #}", 2),
+        }
+        insert, cursor_delta = pairs[event.character]
+        self._replace_via_keyboard(insert, (row, col), (row, col))
+        self.cursor_location = (row, col + cursor_delta)
+        self._clear_soft_completion(cancel_timer=True)
+        self._clear_file_completion()
+        self._clear_xprompt_arg_hint()
+        self._on_prompt_completion_context_changed()
+        return True
 
     def _on_resize(self) -> None:
         """Scroll cursor into view after the parent resizes."""

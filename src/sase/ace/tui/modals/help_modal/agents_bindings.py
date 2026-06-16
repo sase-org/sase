@@ -1,7 +1,13 @@
 """Agents tab keybinding sections for the help modal."""
 
 from ...keymaps import KeymapRegistry, key_display_name
-from .binding_common import Sections, custom_mode_sections, key_sequence_display, sk
+from .binding_common import (
+    PROMPT_INPUT_SECTION,
+    Sections,
+    custom_mode_sections,
+    key_sequence_display,
+    sk,
+)
 
 
 def agents_bindings(km: KeymapRegistry) -> Sections:
@@ -270,6 +276,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
     ]
     # Insert custom mode sections before "General".
     sections.extend(custom_mode_sections(km))
+    sections.append(PROMPT_INPUT_SECTION)
     sections.append(
         (
             "General",

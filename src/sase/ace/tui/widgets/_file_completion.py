@@ -20,6 +20,10 @@ from sase.ace.tui.widgets.file_completion import (
     build_file_history_completion_candidates,
     is_path_like_token,
 )
+from sase.ace.tui.widgets.jinja_completion import (
+    JinjaCompletionResult,
+    build_jinja_completion_result,
+)
 from sase.ace.tui.widgets.xprompt_completion import (
     is_xprompt_like_token,
 )
@@ -152,6 +156,13 @@ class FileCompletionMixin(FileCompletionContextMixin):
             return False
         size = len(self._file_completion_candidates)
         self._file_completion_index = (self._file_completion_index + delta) % size
+        if self._completion_kind == "jinja":
+            result = build_jinja_completion_result(
+                self.text,
+                self._absolute_offset(self.cursor_location),
+            )
+            self._update_file_completion_panel("" if result is None else result.prefix)
+            return True
         ctx = self._get_token_context()
         self._update_file_completion_panel("" if ctx is None else ctx[3])
         return True
@@ -161,6 +172,21 @@ class FileCompletionMixin(FileCompletionContextMixin):
         if not self._file_completion_active or not self._file_completion_candidates:
             return False
         selected = self._file_completion_candidates[self._file_completion_index]
+        if self._completion_kind == "jinja":
+            result = build_jinja_completion_result(
+                self.text,
+                self._absolute_offset(self.cursor_location),
+            )
+            if result is None:
+                self._clear_file_completion()
+                return False
+            self._replace_absolute_range(
+                result.replacement_start,
+                result.replacement_end,
+                selected.insertion,
+            )
+            self._clear_file_completion()
+            return True
         if self._completion_kind == "file_history":
             row, col = self.cursor_location
             self._replace_via_keyboard(selected.insertion, (row, col), (row, col))
@@ -233,6 +259,38 @@ class FileCompletionMixin(FileCompletionContextMixin):
         if not self._file_completion_active:
             return
 
+        if self._completion_kind == "jinja":
+            result = build_jinja_completion_result(
+                self.text,
+                self._absolute_offset(self.cursor_location),
+            )
+            if result is None or not result.candidates:
+                self._clear_file_completion()
+                return
+            previous = None
+            if self._file_completion_candidates:
+                previous = self._file_completion_candidates[
+                    self._file_completion_index
+                ].insertion
+            self._file_completion_candidates = result.candidates
+            if previous is not None:
+                for i, candidate in enumerate(result.candidates):
+                    if candidate.insertion == previous:
+                        self._file_completion_index = i
+                        break
+                else:
+                    self._file_completion_index = min(
+                        self._file_completion_index,
+                        len(result.candidates) - 1,
+                    )
+            else:
+                self._file_completion_index = min(
+                    self._file_completion_index,
+                    len(result.candidates) - 1,
+                )
+            self._update_file_completion_panel(result.prefix)
+            return
+
         # file_history mode has no active token — any edit that creates one
         # at the cursor dismisses. Cursor movement within whitespace is fine.
         if self._completion_kind == "file_history":
@@ -293,6 +351,11 @@ class FileCompletionMixin(FileCompletionContextMixin):
 
     def _try_file_completion_tab(self) -> bool:
         """Handle Ctrl+T-driven completion for path, xprompt, or history."""
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        jinja_result = build_jinja_completion_result(self.text, cursor_offset)
+        if jinja_result is not None:
+            return self._try_jinja_completion_tab(jinja_result)
+
         base_dir = self._prompt_completion_base_dir()
         arg_ctx = self._get_xprompt_arg_completion_context()
         if arg_ctx is not None:
@@ -394,6 +457,49 @@ class FileCompletionMixin(FileCompletionContextMixin):
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
         self._update_file_completion_panel(token)
+        return True
+
+    def _try_jinja_completion_tab(self, result: JinjaCompletionResult) -> bool:
+        """Handle Ctrl+T completion inside a Jinja2 tag."""
+        jinja_result = result
+        candidates = jinja_result.candidates
+        self._completion_kind = "jinja"
+
+        if not candidates:
+            self._clear_file_completion()
+            return True
+
+        if len(candidates) == 1:
+            selected = candidates[0]
+            self._replace_absolute_range(
+                jinja_result.replacement_start,
+                jinja_result.replacement_end,
+                selected.insertion,
+            )
+            self._clear_file_completion()
+            return True
+
+        if jinja_result.shared_extension:
+            next_token = f"{jinja_result.prefix}{jinja_result.shared_extension}"
+            self._replace_absolute_range(
+                jinja_result.replacement_start,
+                jinja_result.replacement_end,
+                next_token,
+            )
+            refreshed = build_jinja_completion_result(
+                self.text,
+                self._absolute_offset(self.cursor_location),
+            )
+            if refreshed is None or not refreshed.candidates:
+                self._clear_file_completion()
+                return True
+            jinja_result = refreshed
+            candidates = refreshed.candidates
+
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(jinja_result.prefix)
         return True
 
     def _try_xprompt_arg_completion_tab(

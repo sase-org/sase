@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -53,7 +53,7 @@ class KeybindingLayoutMixin:
         if self._status_widget is not None:
             return self._status_widget
         try:
-            query_one = self.query_one
+            query_one = cast(Any, self).query_one
             self._status_widget = query_one("#keybinding-status", Static)
         except Exception:
             return None
@@ -63,7 +63,7 @@ class KeybindingLayoutMixin:
         if self._content_widget is not None:
             return self._content_widget
         try:
-            query_one = self.query_one
+            query_one = cast(Any, self).query_one
             self._content_widget = query_one("#keybinding-content", Static)
         except Exception:
             return None

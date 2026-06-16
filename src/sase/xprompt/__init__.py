@@ -31,6 +31,20 @@ from ._parsing import (
     xprompt_reference_from_match,
 )
 from .directives import PromptDirectives, extract_prompt_directives
+from .jinja_inspect import (
+    JinjaCompletionContext,
+    JinjaDiagnostics,
+    JinjaSpan,
+    completion_context,
+    diagnose,
+    has_jinja,
+    inspect_template,
+    jinja_filter_names,
+    known_toplevel_context,
+    matching_delimiter_spans,
+    tokenize,
+    unknown_variables,
+)
 from .loader import (
     get_all_project_local_prompts,
     get_all_prompts,
@@ -99,6 +113,19 @@ __all__ = [
     "XPromptValidationError",
     "create_anonymous_workflow",
     "xprompt_to_workflow",
+    # Jinja inspection
+    "JinjaCompletionContext",
+    "JinjaDiagnostics",
+    "JinjaSpan",
+    "completion_context",
+    "diagnose",
+    "has_jinja",
+    "inspect_template",
+    "jinja_filter_names",
+    "known_toplevel_context",
+    "matching_delimiter_spans",
+    "tokenize",
+    "unknown_variables",
     # Output validation
     "OutputValidationError",
     "extract_semantic_type_hints",

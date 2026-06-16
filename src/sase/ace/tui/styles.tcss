@@ -1215,6 +1215,18 @@ PromptInputBar #prompt-completion.hidden {
     display: none;
 }
 
+PromptInputBar #prompt-completion.jinja-diagnostics {
+    max-height: 5;
+}
+
+PromptInputBar #prompt-completion.jinja-error {
+    border: solid $error;
+}
+
+PromptInputBar #prompt-completion.jinja-warning {
+    border: solid $warning;
+}
+
 /* The prompt stack: a vertical list of one-or-more prompt panes. */
 PromptInputBar #prompt-stack {
     width: 100%;

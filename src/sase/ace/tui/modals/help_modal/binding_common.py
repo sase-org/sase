@@ -14,6 +14,16 @@ CONTENT_WIDTH = 50  # Inner content width (BOX_WIDTH - borders)
 Sections = list[tuple[str, list[tuple[str, str]]]]
 _Sections = Sections
 
+PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
+    "Prompt Input",
+    [
+        ("{{ }} / {% %}", "Jinja highlighting"),
+        ("jinja chip", "Parse and unknown-var status"),
+        ("{{ / {% / {#", "Auto-pair delimiters"),
+        ("Ctrl+T / Ctrl+L", "Complete inside Jinja tags"),
+    ],
+)
+
 
 def sk(keys: dict[str, str | dict[str, str]], name: str) -> str:
     """Extract a string value from a mode keys dict."""

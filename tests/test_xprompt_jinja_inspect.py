@@ -1,0 +1,70 @@
+"""Tests for top-level prompt Jinja2 inspection helpers."""
+
+from __future__ import annotations
+
+from sase.xprompt import jinja_inspect
+
+
+def test_tokenize_skips_fenced_blocks() -> None:
+    text = (
+        "before {{ root | tojson }}\n"
+        "```\n"
+        "{{ missing_inside_fence }}\n"
+        "```\n"
+        "{% if root %}ok{% endif %}"
+    )
+
+    spans = jinja_inspect.tokenize(text)
+    values = [span.value for span in spans]
+
+    assert "root" in values
+    assert "tojson" in values
+    assert "if" in values
+    assert "missing_inside_fence" not in values
+    assert any(span.kind == "filter" and span.value == "tojson" for span in spans)
+    assert any(span.kind == "keyword" and span.value == "if" for span in spans)
+
+
+def test_diagnose_reports_line_and_span_for_invalid_template() -> None:
+    text = "first line\nHello {{ name }"
+
+    diagnostics = jinja_inspect.diagnose(text)
+
+    assert diagnostics.has_jinja is True
+    assert diagnostics.ok is False
+    assert diagnostics.lineno == 2
+    assert diagnostics.span is not None
+    start, end = diagnostics.span
+    assert text[start:end] in {"}", "{{"}
+    assert diagnostics.message
+
+
+def test_unknown_variables_respects_set_and_loop_targets() -> None:
+    text = (
+        "{{ root }} {{ missing }} "
+        "{% set local = 1 %}{{ local }} "
+        "{% for item in items %}{{ item }}{% endfor %}"
+    )
+
+    unknown = jinja_inspect.unknown_variables(text, {"root", "items"})
+
+    assert unknown == ["missing"]
+
+
+def test_completion_context_inside_unclosed_tag() -> None:
+    text = "Hello {{ ro"
+    ctx = jinja_inspect.completion_context(text, len(text))
+
+    assert ctx is not None
+    assert ctx.prefix == "ro"
+    assert text[ctx.replacement_start : ctx.replacement_end] == "ro"
+    assert ctx.tag_kind == "variable"
+
+
+def test_matching_delimiters_returns_pair_around_cursor() -> None:
+    text = "Hello {{ root }}"
+    cursor = text.index("root") + 1
+
+    spans = jinja_inspect.matching_delimiter_spans(text, cursor)
+
+    assert tuple(text[start:end] for start, end in spans) == ("{{", "}}")

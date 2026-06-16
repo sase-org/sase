@@ -15,7 +15,9 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+from sase.xprompt import jinja_inspect
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -58,6 +60,13 @@ _COMPACT_PROMPT = (
     "and link the before/after screenshots"
 )
 
+_JINJA_VALID_PROMPT = (
+    "Summarize {{ root | tojson }} for {% if root %}the release{% endif %}.\n"
+    "{# keep this prompt scoped #}"
+)
+
+_JINJA_INVALID_PROMPT = "Hello {{ missing }\nPlease fix before sending."
+
 
 async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar:
     """Mount a prompt bar over the running app and wait for it to settle."""
@@ -67,6 +76,16 @@ async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar
     bar = page.app.query_one("#prompt-input-bar", PromptInputBar)
     await wait_for_visual_idle(page)
     return bar
+
+
+def _compute_jinja_now(text_area: PromptTextArea) -> None:
+    text_area._jinja_diagnostics_generation += 1
+    generation = text_area._jinja_diagnostics_generation
+    text_area._fire_jinja_diagnostics_timer(
+        generation,
+        text_area.text,
+        text_area._absolute_offset(text_area.cursor_location),
+    )
 
 
 async def test_prompt_stack_two_panes_png_snapshot(
@@ -158,6 +177,52 @@ async def test_prompt_stack_completion_panel_png_snapshot(
             page,
             "prompt_stack_completion_panel_120x40",
             title="ACE prompt stack — completion panel in active pane",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_prompt_jinja_valid_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        bar = await _mount_prompt_bar(page, _JINJA_VALID_PROMPT)
+        text_area = bar.active_text_area()
+        _compute_jinja_now(text_area)
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_jinja_valid_120x40",
+            title="ACE prompt input — Jinja valid state",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_prompt_jinja_invalid_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        bar = await _mount_prompt_bar(page, _JINJA_INVALID_PROMPT)
+        text_area = bar.active_text_area()
+        _compute_jinja_now(text_area)
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_jinja_invalid_120x40",
+            title="ACE prompt input — Jinja invalid state",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

@@ -9,6 +9,7 @@ from textual.widgets import Static
 
 from sase.ace.tui.widgets.directive_completion import DirectiveCompletionMetadata
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
+from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
@@ -27,11 +28,13 @@ class PromptInputBarCompletionMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _completion_line_count: int
+        _completion_panel_kind: str | None
         _completion_visible: bool
         _mode_subtitle: str
         _soft_completion_visible: bool
 
         def _update_height(self) -> None: ...
+        def _maybe_show_active_jinja_diagnostics(self) -> None: ...
 
     def show_file_completions(
         self,
@@ -58,6 +61,10 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_directive = completion_kind == "directive"
         is_history = completion_kind == "file_history"
         is_arg_completion = completion_kind in ("xprompt_arg_name", "xprompt_arg_value")
+        is_jinja = completion_kind == "jinja"
+        panel.remove_class("jinja-diagnostics")
+        panel.remove_class("jinja-error")
+        panel.remove_class("jinja-warning")
         content = Text()
         for i, candidate in enumerate(visible):
             actual_idx = scroll_offset + i
@@ -77,6 +84,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
                     candidate.display,
                     style="bold yellow" if is_selected else "yellow",
                 )
+            elif is_jinja:
+                self._append_jinja_completion_row(content, candidate, is_selected)
             elif candidate.is_dir:
                 content.append("\U0001f4c1 ")
                 content.append(
@@ -105,6 +114,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
             panel.border_title = "xprompt arg values"
         elif completion_kind == "xprompt_arg_path":
             panel.border_title = "xprompt path"
+        elif is_jinja:
+            panel.border_title = "jinja"
         elif is_history:
             panel.border_title = "recent files"
         elif "/" in token:
@@ -120,6 +131,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         panel.update(content)
         panel.remove_class("hidden")
         self._completion_visible = True
+        self._completion_panel_kind = "completion"
         line_count = len(content.plain.splitlines()) if content.plain else 0
         self._completion_line_count = line_count + 3  # +3 for panel border + margin
         self._update_height()
@@ -180,14 +192,47 @@ class PromptInputBarCompletionMixin(_MixinBase):
         if details:
             content.append(f"  {'  '.join(details)}", style="dim")
 
+    def _append_jinja_completion_row(
+        self,
+        content: Text,
+        candidate: CompletionCandidate,
+        is_selected: bool,
+    ) -> None:
+        """Append one Jinja2 completion row."""
+        metadata = (
+            candidate.metadata
+            if isinstance(candidate.metadata, JinjaCompletionMetadata)
+            else None
+        )
+        kind = metadata.kind if metadata is not None else "jinja"
+        style_by_kind = {
+            "variable": "cyan",
+            "keyword": "magenta",
+            "filter": "green",
+        }
+        style = style_by_kind.get(kind, "white")
+        if is_selected:
+            style = f"bold {style}"
+        content.append(candidate.display, style=style)
+        content.append(f"  {kind}", style="dim")
+
     def hide_file_completions(self) -> None:
         """Hide the path completion panel."""
         panel = self.query_one("#prompt-completion", Static)
+        was_jinja = self._completion_panel_kind == "jinja"
         panel.update("")
+        panel.border_title = ""
+        panel.border_subtitle = ""
+        panel.remove_class("jinja-diagnostics")
+        panel.remove_class("jinja-error")
+        panel.remove_class("jinja-warning")
         panel.add_class("hidden")
         self._completion_visible = False
+        self._completion_panel_kind = None
         self._completion_line_count = 0
         self._update_height()
+        if not was_jinja:
+            self._maybe_show_active_jinja_diagnostics()
 
     def set_prompt_mode_subtitle(self, subtitle: str) -> None:
         """Set the prompt mode subtitle, preserving any visible soft suggestion."""
@@ -197,6 +242,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
 
     def show_soft_completion(self, suggestion: PromptSoftCompletion) -> None:
         """Render a soft completion in the prompt bar subtitle."""
+        if self._completion_panel_kind == "jinja":
+            return
         display = suggestion.display.replace("\n", " ").strip()
         if len(display) > 48:
             display = f"{display[:45]}..."
@@ -226,8 +273,55 @@ class PromptInputBarCompletionMixin(_MixinBase):
         panel.border_title = "xprompt args"
         panel.border_subtitle = "[:] colon  [(] named args"
         panel.update(content)
+        panel.remove_class("jinja-diagnostics")
+        panel.remove_class("jinja-error")
+        panel.remove_class("jinja-warning")
         panel.remove_class("hidden")
         self._completion_visible = True
+        self._completion_panel_kind = "xprompt_arg_hint"
         line_count = len(content.plain.splitlines()) if content.plain else 0
         self._completion_line_count = line_count + 3
         self._update_height()
+
+    def show_jinja_diagnostics(self, diagnostics: object) -> None:
+        """Show Jinja2 diagnostics if no higher-priority panel is active."""
+        if self._completion_visible and self._completion_panel_kind != "jinja":
+            return
+        self.hide_soft_completion()
+        panel = self.query_one("#prompt-completion", Static)
+        content = Text()
+        unknown = tuple(getattr(diagnostics, "unknown_variables", ()) or ())
+        ok = bool(getattr(diagnostics, "ok", True))
+        if not ok:
+            line = getattr(diagnostics, "lineno", None) or 1
+            message = getattr(diagnostics, "message", None) or "invalid template"
+            content.append(f"L{line} ", style="bold red")
+            content.append(str(message), style="red")
+            panel.add_class("jinja-error")
+            panel.remove_class("jinja-warning")
+        elif unknown:
+            label = "variable" if len(unknown) == 1 else "variables"
+            content.append(f"unknown {label}: ", style="bold yellow")
+            content.append(", ".join(unknown), style="yellow")
+            panel.add_class("jinja-warning")
+            panel.remove_class("jinja-error")
+        else:
+            self.hide_jinja_diagnostics()
+            return
+
+        panel.border_title = "jinja diagnostics"
+        panel.border_subtitle = ""
+        panel.update(content)
+        panel.add_class("jinja-diagnostics")
+        panel.remove_class("hidden")
+        self._completion_visible = True
+        self._completion_panel_kind = "jinja"
+        line_count = len(content.plain.splitlines()) if content.plain else 0
+        self._completion_line_count = line_count + 3
+        self._update_height()
+
+    def hide_jinja_diagnostics(self) -> None:
+        """Hide the diagnostics panel when it is showing Jinja2 content."""
+        if self._completion_panel_kind != "jinja":
+            return
+        self.hide_file_completions()

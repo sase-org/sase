@@ -147,6 +147,8 @@ class PromptSoftCompletionMixin(_MixinBase):
         if self._file_completion_active or self._snippet_tabstops:
             return True
         bar = self._find_prompt_bar()
+        if bar and getattr(bar, "_completion_panel_kind", None) == "jinja":
+            return True
         return bool(bar and bar._mode == "feedback")
 
     def _soft_completion_may_need_xprompt_entries(
