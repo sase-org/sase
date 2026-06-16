@@ -16,7 +16,7 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.commits_builder import _should_show_commits_drawers
 from sase.ace.tui.widgets.prompt_panel import (
     AgentPromptPanel,
-    load_embedded_workflows,
+    load_xprompts_used,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,
@@ -429,32 +429,51 @@ async def test_tab_bar_integration_tab_key() -> None:
             await page.expect_state("tab", "changespecs")
 
 
-# --- Embedded Workflows Tests ---
+# --- Xprompts Metadata Tests ---
 
 
-def testload_embedded_workflows_empty(tmp_path: Path) -> None:
-    """No embedded_workflows.json file returns None."""
+def testload_xprompts_used_empty(tmp_path: Path) -> None:
+    """No xprompts.json file returns None."""
     agent = _make_agent(artifacts_dir=str(tmp_path))
-    result = load_embedded_workflows(agent)
+    result = load_xprompts_used(agent)
 
     assert result is None
 
 
-def testload_embedded_workflows_no_artifacts_dir() -> None:
+def testload_xprompts_used_no_artifacts_dir() -> None:
     """Agent with no artifacts_dir returns None."""
     agent = _make_agent(artifacts_dir=None)
-    result = load_embedded_workflows(agent)
+    result = load_xprompts_used(agent)
 
     assert result is None
 
 
-def test_embedded_workflows_displayed_from_header_summary(tmp_path: Path) -> None:
-    """Precomputed header summaries can render embedded workflow metadata."""
+def test_xprompts_displayed_from_header_summary(tmp_path: Path) -> None:
+    """Precomputed header summaries can render xprompt metadata."""
     metadata = [
-        {"name": "propose", "args": {"note": "blah"}},
-        {"name": "cl", "args": {}},
+        {
+            "name": "propose",
+            "kind": "workflow",
+            "positional": [],
+            "named": {"note": "blah"},
+            "tags": [],
+        },
+        {
+            "name": "cl",
+            "kind": "workflow",
+            "positional": [],
+            "named": {},
+            "tags": [],
+        },
+        {
+            "name": "review_checklist",
+            "kind": "part",
+            "positional": [],
+            "named": {},
+            "tags": [],
+        },
     ]
-    metadata_file = tmp_path / "embedded_workflows_main.json"
+    metadata_file = tmp_path / "xprompts_main.json"
     metadata_file.write_text(json.dumps(metadata))
 
     agent = _make_agent(
@@ -468,16 +487,30 @@ def test_embedded_workflows_displayed_from_header_summary(tmp_path: Path) -> Non
         summary=build_detail_header_summary(agent),
     )
 
-    assert "Embedded Workflows:" in header.plain
-    assert "propose(note=blah), cl" in header.plain
+    assert "Xprompts: 2 workflows · 1 part" in header.plain
+    assert "⌘ #propose  note=blah" in header.plain
+    assert "⌘ #cl" in header.plain
+    assert "▣ #review_checklist" in header.plain
 
 
-def test_update_display_renders_embedded_workflows_after_detail_settles(
+def test_update_display_renders_xprompts_after_detail_settles(
     tmp_path: Path,
 ) -> None:
-    """Full prompt updates render precomputed embedded workflow metadata."""
-    metadata_file = tmp_path / "embedded_workflows_main.json"
-    metadata_file.write_text(json.dumps([{"name": "propose", "args": {}}]))
+    """Full prompt updates render precomputed xprompt metadata."""
+    metadata_file = tmp_path / "xprompts_main.json"
+    metadata_file.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "propose",
+                    "kind": "workflow",
+                    "positional": [],
+                    "named": {},
+                    "tags": [],
+                }
+            ]
+        )
+    )
 
     agent = _make_agent(
         artifacts_dir=str(tmp_path),
@@ -491,4 +524,5 @@ def test_update_display_renders_embedded_workflows_after_detail_settles(
 
     assert mock_update.called
     rendered = mock_update.call_args[0][0]
-    assert "Embedded Workflows: propose" in str(rendered)
+    assert "Xprompts: 1 workflow" in str(rendered)
+    assert "⌘ #propose" in str(rendered)

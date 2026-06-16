@@ -47,6 +47,12 @@ def expand_embedded_workflows_in_query(
     Returns:
         Tuple of (expanded_query, list of EmbeddedWorkflowResult objects).
     """
+    raw_query = query
+    if artifacts_dir:
+        from sase.xprompt.used_xprompts import write_used_xprompts
+
+        write_used_xprompts(artifacts_dir, raw_query)
+
     from sase.xprompt._fenced_blocks import fenced_block_ranges
     from sase.xprompt._parsing import (
         iter_xprompt_references,

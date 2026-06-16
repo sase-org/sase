@@ -37,8 +37,7 @@ from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
     append_model_field,
     extract_meta_fields,
-    format_embedded_workflows,
-    load_embedded_workflows,
+    load_xprompts_used,
     should_render_agent_detail_model,
 )
 from ._file_path_hints import append_text_with_file_hints
@@ -57,7 +56,7 @@ class HeaderHintState:
 class _DetailHeaderSummary:
     """Precomputed data that is too expensive for hot header rendering."""
 
-    embedded_workflows: list[dict[str, Any]] | None = None
+    xprompts_used: list[dict[str, Any]] | None = None
     bead_display: str | None = None
     delta_entries: list[DeltaEntry] | None = None
     artifact_paths: list[AgentArtifactPath] | None = None
@@ -109,9 +108,9 @@ def _append_output_variables_section(
 
 def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
     """Build expensive header enrichments outside hot selection rendering."""
-    embedded_workflows = None
+    xprompts_used = None
     if agent.step_type not in ("bash", "python", "parallel"):
-        embedded_workflows = load_embedded_workflows(agent)
+        xprompts_used = load_xprompts_used(agent)
 
     bead_display = None
     if agent.agent_name:
@@ -128,7 +127,7 @@ def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
     from ._agent_deltas import agent_delta_entries
 
     return _DetailHeaderSummary(
-        embedded_workflows=embedded_workflows,
+        xprompts_used=xprompts_used,
         bead_display=bead_display,
         delta_entries=agent_delta_entries(agent),
         artifact_paths=agent_artifact_paths(agent),
@@ -304,8 +303,8 @@ def build_header_text(
 
     Args:
         agent: The agent to render a header for.
-        cheap: When True, skip any disk-touching enrichments (e.g. embedded
-            workflow metadata loaded from disk). Used by the j/k immediate
+        cheap: When True, skip any disk-touching enrichments (e.g. xprompt
+            metadata loaded from disk). Used by the j/k immediate
             path so the header renders within one frame; the debounced full
             update fills in the omitted fields.
         hint_state: Optional mutable file-hint state. When provided, path-like
@@ -405,14 +404,13 @@ def build_header_text(
         header_text.append("Workflow: ", style="bold #87D7FF")
         header_text.append(f"{agent.workflow}\n")
 
-    # Embedded Workflows (if available) - only for agent/prompt steps.
-    # Skipped on the cheap path: load_embedded_workflows touches disk, and
+    # Xprompts (if available) - only for agent/prompt steps.
+    # Skipped on the cheap path: load_xprompts_used touches disk, and
     # the debounced full update will populate this field shortly after.
     if not cheap and summary is not None:
-        embedded_workflows = summary.embedded_workflows
-        if embedded_workflows:
-            header_text.append("Embedded Workflows: ", style="bold #87D7FF")
-            header_text.append(f"{format_embedded_workflows(embedded_workflows)}\n")
+        from ._agent_xprompts import append_agent_xprompts_section
+
+        append_agent_xprompts_section(header_text, summary.xprompts_used)
 
     # Model (with provider-themed styling)
     if should_render_agent_detail_model(agent):

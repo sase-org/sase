@@ -207,10 +207,10 @@ def should_render_agent_detail_model(agent: Agent) -> bool:
     return not (agent.is_workflow_child and not agent.is_agent_entry)
 
 
-def load_embedded_workflows(agent: Agent) -> list[dict[str, Any]] | None:
-    """Load embedded workflow metadata from embedded_workflows.json.
+def load_xprompts_used(agent: Agent) -> list[dict[str, Any]] | None:
+    """Load xprompt metadata from xprompts.json.
 
-    Uses the step-specific file ``embedded_workflows_{step_name}.json``
+    Uses the step-specific file ``xprompts_{step_name}.json``
     when the agent has a ``step_name``; falls back to the shared file
     only when ``step_name`` is None.
 
@@ -228,7 +228,7 @@ def load_embedded_workflows(agent: Agent) -> list[dict[str, Any]] | None:
 
     # Try step-specific file first (multi-step workflows)
     if agent.step_name:
-        step_file = artifacts_path / f"embedded_workflows_{agent.step_name}.json"
+        step_file = artifacts_path / f"xprompts_{agent.step_name}.json"
         if step_file.exists():
             try:
                 with open(step_file, encoding="utf-8") as f:
@@ -237,11 +237,11 @@ def load_embedded_workflows(agent: Agent) -> list[dict[str, Any]] | None:
                     return data
             except Exception:
                 pass
-        # Step has no embedded workflows — don't fall back to shared file
+        # Step has no xprompts — don't fall back to shared file
         return None
 
     # Fall back to shared file (only for agents without step_name)
-    metadata_file = artifacts_path / "embedded_workflows.json"
+    metadata_file = artifacts_path / "xprompts.json"
     if not metadata_file.exists():
         return None
 
@@ -255,26 +255,3 @@ def load_embedded_workflows(agent: Agent) -> list[dict[str, Any]] | None:
         return None
 
     return data
-
-
-def format_embedded_workflows(workflows: list[dict[str, Any]]) -> str:
-    """Format embedded workflow metadata for display.
-
-    Args:
-        workflows: List of workflow metadata dicts with 'name' and 'args' keys.
-
-    Returns:
-        Formatted string like "propose(note=blah), cl".
-    """
-    parts: list[str] = []
-    for wf in workflows:
-        name = wf.get("name", "unknown")
-        args = wf.get("args", {})
-        # Filter out empty string values (e.g., from default args not provided)
-        args = {k: v for k, v in args.items() if v != ""}
-        if args:
-            args_str = ", ".join(f"{k}={v}" for k, v in args.items())
-            parts.append(f"{name}({args_str})")
-        else:
-            parts.append(name)
-    return ", ".join(parts)

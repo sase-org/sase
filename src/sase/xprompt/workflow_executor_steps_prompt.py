@@ -184,6 +184,14 @@ class PromptStepMixin:
         from sase.xprompt._parsing import inherit_vcs_workflow_tag
 
         step_prompt = inherit_vcs_workflow_tag(step.agent, self.inherited_vcs_tag)
+        from sase.xprompt.used_xprompts import write_used_xprompts
+
+        write_used_xprompts(
+            self.artifacts_dir,
+            step_prompt,
+            step.name,
+            extra_xprompts=self.workflow.xprompts,
+        )
 
         # Early phase: directives, Jinja2 context rendering, xprompt expansion
         early = preprocess_prompt_early(

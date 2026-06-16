@@ -84,8 +84,18 @@ def test_update_header_only_does_not_touch_disk(tmp_path: Path) -> None:
     # listdir / open spies below.
     (artifacts_dir / "01_prompt.md").write_text("prompt body\n", encoding="utf-8")
     (artifacts_dir / "live_reply.md").write_text("live reply\n", encoding="utf-8")
-    (artifacts_dir / "embedded_workflows.json").write_text(
-        json.dumps([{"name": "propose", "args": {}}]),
+    (artifacts_dir / "xprompts.json").write_text(
+        json.dumps(
+            [
+                {
+                    "name": "propose",
+                    "kind": "workflow",
+                    "positional": [],
+                    "named": {},
+                    "tags": [],
+                }
+            ]
+        ),
         encoding="utf-8",
     )
 
@@ -171,14 +181,24 @@ def test_update_header_only_includes_error_traceback() -> None:
     assert "ValueError: boom" in plain
 
 
-def test_update_header_only_skips_embedded_workflows_disk_read(
+def test_update_header_only_skips_xprompts_disk_read(
     tmp_path: Path,
 ) -> None:
-    """``cheap=True`` must not call ``load_embedded_workflows``."""
+    """``cheap=True`` must not call ``load_xprompts_used``."""
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
-    (artifacts_dir / "embedded_workflows.json").write_text(
-        json.dumps([{"name": "propose", "args": {}}]),
+    (artifacts_dir / "xprompts.json").write_text(
+        json.dumps(
+            [
+                {
+                    "name": "propose",
+                    "kind": "workflow",
+                    "positional": [],
+                    "named": {},
+                    "tags": [],
+                }
+            ]
+        ),
         encoding="utf-8",
     )
 
@@ -186,16 +206,16 @@ def test_update_header_only_skips_embedded_workflows_disk_read(
 
     panel = _FakePanel()
     with patch(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_parts.load_embedded_workflows"
+        "sase.ace.tui.widgets.prompt_panel._agent_display_parts.load_xprompts_used"
     ) as mock_load:
         panel.update_header_only(agent)
 
     assert mock_load.call_count == 0, (
-        "cheap header-only path must not call load_embedded_workflows"
+        "cheap header-only path must not call load_xprompts_used"
     )
     plain = _plain_of(panel.captured[-1])
-    # Without the disk read, the Embedded Workflows field should be omitted.
-    assert "Embedded Workflows" not in plain
+    # Without the disk read, the Xprompts field should be omitted.
+    assert "Xprompts" not in plain
 
 
 def test_update_display_header_renders_debounced_full_enrichment(

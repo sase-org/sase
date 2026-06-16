@@ -6,6 +6,7 @@ Shared fixtures live in ``_ace_png_snapshot_helpers``.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -108,7 +109,7 @@ async def test_agents_selected_row_png_snapshot(
         )
 
 
-def _zoom_agent(tmp_path: Path) -> Agent:
+def _zoom_agent(tmp_path: Path, *, include_xprompts: bool = False) -> Agent:
     diff_path = tmp_path / "visual_zoom.diff"
     diff_path.write_text(
         "\n".join(
@@ -131,6 +132,38 @@ def _zoom_agent(tmp_path: Path) -> Agent:
         + "\n",
         encoding="utf-8",
     )
+    artifacts_dir: Path | None = None
+    if include_xprompts:
+        artifacts_dir = tmp_path / "visual_zoom_artifacts"
+        artifacts_dir.mkdir()
+        (artifacts_dir / "xprompts.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "name": "gh",
+                        "kind": "workflow",
+                        "positional": ["sase-org/sase"],
+                        "named": {},
+                        "tags": ["vcs"],
+                    },
+                    {
+                        "name": "propose",
+                        "kind": "workflow",
+                        "positional": [],
+                        "named": {"note": "metadata"},
+                        "tags": ["propose"],
+                    },
+                    {
+                        "name": "review_checklist",
+                        "kind": "part",
+                        "positional": [],
+                        "named": {},
+                        "tags": [],
+                    },
+                ]
+            ),
+            encoding="utf-8",
+        )
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-zoom",
@@ -143,6 +176,7 @@ def _zoom_agent(tmp_path: Path) -> Agent:
         llm_provider="codex",
         model="gpt-5",
         diff_path=str(diff_path),
+        artifacts_dir=str(artifacts_dir) if artifacts_dir is not None else None,
     )
 
 
@@ -267,7 +301,10 @@ async def test_agents_metadata_zoom_modal_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    patch_startup_loaders(monkeypatch, agents=[_zoom_agent(tmp_path)])
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[_zoom_agent(tmp_path, include_xprompts=True)],
+    )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)

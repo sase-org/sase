@@ -7,9 +7,8 @@ from ._agent_display_hints import AgentHintsDisplayMixin
 from ._helpers import (
     aggregate_meta_fields,
     extract_meta_fields,
-    format_embedded_workflows,
     format_meta_key,
-    load_embedded_workflows,
+    load_xprompts_used,
 )
 from ._workflow_display import WorkflowDisplayMixin
 
@@ -24,7 +23,6 @@ __all__ = [
     "AgentPromptPanel",
     "aggregate_meta_fields",
     "extract_meta_fields",
-    "format_embedded_workflows",
     "format_meta_key",
-    "load_embedded_workflows",
+    "load_xprompts_used",
 ]

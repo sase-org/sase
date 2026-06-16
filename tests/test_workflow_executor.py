@@ -160,6 +160,9 @@ class TestShouldHitl:
                     "_expand_embedded_workflows_in_prompt",
                     _fake_expand,
                 ),
+                patch(
+                    "sase.xprompt.used_xprompts.write_used_xprompts",
+                ) as mock_write_used,
                 patch("sase.llm_provider.invoke_agent", side_effect=_fake_invoke_agent),
             ):
                 executor = WorkflowExecutor(
@@ -172,6 +175,12 @@ class TestShouldHitl:
 
         assert captured["expanded_input"] == "#gh:sase Fix it"
         assert captured["prompt"].rstrip("\n") == "#gh:sase Fix it"
+        mock_write_used.assert_called_once_with(
+            tmpdir,
+            "#gh:sase Fix it",
+            "s1",
+            extra_xprompts={},
+        )
 
     def test_inherited_vcs_tag_preserves_directives_and_segments(self) -> None:
         """Inherited VCS tags are inserted per segment after leading directives."""

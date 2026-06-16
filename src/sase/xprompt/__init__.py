@@ -80,6 +80,7 @@ from .processor import (
     render_toplevel_jinja2,
     resolve_xprompt_aliases,
 )
+from .used_xprompts import collect_used_xprompts, write_used_xprompts
 from .workflow_runner import (
     WorkflowResult,
     execute_workflow,
@@ -178,6 +179,8 @@ __all__ = [
     "process_xprompt_references_with_catalog",
     "render_toplevel_jinja2",
     "resolve_xprompt_aliases",
+    "collect_used_xprompts",
+    "write_used_xprompts",
     # Workflow models
     "StepState",
     "StepStatus",
