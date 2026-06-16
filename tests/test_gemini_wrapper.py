@@ -132,13 +132,28 @@ def test_gemini_command_wrapper_set_logging_context() -> None:
 
 def test_gemini_command_wrapper_invoke_no_query() -> None:
     """Test invoke returns error message when no HumanMessage found."""
-    from sase.gemini_wrapper import GeminiCommandWrapper
-    from langchain_core.messages import AIMessage
+    from sase.gemini_wrapper import AIMessage, GeminiCommandWrapper
 
     wrapper = GeminiCommandWrapper()
     # Pass only AIMessage, no HumanMessage
     result = wrapper.invoke([AIMessage(content="Some AI response")])
     assert "No query found in messages" in result.content
+
+
+def test_gemini_command_wrapper_invoke_routes_human_message() -> None:
+    """invoke extracts the latest HumanMessage content and delegates to the LLM."""
+    from sase.gemini_wrapper import AIMessage, GeminiCommandWrapper, HumanMessage
+
+    wrapper = GeminiCommandWrapper()
+    with patch("sase.llm_provider.invoke_agent") as mock_invoke:
+        mock_invoke.return_value = AIMessage(content="agent reply")
+        result = wrapper.invoke(
+            [HumanMessage(content="earlier"), HumanMessage(content="latest query")]
+        )
+
+    # The most recent HumanMessage is the one routed to the LLM provider.
+    assert mock_invoke.call_args.args[0] == "latest query"
+    assert result.content == "agent reply"
 
 
 def test_gemini_command_wrapper_display_decision_counts(

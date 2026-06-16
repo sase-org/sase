@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from langchain_core.messages import AIMessage
+from sase.llm_provider.messages import AIMessage
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.tags import XPromptTag
 from sase.xprompt.workflow_executor import WorkflowExecutor

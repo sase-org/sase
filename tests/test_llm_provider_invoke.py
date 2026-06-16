@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.llm_provider._invoke import invoke_agent
+from sase.llm_provider.messages import AIMessage
 from sase.llm_provider.types import InvokeResult, LLMInvocationError
 from sase.llm_provider.preprocessing import _PreprocessResult
 from sase.xprompt.directives import PromptDirectives
@@ -66,6 +67,30 @@ def test_invoke_agent_model_size_backward_compat(
         suppress_output=True,
         model_override=None,
     )
+
+
+@patch("sase.llm_provider._invoke.get_provider")
+@patch("sase.llm_provider._invoke.preprocess_prompt")
+@patch("sase.llm_provider._invoke.postprocess_success")
+def test_invoke_agent_returns_local_ai_message_with_content(
+    mock_postprocess: MagicMock,
+    mock_preprocess: MagicMock,
+    mock_get_provider: MagicMock,
+) -> None:
+    """invoke_agent returns the SASE-native AIMessage carrying provider content."""
+    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")
+    mock_provider = MagicMock()
+    mock_provider.invoke.return_value = InvokeResult(content="provider response")
+    mock_get_provider.return_value = mock_provider
+
+    result = invoke_agent(
+        "prompt",
+        agent_type="test",
+        suppress_output=True,
+    )
+
+    assert isinstance(result, AIMessage)
+    assert result.content == "provider response"
 
 
 @patch("sase.llm_provider._invoke.get_provider")

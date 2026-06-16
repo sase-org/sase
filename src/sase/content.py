@@ -92,9 +92,9 @@ def content_ends_with_markdown_heading(content: str) -> bool:
 
 
 def ensure_str_content(content: str | list[str | dict[Any, Any]]) -> str:
-    """Ensure AIMessage content is a string.
+    """Ensure SASE message content is a string.
 
-    AIMessage.content can be either a string or a list of content parts.
+    A message's ``content`` can be either a string or a list of content parts.
     This function ensures we always get a string representation.
     """
     if isinstance(content, str):

@@ -340,7 +340,7 @@ class MentorWorkflow(BaseWorkflow):
                     branch_or_workspace=resolved_cl_name,
                 )
             except LLMInvocationError as e:
-                from langchain_core.messages import AIMessage
+                from sase.llm_provider.messages import AIMessage
 
                 response = AIMessage(content=str(e))
             response_content = ensure_str_content(response.content)

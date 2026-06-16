@@ -12,7 +12,7 @@ import time
 from typing import Any, Literal, cast
 
 from sase.core.time import generate_timestamp
-from langchain_core.messages import AIMessage
+from .messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
 from sase.telemetry.metrics import (
     LLM_CACHE_READ_TOKENS,

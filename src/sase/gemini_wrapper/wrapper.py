@@ -8,7 +8,7 @@
 import os
 from typing import Any, Literal, cast
 
-from langchain_core.messages import AIMessage, HumanMessage
+from sase.llm_provider.messages import AIMessage, HumanMessage
 
 # Backward-compat re-exports: tests import these from gemini_wrapper.wrapper
 from sase.llm_provider.gemini import (  # noqa: F401

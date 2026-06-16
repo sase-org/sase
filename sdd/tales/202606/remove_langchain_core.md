@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-15 21:31:34
-status: wip
+status: done
 prompt: sdd/prompts/202606/remove_langchain_core.md
 ---
 # Remove `langchain-core` Dependency

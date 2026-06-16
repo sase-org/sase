@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage
+from sase.llm_provider.messages import AIMessage
 from sase.xprompt import HITLHandler, HITLResult, WorkflowExecutor
 from sase.xprompt.models import OutputSpec
 from sase.xprompt.workflow_executor_utils import parse_bash_output

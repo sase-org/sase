@@ -36,7 +36,6 @@ classifiers = [
 dependencies = [
     "jinja2",
     "jsonschema",
-    "langchain-core",
     "pillow",
     "pluggy",
     "prometheus_client",
@@ -174,7 +173,6 @@ warn_unused_ignores = false
 
 [[tool.mypy.overrides]]
 module = [
-    "langchain_core.*",
     "schedule.*",
     "rapidfuzz.*",
     "textual",

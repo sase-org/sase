@@ -5,6 +5,7 @@
     to the LLM provider abstraction layer.
 """
 
+from sase.llm_provider.messages import AIMessage, HumanMessage
 from sase.xprompt import (
     is_jinja2_template,
     process_xprompt_references,
@@ -20,7 +21,9 @@ from .file_references import (
 from .wrapper import GeminiCommandWrapper, invoke_agent
 
 __all__ = [
+    "AIMessage",
     "GeminiCommandWrapper",
+    "HumanMessage",
     "format_with_prettier",
     "invoke_agent",
     "is_jinja2_template",
