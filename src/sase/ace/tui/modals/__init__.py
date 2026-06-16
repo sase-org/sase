@@ -1,5 +1,6 @@
 """Modal dialogs for the ace TUI."""
 
+from .add_property_modal import AddableProperty, AddPropertyModal
 from .agent_name_modal import AgentNameModal
 from .agent_sibling_modal import AgentSiblingChoice, AgentSiblingModal
 from .agent_artifacts_modal import (
@@ -105,6 +106,8 @@ from .xprompt_select_modal import XPromptSelection, XPromptSelectModal
 
 __all__ = [
     "ActivityModal",
+    "AddableProperty",
+    "AddPropertyModal",
     "MentorApplyResult",
     "MentorInfo",
     "MentorKillResult",

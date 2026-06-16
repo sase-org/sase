@@ -298,9 +298,9 @@ async def test_single_pane_normal_subtitle_advertises_stash() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         # A single-pane prompt bar still advertises ,s so stashing the lone
-        # draft is discoverable; the rest of the hints are unchanged.
+        # draft is discoverable, plus ,f for the frontmatter panel.
         subtitle = bar.normal_mode_subtitle()
-        assert subtitle == "[Esc] clear  [i] insert  [,s] stash  [^C] cancel"
+        assert subtitle == "[Esc] clear  [i] insert  [,s] stash  [,f] fm  [^C] cancel"
 
 
 async def test_feedback_normal_subtitle_omits_stash() -> None:

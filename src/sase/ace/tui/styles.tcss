@@ -1227,6 +1227,57 @@ PromptInputBar #prompt-completion.jinja-warning {
     border: solid $warning;
 }
 
+/* The structured frontmatter panel, directly above the prompt stack. */
+PromptInputBar #frontmatter-panel {
+    width: 100%;
+    height: auto;
+    max-height: 14;
+    border: round $secondary;
+    background: $panel;
+    color: $text;
+    padding: 0 1;
+    margin: 0 0 1 0;
+}
+
+PromptInputBar #frontmatter-panel.hidden {
+    display: none;
+}
+
+PromptInputBar #frontmatter-panel:focus {
+    border: round $accent;
+}
+
+PromptInputBar #frontmatter-rows {
+    width: 100%;
+    height: auto;
+}
+
+PromptInputBar #frontmatter-rows.hidden {
+    display: none;
+}
+
+PromptInputBar #frontmatter-inline {
+    width: 100%;
+    height: 3;
+    margin: 1 0 0 0;
+    border: round $accent;
+}
+
+PromptInputBar #frontmatter-inline.hidden {
+    display: none;
+}
+
+PromptInputBar #frontmatter-raw {
+    width: 100%;
+    height: auto;
+    max-height: 12;
+    border: round $accent;
+}
+
+PromptInputBar #frontmatter-raw.hidden {
+    display: none;
+}
+
 /* The prompt stack: a vertical list of one-or-more prompt panes. */
 PromptInputBar #prompt-stack {
     width: 100%;
@@ -1296,6 +1347,31 @@ PromptInputBar .prompt-stack-separator.active {
 
 PromptInputBar.feedback-mode {
     border: solid $warning;
+}
+
+/* Add-property picker for the frontmatter panel */
+AddPropertyModal {
+    align: center middle;
+}
+
+AddPropertyModal > Container {
+    width: 64;
+    height: auto;
+    max-height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+AddPropertyModal #modal-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+AddPropertyModal OptionList {
+    height: auto;
+    max-height: 16;
+    border: solid $secondary;
 }
 
 /* XPrompt select modal styling */

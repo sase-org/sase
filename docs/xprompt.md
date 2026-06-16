@@ -1404,6 +1404,17 @@ segments in document order, but agents do not wait for earlier segments unless y
 `%wait:<name>` or bare `%wait`. The same `---`-separator convention also applies inside an xprompt body — see
 [Multi-Agent XPrompts (Library-Defined Fan-Out)](#multi-agent-xprompts-library-defined-fan-out) below.
 
+### Frontmatter Panel (ACE TUI)
+
+In the `sase ace` prompt input, ad hoc prompt frontmatter has a structured **Frontmatter Panel** above the prompt stack,
+with the same field set an xprompt `.md` file supports (`name`, `description`, `tags`, `input`, `xprompts`, `skill`,
+`snippet`). Type `---` then a newline at the very start of an empty prompt to open it (distinct from a `---` typed after
+content, which stays a segment separator), or focus it any time with the `,f` leader keymap; it also auto-shows when a
+recalled prompt already carries frontmatter. Add a property with `a` (a picker sourced from the same core schema that
+backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, and use `R` for a live-validated
+raw-YAML escape hatch. The panel owns the canonical YAML it serializes back onto the prompt, so the multi-agent launch
+path is unchanged.
+
 ### Frontmatter-Defined Local XPrompts
 
 YAML frontmatter at the start of a prompt can define local xprompts under the `xprompts:` key. These are defined once in

@@ -17,10 +17,14 @@ from sase.ace.tui.widgets._prompt_input_bar_actions import (
 from sase.ace.tui.widgets._prompt_input_bar_completion import (
     PromptInputBarCompletionMixin,
 )
+from sase.ace.tui.widgets._prompt_input_bar_frontmatter import (
+    PromptInputBarFrontmatterMixin,
+)
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
     PromptInputBarStackActionsMixin,
     StashedPromptPane,
 )
+from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
@@ -79,6 +83,7 @@ class _PromptStackSeparator(Static):
 
 
 class PromptInputBar(
+    PromptInputBarFrontmatterMixin,
     PromptInputBarStackActionsMixin,
     PromptInputBarActionsMixin,
     PromptInputBarCompletionMixin,
@@ -298,15 +303,30 @@ class PromptInputBar(
         not stashable.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
-            return "[,j ,k] pane  [,J ,K] move  [,s ,S] stash  [-] add  [i] insert"
+            return (
+                "[,j ,k] pane  [,J ,K] move  [,s ,S] stash  "
+                "[,f] fm  [-] add  [i] insert"
+            )
         if self._mode == "prompt":
-            return "[Esc] clear  [i] insert  [,s] stash  [^C] cancel"
+            return "[Esc] clear  [i] insert  [,s] stash  [,f] fm  [^C] cancel"
         return "[Esc] clear  [i] insert  [^C] cancel"
 
     def compose(self) -> ComposeResult:
-        """Compose the input bar: a shared completion panel + the prompt stack."""
+        """Compose the input bar: completion panel, frontmatter panel, stack.
+
+        The frontmatter panel sits directly above ``#prompt-stack`` (prompt mode
+        only — feedback / approve-prompt bars are not multi-agent surfaces) and
+        starts hidden, auto-showing on mount when the prompt already carries
+        frontmatter or when the user triggers it with a leading ``---``.
+        """
         self._placeholder = self._compute_placeholder()
         yield Static("", id="prompt-completion", classes="hidden")
+        if self._mode == "prompt":
+            yield FrontmatterPanel(
+                self._stack.frontmatter,
+                id="frontmatter-panel",
+                classes="hidden",
+            )
         with Vertical(id="prompt-stack"):
             yield from self._build_pane_widgets()
 
@@ -335,6 +355,7 @@ class PromptInputBar(
         text_area._warm_current_xprompt_assist_entries()
         text_area._on_prompt_completion_context_changed()
         self._apply_active_classes()
+        self.auto_show_frontmatter_panel()
         self._schedule_height_update()
 
     # -- stack model + rendering ---------------------------------------------
@@ -567,6 +588,8 @@ class PromptInputBar(
         text_area.show_line_numbers = text_area.document.line_count > 1
         text_area._on_prompt_completion_context_changed()
         self._schedule_height_update()
+        if self._maybe_open_frontmatter_panel(text_area):
+            return
         self._maybe_live_split(text_area)
 
     def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
@@ -616,14 +639,19 @@ class PromptInputBar(
             return
         max_height = screen_height - 2
         completion_rows = self._completion_line_count if self._completion_visible else 0
+        frontmatter_rows = self._frontmatter_panel_reserved_rows()
         if len(self._stack) <= 1:
             # Single pane: identical formula to the pre-stack bar. +2 for the
-            # bar's top/bottom border, plus the completion panel when visible.
+            # bar's top/bottom border, plus the completion and frontmatter panels
+            # when visible.
             visual_lines = self._get_visual_line_count()
-            new_height = min(max(visual_lines + 2 + completion_rows, 3), max_height)
+            new_height = min(
+                max(visual_lines + 2 + completion_rows + frontmatter_rows, 3),
+                max_height,
+            )
             self.styles.height = new_height
             return
-        self._apply_multi_pane_heights(max_height, completion_rows)
+        self._apply_multi_pane_heights(max_height, completion_rows + frontmatter_rows)
 
     def _apply_multi_pane_heights(self, max_height: int, completion_rows: int) -> None:
         """Size each pane so the stack fits the screen, active pane growing most.

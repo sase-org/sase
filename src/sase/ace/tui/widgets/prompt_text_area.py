@@ -546,6 +546,11 @@ class PromptTextArea(
             return
         bar = self._find_prompt_bar()
         if bar is not None:
+            # Focus intentionally moved to the frontmatter panel (or its inline /
+            # raw editors); let it keep focus instead of snapping back here.
+            owns = getattr(bar, "_frontmatter_panel_owns_focus", None)
+            if callable(owns) and owns():
+                return
             try:
                 if bar.active_text_area() is not self:
                     return

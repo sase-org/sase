@@ -21,6 +21,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("jinja chip", "Parse and unknown-var status"),
         ("{{ / {% / {#", "Auto-pair delimiters"),
         ("Ctrl+T / Ctrl+L", "Complete inside Jinja tags"),
+        (",f / ---", "Frontmatter panel"),
     ],
 )
 

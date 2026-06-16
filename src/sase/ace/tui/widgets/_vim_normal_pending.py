@@ -234,3 +234,5 @@ class VimNormalPendingMixin(VimVisualModeMixin):
             bar.stash_all_panes()
         elif key == "P":
             bar.request_restore_stash()
+        elif key == "f":
+            bar.focus_frontmatter_panel()
