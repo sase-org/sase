@@ -275,7 +275,7 @@ class PromptTextArea(
         bar = self._find_prompt_bar()
         if bar:
             bar.border_title = f"{bar._base_title} [NORMAL]"
-            bar.set_prompt_mode_subtitle("[Esc] clear  [i] insert  [^C] cancel")
+            bar.set_prompt_mode_subtitle(bar.normal_mode_subtitle())
 
     def _enter_insert_mode(self) -> None:
         """Switch to vim INSERT mode."""

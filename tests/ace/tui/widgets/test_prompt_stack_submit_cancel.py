@@ -255,3 +255,58 @@ async def test_single_pane_subtitle_omits_send_all() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         assert "[^S] all" not in bar.insert_mode_subtitle()
+
+
+async def test_multi_pane_insert_subtitle_points_to_nav() -> None:
+    app = _CaptureApp("first\n---\nsecond")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        subtitle = bar.insert_mode_subtitle()
+        # Esc drops into normal mode where the stack keys live.
+        assert "[Esc] nav" in subtitle
+        assert "[Esc] normal" not in subtitle
+
+
+async def test_single_pane_insert_subtitle_keeps_normal_hint() -> None:
+    app = _CaptureApp("solo")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        assert bar.insert_mode_subtitle() == "[Enter] send  [Esc] normal  [^C] cancel"
+
+
+async def test_multi_pane_normal_subtitle_advertises_stack_keys() -> None:
+    app = _CaptureApp("first\n---\nsecond")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        subtitle = bar.normal_mode_subtitle()
+        # Every stack keymap the active pane exposes is discoverable here.
+        assert ",j" in subtitle and ",k" in subtitle
+        assert ",J" in subtitle and ",K" in subtitle
+        assert "[-] add" in subtitle
+
+
+async def test_single_pane_normal_subtitle_unchanged() -> None:
+    app = _CaptureApp("solo")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        assert bar.normal_mode_subtitle() == "[Esc] clear  [i] insert  [^C] cancel"
+
+
+async def test_entering_normal_mode_applies_stack_subtitle() -> None:
+    app = _CaptureApp("first\n---\nsecond")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.active_text_area()._enter_normal_mode()
+        await pilot.pause()
+        # The wired-up normal-mode subtitle reaches the live border subtitle.
+        assert ",j" in str(bar.border_subtitle)

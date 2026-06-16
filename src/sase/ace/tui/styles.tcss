@@ -1207,9 +1207,12 @@ PromptInputBar .prompt-input.solo:focus {
 }
 
 /* Multi-pane mode: each pane is a quiet framed item.  A left accent bar marks
-   the active pane; inactive panes dim and compact.  No top/bottom border keeps
-   panes from reading as nested cards stacked inside the docked bar. */
+   the active pane; inactive panes dim and compact.  Clearing the base TextArea
+   border first is essential: only the left accent should reserve space, so the
+   panes do not read as nested cards AND do not silently reserve the top/bottom
+   border rows that would shrink each pane's content by two rows. */
 PromptInputBar .prompt-pane {
+    border: none;
     border-left: thick $surface-lighten-2;
     padding: 0 0 0 1;
     margin: 0;

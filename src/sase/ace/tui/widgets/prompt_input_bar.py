@@ -158,16 +158,31 @@ class PromptInputBar(
         return "Prompt"
 
     def insert_mode_subtitle(self) -> str:
-        """Return the insert-mode subtitle, advertising ``^S`` when stacked.
+        """Return the insert-mode subtitle, advertising the stack when stacked.
 
-        ``<enter>`` submits only the selected pane, so a multi-pane stack adds a
-        ``[^S] all`` hint for the whole-stack submit (the portable fallback for
-        ``<shift+enter>``).
+        ``<enter>`` submits only the selected pane, so a multi-pane stack swaps
+        the ``[Esc] normal`` hint for ``[Esc] nav`` (Esc drops into normal mode,
+        where the ``,j``/``,k``/``,J``/``,K``/``-`` stack keys live — see
+        :meth:`normal_mode_subtitle`) and adds a ``[^S] all`` hint for the
+        whole-stack submit (the portable fallback for ``<shift+enter>``).
         """
-        base = "[Enter] send  [Esc] normal  [^C] cancel"
         if self._mode == "prompt" and len(self._stack) > 1:
-            return f"{base}  [^S] all"
-        return base
+            return "[Enter] send  [Esc] nav  [^C] cancel  [^S] all"
+        return "[Enter] send  [Esc] normal  [^C] cancel"
+
+    def normal_mode_subtitle(self) -> str:
+        """Return the normal-mode subtitle, advertising the stack keys.
+
+        In a multi-pane stack the active pane's normal-mode hints surface the
+        prompt-stack comma leader and ``-`` keymap (``,j``/``,k`` move between
+        panes, ``,J``/``,K`` reorder the active pane, ``-`` adds a new bottom
+        pane) so the stack is discoverable without crowding the single-pane
+        footer.  Single-pane / feedback / approve-prompt bars keep the original
+        normal-mode hints.
+        """
+        if self._mode == "prompt" and len(self._stack) > 1:
+            return "[,j ,k] pane  [,J ,K] move  [-] add  [i] insert"
+        return "[Esc] clear  [i] insert  [^C] cancel"
 
     def compose(self) -> ComposeResult:
         """Compose the input bar: a shared completion panel + the prompt stack."""

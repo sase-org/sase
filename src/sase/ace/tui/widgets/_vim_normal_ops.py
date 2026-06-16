@@ -89,10 +89,14 @@ class VimNormalOpsMixin(_MixinBase):
                 indicator += self._pending_keys
             if self._count_prefix:
                 indicator += self._count_prefix
-            if indicator:
-                subtitle = f"[Esc] clear  [i] insert  [^C] cancel  {indicator}"
-            else:
-                subtitle = "[Esc] clear  [i] insert  [^C] cancel"
+            # Derive the base from the bar so a stacked prompt keeps advertising
+            # its ,j/,k/,J/,K/- keymaps while a count/operator/comma leader is
+            # pending, instead of flipping back to the single-pane hints.
+            base = "[Esc] clear  [i] insert  [^C] cancel"
+            getter = getattr(bar, "normal_mode_subtitle", None)
+            if callable(getter):
+                base = getter()
+            subtitle = f"{base}  {indicator}" if indicator else base
             setter = getattr(bar, "set_prompt_mode_subtitle", None)
             if callable(setter):
                 setter(subtitle)
