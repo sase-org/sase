@@ -25,28 +25,28 @@ class TestAgentListBeadBadge:
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert " ◆ [sase-x.3]" in left.plain
+        assert " ◆ sase-x.3" in left.plain
 
     def test_land_agent_row_renders_epic_bead_badge(self) -> None:
         agent = make_agent(agent_name="sase-x.land")
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert " ◆ [sase-x.land]" in left.plain
+        assert " ◆ sase-x.land" in left.plain
 
     def test_exact_land_agent_row_renders_epic_bead_badge(self) -> None:
         agent = make_agent(agent_name="sase-x")
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert " ◆ [sase-x]" in left.plain
+        assert " ◆ sase-x" in left.plain
 
     def test_dismissed_phase_agent_row_renders_underlying_bead_badge(self) -> None:
         agent = make_agent(agent_name="260428.sase-x.3")
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert " ◆ [260428.sase-x.3]" in left.plain
+        assert " ◆ 260428.sase-x.3" in left.plain
 
     def test_ordinary_agent_row_omits_bead_badge(self) -> None:
         agent = make_agent(agent_name="reviewer")
@@ -61,7 +61,8 @@ class TestAgentListBeadBadge:
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert "◆" not in left.plain
-        assert "[aij.2]" in left.plain
+        assert " aij.2" in left.plain
+        assert "[aij.2]" not in left.plain
 
     def test_bead_badge_flows_from_fold_annotation_to_agent_name(self) -> None:
         agent = make_agent(agent_name="sase-x.3", tag="pinned")
@@ -70,7 +71,7 @@ class TestAgentListBeadBadge:
             agent, 0, is_selected=False, fold_annotation="×3"
         )
 
-        assert "(RUNNING)×3 ◆ [sase-x.3]" in left.plain
+        assert "(RUNNING)×3 ◆ sase-x.3" in left.plain
         assert "[pinned]" not in left.plain
 
 
@@ -154,7 +155,7 @@ class TestAgentListFileChangePencil:
             tag_label="fix",
         )
 
-        assert "✏️ test_cl #fix (RUNNING)×3 ◆ [sase-x.3]" in left.plain
+        assert "✏️ test_cl #fix (RUNNING)×3 ◆ sase-x.3" in left.plain
         assert "(RUNNING)×3 ✏️" not in left.plain
         assert "[pinned]" not in left.plain
 

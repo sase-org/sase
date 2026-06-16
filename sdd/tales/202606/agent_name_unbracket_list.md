@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-16 10:51:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_name_unbracket_list.md
 ---
 # Plan: Remove Square Brackets Around Agent Names in the Agents List

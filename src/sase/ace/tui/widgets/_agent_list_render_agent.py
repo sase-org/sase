@@ -279,7 +279,7 @@ def format_agent_option(
 
     # Agent name annotation
     if agent.agent_name:
-        text.append(f" [{agent.agent_name}]", style=_AGENT_NAME_ANNOTATION_STYLE)
+        text.append(f" {agent.agent_name}", style=_AGENT_NAME_ANNOTATION_STYLE)
 
     # Embedded workflow annotation for child steps
     if agent.embedded_workflow_name:

@@ -87,8 +87,9 @@ _APPROVE_ICON = "⚡"
 # Icon for hidden agents (shown when visibility is toggled on)
 _HIDDEN_ICON = "◌"
 
-# Agent-name annotation color, shared by the list row ``[name]`` annotation
-# and the metadata header ``Name:`` value so the two stay in lockstep.
+# Agent-name annotation color, shared by the list row trailing name
+# annotation and the metadata header ``Name:`` value so the two stay in
+# lockstep.
 _AGENT_NAME_ANNOTATION_STYLE = "#FFD700"  # Gold
 
 # Bead context badge for agents launched by ``sase bead work``.
