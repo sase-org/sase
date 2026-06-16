@@ -1602,56 +1602,61 @@ See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` confi
 The prompt input is a multiline TextArea widget that supports two editing modes: INSERT and NORMAL. The widget provides
 markdown syntax highlighting for prompt content (headings, bold, italic, code blocks, lists, etc.).
 
-When prompt text contains real top-level `---` multi-agent separators, ACE renders the text as a prompt stack: one pane
-per agent segment. YAML frontmatter at the start stays prompt-level metadata, and `---` lines inside fenced code blocks
-are left alone. The detailed multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent-prompts).
+When prompt text contains literal top-level `---` multi-agent separators, ACE renders the text as a prompt stack: one
+pane per agent segment. YAML frontmatter at the start stays prompt-level metadata, and `---` lines inside fenced code
+blocks are left alone. A standalone `#!name` multi-agent xprompt invocation stays a single pane and expands only when it
+is launched. The detailed multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent-prompts).
 
 ### INSERT Mode (Default)
 
-| Key                      | Action                                                                                               |
-| ------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `Enter`                  | Submit the prompt; in a prompt stack, submit only the selected pane                                  |
-| `Ctrl+S` / `Shift+Enter` | Submit the whole prompt stack as one multi-agent prompt (`Ctrl+S` is the reliable terminal fallback) |
-| `Ctrl+C`                 | Cancel the prompt; in a prompt stack, cancel only the selected pane                                  |
-| `Ctrl+J`                 | Insert a newline                                                                                     |
-| `Ctrl+A`                 | Move to start of line (jumps to previous line start if already at col 0)                             |
-| `Ctrl+E`                 | Move to end of line (jumps to next line end if already at end)                                       |
-| `Ctrl+G`                 | Open the current prompt or selected stack pane in `$EDITOR`                                          |
-| `Ctrl+Y`                 | Open the workflow YAML editor                                                                        |
-| `Ctrl+K`                 | Open prompt history, filtered by the current single-line prompt                                      |
-| `Ctrl+T`                 | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion))        |
-| `Ctrl+R`                 | Recursive fuzzy file finder using the same prompt-aware path root as file completion                 |
-| `Tab`                    | Snippet expansion (see below)                                                                        |
-| `#@`                     | Open XPrompt snippet picker (type `#` then `@`)                                                      |
-| `Escape`                 | Switch to vim NORMAL mode                                                                            |
+| Key                      | Action                                                                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| `Enter`                  | Submit the prompt; in a prompt stack, submit only the selected pane                           |
+| `Ctrl+S` / `Shift+Enter` | Submit the whole stack top-to-bottom (`Ctrl+S` is the reliable terminal fallback)             |
+| `Ctrl+C`                 | Cancel the prompt; in a prompt stack, cancel only the selected pane                           |
+| `Ctrl+J`                 | Insert a newline                                                                              |
+| `Ctrl+A`                 | Move to start of line (jumps to previous line start if already at col 0)                      |
+| `Ctrl+E`                 | Move to end of line (jumps to next line end if already at end)                                |
+| `Ctrl+G`                 | Open the current prompt or selected stack pane in `$EDITOR`                                   |
+| `Ctrl+Y`                 | Open the workflow YAML editor                                                                 |
+| `Ctrl+K`                 | Open prompt history, filtered by the current single-line prompt                               |
+| `Ctrl+T`                 | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
+| `Ctrl+R`                 | Recursive fuzzy file finder using the same prompt-aware path root as file completion          |
+| `Tab`                    | Snippet expansion (see below)                                                                 |
+| `#@`                     | Open XPrompt snippet picker (type `#` then `@`)                                               |
+| `Escape`                 | Switch to vim NORMAL mode                                                                     |
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line.
 
 ### Prompt Stacks
 
-Prompt stacks are the ACE editing surface for multi-agent prompts. Loading or typing prompt text with top-level `---`
-segment separators splits the input into panes labeled `agent 1`, `agent 2`, and so on; the border title shows
-`Prompt · N agents`. The bottom pane is active by default, inactive panes stay compact, and the active pane takes the
-available height.
+Prompt stacks are the ACE editing surface for literal `---` multi-agent prompts. Loading or typing prompt text with
+top-level `---` segment separators splits the input into panes labeled `agent 1`, `agent 2`, and so on; the border title
+shows `Prompt · N agents`. Panes are ordered top-to-bottom for whole-stack submission. The bottom pane is active by
+default so you can keep drafting the newest segment; it is not a priority marker, and pressing `Enter` immediately will
+launch that selected bottom pane first.
 
-Typing a `---` line in INSERT mode splits the active pane immediately, unless the separator is inside YAML frontmatter
-or a fenced code block. `Ctrl+G` edits only the selected pane when the stack already has multiple panes; history loads
-and whole-bar editor returns parse `---` separators into a fresh stack.
+Inactive panes stay compact, and the active pane takes the available height. Typing a `---` line in INSERT mode splits
+the active pane immediately, unless the separator is inside YAML frontmatter or a fenced code block. `Ctrl+G` edits only
+the selected pane when the stack already has multiple panes. Loading from history or returning from a whole-bar editor
+session replaces the whole stack, so those paths parse `---` separators into fresh panes.
 
-| Key                      | Action                                                                                                 |
-| ------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `Enter`                  | Launch the selected pane and remove it from the stack; the final remaining pane submits normally       |
-| `Ctrl+S` / `Shift+Enter` | Join non-empty panes with `---` separators and launch the whole stack as one multi-agent prompt        |
-| `Ctrl+C`                 | Record the selected pane as cancelled history and remove it; the final remaining pane cancels normally |
-| `Escape`                 | Enter NORMAL mode for stack navigation                                                                 |
-| `,j` / `,k`              | Move focus to the next / previous pane in NORMAL mode                                                  |
-| `,J` / `,K`              | Move the active pane down / up in NORMAL mode                                                          |
-| `-`                      | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                   |
+| Key                      | Action                                                                                                    |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `Enter`                  | Launch the selected pane and remove it from the stack; when one pane remains, `Enter` submits it normally |
+| `Ctrl+S` / `Shift+Enter` | Join non-empty panes with `---` separators and launch the whole stack as one multi-agent prompt           |
+| `Ctrl+C`                 | Record the selected pane as cancelled history and remove it; the final remaining pane cancels normally    |
+| `Escape`                 | Enter NORMAL mode for stack navigation                                                                    |
+| `,j` / `,k`              | Move focus to the next / previous pane in NORMAL mode                                                     |
+| `,J` / `,K`              | Move the active pane down / up in NORMAL mode                                                             |
+| `-`                      | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                      |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane so local xprompts and metadata
-continue to resolve. Empty selected panes are dropped without launching. Whole-stack submission preserves the usual
-multi-agent launch path, including `%wait`, `%name`, `%model`, and other segment-local directives.
+continue to resolve. Empty selected panes are dropped without launching. Whole-stack submission joins panes in
+top-to-bottom order and then uses the usual multi-agent launch path, including `%wait`, `%name`, `%model`, and other
+segment-local directives. Segment order alone does not make later agents wait; add `%wait` to the later pane when it
+must start after an earlier agent succeeds.
 
 ### Completion
 

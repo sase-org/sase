@@ -59,8 +59,8 @@ Spans nest cleanly: a single keypress that fires `agents.refresh_debounced` will
 `widget.agent_list.update_highlight` and `agents.refresh_panel_highlights` spans.
 
 ACE deliberately keeps live-workspace pencil hints off the startup-critical agents loader. The first load classifies
-only cheap persisted `diff_path` badges; after the first paint, `agents.live_hint_refresh` runs VCS probes for active,
-non-terminal visible rows that do not yet have a persisted diff and patches changed rows in place. During startup
+only cheap persisted `diff_path` badges. After that agents list has applied, `agents.live_hint_refresh` runs VCS probes
+for active, non-terminal rows that do not yet have a persisted diff and patches changed rows in place. During startup
 investigations, treat `agents.load_from_disk` and `agents.live_hint_refresh` as separate costs: the former controls time
 to first interactive Agents-tab paint, while the latter explains deferred pencil-badge updates.
 

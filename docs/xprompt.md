@@ -1399,8 +1399,9 @@ iterations (to guard against circular references).
 
 ## Multi-Agent Prompts
 
-A single prompt can launch multiple agents sequentially by using YAML frontmatter and `---` segment separators. The same
-`---`-separator convention also applies inside an xprompt body — see
+A single prompt can launch multiple agents by using YAML frontmatter and `---` segment separators. SASE plans the
+segments in document order, but agents do not wait for earlier segments unless you add a dependency such as
+`%wait:<name>` or bare `%wait`. The same `---`-separator convention also applies inside an xprompt body — see
 [Multi-Agent XPrompts (Library-Defined Fan-Out)](#multi-agent-xprompts-library-defined-fan-out) below.
 
 ### Frontmatter-Defined Local XPrompts
@@ -1433,7 +1434,7 @@ xprompts:
 ### Segment Separators
 
 After the frontmatter block is consumed, subsequent `---` lines on their own act as segment separators. Each segment
-launches a separate agent sequentially:
+launches as a separate agent:
 
 ```
 ---
@@ -1450,8 +1451,9 @@ Implement the new feature.
 Write tests for the new feature.
 ```
 
-This launches two agents: `step1` runs first, then `step2` starts after `step1` succeeds (via `%wait`). Both agents
-share the `_common` local xprompt.
+This launches two agents. `step2` starts after `step1` succeeds because the second segment includes `%wait:step1`; if
+that line were omitted, both agents would be eligible to run independently. Both agents share the `_common` local
+xprompt.
 
 ### Cross-Agent Output Variables
 
@@ -1488,10 +1490,11 @@ repeat slots (see [Stopping a repeat chain early with `STOP`](#stopping-a-repeat
 special meaning for ordinary `%wait` consumers, `---` segments, or `%alt` fan-outs — those read it like any other
 variable, e.g. `{{ agents["name"].STOP }}`.
 
-ACE renders literal multi-agent prompts as a prompt stack: each top-level `---` segment becomes an editable pane, while
-prompt-level frontmatter and fenced-code separators keep the same parsing rules described below. Use `Enter` to launch
-one selected pane at a time, or `Ctrl+S` / `Shift+Enter` to submit the panes together as one multi-agent prompt. See the
-[ACE prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings.
+ACE renders literal `---` multi-agent prompts as a prompt stack: each top-level segment becomes an editable pane, while
+prompt-level frontmatter and fenced-code separators keep the same parsing rules described below. A `#!name` multi-agent
+xprompt invocation remains a single pane until launch. Use `Enter` to launch one selected pane at a time, or `Ctrl+S` /
+`Shift+Enter` to submit the panes together in top-to-bottom order. See the
+[ACE prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings and the default active-pane behavior.
 
 ### Rules
 
