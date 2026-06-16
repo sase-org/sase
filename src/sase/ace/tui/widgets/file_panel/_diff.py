@@ -32,6 +32,7 @@ from sase.vcs_provider import (
     VCSProviderNotFoundError,
     get_vcs_provider,
 )
+from sase.agent.status_buckets import status_bucket_for_values
 from sase.workspace_provider.store import WorkspaceStore
 from sase.workspace_provider.utils import parse_workspace_dir
 
@@ -224,7 +225,9 @@ def _compute_diff_cache_key(agent: Agent) -> DiffCacheKey | None:
     return (diff_source.identity, workspace_dir, provider_name, fingerprint, ttl_bucket)
 
 
-_LIVE_HINT_TERMINAL_STATUSES = frozenset({"DONE", "FAILED"})
+def _status_allows_live_hint(status: str | None) -> bool:
+    bucket = status_bucket_for_values(status)
+    return bucket not in {"Done", "Failed"}
 
 
 def live_agent_file_change_hint(agent: Agent) -> bool | None:
@@ -243,7 +246,7 @@ def live_agent_file_change_hint(agent: Agent) -> bool | None:
     diff_source = _resolve_agent_diff_source(agent)
     if diff_source.diff_path:
         return None
-    if diff_source.status in _LIVE_HINT_TERMINAL_STATUSES:
+    if not _status_allows_live_hint(diff_source.status):
         return None
 
     diff_text = get_agent_diff(agent)

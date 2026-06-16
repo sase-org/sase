@@ -21,6 +21,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import status_bucket_for_values
+
 from ...models._agent_status_overrides import classify_live_file_change_hint
 from ...util.trace import tui_trace
 from ._loading_state import AgentLoadingStateMixin
@@ -31,10 +33,10 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Terminal rows never get a live hint: once a row finishes, its persisted
-# ``diff_path`` is authoritative. Mirrors the terminal guard inside
-# ``live_agent_file_change_hint`` so the candidate snapshot stays cheap.
-_LIVE_HINT_TERMINAL_STATUSES = frozenset({"DONE", "FAILED"})
+
+def _status_allows_live_hint(status: str | None) -> bool:
+    bucket = status_bucket_for_values(status)
+    return bucket not in {"Done", "Failed"}
 
 
 class AgentLiveHintMixin(AgentLoadingStateMixin):
@@ -116,7 +118,7 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
         for agent in self._agents:
             if agent.diff_path:
                 continue
-            if agent.status in _LIVE_HINT_TERMINAL_STATUSES:
+            if not _status_allows_live_hint(agent.status):
                 continue
             candidates.append(agent)
         return candidates

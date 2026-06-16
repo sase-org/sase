@@ -15,6 +15,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models._agent_status_overrides import (
@@ -150,6 +152,24 @@ def test_deferred_helper_classifies_bookkeeping_only_edits_false(
     assert hint is False
     agent.live_file_change_hint = hint
     assert agent_file_change_hint(agent) is False
+
+
+@pytest.mark.parametrize("status", ["PLAN DONE", "STOPPED", "FAILED (RETRIED)"])
+def test_deferred_helper_skips_terminal_status_buckets(
+    tmp_path: Path,
+    status: str,
+) -> None:
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    workspace = _setup_workspace(tmp_path)
+    agent = _running_agent(str(workspace))
+    agent.status = status
+
+    with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
+        hint = classify_live_file_change_hint(agent)
+
+    assert hint is None
+    mock_get_provider.assert_not_called()
 
 
 def test_deferred_helper_returns_none_for_persisted_diff_path() -> None:

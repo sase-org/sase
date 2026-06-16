@@ -117,8 +117,24 @@ def test_live_hint_candidates_scope() -> None:
     starting = _agent(cl_name="starting", raw_suffix="2", status="STARTING")
     done = _agent(cl_name="done", raw_suffix="3", status="DONE")
     failed = _agent(cl_name="failed", raw_suffix="4", status="FAILED")
-    with_diff = _agent(cl_name="withdiff", raw_suffix="5", diff_path="/tmp/x.diff")
-    app._agents = [running, starting, done, failed, with_diff]
+    failed_retried = _agent(
+        cl_name="failed-retried",
+        raw_suffix="5",
+        status="FAILED (RETRIED)",
+    )
+    plan_done = _agent(cl_name="plan-done", raw_suffix="6", status="PLAN DONE")
+    stopped = _agent(cl_name="stopped", raw_suffix="7", status="STOPPED")
+    with_diff = _agent(cl_name="withdiff", raw_suffix="8", diff_path="/tmp/x.diff")
+    app._agents = [
+        running,
+        starting,
+        done,
+        failed,
+        failed_retried,
+        plan_done,
+        stopped,
+        with_diff,
+    ]
 
     candidates = app._live_hint_candidates()
 
