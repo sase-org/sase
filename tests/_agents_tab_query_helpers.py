@@ -80,11 +80,25 @@ class FakeAgentApp(AgentLoadingMixin):
         self._grouping_mode = GroupingMode.STANDARD
         self._agents_loading = False
         self._agents_first_load_done = True
+        # Deferred live-hint scan coalescing state (the apply path schedules a
+        # scan once the list is finalized). These fakes stay on the changespecs
+        # tab, so the scheduled worker is recorded but never runs.
+        self._live_hints_scan_scheduled = False
+        self._live_hints_scan_running = False
+        self._live_hints_scan_pending = False
+        self._live_hints_scan_source = "unknown"
         self.timer_calls: list[tuple[float, Callable[[], Any]]] = []
+        self.call_later_calls: list[Callable[..., Any]] = []
         self.notify = MagicMock()  # type: ignore[assignment]
 
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> Any:
         self.timer_calls.append((delay, callback))
+        return None
+
+    def call_later(
+        self, callback: Callable[..., Any], *args: Any, **kwargs: Any
+    ) -> Any:
+        self.call_later_calls.append(callback)
         return None
 
     # Stubs for methods the finalizer calls when on agents tab — not

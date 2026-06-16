@@ -143,11 +143,22 @@ class _FakeApplyApp(AgentLoadingMixin):
         self._dismissed_agent_objects: list[Agent] = []
         self._agents_loading = False
         self._agents_first_load_done = True
+        # Deferred live-hint scan coalescing state; the apply path schedules a
+        # scan via ``call_later`` once the list is finalized.
+        self._live_hints_scan_scheduled = False
+        self._live_hints_scan_running = False
+        self._live_hints_scan_pending = False
+        self._live_hints_scan_source = "unknown"
+        self.call_later_calls: list[object] = []
         self.finalize_calls: int = 0
 
     def _finalize_agent_list(self, *args: object, **kwargs: object) -> None:
         del args, kwargs
         self.finalize_calls += 1
+
+    def call_later(self, callback: object, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+        self.call_later_calls.append(callback)
 
 
 def _make_hidden_done(suffix: str, cl: str = "x") -> Agent:

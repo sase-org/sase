@@ -27,7 +27,11 @@ from pathlib import Path
 from threading import Lock
 
 from sase.config.core import load_merged_config
-from sase.vcs_provider import VCSProviderNotFoundError, get_vcs_provider
+from sase.vcs_provider import (
+    VCSProvider,
+    VCSProviderNotFoundError,
+    get_vcs_provider,
+)
 from sase.workspace_provider.store import WorkspaceStore
 from sase.workspace_provider.utils import parse_workspace_dir
 
@@ -62,6 +66,34 @@ _diff_cache_lock = Lock()
 # the ``_diff_cache`` locking discipline above.
 _workspace_store_cache: dict[str, WorkspaceStore] = {}
 _workspace_store_cache_lock = Lock()
+
+# Resolving a VCS provider scans ``importlib.metadata`` entry points and runs
+# ``git`` detection subprocesses; both are pure functions of the workspace
+# path for a session.  Memoizing one provider per workspace dir keeps the
+# deferred live-hint batch (one probe per active agent) from re-running that
+# discovery for every row.  Mirrors the ``_workspace_store_cache`` discipline:
+# provider instances are stateless dispatchers, so caching one per workspace
+# for the process lifetime is safe (a mid-session ``SASE_VCS_PROVIDER`` /
+# config change is as rare as the workspace-store cache already tolerates).
+_vcs_provider_cache: dict[str, VCSProvider] = {}
+_vcs_provider_cache_lock = Lock()
+
+
+def _resolve_vcs_provider_cached(workspace_dir: str) -> VCSProvider:
+    """Return a cached :class:`VCSProvider` for *workspace_dir*.
+
+    Resolves through the module-level ``get_vcs_provider`` (so tests that
+    patch it still take effect on a cache miss) and stores only successful
+    resolutions; :class:`VCSProviderNotFoundError` propagates uncached.
+    """
+    with _vcs_provider_cache_lock:
+        cached = _vcs_provider_cache.get(workspace_dir)
+    if cached is not None:
+        return cached
+    provider = get_vcs_provider(workspace_dir)
+    with _vcs_provider_cache_lock:
+        return _vcs_provider_cache.setdefault(workspace_dir, provider)
+
 
 _ACTIVE_DIFF_SOURCE_STATUSES = frozenset(
     {
@@ -183,7 +215,7 @@ def _compute_diff_cache_key(agent: Agent) -> DiffCacheKey | None:
     if workspace_dir is None:
         return None
     try:
-        provider = get_vcs_provider(workspace_dir)
+        provider = _resolve_vcs_provider_cached(workspace_dir)
     except VCSProviderNotFoundError:
         return None
     provider_name = type(provider).__name__
@@ -268,7 +300,7 @@ def get_agent_diff(agent: Agent) -> str | None:
 
     workspace_dir = key[1]
     try:
-        provider = get_vcs_provider(workspace_dir)
+        provider = _resolve_vcs_provider_cached(workspace_dir)
     except VCSProviderNotFoundError:
         return None
 

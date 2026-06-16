@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-15 21:02:19
-status: wip
+status: done
 prompt: sdd/prompts/202606/ace_tui_startup_perf.md
 ---
 # Plan: Make `sase ace` Startup Much Faster

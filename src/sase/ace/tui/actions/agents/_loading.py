@@ -27,6 +27,7 @@ from ._loading_helpers import (
     load_agent_artifact_delta_from_disk_with_state,
     load_agents_from_disk_with_state,
 )
+from ._loading_live_hints import AgentLiveHintMixin
 from ._loading_refresh import AgentLoadingRefreshMixin
 
 # Aliases preserved so `_loading._compute_loader_cleanup` and
@@ -55,5 +56,6 @@ class AgentLoadingMixin(
     AgentLoadingApplyMixin,
     AgentLoadingRefreshMixin,
     AgentLoadingFilterMixin,
+    AgentLiveHintMixin,
 ):
     """Mixin providing agent loading and filtering methods."""

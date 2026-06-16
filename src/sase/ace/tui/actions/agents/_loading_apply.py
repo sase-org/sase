@@ -415,6 +415,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             source="apply",
         )
 
+        # Live workspace pencil hints for active rows without a persisted
+        # diff_path are computed off the loader path. Schedule the deferred,
+        # coalesced background scan now that the agent list is finalized; it
+        # no-ops cheaply when there are no active candidates.
+        self._schedule_live_hint_refresh(source="apply")  # type: ignore[attr-defined]
+
     def _maybe_notify_agent_index_repair(
         self, load_state: AgentLoadState | None
     ) -> None:

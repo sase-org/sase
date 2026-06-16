@@ -78,6 +78,14 @@ class StateInitMixin:
         # in the TUI's agents and axe surfaces.
         self._agents_first_load_done = False
         self._axe_first_load_done = False
+        # Deferred live-workspace pencil-hint scan coalescing. The expensive
+        # per-agent live VCS diff is computed in a background worker after the
+        # first agents load applies (never on the startup-critical loader
+        # path); these flags collapse refresh bursts into one trailing scan.
+        self._live_hints_scan_scheduled = False
+        self._live_hints_scan_running = False
+        self._live_hints_scan_pending = False
+        self._live_hints_scan_source = "unknown"
         self.query_string = query
         self.parsed_query = parse_query(query)
         self.refresh_interval = refresh_interval

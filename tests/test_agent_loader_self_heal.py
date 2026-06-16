@@ -86,9 +86,21 @@ class FakeLoadingApp(AgentLoadingMixin):
         # Pretend the first async load already happened so _apply_loaded_agents
         # doesn't try to query widgets that aren't mounted in this fake.
         self._agents_first_load_done = True
+        # Deferred live-hint scan coalescing state. The apply path schedules a
+        # scan once the list is finalized; this fake records the queued worker
+        # via ``call_later`` but never runs it.
+        self._live_hints_scan_scheduled = False
+        self._live_hints_scan_running = False
+        self._live_hints_scan_pending = False
+        self._live_hints_scan_source = "unknown"
+        self.call_later_calls: list[object] = []
 
     def set_timer(self, _delay: float, _callback: object) -> None:
         """Stub for apply paths that should not schedule timers here."""
+
+    def call_later(self, callback: object, *args: object, **kwargs: object) -> None:
+        """Stub recording the deferred live-hint worker without running it."""
+        self.call_later_calls.append(callback)
 
     def _finalize_agent_list(self, *args: object, **kwargs: object) -> None:
         """Stub — the real finalizer needs tabbar/panel widgets we don't have."""
