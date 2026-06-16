@@ -220,7 +220,7 @@ class VimVisualModeMixin(VimNormalOpsMixin):
         if not bar:
             return
         title_mode = "[V-LINE]" if self._visual_kind() == "linewise" else "[VISUAL]"
-        bar.border_title = f"{bar._base_title} {title_mode}"
+        bar._refresh_title(title_mode)
         subtitle = "[Esc] normal  [o] swap ends  [^C] cancel"
         if self._count_prefix:
             subtitle += f"  {self._count_prefix}"

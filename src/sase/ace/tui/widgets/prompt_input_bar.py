@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from rich.cells import cell_len
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.dom import NoScreen
@@ -28,6 +30,51 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 # Inactive panes never grow past this many content rows so the active pane
 # keeps the room.  Phase 2 height rule: active grows most, inactive compact.
 _INACTIVE_PANE_MAX_ROWS = 4
+_STACK_SEPARATOR_RULE = "─"
+_STACK_SEPARATOR_ACTIVE_MARKER = "▍"
+
+
+class _PromptStackSeparator(Static):
+    """Width-aware separator row for one prompt-stack pane."""
+
+    def __init__(
+        self, agent_number: int, *, active: bool = False, **kwargs: Any
+    ) -> None:
+        super().__init__("", **kwargs)
+        self.agent_number = agent_number
+        self.active = active
+
+    def set_active(self, active: bool) -> None:
+        """Update active state and refresh the rendered rule when it changes."""
+        if self.active == active:
+            return
+        self.active = active
+        self.refresh()
+
+    def render(self) -> Text:
+        """Render a centered agent label connected by full-width hairline rules."""
+        width = max(0, int(self.size.width))
+        label = f"agent {self.agent_number}"
+        if self.active:
+            label = f"{_STACK_SEPARATOR_ACTIVE_MARKER} {label}"
+        padded_label = f" {label} "
+        label_width = cell_len(padded_label)
+        label_style = "bold" if self.active else "dim"
+
+        if width <= label_width:
+            text = Text(padded_label.strip(), no_wrap=True, overflow="ellipsis")
+            text.truncate(width, overflow="ellipsis")
+            text.stylize(label_style)
+            return text
+
+        rule_width = width - label_width
+        left_width = rule_width // 2
+        right_width = rule_width - left_width
+        text = Text(no_wrap=True, overflow="crop")
+        text.append(_STACK_SEPARATOR_RULE * left_width, style="dim")
+        text.append(padded_label, style=label_style)
+        text.append(_STACK_SEPARATOR_RULE * right_width, style="dim")
+        return text
 
 
 class PromptInputBar(
@@ -157,6 +204,17 @@ class PromptInputBar(
             return "Coder Prompt"
         return "Prompt"
 
+    def _refresh_title(self, mode_suffix: str = "") -> None:
+        """Refresh the border title, including stack count in prompt stacks."""
+        title = self._base_title
+        if self._mode == "prompt" and len(self._stack) > 1:
+            title = f"{title} · {len(self._stack)} agents"
+        if mode_suffix:
+            # Border titles parse Rich markup; escape literal mode brackets.
+            mode_suffix = mode_suffix.replace("[", "\\[")
+            title = f"{title} {mode_suffix}"
+        self.border_title = title
+
     def insert_mode_subtitle(self) -> str:
         """Return the insert-mode subtitle, advertising the stack when stacked.
 
@@ -209,7 +267,7 @@ class PromptInputBar(
         self._cursor_to_end(text_area)
 
         # Border title and subtitle
-        self.border_title = self._base_title
+        self._refresh_title()
         self.set_prompt_mode_subtitle(self.insert_mode_subtitle())
         if self._mode in ("feedback", "approve_prompt"):
             self.add_class("feedback-mode")
@@ -252,8 +310,9 @@ class PromptInputBar(
                 active = index == self._stack.selected_index
                 state = "active" if active else "inactive"
                 widgets.append(
-                    Static(
-                        f"agent {index + 1}",
+                    _PromptStackSeparator(
+                        index + 1,
+                        active=active,
                         id=self._sep_id(item),
                         classes=f"prompt-stack-separator {state}",
                     )
@@ -291,6 +350,7 @@ class PromptInputBar(
         splitting drops them into the new pane ready to type.
         """
         self._generation += 1
+        self._refresh_title()
         try:
             container = self.query_one("#prompt-stack", Vertical)
         except Exception:
@@ -310,6 +370,7 @@ class PromptInputBar(
         text_area._warm_current_xprompt_assist_entries()
         text_area._on_prompt_completion_context_changed()
         self._apply_active_classes()
+        self._refresh_title()
         if enter_mode == "normal":
             text_area._enter_normal_mode()
         elif enter_mode == "insert":
@@ -339,11 +400,14 @@ class PromptInputBar(
             if not multi:
                 continue
             try:
-                separator = self.query_one(f"#{self._sep_id(item)}", Static)
+                separator = self.query_one(
+                    f"#{self._sep_id(item)}", _PromptStackSeparator
+                )
             except Exception:
                 continue
             separator.set_class(active, "active")
             separator.set_class(not active, "inactive")
+            separator.set_active(active)
 
     # -- stack-aware public API ----------------------------------------------
 
@@ -405,6 +469,7 @@ class PromptInputBar(
         self._stack.focus(index)
         self._apply_active_classes()
         self.active_text_area().focus()
+        self._refresh_title()
         self._schedule_height_update()
         return self._stack.selected_index
 

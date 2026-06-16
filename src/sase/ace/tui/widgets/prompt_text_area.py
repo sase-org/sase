@@ -274,7 +274,7 @@ class PromptTextArea(
         self.highlight_cursor_line = True
         bar = self._find_prompt_bar()
         if bar:
-            bar.border_title = f"{bar._base_title} [NORMAL]"
+            bar._refresh_title("[NORMAL]")
             bar.set_prompt_mode_subtitle(bar.normal_mode_subtitle())
 
     def _enter_insert_mode(self) -> None:
@@ -288,7 +288,7 @@ class PromptTextArea(
         self.highlight_cursor_line = False
         bar = self._find_prompt_bar()
         if bar:
-            bar.border_title = bar._base_title
+            bar._refresh_title()
             bar.set_prompt_mode_subtitle(bar.insert_mode_subtitle())
 
     async def _on_key(self, event: Key) -> None:

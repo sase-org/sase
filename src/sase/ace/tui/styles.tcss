@@ -1213,31 +1213,39 @@ PromptInputBar .prompt-input.solo:focus {
    border rows that would shrink each pane's content by two rows. */
 PromptInputBar .prompt-pane {
     border: none;
-    border-left: thick $surface-lighten-2;
+    border-left: thick $accent 30%;
     padding: 0 0 0 1;
     margin: 0;
 }
 
 PromptInputBar .prompt-pane.active {
     border-left: thick $accent;
+    background: $surface;
+}
+
+PromptInputBar .prompt-pane.active:focus {
+    background: $surface;
 }
 
 PromptInputBar .prompt-pane.inactive {
+    background: $background;
     color: $text-muted;
 }
 
-/* Separator rows: a quiet, centered agent label above each pane. */
+/* Separator rows: width-aware hairline rules with centered agent labels. */
 PromptInputBar .prompt-stack-separator {
     width: 100%;
     height: 1;
     text-align: center;
-    text-style: dim;
     color: $text-muted;
+}
+
+PromptInputBar .prompt-stack-separator.inactive {
+    text-style: dim;
 }
 
 PromptInputBar .prompt-stack-separator.active {
     color: $accent;
-    text-style: bold;
 }
 
 PromptInputBar.feedback-mode {

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-15 20:52:12
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_stack_visual_polish.md
 ---
 # Plan: Make the Stacked Prompt Input Widgets Beautiful

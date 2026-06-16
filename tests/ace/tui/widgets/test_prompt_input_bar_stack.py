@@ -101,6 +101,32 @@ async def test_initial_separators_render_stacked_panes() -> None:
         assert "active" in bar.active_text_area().classes
 
 
+async def test_stack_title_and_separator_surface_agent_count() -> None:
+    app = _PromptBarApp("first\n---\nsecond")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        assert bar.border_title == "Prompt · 2 agents"
+
+        separators = list(app.query(".prompt-stack-separator"))
+        assert len(separators) == 2
+        active_render = separators[1].render()
+        assert "▍ agent 2" in active_render.plain
+        assert active_render.plain.startswith("─")
+        assert active_render.plain.endswith("─")
+
+        bar.active_text_area()._enter_normal_mode()
+        assert bar.border_title == "Prompt · 2 agents [NORMAL]"
+
+        bar.load_stack_from_text("collapsed")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar.border_title == "Prompt"
+
+
 async def test_panes_have_unique_ids() -> None:
     app = _PromptBarApp("a\n---\nb\n---\nc")
 
