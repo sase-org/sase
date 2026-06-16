@@ -142,6 +142,12 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Print the wave plan and rendered multi-prompt without mutating state or launching",
     )
     bead_work_parser.add_argument(
+        "-P",
+        "--no-push",
+        action="store_true",
+        help="Commit launched bead state locally but skip the post-commit git push",
+    )
+    bead_work_parser.add_argument(
         "-y",
         "--yes",
         action="store_true",

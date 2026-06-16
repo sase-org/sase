@@ -6,7 +6,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.bead.cli_common import get_project
 from sase.bead.model import BeadTier, IssueType, Status
@@ -14,6 +14,8 @@ from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 from sase.core.paths import sase_projects_dir
 
 if TYPE_CHECKING:
+    from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.agent.launch_types import AgentLaunchResult
     from sase.bead.work import (
         ChangeSpecLaunchContext,
         EpicWorkPlan,
@@ -22,16 +24,37 @@ if TYPE_CHECKING:
     )
 
 
+BEAD_WORK_TIMING_ENV = "SASE_BEAD_WORK_TIMING"
+
+
+def _make_bead_work_timer(bead_id: str, *, dry_run: bool) -> Any:
+    """Build a launch timer promoted to info logs by ``SASE_BEAD_WORK_TIMING``."""
+    from sase.agent.launch_timing import LaunchTimingRecorder
+
+    return LaunchTimingRecorder(
+        "bead_work",
+        {"bead_id": bead_id, "dry_run": dry_run},
+        info_env_vars=(BEAD_WORK_TIMING_ENV,),
+    )
+
+
 def handle_bead_work(args: argparse.Namespace) -> None:
+    import contextlib
+
     dry_run = bool(getattr(args, "dry_run", False))
     yes = bool(getattr(args, "yes", False))
+    no_push = bool(getattr(args, "no_push", False))
 
-    with get_project() as proj:
-        try:
-            issue = proj.show(args.id)
-        except KeyError:
-            print(f"Error: issue not found: {args.id}", file=sys.stderr)
-            sys.exit(1)
+    timer = _make_bead_work_timer(args.id, dry_run=dry_run)
+    with timer, contextlib.ExitStack() as stack:
+        with timer.stage("project_open"):
+            proj = stack.enter_context(get_project())
+        with timer.stage("initial_show"):
+            try:
+                issue = proj.show(args.id)
+            except KeyError:
+                print(f"Error: issue not found: {args.id}", file=sys.stderr)
+                sys.exit(1)
         if issue.issue_type != IssueType.PLAN:
             print(
                 f"Error: is_ready_to_work only applies to plan beads "
@@ -40,10 +63,14 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             )
             sys.exit(1)
         if issue.tier == BeadTier.EPIC:
-            _handle_epic_bead_work(proj, args.id, dry_run=dry_run, yes=yes)
+            _handle_epic_bead_work(
+                proj, args.id, dry_run=dry_run, yes=yes, no_push=no_push, timer=timer
+            )
             return
         if issue.tier == BeadTier.LEGEND:
-            _handle_legend_bead_work(proj, args.id, dry_run=dry_run, yes=yes)
+            _handle_legend_bead_work(
+                proj, args.id, dry_run=dry_run, yes=yes, no_push=no_push, timer=timer
+            )
             return
 
         tier = issue.tier.value if issue.tier else "missing tier"
@@ -55,12 +82,42 @@ def handle_bead_work(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _launch_bead_work_agents(
+    query: str,
+    *,
+    segment_extra_env: tuple[dict[str, str], ...],
+    expected_names: set[str],
+    launch_context: VCSLaunchContext | None,
+) -> list[AgentLaunchResult]:
+    """Launch the rendered bead-work multi-prompt.
+
+    When a VCS/ChangeSpec launch context was resolved (every segment carries an
+    explicit ``#<workflow>:<ref>`` prefix), dispatch through the fast planned
+    adapter that skips generic fan-out discovery. Otherwise fall back to the
+    generic CWD launcher, which resolves project context from the workspace.
+    """
+    from sase.agent import launcher as _launcher
+
+    if launch_context is None:
+        return [
+            _launcher.launch_agent_from_cwd(query, segment_extra_env=segment_extra_env)
+        ]
+    return _launcher.launch_planned_bead_work_agents(
+        segments=query.split("\n---\n"),
+        segment_extra_env=segment_extra_env,
+        expected_names=expected_names,
+        project_name=launch_context.project_name,
+    )
+
+
 def _handle_epic_bead_work(
     proj: BeadProject,
     epic_id: str,
     *,
     dry_run: bool,
     yes: bool,
+    no_push: bool,
+    timer: LaunchTimingRecorder,
 ) -> None:
     from sase.bead.work import (
         ChangeSpecLaunchContext,
@@ -75,41 +132,45 @@ def _handle_epic_bead_work(
         resolve_work_phase_xprompt,
     )
 
-    try:
-        work_phase_xprompt = resolve_work_phase_xprompt()
-        land_epic_xprompt = resolve_land_epic_xprompt()
-    except (BeadXPromptNotFoundError, ValueError) as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+    with timer.stage("xprompt_lookup"):
+        try:
+            work_phase_xprompt = resolve_work_phase_xprompt()
+            land_epic_xprompt = resolve_land_epic_xprompt()
+        except (BeadXPromptNotFoundError, ValueError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
 
     issue = proj.show(epic_id)
-    try:
-        plan = build_epic_work_plan_from_beads_dir(proj.beads_dir, epic_id)
-    except EpicPlanError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+    with timer.stage("work_plan_build"):
+        try:
+            plan = build_epic_work_plan_from_beads_dir(proj.beads_dir, epic_id)
+        except EpicPlanError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
 
     vcs_context: VCSLaunchContext | None = None
     changespec_context: ChangeSpecLaunchContext | None = None
-    if issue.changespec_name:
-        try:
-            changespec_context = resolve_changespec_launch_context(
-                changespec_name=issue.changespec_name,
-                bug_id=issue.changespec_bug_id,
-            )
-        except ValueError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
-    else:
-        vcs_context = _resolve_vcs_launch_context()
+    with timer.stage("vcs_context"):
+        if issue.changespec_name:
+            try:
+                changespec_context = resolve_changespec_launch_context(
+                    changespec_name=issue.changespec_name,
+                    bug_id=issue.changespec_bug_id,
+                )
+            except ValueError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+        else:
+            vcs_context = _resolve_vcs_launch_context()
 
-    query = render_multi_prompt(
-        plan,
-        work_phase_xprompt=work_phase_xprompt,
-        land_epic_xprompt=land_epic_xprompt,
-        vcs_context=vcs_context,
-        changespec_context=changespec_context,
-    )
+    with timer.stage("prompt_render"):
+        query = render_multi_prompt(
+            plan,
+            work_phase_xprompt=work_phase_xprompt,
+            land_epic_xprompt=land_epic_xprompt,
+            vcs_context=vcs_context,
+            changespec_context=changespec_context,
+        )
 
     if issue.is_ready_to_work:
         print(f"Epic {epic_id} is already ready; retrying remaining non-closed phases.")
@@ -125,49 +186,55 @@ def _handle_epic_bead_work(
         print("Aborted.")
         return
 
-    try:
-        query = _prepare_bead_work_force_reuse(
-            query,
-            expected_names=expected_agent_names(plan),
-            extra_cleanup_names=_legacy_epic_cleanup_names(plan),
-        )
-    except _ForcedReuseCleanupError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    marked_ready_this_run = False
-    if not issue.is_ready_to_work:
+    with timer.stage("force_reuse_cleanup"):
         try:
-            proj.mark_ready_to_work(epic_id)
-            marked_ready_this_run = True
-        except AlreadyReadyError:
-            marked_ready_this_run = False
-        except (KeyError, NotAPlanError) as e:
+            query = _prepare_bead_work_force_reuse(
+                query,
+                expected_names=expected_agent_names(plan),
+                extra_cleanup_names=_legacy_epic_cleanup_names(plan),
+            )
+        except _ForcedReuseCleanupError as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
 
+    marked_ready_this_run = False
+    if not issue.is_ready_to_work:
+        with timer.stage("mark_ready"):
+            try:
+                proj.mark_ready_to_work(epic_id)
+                marked_ready_this_run = True
+            except AlreadyReadyError:
+                marked_ready_this_run = False
+            except (KeyError, NotAPlanError) as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+
     claimed: list[tuple[str, Status, str]] = []
-    try:
-        claimed = proj.preclaim_epic_work(
-            epic_id,
-            [
-                (assignment.bead_id, assignment.agent_name)
-                for wave in plan.waves
-                for assignment in wave
-            ],
-        )
-    except (KeyError, ValueError) as e:
-        print(f"Error: pre-claim failed for epic {epic_id}: {e}", file=sys.stderr)
-        rollback_work_launch(proj, epic_id, claimed, unmark_ready=marked_ready_this_run)
-        sys.exit(1)
+    with timer.stage("preclaim"):
+        try:
+            claimed = proj.preclaim_epic_work(
+                epic_id,
+                [
+                    (assignment.bead_id, assignment.agent_name)
+                    for wave in plan.waves
+                    for assignment in wave
+                ],
+            )
+        except (KeyError, ValueError) as e:
+            print(f"Error: pre-claim failed for epic {epic_id}: {e}", file=sys.stderr)
+            rollback_work_launch(
+                proj, epic_id, claimed, unmark_ready=marked_ready_this_run
+            )
+            sys.exit(1)
 
     try:
-        from sase.agent import launcher as _launcher
-
-        result = _launcher.launch_agent_from_cwd(
-            query,
-            segment_extra_env=epic_work_segment_env(plan),
-        )
+        with timer.stage("agent_launch"):
+            results = _launch_bead_work_agents(
+                query,
+                segment_extra_env=epic_work_segment_env(plan),
+                expected_names=expected_agent_names(plan),
+                launch_context=changespec_context or vcs_context,
+            )
     except Exception as e:
         print(
             f"Error: agent launch failed for epic {epic_id}: {e}\n"
@@ -187,13 +254,15 @@ def _handle_epic_bead_work(
     agent_count = sum(len(w) for w in plan.waves) + 1
     print(
         f"✓ Launched {agent_count} agents for epic {epic_id} — {issue.title} "
-        f"(workspace {result.workspace_num})"
+        f"(workspace {results[0].workspace_num})"
     )
     _commit_successful_work_launch(
         proj.beads_dir,
         epic_id,
         issue.title,
         kind="epic",
+        no_push=no_push,
+        timer=timer,
     )
 
 
@@ -203,6 +272,8 @@ def _handle_legend_bead_work(
     *,
     dry_run: bool,
     yes: bool,
+    no_push: bool,
+    timer: LaunchTimingRecorder,
 ) -> None:
     from sase.bead.work import (
         LegendPlanError,
@@ -215,26 +286,30 @@ def _handle_legend_bead_work(
         resolve_land_legend_xprompt,
     )
 
-    try:
-        land_legend_xprompt = resolve_land_legend_xprompt()
-    except (BeadXPromptNotFoundError, ValueError) as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+    with timer.stage("xprompt_lookup"):
+        try:
+            land_legend_xprompt = resolve_land_legend_xprompt()
+        except (BeadXPromptNotFoundError, ValueError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
 
     issue = proj.show(legend_id)
-    try:
-        plan = build_legend_work_plan_from_beads_dir(proj.beads_dir, legend_id)
-    except LegendPlanError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+    with timer.stage("work_plan_build"):
+        try:
+            plan = build_legend_work_plan_from_beads_dir(proj.beads_dir, legend_id)
+        except LegendPlanError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
 
-    vcs_context = _resolve_vcs_launch_context()
+    with timer.stage("vcs_context"):
+        vcs_context = _resolve_vcs_launch_context()
 
-    query = render_legend_multi_prompt(
-        plan,
-        land_legend_xprompt=land_legend_xprompt,
-        vcs_context=vcs_context,
-    )
+    with timer.stage("prompt_render"):
+        query = render_legend_multi_prompt(
+            plan,
+            land_legend_xprompt=land_legend_xprompt,
+            vcs_context=vcs_context,
+        )
 
     if issue.is_ready_to_work:
         print(f"Legend {legend_id} is already ready; retrying epic agent launch.")
@@ -250,33 +325,36 @@ def _handle_legend_bead_work(
         print("Aborted.")
         return
 
-    try:
-        query = _prepare_bead_work_force_reuse(
-            query,
-            expected_names=_expected_legend_agent_names(plan),
-        )
-    except _ForcedReuseCleanupError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    marked_ready_this_run = False
-    if not issue.is_ready_to_work:
+    with timer.stage("force_reuse_cleanup"):
         try:
-            proj.mark_ready_to_work(legend_id)
-            marked_ready_this_run = True
-        except AlreadyReadyError:
-            marked_ready_this_run = False
-        except (KeyError, NotAPlanError) as e:
+            query = _prepare_bead_work_force_reuse(
+                query,
+                expected_names=_expected_legend_agent_names(plan),
+            )
+        except _ForcedReuseCleanupError as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
 
-    try:
-        from sase.agent import launcher as _launcher
+    marked_ready_this_run = False
+    if not issue.is_ready_to_work:
+        with timer.stage("mark_ready"):
+            try:
+                proj.mark_ready_to_work(legend_id)
+                marked_ready_this_run = True
+            except AlreadyReadyError:
+                marked_ready_this_run = False
+            except (KeyError, NotAPlanError) as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
 
-        result = _launcher.launch_agent_from_cwd(
-            query,
-            segment_extra_env=legend_work_segment_env(plan),
-        )
+    try:
+        with timer.stage("agent_launch"):
+            results = _launch_bead_work_agents(
+                query,
+                segment_extra_env=legend_work_segment_env(plan),
+                expected_names=_expected_legend_agent_names(plan),
+                launch_context=vcs_context,
+            )
     except Exception as e:
         print(
             f"Error: agent launch failed for legend {legend_id}: {e}\n"
@@ -297,13 +375,15 @@ def _handle_legend_bead_work(
     print(
         f"✓ Launched {agent_count} agents for legend {legend_id} — "
         f"{issue.title} ({epic_agent_count} epic-planning, 1 land; "
-        f"workspace {result.workspace_num})"
+        f"workspace {results[0].workspace_num})"
     )
     _commit_successful_work_launch(
         proj.beads_dir,
         legend_id,
         issue.title,
         kind="legend",
+        no_push=no_push,
+        timer=timer,
     )
 
 
@@ -459,48 +539,82 @@ def confirm_launch() -> bool:
     return answer in ("y", "yes")
 
 
+def _resolve_push_mode(no_push: bool) -> str:
+    """Resolve the post-commit push mode: ``"sync"``, ``"async"`` or ``"off"``.
+
+    ``--no-push`` always wins. Otherwise ``bead.push_after_commit`` selects the
+    behavior: ``true`` (default) pushes synchronously, ``false`` skips the push,
+    and ``async`` launches a detached push helper so the command returns without
+    waiting on remote network/credential latency. Unknown string values fall
+    back to the conservative synchronous push.
+    """
+    if no_push:
+        return "off"
+
+    from sase.config import load_merged_config
+
+    raw = load_merged_config().get("bead", {}).get("push_after_commit", True)
+    if isinstance(raw, str):
+        normalized = raw.strip().lower()
+        if normalized == "async":
+            return "async"
+        if normalized in {"false", "no", "off", "0"}:
+            return "off"
+        return "sync"
+    return "sync" if bool(raw) else "off"
+
+
 def _commit_successful_work_launch(
     beads_dir: Path,
     bead_id: str,
     title: str,
     *,
     kind: str,
+    no_push: bool,
+    timer: LaunchTimingRecorder,
 ) -> None:
     from sase.bead.sync import (
         BeadWorkLaunchCommitError,
         commit_bead_work_launch,
         push_bead_work_launch,
+        push_bead_work_launch_async,
     )
-    from sase.config import load_merged_config
 
-    try:
-        committed = commit_bead_work_launch(beads_dir, bead_id, title, kind=kind)
-    except BeadWorkLaunchCommitError as exc:
-        print(
-            f"Error: agents launched for {kind} {bead_id}, but committing "
-            f"bead state failed: {exc}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    with timer.stage("commit"):
+        try:
+            committed = commit_bead_work_launch(beads_dir, bead_id, title, kind=kind)
+        except BeadWorkLaunchCommitError as exc:
+            print(
+                f"Error: agents launched for {kind} {bead_id}, but committing "
+                f"bead state failed: {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     if not committed:
         return
 
-    push_enabled = bool(
-        load_merged_config().get("bead", {}).get("push_after_commit", True)
-    )
+    push_mode = _resolve_push_mode(no_push)
     suffix = ""
-    if push_enabled:
-        outcome = push_bead_work_launch(beads_dir)
-        if outcome.pushed:
-            suffix = " Pushed to remote."
-        elif outcome.error is not None:
-            print(
-                f"Warning: committed bead state for {kind} {bead_id}, "
-                f"but {outcome.error}. Push manually with "
-                f"`cd {beads_dir.parent.parent} && git push`.",
-                file=sys.stderr,
-            )
+    with timer.stage("push", mode=push_mode):
+        if push_mode == "sync":
+            outcome = push_bead_work_launch(beads_dir)
+            if outcome.pushed:
+                suffix = " Pushed to remote."
+            elif outcome.error is not None:
+                print(
+                    f"Warning: committed bead state for {kind} {bead_id}, "
+                    f"but {outcome.error}. Push manually with "
+                    f"`cd {beads_dir.parent.parent} && git push`.",
+                    file=sys.stderr,
+                )
+        elif push_mode == "async":
+            handle = push_bead_work_launch_async(beads_dir)
+            if handle is not None:
+                suffix = (
+                    f" Pushing to remote in the background (pid {handle.pid}); "
+                    f"output logged to {handle.log_path}."
+                )
     print(f"Committed bead state for {kind} {bead_id}.{suffix}")
 
 

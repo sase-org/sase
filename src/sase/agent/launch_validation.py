@@ -138,7 +138,7 @@ def validate_launch_name_requests(
 
     from sase.agent.names import (
         agent_name_allocation_lock,
-        is_name_reserved,
+        get_reserved_agent_names,
         parse_agent_name_template,
         render_agent_name_template,
         lowest_name_suggestion,
@@ -146,6 +146,12 @@ def validate_launch_name_requests(
     from sase.agent.names import InvalidAgentNameTemplateError
 
     seen: set[str] = set()
+    # Load the reserved-name set once per launch instead of per explicit name.
+    # ``is_name_reserved`` reloads the registry (and re-runs O(entries) stale-owner
+    # checks) on every call, so a multi-prompt launch with N explicit names paid
+    # that cost N times. Computing the set once under the allocation lock keeps the
+    # same collision contract while making validation independent of segment count.
+    reserved_names: set[str] | None = None
     with agent_name_allocation_lock():
         for request in requests:
             if request.name_template:
@@ -167,7 +173,9 @@ def validate_launch_name_requests(
                 raise AgentNameReuseConfirmationRequiredError(request.name)
             if request.force_reuse:
                 continue
-            if request.name in seen or is_name_reserved(request.name):
+            if reserved_names is None:
+                reserved_names = get_reserved_agent_names()
+            if request.name in seen or request.name in reserved_names:
                 raise AgentNameLaunchCollisionError(
                     request.name, lowest_name_suggestion(request.name)
                 )

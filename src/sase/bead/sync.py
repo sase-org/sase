@@ -20,6 +20,14 @@ class _PushOutcome:
     error: str | None
 
 
+@dataclass(frozen=True)
+class _AsyncPushHandle:
+    """Bookkeeping for a detached ``git push`` started in the background."""
+
+    pid: int
+    log_path: Path
+
+
 def git_sync(beads_dir: Path) -> None:
     """Stage bead state in git (does not commit)."""
     if not beads_dir.exists():
@@ -268,3 +276,46 @@ def push_bead_work_launch(beads_dir: Path) -> _PushOutcome:
         skipped_no_remote=False,
         error=f"git push failed with exit code {push.returncode}",
     )
+
+
+def _has_push_remote(repo_root: Path) -> bool:
+    remotes = subprocess.run(
+        ["git", "remote"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return remotes.returncode == 0 and bool(remotes.stdout.strip())
+
+
+def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
+    """Start a detached ``git push`` and return where its output is logged.
+
+    Returns ``None`` when there is no git repo or no configured remote (nothing
+    to push). Unlike :func:`push_bead_work_launch`, this never blocks the caller
+    on remote network/credential latency: the push runs in its own session with
+    its output captured to a log file so ``sase bead work`` can return as soon as
+    the agents are launched. Because it is detached, stdin is closed — a push
+    that needs interactive credentials will fail and record the failure in the
+    log rather than prompting.
+    """
+    repo_root = _find_git_root(beads_dir)
+    if repo_root is None or not _has_push_remote(repo_root):
+        return None
+
+    from sase.core.paths import ensure_sase_directory
+    from sase.core.time import generate_timestamp
+
+    log_dir = Path(ensure_sase_directory("bead_push_logs"))
+    log_path = log_dir / f"push-{generate_timestamp()}.log"
+    with open(log_path, "w", encoding="utf-8") as log_file:
+        process = subprocess.Popen(
+            ["git", "push"],
+            cwd=repo_root,
+            stdin=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    return _AsyncPushHandle(pid=process.pid, log_path=log_path)

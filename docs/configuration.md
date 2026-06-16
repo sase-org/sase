@@ -863,15 +863,16 @@ Configuration for the bead issue tracker.
 
 ```yaml
 bead:
-  push_after_commit: true # default: true
+  push_after_commit: true # default: true (also accepts false or async)
 ```
 
-| Field                    | Type | Default | Description                                                                                                                     |
-| ------------------------ | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `bead.push_after_commit` | bool | `true`  | When true, `sase bead work` runs `git push` after committing the bead-state event/projection mutation. Push failures only warn. |
+| Field                    | Type        | Default | Description                                                                                                                                                                                                                                                                                        |
+| ------------------------ | ----------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bead.push_after_commit` | bool or str | `true`  | Controls the post-commit `git push` after `sase bead work`. `true` pushes synchronously (failures only warn); `false` skips the push; `async` launches a detached background push and returns immediately, logging the result to a file. `sase bead work --no-push` overrides this per-invocation. |
 
 Set to `false` for local-only checkouts, or when you would rather batch the bead-launch commit with later commits before
-pushing. See [`docs/beads.md`](beads.md#sase-bead-work-id) for the full `sase bead work` flow.
+pushing. Set to `async` to keep auto-pushing without blocking the command on remote network/credential latency. See
+[`docs/beads.md`](beads.md#sase-bead-work-id) for the full `sase bead work` flow.
 
 Source: `src/sase/default_config.yml`
 

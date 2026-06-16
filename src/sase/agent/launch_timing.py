@@ -12,10 +12,14 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
+_DEFAULT_TIMING_ENV = "SASE_AGENT_LAUNCH_TIMING"
+_TRUTHY = {"1", "true", "yes", "on"}
 
-def _timing_info_enabled() -> bool:
-    value = os.environ.get("SASE_AGENT_LAUNCH_TIMING", "")
-    return value.lower() in {"1", "true", "yes", "on"}
+
+def _timing_info_enabled(
+    env_vars: tuple[str, ...] = (_DEFAULT_TIMING_ENV,),
+) -> bool:
+    return any(os.environ.get(var, "").lower() in _TRUTHY for var in env_vars)
 
 
 @dataclass
@@ -24,16 +28,19 @@ class LaunchTimingRecorder:
 
     Debug logging is always emitted when the logger is configured for it.
     Setting ``SASE_AGENT_LAUNCH_TIMING=1`` promotes the same structured
-    records to info-level logs for ad hoc profiling.
+    records to info-level logs for ad hoc profiling. Callers that want a
+    separate profiling switch (for example ``sase bead work``) pass their own
+    ``info_env_vars`` so a dedicated env var also promotes the records.
     """
 
     operation: str
     fields: dict[str, Any] = field(default_factory=dict)
+    info_env_vars: tuple[str, ...] = (_DEFAULT_TIMING_ENV,)
 
     def __post_init__(self) -> None:
         self._start = time.perf_counter()
         self._stages: list[dict[str, Any]] = []
-        self._info_enabled = _timing_info_enabled()
+        self._info_enabled = _timing_info_enabled(self.info_env_vars)
 
     def __enter__(self) -> LaunchTimingRecorder:
         return self

@@ -115,6 +115,85 @@ def test_work_skips_push_when_config_flag_disabled(
     assert "Pushed to remote." not in out
 
 
+def test_work_no_push_flag_overrides_config(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, _ = seed_diamond(project_dir)
+
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: True,
+    )
+    # Config asks for a push, but --no-push wins for this invocation.
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"bead": {"push_after_commit": True}},
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda beads_dir: pytest.fail("--no-push must skip the push"),
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch_async",
+        lambda beads_dir: pytest.fail("--no-push must skip the push"),
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True, no_push=True))
+
+    out = capsys.readouterr().out
+    assert f"Committed bead state for epic {epic_id}." in out
+    assert "Pushed to remote." not in out
+    assert "background" not in out
+
+
+def test_work_async_push_launches_detached_helper(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.bead.sync import _AsyncPushHandle
+
+    epic_id, _ = seed_diamond(project_dir)
+    async_calls: list[Path] = []
+
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"bead": {"push_after_commit": "async"}},
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda beads_dir: pytest.fail("async mode must not push synchronously"),
+    )
+
+    def fake_async(beads_dir: Path) -> _AsyncPushHandle:
+        async_calls.append(beads_dir)
+        return _AsyncPushHandle(pid=4321, log_path=Path("/tmp/push-test.log"))
+
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch_async", fake_async)
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    assert async_calls == [project_dir / "sdd/beads"]
+    out = capsys.readouterr().out
+    assert f"Committed bead state for epic {epic_id}." in out
+    assert "background" in out
+    assert "/tmp/push-test.log" in out
+
+
 def test_work_warns_when_push_fails(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

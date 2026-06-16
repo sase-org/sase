@@ -335,10 +335,17 @@ workspace:
   cleanup_ttl_days: 14
 
 bead:
-  # When true, run `git push` after `sase bead work` successfully commits the
-  # sdd/beads bead-state mutation, including canonical events and compatibility
-  # projections. Push failures only warn — the local commit is preserved and
-  # the user can push manually later.
+  # Controls the post-commit `git push` after `sase bead work` successfully
+  # commits the sdd/beads bead-state mutation (canonical events plus
+  # compatibility projections). Accepts:
+  #   true  - push synchronously (default); failures only warn and the local
+  #           commit is preserved so the user can push manually later.
+  #   false - never push; commit locally only.
+  #   async - launch a detached background `git push` so the command returns
+  #           without waiting on remote network/credential latency. The push
+  #           runs non-interactively; failures are written to a log file whose
+  #           path is printed. `sase bead work --no-push` overrides this to skip
+  #           the push for a single invocation.
   push_after_commit: true
 
 xprompt_aliases:

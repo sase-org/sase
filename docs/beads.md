@@ -350,7 +350,12 @@ rejected the update), the failure is reported as a warning only: the bead-launch
 and the warning text includes the manual `git push` invocation to retry.
 
 Set `bead.push_after_commit: false` in `~/.config/sase/sase.yml` to disable the auto-push — useful for local-only
-checkouts, or when you would rather batch the bead-launch commit with later commits before pushing.
+checkouts, or when you would rather batch the bead-launch commit with later commits before pushing. Set it to `async` to
+keep auto-pushing but move the push off the critical path: `sase bead work` launches a detached background `git push`
+and returns immediately, printing the log file where the background push records its result. The background push is
+non-interactive (its stdin is closed), so it cannot prompt for credentials; failures are written to that log instead of
+warning inline. Pass `--no-push` (`-P`) to `sase bead work` to skip the push for a single invocation regardless of the
+configured mode.
 
 ## Rust Backend
 

@@ -15,6 +15,7 @@ instead of ``python -m sase.main.entry`` from the current checkout.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import statistics
@@ -22,7 +23,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -294,12 +295,201 @@ def _preclaim_legacy(root: Path) -> None:
                 )
 
 
+@contextlib.contextmanager
+def _temp_sase_home(home: Path) -> Iterator[None]:
+    """Point ``sase_home()`` at *home* and reset the name-registry cache."""
+    import sase.agent.names._registry as reg
+
+    prev = os.environ.get("SASE_HOME")
+    os.environ["SASE_HOME"] = str(home)
+    reg._CACHE_PATH = None
+    reg._CACHE_DATA = None
+    reg._CACHE_SIGNATURE = None
+    try:
+        yield
+    finally:
+        if prev is None:
+            os.environ.pop("SASE_HOME", None)
+        else:
+            os.environ["SASE_HOME"] = prev
+        reg._CACHE_PATH = None
+        reg._CACHE_DATA = None
+        reg._CACHE_SIGNATURE = None
+
+
+@contextlib.contextmanager
+def _temp_cwd(path: Path) -> Iterator[None]:
+    prev = Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(prev)
+
+
+def _seed_name_registry(count: int) -> None:
+    """Write a registry file with *count* (non-stale) planned reservations.
+
+    Planned reservations never look owner-missing, so the seeded entries survive
+    the staleness check that ``load_name_registry`` runs on every read. This
+    floors the per-launch reserved-name lookup cost against registry size.
+    """
+    import sase.agent.names._registry as reg
+
+    entries = {
+        f"benchreg{i}": {"reservation_kind": "planned", "name": f"benchreg{i}"}
+        for i in range(count)
+    }
+    data = {
+        "schema_version": reg.SCHEMA_VERSION,
+        "source_signature": reg._source_signature(),
+        "entries": entries,
+    }
+    path = reg._registry_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+    reg._CACHE_PATH = None
+    reg._CACHE_DATA = None
+    reg._CACHE_SIGNATURE = None
+
+
+def _bench_name_validation(
+    *,
+    runs: int,
+    registry_sizes: list[int],
+    name_counts: list[int],
+) -> dict[str, dict[str, float]]:
+    """Floor ``validate_launch_name_requests`` against registry/name counts.
+
+    The one-load fix makes a launch's name validation independent of the number
+    of explicit names, so a large ``name_count`` should not scale with anything
+    but the single reserved-set load.
+    """
+    from sase.agent.launch_validation import validate_launch_name_requests
+
+    results: dict[str, dict[str, float]] = {}
+    for registry_size in registry_sizes:
+        for name_count in name_counts:
+            timings: list[float] = []
+            for _ in range(runs):
+                with tempfile.TemporaryDirectory(prefix="sase_bench_reg_") as td:
+                    with _temp_sase_home(Path(td)):
+                        _seed_name_registry(registry_size)
+                        prompts = [
+                            f"%name:benchval{i}\nDo work" for i in range(name_count)
+                        ]
+                        # Warm the registry cache the way a launch process would.
+                        validate_launch_name_requests(prompts)
+                        timings.append(
+                            _time_call(
+                                lambda p=prompts: validate_launch_name_requests(p)
+                            )
+                        )
+            results[f"reg{registry_size}_names{name_count}"] = _summarize(timings)
+    return results
+
+
+@contextlib.contextmanager
+def _patched_bead_work_launch() -> Iterator[None]:
+    """Patch the launcher/commit/push so ``handle_bead_work`` does no real work."""
+    from unittest.mock import patch
+
+    from sase.xprompt.workflow_models import Workflow
+
+    class _FakeResult:
+        pid = 1
+        workspace_num = 1
+
+    work_phase = Workflow(name="bd/work_phase_bead")
+    land_epic = Workflow(name="bd/land_epic")
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(
+            patch("sase.bead.workspace.resolve_primary_workspace", lambda: None)
+        )
+        stack.enter_context(
+            patch(
+                "sase.bead.xprompts.resolve_work_phase_xprompt",
+                lambda project=None: work_phase,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.bead.xprompts.resolve_land_epic_xprompt",
+                lambda project=None: land_epic,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.agent.launcher.launch_agent_from_cwd",
+                lambda *a, **k: _FakeResult(),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.agent.launcher.launch_planned_bead_work_agents",
+                lambda **k: [_FakeResult()],
+            )
+        )
+        stack.enter_context(
+            patch("sase.bead.sync.commit_bead_work_launch", lambda *a, **k: False)
+        )
+        stack.enter_context(
+            patch("sase.bead.sync.push_bead_work_launch", lambda beads_dir: None)
+        )
+        yield
+
+
+def _bench_handle_bead_work(
+    *,
+    runs: int,
+    phase_counts: list[int],
+    registry_sizes: list[int],
+) -> dict[str, dict[str, float]]:
+    """Floor the full parent ``handle_bead_work`` path (launcher/commit patched)."""
+    import io
+
+    from sase.bead import cli as bead_cli
+
+    results: dict[str, dict[str, float]] = {}
+    for phase_count in phase_counts:
+        for registry_size in registry_sizes:
+            timings: list[float] = []
+            for _ in range(runs):
+                with (
+                    tempfile.TemporaryDirectory(prefix="sase_bench_bw_") as proj_td,
+                    tempfile.TemporaryDirectory(prefix="sase_bench_home_") as home_td,
+                ):
+                    root = Path(proj_td) / "ws"
+                    root.mkdir()
+                    _write_work_plan_project(root, phase_count=phase_count)
+                    args = argparse.Namespace(
+                        id="work-1", dry_run=False, yes=True, no_push=True
+                    )
+                    with (
+                        _temp_sase_home(Path(home_td)),
+                        _temp_cwd(root),
+                        _patched_bead_work_launch(),
+                    ):
+                        _seed_name_registry(registry_size)
+                        buf = io.StringIO()
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
+                            timings.append(
+                                _time_call(lambda a=args: bead_cli.handle_bead_work(a))
+                            )
+            results[f"phases{phase_count}_reg{registry_size}"] = _summarize(timings)
+    return results
+
+
 def run_benchmark(
     *,
     runs: int,
     issue_count: int,
     dependency_count: int,
     sase_bin: str | None,
+    registry_sizes: list[int],
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="sase_bead_bench_") as td:
         root = Path(td) / "workspace"
@@ -316,10 +506,21 @@ def run_benchmark(
             "runs": runs,
             "issue_count": issue_count,
             "dependency_count": dependency_count,
+            "registry_sizes": registry_sizes,
             "shell": _bench_shell(root, runs=runs, sase_bin=sase_bin),
             "project": _bench_project(root, runs=runs),
             "work_plan": _bench_work_plan(work_root, runs=runs),
             "preclaim_epic_work": _bench_preclaim_epic_work(runs=runs),
+            "name_validation": _bench_name_validation(
+                runs=runs,
+                registry_sizes=registry_sizes,
+                name_counts=[1, 5, 20],
+            ),
+            "handle_bead_work": _bench_handle_bead_work(
+                runs=runs,
+                phase_counts=[5, 20],
+                registry_sizes=registry_sizes,
+            ),
         }
 
 
@@ -329,14 +530,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--issues", type=int, default=399)
     parser.add_argument("--dependencies", type=int, default=200)
     parser.add_argument("--sase-bin")
+    parser.add_argument(
+        "--registry-sizes",
+        default="0,500",
+        help="Comma-separated agent-name registry sizes to floor launch costs against",
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
 
+    registry_sizes = [
+        int(value) for value in args.registry_sizes.split(",") if value.strip()
+    ]
     results = run_benchmark(
         runs=args.runs,
         issue_count=args.issues,
         dependency_count=args.dependencies,
         sase_bin=args.sase_bin,
+        registry_sizes=registry_sizes,
     )
     payload = json.dumps(results, indent=2, sort_keys=True)
     if args.output:

@@ -58,6 +58,23 @@ def test_forced_reuse_requires_confirmation_on_non_tui_surfaces() -> None:
         validate_launch_name_requests(["%name:!foo\nDo work"])
 
 
+def test_validation_loads_reserved_name_set_once_for_many_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The reserved-name set is loaded once per launch, not once per name."""
+    calls = {"count": 0}
+
+    def counting_reserved() -> set[str]:
+        calls["count"] += 1
+        return set()
+
+    monkeypatch.setattr("sase.agent.names.get_reserved_agent_names", counting_reserved)
+
+    validate_launch_name_requests([f"%name:agent{i}\nDo work" for i in range(8)])
+
+    assert calls["count"] == 1
+
+
 def test_user_agent_names_cannot_contain_reserved_family_separator() -> None:
     validate_user_agent_name("foo-bar")
     with pytest.raises(AgentNameSyntaxError, match="cannot contain '--'"):

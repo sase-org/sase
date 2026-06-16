@@ -7,6 +7,7 @@ the historical ``sase.agent.launcher`` import and monkeypatch paths stable.
 from sase.agent.launch_cwd import (
     launch_agent_from_cwd,
     launch_agents_from_cwd,
+    launch_planned_bead_work_agents,
     resolve_known_project_vcs_launch_ref,
 )
 from sase.agent.launch_projects import (
@@ -23,6 +24,7 @@ __all__ = [
     "activate_known_project_vcs_refs_for_launch_prompt",
     "launch_agent_from_cwd",
     "launch_agents_from_cwd",
+    "launch_planned_bead_work_agents",
     "resolve_known_project_vcs_launch_ref",
     "rollback_partial_launch_results",
     "spawn_agent_subprocess",
