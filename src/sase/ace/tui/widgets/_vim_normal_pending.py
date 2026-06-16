@@ -33,6 +33,18 @@ class VimNormalPendingMixin(VimVisualModeMixin):
         self._clear_count_prefix()
         doc = self.document
 
+        if pending == "surround":
+            char = event.character
+            if char is None and event.key == "space":
+                char = " "
+            if char is None:
+                self._pending_surround_range = None
+                self._mutation_key_buffer.clear()
+            else:
+                self._apply_pending_surround(char)
+            self._update_count_display()
+            return True
+
         if pending == "g" and key in "uU~":
             self._pending_operator = f"g{key}"
             self._pending_operator_count = (

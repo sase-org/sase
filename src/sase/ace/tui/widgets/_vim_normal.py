@@ -31,6 +31,7 @@ class VimNormalModeMixin(VimNormalEditingMixin):
             self._pending_count = None
             self._pending_operator = ""
             self._pending_operator_count = 1
+            self._pending_surround_range = None
             self._clear_count_prefix()
             self._update_count_display()
             return True
@@ -46,6 +47,13 @@ class VimNormalModeMixin(VimNormalEditingMixin):
         has_count = bool(self._count_prefix)
         count = int(self._count_prefix) if self._count_prefix else 1
         self._clear_count_prefix()
+
+        if self._pending_operator == "y" and key == "s":
+            if has_count:
+                self._pending_operator_count *= count
+            self._pending_operator = "ys"
+            self._update_count_display()
+            return True
 
         if key == ".":
             if self._pending_operator:

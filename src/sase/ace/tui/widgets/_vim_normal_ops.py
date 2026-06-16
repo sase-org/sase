@@ -21,6 +21,20 @@ from sase.ace.tui.widgets._vim_transforms import (
     apply_indent_operator,
 )
 
+_SURROUND_PAIRS = {
+    '"': ('"', '"'),
+    "'": ("'", "'"),
+    "`": ("`", "`"),
+    "(": ("(", ")"),
+    ")": ("(", ")"),
+    "[": ("[", "]"),
+    "]": ("[", "]"),
+    "{": ("{", "}"),
+    "}": ("{", "}"),
+    "<": ("<", ">"),
+    ">": ("<", ">"),
+}
+
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 else:
@@ -42,6 +56,7 @@ class VimNormalOpsMixin(_MixinBase):
         _pending_count: int | None
         _pending_operator: str
         _pending_operator_count: int
+        _pending_surround_range: tuple[str, tuple[int, int], tuple[int, int]] | None
         _mutation_key_buffer: list[str]
         _last_mutation_keys: list[str]
         _replaying_dot: bool
@@ -58,6 +73,10 @@ class VimNormalOpsMixin(_MixinBase):
 
         def _handle_normal_mode_key(self, event: Key) -> bool: ...
 
+        def _absolute_offset(self, location: tuple[int, int]) -> int: ...
+
+        def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
+
     # -- Mixin implementation --
 
     def _is_case_operator(self, op: str) -> bool:
@@ -70,6 +89,8 @@ class VimNormalOpsMixin(_MixinBase):
 
     def _is_line_repeat_key(self, op: str, key: str) -> bool:
         """Return whether *key* completes an operator's linewise form."""
+        if op == "ys":
+            return key == "s"
         if op in {"d", "c", "y", ">", "<"}:
             return key == op
         return (op, key) in {("gu", "u"), ("gU", "U"), ("g~", "~")}
@@ -86,7 +107,10 @@ class VimNormalOpsMixin(_MixinBase):
             if self._pending_keys:
                 if self._pending_count is not None:
                     indicator += str(self._pending_count)
-                indicator += self._pending_keys
+                if self._pending_keys == "surround":
+                    indicator += "ys"
+                else:
+                    indicator += self._pending_keys
             if self._count_prefix:
                 indicator += self._count_prefix
             # Derive the base from the bar so a stacked prompt keeps advertising
@@ -163,6 +187,71 @@ class VimNormalOpsMixin(_MixinBase):
         """Store text in the internal unnamed Vim register."""
         self._vim_register = VimRegister(text=text, kind=kind)
 
+    def _surround_delimiters(self, key: str) -> tuple[str, str] | None:
+        """Return opening/closing delimiters for a vim-surround key."""
+        if len(key) != 1:
+            return None
+        return _SURROUND_PAIRS.get(key, (key, key))
+
+    def _queue_pending_surround_range(
+        self,
+        kind: str,
+        start: tuple[int, int],
+        end: tuple[int, int],
+    ) -> None:
+        """Remember a resolved ``ys`` target while waiting for a delimiter."""
+        if start > end:
+            start, end = end, start
+        if kind == "charwise" and start == end:
+            self._mutation_key_buffer.clear()
+            return
+        self._pending_surround_range = (kind, start, end)
+        self._pending_keys = "surround"
+        self._update_count_display()
+
+    def _apply_pending_surround(self, key: str) -> None:
+        """Wrap the pending ``ys`` target with the delimiter from *key*."""
+        target = self._pending_surround_range
+        self._pending_surround_range = None
+        delimiters = self._surround_delimiters(key)
+        if target is None or delimiters is None:
+            self._mutation_key_buffer.clear()
+            return
+
+        kind, start, end = target
+        if start > end:
+            start, end = end, start
+        text = self._get_text_in_range(start, end)
+        if not text:
+            self._mutation_key_buffer.clear()
+            return
+
+        open_delim, close_delim = delimiters
+        if kind == "charwise":
+            leading_len = len(text) - len(text.lstrip())
+            without_leading = text[leading_len:]
+            trailing_len = len(without_leading) - len(without_leading.rstrip())
+            core_end = len(without_leading) - trailing_len
+            leading = text[:leading_len]
+            core = without_leading[:core_end]
+            trailing = without_leading[core_end:]
+            if not core:
+                leading = ""
+                core = text
+                trailing = ""
+            replacement = f"{leading}{open_delim}{core}{close_delim}{trailing}"
+            cursor_offset = self._absolute_offset(start) + len(leading)
+        else:
+            replacement = f"{open_delim}{text}{close_delim}"
+            cursor_offset = self._absolute_offset(start)
+
+        self._record_mutation()
+        was_readonly = self.read_only
+        self.read_only = False
+        self._replace_via_keyboard(replacement, start, end)
+        self.read_only = was_readonly
+        self.cursor_location = self._location_from_absolute(cursor_offset)
+
     def _execute_charwise_operator(
         self,
         start: tuple[int, int],
@@ -172,6 +261,9 @@ class VimNormalOpsMixin(_MixinBase):
         """Execute a charwise vim operator over *start*..*end*."""
         if start > end:
             start, end = end, start
+        if op == "ys":
+            self._queue_pending_surround_range("charwise", start, end)
+            return
         if self._is_indent_operator(op):
             self._execute_linewise_transform_operator(start[0], end[0], op)
             return
@@ -260,6 +352,18 @@ class VimNormalOpsMixin(_MixinBase):
         op: str,
     ) -> None:
         """Execute a linewise operator on rows *first_row* .. *last_row*."""
+        if op == "ys":
+            doc = self.document
+            first_row = max(0, min(first_row, doc.line_count - 1))
+            last_row = max(0, min(last_row, doc.line_count - 1))
+            if first_row > last_row:
+                first_row, last_row = last_row, first_row
+            self._queue_pending_surround_range(
+                "linewise",
+                (first_row, 0),
+                (last_row, len(doc.get_line(last_row))),
+            )
+            return
         if self._is_indent_operator(op) or self._is_case_operator(op):
             self._execute_linewise_transform_operator(first_row, last_row, op)
             return
