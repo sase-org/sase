@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-16 09:24:16
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_agent_context_plan_feedback_label.md
 ---
 # Fix AGENT CONTEXT Labels for Plan Feedback Family Members

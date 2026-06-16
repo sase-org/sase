@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from sase.ace.tui.models.agent import Agent
 from sase.plan_chain import (
+    AGENT_FAMILY_SEPARATOR,
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
@@ -25,6 +26,9 @@ from sase.plan_chain import (
     canonical_plan_chain_suffix,
     plan_chain_feedback_round,
 )
+
+# Canonical prefix shared by phase-feedback suffixes (``--plan-0``, ``--plan-1``).
+_PLAN_FEEDBACK_SUFFIX_PREFIX = f"{PLAN_CHAIN_PLAN_SUFFIX}-"
 
 # Compact labels for canonical plan-chain role suffixes.
 _SUFFIX_LABELS = {
@@ -68,13 +72,22 @@ def _normalize_artifacts_dir(value: str | None) -> str | None:
         return value
 
 
+def _compact_suffix_label(suffix: str) -> str:
+    """Return a compact suffix label by stripping the leading ``--``."""
+    if suffix.startswith(AGENT_FAMILY_SEPARATOR):
+        return suffix[len(AGENT_FAMILY_SEPARATOR) :]
+    return suffix
+
+
 def _compact_role_label(agent: Agent) -> str:
     """Return a compact role label for *agent* within its family.
 
     Recognized plan-chain suffixes map to ``plan``/``q``/``coder``/``epic``/
-    ``legend``/``commit``; feedback rounds map to ``fbN``. Otherwise we fall
-    back to the family role, ``@agent_name``, the step name, or the display
-    name. The renderer is responsible for truncating long labels.
+    ``legend``/``commit``. Phase-feedback members carry a concrete suffix name
+    such as ``--plan-0`` and render as ``plan-0``; only legacy numeric feedback
+    rounds (``.2``/``-2``/``--2``) map to ``fbN``. Otherwise we fall back to the
+    family role, ``@agent_name``, the step name, or the display name. The
+    renderer is responsible for truncating long labels.
     """
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
     role = agent_family_role_for_suffix(
@@ -88,6 +101,8 @@ def _compact_role_label(agent: Agent) -> str:
     if role in {"epic", "legend", "commit"}:
         return role
     if suffix is not None:
+        if suffix.startswith(_PLAN_FEEDBACK_SUFFIX_PREFIX):
+            return _compact_suffix_label(suffix)
         feedback_round = plan_chain_feedback_round(
             suffix,
             agent_family_role=agent.agent_family_role,

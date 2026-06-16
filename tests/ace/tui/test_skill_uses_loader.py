@@ -375,6 +375,52 @@ def test_context_aggregates_family_with_role_labels(
     ]
 
 
+def test_context_labels_phase_feedback_member_by_suffix(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    plan_dir = tmp_path / "artifacts" / "plan"
+    feedback_dir = tmp_path / "artifacts" / "feedback"
+    plan_dir.mkdir(parents=True)
+    feedback_dir.mkdir(parents=True)
+
+    # The inherited root agent name is still in the environment, so the event
+    # records "alpha"; attribution is by the feedback follow-up artifacts dir.
+    events = [
+        _make_event(
+            skill_name="sase_memory_read",
+            timestamp="2026-06-14T10:05:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(feedback_dir),
+            use_id="feedback-use",
+        )
+    ]
+    _write_jsonl(skill_use_log_path("skill-uses-test"), events)
+
+    root = _make_agent(
+        artifacts_dir=plan_dir,
+        agent_name="alpha--plan",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-plan",
+        role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
+    )
+    feedback = _make_agent(
+        artifacts_dir=feedback_dir,
+        agent_name="alpha--plan-0",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100000-plan-0",
+        role_suffix=f"{PLAN_CHAIN_PLAN_SUFFIX}-0",
+    )
+    feedback.agent_family_role = "feedback"
+    root.followup_agents = [feedback]
+
+    result = load_skill_uses_for_agent_context(root)
+
+    # The phase-feedback member renders by its concrete suffix name, not fb2.
+    assert [(item.event.skill_name, item.agent_label) for item in result] == [
+        ("sase_memory_read", "plan-0"),
+    ]
+
+
 def test_context_artifacts_dir_mismatch_does_not_fall_back_to_name(
     fake_project: Path, tmp_path: Path
 ) -> None:
