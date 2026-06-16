@@ -259,6 +259,8 @@ def prune_prompts(
     Requires at least one predicate. ``dry_run`` computes the plan without
     mutating. A corrupt store aborts with :class:`PromptStoreCorruptError`.
     """
+    if keep is not None and keep < 0:
+        raise ValueError("keep must be greater than or equal to 0")
     if keep is None and before is None and not cancelled_only:
         raise ValueError("prune requires at least one of keep, before, cancelled_only")
 

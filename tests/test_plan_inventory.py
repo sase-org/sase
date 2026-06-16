@@ -18,6 +18,7 @@ from sase.core.agent_scan_wire import (
     AgentMetaWire,
     DoneMarkerWire,
 )
+from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 from sase.core.paths import sase_projects_dir, sharded_path
 from sase.core.time import get_timezone
 from sase.main import plan_inventory as plan_inventory_module
@@ -400,6 +401,37 @@ def test_plan_inventory_exact_timestamp_fallback_matches_recent_done_planner(
     assert payload["summary"]["proposed"] == 1
     assert payload["proposed"][0]["id_prefix"] == "abcdef12"
     scan_dirs.assert_called_once()
+
+
+def test_plan_inventory_exact_timestamp_fallback_finds_sharded_ace_artifact(
+    tmp_path: Path,
+) -> None:
+    timestamp = "20260612120000"
+    plan = _archived_plan("sharded-fallback.md", minutes_ago=5)
+    response_dir = _response_dir(tmp_path, "sharded-fallback")
+    _append_plan_notification(
+        "abcdef12-plan-notification",
+        plan,
+        response_dir,
+        minutes_ago=5,
+        agent_timestamp=timestamp,
+    )
+    artifact_dir = canonical_agent_artifact_path(
+        "demo",
+        "ace-run",
+        timestamp,
+        projects_root=sase_projects_dir(),
+    )
+    artifact_dir.mkdir(parents=True)
+
+    with patch(
+        "sase.ace.tui.models.agent_loader._scan_artifact_dirs_for_loader",
+        return_value=_done_plan_snapshot(timestamp=timestamp),
+    ) as scan_dirs:
+        payload = plan_inventory_to_json(build_plan_inventory())
+
+    assert payload["summary"]["proposed"] == 1
+    assert scan_dirs.call_args.args[0] == [artifact_dir]
 
 
 def test_lightweight_live_plan_loader_promotes_unreviewed_done_plan(

@@ -12,6 +12,7 @@ from sase.core.agent_scan_facade import (
     scan_agent_artifact_dirs,
     scan_agent_artifacts,
 )
+from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     AgentArtifactScanOptionsWire,
@@ -301,7 +302,12 @@ def _artifact_dirs_for_normalized_timestamps(normalized: set[str]) -> list[Path]
             if not workflow_dir.is_dir():
                 continue
             for timestamp in normalized:
-                candidate = workflow_dir / timestamp
+                candidate = resolve_agent_artifact_timestamp_path(
+                    project_dir.name,
+                    workflow_dir.name,
+                    timestamp,
+                    projects_root=projects_dir,
+                )
                 if candidate.is_dir():
                     artifact_dirs.append(candidate)
     return artifact_dirs

@@ -232,6 +232,21 @@ def test_prune_requires_a_predicate(history_file: Path) -> None:
         prune_prompts()
 
 
+def test_prune_rejects_negative_keep_without_mutation(history_file: Path) -> None:
+    save_prompt_history(
+        [
+            _entry("new prompt", "260603_000000"),
+            _entry("old prompt", "260601_000000"),
+        ]
+    )
+    before = history_file.read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="greater than or equal to 0"):
+        prune_prompts(keep=-1)
+
+    assert history_file.read_text(encoding="utf-8") == before
+
+
 def test_prune_corrupt_store_aborts(history_file: Path) -> None:
     history_file.write_text("{ not valid json ]", encoding="utf-8")
 
