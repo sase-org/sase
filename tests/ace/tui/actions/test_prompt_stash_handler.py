@@ -199,3 +199,90 @@ def test_missing_prompt_context_stores_null_project(
 
     snapshot = read_prompt_stash_snapshot(path)
     assert snapshot.entries[0].project is None
+
+
+# --- Phase 4 hardening: concurrent-instance refresh on app focus -----------
+
+
+async def test_app_focus_reconciles_badge_from_disk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Regaining focus re-reads the shared pile so a sibling instance shows.
+
+    The store is the single per-user pile, so a second ACE could append while
+    this app was unfocused. ``on_app_focus`` re-reads the count off-thread and
+    pushes it to the badge — without any local stash/restore op.
+    """
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    harness = _StashHarness()
+
+    # Simulate a *concurrent* instance stashing two prompts on disk.
+    from sase.core.prompt_stash_facade import (
+        PromptStashEntryWire,
+        append_prompt_stash,
+    )
+
+    append_prompt_stash(
+        path,
+        PromptStashEntryWire(id="x", created_at="2026-06-16T10:00:00", text="a"),
+    )
+    append_prompt_stash(
+        path,
+        PromptStashEntryWire(id="y", created_at="2026-06-16T10:01:00", text="b"),
+    )
+
+    await harness.on_app_focus(None)
+
+    assert harness.applied_counts == [2]
+
+
+async def test_app_focus_is_a_noop_on_empty_store(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    harness = _StashHarness()
+
+    await harness.on_app_focus(None)
+
+    # No rows on disk → badge driven to zero, never a crash.
+    assert harness.applied_counts == [0]
+
+
+# --- Phase 4 hardening: graceful degradation without the Rust binding ------
+
+
+def test_capture_toasts_error_when_binding_unavailable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failed persist degrades to an error toast, not a crash.
+
+    With ``sase_core_rs`` unavailable the append raises inside
+    ``_persist_stashed_panes``; the handler must catch it, toast an error, and
+    leave the badge and bar untouched.
+    """
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+
+    def _boom(_name: str) -> object:
+        raise ImportError("sase_core_rs is not importable in this environment")
+
+    monkeypatch.setattr("sase.core.prompt_stash_facade.require_rust_binding", _boom)
+    harness = _StashHarness()
+
+    harness.on_prompt_input_bar_stashed(
+        PromptInputBar.Stashed(
+            [StashedPromptPane(text="x")], source="current", dismiss_bar=True
+        )
+    )
+
+    assert len(harness.notifications) == 1
+    message, severity = harness.notifications[0]
+    assert severity == "error"
+    assert "Failed to stash prompt" in message
+    assert harness.applied_counts == []  # badge never refreshed
+    assert harness.unmount_after_submit_calls == 0  # bar left intact
+    assert not path.exists()  # nothing written

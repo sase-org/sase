@@ -26,7 +26,11 @@ from sase.notifications.models import format_relative_time
 
 from .base import OptionListNavigationMixin
 
-_PREVIEW_WIDTH = 64
+# Sized so a full row (marker + age + project chip + preview) fits on one line
+# inside the fixed 96-column modal — its option area is ~86 cols and the
+# fixed columns ahead of the preview spend ~29, so a longer preview would wrap
+# instead of truncating cleanly with an ellipsis.
+_PREVIEW_WIDTH = 52
 _PROJECT_WIDTH = 14
 _AGE_WIDTH = 9
 _PROJECT_PLACEHOLDER = "—"

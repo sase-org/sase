@@ -268,6 +268,26 @@ class PromptBarStashMixin:
             return False
         return indicator.count > 0
 
+    async def on_app_focus(self, _event: object) -> None:
+        """Reconcile the badge when the terminal regains focus (D-P4 lifecycle).
+
+        The prompt stash is a single per-user pile (D2), so a *concurrent* ACE
+        instance can stash or restore prompts while this app is unfocused.
+        Local ops already refresh the badge inline; re-reading the count on
+        focus closes the multi-instance drift the Phase-1 plan flagged, without
+        a dedicated polling timer.  The disk read runs on a worker thread so the
+        focus event never blocks the paint path, and any read/binding failure
+        degrades to leaving the badge untouched (``_read_prompt_stash_count``
+        already floors to ``0``).
+        """
+        import asyncio
+
+        try:
+            count = await asyncio.to_thread(self._read_prompt_stash_count)
+        except Exception:  # pragma: no cover - defensive (thread/IO error)
+            return
+        self._apply_prompt_stash_count(count)
+
     def _refresh_prompt_stash_indicator(self) -> None:
         """Reload the stash count from disk and update the top-bar badge."""
         self._apply_prompt_stash_count(self._read_prompt_stash_count())

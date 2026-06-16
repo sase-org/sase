@@ -245,3 +245,94 @@ def test_real_extension_rewrite_merges_unseen_rows(tmp_path: Path) -> None:
     assert ids == ["a", "c", "b"]
     a = next(e for e in snapshot.entries if e.id == "a")
     assert a.text == "updated"
+
+
+# --- Phase 4 hardening: malformed / old-schema store tolerance -------------
+
+
+def test_real_extension_tolerates_malformed_lines(tmp_path: Path) -> None:
+    """A hand-corrupted store loads its valid rows and skips the junk.
+
+    Phase 4 pins the durability contract: blank lines, non-JSON lines, and
+    well-formed JSON that is missing the required ``id`` / ``created_at`` keys
+    are all dropped (and counted in ``stats``) rather than crashing the read,
+    so a partially-written or older-tool store still surfaces what it can.
+    """
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    path.write_text(
+        "\n"  # blank line
+        '{"id": "good1", "created_at": "2026-06-16T01:02:03+00:00", '
+        '"text": "first"}\n'
+        "   \n"  # whitespace-only line
+        "this is not json at all\n"  # invalid JSON
+        '{"created_at": "2026-06-16T01:02:04+00:00", "text": "no id"}\n'  # no id
+        '{"id": "noTimestamp", "text": "no created_at"}\n'  # no created_at
+        '{"id": "good2", "created_at": "2026-06-16T01:02:05+00:00", '
+        '"text": "second", "future_field": "ignored"}\n',  # forward-compat key
+        encoding="utf-8",
+    )
+
+    snapshot = facade.read_prompt_stash_snapshot(path)
+
+    # Only the two complete records survive; the forward-compatible unknown
+    # key on ``good2`` is ignored rather than rejected (old/new schema mix).
+    assert [e.id for e in snapshot.entries] == ["good1", "good2"]
+    assert [e.text for e in snapshot.entries] == ["first", "second"]
+    stats = snapshot.stats
+    assert stats.loaded_rows == 2
+    assert stats.blank_lines == 2
+    assert stats.invalid_json_lines == 1
+    assert stats.invalid_record_lines == 2
+
+
+def test_real_extension_pop_skips_malformed_lines(tmp_path: Path) -> None:
+    """Popping from a partly-corrupt store still removes a valid row."""
+    _skip_without_prompt_stash_bindings("pop_prompt_stash")
+    path = tmp_path / "prompt_stash.jsonl"
+    path.write_text(
+        "garbage line\n"
+        '{"id": "keep", "created_at": "2026-06-16T01:02:03+00:00", '
+        '"text": "keep"}\n'
+        '{"id": "drop", "created_at": "2026-06-16T01:02:04+00:00", '
+        '"text": "drop"}\n',
+        encoding="utf-8",
+    )
+
+    outcome = facade.pop_prompt_stash(path, ["drop"])
+
+    assert [e.id for e in outcome.removed] == ["drop"]
+    assert [e.id for e in outcome.snapshot.entries] == ["keep"]
+
+
+# --- Phase 4 hardening: graceful degradation when the binding is missing ---
+
+
+def test_read_degrades_when_binding_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The app's count/read paths floor to empty when ``sase_core_rs`` is gone.
+
+    The facade itself raises (the strict-loader contract), but the TUI read
+    helpers wrap it; this pins that an unimportable wheel never crashes the
+    app, mirroring how the handler degrades a failed capture into a toast.
+    """
+    from sase.ace.tui.actions.agent_workflow._prompt_bar_stash import (
+        PromptBarStashMixin,
+    )
+
+    def _boom(_name: str) -> Any:
+        raise ImportError("sase_core_rs is not importable in this environment")
+
+    monkeypatch.setattr(facade, "require_rust_binding", _boom)
+    monkeypatch.setattr(
+        "sase.core.paths.prompt_stash_path",
+        lambda: Path("/tmp/does-not-matter.jsonl"),
+    )
+
+    class _Probe(PromptBarStashMixin):
+        pass
+
+    probe = _Probe()
+    assert probe._read_prompt_stash_count() == 0
+    assert probe._read_prompt_stash_entries() == []
