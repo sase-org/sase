@@ -34,6 +34,7 @@ from sase.axe.run_agent_repeat_stop import (
     RepeatStopDecision,
     detect_repeat_stop,
 )
+from sase.axe.runner_args import parse_runner_bool_arg
 from sase.axe.run_agent_runtime import format_agent_run_runtime
 from sase.axe.run_agent_runner_finalize import (
     classify_exec_success,
@@ -183,7 +184,7 @@ def main() -> None:
     # sys.argv[11] (cl_name_for_history) is no longer used here;
     # prompt history is saved by the TUI before launch.
     is_home_mode_arg = sys.argv[12]
-    is_home_mode: bool = bool(is_home_mode_arg)
+    is_home_mode = parse_runner_bool_arg(is_home_mode_arg)
 
     # Read prompt from temp file
     try:

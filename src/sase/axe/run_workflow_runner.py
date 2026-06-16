@@ -18,6 +18,7 @@ from sase.axe.runner_utils import (
     prepare_workspace,
     was_killed,
 )
+from sase.axe.runner_args import parse_runner_bool_arg
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -99,7 +100,7 @@ def main() -> None:
     # Parse JSON args
     positional_args: list[str] = json.loads(positional_args_json)
     named_args: dict[str, str] = json.loads(named_args_json)
-    is_home_mode: bool = bool(is_home_mode_arg)
+    is_home_mode = parse_runner_bool_arg(is_home_mode_arg)
 
     # Parse optional hitl_override: "1" → True, "0" → False, "" or missing → None
     hitl_override: bool | None = None
