@@ -1109,7 +1109,7 @@ Refactor the parser module to use dataclasses.
 When the editor closes, the `%edit` directive is stripped and the remaining text appears in the prompt input bar for
 further editing. The agent is not launched until you press Enter in the prompt bar.
 
-### Plan Approval and Coder Follow-up
+### Plan Approval and Coder Follow-up {#plan-directive}
 
 SASE's planning workflow is driven by the `/sase_plan` skill together with the `sase plan` approval pipeline. An agent
 drafts a plan and submits it with `/sase_plan` (or `sase plan propose`); the plan then pauses for user approval before
@@ -1487,6 +1487,11 @@ not secret storage.
 repeat slots (see [Stopping a repeat chain early with `STOP`](#stopping-a-repeat-chain-early-with-stop)). It has no
 special meaning for ordinary `%wait` consumers, `---` segments, or `%alt` fan-outs — those read it like any other
 variable, e.g. `{{ agents["name"].STOP }}`.
+
+ACE renders literal multi-agent prompts as a prompt stack: each top-level `---` segment becomes an editable pane, while
+prompt-level frontmatter and fenced-code separators keep the same parsing rules described below. Use `Enter` to launch
+one selected pane at a time, or `Ctrl+S` / `Shift+Enter` to submit the panes together as one multi-agent prompt. See the
+[ACE prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings.
 
 ### Rules
 

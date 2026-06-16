@@ -40,6 +40,7 @@ Timed spans currently wired (by file):
 - `actions/agents/_display.py` — `agents.refresh_display`, `agents.refresh_debounced`
 - `actions/agents/_display_panels.py` — `agents.refresh_panel_widgets`, `agents.refresh_panel_highlights`
 - `actions/agents/_loading_helpers.py` — `agents.load_from_disk`
+- `actions/agents/_loading_live_hints.py` — `agents.live_hint_refresh`
 - `widgets/changespec_list.py` — `widget.changespec_list.update_list`, `widget.changespec_list.update_highlight`,
   `widget.changespec_list.patch_changespec_row`
 - `widgets/changespec_detail.py` — `widget.changespec_detail.update_display`
@@ -56,6 +57,12 @@ Timed spans currently wired (by file):
 
 Spans nest cleanly: a single keypress that fires `agents.refresh_debounced` will record one outer span plus inner
 `widget.agent_list.update_highlight` and `agents.refresh_panel_highlights` spans.
+
+ACE deliberately keeps live-workspace pencil hints off the startup-critical agents loader. The first load classifies
+only cheap persisted `diff_path` badges; after the first paint, `agents.live_hint_refresh` runs VCS probes for active,
+non-terminal visible rows that do not yet have a persisted diff and patches changed rows in place. During startup
+investigations, treat `agents.load_from_disk` and `agents.live_hint_refresh` as separate costs: the former controls time
+to first interactive Agents-tab paint, while the latter explains deferred pencil-badge updates.
 
 Trace events currently wired include:
 
