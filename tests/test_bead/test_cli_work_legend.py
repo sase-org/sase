@@ -283,17 +283,19 @@ def test_legend_work_stale_owner_round_trip_wipes_and_rewrites(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Stale name registry entries are wiped, and the launcher sees a rewritten prompt."""
+    from sase.agent.names import AgentNameWipeResult
+
     legend_id = seed_legend(project_dir, epic_count=2)
     captured: dict[str, Any] = {}
-    wiped: list[list[str]] = []
+    wiped: list[str] = []
 
-    def fake_wipe(names: list[str]) -> None:
-        wiped.append(list(names))
+    def fake_wipe(name: str) -> AgentNameWipeResult:
+        # Force-reuse preparation must complete before the launcher runs.
+        assert "query" not in captured
+        wiped.append(name)
+        return AgentNameWipeResult(target_name=name, found=False)
 
-    monkeypatch.setattr(
-        "sase.agent.launch_validation.wipe_names_for_forced_reuse",
-        fake_wipe,
-    )
+    monkeypatch.setattr("sase.agent.names.wipe_agent_name_for_reuse", fake_wipe)
 
     def fake_launch(
         query: str,
@@ -314,8 +316,8 @@ def test_legend_work_stale_owner_round_trip_wipes_and_rewrites(
     assert f"%name:{legend_id}.2.0\n" in query
     assert f"%name:{legend_id}\n" in query
 
-    assert len(wiped) == 1
-    assert set(wiped[0]) == {
+    # Every planned epic-planning and land name is force-reused before launch.
+    assert set(wiped) == {
         f"{legend_id}.1.0",
         f"{legend_id}.2.0",
         legend_id,

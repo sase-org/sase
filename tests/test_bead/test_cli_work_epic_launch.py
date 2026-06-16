@@ -138,17 +138,19 @@ def test_work_stale_owner_round_trip_wipes_and_rewrites(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Stale name registry entries are wiped, and the launcher sees a rewritten prompt."""
+    from sase.agent.names import AgentNameWipeResult
+
     epic_id, phase_ids = seed_diamond(project_dir)
     captured: dict[str, Any] = {}
-    wiped: list[list[str]] = []
+    wiped: list[str] = []
 
-    def fake_wipe(names: list[str]) -> None:
-        wiped.append(list(names))
+    def fake_wipe(name: str) -> AgentNameWipeResult:
+        # Force-reuse preparation must complete before the launcher runs.
+        assert "query" not in captured
+        wiped.append(name)
+        return AgentNameWipeResult(target_name=name, found=False)
 
-    monkeypatch.setattr(
-        "sase.agent.launch_validation.wipe_names_for_forced_reuse",
-        fake_wipe,
-    )
+    monkeypatch.setattr("sase.agent.names.wipe_agent_name_for_reuse", fake_wipe)
 
     def fake_launch(
         query: str,
@@ -169,9 +171,67 @@ def test_work_stale_owner_round_trip_wipes_and_rewrites(
         assert f"%name:{pid}\n" in query
     assert f"%name:{epic_id}\n" in query
 
-    assert len(wiped) == 1
-    expected_names = {*phase_ids, epic_id}
-    assert set(wiped[0]) == expected_names
+    # Every planned phase and land name is force-reused before launch, plus the
+    # legacy ``<epic_id>.land`` owner the new prompt no longer names.
+    assert set(wiped) == {*phase_ids, epic_id, f"{epic_id}.land"}
+
+
+@pytest.mark.parametrize(
+    "failure_mode",
+    [
+        pytest.param("raise", id="wipe-raises"),
+        pytest.param("errors", id="wipe-reports-errors"),
+        pytest.param("residual", id="name-still-reserved"),
+    ],
+)
+def test_work_force_reuse_cleanup_failure_aborts_before_mutation(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure_mode: str,
+) -> None:
+    """A failed forced-reuse wipe aborts before any bead mutation or launch."""
+    from sase.agent.names import AgentNameWipeResult
+
+    epic_id, phase_ids = seed_diamond(project_dir)
+
+    def fake_wipe(name: str) -> AgentNameWipeResult:
+        if failure_mode == "raise":
+            raise RuntimeError("kaboom")
+        if failure_mode == "errors":
+            return AgentNameWipeResult(target_name=name, found=True, errors=("kaboom",))
+        # residual: found but never removed from the registry.
+        return AgentNameWipeResult(
+            target_name=name, found=True, registry_names_removed=()
+        )
+
+    monkeypatch.setattr("sase.agent.names.wipe_agent_name_for_reuse", fake_wipe)
+
+    launched: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launched.append(query) or FakeLaunchResult()
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: pytest.fail("aborted launch must not commit"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+    assert excinfo.value.code == 1
+
+    err = capsys.readouterr().err
+    assert "forced reuse cleanup" in err
+    assert launched == []
+    with BeadProject(project_dir) as proj:
+        assert proj.show(epic_id).is_ready_to_work is False
+        for pid in phase_ids:
+            phase = proj.show(pid)
+            assert phase.status == Status.OPEN
+            assert phase.assignee == ""
 
 
 def test_work_dry_run_never_mutates_or_launches(

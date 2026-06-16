@@ -272,10 +272,12 @@ For epic-tier plans, the command:
 
 1. Validates that `<epic_id>` resolves to an issue of type `plan` with `tier=epic`. If the plan is already marked
    `is_ready_to_work`, the command treats the run as a retry and schedules any remaining non-closed phases.
-2. Scans the live agent registry for any visible agent already named `<epic_id>.<N>` (for any open phase), `<epic_id>`
-   (for the land agent), or the legacy `<epic_id>.land` land-agent name, and refuses to launch when a collision exists,
-   listing the offending artifact directories so the user can wipe/delete or otherwise resolve the orphan first.
-   (`--dry-run` downgrades this to a warning and continues.)
+2. On a confirmed launch, force-reuses the deterministic bead-work names — `<epic_id>.<N>` (for each open phase),
+   `<epic_id>` (for the land agent), and the legacy `<epic_id>.land` land-agent name — by wiping any prior owner of
+   those names, whether that owner is a completed, dismissed, or planned reservation or a still-live agent (live owners
+   are terminated). This also covers owners that hold the name only as a `workflow_name`. If the forced-reuse cleanup
+   cannot complete (a wipe fails or a name is still reserved afterward), the command aborts before mutating any bead
+   state. `--dry-run` performs no cleanup; it only warns which live agents a real launch would force-reuse.
 3. Flips the epic plan bead's `is_ready_to_work` flag to `True` when it was not already ready.
 4. Builds a Kahn-wave schedule from the epic's open phase children, respecting dependencies.
 5. Pre-claims each phase bead — sets `status=in_progress` and `assignee=<phase_bead_id>` (i.e. `<epic_id>.<N>`).
@@ -294,7 +296,10 @@ For legend-tier plans, the command:
 
 1. Validates that `<id>` resolves to a plan bead with `tier=legend`, a positive `epic_count`, and a linked legend plan
    path.
-2. Scans the live agent registry for generated epic-planning agent names like `<legend_id>.1.0` and refuses collisions.
+2. On a confirmed launch, force-reuses the generated epic-planning and land agent names (like `<legend_id>.1.0` and
+   `<legend_id>`) by wiping any prior owner of those names before relaunch, aborting before mutating bead state if that
+   cleanup cannot complete. `--dry-run` performs no cleanup; it only warns which live agents a real launch would
+   force-reuse.
 3. Flips the legend plan bead's `is_ready_to_work` flag to `True` when launching.
 4. Hands a single `---`-separated multi-prompt to the agent launcher. Each epic-planning segment is named
    `%name:!<legend_id>.<N>.0` and includes `%epic`; epic-planning segments do **not** carry `%approve`, because their

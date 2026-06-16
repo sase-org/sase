@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-16 09:40:53
-status: wip
+status: done
 prompt: sdd/prompts/202606/bead_work_force_reuse_relaunch_1.md
 ---
 # Bead Work Force-Reuse Relaunch Plan

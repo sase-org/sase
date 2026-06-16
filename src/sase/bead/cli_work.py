@@ -103,21 +103,6 @@ def _handle_epic_bead_work(
     else:
         vcs_context = _resolve_vcs_launch_context()
 
-    collisions = find_live_name_collisions(plan)
-    if collisions and not dry_run:
-        print(
-            "Error: refusing to launch; these agent names are still live:",
-            file=sys.stderr,
-        )
-        for name, path in sorted(collisions.items()):
-            print(f"  {name} (running at {path})", file=sys.stderr)
-        print(
-            "\nKill or dismiss those agents before retrying, or wait for "
-            "them to finish.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
     query = render_multi_prompt(
         plan,
         work_phase_xprompt=work_phase_xprompt,
@@ -131,13 +116,7 @@ def _handle_epic_bead_work(
     print_work_plan_summary(epic_id, issue.title, plan)
 
     if dry_run:
-        if collisions:
-            print(
-                "\nWarning: agent-name collisions would block live launch:",
-                file=sys.stderr,
-            )
-            for name, path in sorted(collisions.items()):
-                print(f"  {name} (already running at {path})", file=sys.stderr)
+        _warn_force_reuse_collisions(find_live_name_collisions(plan))
         print("\n--- Multi-prompt (dry run) ---")
         print(query)
         return
@@ -146,7 +125,15 @@ def _handle_epic_bead_work(
         print("Aborted.")
         return
 
-    query = _wipe_and_rewrite_force_reuse(query)
+    try:
+        query = _prepare_bead_work_force_reuse(
+            query,
+            expected_names=expected_agent_names(plan),
+            extra_cleanup_names=_legacy_epic_cleanup_names(plan),
+        )
+    except _ForcedReuseCleanupError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     marked_ready_this_run = False
     if not issue.is_ready_to_work:
@@ -242,20 +229,6 @@ def _handle_legend_bead_work(
         sys.exit(1)
 
     vcs_context = _resolve_vcs_launch_context()
-    collisions = _find_live_legend_name_collisions(plan)
-    if collisions and not dry_run:
-        print(
-            "Error: refusing to launch; these agent names are still live:",
-            file=sys.stderr,
-        )
-        for name, path in sorted(collisions.items()):
-            print(f"  {name} (running at {path})", file=sys.stderr)
-        print(
-            "\nKill or dismiss those agents before retrying, or wait for "
-            "them to finish.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
 
     query = render_legend_multi_prompt(
         plan,
@@ -268,13 +241,7 @@ def _handle_legend_bead_work(
     _print_legend_work_plan_summary(legend_id, issue.title, plan)
 
     if dry_run:
-        if collisions:
-            print(
-                "\nWarning: agent-name collisions would block live launch:",
-                file=sys.stderr,
-            )
-            for name, path in sorted(collisions.items()):
-                print(f"  {name} (already running at {path})", file=sys.stderr)
+        _warn_force_reuse_collisions(_find_live_legend_name_collisions(plan))
         print("\n--- Multi-prompt (dry run) ---")
         print(query)
         return
@@ -283,7 +250,14 @@ def _handle_legend_bead_work(
         print("Aborted.")
         return
 
-    query = _wipe_and_rewrite_force_reuse(query)
+    try:
+        query = _prepare_bead_work_force_reuse(
+            query,
+            expected_names=_expected_legend_agent_names(plan),
+        )
+    except _ForcedReuseCleanupError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     marked_ready_this_run = False
     if not issue.is_ready_to_work:
@@ -405,6 +379,17 @@ def _legacy_land_agent_name(plan: EpicWorkPlan) -> str | None:
     if name == plan.land_agent_name:
         return None
     return name
+
+
+def _legacy_epic_cleanup_names(plan: EpicWorkPlan) -> frozenset[str]:
+    """Return legacy deterministic owners to wipe that the prompt no longer names.
+
+    Epic land agents now reuse ``<epic_id>``; older runs used ``<epic_id>.land``.
+    The legacy name is not rendered in the new prompt, so it is an extra wipe
+    target rather than an expected ``%name:!`` directive.
+    """
+    legacy = _legacy_land_agent_name(plan)
+    return frozenset({legacy}) if legacy else frozenset()
 
 
 def find_live_name_collisions(plan: EpicWorkPlan) -> dict[str, str]:
@@ -568,32 +553,89 @@ def rollback_work_launch(
             )
 
 
-def _wipe_and_rewrite_force_reuse(query: str) -> str:
-    """Wipe stale owners of force-reuse names and rewrite the prompt for the launcher.
+class _ForcedReuseCleanupError(RuntimeError):
+    """Raised when forced bead-work name reuse cleanup cannot be completed."""
 
-    Mirrors the TUI's ``_finish_agent_launch`` handshake: parse ``%name:!<n>``
-    directives out of the rendered prompt, wipe any prior owners (best-effort —
-    a partial failure surfaces from the launcher's name validation), then
-    rewrite to ordinary ``%name:<n>`` so ``validate_launch_name_requests``
-    accepts the prompt.
+
+def _warn_force_reuse_collisions(collisions: dict[str, str]) -> None:
+    """Warn (for ``--dry-run``) which live agents a real launch would replace."""
+    if not collisions:
+        return
+    print(
+        "\nWarning: these live agents would be force-reused (terminated) "
+        "on a live launch:",
+        file=sys.stderr,
+    )
+    for name, path in sorted(collisions.items()):
+        print(f"  {name} (already running at {path})", file=sys.stderr)
+
+
+def _prepare_bead_work_force_reuse(
+    query: str,
+    *,
+    expected_names: set[str],
+    extra_cleanup_names: frozenset[str] = frozenset(),
+) -> str:
+    """Wipe deterministic bead-work owners and rewrite the prompt for the launcher.
+
+    Bead work is a trusted, confirmed relaunch surface: it deliberately reuses
+    the deterministic phase/land names it just computed. This parses the
+    ``%name:!<n>`` directives out of *query*, verifies they match the plan's
+    *expected_names*, then wipes each owner (plus any *extra_cleanup_names* such
+    as a legacy land owner that the new prompt no longer names). Old owners are
+    replaced regardless of state — completed, dismissed, or still live (the wipe
+    terminates live owners).
+
+    Unlike a best-effort wipe, this fails *before* the caller performs any bead
+    mutation: it raises :class:`_ForcedReuseCleanupError` when a wipe raises, when
+    an :class:`AgentNameWipeResult` reports errors, or when the registry still
+    reports an owner for a force-reused name after the rebuild. On success it
+    rewrites ``%name:!<n>`` to ordinary ``%name:<n>`` so
+    ``validate_launch_name_requests`` accepts the prompt.
     """
     from sase.agent.launch_validation import (
         force_reuse_owner_names,
         rewrite_force_reuse_name_directives,
-        wipe_names_for_forced_reuse,
     )
 
     segments = query.split("\n---\n")
-    owner_names = force_reuse_owner_names(segments)
-    if owner_names:
-        try:
-            wipe_names_for_forced_reuse(owner_names)
-        except Exception as exc:  # noqa: BLE001
-            print(
-                f"Warning: forced agent-name reuse wipe failed: {exc}",
-                file=sys.stderr,
-            )
+    directive_names = force_reuse_owner_names(segments)
+    if set(directive_names) != set(expected_names):
+        raise _ForcedReuseCleanupError(
+            "rendered bead-work prompt force-reuse names "
+            f"{sorted(directive_names)} do not match the planned agent names "
+            f"{sorted(expected_names)}; aborting forced reuse cleanup"
+        )
+
+    cleanup_order = list(directive_names)
+    cleanup_order.extend(
+        name for name in sorted(extra_cleanup_names) if name not in directive_names
+    )
+    for name in cleanup_order:
+        _wipe_force_reuse_owner(name)
     return rewrite_force_reuse_name_directives(query)
+
+
+def _wipe_force_reuse_owner(name: str) -> None:
+    """Wipe a single deterministic owner, raising on any cleanup failure."""
+    from sase.agent.names import wipe_agent_name_for_reuse
+
+    try:
+        result = wipe_agent_name_for_reuse(name)
+    except Exception as exc:  # noqa: BLE001
+        raise _ForcedReuseCleanupError(
+            f"forced reuse cleanup for agent name '{name}' failed: {exc}"
+        ) from exc
+    if result.errors:
+        raise _ForcedReuseCleanupError(
+            f"forced reuse cleanup for agent name '{name}' reported errors: "
+            + "; ".join(result.errors)
+        )
+    if result.found and name not in result.registry_names_removed:
+        raise _ForcedReuseCleanupError(
+            f"forced reuse cleanup left agent name '{name}' reserved after "
+            "rebuild; resolve the conflicting owner and retry"
+        )
 
 
 def _rollback_legend_work_launch(
