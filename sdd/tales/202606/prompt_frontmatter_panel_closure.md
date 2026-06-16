@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-16 16:18:12
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_frontmatter_panel_closure.md
 ---
 # Plan: Close prompt frontmatter panel epic

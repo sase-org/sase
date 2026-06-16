@@ -2,7 +2,7 @@
 create_time: 2026-06-16 13:42:15
 bead_id: sase-4r
 tier: epic
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_frontmatter_panel.md
 ---
 # Plan: Frontmatter Panel for the Prompt Input Widget

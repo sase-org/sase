@@ -10,15 +10,11 @@ expected diagnostic — without reimplementing any rule on the Python side.
 
 from __future__ import annotations
 
-import pytest
-
 from sase.xprompt.frontmatter_schema import (
-    DiagnosticSeverity,
     FrontmatterFieldKind,
     frontmatter_field_schema,
     input_type_schema,
     validate_frontmatter,
-    validate_frontmatter_field,
 )
 
 
@@ -75,30 +71,9 @@ def test_validate_frontmatter_flags_known_bad_value() -> None:
     offending = next(
         d for d in diagnostics if d.code == "invalid_xprompt_frontmatter_input_type"
     )
-    assert offending.severity is DiagnosticSeverity.ERROR
     assert offending.is_error
-
-
-def test_validate_frontmatter_field_isolates_single_property() -> None:
-    assert not validate_frontmatter_field("description", "Refactor the auth module")
-    bad = validate_frontmatter_field("snippet", "bad-trigger!")
-    assert any(d.code == "invalid_xprompt_frontmatter_snippet_trigger" for d in bad)
 
 
 def test_validate_frontmatter_accepts_bare_body_without_delimiters() -> None:
     diagnostics = validate_frontmatter("description: Refactor the auth module")
     assert not [d for d in diagnostics if d.is_error], diagnostics
-
-
-@pytest.mark.parametrize(
-    "field,value,expected_code",
-    [
-        ("name", "[]", "invalid_xprompt_frontmatter_name"),
-        ("tags", "[mentor, {}]", "invalid_xprompt_frontmatter_tags"),
-    ],
-)
-def test_validate_frontmatter_field_known_bad_values(
-    field: str, value: str, expected_code: str
-) -> None:
-    diagnostics = validate_frontmatter_field(field, value)
-    assert any(d.code == expected_code for d in diagnostics), diagnostics

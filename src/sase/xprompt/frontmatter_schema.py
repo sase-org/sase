@@ -1,10 +1,9 @@
 """Typed Python adapter over the Rust frontmatter schema & validation API.
 
 This module wraps the ``sase_core_rs`` bindings (``frontmatter_field_schema``,
-``frontmatter_input_type_schema``, ``validate_frontmatter``,
-``validate_frontmatter_field``) into typed Python objects so later phases (the
-prompt frontmatter panel, the input collection modal) never touch binding dict
-shapes directly.
+``frontmatter_input_type_schema``, ``validate_frontmatter``) into typed Python
+objects so later phases (the prompt frontmatter panel, the input collection
+modal) never touch binding dict shapes directly.
 
 All field/value validation rules and guidance text live in ``sase-core`` (the
 same engine that backs the xprompt LSP), so the TUI panel and the editor never
@@ -34,7 +33,7 @@ class FrontmatterFieldKind(Enum):
     STRUCTURED = "structured"
 
 
-class DiagnosticSeverity(Enum):
+class _DiagnosticSeverity(Enum):
     """Severity of a frontmatter diagnostic (mirrors the editor wire enum)."""
 
     ERROR = "error"
@@ -44,7 +43,7 @@ class DiagnosticSeverity(Enum):
 
 
 @dataclass(frozen=True)
-class FrontmatterFieldSchema:
+class _FrontmatterFieldSchema:
     """A panel-oriented descriptor for one supported frontmatter field.
 
     Attributes:
@@ -65,7 +64,7 @@ class FrontmatterFieldSchema:
 
 
 @dataclass(frozen=True)
-class FrontmatterInputType:
+class _FrontmatterInputType:
     """A panel-oriented descriptor for one supported ``input`` type.
 
     Attributes:
@@ -80,7 +79,7 @@ class FrontmatterInputType:
 
 
 @dataclass(frozen=True)
-class EditorPosition:
+class _EditorPosition:
     """A zero-based ``(line, character)`` position in the validated text."""
 
     line: int
@@ -88,11 +87,11 @@ class EditorPosition:
 
 
 @dataclass(frozen=True)
-class EditorRange:
+class _EditorRange:
     """A half-open ``[start, end)`` span in the validated text."""
 
-    start: EditorPosition
-    end: EditorPosition
+    start: _EditorPosition
+    end: _EditorPosition
 
 
 @dataclass(frozen=True)
@@ -107,19 +106,19 @@ class FrontmatterDiagnostic:
         message: The human-readable diagnostic message.
     """
 
-    range: EditorRange
-    severity: DiagnosticSeverity
+    range: _EditorRange
+    severity: _DiagnosticSeverity
     code: str
     message: str
 
     @property
     def is_error(self) -> bool:
         """Return ``True`` when this diagnostic is an error."""
-        return self.severity is DiagnosticSeverity.ERROR
+        return self.severity is _DiagnosticSeverity.ERROR
 
 
-def _field_from_dict(payload: dict[str, Any]) -> FrontmatterFieldSchema:
-    return FrontmatterFieldSchema(
+def _field_from_dict(payload: dict[str, Any]) -> _FrontmatterFieldSchema:
+    return _FrontmatterFieldSchema(
         name=payload["name"],
         kind=FrontmatterFieldKind(payload["kind"]),
         required=payload["required"],
@@ -129,38 +128,38 @@ def _field_from_dict(payload: dict[str, Any]) -> FrontmatterFieldSchema:
     )
 
 
-def _input_type_from_dict(payload: dict[str, Any]) -> FrontmatterInputType:
-    return FrontmatterInputType(
+def _input_type_from_dict(payload: dict[str, Any]) -> _FrontmatterInputType:
+    return _FrontmatterInputType(
         name=payload["name"],
         aliases=tuple(payload["aliases"]),
         rule=payload["rule"],
     )
 
 
-def _position_from_dict(payload: dict[str, Any]) -> EditorPosition:
-    return EditorPosition(line=payload["line"], character=payload["character"])
+def _position_from_dict(payload: dict[str, Any]) -> _EditorPosition:
+    return _EditorPosition(line=payload["line"], character=payload["character"])
 
 
 def _diagnostic_from_dict(payload: dict[str, Any]) -> FrontmatterDiagnostic:
     span = payload["range"]
     return FrontmatterDiagnostic(
-        range=EditorRange(
+        range=_EditorRange(
             start=_position_from_dict(span["start"]),
             end=_position_from_dict(span["end"]),
         ),
-        severity=DiagnosticSeverity(payload["severity"]),
+        severity=_DiagnosticSeverity(payload["severity"]),
         code=payload["code"],
         message=payload["message"],
     )
 
 
-def frontmatter_field_schema() -> list[FrontmatterFieldSchema]:
+def frontmatter_field_schema() -> list[_FrontmatterFieldSchema]:
     """Return the ordered panel frontmatter field descriptors from core."""
     binding = require_rust_binding("frontmatter_field_schema")
     return [_field_from_dict(item) for item in binding()]
 
 
-def input_type_schema() -> list[FrontmatterInputType]:
+def input_type_schema() -> list[_FrontmatterInputType]:
     """Return the supported ``input`` type catalog from core."""
     binding = require_rust_binding("frontmatter_input_type_schema")
     return [_input_type_from_dict(item) for item in binding()]
@@ -178,18 +177,3 @@ def validate_frontmatter(text: str) -> list[FrontmatterDiagnostic]:
     """
     binding = require_rust_binding("validate_frontmatter")
     return [_diagnostic_from_dict(item) for item in binding(text)]
-
-
-def validate_frontmatter_field(field: str, value: str) -> list[FrontmatterDiagnostic]:
-    """Validate a single frontmatter field value via core.
-
-    Args:
-        field: The field key (e.g. ``snippet``).
-        value: The YAML text that would follow ``field:`` — a single-line
-            scalar/list, or a multi-line YAML block for structured values.
-
-    Returns:
-        Diagnostics matching the xprompt LSP output for that field.
-    """
-    binding = require_rust_binding("validate_frontmatter_field")
-    return [_diagnostic_from_dict(item) for item in binding(field, value)]
