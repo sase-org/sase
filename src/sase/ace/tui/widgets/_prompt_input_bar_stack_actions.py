@@ -34,6 +34,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
 
     if TYPE_CHECKING:
         Stashed: Any
+        RestoreRequested: Any
         _live_split_pending: bool
         _mode: str
         _stack: PromptStackState
@@ -154,6 +155,42 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             return
         self._clear_active_completion_state()
         self.post_message(self.Stashed(panes, source="all", dismiss_bar=True))
+
+    def request_restore_stash(self) -> None:
+        """Ask the app to open the restore picker (the ``,P`` keymap).
+
+        Presentation-only: the bar posts ``RestoreRequested`` with its current
+        mode and the app performs the snapshot read / pop / load (boundary rule
+        D6).  Posted in every mode so the app can toast a no-op when restore is
+        not available (feedback / approve-prompt bars).
+        """
+        self.post_message(self.RestoreRequested(self._mode))
+
+    def restore_stashed_entries(self, entries: list[tuple[str, str]]) -> None:
+        """Append restored stash drafts as new panes (the ``,P`` restore path).
+
+        Prompt mode only.  Each ``(text, frontmatter)`` becomes a new bottom
+        pane, preserving any panes the user is already drafting.  The bar's
+        shared frontmatter is adopted from the first restored entry that carries
+        one when the bar has none yet.  A lone empty drafting pane is dropped so
+        restored drafts don't sit beneath a blank pane.  The last restored pane
+        is focused in insert mode so the user can keep editing.
+        """
+        if self._mode != "prompt" or not entries:
+            return
+        self._sync_state_from_widgets()
+        self._clear_active_completion_state()
+        drop_empty_lead = (
+            len(self._stack) == 1 and not self._stack.selected_item.text.strip()
+        )
+        for text, frontmatter in entries:
+            if frontmatter and not self._stack.frontmatter:
+                self._stack.frontmatter = frontmatter
+            self._stack.append_bottom(text)
+        if drop_empty_lead:
+            del self._stack.items[0]
+            self._stack.selected_index = len(self._stack.items) - 1
+        self._rebuild_stack(enter_mode="insert")
 
     def _live_split_active_pane(self) -> None:
         """Split the active pane when a ``---`` line was just typed into it.

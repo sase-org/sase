@@ -22,6 +22,11 @@ class StashedPromptsIndicator(Static):
         self._count = 0
         self.tooltip = self._build_tooltip(0)
 
+    @property
+    def count(self) -> int:
+        """Number of stashed prompts the badge currently reflects."""
+        return self._count
+
     def set_count(self, count: int) -> None:
         """Update the displayed stashed-prompt count.
 

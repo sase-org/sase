@@ -145,7 +145,7 @@ ChangeSpecList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal, StashedPromptsModal {
     align: center middle;
 }
 
@@ -247,6 +247,35 @@ AgentCleanupCustomModal #agent-cleanup-custom-list {
 
 AgentCleanupCustomModal #agent-cleanup-search {
     margin-top: 1;
+}
+
+/* Prompt-stash restore picker */
+StashedPromptsModal > #stashed-prompts-container {
+    width: 96;
+    max-width: 96%;
+    height: auto;
+    max-height: 90%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+StashedPromptsModal #stashed-prompts-title {
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+StashedPromptsModal #stashed-prompts-list {
+    height: 18;
+    max-height: 18;
+    border: solid $secondary;
+}
+
+StashedPromptsModal #stashed-prompts-hints {
+    height: auto;
+    margin-top: 1;
+    color: $text-muted;
 }
 
 /* Workflow HITL Modal styling */

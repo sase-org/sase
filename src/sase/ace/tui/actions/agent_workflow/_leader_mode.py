@@ -258,6 +258,12 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["restore_prompt_stash"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            self._open_prompt_stash_restore()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         # Unknown key - just exit mode and restore footer
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True
@@ -332,6 +338,8 @@ class LeaderModeMixin:
             has_stopped_agent = self._has_stopped_agent()  # type: ignore[attr-defined]
             marked_agent_count = len(getattr(self, "_marked_agents", set()))
 
+        has_stashed_prompts = self._has_stashed_prompts()  # type: ignore[attr-defined]
+
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
             footer.update_leader_bindings(
@@ -343,6 +351,7 @@ class LeaderModeMixin:
                 has_stopped_agent=has_stopped_agent,
                 has_revertable_agent=has_revertable_agent,
                 marked_agent_count=marked_agent_count,
+                has_stashed_prompts=has_stashed_prompts,
             )
         except Exception:
             pass

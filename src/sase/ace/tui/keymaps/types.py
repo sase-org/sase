@@ -447,6 +447,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "capture_agents_repro": "C",
             "toggle_agents_repro_checks": "T",
             "jump_to_notification": "n",
+            "restore_prompt_stash": "P",
         }
     )
 

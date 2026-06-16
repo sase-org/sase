@@ -15,9 +15,11 @@ from typing import TYPE_CHECKING
 from ._types import PromptContext
 
 if TYPE_CHECKING:
+    from sase.ace.tui.widgets import PromptInputBar
     from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
         StashedPromptPane,
     )
+    from sase.core.prompt_stash_wire import PromptStashEntryWire
 
 
 class PromptBarStashMixin:
@@ -98,6 +100,173 @@ class PromptBarStashMixin:
                 pane_index=pane.pane_index,
             )
             append_prompt_stash(path, entry)
+
+    # -- restore (Phase 3) ---------------------------------------------------
+
+    def on_prompt_input_bar_restore_requested(self, event: object) -> None:
+        """Open the restore picker when the bar requests it (``,P``)."""
+        from ...widgets import PromptInputBar
+
+        if not isinstance(event, PromptInputBar.RestoreRequested):
+            return
+        self._open_prompt_stash_restore(bar_mode=event.mode)
+
+    def _open_prompt_stash_restore(self, bar_mode: str | None = None) -> None:
+        """Read the stash snapshot and push the restore picker.
+
+        Restore is guarded to ``prompt`` bars (D5): a feedback / approve-prompt
+        bar toasts a no-op.  When triggered from app leader mode (*bar_mode* is
+        ``None``) the currently mounted bar — if any — supplies the mode.  An
+        empty store toasts instead of opening an empty modal.
+        """
+        from ...modals import StashedPromptsModal
+
+        if bar_mode is None:
+            bar = self._mounted_prompt_bar()
+            bar_mode = bar._mode if bar is not None else "prompt"
+        if bar_mode != "prompt":
+            self.notify(  # type: ignore[attr-defined]
+                "Restore is only available for agent prompts", severity="warning"
+            )
+            return
+
+        entries = self._read_prompt_stash_entries()
+        if not entries:
+            self.notify("No stashed prompts to restore")  # type: ignore[attr-defined]
+            return
+
+        self.push_screen(  # type: ignore[attr-defined]
+            StashedPromptsModal(entries),
+            self._on_prompt_stash_restore_confirmed,
+        )
+
+    def _on_prompt_stash_restore_confirmed(self, result: object) -> None:
+        """Pop the chosen entries, load the restored drafts, refresh the badge."""
+        from ...modals import StashRestoreResult
+
+        if not isinstance(result, StashRestoreResult):
+            return  # cancelled (None) or unexpected payload
+
+        ids = [*result.restore_ids, *result.delete_ids]
+        if not ids:
+            return
+
+        from sase.core.paths import prompt_stash_path
+        from sase.core.prompt_stash_facade import pop_prompt_stash
+
+        try:
+            outcome = pop_prompt_stash(prompt_stash_path(), ids)
+        except Exception as exc:  # pragma: no cover - defensive (store/IO error)
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to restore prompt: {exc}", severity="error"
+            )
+            return
+
+        removed = {entry.id: entry for entry in outcome.removed}
+        restored: list[PromptStashEntryWire] = [
+            removed[entry_id] for entry_id in result.restore_ids if entry_id in removed
+        ]
+        # Original drafting order (oldest first) so a "stash all" group restores
+        # its panes top-to-bottom exactly as captured.
+        restored.sort(key=lambda entry: (entry.created_at, entry.pane_index))
+        if restored:
+            self._load_restored_entries(restored)
+
+        deleted = sum(1 for entry_id in result.delete_ids if entry_id in removed)
+        self._notify_restore_outcome(len(restored), deleted)
+        self._refresh_prompt_stash_indicator()
+
+    def _load_restored_entries(self, entries: list[PromptStashEntryWire]) -> None:
+        """Load restored stash drafts into the prompt bar.
+
+        Appends to a mounted prompt bar as new panes; otherwise mounts the home
+        prompt bar pre-populated with the restored drafts (a single empty pane
+        when no real text, multiple panes joined by ``---``).
+        """
+        bar = self._mounted_prompt_bar()
+        if bar is not None and bar._mode == "prompt":
+            bar.restore_stashed_entries(
+                [(entry.text, entry.frontmatter) for entry in entries]
+            )
+            return
+        self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+            initial_text=self._stash_entries_to_prompt_text(entries)
+        )
+
+    @staticmethod
+    def _stash_entries_to_prompt_text(
+        entries: list[PromptStashEntryWire],
+    ) -> str:
+        """Build a multi-prompt string from restored entries (oldest first).
+
+        The first entry that carries frontmatter supplies the shared bar
+        frontmatter; the bodies are joined with ``---`` so the bar parses them
+        back into one pane per entry (mirroring the whole-stack submit format).
+        """
+        frontmatter = next(
+            (entry.frontmatter for entry in entries if entry.frontmatter),
+            "",
+        )
+        body = "\n---\n".join(entry.text for entry in entries if entry.text.strip())
+        if frontmatter and body:
+            return f"{frontmatter}\n{body}"
+        return frontmatter or body
+
+    def _notify_restore_outcome(self, restored: int, deleted: int) -> None:
+        """Toast a count-aware summary of the restore / delete outcome."""
+        messages: list[str] = []
+        if restored:
+            messages.append(
+                "Restored prompt" if restored == 1 else f"Restored {restored} prompts"
+            )
+        if deleted:
+            if restored:
+                messages.append(f"deleted {deleted}")
+            else:
+                messages.append(
+                    "Deleted stashed prompt"
+                    if deleted == 1
+                    else f"Deleted {deleted} stashed prompts"
+                )
+        if messages:
+            self.notify(", ".join(messages))  # type: ignore[attr-defined]
+
+    def _mounted_prompt_bar(self) -> PromptInputBar | None:
+        """Return the mounted ``#prompt-input-bar`` widget, or ``None``."""
+        from ...widgets import PromptInputBar
+
+        try:
+            return self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined,no-any-return]
+        except Exception:
+            return None
+
+    def _read_prompt_stash_entries(self) -> list[PromptStashEntryWire]:
+        """Return the stashed entries on disk (empty on any read failure)."""
+        try:
+            from sase.core.paths import prompt_stash_path
+            from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+            snapshot = read_prompt_stash_snapshot(prompt_stash_path())
+        except Exception:
+            return []
+        return list(snapshot.entries)
+
+    def _has_stashed_prompts(self) -> bool:
+        """Whether any restorable stash exists (drives the footer keymap).
+
+        Reads the in-memory badge count rather than disk so it stays cheap on
+        every leader-mode entry; the badge is refreshed on startup and after
+        each capture / restore.
+        """
+        from ...widgets import StashedPromptsIndicator
+
+        try:
+            indicator = self.query_one(  # type: ignore[attr-defined]
+                "#stashed-prompts-indicator", StashedPromptsIndicator
+            )
+        except Exception:
+            return False
+        return indicator.count > 0
 
     def _refresh_prompt_stash_indicator(self) -> None:
         """Reload the stash count from disk and update the top-bar badge."""

@@ -43,6 +43,7 @@ from .prompt_history_modal import (
     PromptHistoryResult,
 )
 from .query_edit_modal import QueryEditModal
+from .stashed_prompts_modal import StashRestoreResult, StashedPromptsModal
 from .recursive_finder_modal import RecursiveFileFinderModal
 from .rename_cl_modal import RenameCLModal
 from .save_agent_group_modal import SaveAgentGroupModal, SaveAgentGroupResult
@@ -170,6 +171,8 @@ __all__ = [
     "PromptHistoryResult",
     "QueryEditModal",
     "RenameCLModal",
+    "StashRestoreResult",
+    "StashedPromptsModal",
     "SavedAgentGroupRevivalModal",
     "SavedAgentGroupRevivalResult",
     "SaveAgentGroupModal",

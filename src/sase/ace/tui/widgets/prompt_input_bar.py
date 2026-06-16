@@ -160,6 +160,20 @@ class PromptInputBar(
             self.source = source
             self.dismiss_bar = dismiss_bar
 
+    class RestoreRequested(Message):
+        """Message sent when the user asks to restore stashed prompts (``,P``).
+
+        Presentation-only (boundary rule D6): the bar just signals intent and
+        forwards its current ``mode`` so the app can guard restore to prompt
+        bars (feedback / approve-prompt bars toast a no-op).  The app reads the
+        stash snapshot, opens the picker, and on confirm pops the chosen entries
+        and loads them back into the bar.
+        """
+
+        def __init__(self, mode: str = "prompt") -> None:
+            super().__init__()
+            self.mode = mode
+
     class EditorRequested(Message):
         """Message sent when user requests external editor (Ctrl+G)."""
 

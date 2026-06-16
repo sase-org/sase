@@ -179,3 +179,5 @@ class VimNormalPendingMixin(VimVisualModeMixin):
             bar.stash_active_pane()
         elif key == "S":
             bar.stash_all_panes()
+        elif key == "P":
+            bar.request_restore_stash()

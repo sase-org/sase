@@ -141,12 +141,11 @@ _lint-pyscripts: _setup
 #
 # epic-symbol whitelist: the prompt-stash backend API (epic sase-4q, Phase 1)
 # ships ahead of its TUI consumers; later phases (sase-4q.2+) wire it up. Capture
-# (Phase 2 / sase-4q.2) wired read/append + the path helper, so those are now
-# properly used; pop/rewrite stay whitelisted until the restore phase. Remove
-# the rest as the remaining phases land.
+# (Phase 2) wired read/append + the path helper and Restore (Phase 3 / sase-4q.3)
+# wired pop, so those are now properly used; rewrite stays whitelisted until the
+# polish phase. Remove the rest as the remaining phases land.
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
-        --epic-symbol 'sase-4q(pop_prompt_stash)' \
         --epic-symbol 'sase-4q(rewrite_prompt_stash)'
 
 # Auto-fix all code (format + keep-sorted)

@@ -544,6 +544,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         has_stopped_agent: bool = False,
         has_revertable_agent: bool = False,
         marked_agent_count: int = 0,
+        has_stashed_prompts: bool = False,
     ) -> None:
         """Update bindings to show leader mode options.
 
@@ -559,6 +560,8 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             marked_agent_count: Number of marked agents; when non-zero ``,r``
                 reverts every marked agent and the footer reads
                 ``revert marked (N)``.
+            has_stashed_prompts: Whether any restorable stashed prompt exists;
+                gates the ``,P`` restore keymap so it only shows when usable.
         """
         d = footer_key_display
         keys = self._kr().leader_mode.keys
@@ -598,6 +601,8 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         bindings.append((k("prompt_history"), "prompt history"))
         bindings.append((k("prompt_history_edit_first"), "edit history"))
         bindings.append((k("prompt_history_cancelled"), "history (+cancelled)"))
+        if has_stashed_prompts:
+            bindings.append((k("restore_prompt_stash"), "restore stash"))
         if current_tab == "agents":
             bindings.append((k("kill_and_edit"), "kill & edit"))
             if marked_agent_count > 0:
