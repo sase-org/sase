@@ -56,7 +56,6 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
     from sase.doctor.checks_beads import bead_check_specs
     from sase.doctor.checks_config import config_check_specs
     from sase.doctor.checks_deep import deep_check_specs
-    from sase.doctor.checks_memory import memory_check_specs
     from sase.doctor.checks_plugins import plugin_check_specs
     from sase.doctor.checks_project import project_check_specs
     from sase.doctor.checks_providers import provider_check_specs
@@ -76,7 +75,6 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
             *agent_index_check_specs(context),
             *bead_check_specs(context),
             *telemetry_check_specs(context),
-            *memory_check_specs(context),
             *deep_check_specs(context),
             *tools_check_specs(context),
         )

@@ -8,20 +8,20 @@ tracked, resumed, reviewed, retried, and handed off through stable project artif
 
 ## System Boundary
 
-| Area         | Responsibility                                                                                                                | Main References                              |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                               | [CLI reference](cli.md)                      |
-| ACE          | Interactive TUI for ChangeSpecs, agents, notifications, artifacts, and axe status.                                            | [ACE TUI](ace.md)                            |
-| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                        | [Axe](axe.md)                                |
-| XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                      | [XPrompts](xprompt.md)                       |
-| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                               | [Workflow spec](workflow_spec.md)            |
-| ChangeSpecs  | CL/PR-sized review records with lifecycle state, commits, hooks, comments, mentors, and timestamps.                           | [ChangeSpecs](change_spec.md)                |
-| Memory       | Instruction memory, audited long-term reads, reviewed write proposals, and source-linked episode evidence.                    | [Memory](memory.md), [episodes](episodes.md) |
-| SDD          | Durable prompt, tale, epic, legend, myth, and research artifacts.                                                             | [SDD](sdd.md)                                |
-| Beads        | Git-portable issue/dependency tracking and executable epic/legend launch plans.                                               | [Beads](beads.md)                            |
-| Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                | [Plugins](plugins.md)                        |
-| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch prep, and bead data operations. | [Rust backend](rust_backend.md)              |
-| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                      | [Integrations](integrations.md)              |
+| Area         | Responsibility                                                                                                                | Main References                   |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                               | [CLI reference](cli.md)           |
+| ACE          | Interactive TUI for ChangeSpecs, agents, notifications, artifacts, and axe status.                                            | [ACE TUI](ace.md)                 |
+| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                        | [Axe](axe.md)                     |
+| XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                      | [XPrompts](xprompt.md)            |
+| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                               | [Workflow spec](workflow_spec.md) |
+| ChangeSpecs  | CL/PR-sized review records with lifecycle state, commits, hooks, comments, mentors, and timestamps.                           | [ChangeSpecs](change_spec.md)     |
+| Memory       | Instruction memory, audited long-term reads, and reviewed write proposals.                                                    | [Memory](memory.md)               |
+| SDD          | Durable prompt, tale, epic, legend, myth, and research artifacts.                                                             | [SDD](sdd.md)                     |
+| Beads        | Git-portable issue/dependency tracking and executable epic/legend launch plans.                                               | [Beads](beads.md)                 |
+| Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                | [Plugins](plugins.md)             |
+| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch prep, and bead data operations. | [Rust backend](rust_backend.md)   |
+| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                      | [Integrations](integrations.md)   |
 
 The Python host owns user-facing orchestration, plugin calls, subprocess handling, filesystem context, TUI rendering,
 and workflow side effects. Rust owns reusable deterministic backend operations that need speed, stable wire contracts,
@@ -60,7 +60,7 @@ inspected by users, agents, and automation:
 | Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                                        |
 | SDD artifacts    | `sdd/` or `.sase/sdd/`                                             | Prompt snapshots, plans, executable epics, legends, myths, and research notes.                                  |
 | Beads            | `sdd/beads/` or `.sase/sdd/beads/`                                 | Issue graph, JSONL export, SQLite query cache, epic/legend execution metadata.                                  |
-| Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, write proposals, and episodes.                                               |
+| Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, and write proposals.                                                         |
 | Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                       |
 | Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.                                |
 | Workspace claims | Running-field state and provider metadata                          | Reservation and release of numbered workspaces for parallel agents.                                             |

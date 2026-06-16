@@ -589,45 +589,6 @@ def test_action_open_command_palette_dispatches_selection() -> None:
     refresh_mock.assert_called_once_with()
 
 
-def test_action_open_command_palette_dispatches_episode_explorer() -> None:
-    """The Episode Explorer command is runnable from the palette."""
-    app = AceApp(auto_start_axe=False)
-    captured: list = []
-
-    def fake_push(screen, callback=None):  # type: ignore[no-untyped-def]
-        captured.append((screen, callback))
-
-    app.push_screen = MagicMock(side_effect=fake_push)  # type: ignore[method-assign]
-
-    with patch.object(AceApp, "action_open_episode_explorer") as explorer_mock:
-        app.action_open_command_palette()  # type: ignore[attr-defined]
-        _, callback = captured[0]
-        assert callback is not None
-
-        from sase.ace.tui.commands import CommandPaletteResult
-
-        callback(CommandPaletteResult(selected_id="app.open_episode_explorer"))
-
-    explorer_mock.assert_called_once_with()
-
-
-def test_action_open_episode_explorer_pushes_modal() -> None:
-    """The direct action opens the ACE Episode Explorer modal."""
-    app = AceApp(auto_start_axe=False, initial_tab="changespecs")
-    pushed: list = []
-    app.push_screen = MagicMock(  # type: ignore[method-assign]
-        side_effect=lambda screen, callback=None: pushed.append((screen, callback))
-    )
-
-    app.action_open_episode_explorer()  # type: ignore[attr-defined]
-
-    assert len(pushed) == 1
-    modal, _callback = pushed[0]
-    from sase.ace.tui.modals import EpisodeExplorerModal
-
-    assert isinstance(modal, EpisodeExplorerModal)
-
-
 def test_action_open_command_palette_noop_on_cancel() -> None:
     """Cancelling the palette (None result) runs no action."""
     app = AceApp(auto_start_axe=False)

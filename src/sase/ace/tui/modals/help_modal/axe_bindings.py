@@ -134,7 +134,6 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     "Repeat last @/Ctrl+Space selection",
                 ),
                 (d(a.browse_xprompts), "Browse xprompts"),
-                (d(a.open_episode_explorer), "Open Episode Explorer"),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.refresh), "Refresh"),

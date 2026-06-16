@@ -108,7 +108,6 @@ sase_chop_wait_checks = "sase.scripts:sase_chop_wait_checks"
 sase_chop_cl_submitted_checks = "sase.scripts:sase_chop_cl_submitted_checks"
 sase_chop_comment_checks = "sase.scripts:sase_chop_comment_checks"
 sase_chop_error_digest = "sase.scripts:sase_chop_error_digest"
-sase_chop_memory_episodes = "sase.scripts:sase_chop_memory_episodes"
 sase_xcmd = "sase.scripts:sase_xcmd"
 agent_chat_from_name = "sase.scripts:agent_chat_from_name"
 

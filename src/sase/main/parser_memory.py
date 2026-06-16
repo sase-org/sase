@@ -2,8 +2,6 @@
 
 import argparse
 
-from sase.main.parser_memory_episodes import register_memory_episodes_parser
-
 
 def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``memory`` command group."""
@@ -19,8 +17,6 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase memory read long/generated_skills.md --reason "
             '"Need generated skill context"\n'
-            "  sase memory episodes build -n <agent>\n"
-            "  sase memory episodes list\n"
             '  sase memory write --title "Generated skills" --slug '
             "generated_skills --evidence sdd/research/skills.md --body "
             '"Durable memory body"\n'
@@ -69,8 +65,6 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "available files, and missing references."
         ),
     )
-
-    register_memory_episodes_parser(memory_subparsers)
 
     read_parser = memory_subparsers.add_parser(
         "read",

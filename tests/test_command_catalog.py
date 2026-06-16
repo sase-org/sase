@@ -112,19 +112,6 @@ def test_start_agent_home_command_uses_bare_space() -> None:
     assert spec.executor.action == "start_agent_home"
 
 
-def test_episode_explorer_command_is_global_display_command() -> None:
-    by_id = {c.id: c for c in iter_app_commands(_registry())}
-    spec = by_id["app.open_episode_explorer"]
-
-    assert spec.label == "Open Episode Explorer"
-    assert spec.category == "Display"
-    assert spec.tabs == ("changespecs", "agents", "axe")
-    assert spec.key_sequence == ("F",)
-    assert spec.key_display == "F"
-    assert "episode" in spec.aliases
-    assert "memory" in spec.aliases
-
-
 def test_run_workflow_command_is_contextual_retry_on_agents() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.run_workflow"]

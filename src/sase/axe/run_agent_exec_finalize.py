@@ -17,7 +17,6 @@ from sase.axe.run_agent_exec_retry import RetryTracker
 from sase.axe.run_agent_exec_types import AgentExecContext, AgentExecResult, LoopState
 from sase.axe.run_agent_helpers import extract_step_output_and_diff_path
 from sase.axe.run_agent_helpers import is_workflow_noop
-from sase.axe.run_agent_helpers import write_episode_trace_marker
 from sase.axe.run_agent_phases import build_done_marker
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
@@ -390,12 +389,6 @@ def finalize_loop(
         metadata_llm_provider=metadata_llm_provider,
     )
     print(f"\nChat history saved to: {saved_path}")
-    write_episode_trace_marker(
-        state.current_artifacts_dir,
-        chat_path=saved_path,
-        root_timestamp=ctx.artifacts_timestamp,
-        update_index=False,
-    )
 
     if state.loop_outcome == "completed":
         _link_saved_chats(state, saved_path)

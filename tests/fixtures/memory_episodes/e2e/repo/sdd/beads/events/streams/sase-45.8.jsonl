@@ -1,2 +1,0 @@
-{"schema_version": 1, "event_id": "fixture-phase-claimed", "operation": "issue_updated", "issue_id": "sase-45.8", "payload": {"status": "in_progress"}}
-

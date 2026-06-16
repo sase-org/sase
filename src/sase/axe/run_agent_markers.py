@@ -5,7 +5,6 @@ import os
 from datetime import datetime
 from typing import Any
 
-from sase.axe.run_agent_helpers_artifacts import write_episode_trace_marker
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -160,5 +159,4 @@ def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(agent_meta, f, indent=2)
-    write_episode_trace_marker(artifacts_dir, update_index=False)
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)

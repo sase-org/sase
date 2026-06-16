@@ -24,7 +24,6 @@ from sase.axe.run_agent_helpers import (
     update_meta_field,
     update_meta_suffix,
     update_step_marker_chat_path,
-    write_episode_trace_marker,
 )
 from sase.axe.runner_utils import reset_killed
 from sase.plan_chain import (
@@ -152,11 +151,6 @@ def handle_questions_marker(
     state.saved_chat_paths.append((_q_suffix, _q_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)
     update_step_marker_chat_path(state.current_artifacts_dir, _q_chat)
-    write_episode_trace_marker(
-        state.current_artifacts_dir,
-        chat_path=_q_chat,
-        root_timestamp=ctx.artifacts_timestamp,
-    )
 
     state.agent_step += 1
     if first_family_agent_question and state.agent_step == 2 and ctx.agent_name:

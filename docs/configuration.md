@@ -1060,7 +1060,7 @@ launch's values so follow-up agents cannot inherit stale workspace claims.
 ## CLI Flags
 
 Command groups that default to a nested `list` command still parse flags at the subcommand level. Use the explicit
-`list` form when passing list options, such as `sase notify list -j`, `sase memory episodes list -p <project>`, or
+`list` form when passing list options, such as `sase notify list -j`, `sase memory list -j`, or
 `sase workspace list --json`.
 
 ### `sase ace`
@@ -1317,7 +1317,6 @@ With no subcommand, `sase memory` defaults to `sase memory list`.
 | `sase memory write`       | `--title`, `--target` or `--slug`, repeatable `--evidence`, `--from-chat`, `--keyword`, `--body`, `--file`, `--allow-large`, `--manual-author`, `--notify`, `--json` | Create an attributable long-term memory proposal without modifying canonical memory files.          |
 | `sase memory review [id]` | `--list`, `--show`, `--approve`, `--edit`, `--reject`, `--all`, `--target`, `--edited-file`, `--reason`, `--json`                                                    | Human review of pending memory proposals; a bare TTY command opens the interactive review app.      |
 | `sase memory log`         | `--path`, `--agent`, `--id`, `--include`, `--json`                                                                                                                   | Summarize or inspect audited memory reads, optionally including proposal and review events.         |
-| `sase memory episodes`    | `auto`, `build`, `doctor`, `export`, `list`, `recall`, `show`, `status`, `verify`                                                                                    | Build, inspect, verify, export, recall, and maintain deterministic source-linked episode records.   |
 
 Examples:
 
@@ -1332,31 +1331,6 @@ sase memory log --include proposals
 sase memory log --path long/generated_skills.md
 sase memory log --id <read-id>
 ```
-
-#### `sase memory episodes`
-
-`sase memory episodes` stores deterministic records of prior agent work under `~/.sase/projects/<project>/episodes/`.
-With no subcommand, it defaults to `sase memory episodes list` with default options. Use the explicit subcommand when
-passing flags, for example `sase memory episodes list -p <project> -j`. All subcommands accept
-`-p, --project <project>`.
-
-| Form                                 | Flags                                                                                                                                                                                                             | Description                                                                    |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `sase memory episodes auto`          | `-D, --dry-run`, `-l, --limit`, `-j, --json`                                                                                                                                                                      | Run one checkpointed automatic episode-build cycle over new done markers.      |
-| `sase memory episodes build`         | `-n, --agent`, `-a, --artifact-dir`, `-c, --changespec`, `-C, --chat`, `-s, --since`, `-u, --until`, `-l, --limit`, `-S, --split`, `-A, --aggregate`, `-D, --dry-run`, `-f, --force`, `-q, --quiet`, `-j, --json` | Build split v2 component episodes or aggregate compatibility output.           |
-| `sase memory episodes doctor`        | `-R, --repair`, `-j, --json`                                                                                                                                                                                      | Inspect automatic-builder state and apply safe repairs when requested.         |
-| `sase memory episodes export`        | `-s, --since`, `-u, --until`, `-b, --band`, `-n, --agent`, `-c, --changespec`, `-B, --bead`, `-q, --query`, `-o, --order`, `-l, --limit`, `-j, --json`                                                            | Export bounded read-only episode summaries for future event review.            |
-| `sase memory episodes list`          | `-s, --since`, `-u, --until`, `-b, --band`, `-n, --agent`, `-c, --changespec`, `-B, --bead`, `-q, --query`, `-g, --group`, `-o, --order`, `-l, --limit`, `-j, --json`                                             | Inventory stored episodes by event span, importance, metadata, and query.      |
-| `sase memory episodes show <id>`     | `-f, --format overview\|timeline\|graph\|sources\|agent\|json\|lesson`, `-e, --edge-mode strong\|all`, `-j, --json`                                                                                               | Show overview, graph, provenance, agent evidence pack, JSON, or legacy lesson. |
-| `sase memory episodes status`        | `-j, --json`                                                                                                                                                                                                      | Show automatic-builder checkpoint, lock, index, and latest metrics status.     |
-| `sase memory episodes verify [id]`   | `-A, --all`, `-j, --json`                                                                                                                                                                                         | Verify source existence, size, and hashes for one episode or all stored rows.  |
-| `sase memory episodes recall -q <q>` | `-l, --limit`, `-j, --json`                                                                                                                                                                                       | Search stored episode evidence with deterministic keyword matching.            |
-
-Human-mode `build` emits phase progress to stderr; `--quiet` suppresses that progress while keeping the final stdout
-summary. JSON aggregate build output is stderr-silent and includes `episode`, `build_request`, and `build_report`
-objects. JSON split build output includes `components` and `build_reports` lists. Current episode writes are
-content-idempotent. `--force` is accepted and appears in the JSON build request, but unchanged episode files are still
-left untouched.
 
 ### `sase memory init`
 

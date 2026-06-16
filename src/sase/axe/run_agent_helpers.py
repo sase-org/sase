@@ -41,7 +41,6 @@ __all__ = [
     "update_meta_field",
     "update_meta_suffix",
     "update_step_marker_chat_path",
-    "write_episode_trace_marker",
 ]
 
 
@@ -91,24 +90,6 @@ def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
 def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
     _sync_patchable_dependencies()
     _artifacts.update_meta_suffix(artifacts_dir, suffix)
-
-
-def write_episode_trace_marker(
-    artifacts_dir: str,
-    *,
-    chat_path: str | None = None,
-    plan_path: str | None = None,
-    root_timestamp: str | None = None,
-    update_index: bool = True,
-) -> bool:
-    _sync_patchable_dependencies()
-    return _artifacts.write_episode_trace_marker(
-        artifacts_dir,
-        chat_path=chat_path,
-        plan_path=plan_path,
-        root_timestamp=root_timestamp,
-        update_index=update_index,
-    )
 
 
 def promote_to_workflow(

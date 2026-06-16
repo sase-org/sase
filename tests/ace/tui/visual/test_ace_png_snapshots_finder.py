@@ -66,10 +66,10 @@ def _finder_candidates() -> list[CompletionCandidate]:
     # Two entries outside widgets/ that do not contain the "wi" subsequence.
     candidates.append(
         CompletionCandidate(
-            display="src/sase/core/episode.py",
-            insertion="src/sase/core/episode.py",
+            display="src/sase/core/paths.py",
+            insertion="src/sase/core/paths.py",
             is_dir=False,
-            name="episode.py",
+            name="paths.py",
         )
     )
     candidates.append(

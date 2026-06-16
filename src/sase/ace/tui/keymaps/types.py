@@ -93,7 +93,6 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("scroll_to_bottom", "Bottom", False),
     ("show_help", "Help", False),
     ("browse_xprompts", "XPrompts", False),
-    ("open_episode_explorer", "Episode Explorer", False),
     ("prev_query", "Prev Query", False),
     ("next_query", "Next Query", False),
     ("start_ancestor_mode", "Ancestor", False),
@@ -332,7 +331,6 @@ class AppKeymaps:
     show_notifications: str
     show_help: str
     browse_xprompts: str
-    open_episode_explorer: str
     open_command_palette: str
     dismiss_toasts: str
     # Workspace mode prefixes

@@ -409,7 +409,6 @@ My own machine has more opinionated chops in my chezmoi config:
   `sase_telegram_refresh_docs`: keep docs fresh across the sibling repos when drift passes a threshold.
 - `gh_actions_fix`: checks configured GitHub repositories for failed Actions runs, de-dupes seen failures, fetches logs,
   and launches a focused fixer agent.
-- `memory_episodes`: turns useful agent activity into memory episode candidates.
 - `tg_inbound` and `tg_outbound`: connect AXE to `sase-telegram`, polling chat input and sending notifications.
 
 That is the pattern: AXE is not "one more agent." It is the supervisor that notices state changes and schedules the
@@ -601,8 +600,8 @@ Keep it affectionate and clearly respectful of Gas Town/Beads.
 
 Three directions are incomplete but important:
 
-- [Memory](../../memory.md): SASE already has short-term project memory, audited long-term memory reads, proposal-based
-  writes, and memory episodes. The next frontier is better retrieval, staleness handling, trust boundaries, and UI.
+- [Memory](../../memory.md): SASE already has short-term project memory, audited long-term memory reads, and
+  proposal-based writes. The next frontier is better retrieval, staleness handling, trust boundaries, and UI.
 - Mobile: the [mobile gateway](../../mobile_gateway.md) and Android MVP work point toward a real mobile SASE client.
   Telegram covers a lot today, but a purpose-built app can expose richer state than chat buttons.
 - Web: the Rust core boundary exists partly so a future web interface can share the same domain behavior as ACE,

@@ -71,24 +71,6 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "artifacts and indexes are removed together with the project state."
         ),
     ),
-    "src/sase/memory/episodes/_storage_files.py:gc_corrupt_episode_temp_dirs_unlocked": DirOpReview(
-        exemption=(
-            "Removes only hidden episode storage temp directories under "
-            "~/.sase/projects/<project>/episodes, not agent artifact directories."
-        ),
-    ),
-    "src/sase/memory/episodes/storage.py:write_project_episode_unlocked": DirOpReview(
-        exemption=(
-            "Creates hidden episode storage staging directories under "
-            "~/.sase/projects/<project>/episodes, not agent artifact directories."
-        ),
-    ),
-    "src/sase/memory/episodes/_auto_build_doctor.py:_execute_repairs": DirOpReview(
-        exemption=(
-            "Removes abandoned hidden episode temp directories under the episode "
-            "store during doctor repair, not agent artifact directories."
-        ),
-    ),
     (
         "src/sase/telemetry/cli_export_config.py:handle_telemetry_export_config"
     ): DirOpReview(

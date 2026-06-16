@@ -42,7 +42,6 @@ from sase.axe.run_agent_runner_finalize import (
     write_error_done_marker,
 )
 from sase.axe.run_agent_runner_setup import (
-    apply_episode_recall_memory,
     apply_retry_chain_to_meta,
     bump_spawn_telemetry,
     load_retry_handoff_from_env,
@@ -286,8 +285,6 @@ def main() -> None:
             )
 
             ensure_git_info_exclude_entry(workspace_dir, ".sase/")
-
-            prompt = apply_episode_recall_memory(prompt, project_name, artifacts_dir)
 
             # Extract directives and write agent metadata
             info = extract_directives_and_write_meta(

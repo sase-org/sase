@@ -353,7 +353,7 @@ class TestPlanFollowupQuestions:
             "global_note": "",
         }
 
-        # Keep episode-trace writes inside tmp_path for each round.
+        # Keep marker/index writes inside tmp_path for each round.
         round1_dir = tmp_path / "code_phase_r1"
         round1_dir.mkdir()
         state.current_artifacts_dir = str(round1_dir)

@@ -835,7 +835,6 @@ These work on all tabs:
 | ------------------- | --------------------------------------------------------------------------------- |
 | `Tab` / `Shift+Tab` | Switch between PRs, Agents, and Axe tabs                                          |
 | `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)              |
-| `F`                 | Open Episode Explorer (see [Episode Explorer](#episode-explorer) below)           |
 | `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands) |
 | `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                        |
 | `,i`                | Open Activity Dashboard modal                                                     |
@@ -1058,33 +1057,6 @@ Press `Ctrl+O` to start the guided creation flow:
    with a YAML template containing the workflow scaffold.
 3. **Editor** — The file opens in `$EDITOR` for editing.
 4. **Git commit** — After saving, the browser offers to commit and push changes.
-
-## Episode Explorer
-
-Press `F` on any tab to browse source-linked memory episodes for the current project without leaving ACE. The modal
-loads the project episode inventory, starts with the last-week range filter, and then filters locally. It renders the
-same overview, timeline, graph, sources, and agent evidence views exposed by `sase memory episodes show`.
-
-The left pane lists canonical episode ids and aliases. The filter row narrows by text, agent, ChangeSpec, and bead; the
-quick filters cycle through event ranges, importance bands, v1/v2 status, and alias-only rows. The graph view defaults
-to strong lineage edges, while `e` toggles all weak evidence edges.
-
-| Key            | Action                                                        |
-| -------------- | ------------------------------------------------------------- |
-| `j` / `k`      | Move through episode rows                                     |
-| `r`            | Cycle range filter (`all`, today, yesterday, week, month)     |
-| `b`            | Cycle importance band                                         |
-| `s`            | Cycle status filter (`all`, v2, v1, aliases)                  |
-| `1`-`5`        | Switch detail view: overview, timeline, graph, sources, agent |
-| `Left`/`Right` | Previous / next detail view                                   |
-| `e`            | Toggle graph edge mode between strong and all                 |
-| `v`            | Verify the selected episode's sources                         |
-| `o`            | Open the currently selected source in `$EDITOR`               |
-| `[` / `]`      | Move the source cursor in the sources view                    |
-| `Enter`/`g`    | Jump from an alias row to its canonical episode               |
-| `y`            | Copy the selected episode id                                  |
-| `Ctrl+R`       | Refresh inventory                                             |
-| `q`/`Esc`      | Close the explorer                                            |
 
 ## Idle Detection
 

@@ -8,7 +8,6 @@ from pathlib import Path
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.axe.run_agent_helpers_artifacts import write_episode_trace_marker
 
 
 def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
@@ -186,9 +185,4 @@ def update_step_marker_chat_path(artifacts_dir: str, chat_path: str) -> None:
         except OSError:
             continue
     if index_dirty:
-        write_episode_trace_marker(
-            artifacts_dir,
-            chat_path=chat_path,
-            update_index=False,
-        )
         update_agent_artifact_index_for_marker_mutation(artifacts_dir)

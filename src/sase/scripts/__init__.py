@@ -140,12 +140,6 @@ def sase_chop_wait_checks() -> None:
     main()
 
 
-def sase_chop_memory_episodes() -> None:
-    from sase.scripts.sase_chop_memory_episodes import main
-
-    main()
-
-
 def sase_chop_cl_submitted_checks() -> None:
     from sase.scripts.sase_chop_cl_submitted_checks import main
 

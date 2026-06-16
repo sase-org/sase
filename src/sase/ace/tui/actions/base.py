@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -114,32 +113,6 @@ class BaseActionsMixin:
         self._reload_and_reposition()  # type: ignore[attr-defined]
 
     # --- Tool Actions ---
-
-    def action_open_episode_explorer(self) -> None:
-        """Open the project episodic-memory explorer."""
-        from ...changespec.project_spec_path import project_spec_basename
-        from sase.main.init_memory.config import project_memory_name
-        from ..modals import EpisodeExplorerModal
-
-        project = ""
-        if self.current_tab == "changespecs" and self.changespecs:
-            idx = min(max(self.current_idx, 0), len(self.changespecs) - 1)
-            project = str(
-                getattr(self.changespecs[idx], "project_basename", "") or ""
-            ).strip()
-        elif self.current_tab == "agents":
-            agents = getattr(self, "_agents", [])
-            if 0 <= self.current_idx < len(agents):
-                project_file = str(
-                    getattr(agents[self.current_idx], "project_file", "")
-                )
-                if project_file:
-                    project = project_spec_basename(project_file)
-
-        if not project:
-            project = project_memory_name(Path.cwd())
-
-        self.push_screen(EpisodeExplorerModal(project=project))  # type: ignore[attr-defined]
 
     def action_open_project_management_panel(self) -> None:
         """Open the project lifecycle management panel."""

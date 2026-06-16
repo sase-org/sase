@@ -1,4 +1,3 @@
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -13,25 +12,11 @@ from sase.axe.run_agent_exec_markers import (
 )
 from sase.axe.run_agent_exec_plan_artifacts import write_plan_path_artifact
 from sase.axe.run_agent_runner_setup import (
-    apply_episode_recall_memory,
     preprocess_prompt_xprompts,
     refresh_sibling_repos_for_workspace,
     setup_artifacts_directory,
     write_submitted_xprompt_artifact,
 )
-from sase.core.episode_wire import (
-    EPISODE_WIRE_SCHEMA_VERSION,
-    EpisodeEventWire,
-    EpisodeLessonWire,
-    EpisodeNodeWire,
-    EpisodeSourceRefWire,
-    EpisodeWire,
-)
-from sase.memory.episodes.prompt_recall import (
-    EPISODE_RECALL_ENABLED_ENV,
-    EPISODE_RECALL_LIMIT_ENV,
-)
-from sase.memory.episodes.storage import write_project_episode
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, resolve_sibling_repos_for_project
 
 
@@ -209,32 +194,6 @@ def test_plan_path_artifact_write_updates_artifact_index(tmp_path: Path) -> None
     )
 
 
-def test_apply_episode_recall_memory_opt_in_records_artifact(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv(EPISODE_RECALL_ENABLED_ENV, "1")
-    monkeypatch.setenv(EPISODE_RECALL_LIMIT_ENV, "1")
-    artifacts_dir = tmp_path / "artifacts"
-    artifacts_dir.mkdir()
-    source = _episode_source(tmp_path, "retry-feedback.md", "retry feedback\n")
-    write_project_episode(_episode_for_recall(source))
-
-    prompt = apply_episode_recall_memory(
-        "Need retry feedback guidance",
-        "proj",
-        str(artifacts_dir),
-    )
-
-    assert "### EPISODIC MEMORY" in prompt
-    assert "ep-runner-recall" in prompt
-    artifact = json.loads((artifacts_dir / "episode_recall.json").read_text())
-    assert [match["episode_id"] for match in artifact["matches"]] == [
-        "ep-runner-recall"
-    ]
-
-
 def test_workflow_pdf_status_updates_artifact_index(tmp_path: Path) -> None:
     state_path = tmp_path / "workflow_state.json"
     state_path.write_text('{"status": "running"}', encoding="utf-8")
@@ -255,60 +214,3 @@ def test_workflow_pdf_status_updates_artifact_index(tmp_path: Path) -> None:
     data = state_path.read_text(encoding="utf-8")
     assert '"pdf_status"' in data
     assert '"activity"' not in data
-
-
-def _episode_source(
-    tmp_path: Path,
-    name: str,
-    content: str,
-) -> EpisodeSourceRefWire:
-    path = tmp_path / name
-    path.write_text(content, encoding="utf-8")
-    data = content.encode("utf-8")
-    return EpisodeSourceRefWire(
-        id=f"src-{path.stem}",
-        kind="chat",
-        path=str(path.resolve(strict=False)),
-        label=name,
-        exists=True,
-        size_bytes=len(data),
-        sha256=hashlib.sha256(data).hexdigest(),
-    )
-
-
-def _episode_for_recall(source: EpisodeSourceRefWire) -> EpisodeWire:
-    return EpisodeWire(
-        schema_version=EPISODE_WIRE_SCHEMA_VERSION,
-        episode_id="ep-runner-recall",
-        project="proj",
-        title="Retry Feedback Episode",
-        summary="Captured retry feedback for prompt recall.",
-        root_source_id=source.id,
-        sources=[source],
-        nodes=[
-            EpisodeNodeWire(
-                id="node-runner-recall",
-                kind="agent_run",
-                label="runner-recall",
-                metadata={"outcome": "completed"},
-            )
-        ],
-        edges=[],
-        events=[
-            EpisodeEventWire(
-                id="event-runner-recall",
-                kind="agent_finish",
-                title="Agent finished",
-                timestamp="2026-05-26T12:00:00Z",
-                evidence_ids=[source.id],
-            )
-        ],
-        lessons=[
-            EpisodeLessonWire(
-                id="lesson-runner-recall",
-                kind="feedback",
-                text="Retry feedback should be recalled when relevant.",
-                evidence_ids=[source.id],
-            )
-        ],
-    )

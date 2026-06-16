@@ -2,9 +2,8 @@
 
 Contains the bookkeeping that runs before the agent's execution loop:
 artifacts directory + initial workflow_state.json, prompt preprocessing,
-retry-spawn handoff loading, episode recall prompt augmentation, retry-chain
-ancestry recording, telemetry spawn counters, and the home-mode running
-marker.
+retry-spawn handoff loading, retry-chain ancestry recording, telemetry spawn
+counters, and the home-mode running marker.
 """
 
 import json
@@ -22,7 +21,6 @@ from sase.axe.run_agent_retry_spawn import (
     ENV_RETRY_OF_TIMESTAMP,
     RetryHandoff,
 )
-from sase.axe.run_agent_helpers_artifacts import write_episode_trace_marker
 from sase.axe.runner_utils import prepare_workspace
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -166,49 +164,6 @@ def load_retry_handoff_from_env() -> RetryHandoff | None:
     return handoff
 
 
-def apply_episode_recall_memory(
-    prompt: str, project_name: str, artifacts_dir: str
-) -> str:
-    """Append opt-in episodic memory recall and record ``episode_recall.json``."""
-    from sase.memory.episodes.prompt_recall import (
-        episode_recall_enabled,
-        episode_recall_limit,
-        format_episode_recall_section,
-        generate_episode_recall_prompt,
-    )
-
-    if not episode_recall_enabled():
-        return prompt
-
-    recall_result = generate_episode_recall_prompt(
-        prompt,
-        project_name,
-        limit=episode_recall_limit(),
-    )
-    if not recall_result.matches:
-        return prompt
-
-    recall_artifact = {
-        "limit": recall_result.limit,
-        "matches": [match.to_json_dict() for match in recall_result.matches],
-        "project": recall_result.project,
-        "query": recall_result.query,
-    }
-    with open(
-        os.path.join(artifacts_dir, "episode_recall.json"),
-        "w",
-        encoding="utf-8",
-    ) as f:
-        json.dump(recall_artifact, f, indent=2, sort_keys=True)
-
-    print("=== Episode Recall ===")
-    for match in recall_result.matches:
-        print(f"  + {match.episode_id}  (score: {match.score})")
-    print("======================")
-    print()
-    return prompt + "\n\n" + format_episode_recall_section(recall_result)
-
-
 def apply_retry_chain_to_meta(
     *,
     retry_handoff: RetryHandoff | None,
@@ -279,7 +234,6 @@ def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(agent_meta, f, indent=2)
-    write_episode_trace_marker(artifacts_dir, update_index=False)
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-15 19:41:39
-status: wip
+status: done
 prompt: sdd/prompts/202606/remove_memory_episodes.md
 ---
 # Remove Memory Episodes Command

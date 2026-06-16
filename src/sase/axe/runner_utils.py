@@ -10,7 +10,6 @@ from collections.abc import Callable
 
 from sase.ace.agent_tags import REVIEW_AGENT_TAG
 from sase.ace.changespec import ChangeSpec, parse_project_file
-from sase.axe.run_agent_helpers_artifacts import write_episode_trace_marker
 from sase.vcs_provider import get_vcs_provider
 
 logger = logging.getLogger(__name__)
@@ -188,7 +187,6 @@ def write_agent_meta(
     try:
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
-        write_episode_trace_marker(artifacts_dir, update_index=False)
         from sase.core.agent_artifact_index_lifecycle import (
             update_agent_artifact_index_for_marker_mutation,
         )
@@ -327,7 +325,6 @@ def write_done_marker(
     try:
         with open(done_path, "w", encoding="utf-8") as f:
             json.dump(done_data, f, indent=2)
-        write_episode_trace_marker(artifacts_dir, update_index=False)
         from sase.core.agent_artifact_index_lifecycle import (
             update_agent_artifact_index_for_marker_mutation,
         )
