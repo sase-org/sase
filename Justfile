@@ -145,7 +145,6 @@ _lint-pyscripts: _setup
 # all of them once sase-4r closes).
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
-        --epic-symbol "sase-4r(input_type_schema)" \
         --epic-symbol "sase-4r(validate_frontmatter_field)" \
         --epic-symbol "sase-4r(FrontmatterFieldSchema)" \
         --epic-symbol "sase-4r(FrontmatterInputType)" \

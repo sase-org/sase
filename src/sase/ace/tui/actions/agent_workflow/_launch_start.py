@@ -42,6 +42,82 @@ class AgentLaunchStartMixin:
     def _finish_agent_launch(self, prompt: str, *, keep_bar: bool = False) -> None:
         """Complete agent launch with the given prompt.
 
+        When the prompt's frontmatter declares ``input:`` arguments, those are
+        resolved first: required (default-less) inputs are collected through the
+        Input Collection Modal, optional inputs fall back to their declared
+        defaults, and the values are substituted into each segment before the
+        normal launch proceeds (see
+        :func:`sase.agent.prompt_inputs.render_prompt_with_inputs`). Prompts
+        without declared inputs launch immediately.
+
+        Args:
+            prompt: The user's prompt for the agent.
+            keep_bar: Leave the prompt bar mounted and the base context intact
+                (single-pane submit with panes remaining) instead of unmounting.
+        """
+        if self._prompt_context is None:
+            self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
+            return
+
+        from sase.agent.prompt_inputs import (
+            PromptInputError,
+            parse_prompt_input_request,
+            render_prompt_with_inputs,
+        )
+
+        request = parse_prompt_input_request(prompt)
+        if request is not None:
+            if request.has_required:
+                # Collect required inputs on the UI thread, then launch from the
+                # modal callback. The prompt bar stays mounted so a cancel
+                # returns the user to their prompt.
+                self._collect_prompt_inputs_then_launch(prompt, request, keep_bar)
+                return
+            # Only optional inputs: substitute their declared defaults so any
+            # ``{{ name }}`` placeholders resolve, then launch (no modal).
+            try:
+                prompt = render_prompt_with_inputs(prompt, {})
+            except PromptInputError as exc:
+                self.notify(f"Input error: {exc}", severity="error")  # type: ignore[attr-defined]
+                return
+
+        self._launch_resolved_prompt(prompt, keep_bar=keep_bar)
+
+    def _collect_prompt_inputs_then_launch(
+        self, prompt: str, request: object, keep_bar: bool
+    ) -> None:
+        """Show the Input Collection Modal, then launch with substituted values.
+
+        Cancelling the modal leaves the prompt bar mounted and launches nothing.
+        """
+        from sase.agent.multi_prompt import parse_multi_prompt
+        from sase.agent.prompt_inputs import (
+            PromptInputError,
+            render_prompt_with_inputs,
+        )
+        from sase.ace.tui.modals import InputCollectionModal
+
+        agent_count = max(1, len(parse_multi_prompt(prompt).segments))
+
+        def _after(values: object) -> None:
+            if values is None:
+                self.notify("Input collection cancelled")  # type: ignore[attr-defined]
+                return
+            assert isinstance(values, dict)
+            try:
+                resolved = render_prompt_with_inputs(prompt, values)
+            except PromptInputError as exc:
+                self.notify(f"Input error: {exc}", severity="error")  # type: ignore[attr-defined]
+                return
+            self._launch_resolved_prompt(resolved, keep_bar=keep_bar)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            InputCollectionModal(request, agent_count=agent_count), _after
+        )
+
+    def _launch_resolved_prompt(self, prompt: str, *, keep_bar: bool = False) -> None:
+        """Launch *prompt* (inputs already resolved) in a worker thread.
+
         Unmounts the prompt bar immediately, then runs the heavy launch
         work (VCS resolution, history writes, xprompt expansion, subprocess
         spawn) in a tracked Textual worker thread so the Textual event loop
@@ -58,7 +134,7 @@ class AgentLaunchStartMixin:
         shared ``self._prompt_context``.
 
         Args:
-            prompt: The user's prompt for the agent.
+            prompt: The user's prompt for the agent (inputs already substituted).
             keep_bar: Leave the prompt bar mounted and the base context intact
                 (single-pane submit with panes remaining) instead of unmounting.
         """

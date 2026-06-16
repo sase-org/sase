@@ -161,6 +161,28 @@ def run_query(
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     query = canonicalize_project_aliases_in_prompt(query)
+
+    # Frontmatter ``input:`` declarations are collected interactively in the TUI
+    # (the Input Collection Modal). A non-interactive launch cannot prompt, so a
+    # required (default-less) input would otherwise fail later with a cryptic
+    # ``StrictUndefined`` Jinja error. Surface a clear message up front instead.
+    from sase.agent.prompt_inputs import missing_required_input_names
+
+    missing_inputs = missing_required_input_names(query)
+    if missing_inputs:
+        import sys
+
+        from sase.output import print_status
+
+        names = ", ".join(missing_inputs)
+        print_status(
+            f"Prompt declares required input(s) without defaults: {names}. "
+            "Interactive input collection is only available in `sase ace`; "
+            "add a default to each input or launch from the TUI.",
+            "error",
+        )
+        sys.exit(1)
+
     multi_for_dispatch = parse_multi_prompt(query)
     activate_known_project_vcs_refs_for_launch_prompt(
         "\n---\n".join(multi_for_dispatch.segments)

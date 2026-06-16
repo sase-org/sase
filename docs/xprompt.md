@@ -1442,6 +1442,28 @@ xprompts:
 #_template(auth)
 ```
 
+### Frontmatter-Declared Inputs
+
+Prompt frontmatter can also declare `input:` arguments using the same typed shorthand as xprompt files (see
+[Typed Inputs](#typed-inputs)). The declared values are substituted into every segment's `{{ name }}` placeholders
+before the agents fan out:
+
+```
+---
+input:
+  service: word
+  retries: { type: int, description: how many times to retry }
+  dry_run: { type: bool, default: false }
+---
+Refactor the {{ service }} module ({{ retries }} retries, dry_run={{ dry_run }}).
+```
+
+When a prompt with required (default-less) inputs is submitted in `sase ace`, an **Input Collection Modal** opens after
+the whole-stack submit: each required input gets a typed, validated field (optional inputs stay collapsed behind a
+reveal toggle, showing their defaults), and the agents launch only once every value is valid. Non-interactive CLI
+launches (`sase run`) cannot prompt, so a required input without a default fails fast with a clear message instead of a
+cryptic template error — give such inputs a default or launch from the TUI.
+
 ### Segment Separators
 
 After the frontmatter block is consumed, subsequent `---` lines on their own act as segment separators. Each segment

@@ -98,6 +98,7 @@ from .mentor_review_models import (
 from .mentor_review_modal import MentorReviewModal
 from .add_xprompt_modal import AddXPromptModal
 from .agent_run_log_modal import AgentRunLogModal
+from .input_collection_modal import InputCollectionModal
 from .xprompt_browser_modal import XPromptBrowserModal
 from .xprompt_config_modal import XPromptConfigEntry, XPromptConfigEntryModal
 from .xprompt_filename_modal import XPromptFilenameModal
@@ -195,6 +196,7 @@ __all__ = [
     "WaitModal",
     "UserQuestionModal",
     "UserQuestionResult",
+    "InputCollectionModal",
     "XPromptBrowserModal",
     "XPromptConfigEntry",
     "XPromptConfigEntryModal",

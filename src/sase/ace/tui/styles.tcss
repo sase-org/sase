@@ -145,7 +145,7 @@ ChangeSpecList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal, StashedPromptsModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal, StashedPromptsModal, InputCollectionModal {
     align: center middle;
 }
 
@@ -929,6 +929,66 @@ QueryEditModal Horizontal {
 }
 
 QueryEditModal Button {
+    margin: 0 1;
+}
+
+/* Input Collection Modal styling */
+InputCollectionModal #input-collection-container {
+    width: 64;
+    height: auto;
+    max-height: 90%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+InputCollectionModal #modal-title {
+    width: 100%;
+    content-align: center middle;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+InputCollectionModal #input-fields {
+    height: auto;
+    max-height: 24;
+}
+
+InputCollectionModal .input-field-block {
+    height: auto;
+    margin-bottom: 1;
+}
+
+InputCollectionModal .field-header {
+    color: $secondary;
+    text-style: bold;
+}
+
+InputCollectionModal .field-desc {
+    color: $text-muted;
+}
+
+InputCollectionModal .field-error {
+    color: $error;
+}
+
+InputCollectionModal Input {
+    width: 100%;
+    margin: 0;
+}
+
+InputCollectionModal #toggle-optional {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+InputCollectionModal #button-row {
+    align: center middle;
+    height: auto;
+    margin-top: 1;
+}
+
+InputCollectionModal #button-row Button {
     margin: 0 1;
 }
 
