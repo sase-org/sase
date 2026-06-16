@@ -143,23 +143,34 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
         prompt_panel.attempt_view_mode = self._attempt_view_mode
         prompt_panel.attempt_pinned_number = attempt_number
+        generation = self._agent_detail_generation
+
+        def is_current(
+            agent_identity: tuple[Any, ...],
+            worker_generation: int,
+            attempt_view_mode: str,
+            attempt_pinned_number: int | None,
+        ) -> bool:
+            return (
+                self._agent_detail_generation == worker_generation
+                and self._current_agent is not None
+                and self._current_agent.identity == agent_identity
+                and self._attempt_view_mode == attempt_view_mode
+                and self._current_attempt_number == attempt_pinned_number
+            )
+
+        set_render_context = getattr(
+            prompt_panel, "set_agent_detail_render_context", None
+        )
+        if callable(set_render_context):
+            set_render_context(
+                generation=generation,
+                attempt_view_mode=self._attempt_view_mode,
+                attempt_pinned_number=attempt_number,
+                is_current=is_current,
+            )
+
         if self._should_render_workflow_detail_async(agent, attempt_number):
-            generation = self._agent_detail_generation
-
-            def is_current(
-                agent_identity: tuple[Any, ...],
-                worker_generation: int,
-                attempt_view_mode: str,
-                attempt_pinned_number: int | None,
-            ) -> bool:
-                return (
-                    self._agent_detail_generation == worker_generation
-                    and self._current_agent is not None
-                    and self._current_agent.identity == agent_identity
-                    and self._attempt_view_mode == attempt_view_mode
-                    and self._current_attempt_number == attempt_pinned_number
-                )
-
             prompt_panel.start_workflow_detail_render(
                 agent,
                 generation=generation,

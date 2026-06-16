@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 import json
 from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.models.agent_bead import derive_agent_bead_id
+from sase.ace.tui.models.agent_bead import (
+    _BEAD_DISPLAY_CACHE,
+    derive_agent_bead_id,
+    resolve_bead_display,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,
     build_header_text,
@@ -17,6 +22,13 @@ from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     assert_metadata_prefix,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_bead_display_cache() -> Iterator[None]:
+    _BEAD_DISPLAY_CACHE.clear()
+    yield
+    _BEAD_DISPLAY_CACHE.clear()
 
 
 class TestAgentBeadMetadata:
@@ -41,6 +53,7 @@ class TestAgentBeadMetadata:
             ),
         )
 
+        resolve_bead_display(agent)
         full_header, _ = build_header_text(
             agent,
             cheap=False,
@@ -116,6 +129,7 @@ class TestAgentBeadMetadata:
             ),
         )
 
+        resolve_bead_display(agent)
         header, _ = build_header_text(
             agent,
             cheap=False,
@@ -151,6 +165,7 @@ class TestAgentBeadMetadata:
 
         monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", lookup)
 
+        resolve_bead_display(agent)
         header, _ = build_header_text(
             agent,
             cheap=False,
@@ -199,6 +214,7 @@ class TestAgentBeadMetadata:
             workspace_dir=str(agent_workspace),
         )
 
+        resolve_bead_display(agent)
         header, _ = build_header_text(
             agent,
             cheap=False,
@@ -223,6 +239,7 @@ class TestAgentBeadMetadata:
             ),
         )
 
+        resolve_bead_display(agent)
         header, _ = build_header_text(
             agent,
             cheap=False,
@@ -241,6 +258,7 @@ class TestAgentBeadMetadata:
             lambda bead_id, **_: None,
         )
 
+        resolve_bead_display(agent)
         header, _ = build_header_text(
             agent,
             cheap=False,
@@ -266,6 +284,27 @@ class TestAgentBeadMetadata:
 
         assert "Name: sase-x.3\nBead: sase-x.3\n" in header.plain
 
+    def test_full_header_does_not_lookup_bead_description_when_cache_is_cold(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = make_agent(agent_name="sase-x.3")
+
+        def fail_lookup(bead_id: str) -> Issue | None:
+            raise AssertionError("cold full header must not touch bead storage")
+
+        monkeypatch.setattr(
+            "sase.agent.bead_display._lookup_bead_issue",
+            fail_lookup,
+        )
+
+        header, _ = build_header_text(
+            agent,
+            cheap=False,
+            summary=build_detail_header_summary(agent),
+        )
+
+        assert "Name: sase-x.3\nBead: sase-x.3\n" in header.plain
+
     def test_full_land_header_uses_plan_title_when_description_is_empty(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -280,6 +319,7 @@ class TestAgentBeadMetadata:
             ),
         )
 
+        resolve_bead_display(agent)
         header, _ = build_header_text(
             agent,
             cheap=False,
@@ -307,6 +347,7 @@ class TestAgentBeadMetadata:
             ),
         )
 
+        resolve_bead_display(agent)
         header, _ = build_header_text(
             agent,
             cheap=False,
@@ -332,6 +373,7 @@ class TestAgentBeadMetadata:
             ),
         )
 
+        resolve_bead_display(agent)
         header, _ = build_header_text(
             agent,
             cheap=False,

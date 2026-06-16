@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from rich.syntax import Syntax
 from rich.text import Text
@@ -25,7 +25,11 @@ from sase.plan_chain import (
 )
 
 from ...models.agent import Agent, AttemptRecord
-from ...models.agent_bead import format_agent_bead_display
+from ...models.agent_bead import (
+    BEAD_DISPLAY_CACHE_MISS,
+    cached_bead_display,
+    format_agent_bead_display,
+)
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ...util.lazy_syntax import lazy_renderable
 from ._agent_artifacts import AgentArtifactPath
@@ -111,7 +115,11 @@ def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
 
     bead_display = None
     if agent.agent_name:
-        bead_display = format_agent_bead_display(agent, include_description=True)
+        cached_display = cached_bead_display(agent)
+        if cached_display is BEAD_DISPLAY_CACHE_MISS:
+            bead_display = format_agent_bead_display(agent, include_description=False)
+        else:
+            bead_display = cast(str | None, cached_display)
 
     from sase.ace.tui.memory_reads import load_memory_reads_for_agent_context
     from sase.ace.tui.skill_uses import load_skill_uses_for_agent_context
