@@ -138,8 +138,24 @@ _lint-pyscripts: _setup
     {{ venv_bin }}/python tools/pyscripts-260314
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
+#
+# The sase-4r(...) entries below are the Phase 1 frontmatter-panel adapter
+# symbols in src/sase/xprompt/frontmatter_schema.py. They are consumed by later
+# phases of the open sase-4r epic; remove each entry as its consumer lands (and
+# all of them once sase-4r closes).
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
+        --epic-symbol "sase-4r(frontmatter_field_schema)" \
+        --epic-symbol "sase-4r(input_type_schema)" \
+        --epic-symbol "sase-4r(validate_frontmatter)" \
+        --epic-symbol "sase-4r(validate_frontmatter_field)" \
+        --epic-symbol "sase-4r(FrontmatterFieldSchema)" \
+        --epic-symbol "sase-4r(FrontmatterInputType)" \
+        --epic-symbol "sase-4r(FrontmatterDiagnostic)" \
+        --epic-symbol "sase-4r(FrontmatterFieldKind)" \
+        --epic-symbol "sase-4r(DiagnosticSeverity)" \
+        --epic-symbol "sase-4r(EditorRange)" \
+        --epic-symbol "sase-4r(EditorPosition)"
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
