@@ -57,6 +57,16 @@ def sase_projects_dir() -> Path:
     return sase_subdir("projects")
 
 
+def prompt_stash_path() -> Path:
+    """Return the path to the global prompt-stash JSONL store.
+
+    One per-user pile (``~/.sase/prompt_stash.jsonl``), not per-project: each
+    stash entry records its originating project as metadata instead. A
+    top-level file, so it is excluded from YYYYMM sharding.
+    """
+    return sase_home() / "prompt_stash.jsonl"
+
+
 _PROJECT_NAME_PATH_SEPARATORS = ("/", "\\")
 
 
