@@ -31,6 +31,7 @@ from sase.xprompt._fenced_blocks import (
     unprotect_fenced_blocks,
 )
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
+from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 # A line that is exactly ``---`` (trailing whitespace allowed, no leading
 # whitespace) is a segment separator — the same rule the canonical multi-prompt
@@ -210,6 +211,26 @@ class PromptStackState:
         if self.frontmatter and body:
             return f"{self.frontmatter}\n{body}"
         return body
+
+    # -- structured frontmatter ----------------------------------------------
+
+    @property
+    def frontmatter_model(self) -> PromptFrontmatter:
+        """The structured editing view over the raw :attr:`frontmatter` string.
+
+        Parsed on demand so the raw string stays the source of truth for the
+        byte-stable :meth:`join`/:meth:`attach_frontmatter` contract; the panel
+        edits this model and writes it back via :meth:`set_frontmatter_model`.
+        """
+        return PromptFrontmatter.parse(self.frontmatter)
+
+    def set_frontmatter_model(self, model: PromptFrontmatter) -> None:
+        """Write *model* back as the canonical raw :attr:`frontmatter` string.
+
+        An empty model clears the frontmatter entirely (no stray ``---\\n---``),
+        keeping a later :meth:`join` free of empty delimiters.
+        """
+        self.frontmatter = model.serialize()
 
     # -- selection ------------------------------------------------------------
 

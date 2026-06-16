@@ -12,6 +12,8 @@ from sase.ace.tui.widgets.prompt_stack import (
     PromptStackState,
     split_prompt_text,
 )
+from sase.xprompt.models import InputArg, InputType
+from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 
 # --- split_prompt_text: canonical parsing ---------------------------------
@@ -373,6 +375,57 @@ def test_split_selected_live_keeps_other_items() -> None:
     assert state.split_selected_live() is True
     assert state.texts == ["first", "", "second"]
     assert state.selected_index == 1
+
+
+# --- structured frontmatter model wiring ----------------------------------
+
+
+def test_frontmatter_model_parses_raw_string() -> None:
+    state = PromptStackState.from_text("---\nname: x\ndescription: hi\n---\nbody")
+    model = state.frontmatter_model
+    assert model.name == "x"
+    assert model.description == "hi"
+
+
+def test_frontmatter_model_empty_when_no_frontmatter() -> None:
+    state = PromptStackState.from_text("a\n---\nb")
+    assert state.frontmatter_model.is_empty
+
+
+def test_set_frontmatter_model_writes_canonical_string() -> None:
+    state = PromptStackState.from_text("seg1\n---\nseg2")
+    model = PromptFrontmatter(name="x")
+    model.set_input(InputArg(name="svc", type=InputType.WORD))
+    state.set_frontmatter_model(model)
+    assert state.frontmatter == "---\nname: x\ninput:\n  svc: word\n---"
+
+
+def test_set_empty_frontmatter_model_clears_frontmatter() -> None:
+    state = PromptStackState.from_text("---\nname: x\n---\nbody")
+    state.set_frontmatter_model(PromptFrontmatter())
+    assert state.frontmatter == ""
+    # No stray delimiters leak into a whole-stack join.
+    assert state.join() == "body"
+
+
+def test_join_byte_stable_after_model_round_trip() -> None:
+    """Reading then writing back the model leaves join() byte-identical."""
+    text = "---\nname: x\ntags:\n- a\n- b\n---\nseg1\n---\nseg2"
+    state = PromptStackState.from_text(text)
+    before = state.join()
+    state.set_frontmatter_model(state.frontmatter_model)
+    assert state.join() == before
+
+
+def test_attach_frontmatter_unchanged_after_model_edit() -> None:
+    state = PromptStackState.from_text("---\nname: x\n---\nseg1\n---\nseg2")
+    model = state.frontmatter_model
+    model.description = "added"
+    state.set_frontmatter_model(model)
+    # attach_frontmatter still prepends the (now-updated) canonical block.
+    assert state.attach_frontmatter("seg1") == (
+        "---\nname: x\ndescription: added\n---\nseg1"
+    )
 
 
 # --- per-item editor state ------------------------------------------------
