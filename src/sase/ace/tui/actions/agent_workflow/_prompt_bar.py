@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from ._prompt_bar_mount import PromptBarMountMixin
 from ._prompt_bar_requests import PromptBarRequestsMixin
+from ._prompt_bar_stash import PromptBarStashMixin
 from ._prompt_bar_submit import PromptBarSubmitMixin
 from ._types import PromptContext
 
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
 class PromptBarMixin(
     PromptBarMountMixin,
     PromptBarSubmitMixin,
+    PromptBarStashMixin,
     PromptBarRequestsMixin,
 ):
     """Mixin providing prompt input bar management and event handlers."""

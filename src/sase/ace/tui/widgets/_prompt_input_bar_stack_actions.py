@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.widgets.prompt_stack import PromptStackState
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -13,10 +14,26 @@ else:
     _MixinBase = object
 
 
+@dataclass(frozen=True)
+class StashedPromptPane:
+    """One captured prompt-bar pane handed to the app for persistence.
+
+    The bar captures presentation-side state only (the stripped pane ``text``,
+    the bar's shared YAML ``frontmatter``, and the pane's original
+    ``pane_index``); the app layer enriches it with id / timestamp / project
+    before writing through ``prompt_stash_facade`` (boundary rule D6).
+    """
+
+    text: str
+    frontmatter: str = ""
+    pane_index: int = 0
+
+
 class PromptInputBarStackActionsMixin(_MixinBase):
     """Prompt stack keymaps, live splitting, and completion cleanup."""
 
     if TYPE_CHECKING:
+        Stashed: Any
         _live_split_pending: bool
         _mode: str
         _stack: PromptStackState
@@ -79,6 +96,64 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         self._clear_active_completion_state()
         self._stack.append_bottom("")
         self._rebuild_stack(enter_mode="insert")
+
+    def stash_active_pane(self) -> None:
+        """Stash the active pane's draft for later (the ``,s`` keymap).
+
+        Prompt mode only — feedback / approve-prompt bars are not stashable, so
+        it is a no-op there.  The pane's stripped text + the bar's shared YAML
+        frontmatter are captured into a single stash entry and the pane is
+        removed; when it was the last pane the whole bar empties and the app
+        unmounts it (``dismiss_bar``) through the post-submit path, which does
+        *not* re-record the text as cancelled history.  An empty pane stashes
+        nothing — an empty ``Stashed`` is posted so the app can toast a no-op.
+        """
+        if self._mode != "prompt":
+            return
+        self._sync_state_from_widgets()
+        text = self._stack.selected_item.text.strip()
+        if not text:
+            self.post_message(self.Stashed([], source="current", dismiss_bar=False))
+            return
+        pane = StashedPromptPane(
+            text=text,
+            frontmatter=self._stack.frontmatter,
+            pane_index=self._stack.selected_index,
+        )
+        self._clear_active_completion_state()
+        removed = self._stack.remove_selected()
+        self.post_message(
+            self.Stashed([pane], source="current", dismiss_bar=not removed)
+        )
+        if removed:
+            self._rebuild_stack(enter_mode="insert")
+
+    def stash_all_panes(self) -> None:
+        """Stash every non-empty pane in the bar (the ``,S`` keymap).
+
+        Prompt mode only.  Each non-empty pane becomes its own stash entry —
+        order preserved, original ``pane_index`` recorded — and all of them
+        carry the bar's shared frontmatter, then the whole bar is dismissed
+        (``dismiss_bar``).  When no pane has text it is a no-op and an empty
+        ``Stashed`` is posted so the app can toast.
+        """
+        if self._mode != "prompt":
+            return
+        self._sync_state_from_widgets()
+        panes = [
+            StashedPromptPane(
+                text=stripped,
+                frontmatter=self._stack.frontmatter,
+                pane_index=index,
+            )
+            for index, item in enumerate(self._stack.items)
+            if (stripped := item.text.strip())
+        ]
+        if not panes:
+            self.post_message(self.Stashed([], source="all", dismiss_bar=False))
+            return
+        self._clear_active_completion_state()
+        self.post_message(self.Stashed(panes, source="all", dismiss_bar=True))
 
     def _live_split_active_pane(self) -> None:
         """Split the active pane when a ``---`` line was just typed into it.

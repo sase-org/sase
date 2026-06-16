@@ -291,12 +291,25 @@ async def test_multi_pane_normal_subtitle_advertises_stack_keys() -> None:
         assert "[-] add" in subtitle
 
 
-async def test_single_pane_normal_subtitle_unchanged() -> None:
+async def test_single_pane_normal_subtitle_advertises_stash() -> None:
     app = _CaptureApp("solo")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
+        # A single-pane prompt bar still advertises ,s so stashing the lone
+        # draft is discoverable; the rest of the hints are unchanged.
+        subtitle = bar.normal_mode_subtitle()
+        assert subtitle == "[Esc] clear  [i] insert  [,s] stash  [^C] cancel"
+
+
+async def test_feedback_normal_subtitle_omits_stash() -> None:
+    app = _CaptureApp("plan note", mode="feedback")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        # Feedback bars are not stashable, so they keep the original hints.
         assert bar.normal_mode_subtitle() == "[Esc] clear  [i] insert  [^C] cancel"
 
 

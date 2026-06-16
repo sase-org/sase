@@ -18,6 +18,7 @@ from .inactive_indicator import InactiveIndicator
 from .llm_override_indicator import LLMOverrideIndicator
 from .notification_indicator import NotificationIndicator
 from .prompt_input_bar import PromptInputBar
+from .stashed_prompts_indicator import StashedPromptsIndicator
 from .tab_bar import TabBar
 from .task_indicator import TaskIndicator
 from .xprompt_arg_assist import (
@@ -56,6 +57,7 @@ __all__ = [
     "NotificationIndicator",
     "PromptInputBar",
     "SearchQueryPanel",
+    "StashedPromptsIndicator",
     "TabBar",
     "TaskIndicator",
     "ToolsVisibilityChanged",

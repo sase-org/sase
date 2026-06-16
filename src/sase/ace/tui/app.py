@@ -59,6 +59,7 @@ from .widgets import (
     LLMOverrideIndicator,
     NotificationIndicator,
     SearchQueryPanel,
+    StashedPromptsIndicator,
     TabBar,
     TaskIndicator,
 )
@@ -272,6 +273,7 @@ class AceApp(
             yield TaskIndicator(id="task-indicator")
             yield LLMOverrideIndicator(id="llm-override-indicator")
             yield InactiveIndicator(id="inactive-indicator")
+            yield StashedPromptsIndicator(id="stashed-prompts-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):
             with Horizontal(id="changespecs-view", classes=cs_classes):

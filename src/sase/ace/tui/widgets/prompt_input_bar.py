@@ -19,6 +19,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion import (
 )
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
     PromptInputBarStackActionsMixin,
+    StashedPromptPane,
 )
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
@@ -134,6 +135,31 @@ class PromptInputBar(
             self.mode = mode
             self.keep_bar = keep_bar
 
+    class Stashed(Message):
+        """Message sent when the user stashes one or more prompt-bar panes.
+
+        The bar (presentation-only) captures the pane text(s) + the shared YAML
+        frontmatter into ``panes`` and removes them; the app layer persists
+        them through ``prompt_stash_facade`` and refreshes the top-bar
+        indicator (boundary rule D6).  ``panes`` is empty when there was
+        nothing to stash (an empty pane), so the app shows a "nothing to stash"
+        toast without touching the store.  ``dismiss_bar`` is set when stashing
+        emptied the bar and the app should unmount it via the post-submit path,
+        so the stashed text is never *also* recorded as cancelled history.
+        """
+
+        def __init__(
+            self,
+            panes: list[StashedPromptPane],
+            *,
+            source: str = "current",
+            dismiss_bar: bool = False,
+        ) -> None:
+            super().__init__()
+            self.panes = panes
+            self.source = source
+            self.dismiss_bar = dismiss_bar
+
     class EditorRequested(Message):
         """Message sent when user requests external editor (Ctrl+G)."""
 
@@ -233,13 +259,17 @@ class PromptInputBar(
 
         In a multi-pane stack the active pane's normal-mode hints surface the
         prompt-stack comma leader and ``-`` keymap (``,j``/``,k`` move between
-        panes, ``,J``/``,K`` reorder the active pane, ``-`` adds a new bottom
-        pane) so the stack is discoverable without crowding the single-pane
-        footer.  Single-pane / feedback / approve-prompt bars keep the original
-        normal-mode hints.
+        panes, ``,J``/``,K`` reorder the active pane, ``,s``/``,S`` stash the
+        active / all panes, ``-`` adds a new bottom pane) so the stack is
+        discoverable without crowding the single-pane footer.  A single-pane
+        prompt bar still advertises ``,s`` (stash this draft); feedback /
+        approve-prompt bars keep the original normal-mode hints since they are
+        not stashable.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
-            return "[,j ,k] pane  [,J ,K] move  [-] add  [i] insert"
+            return "[,j ,k] pane  [,J ,K] move  [,s ,S] stash  [-] add  [i] insert"
+        if self._mode == "prompt":
+            return "[Esc] clear  [i] insert  [,s] stash  [^C] cancel"
         return "[Esc] clear  [i] insert  [^C] cancel"
 
     def compose(self) -> ComposeResult:

@@ -175,3 +175,7 @@ class VimNormalPendingMixin(VimVisualModeMixin):
             bar.move_active_pane(1)
         elif key == "K":
             bar.move_active_pane(-1)
+        elif key == "s":
+            bar.stash_active_pane()
+        elif key == "S":
+            bar.stash_all_panes()

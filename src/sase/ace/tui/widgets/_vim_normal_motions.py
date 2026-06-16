@@ -261,11 +261,13 @@ class VimNormalMotionsMixin(VimNormalPendingMixin):
         if key == "," and not self._pending_operator:
             bar = self._find_prompt_bar()
             if bar is not None:
-                if len(getattr(bar, "_stack", ())) > 1:
+                # The bar owns its own comma leader (,j/,k/,J/,K/,s/,S). It is
+                # always active in a multi-pane stack; in a single pane it also
+                # opens (so ,s can stash the lone draft) *unless* a prior char
+                # search exists, in which case vim's reverse-repeat ``,`` wins.
+                if len(getattr(bar, "_stack", ())) > 1 or not self._last_char_search:
                     self._pending_keys = ","
                     self._update_count_display()
-                    return True
-                if not self._last_char_search:
                     return True
 
         if key in ";," and self._last_char_search:
