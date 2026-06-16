@@ -32,6 +32,7 @@ class VimNormalModeMixin(VimNormalEditingMixin):
             self._pending_operator = ""
             self._pending_operator_count = 1
             self._pending_surround_range = None
+            self._pending_change_surround_locations = None
             self._clear_count_prefix()
             self._update_count_display()
             return True
@@ -48,13 +49,18 @@ class VimNormalModeMixin(VimNormalEditingMixin):
         count = int(self._count_prefix) if self._count_prefix else 1
         self._clear_count_prefix()
 
-        if self._pending_operator in {"d", "y"} and key == "s":
+        if self._pending_operator in {"c", "d", "y"} and key == "s":
             if has_count:
                 self._pending_operator_count *= count
             if self._pending_operator == "y":
                 self._pending_operator = "ys"
-            else:
+            elif self._pending_operator == "d":
                 self._pending_keys = "delete-surround"
+                self._pending_count = self._pending_operator_count
+                self._pending_operator = ""
+                self._pending_operator_count = 1
+            else:
+                self._pending_keys = "change-surround-old"
                 self._pending_count = self._pending_operator_count
                 self._pending_operator = ""
                 self._pending_operator_count = 1

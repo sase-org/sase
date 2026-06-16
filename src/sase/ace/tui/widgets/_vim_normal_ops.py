@@ -64,6 +64,15 @@ class VimNormalOpsMixin(_MixinBase):
         _pending_operator: str
         _pending_operator_count: int
         _pending_surround_range: tuple[str, tuple[int, int], tuple[int, int]] | None
+        _pending_change_surround_locations: (
+            tuple[
+                tuple[int, int],
+                tuple[int, int],
+                tuple[int, int],
+                tuple[int, int],
+            ]
+            | None
+        )
         _mutation_key_buffer: list[str]
         _last_mutation_keys: list[str]
         _replaying_dot: bool
@@ -118,6 +127,11 @@ class VimNormalOpsMixin(_MixinBase):
                     indicator += "ys"
                 elif self._pending_keys == "delete-surround":
                     indicator += "ds"
+                elif self._pending_keys in {
+                    "change-surround-old",
+                    "change-surround-new",
+                }:
+                    indicator += "cs"
                 else:
                     indicator += self._pending_keys
             if self._count_prefix:
@@ -276,6 +290,39 @@ class VimNormalOpsMixin(_MixinBase):
         self._replace_via_keyboard(inner_text, open_loc, outer_end)
         self.read_only = was_readonly
         self.cursor_location = open_loc
+
+    def _queue_pending_change_surround(self, key: str, count: int = 1) -> None:
+        """Remember a resolved ``cs`` target while waiting for a new delimiter."""
+        locations = self._surround_locations(key, count)
+        if locations is None:
+            self._pending_change_surround_locations = None
+            self._mutation_key_buffer.clear()
+            return
+        self._pending_change_surround_locations = locations
+        self._pending_keys = "change-surround-new"
+        self._update_count_display()
+
+    def _change_pending_surround(self, key: str) -> None:
+        """Change the pending ``cs`` target to the delimiter from *key*."""
+        target = self._pending_change_surround_locations
+        self._pending_change_surround_locations = None
+        delimiters = self._surround_delimiters(key)
+        if target is None or delimiters is None:
+            self._mutation_key_buffer.clear()
+            return
+
+        open_loc, inner_start, close_loc, outer_end = target
+        inner_text = self._get_text_in_range(inner_start, close_loc)
+        open_delim, close_delim = delimiters
+        replacement = f"{open_delim}{inner_text}{close_delim}"
+        cursor_offset = self._absolute_offset(self.cursor_location)
+
+        self._record_mutation()
+        was_readonly = self.read_only
+        self.read_only = False
+        self._replace_via_keyboard(replacement, open_loc, outer_end)
+        self.read_only = was_readonly
+        self.cursor_location = self._location_from_absolute(cursor_offset)
 
     def _surround_locations(
         self,

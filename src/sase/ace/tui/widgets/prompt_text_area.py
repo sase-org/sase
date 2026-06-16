@@ -96,6 +96,15 @@ class PromptTextArea(
         self._pending_surround_range: (
             tuple[str, tuple[int, int], tuple[int, int]] | None
         ) = None
+        self._pending_change_surround_locations: (
+            tuple[
+                tuple[int, int],
+                tuple[int, int],
+                tuple[int, int],
+                tuple[int, int],
+            ]
+            | None
+        ) = None
         self._mutation_key_buffer: list[str] = []
         self._last_mutation_keys: list[str] = []
         self._replaying_dot: bool = False
@@ -276,6 +285,7 @@ class PromptTextArea(
         self._pending_operator = ""
         self._pending_operator_count = 1
         self._pending_surround_range = None
+        self._pending_change_surround_locations = None
         self._snippet_tabstops = []
         self.read_only = True
         self.show_line_numbers = self.document.line_count > 1
@@ -292,6 +302,7 @@ class PromptTextArea(
         self._pending_operator = ""
         self._pending_operator_count = 1
         self._pending_surround_range = None
+        self._pending_change_surround_locations = None
         self.read_only = False
         self.show_line_numbers = self.document.line_count > 1
         self.highlight_cursor_line = False
