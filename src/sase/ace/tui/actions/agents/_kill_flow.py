@@ -137,7 +137,7 @@ class AgentKillFlowMixin:
         self._append_dismissed_agent_objects(dismiss_candidates, dismissed_ids)  # type: ignore[attr-defined]
 
         removed_ids = killed_ids | dismissed_ids
-        self._marked_agents.clear()  # type: ignore[attr-defined]
+        self._reset_marked_agents()  # type: ignore[attr-defined]
         self._apply_killed_agents_in_memory(removed_ids)  # type: ignore[attr-defined]
 
         killed_count = len(kill_items)

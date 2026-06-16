@@ -136,6 +136,17 @@ def test_leader_mode_reserves_r_for_revert_and_moves_runners_to_uppercase_r() ->
     assert reg.leader_mode.keys["capture_agents_repro"] == "C"
 
 
+def test_leader_mode_includes_kill_marked_and_edit() -> None:
+    """Leader ``,X`` kills the marked set and edits each agent's prompt.
+
+    Distinct from ``,x`` (lowercase), which kills the focused row only.
+    """
+    reg = load_keymap_registry({})
+    assert LeaderModeKeymaps().keys["kill_marked_and_edit"] == "X"
+    assert LeaderModeKeymaps().keys["kill_and_edit"] == "x"
+    assert reg.leader_mode.keys["kill_marked_and_edit"] == "X"
+
+
 def test_leader_mode_default_subkeys_are_unique() -> None:
     """No two default leader-mode actions share the same subkey.
 

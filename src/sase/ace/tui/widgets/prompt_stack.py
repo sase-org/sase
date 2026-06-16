@@ -131,6 +131,25 @@ class PromptStackState:
         return cls._from_texts([text])
 
     @classmethod
+    def from_panes(
+        cls, texts: list[str], *, selected_index: int | None = None
+    ) -> PromptStackState:
+        """Create a stack with exactly one verbatim pane per entry in *texts*.
+
+        Unlike :meth:`from_text`, no entry is split on ``---`` and no leading
+        frontmatter is lifted: each string becomes exactly one pane.  This is
+        the seeding path for bulk kill-and-edit, where every killed agent must
+        map to exactly one editable pane even when its raw prompt embeds
+        separators or YAML frontmatter.  Empty *texts* yields a single empty
+        drafting pane; the default active pane is the last one.
+        """
+        if not texts:
+            texts = [""]
+        if selected_index is None:
+            selected_index = len(texts) - 1
+        return cls._from_texts(texts, selected_index=selected_index)
+
+    @classmethod
     def from_text(cls, text: str) -> PromptStackState:
         """Create a stack by canonically splitting *text* into panes.
 

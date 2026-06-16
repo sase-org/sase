@@ -436,6 +436,10 @@ class StateInitMixin:
         self._recent_dismissed_agent_groups: list[SavedAgentGroupWire] = []
         self._revived_agent_raw_suffixes: set[str] = set()
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
+        # Explicit mark order (the order rows were marked with ``m``); kept
+        # alongside ``_marked_agents`` because a set cannot preserve the order
+        # the bulk kill-and-edit prompt stack must follow.
+        self._marked_agent_order: list[tuple[AgentType, str, str | None]] = []
 
         # Agent status override system (for PLAN/PLAN APPROVED/QUESTION statuses)
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}

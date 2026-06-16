@@ -78,6 +78,51 @@ def test_item_ids_are_unique() -> None:
     assert len(set(ids)) == len(ids)
 
 
+# --- from_panes: explicit verbatim seeding --------------------------------
+
+
+def test_from_panes_one_pane_per_text() -> None:
+    state = PromptStackState.from_panes(["first", "second", "third"])
+    assert state.texts == ["first", "second", "third"]
+
+
+def test_from_panes_does_not_split_embedded_separator() -> None:
+    # A raw prompt that itself contains a real ``---`` separator must stay a
+    # single pane so each killed agent maps to exactly one pane.
+    state = PromptStackState.from_panes(["a\n---\nb", "c"])
+    assert state.texts == ["a\n---\nb", "c"]
+    assert len(state) == 2
+
+
+def test_from_panes_keeps_frontmatter_inline() -> None:
+    # Unlike ``from_text``, leading frontmatter is never lifted off the pane.
+    state = PromptStackState.from_panes(["---\nname: foo\n---\nbody"])
+    assert state.texts == ["---\nname: foo\n---\nbody"]
+    assert state.frontmatter == ""
+
+
+def test_from_panes_default_active_is_last() -> None:
+    state = PromptStackState.from_panes(["a", "b", "c"])
+    assert state.selected_index == 2
+
+
+def test_from_panes_explicit_selected_index() -> None:
+    state = PromptStackState.from_panes(["a", "b", "c"], selected_index=0)
+    assert state.selected_index == 0
+
+
+def test_from_panes_empty_yields_single_drafting_item() -> None:
+    state = PromptStackState.from_panes([])
+    assert state.texts == [""]
+    assert len(state) == 1
+
+
+def test_from_panes_item_ids_are_unique() -> None:
+    state = PromptStackState.from_panes(["a", "b", "c"])
+    ids = [item.item_id for item in state.items]
+    assert len(set(ids)) == len(ids)
+
+
 # --- frontmatter handling -------------------------------------------------
 
 

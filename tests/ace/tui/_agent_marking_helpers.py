@@ -40,6 +40,7 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
         self._agents: list[Agent] = list(agents)
         self._agents_with_children: list[Agent] = list(agents)
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._marked_agent_order: list[tuple[AgentType, str, str | None]] = []
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
         self._revived_agent_raw_suffixes: set[str] = set()
@@ -153,7 +154,7 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
         self._agents_with_children = [
             a for a in self._agents_with_children if a.identity not in ids
         ]
-        self._marked_agents = set()
+        self._reset_marked_agents()
 
 
 def _confirm_save_modal(app: _FakeMarkApp, *, name: str | None = None) -> None:
@@ -180,6 +181,7 @@ class _FakeWaitApp(AgentWaitResumeMixin, AgentMarkingMixin, MarkingMixin):
         self._agents: list[Agent] = list(agents)
         self._agents_with_children: list[Agent] = list(agents)
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._marked_agent_order: list[tuple[AgentType, str, str | None]] = []
         self.notifications: list[tuple[str, str]] = []
         self.prompt_bar_calls: list[dict[str, Any]] = []
 

@@ -550,6 +550,52 @@ class EntryPointsMixin:
             cl_name: The agent's CL name.
             is_project_agent: Whether the agent was a project-level agent.
         """
+        self._mount_edit_relaunch_prompt_bar(
+            project_file, cl_name, is_project_agent, initial_value=raw_prompt
+        )
+
+    def _edit_and_relaunch_agents_bulk(
+        self,
+        raw_prompts: list[str],
+        project_file: str,
+        cl_name: str,
+        is_project_agent: bool,
+    ) -> None:
+        """Seed one editable prompt pane per killed agent (bulk ``,X``).
+
+        Like :meth:`_edit_and_relaunch_agent` but mounts a prompt stack from an
+        explicit list of pane texts so each killed agent maps to exactly one
+        pane, even when a raw prompt embeds ``---`` separators or YAML
+        frontmatter.  *project_file*/*cl_name*/*is_project_agent* describe the
+        first marked agent and only seed the home-mode selection/display, just
+        as the single-agent path uses the one killed agent's metadata.
+
+        Args:
+            raw_prompts: The marked agents' raw prompts, in mark order.
+            project_file: The first marked agent's project file path.
+            cl_name: The first marked agent's CL name.
+            is_project_agent: Whether the first marked agent was project-level.
+        """
+        self._mount_edit_relaunch_prompt_bar(
+            project_file, cl_name, is_project_agent, initial_panes=raw_prompts
+        )
+
+    def _mount_edit_relaunch_prompt_bar(
+        self,
+        project_file: str,
+        cl_name: str,
+        is_project_agent: bool,
+        *,
+        initial_value: str | None = None,
+        initial_panes: list[str] | None = None,
+    ) -> None:
+        """Set up home-mode prompt context and mount the prompt input bar.
+
+        Shared by the single-agent (*initial_value*) and bulk (*initial_panes*)
+        kill-and-edit paths.  Exactly one of *initial_value*/*initial_panes*
+        should be provided; *initial_panes* loads verbatim panes without
+        ``---`` splitting.
+        """
         from pathlib import Path
 
         from sase.core.time import generate_timestamp
@@ -595,10 +641,15 @@ class EntryPointsMixin:
             is_home_mode=True,
         )
 
-        # Show prompt input bar with the raw prompt. Soft wrapping is visual only.
-        self.mount(  # type: ignore[attr-defined]
-            PromptInputBar(initial_value=raw_prompt, id="prompt-input-bar")
-        )
+        # Show prompt input bar with the raw prompt(s). Soft wrapping is visual
+        # only; bulk panes are seeded verbatim (no ``---`` splitting).
+        if initial_panes is not None:
+            bar = PromptInputBar(initial_panes=initial_panes, id="prompt-input-bar")
+        else:
+            bar = PromptInputBar(
+                initial_value=initial_value or "", id="prompt-input-bar"
+            )
+        self.mount(bar)  # type: ignore[attr-defined]
 
     def _start_agents_from_marked(self) -> None:
         """Start agents for all marked ChangeSpecs.

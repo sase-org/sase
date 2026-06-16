@@ -207,6 +207,21 @@ def test_copy_changespecs_cl_number_requires_cl() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_kill_marked_and_edit_only_when_marks_exist() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["leader.kill_marked_and_edit"]
+    agent = _make_agent(status="RUNNING")
+    # No marks: hidden even with a focused agent (it acts on marks only).
+    assert not is_command_available(
+        spec, CommandContext(tab="agents", agent=agent, mark_count=0)
+    )
+    # Marks present: runnable even when the focused row is a group banner.
+    assert is_command_available(
+        spec,
+        CommandContext(tab="agents", agent=None, group_focused=True, mark_count=2),
+    )
+
+
 def test_kill_agent_visible_on_group_banner_even_without_agent() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.kill_agent"]

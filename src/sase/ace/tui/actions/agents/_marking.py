@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Literal
 
 from sase.core.agent_artifact_index_lifecycle import (
@@ -70,12 +71,82 @@ class AgentMarkingMixin:
     _agents: list[Agent]
     _agents_with_children: list[Agent]
     _marked_agents: set[tuple[AgentType, str, str | None]]
+    _marked_agent_order: list[tuple[AgentType, str, str | None]]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _recent_dismissed_agent_groups: list[SavedAgentGroupWire]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]]
     _current_group_key: tuple[str, ...] | None
+
+    # -- mark membership + order -------------------------------------------
+
+    def _record_marked_agent(self, identity: AgentIdentity) -> None:
+        """Mark *identity*, appending it to the explicit mark order.
+
+        Re-marking a previously-unmarked identity lands it at the end because
+        unmarking dropped its order entry first.  A defensive de-dup keeps the
+        order list a true ordering even if a caller marks an already-marked
+        identity.
+        """
+        self._marked_agents.add(identity)
+        order = getattr(self, "_marked_agent_order", None)
+        if order is None:
+            order = []
+        elif identity in order:
+            order.remove(identity)
+        order.append(identity)
+        self._marked_agent_order = order
+
+    def _forget_marked_agent(self, identity: AgentIdentity) -> None:
+        """Unmark *identity*, dropping it from both membership and order."""
+        self._marked_agents.discard(identity)
+        order = getattr(self, "_marked_agent_order", None)
+        if order:
+            self._marked_agent_order = [i for i in order if i != identity]
+
+    def _reset_marked_agents(self) -> None:
+        """Clear both mark membership and mark order together."""
+        self._marked_agents = set()
+        self._marked_agent_order = []
+
+    def _forget_marked_agents(self, identities: Iterable[AgentIdentity]) -> None:
+        """Drop *identities* from both mark membership and mark order."""
+        ids = set(identities)
+        if not ids:
+            return
+        self._marked_agents -= ids
+        order = getattr(self, "_marked_agent_order", None)
+        if order:
+            self._marked_agent_order = [i for i in order if i not in ids]
+
+    def _marked_agents_in_mark_order(self) -> list[Agent]:
+        """Return marked, still-live agents in the order they were marked.
+
+        Identities are resolved against ``_agents_with_children``.  Marked
+        identities missing from the explicit order list (e.g. set directly by a
+        test or a legacy path) are appended afterwards in current display
+        order, so mark order is honored without ever dropping a live marked
+        agent.
+        """
+        by_identity: dict[AgentIdentity, Agent] = {}
+        for agent in self._agents_with_children:
+            by_identity.setdefault(agent.identity, agent)
+
+        result: list[Agent] = []
+        seen: set[AgentIdentity] = set()
+        for identity in getattr(self, "_marked_agent_order", None) or []:
+            if identity in seen or identity not in self._marked_agents:
+                continue
+            ordered = by_identity.get(identity)
+            if ordered is not None:
+                result.append(ordered)
+                seen.add(identity)
+        for agent in self._agents_with_children:
+            if agent.identity in self._marked_agents and agent.identity not in seen:
+                result.append(agent)
+                seen.add(agent.identity)
+        return result
 
     def _toggle_mark_agent(self) -> None:
         """Toggle the mark on the currently-selected agent."""
@@ -86,9 +157,9 @@ class AgentMarkingMixin:
 
         identity = agent.identity
         if identity in self._marked_agents:
-            self._marked_agents.discard(identity)
+            self._forget_marked_agent(identity)
         else:
-            self._marked_agents.add(identity)
+            self._record_marked_agent(identity)
 
         # Auto-advance cursor to the next visible agent row (wraparound).
         prev_idx = self.current_idx
@@ -148,7 +219,7 @@ class AgentMarkingMixin:
             agent for agent in self._agents if agent.identity in self._marked_agents
         ]
         count = len(self._marked_agents)
-        self._marked_agents = set()
+        self._reset_marked_agents()
         if marked_agents:
             patched_all = True
             for agent in marked_agents:
@@ -169,7 +240,7 @@ class AgentMarkingMixin:
         live_identities.update(a.identity for a in self._agents_with_children)
         stale = self._marked_agents - live_identities
         if stale:
-            self._marked_agents -= stale
+            self._forget_marked_agents(stale)
 
     def _bulk_kill_marked_agents(self) -> None:
         """Kill / dismiss every marked agent after a single confirmation."""
@@ -180,22 +251,88 @@ class AgentMarkingMixin:
             a for a in self._agents_with_children if a.identity in self._marked_agents
         ]
         if not marked_agents:
-            self._marked_agents = set()
+            self._reset_marked_agents()
             self.notify("No marked agents remain", severity="warning")  # type: ignore[attr-defined]
             return
 
         self._present_bulk_kill_modal(marked_agents)
 
+    def _bulk_kill_marked_agents_and_edit(self) -> None:
+        """Kill / dismiss marked agents, then edit each one's prompt (``,X``).
+
+        Unlike plain ``,x`` (single focused row), this acts only on the
+        explicitly marked rows, in mark order.  Each killed agent's raw prompt
+        is collected up front (with the same forced-name-reuse rule as ``,x``)
+        and, on confirmation, seeded into its own prompt pane so the panes
+        match the marks one-for-one and follow mark order, not row order.
+        """
+        if not self._marked_agents:
+            self.notify("No agents marked", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        # Stale marks are dropped before resolving so panes only ever cover
+        # still-live marked rows.
+        self._prune_stale_marked_agents()
+        marked_agents = self._marked_agents_in_mark_order()
+        if not marked_agents:
+            self._reset_marked_agents()
+            self.notify("No marked agents remain", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from sase.agent.retry_prompt import force_name_reuse_in_prompt
+
+        # Collect raw prompts BEFORE any kill mutates the agent list. Marks are
+        # preserved on abort so the user can fix the prompt-less row.
+        prompts: list[str] = []
+        missing = 0
+        for agent in marked_agents:
+            raw_prompt = agent.get_raw_xprompt_content()
+            if raw_prompt is None:
+                missing += 1
+                continue
+            prompts.append(
+                force_name_reuse_in_prompt(
+                    raw_prompt, replacement_name=agent.agent_name
+                )
+            )
+        if missing:
+            suffix = "s" if missing != 1 else ""
+            self.notify(  # type: ignore[attr-defined]
+                f"{missing} marked agent{suffix} missing a prompt; nothing killed",
+                severity="warning",
+            )
+            return
+
+        first = marked_agents[0]
+
+        def on_confirm(killable: list[Agent], dismissable: list[Agent]) -> None:
+            self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
+            self._edit_and_relaunch_agents_bulk(  # type: ignore[attr-defined]
+                prompts,
+                first.project_file,
+                first.cl_name,
+                first.is_project_agent,
+            )
+
+        self._present_bulk_kill_modal(marked_agents, on_confirm=on_confirm)
+
     def _present_bulk_kill_modal(
-        self, agents: list[Agent], *, header: str | None = None
+        self,
+        agents: list[Agent],
+        *,
+        header: str | None = None,
+        on_confirm: Callable[[list[Agent], list[Agent]], None] | None = None,
     ) -> None:
         """Show the kill/dismiss confirmation modal for an arbitrary agent set.
 
         Partitions *agents* into killable (live PID + non-dismissable
         status) and dismissable buckets, builds the per-agent description,
         and pushes the matching ``ConfirmKillAllModal`` /
-        ``ConfirmDismissAllModal``.  On confirm, routes through the same
-        ``_do_bulk_kill_agents`` machinery used by the marked-set path.
+        ``ConfirmDismissAllModal``.  On confirm, routes through *on_confirm*
+        (called with the killable/dismissable buckets), defaulting to the same
+        ``_do_bulk_kill_agents`` machinery used by the marked-set path.  The
+        kill-and-edit flow passes a wrapper that kills first and then mounts the
+        prompt stack.
         """
         from ._core import DISMISSABLE_STATUSES
 
@@ -231,10 +368,12 @@ class AgentMarkingMixin:
 
         from ...modals import ConfirmDismissAllModal, ConfirmKillAllModal
 
+        confirm = on_confirm or self._do_bulk_kill_agents  # type: ignore[attr-defined]
+
         def on_dismiss(confirmed: bool | None) -> None:
             if not confirmed:
                 return
-            self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
+            confirm(killable, dismissable)
 
         if killable:
             self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
@@ -274,7 +413,7 @@ class AgentMarkingMixin:
 
         agents = self._marked_agent_group_candidates()
         if not agents:
-            self._marked_agents = set()
+            self._reset_marked_agents()
             self.notify("No marked agents remain", severity="warning")  # type: ignore[attr-defined]
             return
 
@@ -298,7 +437,7 @@ class AgentMarkingMixin:
 
         agents = self._marked_agent_group_candidates()
         if not agents:
-            self._marked_agents = set()
+            self._reset_marked_agents()
             self.notify("No marked agents remain", severity="warning")  # type: ignore[attr-defined]
             return
 
@@ -313,7 +452,7 @@ class AgentMarkingMixin:
             self._agent_pre_question_status.pop(identity, None)
 
         self._dismissed_agents.update(identities)
-        self._marked_agents.clear()
+        self._reset_marked_agents()
         self._apply_dismissal_in_memory(agents)  # type: ignore[attr-defined]
 
         count = len(agents)

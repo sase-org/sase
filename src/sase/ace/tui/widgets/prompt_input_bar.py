@@ -33,6 +33,7 @@ from sase.ace.tui.widgets._prompt_input_bar_stack_rendering import (
     PromptInputBarStackRenderingMixin,
 )
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
+from sase.ace.tui.widgets.prompt_stack import PromptStackState
 
 __all__ = ["PromptInputBar", "StashedPromptPane"]
 
@@ -59,7 +60,12 @@ class PromptInputBar(
     BINDINGS = []  # type: ignore[assignment]
 
     def __init__(
-        self, initial_value: str = "", mode: str = "prompt", **kwargs: Any
+        self,
+        initial_value: str = "",
+        mode: str = "prompt",
+        *,
+        initial_panes: list[str] | None = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._initial_value = initial_value
@@ -77,7 +83,13 @@ class PromptInputBar(
         # Guards against piling up deferred live-split passes while the user
         # keeps typing past a freshly completed ``---`` separator line.
         self._live_split_pending = False
-        self._stack = self._state_from_text(initial_value)
+        if initial_panes is not None:
+            # Explicit pane seeding: one verbatim pane per entry, never split on
+            # an embedded ``---`` or lifted frontmatter. Used by bulk
+            # kill-and-edit so each killed agent maps to exactly one pane.
+            self._stack = PromptStackState.from_panes(initial_panes)
+        else:
+            self._stack = self._state_from_text(initial_value)
 
     @property
     def _base_title(self) -> str:

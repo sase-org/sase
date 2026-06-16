@@ -227,6 +227,12 @@ class KeybindingModesMixin:
             bindings.append((k("kill_and_edit"), "kill & edit"))
             if marked_agent_count > 0:
                 bindings.append(
+                    (
+                        k("kill_marked_and_edit"),
+                        f"kill marked & edit ({marked_agent_count})",
+                    )
+                )
+                bindings.append(
                     (k("revert_agent"), f"revert marked ({marked_agent_count})")
                 )
             elif has_revertable_agent:

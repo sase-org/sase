@@ -28,6 +28,7 @@ class AgentTaggingMixin:
     _agents: list[Agent]
     _agents_with_children: list[Agent]
     _marked_agents: set[tuple[AgentType, str, str | None]]
+    _marked_agent_order: list[tuple[AgentType, str, str | None]]
 
     def action_add_agent_tag(self) -> None:
         """Open the agent-tag modal for the focused agent or marked set."""
@@ -158,6 +159,11 @@ class AgentTaggingMixin:
                     f"Cleared tag on {changed} {suffix}",
                 )
             self._marked_agents -= affected_identities
+            order = getattr(self, "_marked_agent_order", None)
+            if order:
+                self._marked_agent_order = [
+                    i for i in order if i not in affected_identities
+                ]
             self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
 
         if changed == 0:

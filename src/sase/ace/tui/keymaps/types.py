@@ -434,6 +434,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "full_history_refresh": "y",
             "mark_all_unread_done_agents_read": "u",
             "kill_and_edit": "x",
+            "kill_marked_and_edit": "X",
             "mark_inactive": "I",
             "activity_info": "i",
             "clear_comments": "c",

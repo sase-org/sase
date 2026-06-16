@@ -148,6 +148,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Kill agent & edit prompt",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'kill_marked_and_edit'))}",
+                    "Kill marked & edit prompts",
+                ),
+                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'revert_agent'))}",
                     "Revert agent (or all marked)",
                 ),
