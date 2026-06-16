@@ -1,4 +1,4 @@
-"""Tests for PromptTextArea NORMAL-mode vim-surround ``ys`` support."""
+"""Tests for PromptTextArea NORMAL-mode vim-surround support."""
 
 from sase.ace.testing import PromptPage
 
@@ -39,3 +39,57 @@ async def test_ys_is_dot_repeatable() -> None:
         await page.press(".")
 
         assert page.text == '"one" "two" three'
+
+
+async def test_ds_double_quote_removes_surrounding_quotes() -> None:
+    async with PromptPage('Some "piece of text" goes here.', cursor=(0, 6)) as page:
+        await page.press("d", "s", '"')
+
+        assert page.text == "Some piece of text goes here."
+        assert page.cursor == (0, 5)
+
+
+async def test_ds_parenthesis_accepts_closing_key() -> None:
+    async with PromptPage("hello (world)", cursor=(0, 8)) as page:
+        await page.press("d", "s", ")")
+
+        assert page.text == "hello world"
+
+
+async def test_dsb_uses_parenthesis_alias() -> None:
+    async with PromptPage("hello (world)", cursor=(0, 8)) as page:
+        await page.press("d", "s", "b")
+
+        assert page.text == "hello world"
+
+
+async def test_ds_brace_uses_outer_count() -> None:
+    async with PromptPage("one {two {three} four} five", cursor=(0, 10)) as page:
+        await page.press("2", "d", "s", "{")
+
+        assert page.text == "one two {three} four five"
+
+
+async def test_ds_custom_same_character_surround() -> None:
+    async with PromptPage("say *hello* now", cursor=(0, 6)) as page:
+        await page.press("d", "s", "*")
+
+        assert page.text == "say hello now"
+
+
+async def test_ds_without_matching_surround_is_noop() -> None:
+    async with PromptPage("plain text", cursor=(0, 2)) as page:
+        await page.press("d", "s", '"')
+
+        assert page.text == "plain text"
+        assert page.ta._pending_operator == ""
+
+
+async def test_ds_is_dot_repeatable() -> None:
+    async with PromptPage('"one" "two" three', cursor=(0, 2)) as page:
+        await page.press("d", "s", '"')
+        page.cursor = (0, 5)
+
+        await page.press(".")
+
+        assert page.text == "one two three"

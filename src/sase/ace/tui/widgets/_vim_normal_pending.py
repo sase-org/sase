@@ -45,6 +45,20 @@ class VimNormalPendingMixin(VimVisualModeMixin):
             self._update_count_display()
             return True
 
+        if pending == "delete-surround":
+            char = event.character
+            if char is None and event.key == "space":
+                char = " "
+            if char is None:
+                self._mutation_key_buffer.clear()
+            else:
+                self._delete_surround(
+                    char,
+                    pending_count if pending_count is not None else 1,
+                )
+            self._update_count_display()
+            return True
+
         if pending == "g" and key in "uU~":
             self._pending_operator = f"g{key}"
             self._pending_operator_count = (

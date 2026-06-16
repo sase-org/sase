@@ -48,10 +48,16 @@ class VimNormalModeMixin(VimNormalEditingMixin):
         count = int(self._count_prefix) if self._count_prefix else 1
         self._clear_count_prefix()
 
-        if self._pending_operator == "y" and key == "s":
+        if self._pending_operator in {"d", "y"} and key == "s":
             if has_count:
                 self._pending_operator_count *= count
-            self._pending_operator = "ys"
+            if self._pending_operator == "y":
+                self._pending_operator = "ys"
+            else:
+                self._pending_keys = "delete-surround"
+                self._pending_count = self._pending_operator_count
+                self._pending_operator = ""
+                self._pending_operator_count = 1
             self._update_count_display()
             return True
 
