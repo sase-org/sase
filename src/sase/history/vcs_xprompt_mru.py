@@ -55,7 +55,10 @@ def load_launchable_vcs_xprompt_mru(
     if not entries:
         return entries
 
-    resolvable_refs = _resolvable_vcs_ref_index()
+    # An explicit projects root is usually a test or alternate state root.
+    # The global ref index is built from the default SASE home and can
+    # confidently prune refs only for that default context.
+    resolvable_refs = None if projects_dir is not None else _resolvable_vcs_ref_index()
     filtered = [
         entry
         for entry in entries
