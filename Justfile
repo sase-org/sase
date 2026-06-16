@@ -138,15 +138,8 @@ _lint-pyscripts: _setup
     {{ venv_bin }}/python tools/pyscripts-260314
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
-#
-# epic-symbol whitelist: the prompt-stash backend API (epic sase-4q, Phase 1)
-# ships ahead of its TUI consumers; later phases (sase-4q.2+) wire it up. Capture
-# (Phase 2) wired read/append + the path helper and Restore (Phase 3 / sase-4q.3)
-# wired pop, so those are now properly used; rewrite stays whitelisted until the
-# polish phase. Remove the rest as the remaining phases land.
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
-        --epic-symbol 'sase-4q(rewrite_prompt_stash)'
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted

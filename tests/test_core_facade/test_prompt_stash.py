@@ -232,21 +232,6 @@ def test_real_extension_missing_file_is_empty(tmp_path: Path) -> None:
     assert snapshot.stats.loaded_rows == 0
 
 
-def test_real_extension_rewrite_merges_unseen_rows(tmp_path: Path) -> None:
-    _skip_without_prompt_stash_bindings("rewrite_prompt_stash")
-    path = tmp_path / "prompt_stash.jsonl"
-    facade.rewrite_prompt_stash(path, [_entry("a"), _entry("b")])
-
-    snapshot = facade.rewrite_prompt_stash(
-        path, [_entry("a", text="updated"), _entry("c")]
-    )
-
-    ids = [e.id for e in snapshot.entries]
-    assert ids == ["a", "c", "b"]
-    a = next(e for e in snapshot.entries if e.id == "a")
-    assert a.text == "updated"
-
-
 # --- Phase 4 hardening: malformed / old-schema store tolerance -------------
 
 

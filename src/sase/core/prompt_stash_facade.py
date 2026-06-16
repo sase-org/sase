@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -46,18 +46,6 @@ def pop_prompt_stash(
     return prompt_stash_pop_outcome_from_dict(payload)
 
 
-def rewrite_prompt_stash(
-    path: Path | str,
-    entries: Iterable[PromptStashEntryWire] | Iterable[dict[str, Any]],
-) -> PromptStashSnapshotWire:
-    """Rewrite the store through Rust's lock/tempfile/rename path (merge)."""
-    binding = require_rust_binding("rewrite_prompt_stash")
-    payload: dict[str, Any] = binding(
-        str(path), prompt_stash_wire_to_json_dict(list(entries))
-    )
-    return prompt_stash_snapshot_from_dict(payload)
-
-
 __all__ = [
     "PromptStashEntryWire",
     "PromptStashPopOutcomeWire",
@@ -65,5 +53,4 @@ __all__ = [
     "append_prompt_stash",
     "pop_prompt_stash",
     "read_prompt_stash_snapshot",
-    "rewrite_prompt_stash",
 ]
