@@ -26,6 +26,7 @@ from sase.plan_chain import (
 
 from ...models.agent import Agent, AttemptRecord
 from ...models.agent_bead import format_agent_bead_display
+from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ...util.lazy_syntax import lazy_renderable
 from ._agent_artifacts import AgentArtifactPath
 from ._helpers import (
@@ -313,7 +314,7 @@ def build_header_text(
     # Agent name is always the first metadata row in the details panel.
     header_text.append("Name: ", style="bold #87D7FF")
     if agent.agent_name:
-        header_text.append(f"@{agent.agent_name}\n", style="#FF87D7")
+        header_text.append(f"{agent.agent_name}\n", style=_AGENT_NAME_ANNOTATION_STYLE)
         if cheap:
             bead_display = format_agent_bead_display(agent, include_description=False)
         elif summary is not None:

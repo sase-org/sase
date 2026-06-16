@@ -30,6 +30,7 @@ from ._agent_list_render_layout import (
     render_tier_gutter,
 )
 from ._agent_list_styling import (
+    _AGENT_NAME_ANNOTATION_STYLE,
     _AGENT_TYPE_COLORS,
     _APPROVE_ICON,
     _BEAD_GLYPH,
@@ -278,7 +279,7 @@ def format_agent_option(
 
     # Agent name annotation
     if agent.agent_name:
-        text.append(f" @{agent.agent_name}", style="#FFD700")  # Gold
+        text.append(f" [{agent.agent_name}]", style=_AGENT_NAME_ANNOTATION_STYLE)
 
     # Embedded workflow annotation for child steps
     if agent.embedded_workflow_name:

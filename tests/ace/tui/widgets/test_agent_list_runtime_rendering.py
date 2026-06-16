@@ -477,8 +477,8 @@ def test_format_agent_option_keeps_tag_badge_and_agent_name_prefixes_distinct() 
     )
 
     assert " #fix" in left.plain
-    assert " @coder" in left.plain
-    assert " @fix" not in left.plain
+    assert " [coder]" in left.plain
+    assert " [fix]" not in left.plain
     assert " #coder" not in left.plain
 
 

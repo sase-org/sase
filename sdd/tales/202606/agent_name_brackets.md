@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-16 10:24:20
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_name_brackets.md
 ---
 # Plan: Agent Name Brackets in ACE Agents Tab
