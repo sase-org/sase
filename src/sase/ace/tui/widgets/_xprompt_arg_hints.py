@@ -11,6 +11,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     accepted_xprompt_arg_hint,
     detect_xprompt_arg_hint_at_cursor,
+    merge_local_xprompt_entries,
     named_args_skeleton,
 )
 
@@ -126,14 +127,38 @@ class XPromptArgHintMixin(_MixinBase):
             self._get_xprompt_arg_assist_entries(),
         )
 
+    def _local_xprompt_assist_entries(self) -> list[XPromptAssistEntry]:
+        """Return live local-xprompt assist entries from the parent prompt bar.
+
+        These come from the Frontmatter Panel's ``xprompts:`` field, so a
+        ``#_helper`` defined there is treated like a global xprompt by this
+        pane's completion and argument-hint surfaces.  Empty when the pane is not
+        hosted by a bar with frontmatter (e.g. feedback / approve bars).
+        """
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return []
+        getter = getattr(bar, "local_xprompt_assist_entries", None)
+        if not callable(getter):
+            return []
+        result = getter()
+        return result if isinstance(result, list) else []
+
     def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]:
-        """Return cached xprompt assist entries for the prompt's project context."""
+        """Return xprompt assist entries (project catalog + live local xprompts).
+
+        The project catalog is cached per project; the live local xprompts are
+        merged in fresh on every call so a helper edited in the Frontmatter Panel
+        is instantly reflected in argument hints without invalidating the cache.
+        """
         project = self._xprompt_arg_assist_project_from_text()
         entries = self._xprompt_arg_assist_entries_by_project.get(project)
         if entries is None:
             entries = _build_xprompt_assist_entries(project=project)
             self._xprompt_arg_assist_entries_by_project[project] = entries
-        return entries
+        return merge_local_xprompt_entries(
+            entries, self._local_xprompt_assist_entries()
+        )
 
     def _get_warm_xprompt_arg_assist_entries(
         self,

@@ -31,6 +31,7 @@ from .confirm_rerun_modal import ConfirmRerunModal
 from .confirm_revert_agent_modal import ConfirmRevertAgentModal
 from .help_modal import HelpModal, TabName
 from .hook_history_modal import HookHistoryAction, HookHistoryModal, HookHistoryResult
+from .input_item_modal import InputItemModal
 from .jump_all_modal import JumpAllModal, JumpAllResult
 from .notification_modal import NotificationModal
 from .parent_select_modal import ParentSelectModal
@@ -100,6 +101,7 @@ from .add_xprompt_modal import AddXPromptModal
 from .agent_run_log_modal import AgentRunLogModal
 from .input_collection_modal import InputCollectionModal
 from .xprompt_browser_modal import XPromptBrowserModal
+from .xprompt_item_modal import XPromptItemModal
 from .xprompt_config_modal import XPromptConfigEntry, XPromptConfigEntryModal
 from .xprompt_filename_modal import XPromptFilenameModal
 from .xprompt_location_modal import XPromptLocation, XPromptLocationModal
@@ -109,6 +111,7 @@ __all__ = [
     "ActivityModal",
     "AddableProperty",
     "AddPropertyModal",
+    "InputItemModal",
     "MentorApplyResult",
     "MentorInfo",
     "MentorKillResult",
@@ -198,6 +201,7 @@ __all__ = [
     "UserQuestionResult",
     "InputCollectionModal",
     "XPromptBrowserModal",
+    "XPromptItemModal",
     "XPromptConfigEntry",
     "XPromptConfigEntryModal",
     "XPromptFilenameModal",

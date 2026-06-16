@@ -14,7 +14,7 @@ from sase.xprompt._parsing import (
     iter_xprompt_references,
 )
 from sase.xprompt.catalog import build_structured_xprompts_catalog
-from sase.xprompt.models import UNSET, InputArg
+from sase.xprompt.models import UNSET, InputArg, XPrompt
 from sase.xprompt.reference_display import (
     workflow_kind_value,
     workflow_reference_insertion,
@@ -147,6 +147,42 @@ def xprompt_assist_entry_from_workflow(
             workflow.get_prompt_part_content() if workflow.is_simple_xprompt() else None
         ),
     )
+
+
+def xprompt_assist_entry_from_local_xprompt(
+    name: str,
+    xprompt: XPrompt,
+) -> XPromptAssistEntry:
+    """Build a TUI assist entry from a prompt-frontmatter local xprompt.
+
+    Mirrors :func:`xprompt_assist_entry_from_workflow` (it routes through the
+    same workflow projection) so a ``#_helper`` declared in the Frontmatter
+    Panel's ``xprompts:`` field completes, soft-completes, and shows argument
+    hints in every prompt pane exactly like a global xprompt — including the
+    ``#!`` standalone marker when the helper body carries segment separators.
+    """
+    from sase.xprompt.models import xprompt_to_workflow
+
+    return xprompt_assist_entry_from_workflow(name, xprompt_to_workflow(xprompt))
+
+
+def merge_local_xprompt_entries(
+    base: list[XPromptAssistEntry],
+    local: list[XPromptAssistEntry],
+) -> list[XPromptAssistEntry]:
+    """Merge live local xprompt *local* entries over the *base* catalog.
+
+    Local entries are **additive**: every local helper is appended, and on a
+    name collision the live local definition wins (the panel keeps frontmatter
+    live, so a freshly edited helper takes precedence over a stale global of the
+    same name).  Local entries are placed last so by-name resolvers — which keep
+    the last entry for a name — select them.  ``_``-prefixed local names rarely
+    collide with global names, so in practice the merge is purely additive.
+    """
+    if not local:
+        return base
+    overridden = {entry.name for entry in local}
+    return [entry for entry in base if entry.name not in overridden] + list(local)
 
 
 def visible_inputs(entry: XPromptAssistEntry) -> tuple[XPromptInputHint, ...]:

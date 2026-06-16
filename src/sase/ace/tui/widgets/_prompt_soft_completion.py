@@ -19,6 +19,7 @@ from sase.ace.tui.widgets.prompt_completion_root import (
 )
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
+    merge_local_xprompt_entries,
     xprompt_completion_skeleton,
 )
 from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
@@ -58,6 +59,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             selected: CompletionCandidate,
         ) -> None: ...
         def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]: ...
+        def _local_xprompt_assist_entries(self) -> list[XPromptAssistEntry]: ...
         def _expand_snippet_template_at_range(
             self,
             template: str,
@@ -70,6 +72,23 @@ class PromptSoftCompletionMixin(_MixinBase):
             end_offset: int,
             replacement: str,
         ) -> None: ...
+
+    def _soft_completion_xprompt_entries(
+        self,
+        warm: list[XPromptAssistEntry] | None,
+    ) -> list[XPromptAssistEntry] | None:
+        """Merge live local xprompts into the *warm* catalog for soft completion.
+
+        Returns the local helpers alone when the global catalog is still cold so
+        a ``#_helper`` declared in the Frontmatter Panel soft-completes (``<ctrl+l>``)
+        immediately, without waiting for the global warm pass.  Returns ``None``
+        only when there is neither a warm catalog nor any local helper, so the
+        existing warm-scheduling deferral is preserved untouched.
+        """
+        local = self._local_xprompt_assist_entries()
+        if warm is None:
+            return local or None
+        return merge_local_xprompt_entries(warm, local)
 
     def _prompt_completion_settings(self) -> PromptCompletionSettings:
         """Return prompt completion settings with a default for minimal apps."""
@@ -134,7 +153,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             text=text,
             cursor_offset=cursor_offset,
             settings=self._prompt_completion_settings(),
-            xprompt_entries=entries,
+            xprompt_entries=self._soft_completion_xprompt_entries(entries),
             base_dir=resolve_prompt_completion_base_dir(text),
         )
         if generation != self._prompt_completion_generation:
@@ -185,9 +204,11 @@ class PromptSoftCompletionMixin(_MixinBase):
             text,
             cursor_offset,
         )
+        warm_entries: list[XPromptAssistEntry] | None = None
         if may_need_xprompt_entries:
             project = self._xprompt_arg_assist_project_from_text()
-            entries = self._xprompt_arg_assist_entries_by_project.get(project)
+            warm_entries = self._xprompt_arg_assist_entries_by_project.get(project)
+            entries = self._soft_completion_xprompt_entries(warm_entries)
 
         suggestion = build_prompt_soft_completion(
             text=text,
@@ -199,7 +220,7 @@ class PromptSoftCompletionMixin(_MixinBase):
         if (
             suggestion is not None
             or not allow_sync_xprompt_entries
-            or entries is not None
+            or warm_entries is not None
             or not may_need_xprompt_entries
         ):
             return suggestion

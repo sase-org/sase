@@ -1434,6 +1434,60 @@ AddPropertyModal OptionList {
     border: solid $secondary;
 }
 
+/* Structured input / xprompts sub-form modals for the frontmatter panel */
+InputItemModal,
+XPromptItemModal {
+    align: center middle;
+}
+
+InputItemModal > Container,
+XPromptItemModal > Container {
+    width: 70;
+    height: auto;
+    max-height: 90%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+InputItemModal #modal-title,
+XPromptItemModal #modal-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+InputItemModal .input-item-field-label,
+XPromptItemModal .input-item-field-label {
+    color: $text-muted;
+    margin-top: 1;
+}
+
+InputItemModal Input,
+XPromptItemModal Input {
+    width: 100%;
+}
+
+XPromptItemModal #xprompt-item-content {
+    height: 5;
+    border: solid $secondary;
+}
+
+InputItemModal #input-item-type-rule {
+    color: $text-muted;
+}
+
+InputItemModal #input-item-error,
+XPromptItemModal #xprompt-item-error {
+    color: $error;
+    margin-top: 1;
+}
+
+InputItemModal #input-item-footer,
+XPromptItemModal #xprompt-item-footer {
+    color: $text-muted;
+    margin-top: 1;
+}
+
 /* XPrompt select modal styling */
 XPromptSelectModal {
     align: center middle;

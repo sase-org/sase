@@ -1415,6 +1415,14 @@ backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, 
 raw-YAML escape hatch. The panel owns the canonical YAML it serializes back onto the prompt, so the multi-agent launch
 path is unchanged.
 
+The structured `input` and `xprompts` fields render as foldable sub-trees (`h`/`l`): navigate into them with `j`/`k`,
+then `a`/`e`/`d` (or `enter`) add, edit, and delete individual items through small typed sub-form modals. The input
+editor offers a `name`, a core-validated `type` (with its one-line rule shown inline), an optional `default` (blank
+means required), and a `description`; the xprompts editor offers a `_`-prefixed `name` (validated by the same underscore
+rule the launch path enforces), `content`, a compact `name:type[=default]` inputs field, and a `description`. A
+`#_helper` declared here lights up `<ctrl+t>`/`<ctrl+l>` completion and argument hints in every prompt pane exactly like
+a global xprompt — define a helper in the panel and it is instantly usable below.
+
 ### Frontmatter-Defined Local XPrompts
 
 YAML frontmatter at the start of a prompt can define local xprompts under the `xprompts:` key. These are defined once in

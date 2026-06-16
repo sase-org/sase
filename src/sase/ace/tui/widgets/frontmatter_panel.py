@@ -19,9 +19,12 @@ Phase 3 scope (this widget):
 - **Done** with ``esc`` / ``q``: hands focus back to the prompt body (the host
   bar removes the frontmatter entirely when the panel is left empty).
 
-Structured editing of individual ``input`` / ``xprompts`` items (and the
-local-xprompt completion parity) lands in Phase 4; here those sub-trees are shown
-read-only and authored, when needed, through raw mode.
+Phase 4 adds structured editing of individual ``input`` / ``xprompts`` items:
+``j``/``k`` navigate into the unfolded sub-trees, and ``a``/``e``/``d`` (or
+``enter``) add, edit, and delete items through small typed sub-form modals
+(:class:`~sase.ace.tui.modals.input_item_modal.InputItemModal` and
+:class:`~sase.ace.tui.modals.xprompt_item_modal.XPromptItemModal`).  Raw mode
+remains the escape hatch for the long tail.
 
 The widget owns a working copy of the model and announces edits to the host bar
 via :class:`FrontmatterPanel.Changed`; leaving the panel posts
@@ -50,17 +53,6 @@ from sase.xprompt.frontmatter_schema import (
 )
 from sase.xprompt.models import UNSET, InputArg, XPrompt
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-
-# Field kinds the panel can edit inline; ``structured`` (``input``/``xprompts``)
-# is read-only in Phase 3 and authored through raw mode until Phase 4.
-_INLINE_KINDS = frozenset(
-    {
-        FrontmatterFieldKind.SCALAR,
-        FrontmatterFieldKind.LIST,
-        FrontmatterFieldKind.BOOL_OR_LIST,
-        FrontmatterFieldKind.BOOL_OR_SCALAR,
-    }
-)
 
 # Words accepted as booleans when editing ``skill`` / ``snippet`` inline, mirroring
 # the bool input-type rule text from core ("true/false, yes/no, on/off, 1/0").
@@ -214,9 +206,9 @@ class FrontmatterPanel(Vertical):
             return text, len(text.plain.splitlines()) or 1
 
         field_errors = self._diagnostics_by_field()
+        selected = None if self._edit_mode == "raw" else self._selected_nav()
         lines: list[Text] = []
-        for index, field in enumerate(self._row_fields()):
-            selected = index == self._selected and self._edit_mode != "raw"
+        for field in self._row_fields():
             lines.extend(self._render_field(field, selected=selected))
             for message in field_errors.get(field, ()):  # inline core guidance
                 error = Text("      ")
@@ -232,6 +224,28 @@ class FrontmatterPanel(Vertical):
             fields.append(self._adding_field)
         return fields
 
+    def _nav_rows(self) -> list[tuple[str, str]]:
+        """Flat list of navigable rows: field headers and unfolded sub-items.
+
+        Each entry is ``("field", name)`` for a property row, or
+        ``("input", arg_name)`` / ``("xprompt", name)`` for a sub-item of an
+        unfolded structured field.  Selection (:attr:`_selected`) indexes into
+        this list so ``j``/``k`` step through items as well as fields.
+        """
+        rows: list[tuple[str, str]] = []
+        for field in self._row_fields():
+            rows.append(("field", field))
+            schema = self._schema.get(field)
+            if schema is None or schema.kind is not FrontmatterFieldKind.STRUCTURED:
+                continue
+            if field in self._folded:
+                continue
+            if field == "input":
+                rows.extend(("input", arg.name) for arg in self._model.inputs)
+            elif field == "xprompts":
+                rows.extend(("xprompt", name) for name in self._model.xprompts)
+        return rows
+
     @staticmethod
     def _empty_state() -> Text:
         """The just-triggered empty panel guidance."""
@@ -246,14 +260,17 @@ class FrontmatterPanel(Vertical):
         )
         return text
 
-    def _render_field(self, field: str, *, selected: bool) -> list[Text]:
-        """Render one field row (plus read-only sub-items when unfolded)."""
+    def _render_field(
+        self, field: str, *, selected: tuple[str, str] | None
+    ) -> list[Text]:
+        """Render one field row (plus its sub-items when unfolded)."""
         schema = self._schema.get(field)
         structured = (
             schema is not None and schema.kind is FrontmatterFieldKind.STRUCTURED
         )
-        marker = "▸ " if selected else "  "
-        key_style = "bold #87D7FF" if not selected else "bold reverse #87D7FF"
+        header_selected = selected == ("field", field)
+        marker = "▸ " if header_selected else "  "
+        key_style = "bold reverse #87D7FF" if header_selected else "bold #87D7FF"
         row = Text(marker)
         row.append(field.ljust(_KEY_COLUMN), style=key_style)
         if structured:
@@ -268,20 +285,28 @@ class FrontmatterPanel(Vertical):
             row.append(f"{count} {label}", style="dim")
             rows = [row]
             if not folded:
-                rows.extend(self._render_sub_items(field))
+                rows.extend(self._render_sub_items(field, selected=selected))
             return rows
         row.append(self._value_summary(field))
         return [row]
 
-    def _render_sub_items(self, field: str) -> list[Text]:
-        """Render the read-only sub-item lines for ``input`` / ``xprompts``."""
+    def _render_sub_items(
+        self, field: str, *, selected: tuple[str, str] | None
+    ) -> list[Text]:
+        """Render the sub-item lines for ``input`` / ``xprompts``."""
         lines: list[Text] = []
         if field == "input":
             for arg in self._model.inputs:
-                lines.append(self._input_item_line(arg))
+                lines.append(
+                    self._input_item_line(arg, selected=selected == ("input", arg.name))
+                )
         else:
             for name, xprompt in self._model.xprompts.items():
-                lines.append(self._xprompt_item_line(name, xprompt))
+                lines.append(
+                    self._xprompt_item_line(
+                        name, xprompt, selected=selected == ("xprompt", name)
+                    )
+                )
         if not lines:
             empty = Text("    • ")
             empty.append("(none)", style="dim italic")
@@ -289,10 +314,10 @@ class FrontmatterPanel(Vertical):
         return lines
 
     @staticmethod
-    def _input_item_line(arg: InputArg) -> Text:
+    def _input_item_line(arg: InputArg, *, selected: bool = False) -> Text:
         """One ``input`` sub-item: name, type, required/default, description."""
         line = Text("    • ")
-        line.append(arg.name, style="#87D7FF")
+        line.append(arg.name, style="reverse #87D7FF" if selected else "#87D7FF")
         line.append(f"  {arg.type.value}", style="green")
         if arg.default is UNSET:
             line.append("  (required)", style="yellow")
@@ -303,10 +328,12 @@ class FrontmatterPanel(Vertical):
         return line
 
     @staticmethod
-    def _xprompt_item_line(name: str, xprompt: XPrompt) -> Text:
+    def _xprompt_item_line(
+        name: str, xprompt: XPrompt, *, selected: bool = False
+    ) -> Text:
         """One ``xprompts`` sub-item: name and a content/description preview."""
         line = Text("    • ")
-        line.append(name, style="#87D7FF")
+        line.append(name, style="reverse #87D7FF" if selected else "#87D7FF")
         preview = xprompt.description or xprompt.content
         preview = " ".join(preview.split())
         if len(preview) > 48:
@@ -378,7 +405,7 @@ class FrontmatterPanel(Vertical):
         elif key in ("enter", "e"):
             self._edit_selected()
         elif key == "a":
-            self._request_add_property()
+            self._add_at_selection()
         elif key == "d":
             self._delete_selected()
         elif key == "R":
@@ -391,28 +418,44 @@ class FrontmatterPanel(Vertical):
             event.stop()
 
     def _move(self, delta: int) -> None:
-        """Move the row selection by *delta* (clamped)."""
-        fields = self._row_fields()
-        if not fields:
+        """Move the row selection by *delta* (clamped over nav rows)."""
+        rows = self._nav_rows()
+        if not rows:
             return
-        self._selected = max(0, min(self._selected + delta, len(fields) - 1))
+        self._selected = max(0, min(self._selected + delta, len(rows) - 1))
         self._refresh()
 
-    def _selected_field(self) -> str | None:
-        """The currently selected field name, or ``None`` when empty."""
-        fields = self._row_fields()
-        if not fields:
+    def _selected_nav(self) -> tuple[str, str] | None:
+        """The selected nav row (``(kind, key)``), or ``None`` when empty."""
+        rows = self._nav_rows()
+        if not rows:
             return None
-        self._selected = max(0, min(self._selected, len(fields) - 1))
-        return fields[self._selected]
+        self._selected = max(0, min(self._selected, len(rows) - 1))
+        return rows[self._selected]
+
+    def _clamp_selection(self) -> None:
+        """Clamp :attr:`_selected` into the current nav-row range."""
+        self._selected = max(0, min(self._selected, max(0, len(self._nav_rows()) - 1)))
+
+    def _select_nav(self, target: tuple[str, str]) -> None:
+        """Move the selection onto *target* if it is currently navigable."""
+        for index, row in enumerate(self._nav_rows()):
+            if row == target:
+                self._selected = index
+                return
 
     def _set_fold(self, folded: bool) -> None:
-        """Fold / unfold the selected structured sub-tree."""
-        field = self._selected_field()
+        """Fold / unfold the structured sub-tree the selection belongs to."""
+        nav = self._selected_nav()
+        if nav is None:
+            return
+        kind, key = nav
+        field = key if kind == "field" else ("input" if kind == "input" else "xprompts")
         if field not in ("input", "xprompts"):
             return
         if folded:
             self._folded.add(field)
+            self._select_nav(("field", field))  # keep selection on the header
         else:
             self._folded.discard(field)
         self._refresh()
@@ -420,53 +463,164 @@ class FrontmatterPanel(Vertical):
     # -- add / edit / delete --------------------------------------------------
 
     def addable_properties(self) -> list[tuple[str, str]]:
-        """``(name, description)`` of unset inline-editable fields, in order.
+        """``(name, description)`` of every unset field, in canonical order.
 
         The host bar uses this to populate the add-property picker so the panel
         keeps the core schema (and its descriptions) as the single source.
+        Structured fields (``input`` / ``xprompts``) are offered too; picking one
+        opens its sub-form modal to author the first item.
         """
         return [
             (name, self._schema[name].description)
             for name in self._schema_order
-            if name not in self._fields and self._schema[name].kind in _INLINE_KINDS
+            if name not in self._fields
         ]
 
     def begin_add(self, field: str) -> None:
-        """Start adding *field*: show a temp row and drop into its editor."""
+        """Start adding *field*: a sub-form modal for structured, else inline."""
         if field not in self._schema or field in self._fields:
             return
+        if self._schema[field].kind is FrontmatterFieldKind.STRUCTURED:
+            self._add_structured_item(field)
+            return
         self._adding_field = field
-        self._selected = len(self._row_fields()) - 1
+        self._selected = len(self._nav_rows()) - 1
         self._begin_inline_edit(field, initial="", adding=True)
 
     def _request_add_property(self) -> None:
         """Ask the host bar to open the add-property picker."""
         self.post_message(self.AddRequested())
 
+    def _add_at_selection(self) -> None:
+        """Handle ``a``: add an item inside a sub-tree, else add a property."""
+        nav = self._selected_nav()
+        if nav is not None:
+            kind, key = nav
+            if kind == "input" or (kind == "field" and key == "input"):
+                self._add_structured_item("input")
+                return
+            if kind == "xprompt" or (kind == "field" and key == "xprompts"):
+                self._add_structured_item("xprompts")
+                return
+        self._request_add_property()
+
     def _edit_selected(self) -> None:
-        """Edit the selected field (inline for scalars; raw for structured)."""
-        field = self._selected_field()
-        if field is None:
+        """Edit the selection: inline scalar, structured item, or add-on-header."""
+        nav = self._selected_nav()
+        if nav is None:
             return
-        schema = self._schema.get(field)
+        kind, key = nav
+        if kind == "input":
+            self._edit_input_item(key)
+            return
+        if kind == "xprompt":
+            self._edit_xprompt_item(key)
+            return
+        schema = self._schema.get(key)
         if schema is None:
             return
         if schema.kind is FrontmatterFieldKind.STRUCTURED:
-            # Structured editors arrive in Phase 4; raw mode is the Phase 3 path.
-            self._begin_raw()
+            # ``enter``/``e`` on a structured header adds a new item to it.
+            self._add_structured_item(key)
             return
-        self._begin_inline_edit(field, initial=self._editable_text(field))
+        self._begin_inline_edit(key, initial=self._editable_text(key))
 
     def _delete_selected(self) -> None:
-        """Delete the selected field (the whole field for structured ones)."""
-        field = self._selected_field()
-        if field is None:
+        """Delete the selection: a whole field, or one structured sub-item."""
+        nav = self._selected_nav()
+        if nav is None:
             return
-        self._clear_field(field)
+        kind, key = nav
+        if kind == "input":
+            self._model.remove_input(key)
+        elif kind == "xprompt":
+            self._model.remove_xprompt(key)
+        else:
+            self._clear_field(key)
         self._fields = self._model.present_fields()
-        self._selected = min(self._selected, max(0, len(self._fields) - 1))
+        self._clamp_selection()
         self._refresh()
         self._emit_changed()
+
+    # -- structured sub-item editors ------------------------------------------
+
+    def _add_structured_item(self, field: str) -> None:
+        """Open the sub-form modal to add a new ``input`` / ``xprompts`` item."""
+        if field == "input":
+            self._open_input_modal(existing=None)
+        else:
+            self._open_xprompt_modal(existing=None)
+
+    def _edit_input_item(self, name: str) -> None:
+        """Open the input sub-form modal prefilled with the named input."""
+        arg = self._model.get_input(name)
+        if arg is not None:
+            self._open_input_modal(existing=arg)
+
+    def _edit_xprompt_item(self, name: str) -> None:
+        """Open the xprompt sub-form modal prefilled with the named helper."""
+        xprompt = self._model.get_xprompt(name)
+        if xprompt is not None:
+            self._open_xprompt_modal(existing=(name, xprompt))
+
+    def _open_input_modal(self, *, existing: InputArg | None) -> None:
+        """Push the input sub-form and apply its result back onto the model."""
+        from sase.ace.tui.modals import InputItemModal
+
+        used = [
+            arg.name
+            for arg in self._model.inputs
+            if existing is None or arg.name != existing.name
+        ]
+
+        def _done(result: InputArg | None) -> None:
+            if result is not None:
+                if existing is not None and existing.name != result.name:
+                    self._model.remove_input(existing.name)
+                self._model.set_input(result)
+                self._fields = self._model.present_fields()
+                self._folded.discard("input")
+                self._select_nav(("input", result.name))
+                self._refresh()
+                self._emit_changed()
+            self._return_focus()
+
+        self.app.push_screen(InputItemModal(existing=existing, used_names=used), _done)
+
+    def _open_xprompt_modal(self, *, existing: tuple[str, XPrompt] | None) -> None:
+        """Push the xprompt sub-form and apply its result back onto the model."""
+        from sase.ace.tui.modals import XPromptItemModal
+
+        used = [
+            name
+            for name in self._model.xprompts
+            if existing is None or name != existing[0]
+        ]
+
+        def _done(result: tuple[str, XPrompt] | None) -> None:
+            if result is not None:
+                name, xprompt = result
+                if existing is not None and existing[0] != name:
+                    self._model.remove_xprompt(existing[0])
+                self._model.set_xprompt(xprompt)
+                self._fields = self._model.present_fields()
+                self._folded.discard("xprompts")
+                self._select_nav(("xprompt", name))
+                self._refresh()
+                self._emit_changed()
+            self._return_focus()
+
+        self.app.push_screen(
+            XPromptItemModal(existing=existing, used_names=used), _done
+        )
+
+    def _return_focus(self) -> None:
+        """Re-focus the panel for row navigation after a sub-form closes."""
+        self._edit_mode = "rows"
+        self._show_rows_only()
+        self._clamp_selection()
+        self._refresh()
+        self.focus()
 
     def _begin_inline_edit(
         self, field: str, *, initial: str, adding: bool = False

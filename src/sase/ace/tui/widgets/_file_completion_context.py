@@ -30,6 +30,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptArgCompletionContext,
     detect_xprompt_arg_completion_at_cursor,
 )
+from sase.ace.tui.widgets.xprompt_arg_assist import merge_local_xprompt_entries
 from sase.ace.tui.widgets.xprompt_completion import (
     build_xprompt_completion_candidates,
     is_xprompt_like_token,
@@ -69,6 +70,7 @@ class FileCompletionContextMixin(_MixinBase):
         def _get_warm_xprompt_arg_assist_entries(
             self,
         ) -> list[XPromptAssistEntry] | None: ...
+        def _local_xprompt_assist_entries(self) -> list[XPromptAssistEntry]: ...
 
     def _extract_token_around_cursor(self) -> tuple[int, int, str] | None:
         """Extract token bounds around the cursor in the current line."""
@@ -231,8 +233,21 @@ class FileCompletionContextMixin(_MixinBase):
         self,
         token: str,
     ) -> tuple[list[CompletionCandidate], str]:
-        """Build xprompt candidates, reusing warm prompt-local cache if present."""
-        entries = self._get_warm_xprompt_arg_assist_entries()
-        if entries is not None:
+        """Build xprompt candidates, merging live local xprompts when present.
+
+        The warm project cache is the fast path; live local xprompts from the
+        Frontmatter Panel are merged over it so ``#_helper`` lists under
+        ``<ctrl+t>`` like a global xprompt.  When the warm cache is cold but
+        local xprompts exist, the project catalog is built synchronously so both
+        the global and local candidates appear (no regression over the prior
+        cold-path build).
+        """
+        local = self._local_xprompt_assist_entries()
+        warm = self._get_warm_xprompt_arg_assist_entries()
+        if warm is not None:
+            entries = merge_local_xprompt_entries(warm, local)
+            return build_xprompt_completion_candidates(token, entries=entries)
+        if local:
+            entries = self._get_xprompt_arg_assist_entries()
             return build_xprompt_completion_candidates(token, entries=entries)
         return build_xprompt_completion_candidates(token)

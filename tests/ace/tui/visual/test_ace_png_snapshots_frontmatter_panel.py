@@ -13,7 +13,10 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals.input_item_modal import InputItemModal
+from sase.ace.tui.modals.xprompt_item_modal import XPromptItemModal
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.xprompt.models import InputArg, InputType, XPrompt
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -135,5 +138,73 @@ async def test_frontmatter_panel_error_png_snapshot(
             page,
             "frontmatter_panel_error_120x40",
             title="ACE frontmatter panel — error state",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_frontmatter_input_item_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+
+        # The structured ``input`` editor, prefilled from an existing input so
+        # the type rule + the four fields are all pinned.
+        modal = InputItemModal(
+            existing=InputArg(
+                name="retries",
+                type=InputType.INT,
+                default=3,
+                description="how many times to retry",
+            ),
+            used_names=["service"],
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("InputItemModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "frontmatter_input_item_modal_120x40",
+            title="ACE frontmatter input item editor",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_frontmatter_xprompt_item_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+
+        # The structured ``xprompts`` editor, prefilled with a local helper that
+        # declares an input, so the compact inputs field is pinned too.
+        modal = XPromptItemModal(
+            existing=(
+                "_rules",
+                XPrompt(
+                    name="_rules",
+                    content="Follow the team review checklist",
+                    inputs=[InputArg(name="service", type=InputType.WORD)],
+                    description="team review rules",
+                ),
+            )
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("XPromptItemModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "frontmatter_xprompt_item_modal_120x40",
+            title="ACE frontmatter xprompt item editor",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

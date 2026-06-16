@@ -27,6 +27,11 @@ from textual.dom import DOMNode
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_stack import PromptStackState
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    xprompt_assist_entry_from_local_xprompt,
+)
+from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
@@ -49,6 +54,43 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
+
+    # Cache of (frontmatter string -> assist entries) so completion in every
+    # pane reads the panel's *live* local xprompts without reparsing the YAML on
+    # each keystroke.  Keyed by the exact frontmatter string the stack carries,
+    # so a one-entry cache invalidates itself the moment the user edits a helper.
+    _local_xprompt_cache: tuple[str, list[XPromptAssistEntry]] | None = None
+
+    # -- local xprompt completion parity --------------------------------------
+
+    def local_xprompt_assist_entries(self) -> list[XPromptAssistEntry]:
+        """Assist entries for the local xprompts declared in the live frontmatter.
+
+        Parses the stack's current ``frontmatter`` string into the structured
+        model and converts each ``xprompts:`` helper into an
+        :class:`XPromptAssistEntry`, so panes can merge them into ``<ctrl+t>`` /
+        ``<ctrl+l>`` completion and the argument-hint resolver.  Returns ``[]``
+        when there is no frontmatter or it declares no local xprompts.
+        """
+        frontmatter = self._stack.frontmatter
+        if not frontmatter:
+            return []
+        cached = self._local_xprompt_cache
+        if cached is not None and cached[0] == frontmatter:
+            return cached[1]
+        try:
+            model = PromptFrontmatter.parse(frontmatter)
+        except Exception:
+            # A mid-edit / invalid block (e.g. a non-underscore name) simply
+            # contributes no completions rather than breaking the pane.
+            entries: list[XPromptAssistEntry] = []
+        else:
+            entries = [
+                xprompt_assist_entry_from_local_xprompt(name, xprompt)
+                for name, xprompt in model.xprompts.items()
+            ]
+        self._local_xprompt_cache = (frontmatter, entries)
+        return entries
 
     # -- lookup ---------------------------------------------------------------
 
