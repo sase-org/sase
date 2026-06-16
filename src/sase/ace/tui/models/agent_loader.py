@@ -70,6 +70,7 @@ _TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
 )
 
 _TIER1_RECENT_COMPLETED_LIMIT = 200
+_TIER1_ACTIVE_LIMIT = 1000
 _TIER1_FALLBACK_SCAN_OPTIONS = replace(
     _TUI_SCAN_OPTIONS,
     max_records=_TIER1_RECENT_COMPLETED_LIMIT,
@@ -168,7 +169,7 @@ def _query_artifact_index_for_loader(
         include_active=True,
         include_recent_completed=True,
         include_full_history=False,
-        active_limit=None,
+        active_limit=_TIER1_ACTIVE_LIMIT,
         recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
         include_hidden=False,
     )

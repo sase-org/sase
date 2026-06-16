@@ -286,7 +286,7 @@ def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(
     assert query.include_active is True
     assert query.include_recent_completed is True
     assert query.include_full_history is False
-    assert query.active_limit is None
+    assert query.active_limit == 1000
     assert query.recent_completed_limit == 200
     assert query.include_hidden is False
 

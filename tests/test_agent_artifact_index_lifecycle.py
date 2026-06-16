@@ -208,6 +208,57 @@ def test_sync_dismissed_projection_skips_when_metadata_matches(
     assert sync_dismissed_agent_artifact_index(index_path=index)
 
 
+def test_active_tier_maintenance_marks_fast_path_report_changed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    index = tmp_path / "agent_artifact_index.sqlite"
+    index.touch()
+    meta_store = _install_projection_meta_store(monkeypatch)
+    _write_projection_meta(
+        meta_store,
+        index,
+        dismissed_agents_signature=[10, 20],
+        dismissed_bundle_index_signature=[1, 30, 40, 2],
+    )
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.dismissed_agents_file_signature",
+        lambda: (10, 20),
+    )
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.dismissed_bundle_index_signature",
+        lambda: (1, 30, 40, 2),
+    )
+
+    def fake_terminalize(
+        index_path: Path,
+        projects_root: Path,
+        *,
+        stale_after_seconds: int,
+        max_rows: int | None,
+        options: object,
+    ) -> AgentArtifactIndexUpdateWire:
+        del projects_root, stale_after_seconds, max_rows, options
+        return AgentArtifactIndexUpdateWire(
+            schema_version=1,
+            index_path=str(index_path),
+            projects_root="",
+            rows_indexed=3,
+        )
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "terminalize_stale_active_agent_artifact_index_rows",
+        fake_terminalize,
+    )
+
+    report = sync_dismissed_agent_artifact_index_report(index_path=index)
+
+    assert report.synced
+    assert report.changed
+    assert report.terminalized_active_rows == 3
+
+
 def test_authoritative_dismissed_sync_bypasses_matching_metadata(
     tmp_path: Path,
     monkeypatch,
@@ -629,6 +680,28 @@ def _install_projection_meta_store(
     monkeypatch.setattr(
         "sase.core.agent_artifact_index_lifecycle.write_agent_artifact_index_meta",
         fake_write,
+    )
+
+    def fake_terminalize(
+        index_path: Path,
+        projects_root: Path,
+        *,
+        stale_after_seconds: int,
+        max_rows: int | None,
+        options: object,
+    ) -> AgentArtifactIndexUpdateWire:
+        del projects_root, stale_after_seconds, max_rows, options
+        return AgentArtifactIndexUpdateWire(
+            schema_version=1,
+            index_path=str(index_path),
+            projects_root="",
+            rows_indexed=0,
+        )
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "terminalize_stale_active_agent_artifact_index_rows",
+        fake_terminalize,
     )
     return store
 

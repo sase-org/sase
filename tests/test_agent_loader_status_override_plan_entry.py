@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from sase.ace.tui.models import _agent_status_overrides as status_overrides
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
@@ -139,6 +140,40 @@ def test_apply_status_overrides_superseded_planner_entry_stays_done() -> None:
     _apply_status_overrides([planner, feedback])
 
     assert planner.status == "DONE"
+
+
+def test_feedback_review_progression_uses_precomputed_child_latest() -> None:
+    """The hot review check can answer from the parent child index."""
+    root_timestamp = "20260529113000"
+    planner = _agent(
+        start_time=datetime(2026, 5, 29, 11, 30, 0),
+        raw_suffix="20260529113030",
+        parent_timestamp=root_timestamp,
+        role_suffix="-plan",
+        plan_times=[datetime(2026, 5, 29, 11, 35, 0)],
+    )
+    newer_feedback = _agent(
+        start_time=datetime(2026, 5, 29, 11, 45, 0),
+        raw_suffix="20260529114500",
+        parent_timestamp=root_timestamp,
+        role_suffix="-2",
+    )
+    all_agents = [planner, newer_feedback]
+    children_by_parent = status_overrides._children_by_parent_timestamp(all_agents)
+    latest_by_parent = status_overrides._latest_non_workflow_child_launch_by_parent(
+        children_by_parent
+    )
+
+    class ExplodingAgents(list[Agent]):
+        def __iter__(self):  # type: ignore[no-untyped-def]
+            raise AssertionError("should not scan all_agents")
+
+    assert status_overrides._feedback_child_progressed_past_review(
+        planner,
+        ExplodingAgents(all_agents),
+        children_by_parent,
+        latest_by_parent,
+    )
 
 
 def test_apply_status_overrides_unreviewed_plan_entry_is_idempotent() -> None:

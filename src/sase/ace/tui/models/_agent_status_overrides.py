@@ -110,7 +110,12 @@ def _has_unanswered_completed_question(
     return bool(agent.raw_suffix) and agent.raw_suffix not in parents_with_followup
 
 
-def _has_unreviewed_submitted_plan(agent: Agent, all_agents: list[Agent]) -> bool:
+def _has_unreviewed_submitted_plan(
+    agent: Agent,
+    all_agents: list[Agent],
+    children_by_parent: dict[str, list[Agent]] | None = None,
+    latest_child_launch_by_parent: dict[str, datetime] | None = None,
+) -> bool:
     """Return True when a completed row's submitted plan still awaits review."""
     if agent.status != "DONE" or not agent.plan_times:
         return False
@@ -118,7 +123,9 @@ def _has_unreviewed_submitted_plan(agent: Agent, all_agents: list[Agent]) -> boo
         return False
     if not _is_awaiting_plan_review(agent):
         return False
-    return not _feedback_child_progressed_past_review(agent, all_agents)
+    return not _feedback_child_progressed_past_review(
+        agent, all_agents, children_by_parent, latest_child_launch_by_parent
+    )
 
 
 def _done_handoff_status(parent: Agent, child: Agent) -> str:
@@ -198,20 +205,57 @@ def _is_family_child(agent: Agent, parent: Agent) -> bool:
     return True
 
 
-def _has_family_followup_child(parent: Agent, all_agents: list[Agent]) -> bool:
+def _children_by_parent_timestamp(all_agents: list[Agent]) -> dict[str, list[Agent]]:
+    children_by_parent: dict[str, list[Agent]] = {}
+    for agent in all_agents:
+        if agent.parent_timestamp:
+            children_by_parent.setdefault(agent.parent_timestamp, []).append(agent)
+    return children_by_parent
+
+
+def _latest_non_workflow_child_launch_by_parent(
+    children_by_parent: dict[str, list[Agent]],
+) -> dict[str, datetime]:
+    latest_by_parent: dict[str, datetime] = {}
+    for parent_timestamp, children in children_by_parent.items():
+        latest = max(
+            (
+                _child_launch_time(child)
+                for child in children
+                if not child.parent_workflow
+            ),
+            default=None,
+        )
+        if latest is not None:
+            latest_by_parent[parent_timestamp] = latest
+    return latest_by_parent
+
+
+def _has_family_followup_child(
+    parent: Agent,
+    all_agents: list[Agent],
+    children_by_parent: dict[str, list[Agent]] | None = None,
+) -> bool:
     if not parent.raw_suffix:
         return False
+    children = (
+        children_by_parent.get(parent.raw_suffix, [])
+        if children_by_parent is not None
+        else all_agents
+    )
     return any(
         child is not parent
         and child.parent_timestamp == parent.raw_suffix
         and not child.parent_workflow
-        for child in all_agents
+        for child in children
     )
 
 
 def _feedback_child_progressed_past_review(
     agent: Agent,
     all_agents: list[Agent],
+    children_by_parent: dict[str, list[Agent]] | None = None,
+    latest_child_launch_by_parent: dict[str, datetime] | None = None,
 ) -> bool:
     """Return True when a feedback round's revised plan was already accepted."""
     if agent.plan_action in _APPROVED_PLAN_ACTIONS:
@@ -220,25 +264,38 @@ def _feedback_child_progressed_past_review(
         return False
 
     launched_at = _child_launch_time(agent)
+    if latest_child_launch_by_parent is not None:
+        return (
+            latest_child_launch_by_parent.get(agent.parent_timestamp, datetime.min)
+            > launched_at
+        )
+    siblings = (
+        children_by_parent.get(agent.parent_timestamp, [])
+        if children_by_parent is not None
+        else all_agents
+    )
     return any(
         child is not agent
         and child.parent_timestamp == agent.parent_timestamp
         and not child.parent_workflow
         and _child_launch_time(child) > launched_at
-        for child in all_agents
+        for child in siblings
     )
 
 
 def _planner_child_status(
     parent: Agent,
     all_agents: list[Agent] | None = None,
+    children_by_parent: dict[str, list[Agent]] | None = None,
 ) -> str:
     """Status for the logical planner child derived from a family root."""
     if parent.status in {"STARTING", "WAITING", "RUNNING", "FAILED", "PLAN REJECTED"}:
         return parent.status
     if parent.status in {"QUESTION", "ANSWERED"}:
         return parent.status
-    if all_agents is not None and _has_family_followup_child(parent, all_agents):
+    if all_agents is not None and _has_family_followup_child(
+        parent, all_agents, children_by_parent
+    ):
         return "DONE"
     if _has_unanswered_completed_question(parent):
         return "QUESTION"
@@ -251,9 +308,10 @@ def _sync_planner_child_from_parent(
     parent: Agent,
     child: Agent,
     all_agents: list[Agent] | None = None,
+    children_by_parent: dict[str, list[Agent]] | None = None,
 ) -> None:
     """Copy root planner metadata onto a concrete or synthetic planner child."""
-    child.status = _planner_child_status(parent, all_agents)
+    child.status = _planner_child_status(parent, all_agents, children_by_parent)
     child.plan_times = list(parent.plan_times)
     child.feedback_times = list(parent.feedback_times)
     child.feedback_plan_paths = dict(parent.feedback_plan_paths)
@@ -413,6 +471,10 @@ def apply_status_overrides(
             parent_by_suffix[agent.raw_suffix] = agent
 
     _ensure_synthetic_planner_children(agents, all_agents, parent_by_suffix)
+    children_by_parent = _children_by_parent_timestamp(all_agents)
+    latest_child_launch_by_parent = _latest_non_workflow_child_launch_by_parent(
+        children_by_parent
+    )
 
     # Propagate timestamps from feedback round children (.2, .3, ...) to parent
     # so the metadata panel shows one entry per proposal/feedback/question round.
@@ -453,9 +515,9 @@ def apply_status_overrides(
     # Pre-compute which agents have follow-up children so unanswered questions
     # can distinguish "waiting for user" from "answered and continued".
     parents_with_followup: set[str] = set()
-    for agent in all_agents:
-        if agent.parent_timestamp and not agent.parent_workflow:
-            parents_with_followup.add(agent.parent_timestamp)
+    for parent_timestamp, children in children_by_parent.items():
+        if any(not child.parent_workflow for child in children):
+            parents_with_followup.add(parent_timestamp)
 
     for agent in all_agents:
         if (
@@ -470,7 +532,9 @@ def apply_status_overrides(
                 and canonical_plan_chain_suffix(agent.role_suffix)
                 == _root_child_suffix(parent)
             ):
-                _sync_planner_child_from_parent(parent, agent, all_agents)
+                _sync_planner_child_from_parent(
+                    parent, agent, all_agents, children_by_parent
+                )
         elif (
             _is_feedback_agent(agent)
             and agent.status in {"DONE", "RUNNING"}
@@ -478,7 +542,12 @@ def apply_status_overrides(
         ):
             agent.status = (
                 "DONE"
-                if _feedback_child_progressed_past_review(agent, all_agents)
+                if _feedback_child_progressed_past_review(
+                    agent,
+                    all_agents,
+                    children_by_parent,
+                    latest_child_launch_by_parent,
+                )
                 else "PLAN"
             )
 
@@ -535,7 +604,12 @@ def apply_status_overrides(
     # review. This mirrors the QUESTION catch-all and covers planner entries
     # that fall through suffix-gated workflow-step/feedback branches above.
     for agent in all_agents:
-        if _has_unreviewed_submitted_plan(agent, all_agents):
+        if _has_unreviewed_submitted_plan(
+            agent,
+            all_agents,
+            children_by_parent,
+            latest_child_launch_by_parent,
+        ):
             agent.status = "PLAN"
 
     # Active family code handoff rows display the plan approval state while the
@@ -584,7 +658,7 @@ def apply_status_overrides(
             continue
         children = [
             child
-            for child in all_agents
+            for child in children_by_parent.get(parent.raw_suffix or "", [])
             if child is not parent and _is_family_child(child, parent)
         ]
         if not children:

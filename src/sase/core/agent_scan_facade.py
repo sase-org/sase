@@ -159,6 +159,30 @@ def delete_agent_artifact_index_row(
     return agent_artifact_index_update_from_dict(payload)
 
 
+def terminalize_stale_active_agent_artifact_index_rows(
+    index_path: Path | str,
+    projects_root: Path | str,
+    *,
+    stale_after_seconds: int,
+    max_rows: int | None = None,
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> AgentArtifactIndexUpdateWire:
+    """Mark stale, unclaimed no-marker active rows terminal in the index."""
+    opts = options or AgentArtifactScanOptionsWire()
+    with agent_artifact_index_operation_lock():
+        rust_terminalize = require_rust_binding(
+            "terminalize_stale_active_agent_artifact_index_rows"
+        )
+        payload: dict[str, Any] = rust_terminalize(
+            str(index_path),
+            str(projects_root),
+            int(stale_after_seconds),
+            max_rows,
+            _options_to_dict(opts),
+        )
+    return agent_artifact_index_update_from_dict(payload)
+
+
 def replace_agent_artifact_index_dismissed_agents(
     index_path: Path | str,
     dismissed: Sequence[AgentCleanupIdentityWire],
@@ -357,6 +381,7 @@ __all__ = [
     "replace_agent_artifact_index_dismissed_agents",
     "scan_agent_artifact_dirs",
     "scan_agent_artifacts",
+    "terminalize_stale_active_agent_artifact_index_rows",
     "upsert_agent_artifact_index_row",
     "verify_agent_artifact_index",
     "write_agent_artifact_index_meta",

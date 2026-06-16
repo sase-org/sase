@@ -20,6 +20,7 @@ from sase.core.agent_scan_facade import (
     read_agent_artifact_index_meta,
     rebuild_agent_artifact_index,
     replace_agent_artifact_index_dismissed_agents,
+    terminalize_stale_active_agent_artifact_index_rows,
     upsert_agent_artifact_index_row,
     write_agent_artifact_index_meta,
 )
@@ -45,6 +46,8 @@ _INDEX_ERRORS = (
 )
 _DISMISSED_PROJECTION_META_KEY = "dismissed_projection"
 _DISMISSED_PROJECTION_META_VERSION = 1
+_STALE_ACTIVE_TERMINALIZE_AFTER_SECONDS = 24 * 60 * 60
+_STALE_ACTIVE_TERMINALIZE_MAX_ROWS = 10_000
 
 # SQLite error messages that indicate on-disk corruption (as opposed to
 # transient lock/timeout failures, which must never trigger a quarantine).
@@ -97,6 +100,7 @@ class DismissedProjectionSyncReport:
     changed: bool = False
     healed: bool = False
     quarantined_path: Path | None = None
+    terminalized_active_rows: int = 0
 
 
 def _default_projects_root(sase_home: Path | str | None = None) -> Path:
@@ -167,7 +171,8 @@ def sync_dismissed_agent_artifact_index_report(
             return DismissedProjectionSyncReport(synced=False)
 
         try:
-            return _sync_projection(index, dismissed, added=added, force=force)
+            report = _sync_projection(index, dismissed, added=added, force=force)
+            return _run_active_tier_maintenance(index, report)
         except _CorruptArtifactIndexError:
             return _heal_corrupt_index_and_resync(index, dismissed)
 
@@ -232,6 +237,7 @@ def _heal_corrupt_index_and_resync(
     try:
         rebuild_agent_artifact_index(index, _default_projects_root())
         report = _sync_projection(index, dismissed, added=None, force=True)
+        report = _run_active_tier_maintenance(index, report)
     except (_CorruptArtifactIndexError, *_INDEX_ERRORS):
         log.exception("agent artifact index rebuild after quarantine failed")
         return DismissedProjectionSyncReport(
@@ -242,6 +248,37 @@ def _heal_corrupt_index_and_resync(
         changed=report.changed,
         healed=True,
         quarantined_path=quarantined,
+        terminalized_active_rows=report.terminalized_active_rows,
+    )
+
+
+def _run_active_tier_maintenance(
+    index: Path,
+    report: DismissedProjectionSyncReport,
+) -> DismissedProjectionSyncReport:
+    """Drain stale no-marker rows from the active tier after startup sync."""
+    try:
+        update = terminalize_stale_active_agent_artifact_index_rows(
+            index,
+            _default_projects_root(),
+            stale_after_seconds=_STALE_ACTIVE_TERMINALIZE_AFTER_SECONDS,
+            max_rows=_STALE_ACTIVE_TERMINALIZE_MAX_ROWS,
+            options=_LIFECYCLE_SCAN_OPTIONS,
+        )
+    except _INDEX_ERRORS as error:
+        if _is_corruption_error(error):
+            raise _CorruptArtifactIndexError from error
+        log.debug("agent artifact index active-tier maintenance failed", exc_info=True)
+        return report
+    terminalized = update.rows_indexed
+    if terminalized <= 0:
+        return report
+    return DismissedProjectionSyncReport(
+        synced=report.synced,
+        changed=True,
+        healed=report.healed,
+        quarantined_path=report.quarantined_path,
+        terminalized_active_rows=terminalized,
     )
 
 
