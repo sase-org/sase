@@ -173,6 +173,9 @@ def _compute_plan_or_exit(
             cancelled_only=cancelled_only,
             dry_run=dry_run,
         )
+    except ValueError as exc:
+        print(f"sase prompt prune: {exc}", file=sys.stderr)
+        sys.exit(2)
     except (PromptStoreCorruptError, PromptStoreWriteError) as exc:
         print(f"sase prompt prune: {exc}", file=sys.stderr)
         sys.exit(1)

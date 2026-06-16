@@ -175,6 +175,23 @@ def test_prune_no_predicate_exits_two(
     assert "at least one" in capsys.readouterr().err
 
 
+def test_prune_negative_keep_exits_two_without_mutation(
+    history_file: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(
+        _entry("newest prompt kept", "260603_000000"),
+        _entry("oldest prompt would be dangerous", "260601_000000"),
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        handle_prompt_prune(_prune_ns(keep=-1, yes=True))
+
+    assert exc_info.value.code == 2
+    assert len(load_prompt_history()) == 2
+    assert "greater than or equal to 0" in capsys.readouterr().err
+
+
 def test_prune_bad_date_exits_two(
     history_file: Path,
     capsys: pytest.CaptureFixture[str],
