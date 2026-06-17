@@ -66,6 +66,7 @@ async def test_single_pane_hint_entries_hide_multi_pane_and_stash_actions() -> N
 
         # No multi-pane nav (single pane), no stash restore (empty stash).
         assert _entry_pairs(bar) == [
+            ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("s", "stash this draft"),
@@ -79,6 +80,7 @@ async def test_single_pane_with_stash_includes_load_and_restore() -> None:
         bar = app.query_one(PromptInputBar)
 
         assert _entry_pairs(bar) == [
+            ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("s", "stash this draft"),
@@ -97,6 +99,7 @@ async def test_multi_pane_hint_entries_include_nav_stash_and_restore() -> None:
         bar = app.query_one(PromptInputBar)
 
         assert _entry_pairs(bar) == [
+            ("enter", "launch this pane"),
             ("j", "focus next pane"),
             ("k", "focus prev pane"),
             ("J", "move pane down"),
@@ -120,7 +123,7 @@ async def test_multi_pane_without_stash_hides_load_and_restore() -> None:
         assert "p" not in keys
         assert "P" not in keys
         # Multi-pane nav and stash-all stay available.
-        assert keys == ["j", "k", "J", "K", "-", "=", "s", "S"]
+        assert keys == ["enter", "j", "k", "J", "K", "-", "=", "s", "S"]
 
 
 async def test_feedback_bar_has_no_prompt_g_prefix_hints() -> None:
@@ -152,6 +155,7 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert panel.border_title == " g "
         assert panel.border_subtitle == "\\[esc] cancel"
         plain = panel.render().plain
+        assert "g<enter>   submit this draft" in plain
         assert "g-   add pane" in plain
         assert "g=   toggle frontmatter" in plain
         assert "gs   stash this draft" in plain
@@ -285,6 +289,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         monkeypatch.setattr(
             bar, "move_active_pane", lambda delta, **_: calls.append(f"move{delta:+d}")
         )
+        monkeypatch.setattr(bar, "submit_active_pane", lambda: calls.append("enter"))
         monkeypatch.setattr(bar, "add_bottom_pane", lambda: calls.append("-"))
         monkeypatch.setattr(bar, "toggle_frontmatter_panel", lambda: calls.append("="))
         monkeypatch.setattr(bar, "stash_active_pane", lambda: calls.append("s"))
@@ -292,7 +297,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         monkeypatch.setattr(bar, "request_load_stash", lambda: calls.append("p"))
         monkeypatch.setattr(bar, "request_restore_stash", lambda: calls.append("P"))
 
-        for key in ("j", "k", "J", "K", "-", "=", "s", "S", "p", "P"):
+        for key in ("enter", "j", "k", "J", "K", "-", "=", "s", "S", "p", "P"):
             assert bar.dispatch_g_prefix_key(key) is True
         # Unknown / vim-owned continuations fall through to vim.
         assert bar.dispatch_g_prefix_key("g") is False
@@ -300,6 +305,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         assert bar.dispatch_g_prefix_key("z") is False
 
         assert calls == [
+            "enter",
             "focus+1",
             "focus-1",
             "move+1",

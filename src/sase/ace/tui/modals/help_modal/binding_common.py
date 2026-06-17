@@ -26,7 +26,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("gp / gP", "Load / restore stashed prompt"),
         ("Enter", "Submit (chooser when stacked)"),
         ("Ctrl+S", "Submit all panes (multi-agent)"),
-        ("Ctrl+Shift+S", "Submit current pane only"),
+        ("g<enter>", "Submit current pane only"),
         ("gj / gk", "Focus prompt panes (NORMAL)"),
         ("gJ / gK", "Move prompt pane (NORMAL)"),
         ("g-", "Add prompt pane"),

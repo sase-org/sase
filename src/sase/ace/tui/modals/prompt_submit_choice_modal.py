@@ -20,7 +20,6 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
         Binding("a", "choose_all", "Submit all", show=False),
         Binding("ctrl+s", "choose_all", "Submit all", show=False),
         Binding("c", "choose_current", "Submit current", show=False),
-        Binding("ctrl+shift+s", "choose_current", "Submit current", show=False),
         Binding("escape", "cancel", "Cancel", show=False),
         Binding("q", "cancel", "Cancel", show=False),
     ]
@@ -67,7 +66,7 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
                     classes="prompt-submit-choice-spacer duration-choice-spacer",
                 )
                 yield Static(
-                    "  [dim]^S all · ^⇧S current · esc cancel[/]",
+                    "  [dim]a/^S all · c current · esc cancel[/]",
                     classes="prompt-submit-choice-row duration-choice-row",
                 )
 

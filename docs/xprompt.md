@@ -1545,9 +1545,9 @@ while prompt-level frontmatter and fenced-code separators keep the same parsing 
 multi-agent xprompt invocation remains a single pane until launch. During live editing, typed `---` lines are ordinary
 prompt text; add panes explicitly from the prompt-stack controls. Stash restore and marked-agent kill-and-edit can also
 seed multiple panes, but those paths preserve each selected draft or agent prompt as one pane. Use `Enter` to choose how
-to submit stacked panes, `Ctrl+Shift+S` to launch the selected pane directly, or `Ctrl+S` to submit the panes together
-in top-to-bottom order. See the [ACE prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings and the
-default active-pane behavior.
+to submit stacked panes, `g<enter>` to launch the selected pane directly, or `Ctrl+S` to submit the panes together in
+top-to-bottom order. See the [ACE prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings and the default
+active-pane behavior.
 
 ### Rules
 

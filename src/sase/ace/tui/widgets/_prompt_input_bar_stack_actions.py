@@ -55,6 +55,12 @@ class _PromptGPrefixBinding:
 
 _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
     _PromptGPrefixBinding(
+        "enter",
+        "submit_active_pane",
+        "_g_prefix_label_submit_active",
+        "_g_prefix_available_submit_active",
+    ),
+    _PromptGPrefixBinding(
         "j",
         "_g_focus_next_pane",
         "_g_prefix_label_focus_next",
@@ -167,6 +173,12 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             entries.append(PromptGPrefixHintEntry(binding.key, label))
         return entries
 
+    def submit_active_pane(self) -> None:
+        """Submit the active pane through the existing ``g<enter>`` path."""
+        if self._mode != "prompt":
+            return
+        self.active_text_area().action_submit_prompt()
+
     def _g_focus_next_pane(self) -> None:
         """Focus the next/lower pane (the ``gj`` keymap)."""
         self.focus_relative(1, target_mode="normal")
@@ -186,6 +198,10 @@ class PromptInputBarStackActionsMixin(_MixinBase):
     def _g_prefix_available_pane_nav(self) -> bool:
         """Whether ``gj``/``gk``/``gJ``/``gK`` apply to a real multi-pane stack."""
         return self._mode == "prompt" and len(self._stack) > 1
+
+    def _g_prefix_available_submit_active(self) -> bool:
+        """Whether ``g<enter>`` can submit the active prompt pane."""
+        return self._mode == "prompt"
 
     def _g_prefix_available_add_pane(self) -> bool:
         """Whether ``g-`` can append a bottom pane (prompt mode only)."""
@@ -236,6 +252,12 @@ class PromptInputBarStackActionsMixin(_MixinBase):
     def _g_prefix_label_move_up(self) -> str:
         """Return the ``gK`` label."""
         return "move pane up"
+
+    def _g_prefix_label_submit_active(self) -> str:
+        """Return the context-sensitive ``g<enter>`` label."""
+        if len(self._stack) > 1:
+            return "launch this pane"
+        return "submit this draft"
 
     def _g_prefix_label_add_pane(self) -> str:
         """Return the ``g-`` label."""

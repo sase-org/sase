@@ -146,36 +146,32 @@ class PromptInputBar(
 
         ``<enter>`` opens the submit chooser, so a multi-pane stack swaps the
         ``[Esc] normal`` hint for ``[Esc] nav`` (Esc drops into NORMAL mode,
-        where the ``g`` prefix pane-focus / reorder / stash keys live — see
-        :meth:`normal_mode_subtitle`) and adds ``[^S] all`` / ``[^⇧S] this``
-        hints for the direct submit accelerators.  The ``g`` prefix keymaps are
-        NORMAL-mode-only, so they are not advertised in insert mode; the
-        subtitle just points users to ``[Esc] nav``.
+        where the ``g`` prefix pane-focus / reorder / stash / submit-this-pane
+        keys live — see :meth:`normal_mode_subtitle`) and adds ``[^S] all`` plus
+        ``[Esc g<enter>] this`` hints for the direct submit accelerators.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
-            return "[Enter] submit…  [Esc] nav  [^C] cancel  [^S] all  [^⇧S] this"
+            return (
+                "[Enter] submit…  [Esc] nav  [^C] cancel  [^S] all  [Esc g<enter>] this"
+            )
         return "[Enter] send  [Esc] normal  [^C] cancel"
 
     def normal_mode_subtitle(self) -> str:
         """Return the normal-mode subtitle, advertising the stack keys.
 
         In a multi-pane stack the active pane's normal-mode hints surface the
-        prompt-stack pane-focus (``gj``/``gk``) and reorder (``gJ``/``gK``)
-        keys, the ``g-`` add-pane chord, and the ``g`` prefix stash keys
-        (``gs``/``gS`` stash the active / all panes, ``g=`` opens the
-        frontmatter panel) so the stack is discoverable without crowding the
-        single-pane footer.  A single-pane prompt bar still advertises ``gs``
-        (stash this draft); feedback / approve-prompt bars keep the original
-        normal-mode hints since they are not stashable.  The full ``g`` prefix
-        is also discoverable through the hint panel.
+        prompt-stack selected-pane submit (``g<enter>``), pane-focus
+        (``gj``/``gk``) and reorder (``gJ``/``gK``) keys, plus the ``g`` prefix
+        stash keys (``gs``/``gS`` stash the active / all panes).  A single-pane
+        prompt bar still advertises ``g<enter>`` and ``gs``; feedback /
+        approve-prompt bars keep the original normal-mode hints since they are
+        not stashable.  The full ``g`` prefix, including add-pane and
+        frontmatter actions, is discoverable through the hint panel.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
-            return (
-                "[gj/gk] pane  [gJ/gK] move  [gs gS] stash  [g=] fm  [g-] add  "
-                "[i] insert"
-            )
+            return "[g<enter>] launch  [gj/gk] pane  [gJ/gK] move  [gs/gS] stash"
         if self._mode == "prompt":
-            return "[Esc] clear  [i] insert  [gs] stash  [g=] fm  [^C] cancel"
+            return "[Esc] clear  [i] insert  [g<enter>] send  [gs] stash  [^C] cancel"
         return "[Esc] clear  [i] insert  [^C] cancel"
 
     def compose(self) -> ComposeResult:

@@ -74,6 +74,11 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
     async def _on_key(self, event: Key) -> None:
         """Intercept keys before TextArea's default handler inserts characters."""
         if event.key == "enter":
+            if self._vim_mode == "normal" and self._pending_keys == "g":
+                if self._handle_normal_mode_key(event):
+                    event.stop()
+                    event.prevent_default()
+                    return
             event.stop()
             event.prevent_default()
             if self._file_completion_active:
@@ -93,17 +98,6 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             event.prevent_default()
             self.action_submit_prompt_stack()
             return
-
-        # Selected-pane submit accelerator for prompt stacks. ``Enter`` opens
-        # the chooser, while ``Ctrl+Shift+S`` keeps the old direct drain-one-pane
-        # path.
-        if event.key == "ctrl+shift+s":
-            bar = self._find_prompt_bar()
-            if bar is not None and bar.is_multi_pane():
-                event.stop()
-                event.prevent_default()
-                self.action_submit_prompt()
-                return
 
         if event.key == "ctrl+c":
             event.stop()

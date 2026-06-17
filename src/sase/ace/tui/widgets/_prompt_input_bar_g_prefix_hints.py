@@ -84,9 +84,19 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
         for index, entry in enumerate(entries):
             content.append("  ")
             content.append("g", style="dim #87D7FF")
-            content.append(entry.key, style="bold #00D7AF")
+            content.append(
+                PromptInputBarGPrefixHintsMixin._display_g_prefix_key(entry.key),
+                style="bold #00D7AF",
+            )
             content.append("   ")
             content.append(entry.label)
             if index < len(entries) - 1:
                 content.append("\n")
         return content
+
+    @staticmethod
+    def _display_g_prefix_key(key: str) -> str:
+        """Return the visible continuation label for a prompt ``g`` key."""
+        if key == "enter":
+            return "<enter>"
+        return key

@@ -3,7 +3,7 @@
 Covers the Phase 4 deliverable of the multi-agent prompt stack:
 
 - ``<enter>`` opens a submit chooser for non-empty multi-pane stacks.
-- ``<ctrl+shift+s>`` submits only the selected pane and keeps the bar mounted
+- ``g<enter>`` submits only the selected pane and keeps the bar mounted
   while other panes remain, dropping an empty selected pane instead of launching
   it.
 - ``<enter>`` on the final pane submits the whole bar (unmount path).
@@ -83,8 +83,7 @@ async def test_submit_choice_all_submits_whole_stack(choice_key: str) -> None:
         assert event.keep_bar is False
 
 
-@pytest.mark.parametrize("choice_key", ["c", "ctrl+shift+s"])
-async def test_submit_choice_current_submits_selected_pane(choice_key: str) -> None:
+async def test_submit_choice_current_submits_selected_pane() -> None:
     app = _CaptureApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -93,7 +92,7 @@ async def test_submit_choice_current_submits_selected_pane(choice_key: str) -> N
 
         await pilot.press("enter")
         await pilot.pause()
-        await pilot.press(choice_key)
+        await pilot.press("c")
         await pilot.pause()
         await pilot.pause()
 
@@ -123,10 +122,10 @@ async def test_submit_choice_escape_cancels_without_mutating_stack() -> None:
         assert app.query(PromptInputBar)
 
 
-# --- <ctrl+shift+s>: single selected-pane submit ---------------------------
+# --- g<enter>: single selected-pane submit ----------------------------------
 
 
-async def test_ctrl_shift_s_submits_selected_pane_and_keeps_bar() -> None:
+async def test_g_enter_submits_selected_pane_and_keeps_bar() -> None:
     app = _CaptureApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -134,7 +133,7 @@ async def test_ctrl_shift_s_submits_selected_pane_and_keeps_bar() -> None:
         bar = app.query_one(PromptInputBar)
         assert bar._stack.selected_index == 2  # bottom pane active
 
-        await pilot.press("ctrl+shift+s")  # submit "third"
+        await pilot.press("escape", "g", "enter")  # submit "third"
         await pilot.pause()
         await pilot.pause()
 
@@ -150,7 +149,7 @@ async def test_ctrl_shift_s_submits_selected_pane_and_keeps_bar() -> None:
         assert app.cancelled == []
 
 
-async def test_ctrl_shift_s_reattaches_frontmatter_to_single_pane_submit() -> None:
+async def test_g_enter_reattaches_frontmatter_to_single_pane_submit() -> None:
     # Prompt-level YAML frontmatter is held on the stack, not as a pane; a lone
     # pane submit must carry it so referenced local xprompts still resolve.
     app = _CaptureApp("---\nmodel: opus\n---\nalpha\n---\nbeta")
@@ -160,7 +159,7 @@ async def test_ctrl_shift_s_reattaches_frontmatter_to_single_pane_submit() -> No
         bar = app.query_one(PromptInputBar)
         assert bar.all_prompt_texts() == ["alpha", "beta"]
 
-        await pilot.press("ctrl+shift+s")  # submit bottom pane "beta"
+        await pilot.press("escape", "g", "enter")  # submit bottom pane "beta"
         await pilot.pause()
         await pilot.pause()
 
@@ -210,40 +209,51 @@ async def test_enter_on_final_pane_submits_whole_bar() -> None:
         assert event.whole_stack is False
 
 
-async def test_ctrl_shift_s_drains_stack_one_pane_at_a_time() -> None:
+async def test_g_enter_drains_stack_one_pane_at_a_time() -> None:
     app = _CaptureApp("first\n---\nsecond")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        await pilot.press("ctrl+shift+s")  # submit "second", keep bar
+        await pilot.press("escape", "g", "enter")  # submit "second", keep bar
         await pilot.pause()
         await pilot.pause()
         assert bar.all_prompt_texts() == ["first"]
 
-        await pilot.press("enter")  # final pane -> whole-bar submit
+        await pilot.press("escape", "g", "enter")  # final pane -> whole-bar submit
         await pilot.pause()
 
         assert [e.value for e in app.submitted] == ["second", "first"]
         assert [e.keep_bar for e in app.submitted] == [True, False]
 
 
-async def test_ctrl_shift_s_is_noop_in_single_pane_bar() -> None:
+async def test_g_enter_on_single_pane_bar_submits_normally() -> None:
     app = _CaptureApp("solo")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
-        await pilot.press("ctrl+shift+s")
-        await pilot.pause()
-        assert app.submitted == []
-
-        await pilot.press("enter")
+        await pilot.press("escape", "g", "enter")
         await pilot.pause()
 
         assert len(app.submitted) == 1
         assert app.submitted[0].value == "solo"
+        assert app.submitted[0].keep_bar is False
+
+
+async def test_ctrl_shift_s_no_longer_submits_selected_pane() -> None:
+    app = _CaptureApp("first\n---\nsecond")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("ctrl+shift+s")
+        await pilot.pause()
+
+        assert app.submitted == []
+        assert bar.all_prompt_texts() == ["first", "second"]
 
 
 # --- <ctrl+s>: whole-stack submit ------------------------------------------
@@ -326,7 +336,7 @@ async def test_multi_pane_subtitle_advertises_send_all() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         assert "[^S] all" in bar.insert_mode_subtitle()
-        assert "[^⇧S] this" in bar.insert_mode_subtitle()
+        assert "[Esc g<enter>] this" in bar.insert_mode_subtitle()
 
 
 async def test_single_pane_subtitle_omits_send_all() -> None:
@@ -374,9 +384,9 @@ async def test_multi_pane_normal_subtitle_advertises_stack_keys() -> None:
         subtitle = bar.normal_mode_subtitle()
         # Every stack keymap the active pane exposes is discoverable here.
         # Pane focus / reorder / add migrated onto the `g` prefix.
+        assert "[g<enter>] launch" in subtitle
         assert "[gj/gk] pane" in subtitle
         assert "[gJ/gK] move" in subtitle
-        assert "[g-] add" in subtitle
         # The retired comma-leader hints are gone.
         assert "," not in subtitle
 
@@ -388,9 +398,11 @@ async def test_single_pane_normal_subtitle_advertises_stash() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         # A single-pane prompt bar still advertises gs so stashing the lone
-        # draft is discoverable, plus g= for the frontmatter panel.
+        # draft is discoverable.
         subtitle = bar.normal_mode_subtitle()
-        assert subtitle == "[Esc] clear  [i] insert  [gs] stash  [g=] fm  [^C] cancel"
+        assert subtitle == (
+            "[Esc] clear  [i] insert  [g<enter>] send  [gs] stash  [^C] cancel"
+        )
 
 
 async def test_feedback_normal_subtitle_omits_stash() -> None:

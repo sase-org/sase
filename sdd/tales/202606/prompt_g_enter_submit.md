@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 16:11:30
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_g_enter_submit.md
 ---
 # Plan: Move Current Prompt Submit From Ctrl+Shift+S To g<enter>

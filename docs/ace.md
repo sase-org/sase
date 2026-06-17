@@ -1619,7 +1619,7 @@ The detailed multi-agent parsing rules live in the [XPrompt reference](xprompt.m
 | -------------- | --------------------------------------------------------------------------------------------- |
 | `Enter`        | Submit; in a prompt stack, open the submit chooser                                            |
 | `Ctrl+S`       | Submit the whole stack top-to-bottom                                                          |
-| `Ctrl+Shift+S` | Submit only the selected pane                                                                 |
+| `Esc g<enter>` | Submit only the selected pane                                                                 |
 | `Ctrl+C`       | Cancel the prompt; in a prompt stack, cancel only the selected pane                           |
 | `Ctrl+J`       | Insert a newline                                                                              |
 | `Ctrl+A`       | Move to start of line (jumps to previous line start if already at col 0)                      |
@@ -1655,21 +1655,21 @@ frontmatter stays one verbatim pane instead of auto-opening the Frontmatter Pane
 
 In prompt NORMAL mode, pressing `g` opens a small hint row for the prompt-local `g` prefix actions currently available.
 
-| Key            | Action                                                                                                 |
-| -------------- | ------------------------------------------------------------------------------------------------------ |
-| `Enter`        | Open the submit chooser; when one pane remains, `Enter` submits it normally                            |
-| `Ctrl+S`       | Join non-empty panes with `---` separators and launch the whole stack as one multi-agent prompt        |
-| `Ctrl+Shift+S` | Launch the selected pane and remove it from the stack                                                  |
-| `Ctrl+C`       | Record the selected pane as cancelled history and remove it; the final remaining pane cancels normally |
-| `Escape`       | Enter NORMAL mode for stack navigation                                                                 |
-| `gj` / `gk`    | Focus the next / previous pane in NORMAL mode; focus cycles at the stack edges                         |
-| `gJ` / `gK`    | Move the active pane down / up in NORMAL mode; reorder cycles at the stack edges                       |
-| `g-`           | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                   |
-| `g=`           | Show/focus the xprompt frontmatter panel; in the focused panel, run its deactivate/apply path          |
-| `gs`           | Stash the selected pane and remove it from the stack                                                   |
-| `gS`           | Stash every non-empty pane and dismiss the prompt bar                                                  |
-| `gp`           | Load selected stashed prompt drafts into the current bar without deleting them from the stash          |
-| `gP`           | Restore selected stashed prompt drafts into the current bar and delete them from the stash             |
+| Key         | Action                                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------------ |
+| `Enter`     | Open the submit chooser; when one pane remains, `Enter` submits it normally                            |
+| `Ctrl+S`    | Join non-empty panes with `---` separators and launch the whole stack as one multi-agent prompt        |
+| `g<enter>`  | Launch the selected pane and remove it from the stack                                                  |
+| `Ctrl+C`    | Record the selected pane as cancelled history and remove it; the final remaining pane cancels normally |
+| `Escape`    | Enter NORMAL mode for stack navigation                                                                 |
+| `gj` / `gk` | Focus the next / previous pane in NORMAL mode; focus cycles at the stack edges                         |
+| `gJ` / `gK` | Move the active pane down / up in NORMAL mode; reorder cycles at the stack edges                       |
+| `g-`        | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                   |
+| `g=`        | Show/focus the xprompt frontmatter panel; in the focused panel, run its deactivate/apply path          |
+| `gs`        | Stash the selected pane and remove it from the stack                                                   |
+| `gS`        | Stash every non-empty pane and dismiss the prompt bar                                                  |
+| `gp`        | Load selected stashed prompt drafts into the current bar without deleting them from the stash          |
+| `gP`        | Restore selected stashed prompt drafts into the current bar and delete them from the stash             |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane so local xprompts and metadata
 continue to resolve. Empty selected panes are dropped without launching. Whole-stack submission joins panes in
@@ -1677,8 +1677,8 @@ top-to-bottom order and then uses the usual multi-agent launch path, including `
 segment-local directives. Segment order alone does not make later agents wait; add `%wait` to the later pane when it
 must start after an earlier agent succeeds.
 
-The `Enter` submit chooser accepts `a` or `Ctrl+S` for all panes, `c` or `Ctrl+Shift+S` for the current pane, and
-`Esc`/`q` to cancel without changing the stack.
+The `Enter` submit chooser accepts `a` or `Ctrl+S` for all panes, `c` for the current pane, and `Esc`/`q` to cancel
+without changing the stack.
 
 Prompt stashes are a per-user draft pile stored outside prompt history. `gs` captures the selected non-empty pane plus
 the shared prompt frontmatter; when other panes remain the bar stays open, and when the last pane is stashed the bar
