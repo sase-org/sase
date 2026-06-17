@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 10:23:32
-status: wip
+status: done
 prompt: sdd/prompts/202606/xprompt_part_color.md
 ---
 # Plan: Distinct Xprompt Part Color In Agent Metadata

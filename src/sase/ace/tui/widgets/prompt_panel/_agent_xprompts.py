@@ -11,7 +11,7 @@ from ._agent_context_common import count_phrase, truncate_display
 _COLOR_HEADER = "bold #87D7FF"
 _COLOR_SUMMARY = "dim"
 _COLOR_WORKFLOW = "bold #FFAF5F"
-_COLOR_PART = "bold #87D7FF"
+_COLOR_PART = "bold #87FFAF"
 _COLOR_ARGS = "dim"
 _WORKFLOW_GLYPH = "⌘"
 _PART_GLYPH = "▣"

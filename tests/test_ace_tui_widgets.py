@@ -23,6 +23,11 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
     get_prompt_content,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_xprompts import (
+    _COLOR_HEADER,
+    _COLOR_PART,
+    _COLOR_WORKFLOW,
+)
 
 
 # --- _should_show_commits_drawers Tests ---
@@ -540,6 +545,55 @@ def test_xprompts_displayed_from_header_summary(tmp_path: Path) -> None:
     assert "⌘ #propose  note=blah" in header.plain
     assert "⌘ #cl" in header.plain
     assert "▣ #review_checklist" in header.plain
+
+
+def test_xprompt_part_value_uses_distinct_style(tmp_path: Path) -> None:
+    """Part values render in a distinct color, not the metadata-label blue."""
+    metadata = [
+        {
+            "name": "propose",
+            "kind": "workflow",
+            "positional": [],
+            "named": {},
+            "tags": [],
+        },
+        {
+            "name": "review_checklist",
+            "kind": "part",
+            "positional": [],
+            "named": {},
+            "tags": [],
+        },
+    ]
+    metadata_file = tmp_path / "xprompts_main.json"
+    metadata_file.write_text(json.dumps(metadata))
+
+    agent = _make_agent(
+        artifacts_dir=str(tmp_path),
+        parent_workflow="olcr",
+        step_name="main",
+    )
+
+    header, _ = build_header_text(
+        agent,
+        summary=build_detail_header_summary(agent),
+    )
+
+    def styles_over(substring: str) -> set[str]:
+        start = header.plain.index(substring)
+        end = start + len(substring)
+        return {
+            str(span.style)
+            for span in header.spans
+            if span.start < end and span.end > start
+        }
+
+    assert _COLOR_HEADER in styles_over("Xprompts:")
+    assert _COLOR_WORKFLOW in styles_over("#propose")
+    assert _COLOR_PART in styles_over("#review_checklist")
+    # The part value must not read like a metadata field label.
+    assert _COLOR_PART != _COLOR_HEADER
+    assert _COLOR_HEADER not in styles_over("#review_checklist")
 
 
 def test_update_display_renders_xprompts_after_detail_settles(
