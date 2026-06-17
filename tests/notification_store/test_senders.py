@@ -116,6 +116,20 @@ class TestNotifyPlanApproval:
         assert loaded[0].action_data["agent_timestamp"] == "20260512094333"
         assert loaded[0].action_data["agent_root_timestamp"] == "20260512090000"
 
+    def test_includes_runtime_when_provided(self, temp_notifications_dir: Path) -> None:
+        from sase.notifications.senders import notify_plan_approval
+
+        notify_plan_approval(
+            plan_file="/tmp/plan.md",
+            response_dir="/tmp/response",
+            session_id="session",
+            agent_runtime="4m32s",
+        )
+
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert loaded[0].action_data["runtime"] == "4m32s"
+
 
 class TestNotifyUserQuestion:
     def test_includes_root_timestamp_when_provided(

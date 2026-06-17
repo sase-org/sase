@@ -239,6 +239,7 @@ def notify_plan_approval(
     agent_name: str | None = None,
     agent_model: str | None = None,
     agent_llm_provider: str | None = None,
+    agent_runtime: str | None = None,
 ) -> None:
     """Send a notification when a Claude Code plan is ready for approval."""
     plan_name = plan_file.rsplit("/", 1)[-1] if "/" in plan_file else plan_file
@@ -262,6 +263,8 @@ def notify_plan_approval(
         action_data["model"] = agent_model
     if agent_llm_provider:
         action_data["llm_provider"] = agent_llm_provider
+    if agent_runtime:
+        action_data["runtime"] = agent_runtime
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(get_timezone()).isoformat(),

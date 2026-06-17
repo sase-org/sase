@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 17:59:27
-status: wip
+status: done
 prompt: sdd/prompts/202606/planner_runtime_telegram.md
 ---
 # Add planner runtime to Telegram plan approval messages

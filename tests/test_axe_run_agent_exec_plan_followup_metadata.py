@@ -1,5 +1,6 @@
 """Tests for approved plan follow-up metadata."""
 
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -25,6 +26,42 @@ def patch_plan_deps():
 @pytest.mark.usefixtures("patch_plan_deps")
 class TestPlanFollowupMetadata:
     """Verify approved plan metadata and action inference."""
+
+    def test_plan_marker_passes_planner_runtime_to_approval(self, tmp_path) -> None:
+        """Planner runtime spans run start through plan submission."""
+        ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
+        run_started_at = "2026-06-17T17:55:28+00:00"
+        ctx.agent_meta["run_started_at"] = run_started_at
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+        submitted_at = datetime(2026, 6, 17, 18, 0, 0, tzinfo=UTC)
+        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
+
+        with (
+            patch("sase.axe.run_agent_exec_plan.datetime") as datetime_mock,
+            patch(
+                "sase.axe.run_agent_exec_plan.format_agent_run_runtime",
+                return_value="4m32s",
+            ) as runtime_mock,
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ) as approval_mock,
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            datetime_mock.now.return_value = submitted_at
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        runtime_mock.assert_called_once_with(
+            launch_timestamp_suffix=ctx.artifacts_timestamp,
+            run_started_at=run_started_at,
+            completion_time=submitted_at,
+        )
+        assert approval_mock.call_args.kwargs["agent_runtime"] == "4m32s"
 
     def test_coder_meta_updated_when_coder_model_differs(self, tmp_path) -> None:
         """agent_meta.json reflects coder_model when it differs from planner model."""

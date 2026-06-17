@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
+from sase.axe.run_agent_runtime import format_agent_run_runtime
 from sase.axe.run_agent_exec_plan_artifacts import (
     store_followup_prompt_artifact,
     write_plan_path_artifact,
@@ -87,7 +88,16 @@ def handle_plan_marker(
     if state.feedback_round == 0:
         update_meta_suffix(state.current_artifacts_dir, PLAN_CHAIN_PLAN_SUFFIX)
 
-    plan_submitted_at = datetime.now(UTC).isoformat()
+    plan_submitted_at_dt = datetime.now(UTC)
+    plan_submitted_at = plan_submitted_at_dt.isoformat()
+    run_started_at = ctx.agent_meta.get("run_started_at")
+    if not isinstance(run_started_at, str) or not run_started_at:
+        run_started_at = None
+    agent_runtime = format_agent_run_runtime(
+        launch_timestamp_suffix=ctx.artifacts_timestamp,
+        run_started_at=run_started_at,
+        completion_time=plan_submitted_at_dt,
+    )
     record_workflow_metadata(
         state.current_artifacts_dir,
         {
@@ -109,6 +119,7 @@ def handle_plan_marker(
         agent_name=ctx.agent_name,
         agent_model=ctx.agent_model,
         agent_llm_provider=ctx.agent_llm_provider,
+        agent_runtime=agent_runtime,
     )
     if plan_result is None and was_killed():
         return "killed"
