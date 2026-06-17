@@ -650,9 +650,10 @@ Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN
 `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from the Agents header's "stopped" attention bucket for rows paused
 on user action.
 
-If any agents are marked, `,x` acts on that marked set instead of the focused row. After confirmation, ACE kills or
-dismisses the marked agents and opens a prompt stack with one editable pane per original prompt in mark order. Embedded
-`---` inside an individual agent prompt stays inside that agent's pane.
+If any agents are marked, `,x` acts on that marked set instead of the focused row. Stale marks are ignored; if any
+remaining marked agent has no recoverable prompt, ACE warns and leaves the set untouched. After confirmation, ACE kills
+or dismisses the marked agents and opens a prompt stack with one editable pane per original prompt in mark order.
+Embedded `---` inside an individual agent prompt stays inside that agent's pane.
 
 ### Agents Tab Reproduction Bundles
 
@@ -1637,17 +1638,20 @@ the text exceeds one line.
 
 ### Prompt Stacks
 
-Prompt stacks are the ACE editing surface for literal `---` multi-agent prompts. Loading prompt text from history, a
-prompt stash, a whole-bar editor session, or an editor buffer that returned through `%edit` splits top-level `---`
-segment separators into panes labeled `agent 1`, `agent 2`, and so on; the border title shows `Prompt · N agents`. Panes
-are ordered top-to-bottom for whole-stack submission. The bottom pane is active by default so you can keep drafting the
-newest segment; it is not a priority marker, and pressing `Enter` immediately opens the submit chooser.
+Prompt stacks are the ACE editing surface for literal `---` multi-agent prompts. Loading multi-agent prompt text from
+history, a whole-bar editor session, or an editor buffer that returned through `%edit` splits top-level `---` segment
+separators into panes labeled `agent 1`, `agent 2`, and so on; the border title shows `Prompt · N agents`. Restoring
+stashed prompts and using marked-agent `,x` can also open a stack, but those paths load one pane per selected draft or
+agent instead of re-parsing each pane's text. Panes are ordered top-to-bottom for whole-stack submission. The bottom
+pane is active by default so you can keep drafting the newest segment; it is not a priority marker, and pressing `Enter`
+immediately opens the submit chooser.
 
 Inactive panes stay compact, and the active pane takes the available height. A `---` line typed while INSERT mode is
 active stays literal prompt text; use `Ctrl+-` to add a new bottom pane while drafting. `Ctrl+G` opens the whole stack
-in `$EDITOR` when the bar already has multiple panes (a single-pane bar opens just the current prompt). Loading from
-history or returning from a whole-bar editor session replaces the whole stack, so those paths parse `---` separators
-into fresh panes.
+in `$EDITOR` when the bar already has multiple panes (a single-pane bar opens just the current prompt). Returning from a
+whole-bar editor session or from `%edit` reloads xprompt-style Markdown and parses `---` separators into fresh panes.
+History loads parse only real multi-agent prompts; a single history item with leading YAML frontmatter stays one
+verbatim pane instead of auto-opening the Frontmatter Panel.
 
 In prompt NORMAL mode, pressing comma opens a small hint row for the prompt-local leader actions currently available.
 
@@ -1661,8 +1665,8 @@ In prompt NORMAL mode, pressing comma opens a small hint row for the prompt-loca
 | `K` / `J`      | Focus the previous / next pane in NORMAL mode; focus cycles at the stack edges                         |
 | `Up` / `Down`  | Move the active pane up / down in NORMAL mode; reorder cycles at the stack edges                       |
 | `Ctrl+-`       | Add an empty bottom pane (INSERT or NORMAL mode) and switch it to INSERT mode                          |
-| `Ctrl+Shift+=` | Toggle the xprompt frontmatter properties panel                                                        |
-| `,f`           | Show or focus the xprompt frontmatter properties panel in NORMAL mode                                  |
+| `Ctrl+Shift+=` | Show/focus the xprompt frontmatter panel; in the focused panel, run its deactivate/apply path          |
+| `,f`           | Show or focus the xprompt frontmatter panel in NORMAL mode                                             |
 | `,s`           | Stash the selected pane and remove it from the stack                                                   |
 | `,S`           | Stash every non-empty pane and dismiss the prompt bar                                                  |
 | `,P`           | Restore stashed prompt drafts into the current bar or a new home-context prompt                        |
@@ -1679,8 +1683,9 @@ The `Enter` submit chooser accepts `a` or `Ctrl+S` for all panes, `c` or `Ctrl+S
 Prompt stashes are a per-user draft pile stored outside prompt history. `,s` captures the selected non-empty pane plus
 the shared prompt frontmatter; when other panes remain the bar stays open, and when the last pane is stashed the bar
 closes without also recording the draft as cancelled history. `,S` captures all non-empty panes in their current order.
-`,P` opens a restore picker, removes selected entries from the stash, and restores them as prompt panes in oldest-first
-drafting order. A small top-bar badge shows how many restorable drafts are currently stashed.
+`,P` opens a restore picker. Restored entries are removed from the stash, unselected entries stay available, and
+selected entries load oldest-first with ties broken by original pane index, so panes captured by `,S` come back in
+top-to-bottom order. A small top-bar badge shows how many restorable drafts are currently stashed.
 
 ### Completion
 
