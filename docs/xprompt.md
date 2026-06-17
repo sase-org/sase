@@ -1109,6 +1109,12 @@ Refactor the parser module to use dataclasses.
 When the editor closes, the `%edit` directive is stripped and the remaining text appears in the prompt input bar for
 further editing. The agent is not launched until you press Enter in the prompt bar.
 
+The returned text is loaded with editor-file semantics: if it contains real multi-agent `---` segment separators
+(outside fenced blocks and outside leading YAML frontmatter), it is returned to the ACE prompt stack as one editable
+prompt pane per agent segment, and any leading xprompt frontmatter is lifted into the prompt properties panel above the
+top pane. A buffer with no separators still returns to the bar for review; if it has leading frontmatter, that
+frontmatter is lifted into the properties panel rather than left as literal pane text.
+
 ### Plan Approval and Coder Follow-up {#plan-directive}
 
 SASE's planning workflow is driven by the `/sase_plan` skill together with the `sase plan` approval pipeline. An agent

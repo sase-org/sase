@@ -11,7 +11,40 @@ from sase.ace.tui.actions.agent_workflow import _entry_points
 from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
 from sase.ace.tui.actions.agent_workflow._prompt_bar_mount import PromptBarMountMixin
 from sase.ace.tui.modals import ProjectSelectModal, SelectionItem
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.history.prompt_store import PromptEntry
+
+# A ``%edit`` editor buffer with leading xprompt frontmatter and a real
+# multi-agent ``---`` separator: ``%edit`` requests review (not launch), and the
+# cleaned remainder must reload through editor-file (xprompt markdown) semantics.
+_EDIT_MULTI_AGENT_MARKDOWN = (
+    "%edit\n"
+    "---\n"
+    "description: Review auth and API separately\n"
+    "xprompts:\n"
+    "  _shared: Use the same style guide.\n"
+    "---\n"
+    "Review auth.\n"
+    "---\n"
+    "Review API."
+)
+_CLEANED_MULTI_AGENT_MARKDOWN = (
+    "---\n"
+    "description: Review auth and API separately\n"
+    "xprompts:\n"
+    "  _shared: Use the same style guide.\n"
+    "---\n"
+    "Review auth.\n"
+    "---\n"
+    "Review API."
+)
+_LIFTED_FRONTMATTER = (
+    "---\n"
+    "description: Review auth and API separately\n"
+    "xprompts:\n"
+    "  _shared: Use the same style guide.\n"
+    "---"
+)
 
 
 class _App(EntryPointsMixin):
@@ -494,3 +527,95 @@ def test_edit_and_relaunch_skips_save_for_non_launchable_project(
     assert saved == []
     assert app._last_custom_agent_selection is None
     assert len(app.mounted) == 1
+
+
+def test_select_and_open_editor_for_home_edit_directive_reloads_as_review() -> None:
+    """A ``%edit`` multi-agent markdown editor return mounts a review bar.
+
+    ``_select_and_open_editor_for_home`` strips ``%edit``, mounts a prompt bar
+    with editor-file (xprompt markdown) semantics — lifting frontmatter and
+    splitting ``---`` into panes — never launches, and preserves the caller's
+    display/history context rather than falling back to generic home labels.
+    """
+    app = _EditorApp(editor_result=_EDIT_MULTI_AGENT_MARKDOWN)
+
+    app._select_and_open_editor_for_home(
+        initial_text="#gh:sase ",
+        display_name="sase",
+        history_sort_key="sase",
+    )
+
+    # The agent is not launched; a single review bar is mounted instead.
+    assert app.finished_prompts == []
+    assert len(app.mounted) == 1
+    bar = app.mounted[0]
+    assert isinstance(bar, PromptInputBar)
+
+    # Editor-file semantics: leading frontmatter is lifted and the body splits.
+    assert len(bar._stack) == 2
+    assert bar._stack.texts == ["Review auth.", "Review API."]
+    assert bar._stack.frontmatter == _LIFTED_FRONTMATTER
+
+    # The caller's launch context is preserved on the review bar's context.
+    assert app._prompt_context is not None
+    assert app._prompt_context.display_name == "sase"
+    assert app._prompt_context.history_sort_key == "sase"
+
+
+def test_prompt_history_edit_first_edit_directive_reloads_instead_of_launching(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Edit-first ``%edit`` reloads the bar for review instead of launching.
+
+    The prompt-history-last-selection edit path honors ``%edit`` like the other
+    editor returns: the cleaned multi-agent markdown is mounted for review with
+    the selection's context and editor-file semantics, and no agent launches.
+    """
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
+    )
+    monkeypatch.setattr(
+        "sase.history.prompt.get_prompts_for_fzf",
+        lambda *, include_cancelled: [
+            (
+                "* target | picked",
+                PromptEntry(
+                    text="picked prompt",
+                    branch_or_workspace="target",
+                    timestamp="260509_090000",
+                    last_used="260509_120000",
+                    workspace="home",
+                ),
+            ),
+        ],
+    )
+
+    class _AppEditDirective(_App):
+        def _open_editor_for_agent_prompt(self, prompt: str) -> str:
+            self.editor_prompts.append(prompt)
+            return _EDIT_MULTI_AGENT_MARKDOWN
+
+    app = _AppEditDirective()
+    app._last_custom_agent_selection = SelectionItem(
+        display_name="Target",
+        item_type="cl",
+        project_name="proj",
+        cl_name="target",
+    )
+
+    app._start_prompt_history_from_last_selection(edit_first=True)
+
+    # The editor opened on the resolved history entry, but nothing launched.
+    assert app.editor_prompts == ["#gh:target picked prompt"]
+    assert app.finished_prompts == []
+
+    # Instead, a review bar is mounted with editor-file semantics + context.
+    assert app.prompt_launches == [
+        {
+            "initial_text": _CLEANED_MULTI_AGENT_MARKDOWN,
+            "display_name": "target",
+            "history_sort_key": "target",
+            "as_xprompt_markdown": True,
+        }
+    ]

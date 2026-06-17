@@ -8,6 +8,7 @@ from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.ace.tui.modals.project_discovery import is_launchable_project
 from sase.core.paths import sase_projects_dir
 
+from ._prompt_bar_mount import has_edit_directive
 from ._types import PromptContext, TabName
 
 if TYPE_CHECKING:
@@ -205,7 +206,20 @@ class EntryPointsMixin:
             prompt_for_editor = _build_prompt(prompt_text)
             edited_prompt = self._open_editor_for_agent_prompt(prompt_for_editor)  # type: ignore[attr-defined]
             if edited_prompt:
-                self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
+                has_edit, cleaned = has_edit_directive(edited_prompt)
+                if has_edit:
+                    # ``%edit`` requests review instead of launch: mount the
+                    # prompt bar with this selection's context and editor-file
+                    # semantics so a multi-agent markdown buffer re-stacks into
+                    # panes with its frontmatter rather than launching directly.
+                    self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                        initial_text=cleaned,
+                        display_name=name,
+                        history_sort_key=name,
+                        as_xprompt_markdown=True,
+                    )
+                else:
+                    self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
             else:
                 self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
                 self._prompt_context = None

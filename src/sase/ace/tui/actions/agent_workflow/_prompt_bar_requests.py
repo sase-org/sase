@@ -43,7 +43,7 @@ class PromptBarRequestsMixin:
             if stacked_bar is not None:
                 stacked_bar.update_active_pane(cleaned if has_edit else prompt)
             elif has_edit:
-                self._load_prompt_into_bar(cleaned)  # type: ignore[attr-defined]
+                self._load_editor_markdown_into_bar(cleaned)  # type: ignore[attr-defined]
             else:
                 self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
         elif stacked_bar is not None:
@@ -172,7 +172,7 @@ class PromptBarRequestsMixin:
                 if edited_prompt:
                     has_edit, cleaned = has_edit_directive(edited_prompt)
                     if has_edit:
-                        self._load_prompt_into_bar(cleaned)  # type: ignore[attr-defined]
+                        self._load_editor_markdown_into_bar(cleaned)  # type: ignore[attr-defined]
                     else:
                         self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
                 else:

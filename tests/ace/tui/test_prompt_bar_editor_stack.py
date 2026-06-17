@@ -96,7 +96,7 @@ class _EditorHarness(PromptBarRequestsMixin):
         del keep_bar
         self.finished.append(prompt)
 
-    def _load_prompt_into_bar(self, prompt: str) -> None:
+    def _load_editor_markdown_into_bar(self, prompt: str) -> None:
         self.loaded.append(prompt)
 
     def _unmount_prompt_bar(self) -> None:
@@ -178,6 +178,42 @@ def test_single_pane_editor_edit_directive_reloads_whole_bar() -> None:
     assert harness.loaded == ["keep editing"]
     assert harness.finished == []
     assert bar.updated_panes == []
+
+
+def test_single_pane_editor_edit_directive_reloads_multi_agent_markdown() -> None:
+    # ``%edit`` on a single-pane bar returning multi-agent markdown with leading
+    # xprompt frontmatter reloads through the editor-markdown (xprompt) path —
+    # the cleaned buffer keeps its frontmatter + ``---`` separators verbatim so
+    # the bar lifts the frontmatter and splits into panes — and never launches.
+    bar = _FakeBar(stacked=False)
+    editor_result = (
+        "%edit\n"
+        "---\n"
+        "description: Review auth and API separately\n"
+        "xprompts:\n"
+        "  _shared: Use the same style guide.\n"
+        "---\n"
+        "Review auth.\n"
+        "---\n"
+        "Review API."
+    )
+    harness = _EditorHarness(bar=bar, editor_result=editor_result)
+
+    harness.on_prompt_input_bar_editor_requested(_event())
+
+    assert harness.loaded == [
+        "---\n"
+        "description: Review auth and API separately\n"
+        "xprompts:\n"
+        "  _shared: Use the same style guide.\n"
+        "---\n"
+        "Review auth.\n"
+        "---\n"
+        "Review API."
+    ]
+    assert harness.finished == []
+    assert bar.updated_panes == []
+    assert harness.unmount_calls == 0
 
 
 def test_single_pane_editor_empty_return_unmounts() -> None:

@@ -286,17 +286,21 @@ class PromptBarMountMixin:
             is_home_mode=True,
         )
 
-    def _load_prompt_into_bar(self, prompt: str) -> None:
-        """Replace the prompt bar's stack with panes parsed from *prompt*.
+    def _load_editor_markdown_into_bar(self, markdown: str) -> None:
+        """Reload the mounted prompt bar from cleaned ``%edit`` editor markdown.
 
-        Used for deliberate whole-bar loads (e.g. ``%edit`` editor return), so a
-        multi-prompt result renders as stacked panes rather than one text box.
+        Uses editor-file (xprompt markdown) semantics via
+        :meth:`PromptInputBar.load_stack_from_xprompt_markdown`: leading xprompt
+        frontmatter is lifted into the frontmatter panel and real ``---`` body
+        separators split into one prompt pane per agent segment.  Used only for
+        ``%edit`` editor returns and whole-stack editor returns — never for
+        ordinary history loads, which keep their verbatim single-pane contract.
         """
         from ...widgets import PromptInputBar
 
         try:
             bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-            bar.load_stack_from_text(prompt)
+            bar.load_stack_from_xprompt_markdown(markdown)
         except Exception:
             pass
 
@@ -305,6 +309,8 @@ class PromptBarMountMixin:
         initial_text: str = "",
         display_name: str = "~",
         history_sort_key: str = "home",
+        *,
+        as_xprompt_markdown: bool = False,
     ) -> None:
         """Show prompt input bar for home directory mode.
 
@@ -315,6 +321,10 @@ class PromptBarMountMixin:
             initial_text: Pre-populated text for the prompt input bar.
             display_name: Display name shown in the prompt context.
             history_sort_key: Launch context label propagated to spawned agents.
+            as_xprompt_markdown: When True, seed the bar with editor-file
+                semantics (lift leading frontmatter, split ``---`` into panes)
+                rather than verbatim history-load semantics.  Used by the
+                ``%edit`` editor-return remount path.
         """
         from ...widgets import PromptInputBar
 
@@ -329,7 +339,13 @@ class PromptBarMountMixin:
         )
 
         # Show prompt input bar
-        self.mount(PromptInputBar(initial_value=initial_text, id="prompt-input-bar"))  # type: ignore[attr-defined]
+        if as_xprompt_markdown:
+            bar = PromptInputBar(
+                initial_xprompt_markdown=initial_text, id="prompt-input-bar"
+            )
+        else:
+            bar = PromptInputBar(initial_value=initial_text, id="prompt-input-bar")
+        self.mount(bar)  # type: ignore[attr-defined]
 
     def _select_and_open_editor_for_home(
         self,
@@ -356,7 +372,16 @@ class PromptBarMountMixin:
         if prompt:
             has_edit, cleaned = has_edit_directive(prompt)
             if has_edit:
-                self._show_prompt_input_bar_for_home(initial_text=cleaned)
+                # ``%edit`` requests review instead of launch: remount the bar
+                # with the caller's display/history context (not the generic
+                # home labels) and editor-file semantics so a multi-agent
+                # markdown buffer re-stacks into panes with its frontmatter.
+                self._show_prompt_input_bar_for_home(
+                    initial_text=cleaned,
+                    display_name=display_name,
+                    history_sort_key=history_sort_key,
+                    as_xprompt_markdown=True,
+                )
             else:
                 self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
         else:

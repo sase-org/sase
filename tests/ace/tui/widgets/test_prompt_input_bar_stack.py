@@ -594,3 +594,79 @@ async def test_load_stack_from_xprompt_markdown_clears_frontmatter_panel() -> No
 
         assert bar._stack.frontmatter == ""
         assert app.query_one("#frontmatter-panel", FrontmatterPanel).has_class("hidden")
+
+
+# --- initial_xprompt_markdown constructor seeding (%edit editor return) -----
+
+
+class _XPromptMarkdownApp(App[None]):
+    """Minimal app that seeds a bar with editor-file (xprompt markdown) text."""
+
+    ENABLE_COMMAND_PALETTE = False
+
+    def __init__(self, markdown: str) -> None:
+        super().__init__()
+        self._markdown = markdown
+
+    def compose(self) -> ComposeResult:
+        yield PromptInputBar(
+            initial_xprompt_markdown=self._markdown,
+            id="prompt-input-bar",
+        )
+
+
+async def test_initial_xprompt_markdown_lifts_frontmatter_and_splits() -> None:
+    """Constructor seeding with editor-file semantics lifts frontmatter + splits.
+
+    The ``%edit`` editor-return remount path mounts a fresh bar via
+    ``initial_xprompt_markdown=...``.  Unlike ``initial_value`` history-load
+    semantics — where a single frontmatter prompt stays one verbatim pane (see
+    ``test_single_prompt_with_frontmatter_stays_verbatim``) — this lifts leading
+    frontmatter onto the stack, splits real ``---`` separators into panes, and
+    auto-shows the frontmatter panel on mount.
+    """
+    markdown = (
+        "---\n"
+        "description: Review auth and API separately\n"
+        "xprompts:\n"
+        "  _shared: Use the same style guide.\n"
+        "---\n"
+        "Review auth.\n"
+        "---\n"
+        "Review API."
+    )
+    app = _XPromptMarkdownApp(markdown)
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        assert len(app.query(".prompt-input")) == 2
+        assert bar.all_prompt_texts() == ["Review auth.", "Review API."]
+        assert bar._stack.frontmatter == (
+            "---\n"
+            "description: Review auth and API separately\n"
+            "xprompts:\n"
+            "  _shared: Use the same style guide.\n"
+            "---"
+        )
+        # The frontmatter panel auto-shows on mount, reflecting the lifted props.
+        panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
+        assert not panel.has_class("hidden")
+        model = bar._stack.frontmatter_model
+        assert model.description == "Review auth and API separately"
+        assert "_shared" in model.xprompts
+
+
+async def test_initial_xprompt_markdown_protects_fenced_separator() -> None:
+    initial = "before\n```\n---\nstill code\n```\nafter"
+    app = _XPromptMarkdownApp(initial)
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        # A ``---`` inside a fenced block is not a separator: one verbatim pane.
+        assert len(app.query(".prompt-input")) == 1
+        assert bar.active_text() == initial
+        assert bar._stack.frontmatter == ""
