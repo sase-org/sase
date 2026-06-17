@@ -2835,6 +2835,65 @@ AgentRunLogModal #agent-log-hints {
     margin-top: 1;
 }
 
+/* ===== Log Panel Modal (,L) Styling ===== */
+
+LogModal {
+    align: center middle;
+}
+
+LogModal > Container {
+    width: 92%;
+    height: 85%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+LogModal #log-modal-title {
+    text-style: bold;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+LogModal #log-modal-panels {
+    width: 100%;
+    height: 1fr;
+}
+
+LogModal #log-modal-list-panel {
+    width: 38;
+    height: 100%;
+}
+
+LogModal OptionList {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+LogModal #log-modal-detail-panel {
+    width: 1fr;
+    height: 100%;
+    margin-left: 1;
+}
+
+LogModal #log-modal-detail-scroll {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+LogModal #log-modal-detail {
+    height: auto;
+}
+
+LogModal #log-modal-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
 /* Add xprompt modal styling */
 AddXPromptModal {
     align: center middle;

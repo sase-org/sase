@@ -100,6 +100,7 @@ from .mentor_review_models import (
 from .mentor_review_modal import MentorReviewModal
 from .add_xprompt_modal import AddXPromptModal
 from .agent_run_log_modal import AgentRunLogModal
+from .log_modal import LogModal
 from .input_collection_modal import InputCollectionModal
 from .xprompt_browser_modal import XPromptBrowserModal
 from .xprompt_item_modal import XPromptItemModal
@@ -142,6 +143,7 @@ __all__ = [
     "AgentCleanupTagModal",
     "AgentCleanupTagResult",
     "AgentRunLogModal",
+    "LogModal",
     "AgentTagModal",
     "AgentTagModalResult",
     "CommandHistoryModal",

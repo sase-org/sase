@@ -120,6 +120,12 @@ class BaseActionsMixin:
 
         self.push_screen(ProjectManagementModal())  # type: ignore[attr-defined]
 
+    def action_show_log_panel(self) -> None:
+        """Open the Log panel (leader ``,L``) — works from any tab."""
+        from ..modals import LogModal
+
+        self.push_screen(LogModal())  # type: ignore[attr-defined]
+
     def action_show_diff(self) -> None:
         """Show diff for the current ChangeSpec."""
         if not self.changespecs:
