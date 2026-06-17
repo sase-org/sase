@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 08:11:43
-status: wip
+status: done
 prompt: sdd/prompts/202606/ace_tui_fetch_png_diff_crash.md
 ---
 # Plan: Fix ACE TUI Crash on `#sshot` Fetch Step

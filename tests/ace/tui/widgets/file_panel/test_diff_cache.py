@@ -207,6 +207,24 @@ def test_get_agent_diff_resolves_root_plan_to_newest_active_coder_workspace(
     assert provider.cwd_calls == [str(newest_workspace)]
 
 
+def test_get_agent_diff_handles_binary_diff_path(tmp_path: Path) -> None:
+    """A diff_path pointing at binary bytes must not crash the TUI.
+
+    Regression for the #sshot crash: malformed historical metadata could
+    promote a PNG path into diff_path. Reading it as UTF-8 raised
+    UnicodeDecodeError; get_agent_diff now degrades to None instead.
+    """
+    diff_mod._diff_cache.clear()
+    png_path = tmp_path / "shot.png"
+    png_path.write_bytes(b"\x89PNG\r\n\x1a\n\xff\xfe\x00\x01binary\x80\x81")
+    agent = _make_running_agent(workspace_dir=str(tmp_path))
+    agent.diff_path = str(png_path)
+    agent.status = "DONE"
+
+    # Must not raise; a completed agent with an unreadable diff yields None.
+    assert diff_mod.get_agent_diff(agent) is None
+
+
 def test_compute_diff_cache_key_includes_provider_name(tmp_path: Path) -> None:
     workspace = _setup_workspace(tmp_path)
     agent = _make_running_agent(workspace_dir=str(workspace))

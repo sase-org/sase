@@ -55,23 +55,22 @@ def test_get_output_types_returns_none_when_no_properties() -> None:
 def _extract_diff_path_from_steps(steps_data: list[dict[str, Any]]) -> str | None:
     """Extract diff_path from workflow state steps data.
 
-    This mirrors the logic in load_workflow_states().
+    Mirrors the backward "explicit diff_path output" search in
+    load_workflow_states(), sharing the real extraction helper so these tests
+    track production semantics: only a field literally named ``diff_path``
+    counts as a diff.
     """
-    diff_path = None
-    for step_data in steps_data:
-        output_types = step_data.get("output_types") or {}
-        step_output = step_data.get("output")
-        if output_types and isinstance(step_output, dict):
-            for field_name, field_type in output_types.items():
-                if field_type == "path":
-                    path_value = step_output.get(field_name)
-                    if path_value:
-                        diff_path = str(path_value)
-    return diff_path
+    from sase.ace.tui.models._loaders._diff_path import diff_path_from_step_output
+
+    for step_data in reversed(steps_data):
+        diff_path = diff_path_from_step_output(step_data.get("output"))
+        if diff_path:
+            return diff_path
+    return None
 
 
-def test_extract_diff_path_finds_path_typed_output() -> None:
-    """Test that path-typed output fields are correctly extracted."""
+def test_extract_diff_path_finds_explicit_diff_path_output() -> None:
+    """Test that an explicit ``diff_path`` output field is extracted."""
     steps = [
         {
             "name": "create_cl",
@@ -93,14 +92,27 @@ def test_extract_diff_path_finds_path_typed_output() -> None:
     assert _extract_diff_path_from_steps(steps) == "/tmp/test.diff"
 
 
-def test_extract_diff_path_returns_none_when_no_path_type() -> None:
-    """Test that None is returned when no path-typed fields exist."""
+def test_extract_diff_path_returns_none_when_no_diff_path_field() -> None:
+    """Test that None is returned when no ``diff_path`` field exists."""
     steps = [
         {
             "name": "check",
             "status": "completed",
             "output": {"has_changes": True},
             "output_types": {"has_changes": "bool"},
+        }
+    ]
+    assert _extract_diff_path_from_steps(steps) is None
+
+
+def test_extract_diff_path_ignores_non_diff_path_typed_output() -> None:
+    """A generic ``"path"``-typed field (e.g. #sshot's PNG) is not a diff."""
+    steps = [
+        {
+            "name": "fetch",
+            "status": "completed",
+            "output": {"local_path": "/tmp/screenshots/shot.png"},
+            "output_types": {"local_path": "path"},
         }
     ]
     assert _extract_diff_path_from_steps(steps) is None
@@ -119,8 +131,8 @@ def test_extract_diff_path_returns_none_when_empty_path() -> None:
     assert _extract_diff_path_from_steps(steps) is None
 
 
-def test_extract_diff_path_returns_none_when_no_output_types() -> None:
-    """Test backward compat: steps without output_types are skipped."""
+def test_extract_diff_path_finds_explicit_key_without_output_types() -> None:
+    """An explicit ``diff_path`` output needs no output_types to be honored."""
     steps = [
         {
             "name": "create_cl",
@@ -128,23 +140,28 @@ def test_extract_diff_path_returns_none_when_no_output_types() -> None:
             "output": {"diff_path": "/tmp/test.diff"},
         }
     ]
-    assert _extract_diff_path_from_steps(steps) is None
+    assert _extract_diff_path_from_steps(steps) == "/tmp/test.diff"
 
 
-def test_extract_diff_path_uses_last_path() -> None:
-    """Test that the last path-typed output wins when multiple steps have paths."""
+def test_extract_diff_path_skips_later_non_diff_path_output() -> None:
+    """A later path-typed artifact must not shadow an earlier real diff.
+
+    Regression for the #sshot crash: backward search returns the explicit
+    ``diff_path`` from an earlier step rather than promoting a later
+    screenshot's ``local_path``.
+    """
     steps = [
-        {
-            "name": "save_response",
-            "status": "completed",
-            "output": {"data_file": "/tmp/data.json"},
-            "output_types": {"data_file": "path"},
-        },
         {
             "name": "create_cl",
             "status": "completed",
             "output": {"diff_path": "/tmp/final.diff"},
             "output_types": {"diff_path": "path"},
+        },
+        {
+            "name": "fetch",
+            "status": "completed",
+            "output": {"local_path": "/tmp/screenshots/shot.png"},
+            "output_types": {"local_path": "path"},
         },
     ]
     assert _extract_diff_path_from_steps(steps) == "/tmp/final.diff"

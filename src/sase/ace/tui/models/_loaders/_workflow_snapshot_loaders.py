@@ -21,6 +21,7 @@ from ....hooks.processes import is_process_running
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ..workflow import WorkflowEntry
+from ._diff_path import diff_path_from_step_output
 from ._meta_enrichment import enrich_agent_from_meta, enrich_agent_from_meta_wire
 from ._workflow_loaders import ACTIVE_STATUSES
 from ._workflow_step_loaders import (
@@ -101,23 +102,13 @@ def load_workflow_states_from_snapshot(
                 display_status = "FAILED"
 
         # Match _load_workflow_states diff_path discovery: scan steps in
-        # reverse for an explicit "diff_path" output, then fall back to
-        # the last step's first path-typed output.
+        # reverse for an explicit "diff_path" output.  Arbitrary "path"-typed
+        # outputs (e.g. a #sshot screenshot) are NOT diffs.
         diff_path: str | None = None
         for step in reversed(wf_state.steps):
-            if isinstance(step.output, dict) and step.output.get("diff_path"):
-                diff_path = str(step.output["diff_path"])
+            diff_path = diff_path_from_step_output(step.output)
+            if diff_path:
                 break
-        if not diff_path and wf_state.steps:
-            last_step = wf_state.steps[-1]
-            output_types = last_step.output_types or {}
-            if output_types and isinstance(last_step.output, dict):
-                for field_name, field_type in output_types.items():
-                    if field_type == "path":
-                        path_value = last_step.output.get(field_name)
-                        if path_value:
-                            diff_path = str(path_value)
-                            break
 
         error_message = wf_state.error
         error_traceback = wf_state.traceback
@@ -307,14 +298,7 @@ def _build_workflow_agent_steps_for_record(
             response_path = step.response_path
 
             if not diff_path:
-                output_types = step.output_types or {}
-                if output_types and isinstance(step_output, dict):
-                    for field_name, field_type in output_types.items():
-                        if field_type == "path":
-                            path_value = step_output.get(field_name)
-                            if path_value:
-                                diff_path = str(path_value)
-                                break
+                diff_path = diff_path_from_step_output(step_output)
 
             if isinstance(step_output, dict):
                 for k, v in step_output.items():

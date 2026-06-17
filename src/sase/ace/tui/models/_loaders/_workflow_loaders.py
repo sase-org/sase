@@ -12,6 +12,7 @@ from ....hooks.processes import is_process_running
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ..workflow import WorkflowEntry
+from ._diff_path import diff_path_from_step_output
 from ._json_cache import load_json_cached
 from ._meta_enrichment import enrich_agent_from_meta
 
@@ -176,30 +177,15 @@ def load_workflow_states(
             if not isinstance(pdf_status, dict):
                 pdf_status = None
 
-            # Extract diff_path: search backward through all steps for a
-            # "diff_path" output.  Handles embedded workflows (e.g.
-            # #gh + #pr) where the diff step is not the last step.
+            # Extract diff_path: search backward through all steps for an
+            # explicit "diff_path" output.  Handles embedded workflows (e.g.
+            # #gh + #pr) where the diff step is not the last step.  Arbitrary
+            # "path"-typed outputs (e.g. a #sshot screenshot) are NOT diffs.
             diff_path = None
-            steps_list = data.get("steps", [])
-            for step_data in reversed(steps_list):
-                step_out = step_data.get("output")
-                if isinstance(step_out, dict) and step_out.get("diff_path"):
-                    diff_path = str(step_out["diff_path"])
+            for step_data in reversed(data.get("steps", [])):
+                diff_path = diff_path_from_step_output(step_data.get("output"))
+                if diff_path:
                     break
-
-            # Fallback: last step's first path-typed output (for
-            # workflows using a different field name for diff path).
-            if not diff_path and steps_list:
-                last_step = steps_list[-1]
-                output_types = last_step.get("output_types") or {}
-                step_output = last_step.get("output")
-                if output_types and isinstance(step_output, dict):
-                    for field_name, field_type in output_types.items():
-                        if field_type == "path":
-                            path_value = step_output.get(field_name)
-                            if path_value:
-                                diff_path = str(path_value)
-                                break
 
             error_message = data.get("error")
             error_traceback = data.get("traceback")

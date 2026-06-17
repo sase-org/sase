@@ -6,6 +6,8 @@ import json
 import os
 from typing import Any
 
+from sase.ace.tui.models._loaders._diff_path import diff_path_from_step_output
+
 
 def is_workflow_noop(artifacts_dir: str) -> bool:
     """Check if a completed workflow launched zero agents.
@@ -62,8 +64,8 @@ def extract_step_output_and_diff_path(
 
     Reads the workflow state written by execute_workflow() and extracts:
     - step_output: the last completed step's output dict
-    - diff_path: path value from output_types with field_type=="path",
-      or fallback to direct diff_path key in step outputs
+    - diff_path: an explicit ``diff_path`` output field (searched backward
+      through steps), falling back to commit_result.json's diff_path
     """
     commit_metadata = read_commit_result_metadata(artifacts_dir)
     commit_step_metadata = {
@@ -93,27 +95,15 @@ def extract_step_output_and_diff_path(
             step_output = output
             break
 
-    # Search backward through all steps for embedded workflows where the
-    # diff-producing step is not the last step.
+    # Search backward through all steps for an explicit "diff_path" output
+    # (embedded workflows may produce the diff in a non-last step).  Arbitrary
+    # "path"-typed outputs (e.g. a #sshot screenshot) are NOT diffs and must
+    # not be persisted into the done marker.
     diff_path: str | None = None
-    steps_list = data.get("steps", [])
-    for step_data in reversed(steps_list):
-        step_out = step_data.get("output")
-        if isinstance(step_out, dict) and step_out.get("diff_path"):
-            diff_path = str(step_out["diff_path"])
+    for step_data in reversed(data.get("steps", [])):
+        diff_path = diff_path_from_step_output(step_data.get("output"))
+        if diff_path:
             break
-
-    if not diff_path and steps_list:
-        last_step = steps_list[-1]
-        output_types = last_step.get("output_types") or {}
-        step_out = last_step.get("output")
-        if output_types and isinstance(step_out, dict):
-            for field_name, field_type in output_types.items():
-                if field_type == "path":
-                    path_value = step_out.get(field_name)
-                    if path_value:
-                        diff_path = str(path_value)
-                        break
 
     if commit_step_metadata:
         if step_output is None:

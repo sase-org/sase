@@ -95,22 +95,27 @@ def test_extract_step_output_prefers_commit_result_message_over_workflow_subject
     assert step_output["meta_pr_url"] == "https://github.com/org/repo/pull/7"
 
 
-def test_extract_diff_path_last_step_multiple_paths_first_wins(
+def test_extract_diff_path_ignores_non_diff_path_typed_outputs(
     tmp_path: Path,
 ) -> None:
-    """Verify first path-typed output wins when last step has multiple."""
+    """Arbitrary path-typed outputs are NOT diffs and must not be promoted.
+
+    Regression for the #sshot crash: a step output with only generic
+    ``"path"``-typed fields (e.g. a screenshot's ``local_path``) must yield
+    ``diff_path is None`` instead of promoting the first path artifact.
+    """
     state_data = {
         "workflow_name": "test",
         "status": "completed",
         "steps": [
             {
-                "name": "step1",
+                "name": "fetch",
                 "status": "completed",
                 "output": {
-                    "first_path": "/tmp/first.patch",
-                    "second_path": "/tmp/second.patch",
+                    "local_path": "/tmp/screenshots/shot.png",
+                    "second_path": "/tmp/second.png",
                 },
-                "output_types": {"first_path": "path", "second_path": "path"},
+                "output_types": {"local_path": "path", "second_path": "path"},
             }
         ],
     }
@@ -118,9 +123,14 @@ def test_extract_diff_path_last_step_multiple_paths_first_wins(
     with open(state_path, "w", encoding="utf-8") as f:
         json.dump(state_data, f)
 
-    _step_output, diff_path = extract_step_output_and_diff_path(str(tmp_path))
+    step_output, diff_path = extract_step_output_and_diff_path(str(tmp_path))
 
-    assert diff_path == "/tmp/first.patch"
+    assert diff_path is None
+    # The screenshot path is still preserved in the step output for display.
+    assert step_output == {
+        "local_path": "/tmp/screenshots/shot.png",
+        "second_path": "/tmp/second.png",
+    }
 
 
 def test_extract_diff_path_fallback_to_direct_key(tmp_path: Path) -> None:

@@ -281,9 +281,12 @@ def get_agent_diff(agent: Agent) -> str | None:
     # and reused by the time we display the diff.
     if diff_source.diff_path:
         try:
-            text = Path(diff_source.diff_path).read_text()
+            text = Path(diff_source.diff_path).read_text(encoding="utf-8")
             return text if text.strip() else None
-        except OSError:
+        except (OSError, UnicodeDecodeError):
+            # Unreadable or non-UTF-8 (e.g. malformed historical metadata that
+            # promoted a binary PNG path into diff_path): treat as no persisted
+            # diff rather than crashing the TUI.
             pass
 
     # For completed agents, the diff_path is the only reliable source.

@@ -6,6 +6,7 @@ from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
 
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
+from ._diff_path import diff_path_from_step_output
 from ._json_cache import get_loader_executor, load_json_cached
 from ._meta_enrichment import enrich_agent_from_meta
 from ._workflow_loaders import get_workflow_timestamp_dirs
@@ -138,16 +139,11 @@ def _load_workflow_agent_steps_for_dir(
 
             response_path = data.get("response_path")
 
-            # Also extract diff_path from output_types if not already set
+            # Fall back to an explicit ``diff_path`` output field when the
+            # marker carries no top-level diff_path.  Arbitrary ``"path"``
+            # outputs (e.g. a #sshot screenshot) are NOT diffs.
             if not diff_path:
-                output_types = data.get("output_types") or {}
-                if output_types and isinstance(step_output, dict):
-                    for field_name, field_type in output_types.items():
-                        if field_type == "path":
-                            path_value = step_output.get(field_name)
-                            if path_value:
-                                diff_path = str(path_value)
-                                break
+                diff_path = diff_path_from_step_output(step_output)
 
             # Collect meta_* fields for parent workflow enrichment
             if isinstance(step_output, dict):
