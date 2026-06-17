@@ -641,7 +641,7 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | `,o`       | Open model overrides (see [Model Overrides](#model-overrides))                                |
 | `,C`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation             |
-| `,x`       | Kill agent & edit prompt                                                                      |
+| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                      |
 | `,<space>` | Run agent from current agent's PR (skips selection)                                           |
 | `,.`       | Open prompt history modal                                                                     |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
@@ -649,6 +649,10 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`, `TALE DONE`, `PLAN REJECTED`,
 `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from the Agents header's "stopped" attention bucket for rows paused
 on user action.
+
+If any agents are marked, `,x` acts on that marked set instead of the focused row. After confirmation, ACE kills or
+dismisses the marked agents and opens a prompt stack with one editable pane per original prompt in mark order. Embedded
+`---` inside an individual agent prompt stays inside that agent's pane.
 
 ### Agents Tab Reproduction Bundles
 
@@ -1602,10 +1606,11 @@ See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` confi
 The prompt input is a multiline TextArea widget that supports two editing modes: INSERT and NORMAL. The widget provides
 markdown syntax highlighting for prompt content (headings, bold, italic, code blocks, lists, etc.).
 
-When prompt text contains literal top-level `---` multi-agent separators, ACE renders the text as a prompt stack: one
-pane per agent segment. YAML frontmatter at the start stays prompt-level metadata, and `---` lines inside fenced code
-blocks are left alone. A `#name` multi-agent xprompt invocation stays a single pane and expands only when it is
-launched. The detailed multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent-prompts).
+When loaded prompt text contains literal top-level `---` multi-agent separators, ACE renders the text as a prompt stack:
+one pane per agent segment. YAML frontmatter at the start stays prompt-level metadata, and `---` lines inside fenced
+code blocks are left alone. A `#name` multi-agent xprompt invocation stays a single pane and expands only when it is
+launched. During live editing, typed `---` lines stay literal text; add prompt panes with `Ctrl+-`. The detailed
+multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent-prompts).
 
 ### INSERT Mode (Default)
 
@@ -1632,17 +1637,19 @@ the text exceeds one line.
 
 ### Prompt Stacks
 
-Prompt stacks are the ACE editing surface for literal `---` multi-agent prompts. Loading or typing prompt text with
-top-level `---` segment separators splits the input into panes labeled `agent 1`, `agent 2`, and so on; the border title
-shows `Prompt · N agents`. Panes are ordered top-to-bottom for whole-stack submission. The bottom pane is active by
-default so you can keep drafting the newest segment; it is not a priority marker, and pressing `Enter` immediately opens
-the submit chooser.
+Prompt stacks are the ACE editing surface for literal `---` multi-agent prompts. Loading prompt text from history, a
+prompt stash, a whole-bar editor session, or an editor buffer that returned through `%edit` splits top-level `---`
+segment separators into panes labeled `agent 1`, `agent 2`, and so on; the border title shows `Prompt · N agents`. Panes
+are ordered top-to-bottom for whole-stack submission. The bottom pane is active by default so you can keep drafting the
+newest segment; it is not a priority marker, and pressing `Enter` immediately opens the submit chooser.
 
-Inactive panes stay compact, and the active pane takes the available height. Typing a `---` line in INSERT mode splits
-the active pane immediately, unless the separator is inside YAML frontmatter or a fenced code block. `Ctrl+G` opens the
-whole stack in `$EDITOR` when the bar already has multiple panes (a single-pane bar opens just the current prompt).
-Loading from history or returning from a whole-bar editor session replaces the whole stack, so those paths parse `---`
-separators into fresh panes.
+Inactive panes stay compact, and the active pane takes the available height. A `---` line typed while INSERT mode is
+active stays literal prompt text; use `Ctrl+-` to add a new bottom pane while drafting. `Ctrl+G` opens the whole stack
+in `$EDITOR` when the bar already has multiple panes (a single-pane bar opens just the current prompt). Loading from
+history or returning from a whole-bar editor session replaces the whole stack, so those paths parse `---` separators
+into fresh panes.
+
+In prompt NORMAL mode, pressing comma opens a small hint row for the prompt-local leader actions currently available.
 
 | Key            | Action                                                                                                 |
 | -------------- | ------------------------------------------------------------------------------------------------------ |
@@ -1654,13 +1661,26 @@ separators into fresh panes.
 | `K` / `J`      | Focus the previous / next pane in NORMAL mode; focus cycles at the stack edges                         |
 | `Up` / `Down`  | Move the active pane up / down in NORMAL mode; reorder cycles at the stack edges                       |
 | `Ctrl+-`       | Add an empty bottom pane (INSERT or NORMAL mode) and switch it to INSERT mode                          |
-| `Ctrl+Shift+=` | Toggle the xprompt frontmatter properties panel (`,f` focuses an already-shown panel)                  |
+| `Ctrl+Shift+=` | Toggle the xprompt frontmatter properties panel                                                        |
+| `,f`           | Show or focus the xprompt frontmatter properties panel in NORMAL mode                                  |
+| `,s`           | Stash the selected pane and remove it from the stack                                                   |
+| `,S`           | Stash every non-empty pane and dismiss the prompt bar                                                  |
+| `,P`           | Restore stashed prompt drafts into the current bar or a new home-context prompt                        |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane so local xprompts and metadata
 continue to resolve. Empty selected panes are dropped without launching. Whole-stack submission joins panes in
 top-to-bottom order and then uses the usual multi-agent launch path, including `%wait`, `%name`, `%model`, and other
 segment-local directives. Segment order alone does not make later agents wait; add `%wait` to the later pane when it
 must start after an earlier agent succeeds.
+
+The `Enter` submit chooser accepts `a` or `Ctrl+S` for all panes, `c` or `Ctrl+Shift+S` for the current pane, and
+`Esc`/`q` to cancel without changing the stack.
+
+Prompt stashes are a per-user draft pile stored outside prompt history. `,s` captures the selected non-empty pane plus
+the shared prompt frontmatter; when other panes remain the bar stays open, and when the last pane is stashed the bar
+closes without also recording the draft as cancelled history. `,S` captures all non-empty panes in their current order.
+`,P` opens a restore picker, removes selected entries from the stash, and restores them as prompt panes in oldest-first
+drafting order. A small top-bar badge shows how many restorable drafts are currently stashed.
 
 ### Completion
 

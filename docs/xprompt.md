@@ -1414,12 +1414,12 @@ segments in document order, but agents do not wait for earlier segments unless y
 
 In the `sase ace` prompt input, ad hoc prompt frontmatter has a structured **Frontmatter Panel** above the prompt stack,
 with the same field set an xprompt `.md` file supports (`name`, `description`, `tags`, `input`, `xprompts`, `skill`,
-`snippet`). Type `---` then a newline at the very start of an empty prompt to open it (distinct from a `---` typed after
-content, which stays a segment separator), or focus it any time with the `,f` leader keymap; it also auto-shows when a
-recalled prompt already carries frontmatter. Add a property with `a` (a picker sourced from the same core schema that
-backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, and use `R` for a live-validated
-raw-YAML escape hatch. The panel owns the canonical YAML it serializes back onto the prompt, so the multi-agent launch
-path is unchanged.
+`snippet`). Open or focus it with `Ctrl+Shift+=` or the `,f` NORMAL-mode leader keymap; it also auto-shows when a loaded
+prompt, prompt history entry, or editor buffer already carries leading frontmatter. Typing `---` in the prompt body is
+passive during live editing: at the very start it stays literal text, and after content it does not split the active
+pane. Add a property with `a` (a picker sourced from the same core schema that backs the editor LSP), edit scalar/list
+fields inline, delete a field with `d`, and use `R` for a live-validated raw-YAML escape hatch. The panel owns the
+canonical YAML it serializes back onto the prompt, so the multi-agent launch path is unchanged.
 
 The structured `input` and `xprompts` fields render as foldable sub-trees (`h`/`l`): navigate into them with `j`/`k`,
 then `a`/`e`/`d` (or `enter`) add, edit, and delete individual items through small typed sub-form modals. The input
@@ -1537,11 +1537,12 @@ repeat slots (see [Stopping a repeat chain early with `STOP`](#stopping-a-repeat
 special meaning for ordinary `%wait` consumers, `---` segments, or `%alt` fan-outs — those read it like any other
 variable, e.g. `{{ agents["name"].STOP }}`.
 
-ACE renders literal `---` multi-agent prompts as a prompt stack: each top-level segment becomes an editable pane, while
-prompt-level frontmatter and fenced-code separators keep the same parsing rules described below. A `#name` multi-agent
-xprompt invocation remains a single pane until launch. Use `Enter` to choose how to submit stacked panes, `Ctrl+Shift+S`
-to launch the selected pane directly, or `Ctrl+S` to submit the panes together in top-to-bottom order. See the
-[ACE prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings and the default active-pane behavior.
+ACE renders loaded literal `---` multi-agent prompts as a prompt stack: each top-level segment becomes an editable pane,
+while prompt-level frontmatter and fenced-code separators keep the same parsing rules described below. A `#name`
+multi-agent xprompt invocation remains a single pane until launch. During live editing, typed `---` lines are ordinary
+prompt text; add panes explicitly from the prompt-stack controls. Use `Enter` to choose how to submit stacked panes,
+`Ctrl+Shift+S` to launch the selected pane directly, or `Ctrl+S` to submit the panes together in top-to-bottom order.
+See the [ACE prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings and the default active-pane behavior.
 
 ### Rules
 

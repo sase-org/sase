@@ -105,7 +105,9 @@ truncate the shared state.
 buffer to a `sase_ace_prompt_*.md` file in the SASE tmpdir, and launches `$EDITOR` (defaulting to `nvim`). For nvim, the
 widget passes `-c "call cursor(row, col)"` so the editor opens at the same row and column the cursor was on. When the
 editor exits, the file content is read back into the widget. If the result contains the `%edit` directive, the widget
-reloads it for a second editing pass; otherwise the prompt submits immediately.
+reloads it for a second editing pass; otherwise a single prompt submits immediately. If `Ctrl+G` is used from an
+existing prompt stack, the whole stack is edited as xprompt-style Markdown and returned to the bar instead of launching
+directly.
 
 That handoff is why the next half of this post is about Neovim. The prompt input widget is intentionally TUI-shaped —
 mode badge, single border, no syntax server, no go-to-definition — and `Ctrl+G` is the escape hatch for everything the
