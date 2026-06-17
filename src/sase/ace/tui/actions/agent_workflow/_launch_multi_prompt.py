@@ -91,14 +91,16 @@ class MultiPromptLaunchMixin:
             rollback_partial_launch_results(exc.results)
             _record_failed_multi_prompt_history(multi, submitted_prompt)
             log.exception("Partial multi-prompt launch failed; children terminated")
+            _log_multi_prompt_failure(exc, ctx, multi, submitted_prompt, partial=True)
             return LaunchTaskOutcome(
                 "Partial multi-prompt launch failed; spawned agents terminated",
                 severity="error",
                 request_agents_refresh=True,
             )
-        except Exception:
+        except Exception as exc:
             _record_failed_multi_prompt_history(multi, submitted_prompt)
             log.exception("Multi-prompt launch failed")
+            _log_multi_prompt_failure(exc, ctx, multi, submitted_prompt)
             return LaunchTaskOutcome(
                 "Multi-prompt launch failed (see log)",
                 severity="error",
@@ -115,3 +117,32 @@ def _record_failed_multi_prompt_history(
     from sase.history.prompt import record_failed_launch_prompt
 
     record_failed_launch_prompt(submitted_prompt)
+
+
+def _log_multi_prompt_failure(
+    exc: BaseException,
+    ctx: PromptContext,
+    multi: object,
+    submitted_prompt: str | None,
+    *,
+    partial: bool = False,
+) -> None:
+    """Durably record a multi-prompt launch failure to the launch-failure log."""
+    from sase.logs import log_launch_failure
+
+    segments = getattr(multi, "segments", [])
+    log_launch_failure(
+        kind="multi_prompt",
+        display_name=ctx.display_name,
+        exc=exc,
+        project=ctx.project_name,
+        workspace_num=ctx.workspace_num,
+        prompt_preview=(
+            submitted_prompt
+            if submitted_prompt is not None
+            else "\n---\n".join(segments)
+        ),
+        segment_count=len(segments),
+        partial=partial,
+        home_mode=ctx.is_home_mode,
+    )

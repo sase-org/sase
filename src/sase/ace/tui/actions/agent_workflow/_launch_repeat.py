@@ -188,18 +188,42 @@ class RepeatLaunchMixin:
             from sase.history.prompt import record_failed_launch_prompt
 
             record_failed_launch_prompt(prompt)
+            _log_repeat_failure(e, ctx, prompt, name_collision=True)
             # A mid-plan failure may have already spawned some slots;
             # without results, only a refresh makes them visible.
             return LaunchTaskOutcome(
                 err_msg, severity="error", request_agents_refresh=True
             )
-        except Exception:
+        except Exception as exc:
             from sase.history.prompt import record_failed_launch_prompt
 
             record_failed_launch_prompt(prompt)
             log.exception("Repeat launch failed")
+            _log_repeat_failure(exc, ctx, prompt)
             return LaunchTaskOutcome(
                 "Repeat launch failed (see log)",
                 severity="error",
                 request_agents_refresh=True,
             )
+
+
+def _log_repeat_failure(
+    exc: BaseException,
+    ctx: PromptContext,
+    prompt: str,
+    *,
+    name_collision: bool = False,
+) -> None:
+    """Durably record a repeat (``%r:N``) launch failure to the launch-failure log."""
+    from sase.logs import log_launch_failure
+
+    log_launch_failure(
+        kind="repeat",
+        display_name=ctx.display_name,
+        exc=exc,
+        project=ctx.project_name,
+        workspace_num=ctx.workspace_num,
+        prompt_preview=prompt,
+        name_collision=name_collision,
+        home_mode=ctx.is_home_mode,
+    )

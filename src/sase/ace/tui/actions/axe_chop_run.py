@@ -158,6 +158,15 @@ class AxeChopRunMixin:
         try:
             outcome = await asyncio.to_thread(_run)
         except Exception as e:
+            from sase.logs import log_launch_failure
+
+            log_launch_failure(
+                kind="chop",
+                display_name=chop_name,
+                exc=e,
+                chop=chop_name,
+                lumberjack=lumberjack_name,
+            )
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to launch chop '{chop_name}': {e}", severity="error"
             )

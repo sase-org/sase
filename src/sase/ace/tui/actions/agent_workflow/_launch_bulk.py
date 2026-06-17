@@ -145,8 +145,17 @@ class BulkLaunchMixin:
                 results=launch_results_tuple(launch_results),
                 severity=severity,
             )
-        except Exception:
+        except Exception as exc:
             log.exception("Bulk launch failed")
+            from sase.logs import log_launch_failure
+
+            log_launch_failure(
+                kind="bulk",
+                display_name=f"bulk {len(changespecs)} CLs",
+                exc=exc,
+                prompt_preview=prompt,
+                slot_count=len(changespecs),
+            )
             # A mid-loop failure may have already spawned earlier CLs;
             # without results, only a refresh makes them visible.
             return LaunchTaskOutcome(

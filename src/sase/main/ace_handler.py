@@ -53,11 +53,17 @@ def handle_ace_command(args: argparse.Namespace) -> None:
         sys.exit(0)
 
     from sase.ace.tui import AceApp
+    from sase.ace.tui.log_setup import install_tui_file_logging
     from sase.config.core import set_include_local_config
 
     # Don't load repo-level sase.yml for the TUI — local config should
     # only apply to agent runs (which are separate processes).
     set_include_local_config(False)
+
+    # Route every ``sase`` logger record (including un-instrumented
+    # ``log.exception(...)`` calls) to a durable, findable ~/.sase/logs/tui.log
+    # so "see the log" failure toasts always have something to point at.
+    install_tui_file_logging()
 
     # Wire --vcs-provider to env var for downstream resolution
     vcs_provider = getattr(args, "vcs_provider", None)

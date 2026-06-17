@@ -43,8 +43,19 @@ class AgentLaunchBodyMixin:
 
         try:
             outcome = await asyncio.to_thread(self._run_agent_launch_body, prompt, ctx)
-        except Exception:
+        except Exception as exc:
             log.exception("Agent launch body failed")
+            from sase.logs import log_launch_failure
+
+            log_launch_failure(
+                kind="single",
+                display_name=ctx.display_name if ctx is not None else "agent launch",
+                exc=exc,
+                project=ctx.project_name if ctx is not None else None,
+                workspace_num=ctx.workspace_num if ctx is not None else None,
+                prompt_preview=prompt,
+                stage="launch_body",
+            )
             self.notify(  # type: ignore[attr-defined]
                 "Agent launch failed (see log)", severity="error"
             )
@@ -102,11 +113,21 @@ class AgentLaunchBodyMixin:
         if force_reuse_names:
             try:
                 wipe_names_for_forced_reuse(force_reuse_names)
-            except Exception:
+            except Exception as exc:
                 log.exception("Forced agent-name reuse wipe failed")
                 from sase.history.prompt import record_failed_launch_prompt
+                from sase.logs import log_launch_failure
 
                 record_failed_launch_prompt(original_submitted_prompt)
+                log_launch_failure(
+                    kind="single",
+                    display_name=ctx.display_name,
+                    exc=exc,
+                    project=ctx.project_name,
+                    workspace_num=ctx.workspace_num,
+                    prompt_preview=original_submitted_prompt,
+                    stage="force_reuse_wipe",
+                )
                 if owns_context:
                     self._prompt_context = None
                 return LaunchTaskOutcome(
@@ -620,10 +641,21 @@ class AgentLaunchBodyMixin:
                 f"Agent started for {display_name}",
                 results=launch_results_tuple(execution.results),
             )
-        except Exception:
+        except Exception as exc:
             record_failed_launch_prompt(single_history_prompt)
             timer.finish(dispatch="single", outcome="error")
             log.exception("Agent launch failed")
+            from sase.logs import log_launch_failure
+
+            log_launch_failure(
+                kind="single",
+                display_name=display_name,
+                exc=exc,
+                project=ctx.project_name,
+                workspace_num=ctx.workspace_num,
+                prompt_preview=single_history_prompt,
+                vcs_ref=None if vcs_ref is None else f"{vcs_ref[0]}:{vcs_ref[1]}",
+            )
             return LaunchTaskOutcome(
                 "Agent launch failed (see log)",
                 severity="error",

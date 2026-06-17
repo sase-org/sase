@@ -200,7 +200,24 @@ def _record_fanout_launch_failure(
         from datetime import datetime
 
         from sase.core.time import get_timezone
+        from sase.logs import log_launch_failure
         from sase.notifications import Notification, append_notification
+
+        # Route the failure detail through the shared launch-failure logger so
+        # fan-out lands in the same canonical log as every other launch kind.
+        log_launch_failure(
+            kind="fanout",
+            display_name=ctx.display_name,
+            exc=exc,
+            project=ctx.project_name,
+            workspace_num=ctx.workspace_num,
+            prompt_preview=submitted_xprompt,
+            fanout_kind=fanout_kind,
+            slot_count=slot_count,
+            home_mode=ctx.is_home_mode,
+            deferred_workspace=has_wait,
+            vcs_ref=None if vcs_ref is None else f"{vcs_ref[0]}:{vcs_ref[1]}",
+        )
 
         exc_summary = f"{type(exc).__name__}: {exc}"
         report_path = _write_fanout_failure_report(

@@ -216,8 +216,17 @@ class WorkflowExecMixin:
                         project=project,
                         hitl_override=hitl_override,
                     )
-                except Exception:
+                except Exception as exc:
                     log.exception("Workflow '%s' failed", workflow_name)
+                    from sase.logs import log_launch_failure
+
+                    log_launch_failure(
+                        kind="workflow",
+                        display_name=workflow_name,
+                        exc=exc,
+                        project=project,
+                        workflow_name=workflow_name,
+                    )
                     self.call_later(  # type: ignore[attr-defined]
                         lambda: self.notify(  # type: ignore[attr-defined]
                             f"Workflow '{workflow_name}' failed (see log)",
@@ -234,6 +243,16 @@ class WorkflowExecMixin:
             return True
         except Exception as e:
             log.exception("Workflow '%s' failed to start", workflow_name)
+            from sase.logs import log_launch_failure
+
+            log_launch_failure(
+                kind="workflow",
+                display_name=workflow_name,
+                exc=e,
+                project=(workflow_name.split("/")[0] if "/" in workflow_name else None),
+                workflow_name=workflow_name,
+                stage="start",
+            )
             err_msg = f"Workflow error: {e}"
             self.call_later(  # type: ignore[attr-defined]
                 lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]

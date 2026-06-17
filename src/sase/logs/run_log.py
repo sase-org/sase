@@ -10,6 +10,7 @@ import json
 import os
 from collections.abc import Iterator
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from sase.core.paths import sase_subdir
@@ -34,6 +35,16 @@ def _runs_file() -> str:
 
 def _events_file() -> str:
     return EVENTS_FILE or os.path.join(_logs_dir(), "events.jsonl")
+
+
+def runs_log_path() -> Path:
+    """Canonical path of the agent-runs JSONL log."""
+    return Path(_runs_file())
+
+
+def events_log_path() -> Path:
+    """Canonical path of the events JSONL log."""
+    return Path(_events_file())
 
 
 def _append_jsonl(path: str, record: dict[str, Any]) -> None:
