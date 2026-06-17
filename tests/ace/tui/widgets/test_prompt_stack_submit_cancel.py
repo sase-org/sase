@@ -250,6 +250,8 @@ async def test_multi_pane_insert_subtitle_points_to_nav() -> None:
         # Esc drops into normal mode where the stack keys live.
         assert "[Esc] nav" in subtitle
         assert "[Esc] normal" not in subtitle
+        # Pane focus navigation is advertised in insert mode too.
+        assert "[^⇧J/K] pane" in subtitle
 
 
 async def test_single_pane_insert_subtitle_keeps_normal_hint() -> None:
@@ -269,7 +271,8 @@ async def test_multi_pane_normal_subtitle_advertises_stack_keys() -> None:
         bar = app.query_one(PromptInputBar)
         subtitle = bar.normal_mode_subtitle()
         # Every stack keymap the active pane exposes is discoverable here.
-        assert ",j" in subtitle and ",k" in subtitle
+        # Pane focus navigation moved to the Ctrl+Shift chord.
+        assert "[^⇧J/K] pane" in subtitle
         assert ",J" in subtitle and ",K" in subtitle
         assert "[-] add" in subtitle
 
@@ -305,4 +308,4 @@ async def test_entering_normal_mode_applies_stack_subtitle() -> None:
         bar.active_text_area()._enter_normal_mode()
         await pilot.pause()
         # The wired-up normal-mode subtitle reaches the live border subtitle.
-        assert ",j" in str(bar.border_subtitle)
+        assert "[^⇧J/K] pane" in str(bar.border_subtitle)

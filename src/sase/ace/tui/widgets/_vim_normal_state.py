@@ -99,7 +99,7 @@ class VimNormalStateMixin(_MixinBase):
             if self._count_prefix:
                 indicator += self._count_prefix
             # Derive the base from the bar so a stacked prompt keeps advertising
-            # its ,j/,k/,J/,K/- keymaps while a count/operator/comma leader is
+            # its ^⇧J/^⇧K/,J/,K/- keymaps while a count/operator/comma leader is
             # pending, instead of flipping back to the single-pane hints.
             base = "[Esc] clear  [i] insert  [^C] cancel"
             getter = getattr(bar, "normal_mode_subtitle", None)

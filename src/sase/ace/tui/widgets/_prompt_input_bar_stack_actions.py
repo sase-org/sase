@@ -50,13 +50,14 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         def hide_file_completions(self) -> None: ...
         def hide_soft_completion(self) -> None: ...
 
-    def focus_relative(self, delta: int) -> bool:
-        """Move pane focus by *delta* in normal mode (``,j`` / ``,k``).
+    def focus_relative(self, delta: int, target_mode: str = "normal") -> bool:
+        """Move pane focus by *delta* (``Ctrl+Shift+J`` / ``Ctrl+Shift+K``).
 
         Navigation is a pure focus change; no pane is rebuilt, so each pane
-        keeps its cursor and edit state.  The newly active pane enters vim
-        normal mode so the user can keep browsing the stack with the comma
-        leader.  Returns ``True`` when the selection moved.
+        keeps its cursor and edit state.  ``target_mode`` ("normal" or
+        "insert") selects the vim mode the newly active pane lands in, so the
+        Ctrl+Shift shortcuts preserve whichever mode the user was already in.
+        Returns ``True`` when the selection moved.
         """
         if len(self._stack) <= 1:
             return False
@@ -66,7 +67,10 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         self._apply_active_classes()
         text_area = self.active_text_area()
         text_area.focus()
-        text_area._enter_normal_mode()
+        if target_mode == "insert":
+            text_area._enter_insert_mode()
+        else:
+            text_area._enter_normal_mode()
         self._schedule_height_update()
         return True
 

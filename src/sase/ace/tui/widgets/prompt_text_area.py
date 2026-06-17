@@ -365,6 +365,23 @@ class PromptTextArea(
             self.action_open_prompt_history()
             return
 
+        # Prompt-stack pane focus navigation, available while typing (insert)
+        # or browsing (normal).  Only the shift chord matches: ``ctrl+j`` stays
+        # newline and ``ctrl+k`` stays prompt history.  The event is always
+        # swallowed so it never falls through to text insertion or global
+        # bindings, even when no movement is possible (single pane / at edge).
+        if event.key in ("ctrl+shift+j", "ctrl+shift+k") and self._vim_mode in {
+            "insert",
+            "normal",
+        }:
+            event.stop()
+            event.prevent_default()
+            bar = self._find_prompt_bar()
+            if bar is not None:
+                delta = 1 if event.key == "ctrl+shift+j" else -1
+                bar.focus_relative(delta, target_mode=self._vim_mode)
+            return
+
         if self._vim_mode in {"visual", "visual_line"}:
             if self._handle_visual_mode_key(event):
                 event.stop()

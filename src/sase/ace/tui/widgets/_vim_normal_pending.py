@@ -220,11 +220,7 @@ class VimNormalPendingMixin(VimVisualModeMixin):
         bar = self._find_prompt_bar()
         if bar is None:
             return
-        if key == "j":
-            bar.focus_relative(1)
-        elif key == "k":
-            bar.focus_relative(-1)
-        elif key == "J":
+        if key == "J":
             bar.move_active_pane(1)
         elif key == "K":
             bar.move_active_pane(-1)
