@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 10:46:38
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_stack_ctrl_hl_focus.md
 ---
 # Prompt Stack Ctrl+H/L Focus Keymap Plan

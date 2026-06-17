@@ -218,9 +218,11 @@ class VimNormalPendingMixin(VimVisualModeMixin):
     def _handle_stack_leader_key(self, key: str) -> None:
         """Dispatch the key following the prompt-stack comma leader.
 
-        Pane reorder moved off this leader onto ``Ctrl+Shift+H``/``Ctrl+Shift+L``
-        (see :meth:`PromptInputBar.move_active_pane`); retired ``,J``/``,K`` (like
-        the earlier retired ``,j``/``,k``) fall through to a swallowed no-op.
+        Pane focus lives on ``Ctrl+H``/``Ctrl+L`` (see
+        :meth:`PromptInputBar.focus_relative`) and pane reorder moved off this
+        leader onto ``Ctrl+Shift+H``/``Ctrl+Shift+L`` (see
+        :meth:`PromptInputBar.move_active_pane`); retired ``,J``/``,K`` (like the
+        earlier retired ``,j``/``,k``) fall through to a swallowed no-op.
         """
         bar = self._find_prompt_bar()
         if bar is None:

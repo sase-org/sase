@@ -366,29 +366,40 @@ class PromptTextArea(
             self.action_open_prompt_history()
             return
 
-        # Prompt-stack pane focus navigation, available while typing (insert)
-        # or browsing (normal).  Only the shift chord matches: ``ctrl+j`` stays
-        # newline and ``ctrl+k`` stays prompt history.  The event is always
-        # swallowed so it never falls through to text insertion or global
-        # bindings, even when no movement is possible (single pane / at edge).
-        if event.key in ("ctrl+shift+j", "ctrl+shift+k") and self._vim_mode in {
-            "insert",
-            "normal",
-        }:
-            event.stop()
-            event.prevent_default()
+        # Prompt-stack pane focus on the unshifted H/L axis, available while
+        # typing (insert) or browsing (normal): ``ctrl+h`` focuses the
+        # previous/higher pane and ``ctrl+l`` the next/lower pane -- the focus
+        # counterpart to the ``ctrl+shift+h``/``ctrl+shift+l`` reorder chords.
+        # Only real multi-pane stacks consume these; a single-pane bar has no
+        # pane to focus, so ``ctrl+h`` is left untouched (so terminals that
+        # historically report Backspace as Ctrl+H keep working) and ``ctrl+l``
+        # falls through to completion / app-level ``dismiss_toasts``.  ``ctrl+l``
+        # is resolved here only in normal mode, which has no live completion and
+        # otherwise returns early below; in insert mode completion must win
+        # first, so the ``ctrl+l`` focus fallback lives after the completion
+        # checks.  Match only the exact ``ctrl+h`` key, never ``backspace``.
+        if event.key == "ctrl+h" and self._vim_mode in {"insert", "normal"}:
             bar = self._find_prompt_bar()
-            if bar is not None:
-                delta = 1 if event.key == "ctrl+shift+j" else -1
-                bar.focus_relative(delta, target_mode=self._vim_mode)
-            return
+            if bar is not None and bar.is_multi_pane():
+                event.stop()
+                event.prevent_default()
+                bar.focus_relative(-1, target_mode=self._vim_mode)
+                return
 
-        # Prompt-stack pane reorder, the chord pair adjacent to pane focus.
-        # ``ctrl+shift+h`` moves the active pane higher/earlier, ``ctrl+shift+l``
-        # lower/later, mirroring the vertical stack layout.  Only the shift chord
-        # matches, so ``ctrl+l`` stays soft-completion accept and ``ctrl+h`` is
-        # untouched.  The event is always swallowed in insert / normal mode so it
-        # never falls through to text insertion, completion acceptance, or global
+        if event.key == "ctrl+l" and self._vim_mode == "normal":
+            bar = self._find_prompt_bar()
+            if bar is not None and bar.is_multi_pane():
+                event.stop()
+                event.prevent_default()
+                bar.focus_relative(1, target_mode=self._vim_mode)
+                return
+
+        # Prompt-stack pane reorder, the shifted chord pair adjacent to pane
+        # focus.  ``ctrl+shift+h`` moves the active pane higher/earlier,
+        # ``ctrl+shift+l`` lower/later, mirroring the vertical stack layout; the
+        # unshifted ``ctrl+h``/``ctrl+l`` focus panes instead (handled above).
+        # The event is always swallowed in insert / normal mode so it never
+        # falls through to text insertion, completion acceptance, or global
         # bindings, even when no movement is possible (single pane / at edge).
         if event.key in ("ctrl+shift+h", "ctrl+shift+l") and self._vim_mode in {
             "insert",
@@ -520,6 +531,19 @@ class PromptTextArea(
             event.stop()
             event.prevent_default()
             return
+
+        # No completion consumed ``ctrl+l`` (insert mode -- normal mode is
+        # resolved in the structural block above).  In a multi-pane stack it
+        # focuses the next/lower pane and is always swallowed, even at the
+        # bottom edge, so it never dismisses toasts; a single-pane bar leaves it
+        # to fall through to the app-level ``dismiss_toasts`` binding.
+        if event.key == "ctrl+l":
+            bar = self._find_prompt_bar()
+            if bar is not None and bar.is_multi_pane():
+                event.stop()
+                event.prevent_default()
+                bar.focus_relative(1, target_mode=self._vim_mode)
+                return
 
         if event.key in ("ctrl+n", "ctrl+p") and self._handle_vcs_mru_cycle_key(
             cast(VcsMruCycleKey, event.key)

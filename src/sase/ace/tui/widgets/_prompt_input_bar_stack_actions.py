@@ -47,13 +47,14 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         def hide_soft_completion(self) -> None: ...
 
     def focus_relative(self, delta: int, target_mode: str = "normal") -> bool:
-        """Move pane focus by *delta* (``Ctrl+Shift+J`` / ``Ctrl+Shift+K``).
+        """Move pane focus by *delta* (``Ctrl+H`` / ``Ctrl+L``).
 
-        Navigation is a pure focus change; no pane is rebuilt, so each pane
-        keeps its cursor and edit state.  ``target_mode`` ("normal" or
-        "insert") selects the vim mode the newly active pane lands in, so the
-        Ctrl+Shift shortcuts preserve whichever mode the user was already in.
-        Returns ``True`` when the selection moved.
+        ``Ctrl+H`` focuses the previous/higher pane (``delta`` ``-1``) and
+        ``Ctrl+L`` the next/lower pane (``delta`` ``+1``).  Navigation is a pure
+        focus change; no pane is rebuilt, so each pane keeps its cursor and edit
+        state.  ``target_mode`` ("normal" or "insert") selects the vim mode the
+        newly active pane lands in, so the focus keys preserve whichever mode
+        the user was already in.  Returns ``True`` when the selection moved.
         """
         if len(self._stack) <= 1:
             return False

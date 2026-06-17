@@ -92,7 +92,7 @@ def test_help_modal_lists_prompt_pane_focus_and_reorder() -> None:
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert ("Ctrl+Shift+J/K", "Move between prompt panes") in pairs
+        assert ("Ctrl+H/L", "Move between prompt panes") in pairs
         assert ("Ctrl+Shift+H/L", "Move prompt pane up/down") in pairs
         assert ("Ctrl+-", "Add prompt pane") in pairs
 

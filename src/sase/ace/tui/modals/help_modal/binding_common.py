@@ -22,7 +22,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("{{ / {% / {#", "Auto-pair delimiters"),
         ("Ctrl+T / Ctrl+L", "Complete inside Jinja tags"),
         ("Ctrl+Shift+- / ,f", "Frontmatter panel"),
-        ("Ctrl+Shift+J/K", "Move between prompt panes"),
+        ("Ctrl+H/L", "Move between prompt panes"),
         ("Ctrl+Shift+H/L", "Move prompt pane up/down"),
         ("Ctrl+-", "Add prompt pane"),
     ],

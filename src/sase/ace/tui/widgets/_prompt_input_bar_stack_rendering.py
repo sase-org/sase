@@ -236,6 +236,16 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         """Return the active pane's text verbatim."""
         return self.active_text_area().text
 
+    def is_multi_pane(self) -> bool:
+        """Return ``True`` when the bar holds more than one prompt pane.
+
+        Used by the prompt text area to decide whether the unshifted
+        ``Ctrl+H``/``Ctrl+L`` pane-focus keys should be consumed: a single-pane
+        bar has no pane to focus, so it leaves those keys for completion /
+        ``dismiss_toasts`` (and avoids intercepting a possible Backspace-as-^H).
+        """
+        return len(self._stack) > 1
+
     def all_prompt_texts(self) -> list[str]:
         """Return every pane's live text, top-to-bottom launch order."""
         self._sync_state_from_widgets()

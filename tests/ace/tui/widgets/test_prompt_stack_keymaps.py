@@ -1,7 +1,7 @@
 """Widget-level tests for the prompt-stack keymaps.
 
-Covers the multi-agent prompt stack keymaps: pane focus navigation lives on
-``Ctrl+Shift+J``/``Ctrl+Shift+K`` and pane reorder on
+Covers the multi-agent prompt stack keymaps: pane focus navigation lives on the
+unshifted ``Ctrl+H``/``Ctrl+L`` axis and pane reorder on
 ``Ctrl+Shift+H``/``Ctrl+Shift+L`` (both work in insert and normal mode); the
 comma leader stashes panes and ``Ctrl+-`` adds a new bottom pane; a typed
 ``---`` separator line is inert (panes are created only through ``Ctrl+-``); and
@@ -35,10 +35,10 @@ class _PromptBarApp(App[None]):
         )
 
 
-# --- pane focus navigation (Ctrl+Shift+J / Ctrl+Shift+K) -------------------
+# --- pane focus navigation (Ctrl+H / Ctrl+L) -------------------------------
 
 
-async def test_ctrl_shift_k_focuses_previous_pane_from_normal() -> None:
+async def test_ctrl_h_focuses_previous_pane_from_normal() -> None:
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -48,7 +48,7 @@ async def test_ctrl_shift_k_focuses_previous_pane_from_normal() -> None:
         assert bar._stack.selected_index == 2
 
         await pilot.press("escape")  # active (bottom) pane -> normal mode
-        await pilot.press("ctrl+shift+k")  # focus the pane above
+        await pilot.press("ctrl+h")  # focus the pane above
         await pilot.pause()
 
         assert bar._stack.selected_index == 1
@@ -58,7 +58,7 @@ async def test_ctrl_shift_k_focuses_previous_pane_from_normal() -> None:
         assert bar.active_text_area()._vim_mode == "normal"
 
 
-async def test_ctrl_shift_navigation_from_insert_keeps_insert_mode() -> None:
+async def test_ctrl_h_focuses_previous_pane_from_insert_keeps_insert_mode() -> None:
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -68,7 +68,7 @@ async def test_ctrl_shift_navigation_from_insert_keeps_insert_mode() -> None:
         # Default mode is insert; navigate up while still "typing".
         assert bar.active_text_area()._vim_mode == "insert"
 
-        await pilot.press("ctrl+shift+k")  # 2 -> 1
+        await pilot.press("ctrl+h")  # 2 -> 1
         await pilot.pause()
 
         assert bar._stack.selected_index == 1
@@ -78,7 +78,7 @@ async def test_ctrl_shift_navigation_from_insert_keeps_insert_mode() -> None:
         assert bar.active_text_area()._vim_mode == "insert"
 
 
-async def test_ctrl_shift_j_then_k_round_trips_focus() -> None:
+async def test_ctrl_h_then_l_round_trips_focus() -> None:
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -86,19 +86,19 @@ async def test_ctrl_shift_j_then_k_round_trips_focus() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("ctrl+shift+k")  # 2 -> 1
-        await pilot.press("ctrl+shift+k")  # 1 -> 0
+        await pilot.press("ctrl+h")  # 2 -> 1
+        await pilot.press("ctrl+h")  # 1 -> 0
         await pilot.pause()
         assert bar._stack.selected_index == 0
         assert bar.active_text() == "first"
 
-        await pilot.press("ctrl+shift+j")  # 0 -> 1
+        await pilot.press("ctrl+l")  # 0 -> 1
         await pilot.pause()
         assert bar._stack.selected_index == 1
         assert bar.active_text() == "second"
 
 
-async def test_navigation_clamps_at_edges() -> None:
+async def test_ctrl_l_focuses_next_pane_and_clamps_at_bottom_edge() -> None:
     app = _PromptBarApp("first\n---\nsecond")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -106,16 +106,77 @@ async def test_navigation_clamps_at_edges() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        # Already at the bottom: Ctrl+Shift+J is a no-op.
-        await pilot.press("ctrl+shift+j")
+        await pilot.press("ctrl+h")  # 1 -> 0 (focus the top pane)
+        await pilot.pause()
+        assert bar._stack.selected_index == 0
+
+        await pilot.press("ctrl+l")  # 0 -> 1 (focus the bottom pane)
         await pilot.pause()
         assert bar._stack.selected_index == 1
+        assert bar.active_text() == "second"
+
+        # Already at the bottom: Ctrl+L clamps in place.  It is still swallowed
+        # (multi-pane), so the selection holds and nothing bubbles away.
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        assert bar._stack.selected_index == 1
+
+
+async def test_ctrl_shift_jk_no_longer_move_focus() -> None:
+    """The retired shifted ``Ctrl+Shift+J``/``Ctrl+Shift+K`` no longer focus."""
+    app = _PromptBarApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape")
+        assert bar._stack.selected_index == 2
+
+        await pilot.press("ctrl+shift+k")  # used to focus the pane above
+        await pilot.press("ctrl+shift+j")  # used to focus the pane below
+        await pilot.pause()
+
+        # Focus navigation moved to Ctrl+H/L, so the shifted J/K chords are inert
+        # and the selection never leaves the bottom pane.
+        assert bar._stack.selected_index == 2
+        assert bar.active_text() == "third"
+
+
+async def test_ctrl_l_does_not_focus_pane_when_consumed_by_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Insert-mode ``Ctrl+L`` accepts a soft completion before it ever focuses.
+
+    In a multi-pane stack ``Ctrl+L`` focuses the next pane, but only once
+    completion declines the key.  When a soft completion can be accepted/built
+    it must win, leaving the active pane (and the selection) untouched.
+    """
+    app = _PromptBarApp("first\n---\nsecond")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        assert bar._stack.selected_index == 1
+
+        # Force the completion branch to claim Ctrl+L for this keypress.
+        monkeypatch.setattr(text_area, "_accept_or_build_soft_completion", lambda: True)
+
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+
+        # Completion consumed the key; focus stayed on the bottom pane.
+        assert bar._stack.selected_index == 1
+        assert app.focused is text_area
 
 
 # --- reorder (Ctrl+Shift+H / Ctrl+Shift+L) ---------------------------------
 
 
 async def test_ctrl_shift_h_moves_active_pane_up() -> None:
+    """``Ctrl+Shift+H`` moves the active pane higher/earlier (old ``,K``)."""
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -135,6 +196,7 @@ async def test_ctrl_shift_h_moves_active_pane_up() -> None:
 
 
 async def test_ctrl_shift_l_moves_active_pane_down() -> None:
+    """``Ctrl+Shift+L`` moves the active pane lower/later (old ``,J``)."""
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -142,7 +204,7 @@ async def test_ctrl_shift_l_moves_active_pane_down() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("ctrl+shift+k")  # focus "second" (index 1)
+        await pilot.press("ctrl+h")  # focus "second" (index 1)
         await pilot.pause()
         await pilot.press("ctrl+shift+l")  # move "second" lower/later
         await pilot.pause()
@@ -386,7 +448,7 @@ async def test_multi_pane_comma_is_leader_not_char_search() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("ctrl+shift+k")  # focus the top pane "a) b) c)"
+        await pilot.press("ctrl+h")  # focus the top pane "a) b) c)"
         await pilot.pause()
 
         text_area = bar.active_text_area()
