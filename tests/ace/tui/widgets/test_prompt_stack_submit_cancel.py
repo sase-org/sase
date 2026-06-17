@@ -100,7 +100,7 @@ async def test_enter_on_empty_selected_pane_drops_it_without_submitting() -> Non
         bar = app.query_one(PromptInputBar)
         # Add an empty bottom pane, then submit it.
         await pilot.press("escape")
-        await pilot.press("-")
+        await pilot.press("ctrl+minus")
         await pilot.pause()
         await pilot.pause()
         assert bar.all_prompt_texts() == ["first", "second", ""]
@@ -277,7 +277,7 @@ async def test_multi_pane_normal_subtitle_advertises_stack_keys() -> None:
         assert "[^⇧H/L] move" in subtitle
         # The retired comma-leader reorder hint is gone.
         assert ",J" not in subtitle and ",K" not in subtitle
-        assert "[-] add" in subtitle
+        assert "[^-] add" in subtitle
 
 
 async def test_single_pane_normal_subtitle_advertises_stash() -> None:

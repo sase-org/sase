@@ -94,7 +94,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         return True
 
     def add_bottom_pane(self) -> None:
-        """Append a new empty bottom pane and drop into it (the ``-`` keymap).
+        """Append a new empty bottom pane and drop into it (the ``Ctrl+-`` keymap).
 
         Only meaningful in prompt mode; feedback / approve-prompt bars are not
         multi-agent surfaces, so it is a no-op elsewhere.  The new pane is

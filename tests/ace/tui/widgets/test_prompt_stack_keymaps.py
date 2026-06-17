@@ -3,8 +3,9 @@
 Covers the multi-agent prompt stack keymaps: pane focus navigation lives on
 ``Ctrl+Shift+J``/``Ctrl+Shift+K`` and pane reorder on
 ``Ctrl+Shift+H``/``Ctrl+Shift+L`` (both work in insert and normal mode); the
-comma leader stashes panes and ``-`` adds a new bottom pane; typing a ``---``
-separator line in insert mode splits the active pane into stacked panes; and
+comma leader stashes panes and ``Ctrl+-`` adds a new bottom pane; typing a
+``---`` separator line in insert mode splits the active pane into stacked panes;
+and
 the comma leader coexists with vim's reverse char-search repeat and the normal
 ``J`` line join.
 """
@@ -221,10 +222,10 @@ async def test_comma_jk_no_longer_reorders_but_other_leaders_work() -> None:
         assert bar.all_prompt_texts() == ["first", "second"]
 
 
-# --- add a bottom pane (-) -------------------------------------------------
+# --- add a bottom pane (Ctrl+-) --------------------------------------------
 
 
-async def test_dash_adds_bottom_pane() -> None:
+async def test_ctrl_minus_adds_bottom_pane_from_normal() -> None:
     app = _PromptBarApp("solo prompt")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -234,7 +235,7 @@ async def test_dash_adds_bottom_pane() -> None:
         assert len(app.query(".prompt-input")) == 1
 
         await pilot.press("escape")
-        await pilot.press("-")
+        await pilot.press("ctrl+minus")
         await pilot.pause()
         await pilot.pause()
 
@@ -247,8 +248,33 @@ async def test_dash_adds_bottom_pane() -> None:
         assert bar.active_text_area()._vim_mode == "insert"
 
 
-async def test_dash_is_noop_in_feedback_mode() -> None:
-    app = _PromptBarApp("feedback text", mode="feedback")
+async def test_ctrl_minus_adds_bottom_pane_from_insert() -> None:
+    app = _PromptBarApp("solo prompt")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        assert len(app.query(".prompt-input")) == 1
+        # Default mode is insert; add a pane without leaving insert first.
+        assert bar.active_text_area()._vim_mode == "insert"
+
+        await pilot.press("ctrl+minus")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.query(".prompt-input")) == 2
+        assert bar.all_prompt_texts() == ["solo prompt", ""]
+        assert bar._stack.selected_index == 1
+        assert bar.active_text() == ""
+        assert app.focused is bar.active_text_area()
+        # The new pane stays selected in insert mode so the user keeps typing.
+        assert bar.active_text_area()._vim_mode == "insert"
+
+
+async def test_plain_dash_no_longer_adds_pane_in_normal() -> None:
+    """The retired ``-`` keymap no longer mutates the stack in normal mode."""
+    app = _PromptBarApp("solo prompt")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
@@ -256,6 +282,24 @@ async def test_dash_is_noop_in_feedback_mode() -> None:
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
         await pilot.press("-")
+        await pilot.pause()
+        await pilot.pause()
+
+        # Plain hyphen is inert in normal mode (read-only): no new pane, and the
+        # existing prompt text is untouched.
+        assert len(app.query(".prompt-input")) == 1
+        assert bar.all_prompt_texts() == ["solo prompt"]
+
+
+async def test_ctrl_minus_is_noop_in_feedback_mode() -> None:
+    app = _PromptBarApp("feedback text", mode="feedback")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape")
+        await pilot.press("ctrl+minus")
         await pilot.pause()
 
         assert len(app.query(".prompt-input")) == 1

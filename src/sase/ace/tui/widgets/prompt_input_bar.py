@@ -142,11 +142,13 @@ class PromptInputBar(
 
         ``<enter>`` submits only the selected pane, so a multi-pane stack swaps
         the ``[Esc] normal`` hint for ``[Esc] nav`` (Esc drops into normal mode,
-        where the ``-`` add-pane and comma-leader stash keys live — see
+        where the comma-leader stash keys live — see
         :meth:`normal_mode_subtitle`) and adds a ``[^S] all`` hint for the
-        whole-stack submit.  ``Ctrl+Shift+J``/``Ctrl+Shift+K`` move between panes
-        and ``Ctrl+Shift+H``/``Ctrl+Shift+L`` reorder the active pane from either
-        mode, so both hints are advertised here too.
+        whole-stack submit.  ``Ctrl+Shift+J``/``Ctrl+Shift+K`` move between panes,
+        ``Ctrl+Shift+H``/``Ctrl+Shift+L`` reorder the active pane, and ``Ctrl+-``
+        adds a new bottom pane from either mode, so the focus / reorder hints are
+        advertised here too (``Ctrl+-`` lives in the help modal to keep the line
+        readable).
         """
         if self._mode == "prompt" and len(self._stack) > 1:
             return (
@@ -159,19 +161,19 @@ class PromptInputBar(
         """Return the normal-mode subtitle, advertising the stack keys.
 
         In a multi-pane stack the active pane's normal-mode hints surface the
-        prompt-stack Ctrl+Shift chords, comma leader, and ``-`` keymap
-        (``Ctrl+Shift+J``/``Ctrl+Shift+K`` move between panes,
+        prompt-stack Ctrl+Shift chords, the ``Ctrl+-`` add-pane chord, and the
+        comma leader (``Ctrl+Shift+J``/``Ctrl+Shift+K`` move between panes,
         ``Ctrl+Shift+H``/``Ctrl+Shift+L`` reorder the active pane, ``,s``/``,S``
-        stash the active / all panes, ``-`` adds a new bottom pane) so the stack
-        is discoverable without crowding the single-pane footer.  A single-pane
-        prompt bar still advertises ``,s`` (stash this draft); feedback /
-        approve-prompt bars keep the original normal-mode hints since they are
-        not stashable.
+        stash the active / all panes, ``Ctrl+-`` adds a new bottom pane) so the
+        stack is discoverable without crowding the single-pane footer.  A
+        single-pane prompt bar still advertises ``,s`` (stash this draft);
+        feedback / approve-prompt bars keep the original normal-mode hints since
+        they are not stashable.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
             return (
                 "[^⇧J/K] pane  [^⇧H/L] move  [,s ,S] stash  "
-                "[,f] fm  [-] add  [i] insert"
+                "[,f] fm  [^-] add  [i] insert"
             )
         if self._mode == "prompt":
             return "[Esc] clear  [i] insert  [,s] stash  [,f] fm  [^C] cancel"

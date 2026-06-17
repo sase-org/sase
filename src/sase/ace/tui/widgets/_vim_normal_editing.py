@@ -126,10 +126,4 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             self._join_lines(count)
             return True
 
-        if key == "-":
-            bar = self._find_prompt_bar()
-            if bar is not None and getattr(bar, "_mode", "") == "prompt":
-                bar.add_bottom_pane()
-                return True
-
         return False

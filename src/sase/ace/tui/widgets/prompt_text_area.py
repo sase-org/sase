@@ -401,6 +401,22 @@ class PromptTextArea(
                 bar.move_active_pane(delta, target_mode=self._vim_mode)
             return
 
+        # Prompt-stack add-pane.  ``Ctrl+-`` (Textual normalizes ``-`` to
+        # ``minus``) appends a new empty bottom pane and drops into it, the
+        # structural sibling of the Ctrl+Shift focus / reorder chords.  Like
+        # them it works while typing (insert) or browsing (normal), and the
+        # event is always swallowed so the chord never falls through to text
+        # insertion, completion, normal-mode editing, or app-level bindings.
+        # ``add_bottom_pane`` no-ops outside prompt mode, so feedback /
+        # approve-prompt bars stay non-stackable.
+        if event.key == "ctrl+minus" and self._vim_mode in {"insert", "normal"}:
+            event.stop()
+            event.prevent_default()
+            bar = self._find_prompt_bar()
+            if bar is not None:
+                bar.add_bottom_pane()
+            return
+
         if self._vim_mode in {"visual", "visual_line"}:
             if self._handle_visual_mode_key(event):
                 event.stop()
