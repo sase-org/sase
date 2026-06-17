@@ -189,6 +189,27 @@ class PromptStackState:
             return f"{self.frontmatter}\n{body}" if body else self.frontmatter
         return body
 
+    def editor_markdown(self) -> str:
+        """Render the whole stack as spaced markdown for the all-pane editor.
+
+        Same non-empty/stripped pane selection as :meth:`join`, but formatted
+        for human editing rather than dispatch: prompt bodies are separated by
+        blank-line-padded ``---`` lines (``\n\n---\n\n``) and any prompt-level
+        frontmatter is followed by a blank line before the first body.  With no
+        non-empty bodies this returns just the frontmatter block (or ``""``),
+        matching :meth:`join`'s empty-body behavior with no trailing blank
+        spacer.  The spaced output round-trips back through :meth:`from_text`,
+        whose canonical splitter drops the surrounding blank segments.
+        """
+        body = "\n\n---\n\n".join(
+            stripped
+            for stripped in (item.text.strip() for item in self.items)
+            if stripped
+        )
+        if self.frontmatter:
+            return f"{self.frontmatter}\n\n{body}" if body else self.frontmatter
+        return body
+
     def attach_frontmatter(self, body: str) -> str:
         """Prepend prompt-level frontmatter to *body* for a single-pane submit.
 

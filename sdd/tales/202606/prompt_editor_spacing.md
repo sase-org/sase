@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 13:19:38
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_editor_spacing.md
 ---
 # Plan: Prompt Editor Markdown Spacing

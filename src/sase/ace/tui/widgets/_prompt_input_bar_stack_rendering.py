@@ -271,19 +271,22 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         return len(self._stack) > 1
 
     def xprompt_markdown_for_editor(self) -> str:
-        """Return the whole stack as xprompt markdown for the all-pane editor.
+        """Return the whole stack as spaced xprompt markdown for the all-pane editor.
 
-        Syncs the live panes into the model first, then joins them in launch
-        order with ``---`` segment separators, re-attaching the canonical
-        frontmatter only when properties are set (so an empty frontmatter leaves
-        no stray ``---\\n---`` block).  This is the buffer multi-pane ``^G``
-        opens; the edited result is reloaded via
-        :meth:`load_stack_from_xprompt_markdown`.
+        Syncs the live panes into the model first, then renders them in launch
+        order with blank-line-padded ``---`` segment separators
+        (``\\n\\n---\\n\\n``), re-attaching the canonical frontmatter followed by
+        a blank line only when properties are set (so an empty frontmatter
+        leaves no stray ``---\\n---`` block).  This editor-friendly spacing is
+        scoped to the buffer multi-pane ``^G`` opens; the launch payload from
+        :meth:`current_prompt_text` keeps the compact ``\\n---\\n`` form.  The
+        edited result is reloaded via :meth:`load_stack_from_xprompt_markdown`,
+        whose splitter drops the surrounding blank segments.
         Single-pane prompts that carry inline leading frontmatter are preserved
         as authored, since that text lives verbatim in the pane.
         """
         self._sync_state_from_widgets()
-        return self._stack.join()
+        return self._stack.editor_markdown()
 
     def load_stack_from_xprompt_markdown(self, text: str) -> None:
         """Reload the whole bar from edited xprompt markdown (the multi-pane ``^G`` return).

@@ -436,10 +436,13 @@ async def test_ctrl_g_on_stacked_bar_requests_whole_stack() -> None:
 
         # ^G on a multi-pane stack posts exactly one all-editor message and never
         # the single-pane editor request; the serialized buffer is the whole
-        # stack joined with ``---`` separators.
+        # stack joined with blank-line-padded ``---`` separators.
         assert len(app.all_editor_requests) == 1
         assert app.editor_requests == []
-        assert bar.xprompt_markdown_for_editor() == "first\n---\nsecond\n---\nthird"
+        assert (
+            bar.xprompt_markdown_for_editor()
+            == "first\n\n---\n\nsecond\n\n---\n\nthird"
+        )
 
 
 async def test_ctrl_g_in_feedback_mode_requests_single_pane() -> None:
@@ -508,8 +511,9 @@ async def test_all_editor_markdown_serializes_canonical_frontmatter() -> None:
         markdown = bar.xprompt_markdown_for_editor()
         frontmatter = model.serialize()
 
-        # Canonical frontmatter sits above the panes, which keep launch order.
-        assert markdown == f"{frontmatter}\nalpha\n---\nbeta"
+        # Canonical frontmatter sits above the panes (with a blank-line spacer),
+        # which keep launch order separated by blank-line-padded ``---``.
+        assert markdown == f"{frontmatter}\n\nalpha\n\n---\n\nbeta"
         for field_name in (
             "description",
             "tags",
@@ -531,7 +535,7 @@ async def test_all_editor_markdown_omits_empty_frontmatter_block() -> None:
         markdown = bar.xprompt_markdown_for_editor()
 
         # No properties set -> no leading ``---\n---`` delimiter block.
-        assert markdown == "alpha\n---\nbeta"
+        assert markdown == "alpha\n\n---\n\nbeta"
         assert not markdown.startswith("---")
 
 

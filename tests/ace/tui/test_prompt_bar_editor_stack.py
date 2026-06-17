@@ -47,7 +47,9 @@ class _FakeTextArea:
 
 
 class _FakeBar:
-    def __init__(self, *, stacked: bool, markdown: str = "alpha\n---\nbeta") -> None:
+    def __init__(
+        self, *, stacked: bool, markdown: str = "alpha\n\n---\n\nbeta"
+    ) -> None:
         self._stacked = stacked
         self._markdown = markdown
         self.updated_panes: list[str] = []
@@ -239,13 +241,14 @@ def test_single_pane_editor_empty_return_unmounts() -> None:
 
 
 def test_all_editor_opens_whole_stack_not_active_pane() -> None:
-    bar = _FakeBar(stacked=True, markdown="alpha\n---\nbeta")
+    bar = _FakeBar(stacked=True, markdown="alpha\n\n---\n\nbeta")
     harness = _EditorHarness(bar=bar, editor_result="alpha\n---\nbeta EDITED")
 
     harness.on_prompt_input_bar_all_editor_requested(_all_event())
 
-    # The editor opens the joined stack markdown, never the active pane alone.
-    assert harness.editor_inputs == ["alpha\n---\nbeta"]
+    # The editor opens the spaced whole-stack markdown, never the active pane
+    # alone; the edited result reloads verbatim (compact separators preserved).
+    assert harness.editor_inputs == ["alpha\n\n---\n\nbeta"]
     assert bar.loaded_markdown == ["alpha\n---\nbeta EDITED"]
     assert bar.updated_panes == []
 

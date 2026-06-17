@@ -202,6 +202,38 @@ def test_is_effectively_empty() -> None:
     assert PromptStackState.single("hi").is_effectively_empty is False
 
 
+# --- editor_markdown: spaced editor serialization -------------------------
+
+
+def test_editor_markdown_pads_separators_with_blank_lines() -> None:
+    state = PromptStackState.from_panes(["first prompt", "second prompt"])
+    assert state.editor_markdown() == "first prompt\n\n---\n\nsecond prompt"
+
+
+def test_editor_markdown_blank_line_before_first_body_with_frontmatter() -> None:
+    state = PromptStackState.from_text("---\nmodel: opus\n---\nfirst\n---\nsecond")
+    assert state.editor_markdown() == (
+        "---\nmodel: opus\n---\n\nfirst\n\n---\n\nsecond"
+    )
+
+
+def test_editor_markdown_drops_empty_panes() -> None:
+    state = PromptStackState.from_panes(["a", "   ", "b"])
+    assert state.editor_markdown() == "a\n\n---\n\nb"
+
+
+def test_editor_markdown_frontmatter_only_has_no_trailing_spacer() -> None:
+    state = PromptStackState.from_text("---\nmodel: opus\n---\n")
+    assert state.editor_markdown() == "---\nmodel: opus\n---"
+
+
+def test_editor_markdown_round_trips_through_from_text() -> None:
+    state = PromptStackState.from_text("---\nmodel: opus\n---\nfirst\n---\nsecond")
+    reloaded = PromptStackState.from_text(state.editor_markdown())
+    assert reloaded.texts == ["first", "second"]
+    assert reloaded.frontmatter == "---\nmodel: opus\n---"
+
+
 # --- single() construction ------------------------------------------------
 
 
