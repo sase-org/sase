@@ -2,6 +2,8 @@
 create_time: 2026-06-17 17:51:32
 status: wip
 prompt: sdd/prompts/202606/flatten_memory_nested_long.md
+bead_id: sase-4u
+tier: epic
 ---
 # Plan: Flatten `memory/` + Nested Long-Term Memory (hub notes)
 
