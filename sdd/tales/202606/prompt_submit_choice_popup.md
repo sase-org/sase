@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 11:26:28
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_submit_choice_popup.md
 ---
 # Plan: `<enter>` Submit-Choice Popup for Multi-Pane Prompt Stacks

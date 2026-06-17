@@ -1539,9 +1539,9 @@ variable, e.g. `{{ agents["name"].STOP }}`.
 
 ACE renders literal `---` multi-agent prompts as a prompt stack: each top-level segment becomes an editable pane, while
 prompt-level frontmatter and fenced-code separators keep the same parsing rules described below. A `#name` multi-agent
-xprompt invocation remains a single pane until launch. Use `Enter` to launch one selected pane at a time, or `Ctrl+S` to
-submit the panes together in top-to-bottom order. See the [ACE prompt-stack guide](ace.md#prompt-stacks) for the editing
-keybindings and the default active-pane behavior.
+xprompt invocation remains a single pane until launch. Use `Enter` to choose how to submit stacked panes, `Ctrl+Shift+S`
+to launch the selected pane directly, or `Ctrl+S` to submit the panes together in top-to-bottom order. See the
+[ACE prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings and the default active-pane behavior.
 
 ### Rules
 

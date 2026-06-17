@@ -71,7 +71,8 @@ class PromptTextArea(
 ):
     """Custom TextArea with multiline support and readline-style keybindings.
 
-    Enter submits the prompt. Ctrl+J inserts a newline.
+    Enter submits the prompt, or opens the submit chooser for prompt stacks.
+    Ctrl+J inserts a newline.
     Line numbers appear automatically when there's more than one line.
     """
 
@@ -293,6 +294,37 @@ class PromptTextArea(
             _on_result,
         )
 
+    def _open_submit_choice_panel(self) -> None:
+        """Open the prompt-stack submit chooser for ambiguous ``<enter>``."""
+        from sase.ace.tui.modals.prompt_submit_choice_modal import (
+            PromptSubmitChoice,
+            PromptSubmitChoiceModal,
+        )
+
+        bar = self._find_prompt_bar()
+        if bar is None or not bar.is_multi_pane():
+            return
+
+        prompt_count = sum(1 for text in bar.all_prompt_texts() if text.strip())
+        if prompt_count <= 0:
+            return
+
+        self._clear_file_completion()
+        self._clear_soft_completion(cancel_timer=True)
+        self._clear_xprompt_arg_hint()
+
+        def _on_result(result: PromptSubmitChoice | None) -> None:
+            self._refocus_if_needed()
+            if result == "all":
+                self.action_submit_prompt_stack()
+            elif result == "current":
+                self.action_submit_prompt()
+
+        self.app.push_screen(
+            PromptSubmitChoiceModal(prompt_count=prompt_count),
+            _on_result,
+        )
+
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
         self._clear_visual_state()
@@ -338,8 +370,12 @@ class PromptTextArea(
             if self._file_completion_active:
                 self._accept_file_completion()
             else:
-                self._clear_xprompt_arg_hint()
-                self.action_submit_prompt()
+                bar = self._find_prompt_bar()
+                if bar is not None and bar.is_multi_pane() and self.text.strip():
+                    self._open_submit_choice_panel()
+                else:
+                    self._clear_xprompt_arg_hint()
+                    self.action_submit_prompt()
             return
 
         # Whole-stack submit. ``^S`` joins the stack into one multi-prompt.
@@ -348,6 +384,16 @@ class PromptTextArea(
             event.prevent_default()
             self.action_submit_prompt_stack()
             return
+
+        # Selected-pane submit accelerator for prompt stacks. ``Enter`` opens
+        # the chooser, while ``^⇧S`` keeps the old direct drain-one-pane path.
+        if event.key == "ctrl+shift+s":
+            bar = self._find_prompt_bar()
+            if bar is not None and bar.is_multi_pane():
+                event.stop()
+                event.prevent_default()
+                self.action_submit_prompt()
+                return
 
         if event.key == "ctrl+c":
             event.stop()

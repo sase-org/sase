@@ -137,11 +137,12 @@ class PromptInputBar(
     def insert_mode_subtitle(self) -> str:
         """Return the insert-mode subtitle, advertising the stack when stacked.
 
-        ``<enter>`` submits only the selected pane, so a multi-pane stack swaps
-        the ``[Esc] normal`` hint for ``[Esc] nav`` (Esc drops into normal mode,
+        ``<enter>`` opens the submit chooser, so a multi-pane stack swaps the
+        ``[Esc] normal`` hint for ``[Esc] nav`` (Esc drops into normal mode,
         where the comma-leader stash keys live — see
-        :meth:`normal_mode_subtitle`) and adds a ``[^S] all`` hint for the
-        whole-stack submit.  ``Ctrl+H``/``Ctrl+L`` focus between panes,
+        :meth:`normal_mode_subtitle`) and adds ``[^S] all`` / ``[^⇧S] this``
+        hints for the direct submit accelerators.  ``Ctrl+H``/``Ctrl+L`` focus
+        between panes,
         ``Ctrl+Shift+H``/``Ctrl+Shift+L`` reorder the active pane, and ``Ctrl+-``
         adds a new bottom pane from either mode, so the focus / reorder hints are
         advertised here too (``Ctrl+-`` lives in the help modal to keep the line
@@ -149,8 +150,8 @@ class PromptInputBar(
         """
         if self._mode == "prompt" and len(self._stack) > 1:
             return (
-                "[Enter] send  [^H/L] pane  [^⇧H/L] move  "
-                "[Esc] nav  [^C] cancel  [^S] all"
+                "[Enter] submit…  [^H/L] pane  [^⇧H/L] move  "
+                "[Esc] nav  [^C] cancel  [^S] all  [^⇧S] this"
             )
         return "[Enter] send  [Esc] normal  [^C] cancel"
 

@@ -44,6 +44,7 @@ from .prompt_history_modal import (
     PromptHistoryModal,
     PromptHistoryResult,
 )
+from .prompt_submit_choice_modal import PromptSubmitChoice, PromptSubmitChoiceModal
 from .query_edit_modal import QueryEditModal
 from .stashed_prompts_modal import StashRestoreResult, StashedPromptsModal
 from .recursive_finder_modal import RecursiveFileFinderModal
@@ -176,6 +177,8 @@ __all__ = [
     "PromptHistoryAction",
     "PromptHistoryModal",
     "PromptHistoryResult",
+    "PromptSubmitChoice",
+    "PromptSubmitChoiceModal",
     "QueryEditModal",
     "RenameCLModal",
     "StashRestoreResult",

@@ -13,6 +13,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -127,6 +128,29 @@ async def test_prompt_stack_active_upper_png_snapshot(
             page,
             "prompt_stack_active_upper_120x40",
             title="ACE prompt stack — active upper pane",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_prompt_submit_choice_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        await _mount_prompt_bar(page, _TWO_PANE_PROMPT)
+
+        page.app.push_screen(PromptSubmitChoiceModal(prompt_count=2))
+        await page.expect_modal("PromptSubmitChoiceModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_submit_choice_modal_120x40",
+            title="ACE prompt stack — submit chooser",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

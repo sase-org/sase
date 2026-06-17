@@ -2,8 +2,10 @@
 
 Covers the Phase 4 deliverable of the multi-agent prompt stack:
 
-- ``<enter>`` submits only the selected pane and keeps the bar mounted while
-  other panes remain, dropping an empty selected pane instead of launching it.
+- ``<enter>`` opens a submit chooser for non-empty multi-pane stacks.
+- ``<ctrl+shift+s>`` submits only the selected pane and keeps the bar mounted
+  while other panes remain, dropping an empty selected pane instead of launching
+  it.
 - ``<enter>`` on the final pane submits the whole bar (unmount path).
 - ``<ctrl+s>`` submits the whole stack as one multi-prompt.
 - ``<ctrl+c>`` cancels only the selected pane and keeps the bar mounted while
@@ -12,8 +14,10 @@ Covers the Phase 4 deliverable of the multi-agent prompt stack:
 
 from __future__ import annotations
 
+import pytest
 from textual.app import App, ComposeResult
 
+from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
 
@@ -43,10 +47,86 @@ class _CaptureApp(App[None]):
         self.cancelled.append(event)
 
 
-# --- <enter>: single selected-pane submit ----------------------------------
+# --- <enter>: submit-choice modal ------------------------------------------
 
 
-async def test_enter_submits_selected_pane_and_keeps_bar() -> None:
+async def test_enter_on_multi_pane_pushes_submit_choice_modal() -> None:
+    app = _CaptureApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+        assert app.submitted == []
+        assert app.query(PromptInputBar)
+
+
+@pytest.mark.parametrize("choice_key", ["a", "ctrl+s"])
+async def test_submit_choice_all_submits_whole_stack(choice_key: str) -> None:
+    app = _CaptureApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press(choice_key)
+        await pilot.pause()
+
+        assert len(app.submitted) == 1
+        event = app.submitted[0]
+        assert event.value == "first\n---\nsecond\n---\nthird"
+        assert event.whole_stack is True
+        assert event.keep_bar is False
+
+
+@pytest.mark.parametrize("choice_key", ["c", "ctrl+shift+s"])
+async def test_submit_choice_current_submits_selected_pane(choice_key: str) -> None:
+    app = _CaptureApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press(choice_key)
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.submitted) == 1
+        event = app.submitted[0]
+        assert event.value == "third"
+        assert event.keep_bar is True
+        assert event.whole_stack is False
+        assert bar.all_prompt_texts() == ["first", "second"]
+
+
+async def test_submit_choice_escape_cancels_without_mutating_stack() -> None:
+    app = _CaptureApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert app.submitted == []
+        assert app.cancelled == []
+        assert bar.all_prompt_texts() == ["first", "second", "third"]
+        assert app.query(PromptInputBar)
+
+
+# --- <ctrl+shift+s>: single selected-pane submit ---------------------------
+
+
+async def test_ctrl_shift_s_submits_selected_pane_and_keeps_bar() -> None:
     app = _CaptureApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -54,7 +134,7 @@ async def test_enter_submits_selected_pane_and_keeps_bar() -> None:
         bar = app.query_one(PromptInputBar)
         assert bar._stack.selected_index == 2  # bottom pane active
 
-        await pilot.press("enter")  # submit "third"
+        await pilot.press("ctrl+shift+s")  # submit "third"
         await pilot.pause()
         await pilot.pause()
 
@@ -70,7 +150,7 @@ async def test_enter_submits_selected_pane_and_keeps_bar() -> None:
         assert app.cancelled == []
 
 
-async def test_enter_reattaches_frontmatter_to_single_pane_submit() -> None:
+async def test_ctrl_shift_s_reattaches_frontmatter_to_single_pane_submit() -> None:
     # Prompt-level YAML frontmatter is held on the stack, not as a pane; a lone
     # pane submit must carry it so referenced local xprompts still resolve.
     app = _CaptureApp("---\nmodel: opus\n---\nalpha\n---\nbeta")
@@ -80,7 +160,7 @@ async def test_enter_reattaches_frontmatter_to_single_pane_submit() -> None:
         bar = app.query_one(PromptInputBar)
         assert bar.all_prompt_texts() == ["alpha", "beta"]
 
-        await pilot.press("enter")  # submit bottom pane "beta"
+        await pilot.press("ctrl+shift+s")  # submit bottom pane "beta"
         await pilot.pause()
         await pilot.pause()
 
@@ -130,14 +210,14 @@ async def test_enter_on_final_pane_submits_whole_bar() -> None:
         assert event.whole_stack is False
 
 
-async def test_enter_drains_stack_one_pane_at_a_time() -> None:
+async def test_ctrl_shift_s_drains_stack_one_pane_at_a_time() -> None:
     app = _CaptureApp("first\n---\nsecond")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        await pilot.press("enter")  # submit "second", keep bar
+        await pilot.press("ctrl+shift+s")  # submit "second", keep bar
         await pilot.pause()
         await pilot.pause()
         assert bar.all_prompt_texts() == ["first"]
@@ -147,6 +227,23 @@ async def test_enter_drains_stack_one_pane_at_a_time() -> None:
 
         assert [e.value for e in app.submitted] == ["second", "first"]
         assert [e.keep_bar for e in app.submitted] == [True, False]
+
+
+async def test_ctrl_shift_s_is_noop_in_single_pane_bar() -> None:
+    app = _CaptureApp("solo")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("ctrl+shift+s")
+        await pilot.pause()
+        assert app.submitted == []
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert len(app.submitted) == 1
+        assert app.submitted[0].value == "solo"
 
 
 # --- <ctrl+s>: whole-stack submit ------------------------------------------
@@ -229,6 +326,7 @@ async def test_multi_pane_subtitle_advertises_send_all() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         assert "[^S] all" in bar.insert_mode_subtitle()
+        assert "[^⇧S] this" in bar.insert_mode_subtitle()
 
 
 async def test_single_pane_subtitle_omits_send_all() -> None:
@@ -247,6 +345,7 @@ async def test_multi_pane_insert_subtitle_points_to_nav() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         subtitle = bar.insert_mode_subtitle()
+        assert "[Enter] submit…" in subtitle
         # Esc drops into normal mode where the stash / add-pane keys live.
         assert "[Esc] nav" in subtitle
         assert "[Esc] normal" not in subtitle

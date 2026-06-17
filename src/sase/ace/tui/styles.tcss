@@ -702,6 +702,7 @@ ProjectAliasEditorModal Button {
 
 
 /* Shared Duration Choice Modal styling */
+PromptSubmitChoiceModal,
 SnoozeDurationModal,
 _DurationPickerModal {
     align: center middle;
@@ -721,6 +722,14 @@ _DurationPickerModal {
 
 #override-duration-container {
     width: 56;
+}
+
+#prompt-submit-choice-container {
+    width: 62;
+}
+
+#prompt-submit-choice-title {
+    width: 100%;
 }
 
 .duration-choice-title {

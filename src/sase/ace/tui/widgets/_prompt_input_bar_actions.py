@@ -34,14 +34,15 @@ class PromptInputBarActionsMixin(_MixinBase):
         def _rebuild_stack(self, enter_mode: str | None = None) -> None: ...
 
     def _handle_text_submission(self, _text: str) -> None:
-        """Process an ``<enter>`` submission from a pane's TextArea.
+        """Process a selected-pane submission from a pane's TextArea.
 
-        Phase 4: ``<enter>`` submits only the *selected* pane.  In a single-pane
-        bar (or feedback / approve-prompt mode, which are never stacks) this is
-        the pre-stack contract — the whole bar is submitted and the app unmounts
-        it.  In a multi-pane stack the selected pane is launched while the bar
-        stays mounted (``keep_bar``) so the remaining panes can be submitted in
-        turn; an empty selected pane is simply dropped instead of launched.
+        In a single-pane bar (or feedback / approve-prompt mode, which are never
+        stacks) this is the pre-stack contract — the whole bar is submitted and
+        the app unmounts it.  In a multi-pane stack this is the
+        ``Ctrl+Shift+S`` / chooser-current path: the selected pane is launched
+        while the bar stays mounted (``keep_bar``) so the remaining panes can be
+        submitted in turn; an empty selected pane is simply dropped instead of
+        launched.
         """
         self._sync_state_from_widgets()
         if self._mode != "prompt" or len(self._stack) <= 1:
