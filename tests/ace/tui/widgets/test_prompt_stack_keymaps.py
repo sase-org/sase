@@ -1,13 +1,16 @@
 """Widget-level tests for the prompt-stack keymaps.
 
 Covers the multi-agent prompt stack keymaps: pane focus navigation lives on the
-NORMAL-mode ``K``/``J`` keys and pane reorder on NORMAL-mode ``Up``/``Down``
-(both NORMAL-mode-only); ``Ctrl+-`` adds a new bottom pane; a typed ``---``
-separator line is inert (panes are created only through ``Ctrl+-``); the prompt
-stash/structural keymaps migrated to the ``g`` prefix, so ``,`` is now a
-prompt-local no-op that still defers to vim's reverse char-search repeat; and
-the retired structural chords (``Ctrl+H``/``Ctrl+L`` focus,
-``Ctrl+Shift+H``/``Ctrl+Shift+L`` reorder, ``J`` line join) no longer fire.
+prompt ``g`` prefix ``gj`` (next/lower) / ``gk`` (prev/higher) and pane reorder
+on ``gJ`` (lower/later) / ``gK`` (higher/earlier) -- all NORMAL-mode-only.  Bare
+normal-mode ``J`` is once again vim's line join and bare ``K`` is a swallowed
+no-op, while normal-mode ``Up``/``Down`` move the cursor (no pane reorder).
+``Ctrl+-`` still adds a new bottom pane; a typed ``---`` separator line is inert
+(panes are created only through ``Ctrl+-``); the prompt stash/structural keymaps
+migrated to the ``g`` prefix, so ``,`` is now a prompt-local no-op that still
+defers to vim's reverse char-search repeat; and the retired structural chords
+(``Ctrl+H``/``Ctrl+L`` focus, ``Ctrl+Shift+H``/``Ctrl+Shift+L`` reorder) no
+longer fire.
 """
 
 from __future__ import annotations
@@ -36,10 +39,10 @@ class _PromptBarApp(App[None]):
         )
 
 
-# --- pane focus navigation (NORMAL-mode K / J) -----------------------------
+# --- pane focus navigation (NORMAL-mode gj / gk) ---------------------------
 
 
-async def test_k_focuses_previous_pane_from_normal() -> None:
+async def test_gk_focuses_previous_pane_from_normal() -> None:
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -49,7 +52,7 @@ async def test_k_focuses_previous_pane_from_normal() -> None:
         assert bar._stack.selected_index == 2
 
         await pilot.press("escape")  # active (bottom) pane -> normal mode
-        await pilot.press("K")  # focus the pane above
+        await pilot.press("g", "k")  # focus the pane above
         await pilot.pause()
 
         assert bar._stack.selected_index == 1
@@ -59,7 +62,7 @@ async def test_k_focuses_previous_pane_from_normal() -> None:
         assert bar.active_text_area()._vim_mode == "normal"
 
 
-async def test_k_then_j_round_trips_focus() -> None:
+async def test_gk_then_gj_round_trips_focus() -> None:
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -67,20 +70,20 @@ async def test_k_then_j_round_trips_focus() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("K")  # 2 -> 1
-        await pilot.press("K")  # 1 -> 0
+        await pilot.press("g", "k")  # 2 -> 1
+        await pilot.press("g", "k")  # 1 -> 0
         await pilot.pause()
         assert bar._stack.selected_index == 0
         assert bar.active_text() == "first"
 
-        await pilot.press("J")  # 0 -> 1
+        await pilot.press("g", "j")  # 0 -> 1
         await pilot.pause()
         assert bar._stack.selected_index == 1
         assert bar.active_text() == "second"
 
 
-async def test_k_cycles_from_top_to_bottom() -> None:
-    """``K`` from the top pane wraps focus around to the bottom pane."""
+async def test_gk_cycles_from_top_to_bottom() -> None:
+    """``gk`` from the top pane wraps focus around to the bottom pane."""
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -88,12 +91,12 @@ async def test_k_cycles_from_top_to_bottom() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("K")  # 2 -> 1
-        await pilot.press("K")  # 1 -> 0 (top pane)
+        await pilot.press("g", "k")  # 2 -> 1
+        await pilot.press("g", "k")  # 1 -> 0 (top pane)
         await pilot.pause()
         assert bar._stack.selected_index == 0
 
-        await pilot.press("K")  # 0 -> 2 (wraps to the bottom pane)
+        await pilot.press("g", "k")  # 0 -> 2 (wraps to the bottom pane)
         await pilot.pause()
         assert bar._stack.selected_index == 2
         assert bar.active_text() == "third"
@@ -101,7 +104,7 @@ async def test_k_cycles_from_top_to_bottom() -> None:
         assert bar.active_text_area()._vim_mode == "normal"
 
 
-async def test_j_focuses_next_pane_and_cycles_at_bottom_edge() -> None:
+async def test_gj_focuses_next_pane_and_cycles_at_bottom_edge() -> None:
     app = _PromptBarApp("first\n---\nsecond")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -109,24 +112,24 @@ async def test_j_focuses_next_pane_and_cycles_at_bottom_edge() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("K")  # 1 -> 0 (focus the top pane)
+        await pilot.press("g", "k")  # 1 -> 0 (focus the top pane)
         await pilot.pause()
         assert bar._stack.selected_index == 0
 
-        await pilot.press("J")  # 0 -> 1 (focus the bottom pane)
+        await pilot.press("g", "j")  # 0 -> 1 (focus the bottom pane)
         await pilot.pause()
         assert bar._stack.selected_index == 1
         assert bar.active_text() == "second"
 
-        # From the bottom pane J wraps around to the top pane.
-        await pilot.press("J")  # 1 -> 0
+        # From the bottom pane gj wraps around to the top pane.
+        await pilot.press("g", "j")  # 1 -> 0
         await pilot.pause()
         assert bar._stack.selected_index == 0
         assert bar.active_text() == "first"
 
 
-async def test_kj_do_not_focus_panes_in_insert_mode() -> None:
-    """``K``/``J`` are NORMAL-mode-only: in insert mode they type literally."""
+async def test_g_prefix_nav_is_normal_mode_only() -> None:
+    """``gj``/``gk`` are NORMAL-mode-only: in insert mode they type literally."""
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -137,13 +140,87 @@ async def test_kj_do_not_focus_panes_in_insert_mode() -> None:
         assert bar.active_text_area()._vim_mode == "insert"
         assert bar._stack.selected_index == 2
 
-        await pilot.press("K")
-        await pilot.press("J")
+        await pilot.press("g", "k")
+        await pilot.press("g", "j")
         await pilot.pause()
 
         # Focus never moved; the keys were inserted as ordinary characters.
         assert bar._stack.selected_index == 2
-        assert bar.active_text() == "thirdKJ"
+        assert bar.active_text() == "thirdgkgj"
+
+
+# --- bare J / K regressions ------------------------------------------------
+
+
+async def test_bare_j_joins_active_pane_lines_and_does_not_focus() -> None:
+    """Bare normal-mode ``J`` joins lines in the active pane; it never focuses.
+
+    Pane focus moved to ``gj``/``gk``, so vim's line join is restored on bare
+    ``J``: it collapses the active pane's lines instead of navigating panes.
+    """
+    app = _PromptBarApp("top\n---\nlower line\nsecond line")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()  # bottom pane has two lines
+        assert bar._stack.selected_index == 1
+        await pilot.press("escape")
+        text_area.cursor_location = (0, 0)
+
+        await pilot.press("J")  # vim line join, restored in this phase
+        await pilot.pause()
+
+        # The active pane's two lines were joined with a single space; focus
+        # stayed on the bottom pane (no pane navigation).
+        assert bar.all_prompt_texts() == ["top", "lower line second line"]
+        assert bar._stack.selected_index == 1
+        assert app.focused is text_area
+
+
+async def test_bare_j_join_supports_count() -> None:
+    """A counted ``3J`` joins three lines in the active pane."""
+    app = _PromptBarApp("one\ntwo\nthree\nfour")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        await pilot.press("escape")
+        text_area.cursor_location = (0, 0)
+
+        await pilot.press("3", "J")
+        await pilot.pause()
+
+        assert bar.active_text() == "one two three\nfour"
+
+
+async def test_bare_k_does_not_focus_pane_or_bubble() -> None:
+    """Bare normal-mode ``K`` is a swallowed prompt-local no-op (no focus move).
+
+    With pane focus on ``gj``/``gk``, bare ``K`` has no prompt command, so it is
+    swallowed -- it neither navigates panes, inserts text, nor bubbles to the
+    app-level ``K`` panel-focus binding while the prompt body owns focus.
+    """
+    app = _PromptBarApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        await pilot.press("escape")
+        assert bar._stack.selected_index == 2
+
+        await pilot.press("K")
+        await pilot.pause()
+
+        # Focus did not move to another pane and ``K`` was not inserted as text.
+        assert bar._stack.selected_index == 2
+        assert bar.active_text() == "third"
+        assert app.focused is text_area
 
 
 async def test_ctrl_h_l_no_longer_focus_panes() -> None:
@@ -161,7 +238,7 @@ async def test_ctrl_h_l_no_longer_focus_panes() -> None:
         await pilot.press("ctrl+l")  # used to focus the pane below
         await pilot.pause()
 
-        # Focus navigation moved to K/J, so the old chords are inert.
+        # Focus navigation moved to gj/gk, so the old chords are inert.
         assert bar._stack.selected_index == 2
         assert bar.active_text() == "third"
 
@@ -171,9 +248,9 @@ async def test_ctrl_l_does_not_focus_pane_when_consumed_by_completion(
 ) -> None:
     """Insert-mode ``Ctrl+L`` still accepts a soft completion and never focuses.
 
-    Pane focus moved to the NORMAL-mode ``K``/``J`` keys, so ``Ctrl+L`` has no
-    pane-focus fallback anymore -- it only accepts a soft completion (and
-    otherwise falls through to the app-level ``dismiss_toasts`` binding).
+    Pane focus lives on the NORMAL-mode ``gj``/``gk`` keys, so ``Ctrl+L`` has no
+    pane-focus fallback -- it only accepts a soft completion (and otherwise
+    falls through to the app-level ``dismiss_toasts`` binding).
     """
     app = _PromptBarApp("first\n---\nsecond")
 
@@ -195,11 +272,11 @@ async def test_ctrl_l_does_not_focus_pane_when_consumed_by_completion(
         assert app.focused is text_area
 
 
-# --- reorder (NORMAL-mode Up / Down) ---------------------------------------
+# --- reorder (NORMAL-mode gK / gJ) -----------------------------------------
 
 
-async def test_up_moves_active_pane_higher() -> None:
-    """``Up`` moves the active pane higher/earlier (old ``Ctrl+Shift+H``)."""
+async def test_gk_moves_active_pane_higher() -> None:
+    """``gK`` moves the active pane higher/earlier."""
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -207,7 +284,7 @@ async def test_up_moves_active_pane_higher() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("up")  # move "third" higher/earlier
+        await pilot.press("g", "K")  # move "third" higher/earlier
         await pilot.pause()
         await pilot.pause()
 
@@ -218,8 +295,8 @@ async def test_up_moves_active_pane_higher() -> None:
         assert bar.active_text_area()._vim_mode == "normal"
 
 
-async def test_down_moves_active_pane_lower() -> None:
-    """``Down`` moves the active pane lower/later (old ``Ctrl+Shift+L``)."""
+async def test_gj_moves_active_pane_lower() -> None:
+    """``gJ`` moves the active pane lower/later."""
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -227,9 +304,9 @@ async def test_down_moves_active_pane_lower() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("K")  # focus "second" (index 1)
+        await pilot.press("g", "k")  # focus "second" (index 1)
         await pilot.pause()
-        await pilot.press("down")  # move "second" lower/later
+        await pilot.press("g", "J")  # move "second" lower/later
         await pilot.pause()
         await pilot.pause()
 
@@ -251,15 +328,15 @@ async def test_reorder_preserves_live_edits() -> None:
         assert bar.active_text() == "second!"
 
         await pilot.press("escape")
-        await pilot.press("up")  # move "second!" higher/earlier
+        await pilot.press("g", "K")  # move "second!" higher/earlier
         await pilot.pause()
         await pilot.pause()
 
         assert bar.all_prompt_texts() == ["second!", "first"]
 
 
-async def test_up_down_do_not_reorder_in_insert_mode() -> None:
-    """``Up``/``Down`` are NORMAL-mode-only: in insert mode they never reorder."""
+async def test_g_prefix_reorder_is_normal_mode_only() -> None:
+    """``gJ``/``gK`` are NORMAL-mode-only: in insert mode they never reorder."""
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -269,20 +346,20 @@ async def test_up_down_do_not_reorder_in_insert_mode() -> None:
         # Default mode is insert; the bottom pane is active.
         assert bar.active_text_area()._vim_mode == "insert"
 
-        await pilot.press("up")
-        await pilot.press("down")
+        await pilot.press("g", "J")
+        await pilot.press("g", "K")
         await pilot.pause()
         await pilot.pause()
 
-        # The stack order and selection are untouched (insert-mode arrows are
-        # cursor / completion navigation, not pane reorder).
-        assert bar.all_prompt_texts() == ["first", "second", "third"]
+        # The stack order and selection are untouched (insert-mode g/J/K are
+        # literal text, not pane reorder).
+        assert bar.all_prompt_texts() == ["first", "second", "thirdgJgK"]
         assert bar._stack.selected_index == 2
         assert bar.active_text_area()._vim_mode == "insert"
 
 
-async def test_up_on_top_pane_wraps_to_bottom() -> None:
-    """``Up`` on the top pane cycles it to the bottom, still active."""
+async def test_gk_on_top_pane_wraps_to_bottom() -> None:
+    """``gK`` on the top pane cycles it to the bottom, still active."""
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -290,12 +367,12 @@ async def test_up_on_top_pane_wraps_to_bottom() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("K")  # focus "second"
-        await pilot.press("K")  # focus "first" (top pane, index 0)
+        await pilot.press("g", "k")  # focus "second"
+        await pilot.press("g", "k")  # focus "first" (top pane, index 0)
         await pilot.pause()
         assert bar._stack.selected_index == 0
 
-        await pilot.press("up")  # move "first" up past the top -> bottom
+        await pilot.press("g", "K")  # move "first" up past the top -> bottom
         await pilot.pause()
         await pilot.pause()
 
@@ -305,8 +382,8 @@ async def test_up_on_top_pane_wraps_to_bottom() -> None:
         assert bar.active_text_area()._vim_mode == "normal"
 
 
-async def test_down_on_bottom_pane_wraps_to_top() -> None:
-    """``Down`` on the bottom pane cycles it to the top, still active."""
+async def test_gj_on_bottom_pane_wraps_to_top() -> None:
+    """``gJ`` on the bottom pane cycles it to the top, still active."""
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -316,7 +393,7 @@ async def test_down_on_bottom_pane_wraps_to_top() -> None:
         await pilot.press("escape")
         assert bar._stack.selected_index == 2  # bottom pane "third"
 
-        await pilot.press("down")  # move "third" down past the bottom -> top
+        await pilot.press("g", "J")  # move "third" down past the bottom -> top
         await pilot.pause()
         await pilot.pause()
 
@@ -341,7 +418,7 @@ async def test_ctrl_shift_h_l_no_longer_reorder_panes() -> None:
         await pilot.pause()
         await pilot.pause()
 
-        # Reorder moved to Up/Down, so the old chords leave the stack intact.
+        # Reorder moved to gJ/gK, so the old chords leave the stack intact.
         assert bar.all_prompt_texts() == ["first", "second", "third"]
         assert bar._stack.selected_index == 2
 
@@ -369,6 +446,37 @@ async def test_single_pane_up_down_keep_cursor_movement() -> None:
         # Still a single pane: nothing was reordered.
         assert len(app.query(".prompt-input")) == 1
         assert bar.all_prompt_texts() == ["alpha\nbeta\ngamma"]
+
+
+async def test_multi_pane_normal_arrows_move_cursor_not_panes() -> None:
+    """Normal-mode ``Up``/``Down`` move the cursor; reorder moved to gJ/gK.
+
+    Removing the old normal-mode arrow reorder special case means a multi-pane
+    stack regains ordinary TextArea cursor movement on the arrows.
+    """
+    app = _PromptBarApp("first\n---\nalpha\nbeta\ngamma")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()  # bottom pane "alpha\nbeta\ngamma"
+        assert bar._stack.selected_index == 1
+        await pilot.press("escape")
+        text_area.cursor_location = (2, 0)
+
+        await pilot.press("up")
+        await pilot.pause()
+        assert text_area.cursor_location[0] == 1
+
+        await pilot.press("down")
+        await pilot.pause()
+        assert text_area.cursor_location[0] == 2
+
+        # The arrows moved the cursor inside the active pane; the stack order and
+        # selection are untouched (reorder moved to gJ/gK).
+        assert bar.all_prompt_texts() == ["first", "alpha\nbeta\ngamma"]
+        assert bar._stack.selected_index == 1
 
 
 async def test_comma_is_inert_now_that_stack_keymaps_moved_to_g_prefix() -> None:
@@ -567,7 +675,7 @@ async def test_multi_pane_comma_reverses_char_search() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("K")  # focus the top pane "a) b) c)"
+        await pilot.press("g", "k")  # focus the top pane "a) b) c)"
         await pilot.pause()
 
         text_area = bar.active_text_area()
@@ -584,25 +692,3 @@ async def test_multi_pane_comma_reverses_char_search() -> None:
         assert text_area.cursor_location == (0, 1)
         # Focus did not move.
         assert bar._stack.selected_index == 0
-
-
-async def test_plain_shift_j_no_longer_joins_lines() -> None:
-    """Plain `J` focuses the next pane now; the vim line join is retired."""
-    app = _PromptBarApp("top\n---\nlower line\nsecond line")
-
-    async with app.run_test(size=(80, 30)) as pilot:
-        await pilot.pause()
-
-        bar = app.query_one(PromptInputBar)
-        text_area = bar.active_text_area()  # bottom pane has two lines
-        await pilot.press("escape")
-        text_area.cursor_location = (0, 0)
-
-        await pilot.press("J")  # would join lines pre-retirement
-        await pilot.pause()
-
-        # The bottom pane's text is untouched (no join) and J wrapped focus to
-        # the top pane instead.
-        assert bar.all_prompt_texts() == ["top", "lower line\nsecond line"]
-        assert bar._stack.selected_index == 0
-        assert len(app.query(".prompt-input")) == 2

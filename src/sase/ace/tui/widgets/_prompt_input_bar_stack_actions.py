@@ -269,8 +269,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         ``gk`` focuses the previous/higher pane (``delta`` ``-1``) and ``gj`` the
         next/lower pane (``delta`` ``+1``); focus cycles at the stack edges, so
         ``gk`` from the top pane wraps to the bottom and ``gj`` from the bottom
-        wraps to the top.  The legacy bare ``K`` / ``J`` keys still call this in
-        Phase 1.  Navigation is a pure focus change; no pane is
+        wraps to the top.  Navigation is a pure focus change; no pane is
         rebuilt, so each pane keeps its cursor and edit state.  ``target_mode``
         ("normal" or "insert") selects the vim mode the newly active pane lands
         in; the pane-focus keys are normal-mode-only, so callers pass
@@ -297,8 +296,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         ``delta`` of ``-1`` moves the pane higher/earlier (``gK``) and ``+1``
         lower/later (``gJ``); reorder cycles at the stack edges, so ``gK`` from
         the top pane wraps it to the bottom and ``gJ`` from the bottom wraps it
-        to the top.  The legacy normal-mode ``Up`` / ``Down`` keys still call
-        this in Phase 1.  The live pane texts are synced into the model first so the
+        to the top.  The live pane texts are synced into the model first so the
         rebuild preserves what the user has typed; the moved pane stays active
         and lands in *target_mode* ("normal" or "insert").  Pane reorder is
         normal-mode-only, so callers pass ``"normal"``.  Returns ``True`` when it

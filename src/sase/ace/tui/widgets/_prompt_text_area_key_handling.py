@@ -123,53 +123,30 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self.action_open_prompt_history()
             return
 
-        # Prompt-stack pane focus on normal-mode ``K`` / ``J`` -- ``K`` focuses
-        # the previous/higher pane and ``J`` the next/lower pane. These are
-        # NORMAL-mode-only structural keys (they retire vim's ``J`` line join):
-        # only real multi-pane stacks move focus, but bare normal-mode ``J`` /
-        # ``K`` are always swallowed here -- even in a single pane, where there
-        # is no pane to focus -- so they never leak to the app-level Agents-tab
-        # ``J`` / ``K`` panel-focus bindings. A pending normal-mode prefix
-        # (comma leader, operator, count) suppresses the focus controls so
-        # ``,J`` / ``dJ`` / ``2J`` keep falling through to their own handling.
-        if self._vim_mode == "normal" and (event.character or event.key) in (
-            "J",
-            "K",
-        ):
-            if (
-                not self._pending_keys
-                and not self._pending_operator
-                and not self._count_prefix
-            ):
-                event.stop()
-                event.prevent_default()
-                bar = self._find_prompt_bar()
-                if bar is not None and bar.is_multi_pane():
-                    delta = -1 if (event.character or event.key) == "K" else 1
-                    bar.focus_relative(delta, target_mode="normal")
-                return
-
-        # Prompt-stack pane reorder on normal-mode ``Up`` / ``Down`` -- ``Up``
-        # moves the active pane higher/earlier and ``Down`` lower/later,
-        # mirroring the vertical stack layout. NORMAL-mode-only (insert-mode
-        # ``up`` / ``down`` stay cursor / completion navigation) and consumed
-        # only in a real multi-pane stack: a single pane keeps normal-mode arrow
-        # cursor movement, so the event falls through untouched. A pending
-        # normal-mode prefix likewise falls through.
+        # Prompt-stack pane focus and reorder migrated to the prompt ``g``
+        # prefix: ``gj`` / ``gk`` focus the next / previous pane and ``gJ`` /
+        # ``gK`` reorder the active pane (dispatched through the vim ``g``
+        # pending state in ``_handle_normal_pending_key``). Bare normal-mode
+        # ``J`` is therefore free again for vim's line join, and normal-mode
+        # ``Up`` / ``Down`` fall through to the TextArea's own cursor movement in
+        # both single- and multi-pane stacks.
+        #
+        # Bare normal-mode ``K`` has no vim command of its own here, so it is
+        # swallowed as a prompt-local no-op -- without this it would bubble to
+        # the app-level Agents-tab ``K`` panel-focus binding while the prompt
+        # body owns focus. A pending normal-mode prefix (``g``, an operator, or
+        # a count) lets ``K`` fall through so ``gK`` / ``dK`` / ``2K`` keep
+        # reaching their own handling.
         if (
             self._vim_mode == "normal"
-            and event.key in ("up", "down")
+            and (event.character or event.key) == "K"
             and not self._pending_keys
             and not self._pending_operator
             and not self._count_prefix
         ):
-            bar = self._find_prompt_bar()
-            if bar is not None and bar.is_multi_pane():
-                event.stop()
-                event.prevent_default()
-                delta = -1 if event.key == "up" else 1
-                bar.move_active_pane(delta, target_mode="normal")
-                return
+            event.stop()
+            event.prevent_default()
+            return
 
         # Prompt-stack add-pane. ``Ctrl+-`` is ``ctrl+minus`` when the terminal
         # stack preserves Kitty CSI-u disambiguation, but legacy / tmux paths
