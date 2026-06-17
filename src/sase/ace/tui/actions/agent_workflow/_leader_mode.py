@@ -171,14 +171,13 @@ class LeaderModeMixin:
         if key == leader_keys["kill_and_edit"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":
-                self._kill_and_edit_agent()  # type: ignore[attr-defined]
-            self._refresh_current_tab()  # type: ignore[attr-defined]
-            return True
-
-        if key == leader_keys["kill_marked_and_edit"]:
-            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab == "agents":
-                self._bulk_kill_marked_agents_and_edit()  # type: ignore[attr-defined]
+                # Marks take precedence: when any agent is marked, ,x operates on
+                # the marked set; otherwise it acts on the focused row.  The raw
+                # ``x`` subkey is remembered, so a repeat re-evaluates marks.
+                if getattr(self, "_marked_agents", None):
+                    self._bulk_kill_marked_agents_and_edit()  # type: ignore[attr-defined]
+                else:
+                    self._kill_and_edit_agent()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 

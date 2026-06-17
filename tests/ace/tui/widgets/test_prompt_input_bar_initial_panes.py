@@ -1,10 +1,10 @@
 """Tests for seeding ``PromptInputBar`` from an explicit list of panes.
 
-The bulk kill-and-edit flow (``,X``) loads each killed agent's raw prompt into
-its own pane verbatim, so an embedded ``---`` separator or leading frontmatter
-in one agent's prompt must never split that agent across multiple panes. The
-existing ``initial_value`` path (history loads, typed multi-prompts) must keep
-its canonical ``---`` splitting unchanged.
+The marked-set kill-and-edit flow (``,x`` with marks) loads each killed agent's
+raw prompt into its own pane verbatim, so an embedded ``---`` separator or
+leading frontmatter in one agent's prompt must never split that agent across
+multiple panes. The existing ``initial_value`` path (history loads, typed
+multi-prompts) must keep its canonical ``---`` splitting unchanged.
 """
 
 from __future__ import annotations

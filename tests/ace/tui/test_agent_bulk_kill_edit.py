@@ -1,9 +1,9 @@
-"""Tests for the Agents-tab bulk kill-and-edit flow (leader ``,X``).
+"""Tests for the Agents-tab bulk kill-and-edit flow (marked-agent ``,x``).
 
-``,X`` kills/dismisses the explicitly marked rows and then opens a prompt stack
-seeded with one editable pane per killed agent, in mark order. It reuses the
-existing bulk confirmation modal and the forced-name-reuse rule used by the
-single-agent ``,x`` path.
+When agents are marked, ``,x`` kills/dismisses the explicitly marked rows and
+then opens a prompt stack seeded with one editable pane per killed agent, in
+mark order. It reuses the existing bulk confirmation modal and the
+forced-name-reuse rule used by the focused-row ``,x`` path.
 """
 
 from __future__ import annotations

@@ -224,19 +224,22 @@ class KeybindingModesMixin:
         if has_stashed_prompts:
             bindings.append((k("restore_prompt_stash"), "restore stash"))
         if current_tab == "agents":
-            bindings.append((k("kill_and_edit"), "kill & edit"))
+            # ,x is contextual: it kills & edits the marked set when marks
+            # exist, otherwise the focused row.
             if marked_agent_count > 0:
                 bindings.append(
                     (
-                        k("kill_marked_and_edit"),
+                        k("kill_and_edit"),
                         f"kill marked & edit ({marked_agent_count})",
                     )
                 )
                 bindings.append(
                     (k("revert_agent"), f"revert marked ({marked_agent_count})")
                 )
-            elif has_revertable_agent:
-                bindings.append((k("revert_agent"), "revert agent"))
+            else:
+                bindings.append((k("kill_and_edit"), "kill & edit"))
+                if has_revertable_agent:
+                    bindings.append((k("revert_agent"), "revert agent"))
             bindings.append((k("capture_agents_repro"), "capture repro"))
             bindings.append((k("toggle_agents_repro_checks"), "repro checks"))
             if has_notification:

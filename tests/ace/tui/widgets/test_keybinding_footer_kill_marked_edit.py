@@ -1,7 +1,7 @@
-"""Footer tests for the leader ``,X`` kill-marked-and-edit binding.
+"""Footer tests for the contextual leader ``,x`` kill-and-edit binding.
 
-The binding only surfaces in the Agents-tab leader footer when marks exist, and
-its label carries the marked-agent count.
+``,x`` reads ``kill marked & edit (N)`` in the Agents-tab leader footer when
+marks exist (carrying the marked-agent count) and ``kill & edit`` otherwise.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ def _capture_leader(
 
 def test_kill_marked_edit_shown_on_agents_tab_with_marks() -> None:
     bindings = _capture_leader(current_tab="agents", marked_agent_count=3)
-    assert ("X", "kill marked & edit (3)") in bindings
+    assert ("x", "kill marked & edit (3)") in bindings
 
 
 def test_kill_marked_edit_hidden_without_marks() -> None:

@@ -281,13 +281,16 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "leader.jump_to_next_stopped_agent":
         return ctx.stopped_agent_count > 0
 
-    if spec.id in {"leader.kill_and_edit", "leader.jump_to_notification"}:
+    if spec.id == "leader.jump_to_notification":
         return agent is not None
 
-    if spec.id == "leader.kill_marked_and_edit":
-        # Bulk kill-and-edit acts only on explicitly marked rows, so it is
-        # runnable exactly when marks exist (regardless of the focused row).
-        return ctx.mark_count > 0
+    if spec.id == "leader.kill_and_edit":
+        # ,x is contextual: it acts on the marked set when marks exist
+        # (runnable regardless of the focused row), otherwise on the
+        # focused agent.
+        if ctx.mark_count > 0:
+            return True
+        return agent is not None
 
     if spec.id == "leader.revert_agent":
         # Marks drive a bulk revert of every marked agent, so the command is

@@ -258,11 +258,12 @@ class AgentMarkingMixin:
         self._present_bulk_kill_modal(marked_agents)
 
     def _bulk_kill_marked_agents_and_edit(self) -> None:
-        """Kill / dismiss marked agents, then edit each one's prompt (``,X``).
+        """Kill / dismiss marked agents, then edit each one's prompt.
 
-        Unlike plain ``,x`` (single focused row), this acts only on the
-        explicitly marked rows, in mark order.  Each killed agent's raw prompt
-        is collected up front (with the same forced-name-reuse rule as ``,x``)
+        This is the marked-set branch of ``,x``: when any agent is marked, it
+        acts only on the explicitly marked rows, in mark order (rather than the
+        single focused row).  Each killed agent's raw prompt is collected up
+        front (with the same forced-name-reuse rule as the focused-row path)
         and, on confirmation, seeded into its own prompt pane so the panes
         match the marks one-for-one and follow mark order, not row order.
         """

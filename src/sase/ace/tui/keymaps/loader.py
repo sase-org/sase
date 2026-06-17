@@ -35,6 +35,13 @@ from sase.ace.tui.keymaps.types import _BINDING_META
 log = logging.getLogger(__name__)
 
 
+# Retired built-in leader-mode action ids. These are dropped while loading so a
+# stale user override (e.g. a lingering ``leader.kill_marked_and_edit`` entry)
+# cannot deep-merge a removed command back into the registry. ``kill_marked_and_edit``
+# was folded into the contextual ``kill_and_edit`` (``,x``) action.
+_RETIRED_LEADER_KEYS: frozenset[str] = frozenset({"kill_marked_and_edit"})
+
+
 # ---------------------------------------------------------------------------
 # Defaults loader
 # ---------------------------------------------------------------------------
@@ -235,6 +242,12 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
 
         merged_keys = _deep_merge_keys(mode_defaults.keys, keys_overrides)
         merged_keys = _canonicalize_mode_keys(merged_keys)
+        if mode_name == "leader_mode":
+            merged_keys = {
+                name: value
+                for name, value in merged_keys.items()
+                if name not in _RETIRED_LEADER_KEYS
+            }
         modes[mode_name] = cls(prefix=prefix, keys=merged_keys)
 
     # Process any additional (user-defined) modes.

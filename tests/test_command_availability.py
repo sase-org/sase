@@ -207,18 +207,28 @@ def test_copy_changespecs_cl_number_requires_cl() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_kill_marked_and_edit_only_when_marks_exist() -> None:
+def test_kill_marked_and_edit_command_is_retired() -> None:
     catalog = _catalog_by_id()
-    spec = catalog["leader.kill_marked_and_edit"]
+    # The standalone ,X command no longer exists; ,x owns the behavior.
+    assert "leader.kill_marked_and_edit" not in catalog
+
+
+def test_kill_and_edit_is_contextual_on_marks_or_focus() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["leader.kill_and_edit"]
     agent = _make_agent(status="RUNNING")
-    # No marks: hidden even with a focused agent (it acts on marks only).
-    assert not is_command_available(
+    # No marks but a focused agent: runnable on the focused row.
+    assert is_command_available(
         spec, CommandContext(tab="agents", agent=agent, mark_count=0)
     )
     # Marks present: runnable even when the focused row is a group banner.
     assert is_command_available(
         spec,
         CommandContext(tab="agents", agent=None, group_focused=True, mark_count=2),
+    )
+    # No marks and no focused agent: nothing to act on.
+    assert not is_command_available(
+        spec, CommandContext(tab="agents", agent=None, mark_count=0)
     )
 
 

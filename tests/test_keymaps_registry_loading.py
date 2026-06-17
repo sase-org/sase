@@ -108,6 +108,31 @@ def test_partial_mode_override() -> None:
     assert reg.fold_mode.prefix == "z"  # unchanged
 
 
+def test_stale_kill_marked_and_edit_override_is_dropped() -> None:
+    """A lingering ``kill_marked_and_edit`` override cannot revive the key.
+
+    The action was folded into the contextual ``kill_and_edit`` (``,x``); a
+    stale user config entry must be filtered during load so the deep-merge
+    does not reintroduce it, while other leader overrides still apply.
+    """
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "leader_mode": {
+                        "keys": {
+                            "kill_marked_and_edit": "X",
+                            "kill_and_edit": "y",
+                        },
+                    },
+                },
+            },
+        }
+    )
+    assert "kill_marked_and_edit" not in reg.leader_mode.keys
+    assert reg.leader_mode.keys["kill_and_edit"] == "y"  # legit override survives
+
+
 def test_mode_prefix_override() -> None:
     """Overriding a mode prefix also updates the app action key."""
     reg = load_keymap_registry(

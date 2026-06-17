@@ -27,6 +27,9 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.current_tab = current_tab  # type: ignore[assignment]
         self.marked_indices = set()
         self._agents = []
+        self._marked_agents: set[Any] = set()
+        self.kill_and_edit_count = 0
+        self.bulk_kill_and_edit_count = 0
         self._leader_mode_active = True
         self._last_leader_key: str | None = None
         self._keymap_registry = load_keymap_registry({})
@@ -108,6 +111,12 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
 
     def _start_agents_from_marked(self) -> None:
         self.marked_agent_run_count += 1
+
+    def _kill_and_edit_agent(self) -> None:
+        self.kill_and_edit_count += 1
+
+    def _bulk_kill_marked_agents_and_edit(self) -> None:
+        self.bulk_kill_and_edit_count += 1
 
 
 class _FakeEntryPoints(EntryPointsMixin):
@@ -395,6 +404,62 @@ def test_leader_repeat_uses_raw_subkey_for_revert() -> None:
 
     assert app._last_leader_key == "r"
     assert app.revert_count == 2
+
+
+def test_leader_x_kills_and_edits_focused_agent_without_marks() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    handled = app._handle_leader_key("x")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app.kill_and_edit_count == 1
+    assert app.bulk_kill_and_edit_count == 0
+    assert app._last_leader_key == "x"
+    assert app.refresh_count == 1
+
+
+def test_leader_x_kills_and_edits_marked_set_when_marks_exist() -> None:
+    app = _FakeApp(current_tab="agents")
+    app._marked_agents = {("running", "my_feature", None)}
+
+    handled = app._handle_leader_key("x")
+
+    assert handled is True
+    assert app.bulk_kill_and_edit_count == 1
+    assert app.kill_and_edit_count == 0
+    assert app._last_leader_key == "x"
+    assert app.refresh_count == 1
+
+
+def test_leader_x_noops_on_non_agents_tabs() -> None:
+    app = _FakeApp(current_tab="changespecs")
+    app._marked_agents = {("running", "my_feature", None)}
+
+    handled = app._handle_leader_key("x")
+
+    assert handled is True
+    assert app.kill_and_edit_count == 0
+    assert app.bulk_kill_and_edit_count == 0
+    assert app.refresh_count == 1
+
+
+def test_leader_x_repeat_reevaluates_marks() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    # First press with no marks routes to the focused-row flow.
+    app._handle_leader_key("x")
+    assert app.kill_and_edit_count == 1
+    assert app.bulk_kill_and_edit_count == 0
+
+    # Marks appear; repeating ,x remembers raw ``x`` and re-evaluates marks,
+    # so the repeat routes to the bulk marked-set flow.
+    app._marked_agents = {("running", "my_feature", None)}
+    app._handle_leader_key("comma")
+
+    assert app._last_leader_key == "x"
+    assert app.bulk_kill_and_edit_count == 1
+    assert app.kill_and_edit_count == 1
 
 
 def test_leader_j_notifies_when_no_unread_done_agent() -> None:

@@ -561,7 +561,7 @@ class EntryPointsMixin:
         cl_name: str,
         is_project_agent: bool,
     ) -> None:
-        """Seed one editable prompt pane per killed agent (bulk ``,X``).
+        """Seed one editable prompt pane per killed agent (marked-set ``,x``).
 
         Like :meth:`_edit_and_relaunch_agent` but mounts a prompt stack from an
         explicit list of pane texts so each killed agent maps to exactly one
