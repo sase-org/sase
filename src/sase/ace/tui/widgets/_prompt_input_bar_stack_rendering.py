@@ -241,10 +241,12 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
     def is_multi_pane(self) -> bool:
         """Return ``True`` when the bar holds more than one prompt pane.
 
-        Used by the prompt text area to decide whether the unshifted
-        ``Ctrl+H``/``Ctrl+L`` pane-focus keys should be consumed: a single-pane
-        bar has no pane to focus, so it leaves those keys for completion /
-        ``dismiss_toasts`` (and avoids intercepting a possible Backspace-as-^H).
+        Used by the prompt text area to decide whether the normal-mode pane
+        controls move panes: ``K``/``J`` focus and ``Up``/``Down`` reorder act
+        only on a real multi-pane stack.  A single-pane bar has no pane to focus
+        or reorder, so it swallows bare ``K``/``J`` as a no-op (keeping them off
+        the app-level Agents-tab bindings) and leaves ``Up``/``Down`` for
+        normal-mode cursor movement.
         """
         return len(self._stack) > 1
 
@@ -361,7 +363,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
 
         Purely passive: a typed ``---`` is left as literal text in the pane.  The
         properties panel and extra panes are reached only through the explicit
-        ``Ctrl+Shift+-`` / ``,f`` and ``Ctrl+-`` controls.
+        ``Ctrl+Shift+=`` / ``,f`` and ``Ctrl+-`` controls.
         """
         text_area = event.text_area
         if not isinstance(text_area, PromptTextArea):

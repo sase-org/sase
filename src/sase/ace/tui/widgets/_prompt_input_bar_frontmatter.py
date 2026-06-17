@@ -5,7 +5,7 @@ Presentation-only glue between the prompt stack and the structured
 
 - the panel is mounted (hidden) directly above ``#prompt-stack`` and auto-shows
   when the bar opens on a prompt that already carries frontmatter;
-- ``,f`` focuses the panel (``Ctrl+Shift+-`` toggles it from the body and back)
+- ``,f`` focuses the panel (``Ctrl+Shift+=`` toggles it from the body and back)
   and ``esc`` / ``q`` hands focus back to the body, removing the frontmatter
   entirely when the panel is left empty;
 - panel edits are persisted onto the stack's byte-stable ``frontmatter`` string
@@ -159,7 +159,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         self._schedule_height_update()
 
     def toggle_frontmatter_panel(self) -> None:
-        """Toggle the xprompt properties panel (the ``Ctrl+Shift+-`` chord).
+        """Toggle the xprompt properties panel (the ``Ctrl+Shift+=`` chord).
 
         Prompt mode only, and only when a panel is mounted — feedback /
         approve-prompt bars mount none, so the chord is a no-op there.  When the

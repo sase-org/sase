@@ -145,31 +145,26 @@ class PromptInputBar(
         """Return the insert-mode subtitle, advertising the stack when stacked.
 
         ``<enter>`` opens the submit chooser, so a multi-pane stack swaps the
-        ``[Esc] normal`` hint for ``[Esc] nav`` (Esc drops into normal mode,
-        where the comma-leader stash keys live — see
+        ``[Esc] normal`` hint for ``[Esc] nav`` (Esc drops into NORMAL mode,
+        where the pane-focus / reorder and comma-leader stash keys live — see
         :meth:`normal_mode_subtitle`) and adds ``[^S] all`` / ``[^⇧S] this``
-        hints for the direct submit accelerators.  ``Ctrl+H``/``Ctrl+L`` focus
-        between panes,
-        ``Ctrl+Shift+H``/``Ctrl+Shift+L`` reorder the active pane, and ``Ctrl+-``
-        adds a new bottom pane from either mode, so the focus / reorder hints are
-        advertised here too (``Ctrl+-`` lives in the help modal to keep the line
-        readable).
+        hints for the direct submit accelerators.  Pane focus (``K``/``J``) and
+        reorder (``Up``/``Down``) are NORMAL-mode-only now, so they are not
+        advertised in insert mode; the subtitle just points users to
+        ``[Esc] nav`` (``Ctrl+-`` adds a new bottom pane from either mode and
+        lives in the help modal to keep the line readable).
         """
         if self._mode == "prompt" and len(self._stack) > 1:
-            return (
-                "[Enter] submit…  [^H/L] pane  [^⇧H/L] move  "
-                "[Esc] nav  [^C] cancel  [^S] all  [^⇧S] this"
-            )
+            return "[Enter] submit…  [Esc] nav  [^C] cancel  [^S] all  [^⇧S] this"
         return "[Enter] send  [Esc] normal  [^C] cancel"
 
     def normal_mode_subtitle(self) -> str:
         """Return the normal-mode subtitle, advertising the stack keys.
 
         In a multi-pane stack the active pane's normal-mode hints surface the
-        prompt-stack focus / reorder chords, the ``Ctrl+-`` add-pane chord, and
-        the comma leader (``Ctrl+H``/``Ctrl+L`` focus between panes,
-        ``Ctrl+Shift+H``/``Ctrl+Shift+L`` reorder the active pane, ``,s``/``,S``
-        stash the active / all panes, ``Ctrl+-`` adds a new bottom pane) so the
+        prompt-stack pane-focus (``K``/``J``) and reorder (``Up``/``Down``)
+        keys, the ``Ctrl+-`` add-pane chord, and the comma leader (``,s``/``,S``
+        stash the active / all panes, ``,f`` opens the frontmatter panel) so the
         stack is discoverable without crowding the single-pane footer.  A
         single-pane prompt bar still advertises ``,s`` (stash this draft);
         feedback / approve-prompt bars keep the original normal-mode hints since
@@ -177,8 +172,7 @@ class PromptInputBar(
         """
         if self._mode == "prompt" and len(self._stack) > 1:
             return (
-                "[^H/L] pane  [^⇧H/L] move  [,s ,S] stash  "
-                "[,f] fm  [^-] add  [i] insert"
+                "[K/J] pane  [↑/↓] move  [,s ,S] stash  [,f] fm  [^-] add  [i] insert"
             )
         if self._mode == "prompt":
             return "[Esc] clear  [i] insert  [,s] stash  [,f] fm  [^C] cancel"
@@ -190,7 +184,7 @@ class PromptInputBar(
         The frontmatter panel sits directly above ``#prompt-stack`` (prompt mode
         only — feedback / approve-prompt bars are not multi-agent surfaces) and
         starts hidden, auto-showing on mount when the prompt already carries
-        frontmatter; otherwise the user opens it with ``Ctrl+Shift+-`` / ``,f``.
+        frontmatter; otherwise the user opens it with ``Ctrl+Shift+=`` / ``,f``.
         """
         self._placeholder = self._compute_placeholder()
         yield Static("", id="prompt-completion", classes="hidden")

@@ -346,12 +346,14 @@ async def test_multi_pane_insert_subtitle_points_to_nav() -> None:
         bar = app.query_one(PromptInputBar)
         subtitle = bar.insert_mode_subtitle()
         assert "[Enter] submit…" in subtitle
-        # Esc drops into normal mode where the stash / add-pane keys live.
+        # Esc drops into normal mode where the pane-focus / reorder / stash keys
+        # live.
         assert "[Esc] nav" in subtitle
         assert "[Esc] normal" not in subtitle
-        # Pane focus navigation and reorder are advertised in insert mode too.
-        assert "[^H/L] pane" in subtitle
-        assert "[^⇧H/L] move" in subtitle
+        # Pane focus and reorder are NORMAL-mode-only now, so they are NOT
+        # advertised in insert mode -- the subtitle just points to nav.
+        assert "[K/J] pane" not in subtitle
+        assert "[↑/↓] move" not in subtitle
 
 
 async def test_single_pane_insert_subtitle_keeps_normal_hint() -> None:
@@ -371,10 +373,9 @@ async def test_multi_pane_normal_subtitle_advertises_stack_keys() -> None:
         bar = app.query_one(PromptInputBar)
         subtitle = bar.normal_mode_subtitle()
         # Every stack keymap the active pane exposes is discoverable here.
-        # Pane focus lives on the unshifted Ctrl+H/L axis; reorder on the
-        # adjacent Ctrl+Shift chords.
-        assert "[^H/L] pane" in subtitle
-        assert "[^⇧H/L] move" in subtitle
+        # Pane focus lives on the normal-mode K/J keys; reorder on Up/Down.
+        assert "[K/J] pane" in subtitle
+        assert "[↑/↓] move" in subtitle
         # The retired comma-leader reorder hint is gone.
         assert ",J" not in subtitle and ",K" not in subtitle
         assert "[^-] add" in subtitle
@@ -411,4 +412,4 @@ async def test_entering_normal_mode_applies_stack_subtitle() -> None:
         bar.active_text_area()._enter_normal_mode()
         await pilot.pause()
         # The wired-up normal-mode subtitle reaches the live border subtitle.
-        assert "[^H/L] pane" in str(bar.border_subtitle)
+        assert "[K/J] pane" in str(bar.border_subtitle)

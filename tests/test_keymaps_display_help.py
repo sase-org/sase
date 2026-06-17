@@ -92,19 +92,19 @@ def test_help_modal_lists_prompt_pane_focus_and_reorder() -> None:
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert ("Ctrl+H/L", "Move between prompt panes") in pairs
-        assert ("Ctrl+Shift+H/L", "Move prompt pane up/down") in pairs
+        assert ("K / J", "Focus prompt panes (NORMAL)") in pairs
+        assert ("Up / Down", "Move prompt pane (NORMAL)") in pairs
         assert ("Ctrl+-", "Add prompt pane") in pairs
 
 
 def test_help_modal_lists_frontmatter_panel_toggle() -> None:
-    """The Prompt Input section advertises the Ctrl+Shift+- properties toggle."""
+    """The Prompt Input section advertises the Ctrl+Shift+= properties toggle."""
     reg = load_keymap_registry({})
     for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert ("Ctrl+Shift+- / ,f", "Frontmatter panel") in pairs
+        assert ("Ctrl+Shift+= / ,f", "Frontmatter panel") in pairs
 
 
 def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:

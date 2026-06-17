@@ -405,52 +405,53 @@ class PromptTextArea(
             self.action_open_prompt_history()
             return
 
-        # Prompt-stack pane focus on the unshifted H/L axis, available while
-        # typing (insert) or browsing (normal): ``ctrl+h`` focuses the
-        # previous/higher pane and ``ctrl+l`` the next/lower pane -- the focus
-        # counterpart to the ``ctrl+shift+h``/``ctrl+shift+l`` reorder chords.
-        # Only real multi-pane stacks consume these; a single-pane bar has no
-        # pane to focus, so ``ctrl+h`` is left untouched (so terminals that
-        # historically report Backspace as Ctrl+H keep working) and ``ctrl+l``
-        # falls through to completion / app-level ``dismiss_toasts``.  ``ctrl+l``
-        # is resolved here only in normal mode, which has no live completion and
-        # otherwise returns early below; in insert mode completion must win
-        # first, so the ``ctrl+l`` focus fallback lives after the completion
-        # checks.  Match only the exact ``ctrl+h`` key, never ``backspace``.
-        if event.key == "ctrl+h" and self._vim_mode in {"insert", "normal"}:
+        # Prompt-stack pane focus on normal-mode ``K`` / ``J`` -- ``K`` focuses
+        # the previous/higher pane and ``J`` the next/lower pane.  These are
+        # NORMAL-mode-only structural keys (they retire vim's ``J`` line join):
+        # only real multi-pane stacks move focus, but bare normal-mode ``J`` /
+        # ``K`` are always swallowed here -- even in a single pane, where there
+        # is no pane to focus -- so they never leak to the app-level Agents-tab
+        # ``J`` / ``K`` panel-focus bindings.  A pending normal-mode prefix
+        # (comma leader, operator, count) suppresses the focus controls so
+        # ``,J`` / ``dJ`` / ``2J`` keep falling through to their own handling.
+        if self._vim_mode == "normal" and (event.character or event.key) in (
+            "J",
+            "K",
+        ):
+            if (
+                not self._pending_keys
+                and not self._pending_operator
+                and not self._count_prefix
+            ):
+                event.stop()
+                event.prevent_default()
+                bar = self._find_prompt_bar()
+                if bar is not None and bar.is_multi_pane():
+                    delta = -1 if (event.character or event.key) == "K" else 1
+                    bar.focus_relative(delta, target_mode="normal")
+                return
+
+        # Prompt-stack pane reorder on normal-mode ``Up`` / ``Down`` -- ``Up``
+        # moves the active pane higher/earlier and ``Down`` lower/later,
+        # mirroring the vertical stack layout.  NORMAL-mode-only (insert-mode
+        # ``up`` / ``down`` stay cursor / completion navigation) and consumed
+        # only in a real multi-pane stack: a single pane keeps normal-mode arrow
+        # cursor movement, so the event falls through untouched.  A pending
+        # normal-mode prefix likewise falls through.
+        if (
+            self._vim_mode == "normal"
+            and event.key in ("up", "down")
+            and not self._pending_keys
+            and not self._pending_operator
+            and not self._count_prefix
+        ):
             bar = self._find_prompt_bar()
             if bar is not None and bar.is_multi_pane():
                 event.stop()
                 event.prevent_default()
-                bar.focus_relative(-1, target_mode=self._vim_mode)
+                delta = -1 if event.key == "up" else 1
+                bar.move_active_pane(delta, target_mode="normal")
                 return
-
-        if event.key == "ctrl+l" and self._vim_mode == "normal":
-            bar = self._find_prompt_bar()
-            if bar is not None and bar.is_multi_pane():
-                event.stop()
-                event.prevent_default()
-                bar.focus_relative(1, target_mode=self._vim_mode)
-                return
-
-        # Prompt-stack pane reorder, the shifted chord pair adjacent to pane
-        # focus.  ``ctrl+shift+h`` moves the active pane higher/earlier,
-        # ``ctrl+shift+l`` lower/later, mirroring the vertical stack layout; the
-        # unshifted ``ctrl+h``/``ctrl+l`` focus panes instead (handled above).
-        # The event is always swallowed in insert / normal mode so it never
-        # falls through to text insertion, completion acceptance, or global
-        # bindings, even when no movement is possible (single pane / at edge).
-        if event.key in ("ctrl+shift+h", "ctrl+shift+l") and self._vim_mode in {
-            "insert",
-            "normal",
-        }:
-            event.stop()
-            event.prevent_default()
-            bar = self._find_prompt_bar()
-            if bar is not None:
-                delta = -1 if event.key == "ctrl+shift+h" else 1
-                bar.move_active_pane(delta, target_mode=self._vim_mode)
-            return
 
         # Prompt-stack add-pane.  ``Ctrl+-`` is ``ctrl+minus`` when the terminal
         # stack preserves Kitty CSI-u disambiguation, but legacy / tmux paths
@@ -459,11 +460,12 @@ class PromptTextArea(
         # physical chords are indistinguishable, so they append a new empty
         # bottom pane and drop into it.
         #
-        # Like the Ctrl+Shift focus / reorder chords this works while typing
-        # (insert) or browsing (normal), and the event is always swallowed so the
-        # chord never falls through to text insertion, completion, normal-mode
-        # editing, or app-level bindings.  ``add_bottom_pane`` no-ops outside
-        # prompt mode, so feedback / approve-prompt bars stay non-stackable.
+        # Unlike the normal-mode-only ``K``/``J`` focus and ``Up``/``Down``
+        # reorder keys, add-pane works while typing (insert) or browsing
+        # (normal), and the event is always swallowed so the chord never falls
+        # through to text insertion, completion, normal-mode editing, or
+        # app-level bindings.  ``add_bottom_pane`` no-ops outside prompt mode, so
+        # feedback / approve-prompt bars stay non-stackable.
         if event.key in ("ctrl+minus", "ctrl+underscore") and self._vim_mode in {
             "insert",
             "normal",
@@ -475,7 +477,7 @@ class PromptTextArea(
                 bar.add_bottom_pane()
             return
 
-        # XPrompt properties panel toggle.  ``Ctrl+Shift+-`` shows and focuses
+        # XPrompt properties panel toggle.  ``Ctrl+Shift+=`` shows and focuses
         # the frontmatter panel from the body, and deactivates it again — the
         # structural sibling of ``,f``.  Like the stack chords it works while
         # typing (insert) or browsing (normal) and is always swallowed so it
@@ -566,24 +568,14 @@ class PromptTextArea(
                 self._delete_selected_file_completion()
                 return
 
+        # Insert-mode ``ctrl+l`` accepts a soft completion when one is pending;
+        # pane focus moved to the normal-mode ``K`` / ``J`` keys, so there is no
+        # longer a focus fallback here -- an unconsumed ``ctrl+l`` falls through
+        # to the app-level ``dismiss_toasts`` binding as before.
         if event.key == "ctrl+l" and self._accept_or_build_soft_completion():
             event.stop()
             event.prevent_default()
             return
-
-        # No completion consumed ``ctrl+l`` (insert mode -- normal mode is
-        # resolved in the structural block above).  In a multi-pane stack it
-        # focuses the next/lower pane -- cycling to the top pane from the bottom
-        # edge -- and is always swallowed, so it never dismisses toasts; a
-        # single-pane bar leaves it to fall through to the app-level
-        # ``dismiss_toasts`` binding.
-        if event.key == "ctrl+l":
-            bar = self._find_prompt_bar()
-            if bar is not None and bar.is_multi_pane():
-                event.stop()
-                event.prevent_default()
-                bar.focus_relative(1, target_mode=self._vim_mode)
-                return
 
         if event.key in ("ctrl+n", "ctrl+p") and self._handle_vcs_mru_cycle_key(
             cast(VcsMruCycleKey, event.key)

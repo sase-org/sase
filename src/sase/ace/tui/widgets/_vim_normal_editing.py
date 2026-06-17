@@ -122,8 +122,9 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             self._toggle_case(count)
             return True
 
-        if key == "J":
-            self._join_lines(count)
-            return True
+        # NOTE: vim normal-mode ``J`` line join is intentionally retired -- the
+        # prompt text area now uses normal-mode ``J`` / ``K`` for prompt-stack
+        # pane focus (see ``PromptTextArea._on_key``), which swallows bare
+        # ``J`` / ``K`` before this dispatch is ever reached.
 
         return False

@@ -2,7 +2,7 @@
 
 Covers the Phase 3 deliverable of the prompt-frontmatter-panel epic: a typed
 ``---`` is inert (the panel opens only through the explicit ``,f`` /
-``Ctrl+Shift+-`` controls), the ``,f`` focus keymap, auto-show on existing
+``Ctrl+Shift+=`` controls), the ``,f`` focus keymap, auto-show on existing
 frontmatter, the add-property picker plus inline scalar/list editing, ``d``
 delete, the ``R`` raw-YAML round-trip, and the empty-on-exit removal of the
 frontmatter.
@@ -291,10 +291,10 @@ async def test_close_populated_keeps_panel_visible() -> None:
         assert app.focused is bar.active_text_area()
 
 
-# --- Ctrl+Shift+- toggle ---------------------------------------------------
+# --- Ctrl+Shift+= toggle ---------------------------------------------------
 
 
-async def test_ctrl_shift_minus_opens_panel_from_insert() -> None:
+async def test_ctrl_shift_equals_opens_panel_from_insert() -> None:
     """The chord shows and focuses an empty panel while typing (insert mode)."""
     app = _PromptBarApp("")
 
@@ -303,7 +303,7 @@ async def test_ctrl_shift_minus_opens_panel_from_insert() -> None:
         bar = app.query_one(PromptInputBar)
         assert bar.active_text_area()._vim_mode == "insert"
 
-        await pilot.press("ctrl+shift+minus")
+        await pilot.press("ctrl+shift+equals")
         await pilot.pause()
         await pilot.pause()
 
@@ -312,7 +312,7 @@ async def test_ctrl_shift_minus_opens_panel_from_insert() -> None:
         assert app.focused is panel
 
 
-async def test_ctrl_shift_minus_opens_panel_from_normal() -> None:
+async def test_ctrl_shift_equals_opens_panel_from_normal() -> None:
     """The chord shows and focuses the panel while browsing (normal mode)."""
     app = _PromptBarApp("")
 
@@ -321,7 +321,7 @@ async def test_ctrl_shift_minus_opens_panel_from_normal() -> None:
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")  # -> normal mode
 
-        await pilot.press("ctrl+shift+minus")
+        await pilot.press("ctrl+shift+equals")
         await pilot.pause()
         await pilot.pause()
 
@@ -330,7 +330,7 @@ async def test_ctrl_shift_minus_opens_panel_from_normal() -> None:
         assert app.focused is panel
 
 
-async def test_ctrl_shift_minus_again_closes_empty_panel() -> None:
+async def test_ctrl_shift_equals_again_closes_empty_panel() -> None:
     """Pressing the chord from an empty focused panel deactivates and hides it."""
     app = _PromptBarApp("")
 
@@ -338,13 +338,13 @@ async def test_ctrl_shift_minus_again_closes_empty_panel() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        await pilot.press("ctrl+shift+minus")  # open + focus
+        await pilot.press("ctrl+shift+equals")  # open + focus
         await pilot.pause()
         await pilot.pause()
         panel = app.query_one(FrontmatterPanel)
         assert app.focused is panel
 
-        await pilot.press("ctrl+shift+minus")  # toggle off (panel owns focus)
+        await pilot.press("ctrl+shift+equals")  # toggle off (panel owns focus)
         await pilot.pause()
         await pilot.pause()
 
@@ -355,7 +355,7 @@ async def test_ctrl_shift_minus_again_closes_empty_panel() -> None:
         assert bar.active_text_area()._vim_mode == "insert"
 
 
-async def test_ctrl_shift_minus_toggles_focus_with_populated_panel() -> None:
+async def test_ctrl_shift_equals_toggles_focus_with_populated_panel() -> None:
     """With existing frontmatter the chord round-trips focus, keeping the panel."""
     app = _PromptBarApp("---\ndescription: keep\n---\na\n---\nb")
 
@@ -366,13 +366,13 @@ async def test_ctrl_shift_minus_toggles_focus_with_populated_panel() -> None:
         assert bar._frontmatter_panel_visible()
         assert app.focused is bar.active_text_area()
 
-        await pilot.press("ctrl+shift+minus")  # focus the visible panel
+        await pilot.press("ctrl+shift+equals")  # focus the visible panel
         await pilot.pause()
         await pilot.pause()
         panel = app.query_one(FrontmatterPanel)
         assert app.focused is panel
 
-        await pilot.press("ctrl+shift+minus")  # back to body, keep the panel
+        await pilot.press("ctrl+shift+equals")  # back to body, keep the panel
         await pilot.pause()
         await pilot.pause()
 
@@ -381,28 +381,47 @@ async def test_ctrl_shift_minus_toggles_focus_with_populated_panel() -> None:
         assert app.focused is bar.active_text_area()
 
 
-async def test_ctrl_underscore_alias_deactivates_focused_panel() -> None:
-    """``ctrl+underscore`` can still deactivate the focused panel."""
+async def test_ctrl_shift_plus_alias_opens_panel() -> None:
+    """The shifted-equals key path is also reported as ``ctrl+shift+plus``."""
     app = _PromptBarApp("")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        await pilot.press("ctrl+shift+minus")  # open + focus
+        await pilot.press("ctrl+shift+plus")  # open + focus via the plus spelling
         await pilot.pause()
         await pilot.pause()
         panel = app.query_one(FrontmatterPanel)
         assert app.focused is panel
 
-        await pilot.press("ctrl+underscore")  # toggle off from the panel
+        await pilot.press("ctrl+shift+plus")  # toggle off from the panel
         await pilot.pause()
         await pilot.pause()
         assert not bar._frontmatter_panel_visible()
         assert app.focused is bar.active_text_area()
 
 
-async def test_ctrl_shift_minus_noop_in_feedback_mode() -> None:
+async def test_ctrl_shift_minus_no_longer_opens_panel() -> None:
+    """The retired ``Ctrl+Shift+-`` chord no longer opens the properties panel."""
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        assert not bar._frontmatter_panel_visible()
+
+        await pilot.press("ctrl+shift+minus")
+        await pilot.pause()
+        await pilot.pause()
+
+        # The old minus chord is inert: the panel stays hidden and no extra pane
+        # is added.
+        assert not bar._frontmatter_panel_visible()
+        assert len(app.query(".prompt-input")) == 1
+
+
+async def test_ctrl_shift_equals_noop_in_feedback_mode() -> None:
     """Feedback bars mount no panel, so the chord creates nothing."""
     app = _PromptBarApp("feedback text", mode="feedback")
 
@@ -410,7 +429,7 @@ async def test_ctrl_shift_minus_noop_in_feedback_mode() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        await pilot.press("ctrl+shift+minus")
+        await pilot.press("ctrl+shift+equals")
         await pilot.pause()
         await pilot.pause()
 
@@ -419,7 +438,7 @@ async def test_ctrl_shift_minus_noop_in_feedback_mode() -> None:
         assert bar.active_text() == "feedback text"
 
 
-async def test_ctrl_shift_minus_cancels_inline_edit_then_closes() -> None:
+async def test_ctrl_shift_equals_cancels_inline_edit_then_closes() -> None:
     """From an in-progress inline edit the chord cancels it, then deactivates."""
     app = _PromptBarApp("")
 
@@ -437,7 +456,7 @@ async def test_ctrl_shift_minus_cancels_inline_edit_then_closes() -> None:
         assert app.focused is editor
         editor.value = "typed but unsaved"
 
-        await pilot.press("ctrl+shift+minus")  # cancel inline edit + close
+        await pilot.press("ctrl+shift+equals")  # cancel inline edit + close
         await pilot.pause()
         await pilot.pause()
 
@@ -447,7 +466,7 @@ async def test_ctrl_shift_minus_cancels_inline_edit_then_closes() -> None:
         assert app.focused is bar.active_text_area()
 
 
-async def test_ctrl_shift_minus_applies_raw_then_closes() -> None:
+async def test_ctrl_shift_equals_applies_raw_then_closes() -> None:
     """From raw mode the chord applies parseable YAML, then deactivates."""
     app = _PromptBarApp("")
 
@@ -466,7 +485,7 @@ async def test_ctrl_shift_minus_applies_raw_then_closes() -> None:
         raw.text = "description: from raw\n"
         await pilot.pause()
 
-        await pilot.press("ctrl+shift+minus")  # apply raw + close
+        await pilot.press("ctrl+shift+equals")  # apply raw + close
         await pilot.pause()
         await pilot.pause()
 
@@ -477,7 +496,7 @@ async def test_ctrl_shift_minus_applies_raw_then_closes() -> None:
         assert app.focused is bar.active_text_area()
 
 
-async def test_ctrl_shift_minus_keeps_invalid_raw_active() -> None:
+async def test_ctrl_shift_equals_keeps_invalid_raw_active() -> None:
     """Unparseable raw YAML keeps the raw editor open (no silent discard)."""
     app = _PromptBarApp("")
 
@@ -496,7 +515,7 @@ async def test_ctrl_shift_minus_keeps_invalid_raw_active() -> None:
         raw.text = "xprompts:\n  badname:\n    prompt: hi\n"
         await pilot.pause()
 
-        await pilot.press("ctrl+shift+minus")
+        await pilot.press("ctrl+shift+equals")
         await pilot.pause()
         await pilot.pause()
 

@@ -16,7 +16,7 @@ Phase 3 scope (this widget):
   edit scalars / lists inline; **delete** the focused field with ``d``.
 - **Raw** YAML mode with ``R``: edit the canonical serialized frontmatter in a
   single text area, validated live by core; on exit it re-parses into the model.
-- **Done** with ``esc`` / ``q`` (or the ``Ctrl+Shift+-`` toggle that opened it):
+- **Done** with ``esc`` / ``q`` (or the ``Ctrl+Shift+=`` toggle that opened it):
   hands focus back to the prompt body (the host bar removes the frontmatter
   entirely when the panel is left empty).
 
@@ -54,15 +54,16 @@ from sase.ace.tui.widgets._frontmatter_panel_rendering import (
 from sase.xprompt.frontmatter_schema import frontmatter_field_schema
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
-# Textual key spellings for the physical ``Ctrl+Shift+-`` chord that toggles the
-# xprompt properties panel.  ``ctrl+underscore`` also names legacy ``Ctrl+-`` /
-# ``Ctrl+_`` / ``Ctrl+/`` (the ``0x1f`` control byte), so the prompt body keeps
-# only the disambiguated spelling; when the panel itself owns focus, either
-# spelling may deactivate it.
-FRONTMATTER_PANEL_BODY_TOGGLE_KEYS: frozenset[str] = frozenset({"ctrl+shift+minus"})
-FRONTMATTER_PANEL_TOGGLE_KEYS: frozenset[str] = FRONTMATTER_PANEL_BODY_TOGGLE_KEYS | {
-    "ctrl+underscore"
-}
+# Textual key spellings for the physical ``Ctrl+Shift+=`` chord that toggles the
+# xprompt properties panel.  Terminals / Textual report the shifted-equals key
+# along the equals / plus path under several spellings, so all of them map to
+# the same toggle.  ``ctrl+underscore`` is intentionally NOT included here: it
+# stays bound to the legacy add-pane path, not the properties-panel toggle.  The
+# same set also deactivates the panel when it owns focus.
+FRONTMATTER_PANEL_BODY_TOGGLE_KEYS: frozenset[str] = frozenset(
+    {"ctrl+shift+equal", "ctrl+shift+equals", "ctrl+shift+plus", "ctrl+plus"}
+)
+FRONTMATTER_PANEL_TOGGLE_KEYS: frozenset[str] = FRONTMATTER_PANEL_BODY_TOGGLE_KEYS
 
 
 class FrontmatterPanel(
@@ -170,7 +171,7 @@ class FrontmatterPanel(
     # -- key handling ---------------------------------------------------------
 
     def deactivate(self) -> None:
-        """Toggle the panel off (the ``Ctrl+Shift+-`` chord from inside it).
+        """Toggle the panel off (the ``Ctrl+Shift+=`` chord from inside it).
 
         Mirrors the per-mode ``esc`` semantics before leaving, so the chord and
         ``esc`` agree on how an in-progress edit is resolved:
@@ -195,7 +196,7 @@ class FrontmatterPanel(
     def on_key(self, event: events.Key) -> None:
         """Dispatch panel keys, deferring to child editors while editing."""
         if event.key in FRONTMATTER_PANEL_TOGGLE_KEYS:
-            # The ``Ctrl+Shift+-`` toggle deactivates the panel from any mode,
+            # The ``Ctrl+Shift+=`` toggle deactivates the panel from any mode,
             # ahead of the per-mode dispatch below (and the child editors).
             event.stop()
             event.prevent_default()

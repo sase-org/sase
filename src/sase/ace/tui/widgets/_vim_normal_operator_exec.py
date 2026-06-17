@@ -338,45 +338,6 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         self.cursor_location = (row, end)
         self._record_mutation()
 
-    def _join_lines(self, count: int) -> None:
-        """Join the current line with the next *count* lines (vim ``J``).
-
-        Replaces each newline with a single space.  Trailing whitespace on the
-        current line and leading whitespace on the joined line are collapsed.
-        The cursor is placed at the join point.
-        """
-        doc = self.document
-        row = self.cursor_location[0]
-        joins = max(1, count - 1) if count > 1 else 1
-
-        was_readonly = self.read_only
-        self.read_only = False
-
-        join_col = 0
-        for _ in range(joins):
-            if row >= doc.line_count - 1:
-                break
-            cur_line = doc.get_line(row)
-            next_line = doc.get_line(row + 1)
-            # Strip trailing space on current, leading space on next.
-            stripped_cur = cur_line.rstrip()
-            stripped_next = next_line.lstrip()
-            if stripped_cur and stripped_next:
-                joined = stripped_cur + " " + stripped_next
-                join_col = len(stripped_cur)
-            elif stripped_cur:
-                joined = stripped_cur
-                join_col = len(stripped_cur)
-            else:
-                joined = stripped_next
-                join_col = 0
-            self.delete((row, 0), (row + 1, len(next_line)))
-            self._replace_via_keyboard(joined, (row, 0), (row, 0))
-
-        self.cursor_location = (row, join_col)
-        self.read_only = was_readonly
-        self._record_mutation()
-
     def _execute_char_search(
         self,
         motion: str,

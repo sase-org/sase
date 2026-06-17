@@ -285,7 +285,7 @@ class PromptStackState:
         return True
 
     def move_selected(self, delta: int) -> bool:
-        """Cycle the active item by *delta* (``Ctrl+Shift+H``/``Ctrl+Shift+L``).
+        """Cycle the active item by *delta* (the normal-mode ``Up``/``Down`` keys).
 
         With more than one item the target index wraps with modulo arithmetic,
         so ``delta`` ``-1`` from the top item moves it to the bottom and ``+1``

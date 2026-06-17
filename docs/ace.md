@@ -1651,9 +1651,10 @@ separators into fresh panes.
 | `Ctrl+Shift+S` | Launch the selected pane and remove it from the stack                                                  |
 | `Ctrl+C`       | Record the selected pane as cancelled history and remove it; the final remaining pane cancels normally |
 | `Escape`       | Enter NORMAL mode for stack navigation                                                                 |
-| `,j` / `,k`    | Move focus to the next / previous pane in NORMAL mode                                                  |
-| `,J` / `,K`    | Move the active pane down / up in NORMAL mode                                                          |
-| `-`            | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                   |
+| `K` / `J`      | Focus the previous / next pane in NORMAL mode; focus cycles at the stack edges                         |
+| `Up` / `Down`  | Move the active pane up / down in NORMAL mode; reorder cycles at the stack edges                       |
+| `Ctrl+-`       | Add an empty bottom pane (INSERT or NORMAL mode) and switch it to INSERT mode                          |
+| `Ctrl+Shift+=` | Toggle the xprompt frontmatter properties panel (`,f` focuses an already-shown panel)                  |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane so local xprompts and metadata
 continue to resolve. Empty selected panes are dropped without launching. Whole-stack submission joins panes in
