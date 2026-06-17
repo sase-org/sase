@@ -94,7 +94,9 @@ class MultiPromptLaunchMixin:
             log.exception("Partial multi-prompt launch failed; children terminated")
             _log_multi_prompt_failure(exc, ctx, multi, submitted_prompt, partial=True)
             return LaunchTaskOutcome(
-                "Partial multi-prompt launch failed; spawned agents terminated",
+                with_log_panel_hint(
+                    "Partial multi-prompt launch failed; spawned agents terminated"
+                ),
                 severity="error",
                 request_agents_refresh=True,
             )

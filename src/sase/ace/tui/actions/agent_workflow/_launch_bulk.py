@@ -97,6 +97,18 @@ class BulkLaunchMixin:
 
                 if not os.path.isfile(project_file):
                     log.warning("No project file for %s", cl_name)
+                    _log_bulk_item_failure(
+                        FileNotFoundError(
+                            f"No project file for {cl_name}: {project_file}"
+                        ),
+                        cl_name=cl_name,
+                        project_name=project_name,
+                        prompt=prompt,
+                        slot_index=i,
+                        slot_count=len(changespecs),
+                        stage="project_file",
+                        project_file=project_file,
+                    )
                     failed_count += 1
                     continue
 
@@ -110,6 +122,16 @@ class BulkLaunchMixin:
                         )
                 except RuntimeError as e:
                     log.warning("Workspace error for %s: %s", cl_name, e)
+                    _log_bulk_item_failure(
+                        e,
+                        cl_name=cl_name,
+                        project_name=project_name,
+                        prompt=prompt,
+                        slot_index=i,
+                        slot_count=len(changespecs),
+                        stage="workspace_allocation",
+                        project_file=project_file,
+                    )
                     failed_count += 1
                     continue
 
@@ -164,3 +186,30 @@ class BulkLaunchMixin:
                 severity="error",
                 request_agents_refresh=True,
             )
+
+
+def _log_bulk_item_failure(
+    exc: BaseException,
+    *,
+    cl_name: str,
+    project_name: str,
+    prompt: str,
+    slot_index: int,
+    slot_count: int,
+    stage: str,
+    project_file: str,
+) -> None:
+    """Durably record one skipped changespec in a bulk launch."""
+    from sase.logs import log_launch_failure
+
+    log_launch_failure(
+        kind="bulk",
+        display_name=cl_name,
+        exc=exc,
+        project=project_name,
+        prompt_preview=prompt,
+        slot_index=slot_index,
+        slot_count=slot_count,
+        stage=stage,
+        project_file=project_file,
+    )

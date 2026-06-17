@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 16:28:59
-status: wip
+status: done
 prompt: sdd/prompts/202606/complete_sase_4t.md
 ---
 # Plan: Complete verification fixes for sase-4t

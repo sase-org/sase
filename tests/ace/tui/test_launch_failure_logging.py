@@ -20,6 +20,7 @@ from tests.ace.tui._launch_fan_out_helpers import (
     _BulkApp,
     _ctx,
     _FakeMultiPrompt,
+    _launch_result,
     _MultiModelApp,
     _MultiPromptApp,
     _RepeatApp,
@@ -65,6 +66,31 @@ def test_fanout_failure_persists_record() -> None:
     assert record["fanout_kind"] == "model"
 
 
+def test_partial_fanout_failure_uses_log_hint_and_persists_record() -> None:
+    from sase.agent.multi_prompt_launcher import MultiPromptPartialLaunchError
+
+    app = _MultiModelApp()
+    exc = MultiPromptPartialLaunchError([_launch_result()], RuntimeError("slot boom"))
+    with (
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            side_effect=exc,
+        ),
+        patch("sase.agent.partial_launch.rollback_partial_launch_results"),
+        patch("sase.history.prompt.record_failed_launch_prompt"),
+    ):
+        outcome = app._run_multi_model_launch(
+            ["a", "b"], _ctx(), None, False, "model", {}, "submitted", None
+        )
+
+    assert outcome.message == (
+        "Prompt fan-out launch failed; spawned agents terminated - press ,L for the log"
+    )
+    assert outcome.severity == "error"
+    record = _assert_persisted("fanout")
+    assert record["fanout_kind"] == "model"
+
+
 def test_multi_prompt_failure_persists_record() -> None:
     app = _MultiPromptApp()
     multi = _FakeMultiPrompt(["one", "two"])
@@ -78,6 +104,33 @@ def test_multi_prompt_failure_persists_record() -> None:
     ):
         app._run_multi_prompt_launch(multi, _ctx(), None, "submitted")
     record = _assert_persisted("multi_prompt")
+    assert record["segment_count"] == 2
+
+
+def test_partial_multi_prompt_failure_uses_log_hint_and_persists_record() -> None:
+    from sase.agent.multi_prompt_launcher import MultiPromptPartialLaunchError
+
+    app = _MultiPromptApp()
+    multi = _FakeMultiPrompt(["one", "two"])
+    exc = MultiPromptPartialLaunchError([_launch_result()], RuntimeError("slot boom"))
+    with (
+        patch("sase.agent.multi_prompt.MultiPrompt", _FakeMultiPrompt, create=True),
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            side_effect=exc,
+        ),
+        patch("sase.agent.partial_launch.rollback_partial_launch_results"),
+        patch("sase.history.prompt.record_failed_launch_prompt"),
+    ):
+        outcome = app._run_multi_prompt_launch(multi, _ctx(), None, "submitted")
+
+    assert outcome.message == (
+        "Partial multi-prompt launch failed; spawned agents terminated "
+        "- press ,L for the log"
+    )
+    assert outcome.severity == "error"
+    record = _assert_persisted("multi_prompt")
+    assert record["partial"] is True
     assert record["segment_count"] == 2
 
 
@@ -106,7 +159,9 @@ def test_repeat_name_collision_persists_record() -> None:
         ),
         patch("sase.history.prompt.record_failed_launch_prompt"),
     ):
-        app._run_repeat_launch("%r:3 do it", _ctx(), None, False)
+        outcome = app._run_repeat_launch("%r:3 do it", _ctx(), None, False)
+    assert outcome.message == "dup name - press ,L for the log"
+    assert outcome.severity == "error"
     record = _assert_persisted("repeat")
     assert record["name_collision"] is True
 
@@ -120,6 +175,53 @@ def test_bulk_failure_persists_record() -> None:
         outcome = app._run_bulk_launch("prompt", [])
     assert outcome.severity == "error"
     _assert_persisted("bulk")
+
+
+def test_bulk_missing_project_file_item_persists_record() -> None:
+    app = _BulkApp()
+    cs = SimpleNamespace(name="cl-missing", project_basename="proj")
+
+    outcome = app._run_bulk_launch("prompt", [cs])
+
+    assert outcome.message == "Started 0 agent(s), 1 failed"
+    assert outcome.severity == "warning"
+    record = _assert_persisted("bulk")
+    assert record["display_name"] == "cl-missing"
+    assert record["project"] == "proj"
+    assert record["stage"] == "project_file"
+    assert record["slot_index"] == 0
+    assert record["slot_count"] == 1
+    assert record["exc_type"] == "FileNotFoundError"
+    assert record["prompt_preview"] == "prompt"
+    assert record["project_file"].endswith("/proj/proj.sase")
+
+
+def test_bulk_workspace_allocation_item_persists_record() -> None:
+    from sase.core.paths import sase_projects_dir
+
+    project_dir = sase_projects_dir() / "proj"
+    project_dir.mkdir(parents=True)
+    (project_dir / "proj.sase").write_text("# Project\n", encoding="utf-8")
+
+    app = _BulkApp()
+    cs = SimpleNamespace(name="cl-workspace", project_basename="proj")
+    with patch(
+        "sase.running_field.get_first_available_axe_workspace",
+        side_effect=RuntimeError("no workspace"),
+    ):
+        outcome = app._run_bulk_launch("prompt", [cs])
+
+    assert outcome.message == "Started 0 agent(s), 1 failed"
+    assert outcome.severity == "warning"
+    record = _assert_persisted("bulk")
+    assert record["display_name"] == "cl-workspace"
+    assert record["project"] == "proj"
+    assert record["stage"] == "workspace_allocation"
+    assert record["slot_index"] == 0
+    assert record["slot_count"] == 1
+    assert record["exc_message"] == "no workspace"
+    assert record["prompt_preview"] == "prompt"
+    assert record["project_file"].endswith("/proj/proj.sase")
 
 
 def test_single_body_failure_persists_record() -> None:

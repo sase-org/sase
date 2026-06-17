@@ -147,7 +147,9 @@ class MultiModelLaunchMixin:
                 submitted_xprompt=submitted_xprompt,
             )
             return LaunchTaskOutcome(
-                "Prompt fan-out launch failed; spawned agents terminated",
+                with_log_panel_hint(
+                    "Prompt fan-out launch failed; spawned agents terminated"
+                ),
                 severity="error",
                 request_agents_refresh=True,
                 refresh_notifications=True,

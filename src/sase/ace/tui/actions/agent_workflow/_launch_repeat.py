@@ -185,7 +185,6 @@ class RepeatLaunchMixin:
                 results=launch_results_tuple(execution.results),
             )
         except NameCollisionError as e:
-            err_msg = str(e)
             from sase.history.prompt import record_failed_launch_prompt
 
             record_failed_launch_prompt(prompt)
@@ -193,7 +192,9 @@ class RepeatLaunchMixin:
             # A mid-plan failure may have already spawned some slots;
             # without results, only a refresh makes them visible.
             return LaunchTaskOutcome(
-                err_msg, severity="error", request_agents_refresh=True
+                with_log_panel_hint(str(e)),
+                severity="error",
+                request_agents_refresh=True,
             )
         except Exception as exc:
             from sase.history.prompt import record_failed_launch_prompt
