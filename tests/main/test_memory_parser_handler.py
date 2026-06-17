@@ -31,11 +31,11 @@ def test_parser_registers_memory_namespace() -> None:
     assert list_args.memory_subcommand == "list"
 
     read_args = parser.parse_args(
-        ["memory", "read", "long/foo.md", "--reason", "Need context"]
+        ["memory", "read", "foo.md", "--reason", "Need context"]
     )
     assert read_args.command == "memory"
     assert read_args.memory_subcommand == "read"
-    assert read_args.memory_path == "long/foo.md"
+    assert read_args.memory_path == "foo.md"
     assert read_args.reason == "Need context"
 
     write_args = parser.parse_args(
@@ -133,17 +133,17 @@ def test_parser_requires_memory_read_reason() -> None:
     parser = create_parser()
 
     with pytest.raises(SystemExit):
-        parser.parse_args(["memory", "read", "long/foo.md"])
+        parser.parse_args(["memory", "read", "foo.md"])
 
 
 def test_parser_accepts_memory_read_reason_short_option() -> None:
     parser = create_parser()
 
-    args = parser.parse_args(["memory", "read", "long/foo.md", "-r", "Need context"])
+    args = parser.parse_args(["memory", "read", "foo.md", "-r", "Need context"])
 
     assert args.command == "memory"
     assert args.memory_subcommand == "read"
-    assert args.memory_path == "long/foo.md"
+    assert args.memory_path == "foo.md"
     assert args.reason == "Need context"
 
 
@@ -200,7 +200,7 @@ def test_memory_read_dispatches_to_read_handler(
         fake_read,
     )
     args = create_parser().parse_args(
-        ["memory", "read", "long/foo.md", "--reason", "Need context"]
+        ["memory", "read", "foo.md", "--reason", "Need context"]
     )
 
     with pytest.raises(SystemExit) as exc:

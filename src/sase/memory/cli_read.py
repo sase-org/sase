@@ -9,6 +9,7 @@ import sys
 from sase.memory.read_log import (
     AgentIdentityError,
     MemoryReadError,
+    MemoryReadContent,
     append_memory_read_event,
     build_memory_read_event,
     normalize_read_reason,
@@ -16,6 +17,7 @@ from sase.memory.read_log import (
     require_agent_identity,
     validate_memory_read_path,
 )
+from sase.memory.notes import discover_memory_notes, render_children_section
 
 
 def handle_memory_read_command(args: argparse.Namespace) -> None:
@@ -28,6 +30,7 @@ def handle_memory_read_command(args: argparse.Namespace) -> None:
             home_root=Path.home(),
         )
         content = read_memory_content(validated_path)
+        output = _render_memory_read_output(content)
         event = build_memory_read_event(
             content,
             reason=reason,
@@ -39,4 +42,18 @@ def handle_memory_read_command(args: argparse.Namespace) -> None:
         print(f"sase memory read: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    sys.stdout.write(content.body)
+    sys.stdout.write(output)
+
+
+def _render_memory_read_output(content: MemoryReadContent) -> str:
+    notes = discover_memory_notes(content.path.memory_root.parent)
+    children_section = render_children_section(notes, content.path.note)
+    if not children_section:
+        return content.body
+
+    body = content.body
+    if body and not body.endswith("\n"):
+        body += "\n"
+    if body and not body.endswith("\n\n"):
+        body += "\n"
+    return body + children_section

@@ -31,7 +31,38 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def test_validate_memory_read_path_allows_long_markdown(tmp_path: Path) -> None:
+def test_validate_memory_read_path_allows_flat_long_markdown(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "memory" / "foo.md",
+        "---\ntype: long\nparent: AGENTS.md\ndescription: Foo.\n---\n# Foo\n",
+    )
+
+    result = validate_memory_read_path("foo.md", project_root=tmp_path)
+
+    assert result.canonical_path == "foo.md"
+    assert result.path == tmp_path / "memory" / "foo.md"
+    assert result.note.relative_path == "memory/foo.md"
+    assert result.note.type == "long"
+    assert result.resolved_path == (tmp_path / "memory" / "foo.md").resolve()
+
+
+def test_validate_memory_read_path_accepts_optional_memory_prefix(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "memory" / "foo.md",
+        "---\ntype: long\nparent: AGENTS.md\ndescription: Foo.\n---\n# Foo\n",
+    )
+
+    result = validate_memory_read_path("memory/foo.md", project_root=tmp_path)
+
+    assert result.canonical_path == "foo.md"
+    assert result.path == tmp_path / "memory" / "foo.md"
+
+
+def test_validate_memory_read_path_allows_legacy_long_markdown(
+    tmp_path: Path,
+) -> None:
     _write(tmp_path / "memory" / "long" / "foo.md", "# Foo\n")
 
     result = validate_memory_read_path("long/foo.md", project_root=tmp_path)
@@ -97,6 +128,16 @@ def test_validate_memory_read_path_rejects_short_memory(tmp_path: Path) -> None:
 
     with pytest.raises(MemoryReadPathError, match="memory/short"):
         validate_memory_read_path("short/foo.md", project_root=tmp_path)
+
+
+def test_validate_memory_read_path_rejects_flat_short_memory(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "memory" / "foo.md",
+        "---\ntype: short\nparent: AGENTS.md\n---\n# Foo\n",
+    )
+
+    with pytest.raises(MemoryReadPathError, match="always-loaded"):
+        validate_memory_read_path("foo.md", project_root=tmp_path)
 
 
 def test_validate_memory_read_path_rejects_traversal(tmp_path: Path) -> None:

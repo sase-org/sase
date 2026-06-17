@@ -24,6 +24,7 @@ from sase.agent.identity import (
 from sase.core.paths import sase_projects_dir
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.locks import locked_file
+from sase.memory.notes import MEMORY_DIR, MemoryNote, parse_memory_note_text
 
 READ_LOG_SCHEMA_VERSION = 1
 ALLOWED_READ_SUBDIRS = frozenset({"long"})
@@ -46,6 +47,7 @@ class ValidatedMemoryPath:
     canonical_path: str
     path: Path
     resolved_path: Path
+    note: MemoryNote
 
 
 @dataclass(frozen=True)
@@ -112,38 +114,53 @@ def validate_memory_read_path(
     if raw_path.is_absolute():
         raise MemoryReadPathError("memory read path must be relative to memory/")
 
-    parts = raw_path.parts
+    parts = _normalize_memory_read_parts(raw_path)
     if not parts or parts == (".",):
         raise MemoryReadPathError("memory read path is required")
     if any(part in {"", ".", ".."} for part in parts):
         raise MemoryReadPathError("memory read path must not contain traversal")
-    if len(parts) < 2:
-        raise MemoryReadPathError(
-            "memory read path must include an allowed subdirectory and filename"
-        )
-
-    subdir = parts[0]
-    if subdir == "short":
-        raise MemoryReadPathError(
-            "memory/short files are always-loaded context and cannot be read with this command"
-        )
-    if subdir not in allowed_subdirs:
-        allowed = ", ".join(sorted(allowed_subdirs))
-        raise MemoryReadPathError(f"memory read path must start with one of: {allowed}")
-    if raw_path.suffix != ".md":
+    if Path(*parts).suffix != ".md":
         raise MemoryReadPathError("memory read path must point to a .md file")
+    if not _is_flat_note_path(parts) and not _is_legacy_note_path(
+        parts, allowed_subdirs
+    ):
+        allowed = ", ".join(f"{subdir}/" for subdir in sorted(allowed_subdirs))
+        raise MemoryReadPathError(
+            f"memory read path must be a flat .md note name or legacy {allowed} path"
+        )
 
     for memory_root in _memory_read_roots(project_root, home_root):
         path = _validate_memory_read_candidate(
             memory_root=memory_root,
             parts=parts,
-            subdir=subdir,
             raw_path=raw_path,
+            flat=_is_flat_note_path(parts),
         )
         if path is not None:
             return path
 
     raise MemoryReadPathError(f"memory file does not exist: {raw_path.as_posix()}")
+
+
+def _normalize_memory_read_parts(raw_path: Path) -> tuple[str, ...]:
+    parts = raw_path.parts
+    if parts and parts[0] == MEMORY_DIR:
+        return parts[1:]
+    return parts
+
+
+def _is_flat_note_path(parts: tuple[str, ...]) -> bool:
+    return len(parts) == 1
+
+
+def _is_legacy_note_path(
+    parts: tuple[str, ...],
+    allowed_subdirs: frozenset[str],
+) -> bool:
+    if len(parts) < 2:
+        return False
+    subdir = parts[0]
+    return subdir == "short" or subdir in allowed_subdirs
 
 
 def _memory_read_roots(
@@ -167,10 +184,11 @@ def _validate_memory_read_candidate(
     *,
     memory_root: Path,
     parts: tuple[str, ...],
-    subdir: str,
     raw_path: Path,
+    flat: bool,
 ) -> ValidatedMemoryPath | None:
-    allowed_root = (memory_root / subdir).resolve(strict=False)
+    subdir = parts[0] if not flat else ""
+    allowed_root = (memory_root if flat else memory_root / subdir).resolve(strict=False)
     candidate = memory_root.joinpath(*parts)
 
     try:
@@ -189,8 +207,23 @@ def _validate_memory_read_candidate(
     if not candidate.is_file():
         raise MemoryReadPathError(f"memory path is not a file: {raw_path.as_posix()}")
     if not _is_relative_to(resolved, allowed_root):
+        location = "memory/" if flat else f"{subdir}/"
         raise MemoryReadPathError(
-            f"memory file resolves outside the allowed {subdir}/ directory"
+            f"memory file resolves outside the allowed {location} directory"
+        )
+
+    note = _read_validated_memory_note(
+        memory_root=memory_root,
+        path=candidate,
+        raw_path=raw_path,
+    )
+    if note.type == "short":
+        raise MemoryReadPathError(
+            f"{note.relative_path} is always-loaded context and cannot be read with this command"
+        )
+    if note.type != "long":
+        raise MemoryReadPathError(
+            f"memory file is not a long-term memory note: {note.relative_path}"
         )
 
     canonical_path = Path(*parts).as_posix()
@@ -200,7 +233,24 @@ def _validate_memory_read_candidate(
         canonical_path=canonical_path,
         path=candidate,
         resolved_path=resolved,
+        note=note,
     )
+
+
+def _read_validated_memory_note(
+    *,
+    memory_root: Path,
+    path: Path,
+    raw_path: Path,
+) -> MemoryNote:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise MemoryReadPathError(
+            f"memory file does not exist: {raw_path.as_posix()}"
+        ) from exc
+    root = memory_root.parent
+    return parse_memory_note_text(text, path.relative_to(root))
 
 
 def _has_broken_symlink_component(path: Path, root: Path) -> bool:

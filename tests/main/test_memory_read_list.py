@@ -93,6 +93,83 @@ def test_memory_read_prints_body_and_appends_log(
     assert events[0].frontmatter_stripped is True
 
 
+def test_memory_read_accepts_flat_path_and_omits_empty_children(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    write(
+        tmp_path / "memory" / "foo.md",
+        "---\ntype: long\nparent: AGENTS.md\ndescription: Foo memory.\n---\n# Body\n\n",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+
+    handle_memory_read_command(
+        argparse.Namespace(memory_path="foo.md", reason="Need foo")
+    )
+
+    captured = capsys.readouterr()
+    assert captured.out == "# Body\n\n"
+    assert captured.err == ""
+    events = read_memory_read_events(log_path=memory_read_log_path(cwd=tmp_path))
+    assert len(events) == 1
+    assert events[0].canonical_path == "foo.md"
+
+
+def test_memory_read_appends_children_section(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    write(
+        tmp_path / "memory" / "hub.md",
+        "---\ntype: long\nparent: AGENTS.md\ndescription: Hub memory.\n---\n# Hub\n\n",
+    )
+    write(
+        tmp_path / "memory" / "child_b.md",
+        "---\n"
+        "type: long\n"
+        "parent: memory/hub.md\n"
+        "description: Beta child.\n"
+        "---\n"
+        "# Child B\n",
+    )
+    write(
+        tmp_path / "memory" / "child_a.md",
+        "---\n"
+        "type: long\n"
+        "parent: memory/hub.md\n"
+        "description: Alpha child.\n"
+        "---\n"
+        "# Child A\n",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+
+    handle_memory_read_command(
+        argparse.Namespace(memory_path="memory/hub.md", reason="Need hub")
+    )
+
+    captured = capsys.readouterr()
+    assert captured.out == (
+        "# Hub\n\n"
+        "## Children\n\n"
+        "**`memory/child_a.md`**  \n"
+        "Alpha child.\n\n"
+        "**`memory/child_b.md`**  \n"
+        "Beta child.\n"
+    )
+    assert captured.err == ""
+    events = read_memory_read_events(log_path=memory_read_log_path(cwd=tmp_path))
+    assert len(events) == 1
+    assert events[0].canonical_path == "hub.md"
+
+
 def test_memory_read_falls_back_to_home_memory_and_logs_resolved_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -142,6 +219,32 @@ def test_memory_read_rejects_short_memory_without_logging(
     assert exc.value.code == 1
     assert captured.out == ""
     assert "memory/short" in captured.err
+    assert not memory_read_log_path(cwd=tmp_path).exists()
+
+
+def test_memory_read_rejects_flat_short_memory_without_logging(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    write(
+        tmp_path / "memory" / "foo.md",
+        "---\ntype: short\nparent: AGENTS.md\n---\n# Short\n",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+
+    with pytest.raises(SystemExit) as exc:
+        handle_memory_read_command(
+            argparse.Namespace(memory_path="foo.md", reason="Need short")
+        )
+
+    captured = capsys.readouterr()
+    assert exc.value.code == 1
+    assert captured.out == ""
+    assert "always-loaded" in captured.err
     assert not memory_read_log_path(cwd=tmp_path).exists()
 
 

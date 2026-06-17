@@ -517,7 +517,7 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
 
     assert "`sase memory list`" in memory_help
     assert "{init,list,log,read,review,write}" in memory_help
-    assert "sase memory read long/generated_skills.md --reason" in memory_help
+    assert "sase memory read generated_skills.md --reason" in memory_help
     assert "sase memory write --title" in memory_help
     assert "sase memory review --list" in memory_help
     assert "sase memory review mem-20260523-142233-a1b2c3d4 --edit" in memory_help
@@ -528,8 +528,9 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "`sase init memory` is a compatibility alias" in memory_init_help
     assert "loaded @ references" in memory_list_help
     assert "referenced-only plain memory paths" in memory_list_help
-    assert "memory/long markdown file" in memory_read_help
-    assert "falling back to ~/memory/long" in memory_read_help
+    assert "long-term memory markdown file" in memory_read_help
+    assert "falling back to ~/memory/" in memory_read_help
+    assert "legacy long/... paths are still accepted" in memory_read_help
     assert "--reason REASON" in memory_read_help
     assert "Need generated skill context" in memory_read_help
     assert "--evidence EVIDENCE" in memory_write_help

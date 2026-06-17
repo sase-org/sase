@@ -15,7 +15,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         epilog=(
             "examples:\n"
-            "  sase memory read long/generated_skills.md --reason "
+            "  sase memory read generated_skills.md --reason "
             '"Need generated skill context"\n'
             '  sase memory write --title "Generated skills" --slug '
             "generated_skills --evidence sdd/research/skills.md --body "
@@ -71,14 +71,17 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Read and audit a long-term memory file",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Read a project memory/long markdown file, falling back to "
-            "~/memory/long when the project file is absent. Leading YAML "
-            "frontmatter is stripped before printing, and each read appends "
-            "an attributable audit log row."
+            "Read a long-term memory markdown file from project memory/, "
+            "falling back to ~/memory/ when the project file is absent. "
+            "Pass a flat note name such as generated_skills.md; legacy "
+            "long/... paths are still accepted during migration. Leading "
+            "YAML frontmatter is stripped before printing, child notes are "
+            "listed when present, and each read appends an attributable "
+            "audit log row."
         ),
         epilog=(
             "example:\n"
-            "  sase memory read long/generated_skills.md --reason "
+            "  sase memory read generated_skills.md --reason "
             '"Need generated skill context"'
         ),
     )
@@ -87,7 +90,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="memory-relative-path",
         help=(
             "Path relative to project memory/ or ~/memory/, for example "
-            "long/generated_skills.md"
+            "generated_skills.md"
         ),
     )
     read_parser.add_argument(
