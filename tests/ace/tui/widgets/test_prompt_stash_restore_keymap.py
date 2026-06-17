@@ -1,10 +1,12 @@
-"""Widget-level tests for prompt-stash restore (``gP``).
+"""Widget-level tests for prompt-stash restore/load (``gP`` / ``gp``).
 
-Covers the bar side of restore: the normal-mode ``g`` prefix posts a
-presentation-only ``PromptInputBar.RestoreRequested`` (carrying the bar mode so
-the app can guard), and ``restore_stashed_entries`` appends restored drafts as
-new panes — dropping a lone empty drafting pane, preserving existing panes, and
-adopting frontmatter when the bar has none.  Non-prompt bars never restore.
+Covers the bar side of restore/load: the normal-mode ``g`` prefix posts a
+presentation-only ``PromptInputBar.RestoreRequested`` carrying the bar mode (so
+the app can guard) and a ``destructive`` flag — ``gP`` requests a destructive
+pop-and-load while ``gp`` requests a non-destructive copy.  ``restore_stashed_entries``
+appends restored drafts as new panes — dropping a lone empty drafting pane,
+preserving existing panes, and adopting frontmatter when the bar has none.
+Non-prompt bars never restore.
 """
 
 from __future__ import annotations
@@ -41,7 +43,7 @@ class _RestoreApp(App[None]):
 # --- gP posts the request --------------------------------------------------
 
 
-async def test_gP_posts_restore_request_in_prompt_mode() -> None:
+async def test_gP_posts_destructive_restore_request_in_prompt_mode() -> None:
     app = _RestoreApp("draft")
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
@@ -51,6 +53,20 @@ async def test_gP_posts_restore_request_in_prompt_mode() -> None:
 
         assert len(app.restore_requests) == 1
         assert app.restore_requests[0].mode == "prompt"
+        assert app.restore_requests[0].destructive is True
+
+
+async def test_gp_posts_non_destructive_load_request_in_prompt_mode() -> None:
+    app = _RestoreApp("draft")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("escape")  # insert -> normal
+        await pilot.press("g", "p")
+        await pilot.pause()
+
+        assert len(app.restore_requests) == 1
+        assert app.restore_requests[0].mode == "prompt"
+        assert app.restore_requests[0].destructive is False
 
 
 async def test_gP_forwards_feedback_mode() -> None:
@@ -64,6 +80,7 @@ async def test_gP_forwards_feedback_mode() -> None:
         # The bar still signals intent in feedback mode; the app toasts a no-op.
         assert len(app.restore_requests) == 1
         assert app.restore_requests[0].mode == "feedback"
+        assert app.restore_requests[0].destructive is True
 
 
 # --- restore_stashed_entries loads panes -----------------------------------

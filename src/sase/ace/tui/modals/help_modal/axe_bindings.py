@@ -91,10 +91,6 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'temporary_llm_override'))}",
                     "Model overrides",
                 ),
-                (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'restore_prompt_stash'))}",
-                    "Restore stashed prompt",
-                ),
             ],
         ),
         (

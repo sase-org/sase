@@ -36,10 +36,13 @@ log = logging.getLogger(__name__)
 
 
 # Retired built-in leader-mode action ids. These are dropped while loading so a
-# stale user override (e.g. a lingering ``leader.kill_marked_and_edit`` entry)
-# cannot deep-merge a removed command back into the registry. ``kill_marked_and_edit``
-# was folded into the contextual ``kill_and_edit`` (``,x``) action.
-_RETIRED_LEADER_KEYS: frozenset[str] = frozenset({"kill_marked_and_edit"})
+# stale user override cannot deep-merge a removed command back into the registry.
+# ``kill_marked_and_edit`` was folded into the contextual ``kill_and_edit``
+# (``,x``) action; ``restore_prompt_stash`` (the old global ``,P``) was replaced
+# by the prompt-local ``gP`` / ``gp`` keymaps on the prompt input bar.
+_RETIRED_LEADER_KEYS: frozenset[str] = frozenset(
+    {"kill_marked_and_edit", "restore_prompt_stash"}
+)
 
 
 # ---------------------------------------------------------------------------

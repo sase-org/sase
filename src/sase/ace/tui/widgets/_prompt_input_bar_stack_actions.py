@@ -387,22 +387,21 @@ class PromptInputBarStackActionsMixin(_MixinBase):
     def request_restore_stash(self) -> None:
         """Ask the app to open the destructive restore picker (the ``gP`` keymap).
 
-        Presentation-only: the bar posts ``RestoreRequested`` with its current
-        mode and the app performs the snapshot read / pop / load (boundary rule
-        D6).  Posted in every mode so the app can toast a no-op when restore is
-        not available (feedback / approve-prompt bars).
+        Presentation-only: the bar posts ``RestoreRequested`` (``destructive``)
+        with its current mode and the app performs the snapshot read / pop / load
+        (boundary rule D6).  Posted in every mode so the app can toast a no-op
+        when restore is not available (feedback / approve-prompt bars).
         """
-        self.post_message(self.RestoreRequested(self._mode))
+        self.post_message(self.RestoreRequested(self._mode, destructive=True))
 
     def request_load_stash(self) -> None:
         """Ask the app to load stash entries non-destructively (the ``gp`` keymap).
 
-        Presentation-only intent signal that mirrors :meth:`request_restore_stash`
-        for now; Phase 4 differentiates the two so ``gp`` copies the chosen
-        entries into the bar without removing them from the stash, while ``gP``
-        keeps the destructive pop semantics.
+        Mirrors :meth:`request_restore_stash` but posts ``destructive=False`` so
+        the app copies the chosen entries into the bar without removing them from
+        the stash; the stash badge is left unchanged.
         """
-        self.post_message(self.RestoreRequested(self._mode))
+        self.post_message(self.RestoreRequested(self._mode, destructive=False))
 
     def restore_stashed_entries(self, entries: list[tuple[str, str]]) -> None:
         """Append restored stash drafts as new panes (the ``gP`` restore path).

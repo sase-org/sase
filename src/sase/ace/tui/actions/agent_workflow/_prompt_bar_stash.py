@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from ._types import PromptContext
 
 if TYPE_CHECKING:
+    from sase.ace.tui.modals import StashRestoreResult
     from sase.ace.tui.widgets import PromptInputBar
     from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
         StashedPromptPane,
@@ -101,24 +102,33 @@ class PromptBarStashMixin:
             )
             append_prompt_stash(path, entry)
 
-    # -- restore (Phase 3) ---------------------------------------------------
+    # -- restore / load ------------------------------------------------------
 
-    def on_prompt_input_bar_restore_requested(self, event: object) -> None:
-        """Open the restore picker when the bar requests it (``,P``)."""
+    async def on_prompt_input_bar_restore_requested(self, event: object) -> None:
+        """Open the restore/load picker when the bar requests it (``gP``/``gp``)."""
         from ...widgets import PromptInputBar
 
         if not isinstance(event, PromptInputBar.RestoreRequested):
             return
-        self._open_prompt_stash_restore(bar_mode=event.mode)
+        await self._open_prompt_stash_restore(
+            bar_mode=event.mode, destructive=event.destructive
+        )
 
-    def _open_prompt_stash_restore(self, bar_mode: str | None = None) -> None:
-        """Read the stash snapshot and push the restore picker.
+    async def _open_prompt_stash_restore(
+        self, bar_mode: str | None = None, *, destructive: bool = True
+    ) -> None:
+        """Read the stash snapshot off-thread and push the restore/load picker.
 
-        Restore is guarded to ``prompt`` bars (D5): a feedback / approve-prompt
-        bar toasts a no-op.  When triggered from app leader mode (*bar_mode* is
-        ``None``) the currently mounted bar — if any — supplies the mode.  An
-        empty store toasts instead of opening an empty modal.
+        Restore/load is guarded to ``prompt`` bars (D5): a feedback /
+        approve-prompt bar toasts a no-op.  When *bar_mode* is ``None`` the
+        currently mounted bar — if any — supplies the mode.  ``destructive``
+        selects the picker mode: ``gP`` pops the chosen entries, ``gp`` copies
+        them and leaves the stash intact.  An empty store toasts instead of
+        opening an empty modal.  The snapshot read runs on a worker thread so key
+        handling never blocks the paint path (boundary rule D6).
         """
+        import asyncio
+
         from ...modals import StashedPromptsModal
 
         if bar_mode is None:
@@ -130,32 +140,47 @@ class PromptBarStashMixin:
             )
             return
 
-        entries = self._read_prompt_stash_entries()
+        entries = await asyncio.to_thread(self._read_prompt_stash_entries)
         if not entries:
             self.notify("No stashed prompts to restore")  # type: ignore[attr-defined]
             return
 
         self.push_screen(  # type: ignore[attr-defined]
-            StashedPromptsModal(entries),
+            StashedPromptsModal(entries, destructive=destructive),
             self._on_prompt_stash_restore_confirmed,
         )
 
-    def _on_prompt_stash_restore_confirmed(self, result: object) -> None:
-        """Pop the chosen entries, load the restored drafts, refresh the badge."""
+    async def _on_prompt_stash_restore_confirmed(self, result: object) -> None:
+        """Apply the picker outcome: destructive pop-and-load, or non-destructive load."""
         from ...modals import StashRestoreResult
 
         if not isinstance(result, StashRestoreResult):
             return  # cancelled (None) or unexpected payload
 
-        ids = [*result.restore_ids, *result.delete_ids]
-        if not ids:
-            return
+        if result.destructive:
+            await self._apply_destructive_restore(result)
+        else:
+            await self._apply_nondestructive_load(result)
+
+    async def _apply_destructive_restore(self, result: StashRestoreResult) -> None:
+        """Pop the chosen entries, load the restored drafts, refresh the badge.
+
+        The pop is a whole-file rewrite, so it runs on a worker thread; the load
+        and badge refresh happen back on the UI thread once it completes.
+        """
+        import asyncio
 
         from sase.core.paths import prompt_stash_path
         from sase.core.prompt_stash_facade import pop_prompt_stash
 
+        ids = [*result.restore_ids, *result.delete_ids]
+        if not ids:
+            return
+
         try:
-            outcome = pop_prompt_stash(prompt_stash_path(), ids)
+            outcome = await asyncio.to_thread(
+                pop_prompt_stash, prompt_stash_path(), ids
+            )
         except Exception as exc:  # pragma: no cover - defensive (store/IO error)
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to restore prompt: {exc}", severity="error"
@@ -175,6 +200,35 @@ class PromptBarStashMixin:
         deleted = sum(1 for entry_id in result.delete_ids if entry_id in removed)
         self._notify_restore_outcome(len(restored), deleted)
         self._refresh_prompt_stash_indicator()
+
+    async def _apply_nondestructive_load(self, result: StashRestoreResult) -> None:
+        """Copy the chosen entries into the bar without touching the store (``gp``).
+
+        Reads the snapshot off-thread, loads the selected entries oldest-first
+        with the same ``(created_at, pane_index)`` ordering as a destructive
+        restore, and leaves both the stash and its badge untouched.
+        """
+        import asyncio
+
+        restore_ids = list(result.restore_ids)
+        if not restore_ids:
+            return
+
+        snapshot = await asyncio.to_thread(self._read_prompt_stash_entries)
+        by_id = {entry.id: entry for entry in snapshot}
+        loaded: list[PromptStashEntryWire] = [
+            by_id[entry_id] for entry_id in restore_ids if entry_id in by_id
+        ]
+        loaded.sort(key=lambda entry: (entry.created_at, entry.pane_index))
+        if not loaded:
+            return
+
+        self._load_restored_entries(loaded)
+        count = len(loaded)
+        self.notify(  # type: ignore[attr-defined]
+            "Loaded prompt" if count == 1 else f"Loaded {count} prompts"
+        )
+        # The entries stay in the stash, so the badge is intentionally unchanged.
 
     def _load_restored_entries(self, entries: list[PromptStashEntryWire]) -> None:
         """Load restored stash drafts into the prompt bar.

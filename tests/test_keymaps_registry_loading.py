@@ -133,6 +133,31 @@ def test_stale_kill_marked_and_edit_override_is_dropped() -> None:
     assert reg.leader_mode.keys["kill_and_edit"] == "y"  # legit override survives
 
 
+def test_stale_restore_prompt_stash_override_is_dropped() -> None:
+    """A lingering ``restore_prompt_stash`` override cannot revive global ``,P``.
+
+    The global leader restore was retired in favour of the prompt-local ``gP`` /
+    ``gp`` keymaps; a stale user config entry must be filtered during load so the
+    deep-merge does not reintroduce it, while other leader overrides still apply.
+    """
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "leader_mode": {
+                        "keys": {
+                            "restore_prompt_stash": "P",
+                            "kill_and_edit": "y",
+                        },
+                    },
+                },
+            },
+        }
+    )
+    assert "restore_prompt_stash" not in reg.leader_mode.keys
+    assert reg.leader_mode.keys["kill_and_edit"] == "y"  # legit override survives
+
+
 def test_mode_prefix_override() -> None:
     """Overriding a mode prefix also updates the app action key."""
     reg = load_keymap_registry(

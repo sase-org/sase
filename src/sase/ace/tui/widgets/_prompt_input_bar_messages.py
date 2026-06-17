@@ -85,18 +85,21 @@ class Stashed(Message, namespace="prompt_input_bar"):
 
 
 class RestoreRequested(Message, namespace="prompt_input_bar"):
-    """Message sent when the user asks to restore stashed prompts (``,P``).
+    """Message sent when the user asks to restore/load stashed prompts.
 
     Presentation-only (boundary rule D6): the bar just signals intent and
     forwards its current ``mode`` so the app can guard restore to prompt bars
-    (feedback / approve-prompt bars toast a no-op).  The app reads the stash
-    snapshot, opens the picker, and on confirm pops the chosen entries and loads
-    them back into the bar.
+    (feedback / approve-prompt bars toast a no-op).  ``destructive`` selects the
+    semantics: ``gP`` (``destructive=True``) pops the chosen entries out of the
+    stash and loads them, while ``gp`` (``destructive=False``) copies the chosen
+    entries into the bar but leaves them in the stash.  The app reads the stash
+    snapshot, opens the picker, and applies the chosen mode on confirm.
     """
 
-    def __init__(self, mode: str = "prompt") -> None:
+    def __init__(self, mode: str = "prompt", *, destructive: bool = True) -> None:
         super().__init__()
         self.mode = mode
+        self.destructive = destructive
 
 
 class EditorRequested(Message, namespace="prompt_input_bar"):

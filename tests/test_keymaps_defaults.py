@@ -150,6 +150,18 @@ def test_leader_mode_kill_and_edit_is_contextual_x_only() -> None:
     assert "kill_marked_and_edit" not in reg.leader_mode.keys
 
 
+def test_leader_mode_restore_prompt_stash_is_removed() -> None:
+    """The global ``,P`` restore-stash leader key no longer exists.
+
+    Restore/load moved to the prompt-local ``gP`` / ``gp`` keymaps on the prompt
+    input bar, so ``restore_prompt_stash`` must be absent from both the typed
+    dataclass defaults and the loaded registry.
+    """
+    reg = load_keymap_registry({})
+    assert "restore_prompt_stash" not in LeaderModeKeymaps().keys
+    assert "restore_prompt_stash" not in reg.leader_mode.keys
+
+
 def test_leader_mode_default_subkeys_are_unique() -> None:
     """No two default leader-mode actions share the same subkey.
 

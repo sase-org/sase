@@ -1,13 +1,13 @@
-"""Restore picker for stashed prompt drafts (the ``,P`` modal).
+"""Restore/load picker for stashed prompt drafts (the ``gP`` / ``gp`` modal).
 
-Phase 3 of the prompt-stash feature.  Lists stashed prompts newest-first with a
-relative age, an originating-project chip, and a one-line preview.  ``space``
-toggles an entry for restore, ``a`` toggles all, ``d`` marks an entry for
-deletion (discard without restoring), and ``enter`` confirms.  The modal is
-presentation-only: it never touches the store.  It dismisses with a
-:class:`StashRestoreResult` describing which entries to pop-and-load versus
-pop-and-discard (boundary rule D6); the app layer performs the actual ``pop``
-through ``prompt_stash_facade`` and loads the restored drafts into the bar.
+Lists stashed prompts newest-first with a relative age, an originating-project
+chip, and a one-line preview.  ``space`` toggles an entry, ``a`` toggles all,
+``d`` marks an entry for deletion (only in destructive ``gP`` mode), and
+``enter`` confirms.  The modal is presentation-only: it never touches the store.
+It dismisses with a :class:`StashRestoreResult` describing which entries the
+chosen mode should apply (boundary rule D6); the app layer performs the actual
+``pop`` (destructive ``gP``) or snapshot read (non-destructive ``gp``) through
+``prompt_stash_facade`` and loads the chosen drafts into the bar.
 """
 
 from __future__ import annotations
@@ -99,16 +99,21 @@ def _stash_row_label(
 
 @dataclass
 class StashRestoreResult:
-    """Outcome of the restore picker.
+    """Outcome of the restore/load picker.
 
-    ``restore_ids`` are popped from the store *and* loaded into the prompt bar;
-    ``delete_ids`` are popped and discarded.  Entries in neither set stay in the
-    store.  Order is irrelevant — the app re-sorts restored entries by creation
-    time before loading them as panes.
+    ``restore_ids`` are the chosen entries; ``delete_ids`` are entries marked for
+    discard.  Entries in neither set stay in the store.  Order is irrelevant —
+    the app re-sorts the chosen entries by creation time before loading them as
+    panes.  ``destructive`` selects how the app applies the result: when ``True``
+    (the ``gP`` picker) ``restore_ids`` are popped from the store *and* loaded
+    while ``delete_ids`` are popped and discarded; when ``False`` (the ``gp``
+    picker) ``restore_ids`` are copied into the bar and the store is left intact
+    (``delete_ids`` is always empty because delete-marking is disabled there).
     """
 
     restore_ids: list[str] = field(default_factory=list)
     delete_ids: list[str] = field(default_factory=list)
+    destructive: bool = True
 
 
 class StashedPromptsModal(
@@ -124,7 +129,9 @@ class StashedPromptsModal(
         ("d", "mark_delete", "Delete"),
     ]
 
-    def __init__(self, entries: list[PromptStashEntryWire]) -> None:
+    def __init__(
+        self, entries: list[PromptStashEntryWire], *, destructive: bool = True
+    ) -> None:
         super().__init__()
         # Newest first; ISO timestamps sort lexicographically, ties broken by
         # pane order so a "stash all" group keeps a stable display order.
@@ -133,6 +140,9 @@ class StashedPromptsModal(
             key=lambda e: (e.created_at, e.pane_index),
             reverse=True,
         )
+        # ``gP`` pops the chosen entries (destructive); ``gp`` copies them while
+        # leaving the stash intact and disables delete-marking entirely.
+        self._destructive = destructive
         self._selected: set[str] = set()
         self._deleted: set[str] = set()
 
@@ -154,13 +164,19 @@ class StashedPromptsModal(
     def _title_text(self) -> str:
         count = len(self._entries)
         noun = "prompt" if count == 1 else "prompts"
-        return f"Restore stashed {noun} ({count})"
+        verb = "Restore" if self._destructive else "Load"
+        return f"{verb} stashed {noun} ({count})"
 
-    @staticmethod
-    def _hint_text() -> str:
+    def _hint_text(self) -> str:
+        if self._destructive:
+            return (
+                "j/k ↑/↓: navigate • space: select • a: all • "
+                "d: delete • enter: restore • esc/q: cancel"
+            )
+        # Non-destructive load: no delete-marking, the chosen entries are copied
+        # into the bar and stay in the stash.
         return (
-            "j/k ↑/↓: navigate • space: select • a: all • "
-            "d: delete • enter: restore • esc/q: cancel"
+            "j/k ↑/↓: navigate • space: select • a: all • enter: load • esc/q: cancel"
         )
 
     def _build_options(self) -> list[Option]:
@@ -219,6 +235,10 @@ class StashedPromptsModal(
         self._refresh_rows()
 
     def action_mark_delete(self) -> None:
+        # Delete-marking is disabled in non-destructive load mode: the chosen
+        # entries are copied into the bar and must stay in the stash.
+        if not self._destructive:
+            return
         entry = self._highlighted_entry()
         if entry is None:
             return
@@ -239,7 +259,13 @@ class StashedPromptsModal(
         if not restore_ids and not delete_ids:
             self.dismiss(None)
             return
-        self.dismiss(StashRestoreResult(restore_ids=restore_ids, delete_ids=delete_ids))
+        self.dismiss(
+            StashRestoreResult(
+                restore_ids=restore_ids,
+                delete_ids=delete_ids,
+                destructive=self._destructive,
+            )
+        )
 
     def on_option_list_option_selected(self, _event: OptionList.OptionSelected) -> None:
         # ``enter`` (and click) confirms: restore the toggled set, or just the

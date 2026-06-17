@@ -209,7 +209,6 @@ ace:
           temporary_llm_override: "o"
           capture_agents_repro: "C"
           toggle_agents_repro_checks: "T"
-          restore_prompt_stash: "P"
       bang_mode:
         prefix: "exclamation_mark"
         keys:

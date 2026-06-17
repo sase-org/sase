@@ -79,11 +79,14 @@ def test_row_label_markers() -> None:
 
 
 class _ModalHost(App[None]):
-    """Pushes the restore picker and captures its dismiss result."""
+    """Pushes the restore/load picker and captures its dismiss result."""
 
-    def __init__(self, entries: list[PromptStashEntryWire]) -> None:
+    def __init__(
+        self, entries: list[PromptStashEntryWire], *, destructive: bool = True
+    ) -> None:
         super().__init__()
         self._entries = entries
+        self._destructive = destructive
         self.result: object = "UNSET"
 
     def compose(self) -> ComposeResult:
@@ -91,7 +94,7 @@ class _ModalHost(App[None]):
 
     def on_mount(self) -> None:
         self.push_screen(
-            StashedPromptsModal(self._entries),
+            StashedPromptsModal(self._entries, destructive=self._destructive),
             lambda res: setattr(self, "result", res),
         )
 
@@ -186,3 +189,54 @@ async def test_escape_cancels_with_none() -> None:
         await pilot.press("escape")
         await pilot.pause()
     assert app.result is None
+
+
+async def test_destructive_confirm_marks_result_destructive() -> None:
+    app = _ModalHost([_entry("a")])
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.destructive is True
+
+
+# --- non-destructive load mode (gp) ----------------------------------------
+
+
+async def test_load_mode_title_and_hints_say_load_not_restore() -> None:
+    app = _ModalHost([_entry("a")], destructive=False)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, StashedPromptsModal)
+        assert modal._title_text().startswith("Load stashed prompt")
+        hints = modal._hint_text()
+        assert "load" in hints
+        assert "delete" not in hints
+
+
+async def test_load_mode_confirm_returns_non_destructive_result() -> None:
+    app = _ModalHost([_entry("a"), _entry("b")], destructive=False)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("space")  # select highlighted "a"
+        await pilot.press("enter")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.restore_ids == ["a"]
+    assert app.result.delete_ids == []
+    assert app.result.destructive is False
+
+
+async def test_load_mode_delete_key_is_inert() -> None:
+    app = _ModalHost([_entry("a"), _entry("b")], destructive=False)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("d")  # delete-marking disabled in load mode
+        await pilot.press("enter")  # confirm highlighted "a" instead
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.restore_ids == ["a"]
+    assert app.result.delete_ids == []
+    assert app.result.destructive is False
