@@ -1610,8 +1610,8 @@ markdown syntax highlighting for prompt content (headings, bold, italic, code bl
 When loaded prompt text contains literal top-level `---` multi-agent separators, ACE renders the text as a prompt stack:
 one pane per agent segment. YAML frontmatter at the start stays prompt-level metadata, and `---` lines inside fenced
 code blocks are left alone. A `#name` multi-agent xprompt invocation stays a single pane and expands only when it is
-launched. During live editing, typed `---` lines stay literal text; add prompt panes with `Ctrl+-`. The detailed
-multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent-prompts).
+launched. During live editing, typed `---` lines stay literal text; add prompt panes with `g-` in prompt NORMAL mode.
+The detailed multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent-prompts).
 
 ### INSERT Mode (Default)
 
@@ -1647,13 +1647,13 @@ pane is active by default so you can keep drafting the newest segment; it is not
 immediately opens the submit chooser.
 
 Inactive panes stay compact, and the active pane takes the available height. A `---` line typed while INSERT mode is
-active stays literal prompt text; use `Ctrl+-` to add a new bottom pane while drafting. `Ctrl+G` opens the whole stack
-in `$EDITOR` when the bar already has multiple panes (a single-pane bar opens just the current prompt). Returning from a
-whole-bar editor session or from `%edit` reloads xprompt-style Markdown and parses `---` separators into fresh panes.
-History loads parse only real multi-agent prompts; a single history item with leading YAML frontmatter stays one
-verbatim pane instead of auto-opening the Frontmatter Panel.
+active stays literal prompt text; use `g-` from prompt NORMAL mode to add a new bottom pane while drafting. `Ctrl+G`
+opens the whole stack in `$EDITOR` when the bar already has multiple panes (a single-pane bar opens just the current
+prompt). Returning from a whole-bar editor session or from `%edit` reloads xprompt-style Markdown and parses `---`
+separators into fresh panes. History loads parse only real multi-agent prompts; a single history item with leading YAML
+frontmatter stays one verbatim pane instead of auto-opening the Frontmatter Panel.
 
-In prompt NORMAL mode, pressing comma opens a small hint row for the prompt-local leader actions currently available.
+In prompt NORMAL mode, pressing `g` opens a small hint row for the prompt-local `g` prefix actions currently available.
 
 | Key            | Action                                                                                                 |
 | -------------- | ------------------------------------------------------------------------------------------------------ |
@@ -1662,14 +1662,14 @@ In prompt NORMAL mode, pressing comma opens a small hint row for the prompt-loca
 | `Ctrl+Shift+S` | Launch the selected pane and remove it from the stack                                                  |
 | `Ctrl+C`       | Record the selected pane as cancelled history and remove it; the final remaining pane cancels normally |
 | `Escape`       | Enter NORMAL mode for stack navigation                                                                 |
-| `K` / `J`      | Focus the previous / next pane in NORMAL mode; focus cycles at the stack edges                         |
-| `Up` / `Down`  | Move the active pane up / down in NORMAL mode; reorder cycles at the stack edges                       |
-| `Ctrl+-`       | Add an empty bottom pane (INSERT or NORMAL mode) and switch it to INSERT mode                          |
-| `Ctrl+Shift+=` | Show/focus the xprompt frontmatter panel; in the focused panel, run its deactivate/apply path          |
-| `,f`           | Show or focus the xprompt frontmatter panel in NORMAL mode                                             |
-| `,s`           | Stash the selected pane and remove it from the stack                                                   |
-| `,S`           | Stash every non-empty pane and dismiss the prompt bar                                                  |
-| `,P`           | Restore stashed prompt drafts into the current bar or a new home-context prompt                        |
+| `gj` / `gk`    | Focus the next / previous pane in NORMAL mode; focus cycles at the stack edges                         |
+| `gJ` / `gK`    | Move the active pane down / up in NORMAL mode; reorder cycles at the stack edges                       |
+| `g-`           | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                   |
+| `g=`           | Show/focus the xprompt frontmatter panel; in the focused panel, run its deactivate/apply path          |
+| `gs`           | Stash the selected pane and remove it from the stack                                                   |
+| `gS`           | Stash every non-empty pane and dismiss the prompt bar                                                  |
+| `gp`           | Load selected stashed prompt drafts into the current bar without deleting them from the stash          |
+| `gP`           | Restore selected stashed prompt drafts into the current bar and delete them from the stash             |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane so local xprompts and metadata
 continue to resolve. Empty selected panes are dropped without launching. Whole-stack submission joins panes in
@@ -1680,12 +1680,14 @@ must start after an earlier agent succeeds.
 The `Enter` submit chooser accepts `a` or `Ctrl+S` for all panes, `c` or `Ctrl+Shift+S` for the current pane, and
 `Esc`/`q` to cancel without changing the stack.
 
-Prompt stashes are a per-user draft pile stored outside prompt history. `,s` captures the selected non-empty pane plus
+Prompt stashes are a per-user draft pile stored outside prompt history. `gs` captures the selected non-empty pane plus
 the shared prompt frontmatter; when other panes remain the bar stays open, and when the last pane is stashed the bar
-closes without also recording the draft as cancelled history. `,S` captures all non-empty panes in their current order.
-`,P` opens a restore picker. Restored entries are removed from the stash, unselected entries stay available, and
-selected entries load oldest-first with ties broken by original pane index, so panes captured by `,S` come back in
-top-to-bottom order. A small top-bar badge shows how many restorable drafts are currently stashed.
+closes without also recording the draft as cancelled history. `gS` captures all non-empty panes in their current order.
+`gP` opens a destructive restore picker: selected entries load oldest-first with ties broken by original pane index and
+are removed from the stash, while unselected entries stay available. `gp` opens the same picker in non-destructive load
+mode, so selected entries are copied into the current bar and remain available in the stash. Restore no longer opens
+from a global `,P` when no prompt bar is active. A small top-bar badge shows how many restorable drafts are currently
+stashed.
 
 ### Completion
 

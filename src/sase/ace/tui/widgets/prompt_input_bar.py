@@ -184,8 +184,7 @@ class PromptInputBar(
         The frontmatter panel sits directly above ``#prompt-stack`` (prompt mode
         only — feedback / approve-prompt bars are not multi-agent surfaces) and
         starts hidden, auto-showing on mount when the prompt already carries
-        frontmatter; otherwise the user opens it with ``g=`` (or the legacy
-        ``Ctrl+Shift+=`` chord, retired in a later phase).
+        frontmatter; otherwise the user opens it with ``g=``.
         """
         self._placeholder = self._compute_placeholder()
         yield Static("", id="prompt-completion", classes="hidden")

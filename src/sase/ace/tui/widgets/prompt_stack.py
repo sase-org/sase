@@ -284,7 +284,7 @@ class PromptStackState:
         return item
 
     def append_bottom(self, text: str = "", *, select: bool = True) -> PromptStackItem:
-        """Append a new item at the bottom of the stack (the ``Ctrl+-`` keymap)."""
+        """Append a new item at the bottom of the stack (the ``g-`` keymap)."""
         item = self._new_item(text)
         self.items.append(item)
         if select:

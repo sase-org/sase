@@ -131,10 +131,10 @@ SASE keeps durable state outside any one chat session:
   registered workspace-provider refs and known-project refs such as `#git:sase` or `#gh:sase-org/sase` can root
   completion in that project checkout. If no prompt workspace ref resolves, ACE uses the TUI process directory. When ACE
   loads a prompt with literal top-level `---` multi-agent separators, it renders a stack of prompt panes so each agent
-  segment can be edited, reordered, launched individually, or submitted together in top-to-bottom order; while drafting,
-  add panes explicitly with `Ctrl+-` rather than typing a separator line. Prompt-level frontmatter is edited from the
-  Frontmatter Panel (`Ctrl+Shift+=` or `,f`), and draft panes can be stashed and restored from the prompt comma leader.
-  Use `%wait` when one segment must wait for another to finish.
+  segment can be edited, reordered, launched individually, or submitted together in top-to-bottom order. In prompt
+  NORMAL mode, use `g-` to add panes, `gj`/`gk` to focus panes, and `gJ`/`gK` to reorder them. Prompt-level frontmatter
+  is edited from the Frontmatter Panel with `g=`, and draft panes can be stashed with `gs`/`gS` and loaded or restored
+  with `gp`/`gP`. Use `%wait` when one segment must wait for another to finish.
 - **Provider retries** - The LLM provider layer can retry matching provider errors, preserve the workspace across
   retries, and fall back to another model when configured. Claude adds built-in matching for context-limit,
   socket-close, and Claude CLI API-error output; per-provider retry counts, waits, and fallback policy live under

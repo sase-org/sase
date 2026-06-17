@@ -1414,15 +1414,15 @@ segments in document order, but agents do not wait for earlier segments unless y
 
 In the `sase ace` prompt input, ad hoc prompt frontmatter has a structured **Frontmatter Panel** above the prompt stack,
 with the same field set an xprompt `.md` file supports (`name`, `description`, `tags`, `input`, `xprompts`, `skill`,
-`snippet`). Open or focus it with `Ctrl+Shift+=` or the `,f` NORMAL-mode leader keymap; while the panel owns focus,
-`Ctrl+Shift+=` runs the panel's deactivate/apply path. The panel also auto-shows when ACE has lifted leading frontmatter
-into the stack, such as a multi-agent prompt load or an editor-file return from `%edit` / whole-stack `Ctrl+G`. A single
-prompt recalled from history with leading frontmatter but no segment separator stays one verbatim pane instead of
-auto-opening the panel. Typing `---` in the prompt body is passive during live editing: at the very start it stays
-literal text, and after content it does not split the active pane. Add a property with `a` (a picker sourced from the
-same core schema that backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, and use `R` for a
-live-validated raw-YAML escape hatch. The panel owns the canonical YAML it serializes back onto the prompt, so the
-multi-agent launch path is unchanged.
+`snippet`). Open or focus it with the prompt NORMAL-mode `g=` keymap; while the panel owns focus, `g=` runs the panel's
+deactivate/apply path. The panel also auto-shows when ACE has lifted leading frontmatter into the stack, such as a
+multi-agent prompt load or an editor-file return from `%edit` / whole-stack `Ctrl+G`. A single prompt recalled from
+history with leading frontmatter but no segment separator stays one verbatim pane instead of auto-opening the panel.
+Typing `---` in the prompt body is passive during live editing: at the very start it stays literal text, and after
+content it does not split the active pane. Add a property with `a` (a picker sourced from the same core schema that
+backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, and use `R` for a live-validated
+raw-YAML escape hatch. The panel owns the canonical YAML it serializes back onto the prompt, so the multi-agent launch
+path is unchanged.
 
 The structured `input` and `xprompts` fields render as foldable sub-trees (`h`/`l`): navigate into them with `j`/`k`,
 then `a`/`e`/`d` (or `enter`) add, edit, and delete individual items through small typed sub-form modals. The input

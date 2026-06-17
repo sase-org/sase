@@ -107,7 +107,7 @@ async def test_frontmatter_panel_empty_png_snapshot(
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, "")
 
-        # An empty prompt + ,f shows the just-triggered empty-state guidance.
+        # An empty prompt + g= shows the just-triggered empty-state guidance.
         bar.focus_frontmatter_panel()
         await wait_for_visual_idle(page)
 

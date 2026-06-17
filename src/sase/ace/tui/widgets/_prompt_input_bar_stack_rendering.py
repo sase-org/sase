@@ -365,8 +365,8 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         """Update height and line numbers when text changes.
 
         Purely passive: a typed ``---`` is left as literal text in the pane.  The
-        properties panel and extra panes are reached only through the explicit
-        ``Ctrl+Shift+=`` / ``,f`` and ``Ctrl+-`` controls.
+        properties panel and extra panes are reached only through explicit
+        prompt NORMAL-mode ``g=`` and ``g-`` controls.
         """
         text_area = event.text_area
         if not isinstance(text_area, PromptTextArea):
