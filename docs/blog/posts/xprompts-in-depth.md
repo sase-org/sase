@@ -119,12 +119,12 @@ input: target: word
 %name:review %wait:code Review the {{ target }} implementation and propose follow-ups.
 ```
 
-Run it with `sase run '#!three_phase(login)'`. SASE dispatches three agents named `plan`, `code`, and `review`, each
+Run it with `sase run '#three_phase(login)'`. SASE dispatches three agents named `plan`, `code`, and `review`, each
 receiving `target=login`. The `%wait` directives chain them sequentially; remove the waits and they run in parallel.
 
-The catalog and TUI picker show fan-out XPrompts with the `#!` standalone marker because they expand into multiple
-prompt segments rather than a single inline body. That is most of the time the right answer for "I need three agents in
-order" — no YAML, no step graph, just a Markdown file with three sections.
+The catalog and TUI picker show fan-out XPrompts with the normal `#` marker because they can be referenced inline while
+still expanding into multiple prompt segments at launch. That is most of the time the right answer for "I need three
+agents in order" — no YAML, no step graph, just a Markdown file with three sections.
 
 ## When Prose Is No Longer Enough: YAML Workflows
 

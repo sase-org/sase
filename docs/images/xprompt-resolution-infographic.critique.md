@@ -153,10 +153,9 @@ Grounding against `src/sase/xprompt/processor.py` (`process_xprompt_references` 
    prohibited.** The doc says "Recursive fan-out (a multi-agent xprompt body whose own segments reference more
    multi-agent xprompts) is bounded by a depth cap and will raise if exceeded." "One-level" is a small accuracy slip —
    it is not strictly one level, just depth-capped.
-10. **`#!` semantics mildly misstated.** The `#!workflow` input card says "launch standalone YAML workflow." The doc
-    actually states `#!name` covers two things: standalone YAML workflows _and_ markdown-defined multi-agent xprompts
-    (whose body has `---` separators). The diagram's input card mentions only the first, which makes the connection
-    between `#!workflow` and the **Multi-agent fan-out** output card harder to follow.
+10. **`#` / `#!` semantics need to stay current.** The `#!workflow` input card should stay limited to standalone YAML
+    workflows. Markdown-defined multi-agent xprompts use the normal `#name` marker and fan out at launch when their body
+    has top-level `---` separators.
 
 ## Concrete suggested changes for regeneration
 
@@ -185,8 +184,8 @@ For the next phase (`sase-2s.18 — Regenerate diagram: xprompt-resolution`):
    `docs/xprompt.md` reader-facing terminology, and reserve `prompt_part` for internal docs.
 10. **Visually demote the `Workflow graph` output card** (or annotate it `(via sase xprompt graph)`) so it does not read
     as a runtime peer of inline/standalone/fan-out outcomes.
-11. **Clarify the `#!workflow` input row** to read `#!name — standalone workflow OR multi-agent xprompt` so its link to
-    the multi-agent fan-out output is legible at a glance.
+11. **Clarify the marker rows** to show `#name — inline xprompt / embeddable workflow / multi-agent xprompt` and
+    `#!name — standalone workflow` so the multi-agent fan-out output is tied to `#name`, not `#!name`.
 12. **Soften the `Multi-agent fan-out` output caption** from "one-level split into agents" to "fan-out into agent
     segments (depth-capped)" so it doesn't read as a hard one-level rule.
 

@@ -158,8 +158,7 @@ def xprompt_assist_entry_from_local_xprompt(
     Mirrors :func:`xprompt_assist_entry_from_workflow` (it routes through the
     same workflow projection) so a ``#_helper`` declared in the Frontmatter
     Panel's ``xprompts:`` field completes, soft-completes, and shows argument
-    hints in every prompt pane exactly like a global xprompt — including the
-    ``#!`` standalone marker when the helper body carries segment separators.
+    hints in every prompt pane exactly like a global xprompt.
     """
     from sase.xprompt.models import xprompt_to_workflow
 

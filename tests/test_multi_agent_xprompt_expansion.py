@@ -38,7 +38,7 @@ def test_bang_single_segment_xprompt_invalid() -> None:
     """Ordinary xprompts remain embeddable and cannot use the standalone marker."""
     catalog = {"single": xp("single", "just one body")}
     with patch_catalog(catalog):
-        with pytest.raises(_MultiAgentXPromptUsageError, match=r"Use '#single'"):
+        with pytest.raises(_MultiAgentXPromptUsageError, match=r"Use `#single`"):
             expand_multi_agent_xprompts(["#!single"])
 
 
@@ -87,6 +87,14 @@ def test_bare_multi_agent_xprompt_expands_as_sole_segment() -> None:
     with patch_catalog(catalog):
         out = expand_multi_agent_xprompts(["#three"])
     assert out == ["phase A", "phase B", "phase C"]
+
+
+def test_bang_multi_agent_xprompt_remains_accepted_for_compatibility() -> None:
+    catalog = {"three": xp("three", "phase A\n---\nphase B\n---\nphase C")}
+    with patch_catalog(catalog):
+        bare = expand_multi_agent_xprompts(["#three"])
+        bang = expand_multi_agent_xprompts(["#!three"])
+    assert bang == bare
 
 
 def test_expand_with_positional_args() -> None:
@@ -332,14 +340,82 @@ def test_expand_inline_vcs_prefix_does_not_override_generated_vcs_ref() -> None:
     assert out == ["#gh:sase Plan", "#git:other Build", "#gh:sase Test"]
 
 
-def test_multiple_multi_agent_references_in_one_segment_raises() -> None:
+def test_multiple_multi_agent_references_expand_in_document_order() -> None:
     catalog = {
         "a": xp("a", "a1\n---\na2"),
         "b": xp("b", "b1\n---\nb2"),
     }
     with patch_catalog(catalog):
-        with pytest.raises(_MultiAgentXPromptUsageError, match="only one"):
-            expand_multi_agent_xprompts(["Use #a and #b"])
+        out = expand_multi_agent_xprompts(["Use #a then #b after"])
+    assert out == ["Use a1", "a2", "b1", "b2"]
+
+
+def test_multiple_multi_agent_references_keep_distinct_args_and_groups() -> None:
+    catalog = {
+        "a": xp(
+            "a",
+            "a1 {{ target }}\n---\na2 {{ target }}",
+            inputs=[InputArg(name="target", type=InputType.WORD)],
+        ),
+        "b": xp(
+            "b",
+            "b1 {{ mode }}\n---\nb2 {{ mode }}",
+            inputs=[InputArg(name="mode", type=InputType.WORD)],
+        ),
+    }
+    with patch_catalog(catalog):
+        out = expand_multi_agent_xprompts_with_metadata(
+            ["Start #a(foo) then #b(mode=bar) done"]
+        )
+
+    assert [record.prompt for record in out] == [
+        "Start a1 foo",
+        "a2 foo",
+        "b1 bar",
+        "b2 bar",
+    ]
+    assert [record.template_group for record in out] == [
+        "xprompt:a:0",
+        "xprompt:a:0",
+        "xprompt:b:1",
+        "xprompt:b:1",
+    ]
+
+
+def test_three_multi_agent_references_expand_sequentially() -> None:
+    catalog = {
+        "a": xp("a", "a1\n---\n"),
+        "b": xp("b", "b1\n---\n"),
+        "c": xp("c", "c1\n---\n"),
+    }
+    with patch_catalog(catalog):
+        out = expand_multi_agent_xprompts(["Lead #a between #b and #c tail"])
+    assert out == ["Lead a1", "b1", "c1"]
+
+
+def test_multiple_multi_agent_references_inherit_leading_vcs_ref() -> None:
+    catalog = {
+        "a": xp("a", "a1\n---\na2"),
+        "b": xp("b", "b1\n---\n#git:other b2"),
+    }
+    with patch_catalog(catalog), patch_vcs_patterns():
+        out = expand_multi_agent_xprompts(["#gh:sase Review #a then #b after"])
+    assert out == [
+        "#gh:sase Review a1",
+        "#gh:sase a2",
+        "#gh:sase b1",
+        "#git:other b2",
+    ]
+
+
+def test_multiple_multi_agent_references_obey_depth_cap() -> None:
+    catalog = {
+        "a": xp("a", "#a\n---\na2"),
+        "b": xp("b", "b1\n---\nb2"),
+    }
+    with patch_catalog(catalog):
+        with pytest.raises(ValueError, match="exceeded max depth"):
+            expand_multi_agent_xprompts(["#a then #b"], max_depth=1)
 
 
 def test_expand_inline_ordinary_xprompt_inside_other_xprompt_body_no_resplit() -> None:

@@ -8,7 +8,7 @@ single-pane text the widget hands to ``_finish_agent_launch`` flows through
 - A whole-stack (joined ``\\n---\\n``) submit routes to ``_launch_multi_prompt_agents``
   and saves the *combined* prompt to history (the per-segment reusable entries
   are added by ``add_or_update_prompt`` itself).
-- A multi-agent ``#!`` xprompt joined into the stack preserves the submitted
+- A multi-agent xprompt joined into the stack preserves the submitted
   invocation in history, never the generated child prompts.
 - A single-pane (``keep_bar``) submit launches only that pane's text, leaving
   the mounted bar's base prompt context intact, and a launch failure records
@@ -79,17 +79,17 @@ def test_whole_stack_submit_routes_manual_multi_prompt_to_multi_prompt_launch() 
 
 def test_whole_stack_submit_with_multi_agent_xprompt_preserves_invocation() -> None:
     app = _LaunchBodyApp()
-    # A stack whose first pane is a multi-agent ``#!`` invocation joined with a
+    # A stack whose first pane is a multi-agent xprompt invocation joined with a
     # plain second pane. The invocation expands into child segments, but history
     # must keep the authored invocation, not the generated children.
-    joined = "#!research_swarm\n---\nplain follow-up pane"
+    joined = "#research_swarm\n---\nplain follow-up pane"
 
     def _expand(
         segments: list[str], _local: object = None, **_kw: object
     ) -> list[SimpleNamespace]:
         out: list[SimpleNamespace] = []
         for segment in segments:
-            if segment == "#!research_swarm":
+            if segment == "#research_swarm":
                 out.append(
                     SimpleNamespace(prompt="generated child A", template_group=1)
                 )

@@ -4,9 +4,10 @@ When a user-prompt segment references an xprompt whose body contains ``---``
 segment separators, expand the xprompt body once (substituting the call-site's
 arguments) and then split the substituted body on ``---``.
 
-A sole reference becomes one prompt per body segment.  An embedded reference
-uses the first body segment as the embeddable prompt part and appends the
-remaining body segments as follow-up agent prompts.
+A sole reference becomes one prompt per body segment.  A single embedded
+reference uses the first body segment as the embeddable prompt part and appends
+the remaining body segments as follow-up agent prompts.  Multiple embedded
+references fan out independently in document order.
 """
 
 from __future__ import annotations
@@ -374,20 +375,11 @@ def _first_invalid_standalone_xprompt_reference(
     return None
 
 
-def _multiple_multi_agent_reference_message(segment: str) -> str:
-    return (
-        "A prompt segment can contain only one multi-agent xprompt reference. "
-        "Split the prompt manually if you need to combine multiple fan-outs. "
-        "Segment:\n"
-        f"{segment}"
-    )
-
-
 def _invalid_explicit_xprompt_message(ref: XPromptReference) -> str:
     return (
-        "Only standalone workflows and multi-agent xprompts use '#!'; "
-        f"'{ref.raw}' resolves to an embeddable xprompt. "
-        f"Use '#{ref.name}' for inline expansion."
+        "Only standalone workflows use `#!`; "
+        f"`{ref.raw}` resolves to an embeddable xprompt. "
+        f"Use `#{ref.name}` for inline expansion."
     )
 
 
@@ -446,6 +438,59 @@ def _expand_embedded_multi_agent_reference(
     )
 
 
+def _expand_multiple_embedded_multi_agent_references(
+    segment: str,
+    refs: list[XPromptReference],
+    catalog: dict[str, XPrompt],
+    local_xprompts: dict[str, XPrompt] | None,
+    max_depth: int,
+    strict_segment_check: bool,
+    group_counter: Iterator[int],
+) -> list[_ExpandedMultiAgentXPromptSegment]:
+    """Expand multiple embedded multi-agent refs in document order.
+
+    The leading prose before the first reference attaches to the first generated
+    segment only.  Text between references and after the last reference is
+    intentionally discarded.
+    """
+    if max_depth <= 0:
+        raise _MultiAgentXPromptDepthError(
+            f"multi-agent xprompt expansion exceeded max depth at "
+            f"#{refs[0].name} (possible self-reference)"
+        )
+
+    leading_prose = segment[: refs[0].start]
+    inherited_vcs_ref = _leading_vcs_ref_text(segment)
+    expanded: list[_ExpandedMultiAgentXPromptSegment] = []
+    for index, ref in enumerate(refs):
+        call = _build_xprompt_call(ref, [])
+        group = _next_template_group(call.name, group_counter)
+        sub_segments = _render_multi_agent_xprompt(
+            catalog[call.name], call.positional_args, call.named_args
+        )
+        if not sub_segments:
+            continue
+        if index == 0:
+            sub_segments[0] = f"{leading_prose}{sub_segments[0]}"
+            inherited_tail = _prepend_inherited_vcs_ref(
+                sub_segments[1:], inherited_vcs_ref
+            )
+            sub_segments = [sub_segments[0], *inherited_tail]
+        else:
+            sub_segments = _prepend_inherited_vcs_ref(sub_segments, inherited_vcs_ref)
+        expanded.extend(
+            _expand_multi_agent_xprompts_with_metadata(
+                sub_segments,
+                local_xprompts=local_xprompts,
+                max_depth=max_depth - 1,
+                strict_segment_check=strict_segment_check,
+                template_group=group,
+                group_counter=group_counter,
+            )
+        )
+    return expanded
+
+
 def expand_multi_agent_xprompts(
     segments: list[str],
     local_xprompts: dict[str, XPrompt] | None = None,
@@ -482,6 +527,10 @@ def expand_multi_agent_xprompts_with_metadata(
           xprompt body and split the result on ``---``.  The call site's
           leading directives (e.g. ``%name:custom``) attach to the *first*
           sub-segment only.
+        * If the segment contains multiple multi-agent xprompt references, each
+          reference fans out in document order.  Leading prose attaches to the
+          first generated segment; inter-reference and trailing prose is
+          discarded.
         * Otherwise, the segment is passed through unchanged.
 
     Recursion: each sub-segment is fed back through this function with
@@ -490,8 +539,8 @@ def expand_multi_agent_xprompts_with_metadata(
     :class:`ValueError` is raised.
 
     Raises:
-        _MultiAgentXPromptUsageError: A segment contains a multi-agent xprompt
-            reference but isn't a sole top-level reference to it.
+        _MultiAgentXPromptUsageError: A segment uses the standalone marker for
+            an ordinary embeddable xprompt.
         ValueError: Recursive expansion exceeded *max_depth*.
 
     ``group_counter`` lets callers that expand segments one call at a time
@@ -539,7 +588,7 @@ def _expand_multi_agent_xprompts_with_metadata(
             if max_depth <= 0:
                 raise _MultiAgentXPromptDepthError(
                     f"multi-agent xprompt expansion exceeded max depth at "
-                    f"#!{call.name} (possible self-reference)"
+                    f"#{call.name} (possible self-reference)"
                 )
             group = template_group or _next_template_group(call.name, group_counter)
             xp = catalog[call.name]
@@ -587,10 +636,6 @@ def _expand_multi_agent_xprompts_with_metadata(
 
             if strict_segment_check:
                 multi_agent_refs = _multi_agent_references(segment, multi_agent_names)
-                if len(multi_agent_refs) > 1:
-                    raise _MultiAgentXPromptUsageError(
-                        _multiple_multi_agent_reference_message(segment)
-                    )
                 if len(multi_agent_refs) == 1:
                     expanded.extend(
                         _expand_embedded_multi_agent_reference(
@@ -600,6 +645,19 @@ def _expand_multi_agent_xprompts_with_metadata(
                             local_xprompts,
                             max_depth,
                             template_group,
+                            group_counter,
+                        )
+                    )
+                    continue
+                if len(multi_agent_refs) > 1:
+                    expanded.extend(
+                        _expand_multiple_embedded_multi_agent_references(
+                            segment,
+                            multi_agent_refs,
+                            catalog,
+                            local_xprompts,
+                            max_depth,
+                            strict_segment_check,
                             group_counter,
                         )
                     )

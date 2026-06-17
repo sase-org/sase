@@ -83,7 +83,7 @@ def test_xprompt_select_returns_suffix_for_existing_hash_trigger() -> None:
         modal = XPromptSelectModal()
 
     assert modal._insertion_suffix("commit") == "commit"
-    assert modal._insertion_suffix("multi") == "!multi"
+    assert modal._insertion_suffix("multi") == "multi"
     assert modal._insertion_suffix("sync") == "!sync"
 
 

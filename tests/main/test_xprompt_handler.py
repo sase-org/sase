@@ -66,8 +66,8 @@ def test_xprompt_list_includes_kind_and_insertion(
 
     assert rows["multi"]["type"] == "xprompt"
     assert rows["multi"]["kind"] == "xprompt"
-    assert rows["multi"]["prefix"] == "#!"
-    assert rows["multi"]["insertion"] == "#!multi"
+    assert rows["multi"]["prefix"] == "#"
+    assert rows["multi"]["insertion"] == "#multi"
 
     assert rows["gh"]["type"] == "workflow"
     assert rows["gh"]["kind"] == "embeddable_workflow"

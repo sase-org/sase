@@ -96,9 +96,9 @@ sase xprompt explain my_workflow --arg key=value    # With named args
 Lists all available xprompts and workflows as a JSON array. Each entry includes the name, type (`"xprompt"` or
 `"workflow"`), kind, reference prefix, insertion text, `is_skill`, source file path, user-facing input definitions,
 tags, and a content preview. Clients should treat `insertion` as the authoritative reference text. Most `xprompt` and
-`embeddable_workflow` entries insert as `#name`; standalone workflows and multi-agent xprompts insert as `#!name`.
-`is_skill` is `true` only for xprompt catalog entries marked as skills; workflows report `false`. Step inputs are
-omitted from the JSON `inputs` array because they are supplied by workflow execution rather than typed by a user.
+`embeddable_workflow` entries insert as `#name`, including markdown multi-agent xprompts; standalone workflows insert as
+`#!name`. `is_skill` is `true` only for xprompt catalog entries marked as skills; workflows report `false`. Step inputs
+are omitted from the JSON `inputs` array because they are supplied by workflow execution rather than typed by a user.
 
 ```bash
 sase xprompt list                   # JSON array to stdout
@@ -249,10 +249,10 @@ workflow-local xprompts follow the workflow rules described in [workflow_spec.md
 
 ## Reference Syntax
 
-Reference inline-capable xprompts inside any prompt with the `#` prefix. Use `#!` for standalone references: YAML
-workflows that do not have a `prompt_part` step, plus markdown-defined multi-agent xprompts whose body contains
-top-level `---` segment separators. The marker must appear at the start of the string, after whitespace, or after one of
-`([{"'`.
+Reference inline-capable xprompts inside any prompt with the `#` prefix, including markdown-defined multi-agent xprompts
+whose body contains top-level `---` segment separators. Use `#!` only for standalone YAML workflows that do not have a
+`prompt_part` step. The marker must appear at the start of the string, after whitespace, or after one of `([{"'`. For
+compatibility, `#!name` is still accepted for multi-agent xprompts, but new prompts should use `#name`.
 
 | Syntax                        | Description                                                    |
 | ----------------------------- | -------------------------------------------------------------- |
@@ -263,9 +263,9 @@ top-level `---` segment separators. The marker must appear at the start of the s
 | `` #name:`arg with spaces` `` | Colon+backtick syntax for args containing spaces (single only) |
 | `#name+`                      | Plus syntax, equivalent to `#name:true`                        |
 | `#ns/name`                    | Namespaced reference (e.g., project-specific)                  |
-| `#!name`                      | Standalone workflow or multi-agent xprompt reference, no args  |
-| `#!name(args)`                | Standalone/multi-agent reference with parenthesized arguments  |
-| `#!name:arg`                  | Standalone/multi-agent reference with one colon-style arg      |
+| `#!name`                      | Standalone workflow reference, no args                         |
+| `#!name(args)`                | Standalone workflow reference with parenthesized arguments     |
+| `#!name:arg`                  | Standalone workflow reference with one colon-style arg         |
 | `#!name!!` / `#!name??`       | Standalone workflow with an explicit HITL approval override    |
 
 Examples:
@@ -787,40 +787,40 @@ are always available without needing a project- or user-level definition. They'r
 [discovery order](#discovery-order), so any project, user, or config xprompt with the same name overrides the packaged
 defaults. Common entries include:
 
-| Reference              | Body summary                                                                                        |
-| ---------------------- | --------------------------------------------------------------------------------------------------- |
-| `#cd`                  | Switch the agent into a resolved SASE workspace directory                                           |
-| `#git`                 | Check out a git ref in an isolated workspace and show resulting changes                             |
-| `#commit`              | Create a normal commit from completed agent changes                                                 |
-| `#propose`             | Create a proposal from completed agent changes                                                      |
-| `#file`                | Require the agent to write its response to a named markdown artifact                                |
-| `#fork`                | Resume context from a prior agent conversation by name                                              |
-| `#fork_by_chat`        | Resume context from a specific chat transcript path                                                 |
-| `#mentor`              | Run a structured mentor review against a CL                                                         |
-| `#split_file`          | Ask an agent to split one large Python file into import-safe smaller files                          |
-| `#summarize`           | Summarize a file in a short phrase for a specified use                                              |
-| `#json`                | Require the agent response to satisfy a JSON schema                                                 |
-| `#!sync`               | Sync the current workspace and launch conflict-resolution help if needed                            |
-| `#plan`                | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes     |
-| `#epic`                | Marks the request as a multi-phase epic and chains `#plan`                                          |
-| `#legend`              | Marks the request as a larger legend-level planning effort that should later split into epics       |
-| `#review`              | Asks the agent to fix bugs and apply only clear-win improvements                                    |
-| `#prompt/approve`      | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan`   |
-| `#prompt/review`       | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                    |
-| `#research`            | Tells the agent to store research in a new `sdd/research/` markdown file                            |
-| `#research/image`      | Asks the agent to generate an infographic for an existing research markdown file                    |
-| `#research/more`       | Asks the agent to improve an existing research markdown file by filling missed gaps                 |
-| `#research/prompt`     | Wraps a `prompt` input and asks for prior art, alternatives, and a recommended solution             |
-| `#!research_swarm`     | Fans out two independent research agents, consolidates their outputs, then generates an infographic |
-| `#!old_research_swarm` | Legacy initial, follow-up, and image research workflow (all tagged `%g:research`)                   |
-| `#x:name,cmd`          | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                   |
-| `#bd/new_epic`         | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                       |
-| `#bd/new_legend`       | Legend kickoff that records `epic_count`, commits metadata, then runs `sase bead work`              |
-| `#bd/work_phase_bead`  | Per-phase agent prompt used by `sase bead work`                                                     |
-| `#bd/land_epic`        | Final land-agent prompt used by `sase bead work`                                                    |
-| `#bd/next`             | "What should I work on next?" helper that consults the bead tracker                                 |
-| `#bd/review/plan`      | Plan-review helper for an epic plan                                                                 |
-| `#bd/review/prompt`    | Prompt-review helper for an epic plan                                                               |
+| Reference             | Body summary                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| `#cd`                 | Switch the agent into a resolved SASE workspace directory                                           |
+| `#git`                | Check out a git ref in an isolated workspace and show resulting changes                             |
+| `#commit`             | Create a normal commit from completed agent changes                                                 |
+| `#propose`            | Create a proposal from completed agent changes                                                      |
+| `#file`               | Require the agent to write its response to a named markdown artifact                                |
+| `#fork`               | Resume context from a prior agent conversation by name                                              |
+| `#fork_by_chat`       | Resume context from a specific chat transcript path                                                 |
+| `#mentor`             | Run a structured mentor review against a CL                                                         |
+| `#split_file`         | Ask an agent to split one large Python file into import-safe smaller files                          |
+| `#summarize`          | Summarize a file in a short phrase for a specified use                                              |
+| `#json`               | Require the agent response to satisfy a JSON schema                                                 |
+| `#!sync`              | Sync the current workspace and launch conflict-resolution help if needed                            |
+| `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes     |
+| `#epic`               | Marks the request as a multi-phase epic and chains `#plan`                                          |
+| `#legend`             | Marks the request as a larger legend-level planning effort that should later split into epics       |
+| `#review`             | Asks the agent to fix bugs and apply only clear-win improvements                                    |
+| `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan`   |
+| `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                    |
+| `#research`           | Tells the agent to store research in a new `sdd/research/` markdown file                            |
+| `#research/image`     | Asks the agent to generate an infographic for an existing research markdown file                    |
+| `#research/more`      | Asks the agent to improve an existing research markdown file by filling missed gaps                 |
+| `#research/prompt`    | Wraps a `prompt` input and asks for prior art, alternatives, and a recommended solution             |
+| `#research_swarm`     | Fans out two independent research agents, consolidates their outputs, then generates an infographic |
+| `#old_research_swarm` | Legacy initial, follow-up, and image research workflow (all tagged `%g:research`)                   |
+| `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                   |
+| `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                       |
+| `#bd/new_legend`      | Legend kickoff that records `epic_count`, commits metadata, then runs `sase bead work`              |
+| `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`                                                     |
+| `#bd/land_epic`       | Final land-agent prompt used by `sase bead work`                                                    |
+| `#bd/next`            | "What should I work on next?" helper that consults the bead tracker                                 |
+| `#bd/review/plan`     | Plan-review helper for an epic plan                                                                 |
+| `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                               |
 
 When `#fork` / `#fork_by_chat` injects a `# Previous Conversation` block, the prior **user prompts** in that block are
 sanitized first: sase directives (`%name`, `%wait`, `%group`, ...), `#`/`#!` xprompt and workspace references, and any
@@ -1538,7 +1538,7 @@ special meaning for ordinary `%wait` consumers, `---` segments, or `%alt` fan-ou
 variable, e.g. `{{ agents["name"].STOP }}`.
 
 ACE renders literal `---` multi-agent prompts as a prompt stack: each top-level segment becomes an editable pane, while
-prompt-level frontmatter and fenced-code separators keep the same parsing rules described below. A `#!name` multi-agent
+prompt-level frontmatter and fenced-code separators keep the same parsing rules described below. A `#name` multi-agent
 xprompt invocation remains a single pane until launch. Use `Enter` to launch one selected pane at a time, or `Ctrl+S` to
 submit the panes together in top-to-bottom order. See the [ACE prompt-stack guide](ace.md#prompt-stacks) for the editing
 keybindings and the default active-pane behavior.
@@ -1558,9 +1558,8 @@ keybindings and the default active-pane behavior.
 An xprompt itself can be a "multi-agent xprompt": its body contains `---` separators (outside fenced blocks), and
 referencing it as the sole content of a user-prompt segment fans the call out into one agent per body segment. The
 spawned agents share the same input arguments — each segment is rendered with the same `(args)` substituted in. The
-catalog, TUI picker, and completion UI display markdown-defined fan-out xprompts with the standalone marker (`#!name`)
-because they expand into multiple agent prompts. The legacy `#name` form is still recognized for multi-agent xprompts,
-but new prompts should prefer `#!name` for clarity.
+catalog, TUI picker, and completion UI display markdown-defined fan-out xprompts with the inline marker (`#name`). The
+older `#!name` form is still recognized for multi-agent xprompts for compatibility, but new prompts should use `#name`.
 
 ```
 # xprompts/three_phase.md
@@ -1583,7 +1582,7 @@ Review the {{ target }} implementation and propose follow-ups.
 Invoking it:
 
 ```bash
-sase run '#!three_phase(login)'
+sase run '#three_phase(login)'
 ```
 
 …dispatches three agents (`plan`, `code`, `review`), each receiving `target=login`. The `%wait` directives chain them
@@ -1596,22 +1595,23 @@ Multi-agent xprompts can also be embedded inside a larger prompt. In that case, 
 embedded at the reference location and the remaining rendered body segments become follow-up agent prompts:
 
 ```bash
-sase run '#gh:sase Review this first: #!three_phase(login)'
+sase run '#gh:sase Review this first: #three_phase(login)'
 ```
 
 When the call site starts with a VCS workspace reference such as `#gh:sase`, `#git:feature`, `#hg:branch`, or a
 known-project underscore form such as `#gh_sase`, that workspace reference is inherited by every generated follow-up
 segment unless the generated segment already declares its own VCS reference. Leading launch directives stay before the
-inherited workspace reference, so a prompt like `%name:abq #gh:sase #!three_phase(login)` keeps `%name:abq` attached to
+inherited workspace reference, so a prompt like `%name:abq #gh:sase #three_phase(login)` keeps `%name:abq` attached to
 the first generated segment and prefixes `#gh:sase` onto follow-ups.
 
 #### Rules and Limitations
 
-- A user-prompt segment can contain at most one multi-agent xprompt reference. Split the prompt manually if you need to
-  combine multiple fan-outs.
 - A sole multi-agent reference replaces the whole segment with its generated segments. An embedded multi-agent reference
   replaces only that reference with the first generated segment, then appends the remaining generated segments as
   follow-ups.
+- A user-prompt segment can contain multiple multi-agent xprompt references. They expand fully in document order. Text
+  before the first reference attaches to the first generated segment only; text between references and after the last
+  reference is discarded.
 - Ordinary inline xprompt references inside a multi-agent xprompt body remain inline xprompt references; the agent
   runner expands them later as normal prompt text.
 - `---` inside fenced code blocks in the xprompt body is not treated as a separator.
@@ -1623,12 +1623,12 @@ the first generated segment and prefixes `#gh:sase` onto follow-ups.
 XPrompts and [workflows](workflow_spec.md) share the same argument grammar, but the marker communicates how the
 reference is allowed to participate in a prompt:
 
-- `#name(args)` expands inline-capable xprompts and workflows with a `prompt_part` step.
-- `#!name(args)` launches standalone YAML workflows that have no `prompt_part` step and marks markdown-defined
-  multi-agent xprompts that expand into multiple prompt segments.
+- `#name(args)` expands inline-capable xprompts and workflows with a `prompt_part` step, including markdown-defined
+  multi-agent xprompts that fan out into multiple prompt segments.
+- `#!name(args)` launches standalone YAML workflows that have no `prompt_part` step.
 
 Simple markdown xprompts are converted internally to single-step workflows with a `prompt_part` step, so they remain
-inline-capable and continue to use `#name` unless their body contains top-level `---` segment separators.
+inline-capable and continue to use `#name`, even when their body contains top-level `---` segment separators.
 
 YAML workflow files can set a top-level `description` and use the same input-description forms as markdown or
 config-defined xprompts:

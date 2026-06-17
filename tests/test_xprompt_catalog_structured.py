@@ -429,8 +429,8 @@ def test_structured_catalog_uses_canonical_standalone_insertion() -> None:
     assert by_name["ship"].reference_prefix == "#!"
     assert by_name["ship"].insertion == "#!ship"
     assert by_name["swarm"].kind == "xprompt"
-    assert by_name["swarm"].reference_prefix == "#!"
-    assert by_name["swarm"].insertion == "#!swarm"
+    assert by_name["swarm"].reference_prefix == "#"
+    assert by_name["swarm"].insertion == "#swarm"
 
 
 def test_structured_catalog_pdf_engine_warning_does_not_block_records(

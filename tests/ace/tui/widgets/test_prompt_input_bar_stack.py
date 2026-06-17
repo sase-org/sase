@@ -274,7 +274,7 @@ async def test_load_stack_from_text_rebuilds_panes() -> None:
 
 
 async def test_load_multi_agent_xprompt_invocation_stays_single_pane() -> None:
-    """A ``#!`` multi-agent xprompt invocation has no literal ``---`` separators.
+    """A multi-agent xprompt invocation has no literal ``---`` separators.
 
     Loading it from history must keep it as the authored single-pane invocation
     (the runner expands it into agents later), not split it into stacked panes.
@@ -285,12 +285,12 @@ async def test_load_multi_agent_xprompt_invocation_stays_single_pane() -> None:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_text("#!research_swarm investigate the flake")
+        bar.load_stack_from_text("#research_swarm investigate the flake")
         await pilot.pause()
         await pilot.pause()
 
         assert len(app.query(".prompt-input")) == 1
-        assert bar.active_text() == "#!research_swarm investigate the flake"
+        assert bar.active_text() == "#research_swarm investigate the flake"
 
 
 async def test_load_single_cancelled_prompt_stays_single_pane() -> None:

@@ -77,8 +77,8 @@ def test_local_xprompt_entry_mirrors_global_shape() -> None:
     ]
 
 
-def test_local_xprompt_entry_uses_standalone_marker_for_segments() -> None:
-    """A helper whose body carries ``---`` segments inserts as ``#!``."""
+def test_local_xprompt_entry_uses_inline_marker_for_segments() -> None:
+    """A helper whose body carries ``---`` segments still inserts as ``#``."""
     xprompt = XPrompt(
         name="_multi",
         content="first agent\n---\nsecond agent",
@@ -86,8 +86,8 @@ def test_local_xprompt_entry_uses_standalone_marker_for_segments() -> None:
     )
     entry = xprompt_assist_entry_from_local_xprompt("_multi", xprompt)
 
-    assert entry.reference_prefix == "#!"
-    assert entry.insertion == "#!_multi"
+    assert entry.reference_prefix == "#"
+    assert entry.insertion == "#_multi"
 
 
 def test_merge_is_additive_and_local_wins_on_collision() -> None:

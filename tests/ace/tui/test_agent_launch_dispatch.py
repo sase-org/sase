@@ -130,13 +130,13 @@ def test_run_agent_launch_body_multi_agent_xprompt_history_uses_input() -> None:
             "record_prompt_file_references"
         ) as record_file_refs,
     ):
-        app._run_agent_launch_body("#!research_swarm")
+        app._run_agent_launch_body("#research_swarm")
 
     save_history.assert_called_once_with(
-        "#!research_swarm",
+        "#research_swarm",
         allow_short=True,
     )
-    record_file_refs.assert_called_once_with("#!research_swarm")
+    record_file_refs.assert_called_once_with("#research_swarm")
     assert app.launched == []
     multi_prompt_calls = [
         (fn, args)
