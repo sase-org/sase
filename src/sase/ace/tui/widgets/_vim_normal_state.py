@@ -111,6 +111,14 @@ class VimNormalStateMixin(_MixinBase):
                 setter(subtitle)
             else:
                 bar.border_subtitle = subtitle
+            if self._pending_keys == ",":
+                show_hints = getattr(bar, "show_leader_hints", None)
+                if callable(show_hints):
+                    show_hints()
+            else:
+                hide_hints = getattr(bar, "hide_leader_hints", None)
+                if callable(hide_hints):
+                    hide_hints()
 
     def _clear_count_prefix(self) -> None:
         """Clear count prefix and update display if needed."""

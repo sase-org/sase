@@ -1316,6 +1316,22 @@ PromptInputBar #frontmatter-panel:focus {
     border: round $accent;
 }
 
+/* Comma-leader hints, directly above the prompt stack. */
+PromptInputBar #prompt-leader-hints {
+    width: 100%;
+    height: auto;
+    max-height: 8;
+    border: round $accent;
+    background: $panel;
+    color: $text;
+    padding: 0 1;
+    margin: 0 0 1 0;
+}
+
+PromptInputBar #prompt-leader-hints.hidden {
+    display: none;
+}
+
 PromptInputBar #frontmatter-rows {
     width: 100%;
     height: auto;

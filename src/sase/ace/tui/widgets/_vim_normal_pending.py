@@ -227,11 +227,4 @@ class VimNormalPendingMixin(VimVisualModeMixin):
         bar = self._find_prompt_bar()
         if bar is None:
             return
-        if key == "s":
-            bar.stash_active_pane()
-        elif key == "S":
-            bar.stash_all_panes()
-        elif key == "P":
-            bar.request_restore_stash()
-        elif key == "f":
-            bar.focus_frontmatter_panel()
+        bar.dispatch_leader_key(key)

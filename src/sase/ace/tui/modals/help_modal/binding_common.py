@@ -22,6 +22,8 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("{{ / {% / {#", "Auto-pair delimiters"),
         ("Ctrl+T / Ctrl+L", "Complete inside Jinja tags"),
         ("Ctrl+Shift+- / ,f", "Frontmatter panel"),
+        (",s / ,S", "Stash current / all panes"),
+        (",P", "Restore stashed prompt"),
         ("Enter", "Submit (chooser when stacked)"),
         ("Ctrl+S", "Submit all panes (multi-agent)"),
         ("Ctrl+Shift+S", "Submit current pane only"),

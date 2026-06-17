@@ -15,6 +15,9 @@ from sase.ace.tui.widgets._prompt_input_bar_completion import (
 from sase.ace.tui.widgets._prompt_input_bar_frontmatter import (
     PromptInputBarFrontmatterMixin,
 )
+from sase.ace.tui.widgets._prompt_input_bar_leader_hints import (
+    PromptInputBarLeaderHintsMixin,
+)
 from sase.ace.tui.widgets._prompt_input_bar_messages import (
     AllEditorRequested as _AllEditorRequested,
     Cancelled as _Cancelled,
@@ -42,6 +45,7 @@ __all__ = ["PromptInputBar", "StashedPromptPane"]
 class PromptInputBar(
     PromptInputBarFrontmatterMixin,
     PromptInputBarStackActionsMixin,
+    PromptInputBarLeaderHintsMixin,
     PromptInputBarActionsMixin,
     PromptInputBarCompletionMixin,
     PromptInputBarStackRenderingMixin,
@@ -76,6 +80,9 @@ class PromptInputBar(
         self._completion_visible = False
         self._completion_line_count = 0
         self._completion_panel_kind: str | None = None
+        self._leader_hints_visible = False
+        self._leader_hints_line_count = 0
+        self._leader_hints_signature: tuple[tuple[str, str], ...] = ()
         self._mode_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
         self._soft_completion_visible = False
         self._title_mode_suffix = ""
@@ -178,7 +185,7 @@ class PromptInputBar(
         return "[Esc] clear  [i] insert  [^C] cancel"
 
     def compose(self) -> ComposeResult:
-        """Compose the input bar: completion panel, frontmatter panel, stack.
+        """Compose the input bar: completion / leader panels, then stack.
 
         The frontmatter panel sits directly above ``#prompt-stack`` (prompt mode
         only — feedback / approve-prompt bars are not multi-agent surfaces) and
@@ -193,6 +200,7 @@ class PromptInputBar(
                 id="frontmatter-panel",
                 classes="hidden",
             )
+        yield Static("", id="prompt-leader-hints", classes="hidden")
         with Vertical(id="prompt-stack"):
             yield from self._build_pane_widgets()
 

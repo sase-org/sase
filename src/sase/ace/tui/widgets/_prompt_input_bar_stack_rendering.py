@@ -80,6 +80,8 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         _completion_line_count: int
         _completion_visible: bool
         _generation: int
+        _leader_hints_line_count: int
+        _leader_hints_visible: bool
         _mode: str
         _placeholder: str
         _stack: PromptStackState
@@ -416,18 +418,19 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         max_height = screen_height - 2
         completion_rows = self._completion_line_count if self._completion_visible else 0
         frontmatter_rows = self._frontmatter_panel_reserved_rows()
+        leader_rows = self._leader_hints_line_count if self._leader_hints_visible else 0
+        panel_rows = completion_rows + frontmatter_rows + leader_rows
         if len(self._stack) <= 1:
             # Single pane: identical formula to the pre-stack bar. +2 for the
-            # bar's top/bottom border, plus the completion and frontmatter
-            # panels when visible.
+            # bar's top/bottom border, plus transient panels when visible.
             visual_lines = self._get_visual_line_count()
             new_height = min(
-                max(visual_lines + 2 + completion_rows + frontmatter_rows, 3),
+                max(visual_lines + 2 + panel_rows, 3),
                 max_height,
             )
             self.styles.height = new_height
             return
-        self._apply_multi_pane_heights(max_height, completion_rows + frontmatter_rows)
+        self._apply_multi_pane_heights(max_height, panel_rows)
 
     def _apply_multi_pane_heights(self, max_height: int, completion_rows: int) -> None:
         """Size each pane so the stack fits the screen, active pane growing most.

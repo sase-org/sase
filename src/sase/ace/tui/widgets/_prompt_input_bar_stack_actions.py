@@ -29,6 +29,52 @@ class StashedPromptPane:
     pane_index: int = 0
 
 
+@dataclass(frozen=True)
+class PromptLeaderHintEntry:
+    """One currently available prompt comma-leader hint."""
+
+    key: str
+    label: str
+
+
+@dataclass(frozen=True)
+class _PromptLeaderBinding:
+    """Declarative prompt comma-leader binding metadata."""
+
+    key: str
+    action_name: str
+    label_method_name: str
+    availability_method_name: str
+
+
+_PROMPT_LEADER_BINDINGS: tuple[_PromptLeaderBinding, ...] = (
+    _PromptLeaderBinding(
+        "s",
+        "stash_active_pane",
+        "_leader_label_stash_active",
+        "_leader_available_stash_active",
+    ),
+    _PromptLeaderBinding(
+        "S",
+        "stash_all_panes",
+        "_leader_label_stash_all",
+        "_leader_available_stash_all",
+    ),
+    _PromptLeaderBinding(
+        "P",
+        "request_restore_stash",
+        "_leader_label_restore_stash",
+        "_leader_available_restore_stash",
+    ),
+    _PromptLeaderBinding(
+        "f",
+        "focus_frontmatter_panel",
+        "_leader_label_frontmatter",
+        "_leader_available_frontmatter",
+    ),
+)
+
+
 class PromptInputBarStackActionsMixin(_MixinBase):
     """Prompt stack keymaps and completion cleanup."""
 
@@ -43,8 +89,84 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
         def active_text_area(self) -> PromptTextArea: ...
+        def focus_frontmatter_panel(self) -> None: ...
         def hide_file_completions(self) -> None: ...
         def hide_soft_completion(self) -> None: ...
+
+    def dispatch_leader_key(self, key: str) -> bool:
+        """Dispatch the key following the prompt comma leader.
+
+        Dispatch is keyed from the same table that feeds the hint panel, but it
+        intentionally does not consult hint availability: existing no-op/toast
+        behavior for hardcoded chords stays unchanged.
+        """
+        for binding in _PROMPT_LEADER_BINDINGS:
+            if binding.key != key:
+                continue
+            action = getattr(self, binding.action_name, None)
+            if callable(action):
+                action()
+            return True
+        return False
+
+    def leader_hint_entries(self) -> list[PromptLeaderHintEntry]:
+        """Return currently useful prompt comma-leader entries for rendering."""
+        entries: list[PromptLeaderHintEntry] = []
+        for binding in _PROMPT_LEADER_BINDINGS:
+            is_available = getattr(self, binding.availability_method_name)
+            if not is_available():
+                continue
+            label = getattr(self, binding.label_method_name)()
+            entries.append(PromptLeaderHintEntry(binding.key, label))
+        return entries
+
+    def _leader_available_stash_active(self) -> bool:
+        """Whether ``,s`` would capture a non-empty active prompt pane."""
+        if self._mode != "prompt":
+            return False
+        try:
+            return bool(self.active_text_area().text.strip())
+        except Exception:
+            return bool(self._stack.selected_item.text.strip())
+
+    def _leader_available_stash_all(self) -> bool:
+        """Whether ``,S`` would capture at least one pane in a real stack."""
+        if self._mode != "prompt" or len(self._stack) <= 1:
+            return False
+        self._sync_state_from_widgets()
+        return any(item.text.strip() for item in self._stack.items)
+
+    def _leader_available_restore_stash(self) -> bool:
+        """Whether ``,P`` has a restorable prompt stash in this app."""
+        if self._mode != "prompt":
+            return False
+        try:
+            checker = getattr(self.app, "_has_stashed_prompts", None)
+            return bool(checker()) if callable(checker) else False
+        except Exception:
+            return False
+
+    def _leader_available_frontmatter(self) -> bool:
+        """Whether ``,f`` can reveal the prompt frontmatter panel."""
+        return self._mode == "prompt"
+
+    def _leader_label_stash_active(self) -> str:
+        """Return the context-sensitive ``,s`` label."""
+        if len(self._stack) > 1:
+            return "stash this pane"
+        return "stash this draft"
+
+    def _leader_label_stash_all(self) -> str:
+        """Return the ``,S`` label."""
+        return "stash all panes"
+
+    def _leader_label_restore_stash(self) -> str:
+        """Return the ``,P`` label."""
+        return "restore stash…"
+
+    def _leader_label_frontmatter(self) -> str:
+        """Return the ``,f`` label."""
+        return "toggle frontmatter"
 
     def focus_relative(self, delta: int, target_mode: str = "normal") -> bool:
         """Move pane focus by *delta* (``Ctrl+H`` / ``Ctrl+L``).

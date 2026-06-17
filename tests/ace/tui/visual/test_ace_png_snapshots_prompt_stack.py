@@ -14,6 +14,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
+from sase.ace.tui.widgets import StashedPromptsIndicator
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -201,6 +202,32 @@ async def test_prompt_stack_completion_panel_png_snapshot(
             page,
             "prompt_stack_completion_panel_120x40",
             title="ACE prompt stack — completion panel in active pane",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_prompt_stack_leader_hints_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        indicator = page.app.query_one(
+            "#stashed-prompts-indicator", StashedPromptsIndicator
+        )
+        indicator.set_count(2)
+        await _mount_prompt_bar(page, _TWO_PANE_PROMPT)
+
+        await page.press("escape", "comma")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_stack_leader_hints_120x40",
+            title="ACE prompt stack — comma leader hints",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 11:48:16
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_leader_hints.md
 ---
 # Plan: Leader-key hints for the prompt input widget
