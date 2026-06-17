@@ -143,7 +143,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
         "sase axe chop",
         "sase axe lumberjack",
         "sase bead",
-        "sase chats",
+        "sase chat",
         "sase file",
         "sase file-history",
         "sase memory",

@@ -18,8 +18,8 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase agents archive`            | Maintain dismissed-agent bundle summary indexes (`rebuild-index`, `verify`).                                         | [ACE TUI](ace.md#agent-revival)                       |
 | `sase agents index`              | Manage the persistent agent artifact SQLite index (`status`, `rebuild`, `verify`, `gc`).                             | [ACE TUI](ace.md)                                     |
 | `sase agents names migrate-auto` | Backfill the permanent agent-name registry from legacy auto-generated names; pass `--force` to rerun.                | [ACE TUI](ace.md)                                     |
-| `sase chats list`                | List recent chat transcripts.                                                                                        | [XPrompts](xprompt.md)                                |
-| `sase chats show`                | Show one chat transcript by agent name, path, or basename.                                                           | [XPrompts](xprompt.md)                                |
+| `sase chat list`                 | List recent chat transcripts.                                                                                        | [XPrompts](xprompt.md)                                |
+| `sase chat show`                 | Show one chat transcript by agent name, path, or basename.                                                           | [XPrompts](xprompt.md)                                |
 | `sase prompt list`               | List, search, and filter previously submitted prompts (pretty table or JSON).                                        | [Prompt history](prompt.md)                           |
 | `sase prompt show`               | Print one prompt's exact text as raw, Markdown, or JSON.                                                             | [Prompt history](prompt.md)                           |
 | `sase prompt run`                | Replay a stored prompt by selector, optionally editing or re-prefixing it first.                                     | [Prompt history](prompt.md)                           |
@@ -37,9 +37,9 @@ or expand multi-prompt input into sequential background launches. ACE uses the s
 agents from the TUI.
 
 Command groups with an exact `list` child default to that list view when invoked bare, including `sase amd`,
-`sase bead`, `sase chats`, `sase file`, `sase file-history`, `sase memory`, `sase notify`, `sase plugin`,
-`sase project`, `sase prompt`, `sase sdd`, `sase skill`, `sase telemetry`, `sase workspace`, and `sase xprompt`. Nested
-groups such as `sase agents tag`, `sase axe chop`, and `sase axe lumberjack` follow the same rule.
+`sase bead`, `sase chat`, `sase file`, `sase file-history`, `sase memory`, `sase notify`, `sase plugin`, `sase project`,
+`sase prompt`, `sase sdd`, `sase skill`, `sase telemetry`, `sase workspace`, and `sase xprompt`. Nested groups such as
+`sase agents tag`, `sase axe chop`, and `sase axe lumberjack` follow the same rule.
 
 The bare form is only the default view. When you need flags that belong to the list command, keep the `list` subcommand
 explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase workspace list --json`.

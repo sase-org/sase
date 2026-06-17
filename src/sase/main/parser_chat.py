@@ -1,20 +1,20 @@
-"""Argument parser definition for the 'chats' CLI subcommand."""
+"""Argument parser definition for the 'chat' CLI subcommand."""
 
 import argparse
 
 
-def register_chats_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the 'chats' subcommand parser."""
-    chats_parser = subparsers.add_parser(
-        "chats",
+def register_chat_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'chat' subcommand parser."""
+    chat_parser = subparsers.add_parser(
+        "chat",
         help="Discover and inspect prior agent chat transcripts",
     )
-    chats_sub = chats_parser.add_subparsers(
-        dest="chats_subcommand", help="Chats subcommands"
+    chat_sub = chat_parser.add_subparsers(
+        dest="chat_subcommand", help="Chat subcommands"
     )
 
-    # sase chats list
-    list_parser = chats_sub.add_parser(
+    # sase chat list
+    list_parser = chat_sub.add_parser(
         "list",
         help="List recent chat transcripts (pretty table by default, JSON with -j)",
     )
@@ -38,8 +38,8 @@ def register_chats_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Case-insensitive substring filter over path/basename/content",
     )
 
-    # sase chats show
-    show_parser = chats_sub.add_parser(
+    # sase chat show
+    show_parser = chat_sub.add_parser(
         "show",
         help="Show a chat transcript by agent name, path, or basename",
     )

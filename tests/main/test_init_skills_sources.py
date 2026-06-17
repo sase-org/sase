@@ -45,8 +45,8 @@ from tests.main.init_skills_handler_helpers import make_args
         (
             "sase_chats",
             (
-                "sase chats list -j",
-                "sase chats show",
+                "sase chat list -j",
+                "sase chat show",
                 "/sase_agents_status",
                 "draft/live",
             ),

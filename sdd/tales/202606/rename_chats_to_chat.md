@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 07:11:19
-status: wip
+status: done
 prompt: sdd/prompts/202606/rename_chats_to_chat.md
 ---
 # Rename `sase chats` to `sase chat`

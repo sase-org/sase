@@ -1751,9 +1751,9 @@ it with `A`, even after the agent has been dismissed and revived.
 | `index`    | `status` / `rebuild` / `verify` / `gc`, `-i/--index-path`, `-p/--projects-root`, `-j/--json` | Maintain the persistent agent artifact index. Defaults are `~/.sase/agent_artifact_index.sqlite` and `~/.sase/projects`; `status` performs a lightweight visible-inbox check without scanning source artifacts, `verify` exits non-zero when the index diverges from source artifacts, and `gc` rebuilds the index from source artifacts and replaces the dismissed projection. |
 | `names`    | `migrate-auto`, `-f/--force`, `-j/--json`                                                    | Maintain the permanent agent-name registry. `migrate-auto` runs the historical generated-name namespace migration; `--force` reruns it after the completion marker exists and `--json` emits a machine-readable summary.                                                                                                                                                        |
 
-### `sase chats`
+### `sase chat`
 
-`sase chats` discovers and inspects saved agent chat transcripts. With no subcommand, it defaults to `sase chats list`.
+`sase chat` discovers and inspects saved agent chat transcripts. With no subcommand, it defaults to `sase chat list`.
 Subcommands:
 
 | Subcommand | Flags                                                     | Description                                                                                              |

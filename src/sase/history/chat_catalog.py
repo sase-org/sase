@@ -1,6 +1,6 @@
 """Reusable transcript discovery and resolution helpers.
 
-This module is the foundation layer for the ``sase chats`` CLI and the
+This module is the foundation layer for the ``sase chat`` CLI and the
 ``/sase_chats`` agent-facing skill.  It does not import any CLI or
 parser code — it speaks only to the on-disk chat history layout under
 ``~/.sase/chats/`` and to named-agent resolution under
@@ -8,7 +8,7 @@ parser code — it speaks only to the on-disk chat history layout under
 
 The dataclass :class:`ChatTranscriptInfo` is the primary catalog row and
 :func:`chat_info_to_json` produces a stable-key-ordered serialization
-suitable for ``sase chats list -j``.
+suitable for ``sase chat list -j``.
 """
 
 import json
@@ -203,7 +203,7 @@ def list_chat_transcripts(
 def chat_info_to_json(info: ChatTranscriptInfo) -> dict[str, object]:
     """Return a stable-key-ordered dict for JSON serialization.
 
-    The order matches the documented ``sase chats list -j`` shape so the
+    The order matches the documented ``sase chat list -j`` shape so the
     resulting JSON is diff-friendly across runs.  ``absolute_path`` is
     intentionally omitted from the public JSON; callers that want it can
     use the dataclass field directly.

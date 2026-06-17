@@ -117,11 +117,11 @@ def main() -> NoReturn:
 
         handle_changespec_command(args)
 
-    # --- chats ---
-    if args.command == "chats":
-        from .chats_handler import handle_chats_command
+    # --- chat ---
+    if args.command == "chat":
+        from .chat_handler import handle_chat_command
 
-        handle_chats_command(args)
+        handle_chat_command(args)
 
     # --- comments ---
     if args.command == "comments":

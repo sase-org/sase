@@ -1,4 +1,4 @@
-"""``sase chats list`` — list recent chat transcripts."""
+"""``sase chat list`` — list recent chat transcripts."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from sase.history.chat_catalog import (
 _PRETTY_SNIPPET_MAX_CHARS = 60
 
 
-def handle_chats_list(args: argparse.Namespace) -> None:
+def handle_chat_list(args: argparse.Namespace) -> None:
     """Render the chat catalog (pretty table or JSON)."""
     limit: int | None = getattr(args, "limit", None)
     query: str | None = getattr(args, "query", None)

@@ -770,7 +770,7 @@ local skill files. Coding agents invoke them as `/sase_<name>`. Runtime config o
 | `sase_agents_status` | Report on currently-running sase agents (status, kill, show)                                                  |
 | `sase_artifact`      | Create explicit SASE artifacts from files produced during an agent run                                        |
 | `sase_beads`         | Reference for `sase bead` commands (create, update, list, ready, show, dep)                                   |
-| `sase_chats`         | Inspect prior sase agent chat transcripts via `sase chats list` and `sase chats show`                         |
+| `sase_chats`         | Inspect prior sase agent chat transcripts via `sase chat list` and `sase chat show`                           |
 | `sase_changespecs`   | Inspect and reason about ChangeSpecs via `sase changespec search ...`, exact-name lookup, and safe edit rules |
 | `sase_git_commit`    | Commit changes for git-based VCS via `sase commit` (the only sanctioned commit path on git repos)             |
 | `sase_hg_commit`     | Gemini-only commit skill for the hg/fig provider path                                                         |
@@ -826,7 +826,7 @@ When `#fork` / `#fork_by_chat` injects a `# Previous Conversation` block, the pr
 sanitized first: sase directives (`%name`, `%wait`, `%group`, ...), `#`/`#!` xprompt and workspace references, and any
 unrendered Jinja2 markers (`{{ }}`, `{% %}`, `{# #}`) are stripped so the forked agent sees clean natural-language text.
 Fenced code blocks and real markdown headings are preserved, and assistant responses are left untouched. Raw transcripts
-on disk are unchanged — the cleanup happens only when building resume history (so `sase chats show` still shows the
+on disk are unchanged — the cleanup happens only when building resume history (so `sase chat show` still shows the
 original prompts).
 
 `#bd/new_epic` accepts optional ChangeSpec metadata for the plan bead it creates:

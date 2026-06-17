@@ -1,4 +1,4 @@
-"""Tests for the 'sase chats' parser, handler, and CLI subcommands."""
+"""Tests for the 'sase chat' parser, handler, and CLI subcommands."""
 
 from __future__ import annotations
 
@@ -9,10 +9,10 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from sase.chats.cli_list import handle_chats_list
-from sase.chats.cli_show import handle_chats_show
+from sase.chat.cli_list import handle_chat_list
+from sase.chat.cli_show import handle_chat_show
 from sase.history.chat_catalog import ChatTranscriptInfo
-from sase.main.chats_handler import handle_chats_command
+from sase.main.chat_handler import handle_chat_command
 from sase.main.parser import create_parser
 
 from tests.conftest import redirect_sase_home
@@ -74,11 +74,11 @@ def _info(**overrides: Any) -> ChatTranscriptInfo:
 # ===========================================================================
 
 
-def test_parser_registers_chats_command() -> None:
+def test_parser_registers_chat_command() -> None:
     parser = create_parser()
-    args = parser.parse_args(["chats", "list", "-j", "-l", "5"])
-    assert args.command == "chats"
-    assert args.chats_subcommand == "list"
+    args = parser.parse_args(["chat", "list", "-j", "-l", "5"])
+    assert args.command == "chat"
+    assert args.chat_subcommand == "list"
     assert args.json is True
     assert args.limit == 5
 
@@ -86,63 +86,63 @@ def test_parser_registers_chats_command() -> None:
 def test_parser_show_requires_a_selector() -> None:
     parser = create_parser()
     with pytest.raises(SystemExit):
-        parser.parse_args(["chats", "show"])
+        parser.parse_args(["chat", "show"])
 
 
 def test_parser_show_rejects_multiple_selectors() -> None:
     parser = create_parser()
     with pytest.raises(SystemExit):
-        parser.parse_args(["chats", "show", "-n", "alpha", "-p", "/tmp/x.md"])
+        parser.parse_args(["chat", "show", "-n", "alpha", "-p", "/tmp/x.md"])
 
 
 def test_parser_show_format_choices() -> None:
     parser = create_parser()
-    args = parser.parse_args(["chats", "show", "-n", "alpha", "-f", "response"])
+    args = parser.parse_args(["chat", "show", "-n", "alpha", "-f", "response"])
     assert args.agent == "alpha"
     assert args.format == "response"
-    args = parser.parse_args(["chats", "show", "-b", "x", "-f", "resume"])
+    args = parser.parse_args(["chat", "show", "-b", "x", "-f", "resume"])
     assert args.basename == "x"
     assert args.format == "resume"
     with pytest.raises(SystemExit):
-        parser.parse_args(["chats", "show", "-n", "alpha", "-f", "bogus"])
+        parser.parse_args(["chat", "show", "-n", "alpha", "-f", "bogus"])
 
 
 def test_parser_show_default_format_is_raw() -> None:
     parser = create_parser()
-    args = parser.parse_args(["chats", "show", "-p", "/tmp/x.md"])
+    args = parser.parse_args(["chat", "show", "-p", "/tmp/x.md"])
     assert args.format == "raw"
 
 
 def test_parser_list_short_options() -> None:
     parser = create_parser()
-    args = parser.parse_args(["chats", "list", "-q", "foo"])
+    args = parser.parse_args(["chat", "list", "-q", "foo"])
     assert args.query == "foo"
     assert args.limit == 20  # default
 
 
 # ===========================================================================
-# handle_chats_command dispatch
+# handle_chat_command dispatch
 # ===========================================================================
 
 
 def test_dispatch_list(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _setup_fake_home(monkeypatch, tmp_path)
-    args = argparse.Namespace(chats_subcommand="list", json=True, limit=5, query=None)
+    args = argparse.Namespace(chat_subcommand="list", json=True, limit=5, query=None)
     with pytest.raises(SystemExit) as excinfo:
-        handle_chats_command(args)
+        handle_chat_command(args)
     assert excinfo.value.code == 0
 
 
 def test_dispatch_unknown_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
-    args = argparse.Namespace(chats_subcommand=None)
+    args = argparse.Namespace(chat_subcommand=None)
     with pytest.raises(SystemExit) as excinfo:
-        handle_chats_command(args)
+        handle_chat_command(args)
     assert excinfo.value.code == 1
-    assert "Usage: sase chats" in capsys.readouterr().out
+    assert "Usage: sase chat" in capsys.readouterr().out
 
 
 # ===========================================================================
-# sase chats list
+# sase chat list
 # ===========================================================================
 
 
@@ -158,7 +158,7 @@ def test_list_json_empty(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     _setup_fake_home(monkeypatch, tmp_path)
-    handle_chats_list(_list_args(json=True))
+    handle_chat_list(_list_args(json=True))
     out = capsys.readouterr().out
     assert json.loads(out) == []
 
@@ -177,7 +177,7 @@ def test_list_json_shape_and_key_order(
         prompt="Can you help",
         response="Implemented",
     )
-    handle_chats_list(_list_args(json=True))
+    handle_chat_list(_list_args(json=True))
     data = json.loads(capsys.readouterr().out)
     assert isinstance(data, list)
     assert len(data) == 1
@@ -208,7 +208,7 @@ def test_list_limit(
     home = _setup_fake_home(monkeypatch, tmp_path)
     for i in range(5):
         _write_chat(home, f"branch-run-26042{i}_101500")
-    handle_chats_list(_list_args(json=True, limit=2))
+    handle_chat_list(_list_args(json=True, limit=2))
     data = json.loads(capsys.readouterr().out)
     assert len(data) == 2
 
@@ -221,7 +221,7 @@ def test_list_query(
     home = _setup_fake_home(monkeypatch, tmp_path)
     _write_chat(home, "alpha-run-260429_101500", prompt="brown fox")
     _write_chat(home, "beta-run-260429_101501", prompt="something else")
-    handle_chats_list(_list_args(json=True, query="brown"))
+    handle_chat_list(_list_args(json=True, query="brown"))
     data = json.loads(capsys.readouterr().out)
     assert [r["basename"] for r in data] == ["alpha-run-260429_101500"]
 
@@ -234,8 +234,8 @@ def test_list_pretty_table_renders(
         _info(basename="alpha-run-260429_101500", agent="alpha"),
         _info(basename="beta-run-260429_101501", agent="beta"),
     ]
-    with patch("sase.chats.cli_list.list_chat_transcripts", return_value=infos):
-        handle_chats_list(_list_args(json=False))
+    with patch("sase.chat.cli_list.list_chat_transcripts", return_value=infos):
+        handle_chat_list(_list_args(json=False))
     out = capsys.readouterr().out
     assert "Chat Transcripts (2)" in out
     assert "alpha-run-260429_101500" in out
@@ -243,15 +243,15 @@ def test_list_pretty_table_renders(
 
 
 def test_list_pretty_empty(capsys: pytest.CaptureFixture[str]) -> None:
-    with patch("sase.chats.cli_list.list_chat_transcripts", return_value=[]):
-        handle_chats_list(_list_args(json=False))
+    with patch("sase.chat.cli_list.list_chat_transcripts", return_value=[]):
+        handle_chat_list(_list_args(json=False))
     out = capsys.readouterr().out
     assert "Chat Transcripts (0)" in out
     assert "No chat transcripts found" in out
 
 
 # ===========================================================================
-# sase chats show
+# sase chat show
 # ===========================================================================
 
 
@@ -273,7 +273,7 @@ def test_show_raw_prints_file_contents(
 ) -> None:
     home = _setup_fake_home(monkeypatch, tmp_path)
     chat = _write_chat(home, "branch-run-260429_101500")
-    handle_chats_show(_show_args(path=str(chat), format="raw"))
+    handle_chat_show(_show_args(path=str(chat), format="raw"))
     out = capsys.readouterr().out
     assert "# Chat History - run" in out
     assert "## Prompt" in out
@@ -291,7 +291,7 @@ def test_show_response_format(
         prompt="ask",
         response="conclusion",
     )
-    handle_chats_show(_show_args(path=str(chat), format="response"))
+    handle_chat_show(_show_args(path=str(chat), format="response"))
     out = capsys.readouterr().out
     assert "conclusion" in out
     # Raw markdown header should NOT be in response-only output.
@@ -309,7 +309,7 @@ def test_show_response_exits_nonzero_when_unparseable(
     bad = bad_dir / "broken-260429_101500.md"
     bad.write_text("no recognizable headings", encoding="utf-8")
     with pytest.raises(SystemExit) as excinfo:
-        handle_chats_show(_show_args(path=str(bad), format="response"))
+        handle_chat_show(_show_args(path=str(bad), format="response"))
     assert excinfo.value.code == 1
     assert "no response" in capsys.readouterr().err.lower()
 
@@ -326,7 +326,7 @@ def test_show_resume_format(
         prompt="hello there",
         response="hi back",
     )
-    handle_chats_show(_show_args(path=str(chat), format="resume"))
+    handle_chat_show(_show_args(path=str(chat), format="resume"))
     out = capsys.readouterr().out
     # load_chat_for_resume emits **User:**/**Assistant:** flat turns.
     assert "hello there" in out
@@ -340,9 +340,7 @@ def test_show_basename_resolves_via_sharded_lookup(
 ) -> None:
     home = _setup_fake_home(monkeypatch, tmp_path)
     _write_chat(home, "branch-run-260429_101500", response="resolved")
-    handle_chats_show(
-        _show_args(basename="branch-run-260429_101500", format="response")
-    )
+    handle_chat_show(_show_args(basename="branch-run-260429_101500", format="response"))
     assert "resolved" in capsys.readouterr().out
 
 
@@ -353,7 +351,7 @@ def test_show_unknown_path_exits_2(
 ) -> None:
     _setup_fake_home(monkeypatch, tmp_path)
     with pytest.raises(SystemExit) as excinfo:
-        handle_chats_show(_show_args(path=str(tmp_path / "missing.md")))
+        handle_chat_show(_show_args(path=str(tmp_path / "missing.md")))
     assert excinfo.value.code == 2
     assert "not found" in capsys.readouterr().err.lower()
 
@@ -365,7 +363,7 @@ def test_show_unknown_basename_exits_2(
 ) -> None:
     _setup_fake_home(monkeypatch, tmp_path)
     with pytest.raises(SystemExit) as excinfo:
-        handle_chats_show(_show_args(basename="ghost-260429_101500"))
+        handle_chat_show(_show_args(basename="ghost-260429_101500"))
     assert excinfo.value.code == 2
     assert "not found" in capsys.readouterr().err.lower()
 
@@ -377,7 +375,7 @@ def test_show_unknown_agent_exits_2(
 ) -> None:
     _setup_fake_home(monkeypatch, tmp_path)
     with pytest.raises(SystemExit) as excinfo:
-        handle_chats_show(_show_args(agent="ghost"))
+        handle_chat_show(_show_args(agent="ghost"))
     assert excinfo.value.code == 2
     err = capsys.readouterr().err
     assert "ghost" in err
@@ -398,5 +396,5 @@ def test_show_agent_via_done_response_path(
     (artifact_dir / "done.json").write_text(
         json.dumps({"response_path": str(chat), "outcome": "completed"})
     )
-    handle_chats_show(_show_args(agent="alpha", format="response"))
+    handle_chat_show(_show_args(agent="alpha", format="response"))
     assert "answer" in capsys.readouterr().out
