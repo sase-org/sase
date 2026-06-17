@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 08:09:41
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_stale_pdf_blog_sentinels.md
 ---
 # Fix stale blog-post sentinels in the docs PDF validator

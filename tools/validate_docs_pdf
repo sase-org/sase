@@ -25,8 +25,8 @@ REQUIRED_SENTINELS = (
 )
 
 BLOG_SENTINELS = (
-    "Coding agents are strongest when they operate inside a workflow",
-    "Published posts appear below",
+    "The SASE Blog is the publishing surface for essays",
+    "SASE is a local orchestration layer above coding-agent CLIs",
 )
 
 FORBIDDEN_FRONT_MATTER_TOKENS = (
