@@ -74,12 +74,15 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         self._schedule_height_update()
         return True
 
-    def move_active_pane(self, delta: int) -> bool:
-        """Reorder the active pane by *delta* (``,J`` down / ``,K`` up).
+    def move_active_pane(self, delta: int, target_mode: str = "normal") -> bool:
+        """Reorder the active pane by *delta* (``Ctrl+Shift+H``/``Ctrl+Shift+L``).
 
-        The live pane texts are synced into the model first so the rebuild
-        preserves what the user has typed; the moved pane stays active and in
-        normal mode for repeated reordering.  Returns ``True`` when it moved.
+        ``delta`` of ``-1`` moves the pane higher/earlier (``Ctrl+Shift+H``) and
+        ``+1`` lower/later (``Ctrl+Shift+L``).  The live pane texts are synced
+        into the model first so the rebuild preserves what the user has typed;
+        the moved pane stays active and lands in *target_mode* ("normal" or
+        "insert"), so reordering keeps whichever vim mode the user was already
+        in.  Returns ``True`` when it moved.
         """
         if len(self._stack) <= 1:
             return False
@@ -87,7 +90,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         self._clear_active_completion_state()
         if not self._stack.move_selected(delta):
             return False
-        self._rebuild_stack(enter_mode="normal")
+        self._rebuild_stack(enter_mode=target_mode)
         return True
 
     def add_bottom_pane(self) -> None:

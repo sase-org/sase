@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 09:57:37
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_stack_ctrl_shift_hl_reorder.md
 ---
 # Migrate Prompt Stack Reorder to Ctrl+Shift+H/L

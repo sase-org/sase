@@ -308,9 +308,9 @@ class PromptStackState:
         return True
 
     def move_selected(self, delta: int) -> bool:
-        """Reorder the active item by *delta* (``,J``/``,K``), keeping it focused.
+        """Reorder the active item by *delta* (``Ctrl+Shift+H``/``Ctrl+Shift+L``).
 
-        Returns ``True`` when the item moved.
+        The moved item stays selected.  Returns ``True`` when the item moved.
         """
         target = self._clamp(self.selected_index + delta)
         if target == self.selected_index:

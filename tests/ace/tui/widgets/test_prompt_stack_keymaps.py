@@ -1,11 +1,12 @@
-"""Widget-level tests for the prompt-stack keymaps and live splitting (Phase 3).
+"""Widget-level tests for the prompt-stack keymaps and live splitting.
 
-Covers the Phase 3 deliverable of the multi-agent prompt stack: pane focus
-navigation lives on ``Ctrl+Shift+J``/``Ctrl+Shift+K`` (works in insert and
-normal mode), the comma leader reorders (``,J``/``,K``) and adds panes (``-``);
-typing a ``---`` separator line in insert mode splits the active pane into
-stacked panes; and the comma leader coexists with vim's reverse char-search
-repeat and the normal ``J`` line join.
+Covers the multi-agent prompt stack keymaps: pane focus navigation lives on
+``Ctrl+Shift+J``/``Ctrl+Shift+K`` and pane reorder on
+``Ctrl+Shift+H``/``Ctrl+Shift+L`` (both work in insert and normal mode); the
+comma leader stashes panes and ``-`` adds a new bottom pane; typing a ``---``
+separator line in insert mode splits the active pane into stacked panes; and
+the comma leader coexists with vim's reverse char-search repeat and the normal
+``J`` line join.
 """
 
 from __future__ import annotations
@@ -110,10 +111,10 @@ async def test_navigation_clamps_at_edges() -> None:
         assert bar._stack.selected_index == 1
 
 
-# --- reorder (,J / ,K) -----------------------------------------------------
+# --- reorder (Ctrl+Shift+H / Ctrl+Shift+L) ---------------------------------
 
 
-async def test_comma_shift_k_moves_active_pane_up() -> None:
+async def test_ctrl_shift_h_moves_active_pane_up() -> None:
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -121,7 +122,7 @@ async def test_comma_shift_k_moves_active_pane_up() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("comma", "K")  # move "third" up
+        await pilot.press("ctrl+shift+h")  # move "third" higher/earlier
         await pilot.pause()
         await pilot.pause()
 
@@ -132,7 +133,7 @@ async def test_comma_shift_k_moves_active_pane_up() -> None:
         assert bar.active_text_area()._vim_mode == "normal"
 
 
-async def test_comma_shift_j_moves_active_pane_down() -> None:
+async def test_ctrl_shift_l_moves_active_pane_down() -> None:
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -142,7 +143,7 @@ async def test_comma_shift_j_moves_active_pane_down() -> None:
         await pilot.press("escape")
         await pilot.press("ctrl+shift+k")  # focus "second" (index 1)
         await pilot.pause()
-        await pilot.press("comma", "J")  # move "second" down
+        await pilot.press("ctrl+shift+l")  # move "second" lower/later
         await pilot.pause()
         await pilot.pause()
 
@@ -164,15 +165,37 @@ async def test_reorder_preserves_live_edits() -> None:
         assert bar.active_text() == "second!"
 
         await pilot.press("escape")
-        await pilot.press("comma", "K")  # move "second!" up
+        await pilot.press("ctrl+shift+h")  # move "second!" higher/earlier
         await pilot.pause()
         await pilot.pause()
 
         assert bar.all_prompt_texts() == ["second!", "first"]
 
 
-async def test_comma_jk_retired_for_focus_but_shift_still_reorders() -> None:
-    """`,j`/`,k` no longer move focus; only `,J`/`,K` reorder panes."""
+async def test_insert_mode_reorder_keeps_insert_mode() -> None:
+    """Reordering from insert mode returns the moved pane to insert mode."""
+    app = _PromptBarApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        # Default mode is insert; reorder without dropping into normal mode.
+        assert bar.active_text_area()._vim_mode == "insert"
+
+        await pilot.press("ctrl+shift+h")  # move "third" higher/earlier
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar.all_prompt_texts() == ["first", "third", "second"]
+        assert bar._stack.selected_index == 1
+        assert bar.active_text() == "third"
+        # The moved pane stays in insert mode so the user keeps typing.
+        assert bar.active_text_area()._vim_mode == "insert"
+
+
+async def test_comma_jk_no_longer_reorders_but_other_leaders_work() -> None:
+    """Retired `,j`/`,k`/`,J`/`,K` no-op; other comma-leader actions still fire."""
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -182,21 +205,20 @@ async def test_comma_jk_retired_for_focus_but_shift_still_reorders() -> None:
         await pilot.press("escape")
         assert bar._stack.selected_index == 2
 
-        # The lowercase comma-leader keys are no-ops now that Ctrl+Shift+J/K
-        # own pane focus navigation.
-        await pilot.press("comma", "k")
-        await pilot.pause()
-        assert bar._stack.selected_index == 2
-        await pilot.press("comma", "j")
-        await pilot.pause()
+        # Pane reorder lives on Ctrl+Shift+H/L now, so every comma-leader J/K
+        # case (both cases) is a swallowed no-op that leaves the stack intact.
+        for key in ("j", "k", "J", "K"):
+            await pilot.press("comma", key)
+            await pilot.pause()
+        assert bar.all_prompt_texts() == ["first", "second", "third"]
         assert bar._stack.selected_index == 2
 
-        # `,K` still reorders the active pane upward.
-        await pilot.press("comma", "K")
+        # A surviving comma-leader action (`,s` stash) still dispatches: it drops
+        # the active bottom pane, proving the leader itself is unaffected.
+        await pilot.press("comma", "s")
         await pilot.pause()
         await pilot.pause()
-        assert bar.all_prompt_texts() == ["first", "third", "second"]
-        assert bar._stack.selected_index == 1
+        assert bar.all_prompt_texts() == ["first", "second"]
 
 
 # --- add a bottom pane (-) -------------------------------------------------
@@ -331,7 +353,7 @@ async def test_multi_pane_comma_is_leader_not_char_search() -> None:
 
 
 async def test_plain_shift_j_joins_lines_within_active_pane() -> None:
-    """Plain `J` still joins lines; only `,J` reorders panes."""
+    """Plain `J` still joins lines; pane reorder lives on Ctrl+Shift+H/L."""
     app = _PromptBarApp("top\n---\nlower line\nsecond line")
 
     async with app.run_test(size=(80, 30)) as pilot:

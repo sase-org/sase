@@ -23,6 +23,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("Ctrl+T / Ctrl+L", "Complete inside Jinja tags"),
         (",f / ---", "Frontmatter panel"),
         ("Ctrl+Shift+J/K", "Move between prompt panes"),
+        ("Ctrl+Shift+H/L", "Move prompt pane up/down"),
     ],
 )
 

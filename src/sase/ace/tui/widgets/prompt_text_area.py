@@ -382,6 +382,25 @@ class PromptTextArea(
                 bar.focus_relative(delta, target_mode=self._vim_mode)
             return
 
+        # Prompt-stack pane reorder, the chord pair adjacent to pane focus.
+        # ``ctrl+shift+h`` moves the active pane higher/earlier, ``ctrl+shift+l``
+        # lower/later, mirroring the vertical stack layout.  Only the shift chord
+        # matches, so ``ctrl+l`` stays soft-completion accept and ``ctrl+h`` is
+        # untouched.  The event is always swallowed in insert / normal mode so it
+        # never falls through to text insertion, completion acceptance, or global
+        # bindings, even when no movement is possible (single pane / at edge).
+        if event.key in ("ctrl+shift+h", "ctrl+shift+l") and self._vim_mode in {
+            "insert",
+            "normal",
+        }:
+            event.stop()
+            event.prevent_default()
+            bar = self._find_prompt_bar()
+            if bar is not None:
+                delta = -1 if event.key == "ctrl+shift+h" else 1
+                bar.move_active_pane(delta, target_mode=self._vim_mode)
+            return
+
         if self._vim_mode in {"visual", "visual_line"}:
             if self._handle_visual_mode_key(event):
                 event.stop()

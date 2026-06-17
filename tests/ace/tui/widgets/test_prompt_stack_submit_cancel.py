@@ -247,11 +247,12 @@ async def test_multi_pane_insert_subtitle_points_to_nav() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         subtitle = bar.insert_mode_subtitle()
-        # Esc drops into normal mode where the stack keys live.
+        # Esc drops into normal mode where the stash / add-pane keys live.
         assert "[Esc] nav" in subtitle
         assert "[Esc] normal" not in subtitle
-        # Pane focus navigation is advertised in insert mode too.
+        # Pane focus navigation and reorder are advertised in insert mode too.
         assert "[^⇧J/K] pane" in subtitle
+        assert "[^⇧H/L] move" in subtitle
 
 
 async def test_single_pane_insert_subtitle_keeps_normal_hint() -> None:
@@ -271,9 +272,11 @@ async def test_multi_pane_normal_subtitle_advertises_stack_keys() -> None:
         bar = app.query_one(PromptInputBar)
         subtitle = bar.normal_mode_subtitle()
         # Every stack keymap the active pane exposes is discoverable here.
-        # Pane focus navigation moved to the Ctrl+Shift chord.
+        # Pane focus and reorder both live on the adjacent Ctrl+Shift chords.
         assert "[^⇧J/K] pane" in subtitle
-        assert ",J" in subtitle and ",K" in subtitle
+        assert "[^⇧H/L] move" in subtitle
+        # The retired comma-leader reorder hint is gone.
+        assert ",J" not in subtitle and ",K" not in subtitle
         assert "[-] add" in subtitle
 
 
