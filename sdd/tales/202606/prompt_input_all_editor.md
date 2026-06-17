@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 07:10:57
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_input_all_editor.md
 ---
 # Plan: Prompt Input All-Panes Editor Keymap

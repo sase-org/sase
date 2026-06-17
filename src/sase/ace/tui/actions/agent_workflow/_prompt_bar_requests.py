@@ -58,6 +58,40 @@ class PromptBarRequestsMixin:
             self._unmount_prompt_bar()  # type: ignore[attr-defined]
             self._prompt_context = None
 
+    def on_prompt_input_bar_all_editor_requested(self, event: object) -> None:
+        """Handle request to open the whole stack in the editor (Ctrl+Shift+G)."""
+        from ...widgets import PromptInputBar
+
+        if not isinstance(event, PromptInputBar.AllEditorRequested):
+            return
+
+        if self._prompt_context is None:
+            return
+
+        try:
+            bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
+        except Exception:
+            return
+
+        # The bar owns serializing its live panes + frontmatter to xprompt
+        # markdown; capture it before suspending the TUI for the editor.
+        markdown = bar.xprompt_markdown_for_editor()
+        prompt = self._open_editor_for_agent_prompt(markdown)  # type: ignore[attr-defined]
+
+        if prompt:
+            # Strip a ``%edit`` directive for parity with the other editor-return
+            # paths, then reload the whole bar from the edited markdown. The
+            # all-stack editor never launches — it only re-stacks the bar.
+            has_edit, cleaned = has_edit_directive(prompt)
+            bar.load_stack_from_xprompt_markdown(cleaned if has_edit else prompt)
+        else:
+            # Empty editor return is a no-op edit: keep the bar mounted and
+            # refocus the active pane, matching the stacked ``^G`` behavior.
+            try:
+                bar.active_text_area().focus()
+            except Exception:
+                pass
+
     def _stacked_prompt_bar(self) -> PromptInputBar | None:
         """Return the mounted prompt bar when it holds more than one pane.
 

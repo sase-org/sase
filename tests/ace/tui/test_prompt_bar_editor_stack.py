@@ -43,9 +43,11 @@ class _FakeTextArea:
 
 
 class _FakeBar:
-    def __init__(self, *, stacked: bool) -> None:
+    def __init__(self, *, stacked: bool, markdown: str = "alpha\n---\nbeta") -> None:
         self._stacked = stacked
+        self._markdown = markdown
         self.updated_panes: list[str] = []
+        self.loaded_markdown: list[str] = []
         self._text_area = _FakeTextArea()
 
     def is_stacked(self) -> bool:
@@ -53,6 +55,12 @@ class _FakeBar:
 
     def update_active_pane(self, text: str) -> None:
         self.updated_panes.append(text)
+
+    def xprompt_markdown_for_editor(self) -> str:
+        return self._markdown
+
+    def load_stack_from_xprompt_markdown(self, text: str) -> None:
+        self.loaded_markdown.append(text)
 
     def active_text_area(self) -> _FakeTextArea:
         return self._text_area
@@ -100,6 +108,10 @@ class _EditorHarness(PromptBarRequestsMixin):
 
 def _event(text: str = "second") -> PromptInputBar.EditorRequested:
     return PromptInputBar.EditorRequested(current_text=text)
+
+
+def _all_event() -> PromptInputBar.AllEditorRequested:
+    return PromptInputBar.AllEditorRequested()
 
 
 # --- multi-pane stack: ^G edits the active pane ----------------------------
@@ -177,3 +189,67 @@ def test_single_pane_editor_empty_return_unmounts() -> None:
     assert harness.unmount_calls == 1
     assert harness._prompt_context is None
     assert harness.notifications == [("No prompt from editor - cancelled", "warning")]
+
+
+# --- ^⇧G edits the whole stack (all-editor) --------------------------------
+
+
+def test_all_editor_opens_whole_stack_not_active_pane() -> None:
+    bar = _FakeBar(stacked=True, markdown="alpha\n---\nbeta")
+    harness = _EditorHarness(bar=bar, editor_result="alpha\n---\nbeta EDITED")
+
+    harness.on_prompt_input_bar_all_editor_requested(_all_event())
+
+    # The editor opens the joined stack markdown, never the active pane alone.
+    assert harness.editor_inputs == ["alpha\n---\nbeta"]
+    assert bar.loaded_markdown == ["alpha\n---\nbeta EDITED"]
+    assert bar.updated_panes == []
+
+
+def test_all_editor_nonempty_return_reloads_without_launching() -> None:
+    bar = _FakeBar(stacked=True)
+    harness = _EditorHarness(bar=bar, editor_result="uno\n---\ndos")
+
+    harness.on_prompt_input_bar_all_editor_requested(_all_event())
+
+    # All-stack editor reloads the bar; it never launches or unmounts.
+    assert bar.loaded_markdown == ["uno\n---\ndos"]
+    assert harness.finished == []
+    assert harness.loaded == []
+    assert harness.unmount_calls == 0
+    assert harness._prompt_context is not None
+
+
+def test_all_editor_strips_edit_directive_on_reload() -> None:
+    bar = _FakeBar(stacked=True)
+    harness = _EditorHarness(bar=bar, editor_result="%edit\nuno\n---\ndos")
+
+    harness.on_prompt_input_bar_all_editor_requested(_all_event())
+
+    # The ``%edit`` directive is stripped before the markdown is re-stacked.
+    assert bar.loaded_markdown == ["uno\n---\ndos"]
+    assert harness.finished == []
+
+
+def test_all_editor_empty_return_keeps_bar_and_refocuses() -> None:
+    bar = _FakeBar(stacked=True)
+    harness = _EditorHarness(bar=bar, editor_result=None)
+
+    harness.on_prompt_input_bar_all_editor_requested(_all_event())
+
+    assert bar.loaded_markdown == []
+    assert bar.active_text_area().focus_calls == 1
+    assert harness.unmount_calls == 0
+    assert harness._prompt_context is not None
+    assert harness.notifications == []
+
+
+def test_all_editor_noop_without_prompt_context() -> None:
+    bar = _FakeBar(stacked=True)
+    harness = _EditorHarness(bar=bar, editor_result="anything")
+    harness._prompt_context = None
+
+    harness.on_prompt_input_bar_all_editor_requested(_all_event())
+
+    assert harness.editor_inputs == []
+    assert bar.loaded_markdown == []

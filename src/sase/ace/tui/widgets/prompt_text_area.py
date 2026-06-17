@@ -82,6 +82,7 @@ class PromptTextArea(
         ("alt+f", "cursor_word_right", "Forward word"),
         ("alt+b", "cursor_word_left", "Backward word"),
         ("ctrl+g", "open_editor", "Edit in editor"),
+        ("ctrl+shift+g", "open_all_editor", "Edit all in editor"),
         ("ctrl+y", "open_workflow_editor", "Workflow YAML"),
     ]
 
@@ -223,6 +224,23 @@ class PromptTextArea(
             self._clear_xprompt_arg_hint()
             row, col = self.cursor_location
             bar.post_message(PromptInputBar.EditorRequested(self.text, row, col))
+
+    def action_open_all_editor(self) -> None:
+        """Request to open the whole prompt stack in the external editor.
+
+        Distinct from ``^G`` (active-pane only): this is a prompt-mode,
+        multi-agent surface keymap, so feedback / approve-prompt bars ignore it.
+        Keypress handling is kept light — clear transient completion / arg-hint
+        state and post the message — while the bar owns serializing the stack to
+        xprompt markdown off the keypress path.
+        """
+        bar = self._find_prompt_bar()
+        if not bar or bar._mode != "prompt":
+            return
+        PromptInputBar = _prompt_bar_class()
+        self._clear_soft_completion(cancel_timer=True)
+        self._clear_xprompt_arg_hint()
+        bar.post_message(PromptInputBar.AllEditorRequested())
 
     def action_open_workflow_editor(self) -> None:
         """Request to open workflow YAML editor."""

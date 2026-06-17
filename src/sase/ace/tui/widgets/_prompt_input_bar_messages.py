@@ -114,6 +114,16 @@ class EditorRequested(Message, namespace="prompt_input_bar"):
         self.cursor_col = cursor_col
 
 
+class AllEditorRequested(Message, namespace="prompt_input_bar"):
+    """Message sent when user requests the whole-stack editor (Ctrl+Shift+G).
+
+    Unlike :class:`EditorRequested` (which edits only the active pane), this opens
+    the entire prompt stack as xprompt markdown.  The bar owns the serialization,
+    so the message carries no payload: the handler reads the joined markdown off
+    the mounted bar and reloads the edited result back as a stack.
+    """
+
+
 class HistoryRequested(Message, namespace="prompt_input_bar"):
     """Message sent when user requests the prompt history picker."""
 

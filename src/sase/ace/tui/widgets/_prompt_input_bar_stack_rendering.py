@@ -91,6 +91,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         def _maybe_live_split(self, text_area: PromptTextArea) -> None: ...
         def _maybe_open_frontmatter_panel(self, text_area: PromptTextArea) -> bool: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
+        def refresh_frontmatter_panel_from_stack(self) -> None: ...
         def show_jinja_diagnostics(self, diagnostics: object) -> None: ...
 
     # -- stack model + rendering ---------------------------------------------
@@ -256,6 +257,35 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
     def is_stacked(self) -> bool:
         """True when the bar currently holds more than one prompt pane."""
         return len(self._stack) > 1
+
+    def xprompt_markdown_for_editor(self) -> str:
+        """Return the whole stack as xprompt markdown for the all-pane editor.
+
+        Syncs the live panes into the model first, then joins them in launch
+        order with ``---`` segment separators, re-attaching the canonical
+        frontmatter only when properties are set (so an empty frontmatter leaves
+        no stray ``---\\n---`` block).  This is the buffer ``^⇧G`` opens; the
+        edited result is reloaded via :meth:`load_stack_from_xprompt_markdown`.
+        Single-pane prompts that carry inline leading frontmatter are preserved
+        as authored, since that text lives verbatim in the pane.
+        """
+        self._sync_state_from_widgets()
+        return self._stack.join()
+
+    def load_stack_from_xprompt_markdown(self, text: str) -> None:
+        """Reload the whole bar from edited xprompt markdown (the ``^⇧G`` return).
+
+        Unlike :meth:`load_stack_from_text` — which intentionally keeps a single
+        prompt with frontmatter as one verbatim pane for history loads — this
+        always treats *text* as xprompt markdown via
+        :meth:`PromptStackState.from_text`, lifting leading frontmatter into the
+        shared stack frontmatter even for a single body pane and splitting real
+        ``---`` separators into panes.  The frontmatter panel is re-synced so the
+        lifted frontmatter shows in the structured panel state.
+        """
+        self._stack = PromptStackState.from_text(text)
+        self._rebuild_stack()
+        self.refresh_frontmatter_panel_from_stack()
 
     def load_stack_from_text(self, text: str) -> None:
         """Replace the whole stack with panes parsed from *text*.

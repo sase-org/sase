@@ -170,6 +170,26 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             return
         self._show_frontmatter_panel(focus=False)
 
+    def refresh_frontmatter_panel_from_stack(self) -> None:
+        """Sync the panel's visibility + content to the stack's frontmatter.
+
+        Used after a whole-bar reload (the ``^⇧G`` all-editor return): shows and
+        re-syncs the panel when the reloaded markdown lifted frontmatter onto the
+        stack, and hides it when the edited markdown cleared all properties — so
+        the structured panel always reflects the freshly loaded frontmatter
+        without stealing focus from the body.
+        """
+        if self._mode != "prompt":
+            return
+        panel = self._frontmatter_panel()
+        if panel is None:
+            return
+        if self._stack.frontmatter:
+            self._show_frontmatter_panel(focus=False)
+        else:
+            panel.add_class("hidden")
+            self._schedule_height_update()
+
     # -- trigger --------------------------------------------------------------
 
     def _should_reserve_for_frontmatter(self, text_area: PromptTextArea) -> bool:

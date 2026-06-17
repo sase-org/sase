@@ -16,6 +16,7 @@ from sase.ace.tui.widgets._prompt_input_bar_frontmatter import (
     PromptInputBarFrontmatterMixin,
 )
 from sase.ace.tui.widgets._prompt_input_bar_messages import (
+    AllEditorRequested as _AllEditorRequested,
     Cancelled as _Cancelled,
     EditorRequested as _EditorRequested,
     HistoryRequested as _HistoryRequested,
@@ -53,6 +54,7 @@ class PromptInputBar(
     Stashed = _Stashed
     RestoreRequested = _RestoreRequested
     EditorRequested = _EditorRequested
+    AllEditorRequested = _AllEditorRequested
     HistoryRequested = _HistoryRequested
     SnippetRequested = _SnippetRequested
     WorkflowEditorRequested = _WorkflowEditorRequested
@@ -187,7 +189,7 @@ class PromptInputBar(
             return "Type coder prompt...  [^G] editor  [^J] newline"
         return (
             "Type prompt  [^K] history  [^T] complete  [^R] find  "
-            "[^G] editor  [^Y] workflow  [^J] newline"
+            "[^G] editor  [^⇧G] edit all  [^Y] workflow  [^J] newline"
         )
 
     def on_mount(self) -> None:

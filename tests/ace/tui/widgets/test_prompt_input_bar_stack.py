@@ -13,8 +13,11 @@ from typing import Any
 
 from textual.app import App, ComposeResult
 
+from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.xprompt.models import InputArg, InputType, XPrompt
+from sase.xprompt.prompt_frontmatter import LOCAL_XPROMPT_SOURCE, PromptFrontmatter
 
 
 class _PromptBarApp(App[None]):
@@ -356,3 +359,238 @@ async def test_feedback_mode_never_splits() -> None:
         bar = app.query_one(PromptInputBar)
         assert len(app.query(".prompt-input")) == 1
         assert bar.active_text() == "a\n---\nb"
+
+
+# --- all-pane editor (^⇧G) -------------------------------------------------
+
+
+class _RecordingPromptBarApp(App[None]):
+    """Host a prompt bar and record the editor messages it posts.
+
+    Carries the app-level ``ctrl+g`` binding too, so a test can prove the
+    focused pane's widget-local ``ctrl+g`` shadows it instead of triggering the
+    global "edit last VCS xprompt" action.
+    """
+
+    ENABLE_COMMAND_PALETTE = False
+    BINDINGS = [("ctrl+g", "start_last_vcs_xprompt_in_editor", "Edit last VCS")]
+
+    def __init__(self, initial_value: str = "", mode: str = "prompt") -> None:
+        super().__init__()
+        self._initial_value = initial_value
+        self._mode = mode
+        self.editor_requests: list[PromptInputBar.EditorRequested] = []
+        self.all_editor_requests: list[PromptInputBar.AllEditorRequested] = []
+        self.global_editor_calls = 0
+
+    def compose(self) -> ComposeResult:
+        yield PromptInputBar(
+            initial_value=self._initial_value,
+            mode=self._mode,
+            id="prompt-input-bar",
+        )
+
+    def on_prompt_input_bar_editor_requested(
+        self, event: PromptInputBar.EditorRequested
+    ) -> None:
+        self.editor_requests.append(event)
+
+    def on_prompt_input_bar_all_editor_requested(
+        self, event: PromptInputBar.AllEditorRequested
+    ) -> None:
+        self.all_editor_requests.append(event)
+
+    def action_start_last_vcs_xprompt_in_editor(self) -> None:
+        self.global_editor_calls += 1
+
+
+async def test_ctrl_g_requests_active_pane_text_only() -> None:
+    app = _RecordingPromptBarApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.focus_item(1)  # edit the middle pane
+        await pilot.pause()
+
+        bar.active_text_area().action_open_editor()
+        await pilot.pause()
+
+        # ^G posts only the active pane's text — never the all-editor message.
+        assert len(app.editor_requests) == 1
+        assert app.editor_requests[0].current_text == "second"
+        assert app.all_editor_requests == []
+
+
+async def test_ctrl_shift_g_requests_whole_stack() -> None:
+    app = _RecordingPromptBarApp("alpha\n---\nbeta")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.active_text_area().action_open_all_editor()
+        await pilot.pause()
+
+        # ^⇧G posts the all-editor message; the serialized buffer is the whole
+        # stack joined with ``---`` separators.
+        assert len(app.all_editor_requests) == 1
+        assert app.editor_requests == []
+        assert bar.xprompt_markdown_for_editor() == "alpha\n---\nbeta"
+
+
+async def test_all_editor_action_noop_in_feedback_mode() -> None:
+    app = _RecordingPromptBarApp("draft feedback", mode="feedback")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.active_text_area().action_open_all_editor()
+        await pilot.pause()
+
+        # The all-pane editor is a prompt-mode (multi-agent) surface only.
+        assert app.all_editor_requests == []
+
+
+async def test_focused_pane_ctrl_g_shadows_global_binding() -> None:
+    app = _RecordingPromptBarApp("solo prompt")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        assert app.focused is app.query_one(PromptInputBar).active_text_area()
+
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+
+        # The widget-local ^G wins: the editor request fires, the global
+        # "edit last VCS xprompt" action never runs.
+        assert len(app.editor_requests) == 1
+        assert app.global_editor_calls == 0
+
+
+def test_prompt_text_area_binds_both_editor_scopes() -> None:
+    actions = {entry[0]: entry[1] for entry in PromptTextArea.BINDINGS}
+    assert actions["ctrl+g"] == "open_editor"
+    assert actions["ctrl+shift+g"] == "open_all_editor"
+
+
+async def test_all_editor_markdown_serializes_canonical_frontmatter() -> None:
+    app = _PromptBarApp("alpha\n---\nbeta")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        model = PromptFrontmatter(
+            description="do the thing",
+            tags=["x", "y"],
+            inputs=[InputArg(name="topic", type=InputType.LINE)],
+            xprompts={
+                "_helper": XPrompt(
+                    name="_helper",
+                    content="reusable body",
+                    source_path=LOCAL_XPROMPT_SOURCE,
+                )
+            },
+            skill=True,
+            snippet="#foo",
+        )
+        bar._stack.set_frontmatter_model(model)
+
+        markdown = bar.xprompt_markdown_for_editor()
+        frontmatter = model.serialize()
+
+        # Canonical frontmatter sits above the panes, which keep launch order.
+        assert markdown == f"{frontmatter}\nalpha\n---\nbeta"
+        for field_name in (
+            "description",
+            "tags",
+            "input",
+            "xprompts",
+            "skill",
+            "snippet",
+        ):
+            assert field_name in frontmatter
+
+
+async def test_all_editor_markdown_omits_empty_frontmatter_block() -> None:
+    app = _PromptBarApp("alpha\n---\nbeta")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        markdown = bar.xprompt_markdown_for_editor()
+
+        # No properties set -> no leading ``---\n---`` delimiter block.
+        assert markdown == "alpha\n---\nbeta"
+        assert not markdown.startswith("---")
+
+
+async def test_load_stack_from_xprompt_markdown_lifts_frontmatter_and_splits() -> None:
+    app = _PromptBarApp("only one")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.load_stack_from_xprompt_markdown("---\ndescription: hi\n---\nuno\n---\ndos")
+        await pilot.pause()
+        await pilot.pause()
+
+        # Frontmatter is lifted onto the stack; the body splits into panes.
+        assert len(app.query(".prompt-input")) == 2
+        assert bar.all_prompt_texts() == ["uno", "dos"]
+        assert bar._stack.frontmatter == "---\ndescription: hi\n---"
+        # The frontmatter panel reflects the lifted frontmatter.
+        assert not app.query_one("#frontmatter-panel", FrontmatterPanel).has_class(
+            "hidden"
+        )
+
+
+async def test_load_stack_from_xprompt_markdown_lifts_single_body_pane() -> None:
+    """Unlike history load, the all-editor reload lifts a lone body's frontmatter.
+
+    ``load_stack_from_text`` keeps a single prompt with frontmatter verbatim (see
+    ``test_single_prompt_with_frontmatter_stays_verbatim``); the all-editor path
+    must instead treat the file as xprompt markdown and lift the frontmatter.
+    """
+    app = _PromptBarApp("only one")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.load_stack_from_xprompt_markdown("---\ndescription: hi\n---\njust body")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.query(".prompt-input")) == 1
+        assert bar.active_text() == "just body"
+        assert bar._stack.frontmatter == "---\ndescription: hi\n---"
+
+
+async def test_load_stack_from_xprompt_markdown_clears_frontmatter_panel() -> None:
+    app = _PromptBarApp("only one")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        # A first reload lifts frontmatter and reveals the panel...
+        bar.load_stack_from_xprompt_markdown("---\ndescription: hi\n---\nbody")
+        await pilot.pause()
+        await pilot.pause()
+        assert not app.query_one("#frontmatter-panel", FrontmatterPanel).has_class(
+            "hidden"
+        )
+
+        # ...a later reload with no frontmatter hides the panel again.
+        bar.load_stack_from_xprompt_markdown("plain body\n---\nsecond")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar._stack.frontmatter == ""
+        assert app.query_one("#frontmatter-panel", FrontmatterPanel).has_class("hidden")
