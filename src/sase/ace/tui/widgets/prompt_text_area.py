@@ -24,6 +24,7 @@ from sase.ace.tui.widgets._xprompt_arg_hints import XPromptArgHintMixin
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
 )
+from sase.ace.tui.widgets.frontmatter_panel import FRONTMATTER_PANEL_TOGGLE_KEYS
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
@@ -415,6 +416,29 @@ class PromptTextArea(
             bar = self._find_prompt_bar()
             if bar is not None:
                 bar.add_bottom_pane()
+            return
+
+        # XPrompt properties panel toggle.  ``Ctrl+Shift+-`` (also delivered as
+        # ``ctrl+underscore`` by terminals that encode it as ``Ctrl+_``) shows
+        # and focuses the frontmatter panel from the body, and deactivates it
+        # again — the structural sibling of ``,f`` / leading ``---``.  Like the
+        # stack chords it works while typing (insert) or browsing (normal) and is
+        # always swallowed so it never falls through to text insertion,
+        # completion, normal-mode editing, or app-level bindings.
+        # ``toggle_frontmatter_panel`` no-ops outside prompt mode, so feedback /
+        # approve-prompt bars (which mount no panel) stay inert.
+        if event.key in FRONTMATTER_PANEL_TOGGLE_KEYS and self._vim_mode in {
+            "insert",
+            "normal",
+        }:
+            event.stop()
+            event.prevent_default()
+            self._clear_soft_completion(cancel_timer=True)
+            self._clear_file_completion()
+            self._clear_xprompt_arg_hint()
+            bar = self._find_prompt_bar()
+            if bar is not None:
+                bar.toggle_frontmatter_panel()
             return
 
         if self._vim_mode in {"visual", "visual_line"}:

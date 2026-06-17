@@ -8,8 +8,9 @@ Presentation-only glue between the prompt stack and the structured
 - typing a leading ``---`` then a newline at the very start of an empty prompt
   promotes into frontmatter mode (distinct from a ``---`` *after* content, which
   stays a multi-agent segment separator);
-- ``,f`` focuses the panel and ``esc`` / ``q`` hands focus back to the body,
-  removing the frontmatter entirely when the panel is left empty;
+- ``,f`` focuses the panel (``Ctrl+Shift+-`` toggles it from the body and back)
+  and ``esc`` / ``q`` hands focus back to the body, removing the frontmatter
+  entirely when the panel is left empty;
 - panel edits are persisted onto the stack's byte-stable ``frontmatter`` string
   via :meth:`PromptStackState.set_frontmatter_model`, so ``parse_multi_prompt``
   stays the launch source of truth.
@@ -163,6 +164,28 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         panel.set_frontmatter(self._stack.frontmatter)
         self.call_after_refresh(panel.focus_panel)
         self._schedule_height_update()
+
+    def toggle_frontmatter_panel(self) -> None:
+        """Toggle the xprompt properties panel (the ``Ctrl+Shift+-`` chord).
+
+        Prompt mode only, and only when a panel is mounted — feedback /
+        approve-prompt bars mount none, so the chord is a no-op there.  When the
+        panel (or its inline / raw editor) already owns focus, hand off to the
+        panel so it deactivates with the right per-mode ``esc`` semantics and
+        returns focus to the body.  Otherwise reuse the ``,f`` show/focus path so
+        the two entry points stay identical: it syncs live pane text, shows the
+        panel if hidden, resyncs it from ``self._stack.frontmatter``, focuses it
+        after the refresh, and schedules the height update.
+        """
+        if self._mode != "prompt":
+            return
+        panel = self._frontmatter_panel()
+        if panel is None:
+            return
+        if self._frontmatter_panel_owns_focus():
+            panel.deactivate()
+            return
+        self.focus_frontmatter_panel()
 
     def auto_show_frontmatter_panel(self) -> None:
         """Auto-show (without stealing focus) when opening on existing frontmatter."""

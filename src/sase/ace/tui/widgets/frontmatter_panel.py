@@ -16,8 +16,9 @@ Phase 3 scope (this widget):
   edit scalars / lists inline; **delete** the focused field with ``d``.
 - **Raw** YAML mode with ``R``: edit the canonical serialized frontmatter in a
   single text area, validated live by core; on exit it re-parses into the model.
-- **Done** with ``esc`` / ``q``: hands focus back to the prompt body (the host
-  bar removes the frontmatter entirely when the panel is left empty).
+- **Done** with ``esc`` / ``q`` (or the ``Ctrl+Shift+-`` toggle that opened it):
+  hands focus back to the prompt body (the host bar removes the frontmatter
+  entirely when the panel is left empty).
 
 Phase 4 adds structured editing of individual ``input`` / ``xprompts`` items:
 ``j``/``k`` navigate into the unfolded sub-trees, and ``a``/``e``/``d`` (or
@@ -52,6 +53,15 @@ from sase.ace.tui.widgets._frontmatter_panel_rendering import (
 )
 from sase.xprompt.frontmatter_schema import frontmatter_field_schema
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+
+# The two Textual key spellings for the physical ``Ctrl+Shift+-`` chord that
+# toggles the xprompt properties panel.  Many terminals encode the chord as
+# ``Ctrl+_`` (``ctrl+underscore``), so both names must map to the same toggle.
+# Shared between the prompt body (:class:`PromptTextArea`) and the panel itself
+# so the alias list can never drift between the two entry points.
+FRONTMATTER_PANEL_TOGGLE_KEYS: frozenset[str] = frozenset(
+    {"ctrl+shift+minus", "ctrl+underscore"}
+)
 
 
 class FrontmatterPanel(
@@ -158,8 +168,38 @@ class FrontmatterPanel(
 
     # -- key handling ---------------------------------------------------------
 
+    def deactivate(self) -> None:
+        """Toggle the panel off (the ``Ctrl+Shift+-`` chord from inside it).
+
+        Mirrors the per-mode ``esc`` semantics before leaving, so the chord and
+        ``esc`` agree on how an in-progress edit is resolved:
+
+        - **rows**: post :class:`Closed` straight away;
+        - **inline edit**: cancel the in-progress edit, then post :class:`Closed`;
+        - **raw**: try to apply the YAML first and only post :class:`Closed` if it
+          parsed (a parse failure keeps focus in raw mode rather than silently
+          discarding the invalid edit).
+        """
+        if self._edit_mode == "edit":
+            self._cancel_inline_edit()
+            self._close()
+            return
+        if self._edit_mode == "raw":
+            self._commit_raw()
+            if self._edit_mode == "rows":
+                self._close()
+            return
+        self._close()
+
     def on_key(self, event: events.Key) -> None:
         """Dispatch panel keys, deferring to child editors while editing."""
+        if event.key in FRONTMATTER_PANEL_TOGGLE_KEYS:
+            # The ``Ctrl+Shift+-`` toggle deactivates the panel from any mode,
+            # ahead of the per-mode dispatch below (and the child editors).
+            event.stop()
+            event.prevent_default()
+            self.deactivate()
+            return
         if self._edit_mode == "edit":
             if event.key == "escape":
                 event.stop()
