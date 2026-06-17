@@ -488,6 +488,14 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
             pane.styles.height = height
         bar_height = min(reserve + sum(alloc), max_height)
         self.styles.height = max(bar_height, 3)
+        self._scroll_active_pane_visible()
+
+    def _scroll_active_pane_visible(self) -> None:
+        """Keep the focused pane reachable if the stack overflows vertically."""
+        try:
+            self.active_text_area().scroll_visible(animate=False)
+        except Exception:
+            pass
 
     def _schedule_height_update(self) -> None:
         """Update now and once more after Textual has refreshed wrapping."""

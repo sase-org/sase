@@ -116,6 +116,19 @@ async def test_auto_show_on_existing_frontmatter() -> None:
         assert panel.model.description == "hi"
 
 
+async def test_reserved_height_counts_panel_bottom_margin() -> None:
+    """Rows mode reserves content, round border, and the panel bottom margin."""
+    app = _PromptBarApp("---\ndescription: hi\n---\nfirst\n---\nsecond")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        panel = app.query_one(FrontmatterPanel)
+        assert panel._edit_mode == "rows"
+        assert panel._content_lines == 1
+        assert panel.reserved_height == panel._content_lines + 3
+
+
 # --- add / edit / delete scalars -------------------------------------------
 
 

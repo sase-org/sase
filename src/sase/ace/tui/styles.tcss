@@ -1367,6 +1367,8 @@ PromptInputBar #frontmatter-raw.hidden {
 PromptInputBar #prompt-stack {
     width: 100%;
     height: 1fr;
+    overflow-y: auto;
+    scrollbar-size-vertical: 1;
 }
 
 /* Shared text-area styling for every pane. */

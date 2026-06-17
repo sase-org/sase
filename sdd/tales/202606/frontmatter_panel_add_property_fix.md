@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 17:37:19
-status: wip
+status: done
 prompt: sdd/prompts/202606/frontmatter_panel_add_property_fix.md
 ---
 # Fix: adding an xprompt property disappears a prompt pane and traps focus

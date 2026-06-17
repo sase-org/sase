@@ -148,13 +148,14 @@ class FrontmatterPanel(
 
     @property
     def reserved_height(self) -> int:
-        """Rows the panel needs (content + border) so the bar can size itself."""
+        """Rows the panel occupies above the stack, including its bottom margin."""
+        bottom_margin = 1
         if self._edit_mode == "raw":
-            return 12
+            return 12 + bottom_margin
         base = self._content_lines + 2
         if self._edit_mode == "edit":
-            return base + 3  # the inline input plus its top margin
-        return base
+            return base + 3 + bottom_margin  # inline input plus its top margin
+        return base + bottom_margin
 
     @property
     def model(self) -> PromptFrontmatter:

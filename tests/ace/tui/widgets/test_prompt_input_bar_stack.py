@@ -210,6 +210,33 @@ async def test_stack_height_capped_by_terminal_and_active_grows() -> None:
         assert heights[active] > max(heights[0], heights[1])
 
 
+async def test_stack_height_accounts_for_visible_frontmatter_panel() -> None:
+    long = "word " * 120
+    app = _PromptBarApp(
+        "---\n"
+        "description: keep the panel visible\n"
+        "---\n"
+        f"short top\n---\nshort middle\n---\n{long}"
+    )
+
+    async with app.run_test(size=(40, 24)) as pilot:
+        await pilot.pause()
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
+        heights = _pane_heights(app, bar)
+        active = bar._stack.selected_index
+        reserve = 2 + panel.reserved_height + len(heights)
+        bar_height = _height(bar.styles.height)
+
+        assert not panel.has_class("hidden")
+        assert reserve + sum(heights) <= bar_height <= app.screen.size.height - 2
+        assert heights[active] > max(
+            height for index, height in enumerate(heights) if index != active
+        )
+
+
 async def test_inactive_panes_compact_first() -> None:
     long = "word " * 60
     # Two long panes; only the active one is allowed to grow tall.

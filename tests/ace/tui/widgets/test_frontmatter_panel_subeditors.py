@@ -83,6 +83,9 @@ async def test_add_input_item_via_header_modal() -> None:
         dry_run = panel.model.get_input("dry_run")
         assert dry_run is not None and dry_run.default is False
         assert "dry_run" in bar._stack.frontmatter
+        assert bar._frontmatter_panel_visible()
+        assert app.focused is bar.active_text_area()
+        assert bar.active_text_area()._vim_mode == "insert"
 
 
 async def test_begin_add_structured_field_opens_modal() -> None:
@@ -111,8 +114,53 @@ async def test_begin_add_structured_field_opens_modal() -> None:
 
         assert "_rules" in panel.model.xprompts
         assert "_rules" in bar._stack.frontmatter
+        assert bar._frontmatter_panel_visible()
+        assert app.focused is bar.active_text_area()
+        assert bar.active_text_area()._vim_mode == "insert"
         # The freshly authored helper is immediately usable for completion.
         assert [e.name for e in bar.local_xprompt_assist_entries()] == ["_rules"]
+
+
+async def test_cancel_input_item_modal_returns_focus_to_panel() -> None:
+    """Cancelling a structured sub-form leaves row navigation in the panel."""
+    app = _PromptBarApp("---\ninput:\n  service: word\n---\nfirst\n---\nsecond")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        panel = await _open_panel(pilot, app)
+
+        await pilot.press("a")  # header selected -> add item
+        await pilot.pause()
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, InputItemModal)
+        modal.action_cancel()
+        await pilot.pause()
+        await pilot.pause()
+
+        assert app.focused is panel
+        assert panel._edit_mode == "rows"
+
+
+async def test_cancel_xprompt_item_modal_returns_focus_to_panel() -> None:
+    """Cancelling a new xprompt sub-form leaves the panel active."""
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        panel = await _open_panel(pilot, app)
+
+        panel.begin_add("xprompts")
+        await pilot.pause()
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, XPromptItemModal)
+        modal.action_cancel()
+        await pilot.pause()
+        await pilot.pause()
+
+        assert app.focused is panel
+        assert panel._edit_mode == "rows"
 
 
 # --- edit / delete sub-items -----------------------------------------------

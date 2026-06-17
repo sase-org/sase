@@ -165,8 +165,9 @@ class FrontmatterPanelEditingMixin(_MixinBase):
                 self._fields = self._model.present_fields()
                 self._folded.discard("input")
                 self._select_nav(("input", result.name))
-                self._refresh()
                 self._emit_changed()
+                self._commit_to_body()
+                return
             self._return_focus()
 
         self.app.push_screen(InputItemModal(existing=existing, used_names=used), _done)
@@ -190,8 +191,9 @@ class FrontmatterPanelEditingMixin(_MixinBase):
                 self._fields = self._model.present_fields()
                 self._folded.discard("xprompts")
                 self._select_nav(("xprompt", name))
-                self._refresh()
                 self._emit_changed()
+                self._commit_to_body()
+                return
             self._return_focus()
 
         self.app.push_screen(
@@ -205,6 +207,14 @@ class FrontmatterPanelEditingMixin(_MixinBase):
         self._clamp_selection()
         self._refresh()
         self.focus()
+
+    def _commit_to_body(self) -> None:
+        """Restore rows view after a sub-form save and focus the prompt body."""
+        self._edit_mode = "rows"
+        self._show_rows_only()
+        self._clamp_selection()
+        self._refresh()
+        self._close()
 
     def _begin_inline_edit(
         self, field: str, *, initial: str, adding: bool = False
