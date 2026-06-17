@@ -135,7 +135,7 @@ class PromptInputBar(
         the ``[Esc] normal`` hint for ``[Esc] nav`` (Esc drops into normal mode,
         where the ``,j``/``,k``/``,J``/``,K``/``-`` stack keys live — see
         :meth:`normal_mode_subtitle`) and adds a ``[^S] all`` hint for the
-        whole-stack submit (the portable fallback for ``<shift+enter>``).
+        whole-stack submit.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
             return "[Enter] send  [Esc] nav  [^C] cancel  [^S] all"

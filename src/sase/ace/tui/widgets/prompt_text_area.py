@@ -160,7 +160,7 @@ class PromptTextArea(
             bar._handle_text_submission(self.text)
 
     def action_submit_prompt_stack(self) -> None:
-        """Submit the whole prompt stack as one multi-prompt (``<shift+enter>``)."""
+        """Submit the whole prompt stack as one multi-prompt (``<ctrl+s>``)."""
         self._snippet_tabstops = []
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
@@ -341,10 +341,8 @@ class PromptTextArea(
                 self.action_submit_prompt()
             return
 
-        # Whole-stack submit. ``<shift+enter>`` is the intended key but is not
-        # portable (many terminals deliver it as plain ``<enter>``), so ``^S``
-        # is the reliable fallback; both join the stack into one multi-prompt.
-        if event.key in ("shift+enter", "ctrl+s"):
+        # Whole-stack submit. ``^S`` joins the stack into one multi-prompt.
+        if event.key == "ctrl+s":
             event.stop()
             event.prevent_default()
             self.action_submit_prompt_stack()

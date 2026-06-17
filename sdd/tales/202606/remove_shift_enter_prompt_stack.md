@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 07:24:07
-status: wip
+status: done
 prompt: sdd/prompts/202606/remove_shift_enter_prompt_stack.md
 ---
 # Plan: Remove Shift+Enter Prompt-Stack Submit Support

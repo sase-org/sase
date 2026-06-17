@@ -5,8 +5,7 @@ Covers the Phase 4 deliverable of the multi-agent prompt stack:
 - ``<enter>`` submits only the selected pane and keeps the bar mounted while
   other panes remain, dropping an empty selected pane instead of launching it.
 - ``<enter>`` on the final pane submits the whole bar (unmount path).
-- ``<ctrl+s>`` (and ``<shift+enter>``) submit the whole stack as one
-  multi-prompt.
+- ``<ctrl+s>`` submits the whole stack as one multi-prompt.
 - ``<ctrl+c>`` cancels only the selected pane and keeps the bar mounted while
   other panes remain.
 """
@@ -150,7 +149,7 @@ async def test_enter_drains_stack_one_pane_at_a_time() -> None:
         assert [e.keep_bar for e in app.submitted] == [True, False]
 
 
-# --- <ctrl+s> / <shift+enter>: whole-stack submit --------------------------
+# --- <ctrl+s>: whole-stack submit ------------------------------------------
 
 
 async def test_ctrl_s_submits_whole_stack_as_multi_prompt() -> None:
@@ -167,22 +166,6 @@ async def test_ctrl_s_submits_whole_stack_as_multi_prompt() -> None:
         assert event.value == "first\n---\nsecond\n---\nthird"
         assert event.whole_stack is True
         assert event.keep_bar is False
-
-
-async def test_shift_enter_submits_whole_stack() -> None:
-    app = _CaptureApp("first\n---\nsecond")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-        # Drive the action directly: shift+enter is not delivered by every
-        # terminal, which is exactly why ^S exists as the portable fallback.
-        bar.active_text_area().action_submit_prompt_stack()
-        await pilot.pause()
-
-        assert len(app.submitted) == 1
-        assert app.submitted[0].value == "first\n---\nsecond"
-        assert app.submitted[0].whole_stack is True
 
 
 async def test_ctrl_s_is_noop_in_feedback_mode() -> None:

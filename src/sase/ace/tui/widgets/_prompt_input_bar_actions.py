@@ -64,7 +64,7 @@ class PromptInputBarActionsMixin(_MixinBase):
         self._rebuild_stack(enter_mode="insert")
 
     def _handle_whole_stack_submission(self) -> None:
-        """Submit the whole stack as one multi-prompt (``<shift+enter>``/``^S``).
+        """Submit the whole stack as one multi-prompt (``^S``).
 
         Only meaningful in prompt mode — feedback / approve-prompt bars are not
         multi-agent surfaces — so it is a no-op elsewhere.  The non-empty panes
