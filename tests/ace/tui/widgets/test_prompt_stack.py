@@ -2,7 +2,8 @@
 
 Covers the Phase 1 deliverable of the multi-agent prompt stack: canonical
 split/join, frontmatter handling, empty-segment dropping, and structural
-operations (insert/remove/reorder/focus) with selection clamping.
+operations (insert/remove/reorder/focus); relative focus and reorder cycle at
+the stack edges, while absolute focus and removal clamp.
 """
 
 from __future__ import annotations
@@ -226,15 +227,23 @@ def test_move_focus_up_and_down() -> None:
     assert state.selected_index == 1
     assert state.move_focus(-1) is True
     assert state.selected_index == 0
-    # Already at the top: no change.
-    assert state.move_focus(-1) is False
+    # From the top pane Ctrl+H wraps around to the bottom pane.
+    assert state.move_focus(-1) is True
+    assert state.selected_index == 2
+
+
+def test_move_focus_cycles_from_bottom_to_top() -> None:
+    state = PromptStackState.from_text("a\n---\nb")  # selected = 1 (bottom)
+    # From the bottom pane Ctrl+L wraps around to the top pane.
+    assert state.move_focus(1) is True
     assert state.selected_index == 0
 
 
-def test_move_focus_clamps_at_bottom() -> None:
-    state = PromptStackState.from_text("a\n---\nb")  # selected = 1 (bottom)
+def test_move_focus_single_pane_is_noop() -> None:
+    state = PromptStackState.single("only")
     assert state.move_focus(1) is False
-    assert state.selected_index == 1
+    assert state.move_focus(-1) is False
+    assert state.selected_index == 0
 
 
 # --- insert ---------------------------------------------------------------
@@ -319,11 +328,32 @@ def test_move_selected_up_keeps_focus_on_item() -> None:
     assert state.selected_item.text == "c"
 
 
-def test_move_selected_at_edge_is_noop() -> None:
-    state = PromptStackState.from_text("a\n---\nb")
+def test_move_selected_top_wraps_to_bottom() -> None:
+    state = PromptStackState.from_text("a\n---\nb\n---\nc")
     state.focus(0)
+    moved_id = state.selected_item.item_id
+    # Ctrl+Shift+H from the top pane wraps it to the bottom of the stack.
+    assert state.move_selected(-1) is True
+    assert state.texts == ["b", "c", "a"]
+    assert state.selected_index == 2
+    assert state.selected_item.item_id == moved_id
+
+
+def test_move_selected_bottom_wraps_to_top() -> None:
+    state = PromptStackState.from_text("a\n---\nb\n---\nc")  # selected = 2
+    moved_id = state.selected_item.item_id
+    # Ctrl+Shift+L from the bottom pane wraps it to the top of the stack.
+    assert state.move_selected(1) is True
+    assert state.texts == ["c", "a", "b"]
+    assert state.selected_index == 0
+    assert state.selected_item.item_id == moved_id
+
+
+def test_move_selected_single_pane_is_noop() -> None:
+    state = PromptStackState.single("only")
+    assert state.move_selected(1) is False
     assert state.move_selected(-1) is False
-    assert state.texts == ["a", "b"]
+    assert state.texts == ["only"]
     assert state.selected_index == 0
 
 

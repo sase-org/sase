@@ -233,11 +233,17 @@ class PromptStackState:
         return self.selected_index
 
     def move_focus(self, delta: int) -> bool:
-        """Move the active item by *delta* (e.g. ``,j``/``,k``).
+        """Cycle active-item focus by *delta*, wrapping at the stack edges.
 
-        Returns ``True`` when the selection changed.
+        With more than one item the target index wraps with modulo arithmetic,
+        so ``delta`` ``-1`` from the top item selects the bottom item and ``+1``
+        from the bottom item selects the top.  A single-item stack has no other
+        item to focus, so it stays put.  Returns ``True`` when the selection
+        changed.
         """
-        target = self._clamp(self.selected_index + delta)
+        if len(self.items) <= 1:
+            return False
+        target = (self.selected_index + delta) % len(self.items)
         if target == self.selected_index:
             return False
         self.selected_index = target
@@ -279,11 +285,17 @@ class PromptStackState:
         return True
 
     def move_selected(self, delta: int) -> bool:
-        """Reorder the active item by *delta* (``Ctrl+Shift+H``/``Ctrl+Shift+L``).
+        """Cycle the active item by *delta* (``Ctrl+Shift+H``/``Ctrl+Shift+L``).
 
-        The moved item stays selected.  Returns ``True`` when the item moved.
+        With more than one item the target index wraps with modulo arithmetic,
+        so ``delta`` ``-1`` from the top item moves it to the bottom and ``+1``
+        from the bottom item moves it to the top.  The moved item stays
+        selected.  A single-item stack cannot move, so it stays put.  Returns
+        ``True`` when the item moved.
         """
-        target = self._clamp(self.selected_index + delta)
+        if len(self.items) <= 1:
+            return False
+        target = (self.selected_index + delta) % len(self.items)
         if target == self.selected_index:
             return False
         item = self.items.pop(self.selected_index)

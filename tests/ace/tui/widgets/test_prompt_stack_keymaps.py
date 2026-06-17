@@ -98,7 +98,29 @@ async def test_ctrl_h_then_l_round_trips_focus() -> None:
         assert bar.active_text() == "second"
 
 
-async def test_ctrl_l_focuses_next_pane_and_clamps_at_bottom_edge() -> None:
+async def test_ctrl_h_cycles_from_top_to_bottom() -> None:
+    """``Ctrl+H`` from the top pane wraps focus around to the bottom pane."""
+    app = _PromptBarApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape")
+        await pilot.press("ctrl+h")  # 2 -> 1
+        await pilot.press("ctrl+h")  # 1 -> 0 (top pane)
+        await pilot.pause()
+        assert bar._stack.selected_index == 0
+
+        await pilot.press("ctrl+h")  # 0 -> 2 (wraps to the bottom pane)
+        await pilot.pause()
+        assert bar._stack.selected_index == 2
+        assert bar.active_text() == "third"
+        # Cycling preserves the current vim mode.
+        assert bar.active_text_area()._vim_mode == "normal"
+
+
+async def test_ctrl_l_focuses_next_pane_and_cycles_at_bottom_edge() -> None:
     app = _PromptBarApp("first\n---\nsecond")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -115,11 +137,11 @@ async def test_ctrl_l_focuses_next_pane_and_clamps_at_bottom_edge() -> None:
         assert bar._stack.selected_index == 1
         assert bar.active_text() == "second"
 
-        # Already at the bottom: Ctrl+L clamps in place.  It is still swallowed
-        # (multi-pane), so the selection holds and nothing bubbles away.
-        await pilot.press("ctrl+l")
+        # From the bottom pane Ctrl+L wraps around to the top pane.
+        await pilot.press("ctrl+l")  # 1 -> 0
         await pilot.pause()
-        assert bar._stack.selected_index == 1
+        assert bar._stack.selected_index == 0
+        assert bar.active_text() == "first"
 
 
 async def test_ctrl_shift_jk_no_longer_move_focus() -> None:
@@ -255,6 +277,53 @@ async def test_insert_mode_reorder_keeps_insert_mode() -> None:
         assert bar.active_text() == "third"
         # The moved pane stays in insert mode so the user keeps typing.
         assert bar.active_text_area()._vim_mode == "insert"
+
+
+async def test_ctrl_shift_h_on_top_pane_wraps_to_bottom() -> None:
+    """``Ctrl+Shift+H`` on the top pane cycles it to the bottom, still active."""
+    app = _PromptBarApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape")
+        await pilot.press("ctrl+h")  # focus "second"
+        await pilot.press("ctrl+h")  # focus "first" (top pane, index 0)
+        await pilot.pause()
+        assert bar._stack.selected_index == 0
+
+        await pilot.press("ctrl+shift+h")  # move "first" up past the top -> bottom
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar.all_prompt_texts() == ["second", "third", "first"]
+        assert bar._stack.selected_index == 2
+        assert bar.active_text() == "first"
+        # The moved pane stays active and in normal mode for repeated reorders.
+        assert bar.active_text_area()._vim_mode == "normal"
+
+
+async def test_ctrl_shift_l_on_bottom_pane_wraps_to_top() -> None:
+    """``Ctrl+Shift+L`` on the bottom pane cycles it to the top, still active."""
+    app = _PromptBarApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape")
+        assert bar._stack.selected_index == 2  # bottom pane "third"
+
+        await pilot.press("ctrl+shift+l")  # move "third" down past the bottom -> top
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar.all_prompt_texts() == ["third", "first", "second"]
+        assert bar._stack.selected_index == 0
+        assert bar.active_text() == "third"
+        # The moved pane stays active and in normal mode for repeated reorders.
+        assert bar.active_text_area()._vim_mode == "normal"
 
 
 async def test_comma_jk_no_longer_reorders_but_other_leaders_work() -> None:

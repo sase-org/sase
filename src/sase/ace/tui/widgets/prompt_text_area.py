@@ -534,9 +534,10 @@ class PromptTextArea(
 
         # No completion consumed ``ctrl+l`` (insert mode -- normal mode is
         # resolved in the structural block above).  In a multi-pane stack it
-        # focuses the next/lower pane and is always swallowed, even at the
-        # bottom edge, so it never dismisses toasts; a single-pane bar leaves it
-        # to fall through to the app-level ``dismiss_toasts`` binding.
+        # focuses the next/lower pane -- cycling to the top pane from the bottom
+        # edge -- and is always swallowed, so it never dismisses toasts; a
+        # single-pane bar leaves it to fall through to the app-level
+        # ``dismiss_toasts`` binding.
         if event.key == "ctrl+l":
             bar = self._find_prompt_bar()
             if bar is not None and bar.is_multi_pane():

@@ -50,8 +50,10 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         """Move pane focus by *delta* (``Ctrl+H`` / ``Ctrl+L``).
 
         ``Ctrl+H`` focuses the previous/higher pane (``delta`` ``-1``) and
-        ``Ctrl+L`` the next/lower pane (``delta`` ``+1``).  Navigation is a pure
-        focus change; no pane is rebuilt, so each pane keeps its cursor and edit
+        ``Ctrl+L`` the next/lower pane (``delta`` ``+1``); focus cycles at the
+        stack edges, so ``Ctrl+H`` from the top pane wraps to the bottom and
+        ``Ctrl+L`` from the bottom wraps to the top.  Navigation is a pure focus
+        change; no pane is rebuilt, so each pane keeps its cursor and edit
         state.  ``target_mode`` ("normal" or "insert") selects the vim mode the
         newly active pane lands in, so the focus keys preserve whichever mode
         the user was already in.  Returns ``True`` when the selection moved.
@@ -75,11 +77,13 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         """Reorder the active pane by *delta* (``Ctrl+Shift+H``/``Ctrl+Shift+L``).
 
         ``delta`` of ``-1`` moves the pane higher/earlier (``Ctrl+Shift+H``) and
-        ``+1`` lower/later (``Ctrl+Shift+L``).  The live pane texts are synced
-        into the model first so the rebuild preserves what the user has typed;
-        the moved pane stays active and lands in *target_mode* ("normal" or
-        "insert"), so reordering keeps whichever vim mode the user was already
-        in.  Returns ``True`` when it moved.
+        ``+1`` lower/later (``Ctrl+Shift+L``); reorder cycles at the stack edges,
+        so ``Ctrl+Shift+H`` from the top pane wraps it to the bottom and
+        ``Ctrl+Shift+L`` from the bottom wraps it to the top.  The live pane
+        texts are synced into the model first so the rebuild preserves what the
+        user has typed; the moved pane stays active and lands in *target_mode*
+        ("normal" or "insert"), so reordering keeps whichever vim mode the user
+        was already in.  Returns ``True`` when it moved.
         """
         if len(self._stack) <= 1:
             return False
