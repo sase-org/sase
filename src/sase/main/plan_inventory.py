@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.agent_artifact_helpers import path_key, read_json_object
+from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import iter_sharded_files, sase_home, sase_projects_dir
 from sase.core.time import get_timezone
 from sase.main.plan_candidates import visible_pending_plan_notifications
@@ -318,7 +319,9 @@ def _agent_meta_paths_newest_first() -> tuple[Path, ...]:
         return ()
     # `sase plan list` only displays a fixed-size recent approval summary.
     # Artifact directory names are `YYYYmmddHHMMSS`, so newest-first ordering
-    # does not require statting every historical meta file.
+    # does not require statting every historical meta file. Delegate the
+    # per-workflow walk to `iter_agent_artifact_dirs` so both the legacy flat
+    # layout and the day-sharded layout (`<YYYYMM>/<DD>/<timestamp>`) are seen.
     candidates: list[tuple[str, str, Path]] = []
     for project_dir in projects_dir.iterdir():
         artifacts_dir = project_dir / "artifacts"
@@ -327,13 +330,16 @@ def _agent_meta_paths_newest_first() -> tuple[Path, ...]:
         for workflow_dir in artifacts_dir.iterdir():
             if not workflow_dir.is_dir():
                 continue
-            for timestamp_dir in workflow_dir.iterdir():
-                if not timestamp_dir.is_dir():
-                    continue
-                timestamp = timestamp_dir.name
+            for artifact_dir in iter_agent_artifact_dirs(
+                project_dir.name,
+                workflow_dir.name,
+                projects_root=projects_dir,
+                newest_first=True,
+            ):
+                timestamp = artifact_dir.name
                 if len(timestamp) != 14 or not timestamp.isdigit():
                     continue
-                meta_path = timestamp_dir / "agent_meta.json"
+                meta_path = artifact_dir / "agent_meta.json"
                 candidates.append((timestamp, str(meta_path), meta_path))
     return tuple(path for _, _, path in sorted(candidates, reverse=True))
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 07:07:50
-status: wip
+status: done
 prompt: sdd/prompts/202606/plan_list_recent_approvals.md
 ---
 # Fix `sase plan list` Recent Approvals

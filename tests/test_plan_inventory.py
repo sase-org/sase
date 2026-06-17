@@ -138,6 +138,27 @@ def _write_agent_meta(
     return path
 
 
+def _write_sharded_agent_meta(
+    project: str,
+    workflow: str,
+    raw_timestamp: str,
+    data: dict[str, object],
+    *,
+    minutes_ago: int,
+) -> Path:
+    artifact_dir = canonical_agent_artifact_path(
+        project,
+        workflow,
+        raw_timestamp,
+        projects_root=sase_projects_dir(),
+    )
+    artifact_dir.mkdir(parents=True)
+    path = artifact_dir / "agent_meta.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    _touch(path, _timestamp(minutes_ago))
+    return path
+
+
 def _done_plan_snapshot(
     *,
     project: str = "demo",
@@ -294,6 +315,45 @@ def test_inventory_dedupes_approved_by_plan_path_and_applies_limits() -> None:
         not str(row["plan_path"]).endswith("/rejected-11.md")
         for row in payload["rejected"]
     )
+
+
+def test_inventory_includes_day_sharded_approved_plan() -> None:
+    legacy_plan = _archived_plan("legacy-approved.md", minutes_ago=180)
+    _write_agent_meta(
+        "demo",
+        "workflow-plan",
+        "20260613090000",
+        {
+            "plan_approved": True,
+            "plan_action": "approve",
+            "plan_path": str(legacy_plan),
+        },
+        minutes_ago=180,
+    )
+    sharded_plan = _archived_plan("sharded-approved.md", minutes_ago=2)
+    _write_sharded_agent_meta(
+        "demo",
+        "workflow-plan",
+        "20260617070000",
+        {
+            "plan_approved": True,
+            "plan_action": "tale",
+            "plan_path": str(sharded_plan),
+        },
+        minutes_ago=2,
+    )
+
+    with patch(
+        "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
+        return_value=(),
+    ):
+        payload = plan_inventory_to_json(build_plan_inventory())
+
+    approved_paths = [str(row["plan_path"]) for row in payload["approved"]]
+    assert any(path.endswith("/sharded-approved.md") for path in approved_paths)
+    assert any(path.endswith("/legacy-approved.md") for path in approved_paths)
+    rejected_paths = [str(row["plan_path"]) for row in payload["rejected"]]
+    assert all(not path.endswith("/sharded-approved.md") for path in rejected_paths)
 
 
 def test_approved_plan_scan_stops_after_limit() -> None:
