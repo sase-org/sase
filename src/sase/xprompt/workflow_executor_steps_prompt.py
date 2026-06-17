@@ -186,11 +186,17 @@ class PromptStepMixin:
         step_prompt = inherit_vcs_workflow_tag(step.agent, self.inherited_vcs_tag)
         from sase.xprompt.used_xprompts import write_used_xprompts
 
+        # Step-only write: per-step usage lands in xprompts_<step>.json for
+        # child rows, while the shared xprompts.json (launch/root metadata
+        # written at the launch boundary) is preserved rather than clobbered
+        # with step-level data. When no launch boundary captured usage, the
+        # first step still seeds the shared file.
         write_used_xprompts(
             self.artifacts_dir,
             step_prompt,
             step.name,
             extra_xprompts=self.workflow.xprompts,
+            step_only=True,
         )
 
         # Early phase: directives, Jinja2 context rendering, xprompt expansion

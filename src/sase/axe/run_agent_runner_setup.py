@@ -8,6 +8,7 @@ counters, and the home-mode running marker.
 
 import json
 import os
+import sys
 from typing import Any
 
 from sase.artifacts import (
@@ -134,6 +135,20 @@ def preprocess_prompt_xprompts(
     raw_xprompt_path = os.path.join(artifacts_dir, "raw_xprompt.md")
     with open(raw_xprompt_path, "w", encoding="utf-8") as f:
         f.write(prompt)
+
+    # Capture launch-boundary xprompt usage (e.g. #plan) into the shared
+    # xprompts.json before expansion erases the references. Use the same
+    # alias-resolved text persisted to raw_xprompt.md so the collector's
+    # alias/VCS-underscore handling matches the expansion path. The root
+    # agent row reads this file; workflow steps only write step-specific
+    # files (see write_used_xprompts step_only). Best-effort: metadata
+    # capture must never take down a detached agent launch.
+    try:
+        from sase.xprompt.used_xprompts import write_used_xprompts
+
+        write_used_xprompts(artifacts_dir, prompt)
+    except Exception as e:
+        print(f"Warning: Failed to write xprompts.json: {e}", file=sys.stderr)
 
     prompt = process_xprompt_references(prompt)
     return prompt, vcs_tag, raw_resolved_prompt

@@ -448,6 +448,55 @@ def testload_xprompts_used_no_artifacts_dir() -> None:
     assert result is None
 
 
+def test_load_xprompts_used_child_step_does_not_fall_back_to_shared(
+    tmp_path: Path,
+) -> None:
+    """A child step with no step file must not read the shared xprompts.json.
+
+    The shared file holds launch/root metadata; a workflow-child row whose own
+    step captured no xprompt usage shows nothing rather than the root's data.
+    """
+    (tmp_path / "xprompts.json").write_text(
+        json.dumps(
+            [
+                {
+                    "name": "plan",
+                    "kind": "part",
+                    "positional": [],
+                    "named": {},
+                    "tags": [],
+                }
+            ]
+        )
+    )
+
+    agent = _make_agent(
+        artifacts_dir=str(tmp_path),
+        parent_workflow="olcr",
+        step_name="build",
+    )
+
+    assert load_xprompts_used(agent) is None
+
+
+def test_load_xprompts_used_root_reads_shared(tmp_path: Path) -> None:
+    """A non-step (root) agent reads the shared xprompts.json."""
+    records = [
+        {
+            "name": "plan",
+            "kind": "part",
+            "positional": [],
+            "named": {},
+            "tags": [],
+        }
+    ]
+    (tmp_path / "xprompts.json").write_text(json.dumps(records))
+
+    agent = _make_agent(artifacts_dir=str(tmp_path))
+
+    assert load_xprompts_used(agent) == records
+
+
 def test_xprompts_displayed_from_header_summary(tmp_path: Path) -> None:
     """Precomputed header summaries can render xprompt metadata."""
     metadata = [

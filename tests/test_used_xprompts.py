@@ -183,6 +183,44 @@ def test_write_used_xprompts_writes_shared_and_step_files(
     assert json.loads((tmp_path / "xprompts_main.json").read_text()) == records
 
 
+def test_write_used_xprompts_step_only_preserves_existing_shared(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _patch_catalogs(
+        monkeypatch,
+        parts={"plan": _part("plan"), "review": _part("review")},
+    )
+
+    # Launch boundary captures the root prompt metadata first.
+    launch_records = write_used_xprompts(tmp_path, "#plan")
+    assert [r["name"] for r in launch_records] == ["plan"]
+
+    # Step execution writes its own file but must not clobber the shared file.
+    step_records = write_used_xprompts(
+        tmp_path, "#review", step_name="s1", step_only=True
+    )
+
+    assert [r["name"] for r in step_records] == ["review"]
+    assert json.loads((tmp_path / "xprompts_s1.json").read_text()) == step_records
+    # Shared file still holds launch-boundary metadata (#plan), not the step's.
+    assert json.loads((tmp_path / "xprompts.json").read_text()) == launch_records
+
+
+def test_write_used_xprompts_step_only_seeds_shared_when_absent(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _patch_catalogs(monkeypatch, parts={"plan": _part("plan")})
+
+    # No launch boundary wrote xprompts.json (mirrors the foreground/named
+    # workflow paths), so the step seeds the shared file and writes its own.
+    records = write_used_xprompts(tmp_path, "#plan", step_name="main", step_only=True)
+
+    assert json.loads((tmp_path / "xprompts.json").read_text()) == records
+    assert json.loads((tmp_path / "xprompts_main.json").read_text()) == records
+
+
 def test_expand_embedded_workflows_in_query_writes_used_xprompts(
     monkeypatch,
     tmp_path: Path,

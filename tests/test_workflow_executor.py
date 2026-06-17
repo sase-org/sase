@@ -180,6 +180,7 @@ class TestShouldHitl:
             "#gh:sase Fix it",
             "s1",
             extra_xprompts={},
+            step_only=True,
         )
 
     def test_inherited_vcs_tag_preserves_directives_and_segments(self) -> None:

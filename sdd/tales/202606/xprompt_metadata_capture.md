@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 07:18:48
-status: wip
+status: done
 prompt: sdd/prompts/202606/xprompt_metadata_capture.md
 ---
 # Plan: Complete Xprompt Metadata Capture

@@ -97,8 +97,22 @@ def write_used_xprompts(
     step_name: str | None = None,
     *,
     extra_xprompts: dict[str, XPrompt] | None = None,
+    step_only: bool = False,
 ) -> list[_UsedXPromptRecord]:
-    """Collect and write xprompt metadata artifacts for *raw_prompt*."""
+    """Collect and write xprompt metadata artifacts for *raw_prompt*.
+
+    The shared ``xprompts.json`` holds launch/root metadata read by non-step
+    agent rows; ``xprompts_<step>.json`` holds per-step metadata read by
+    workflow-child rows.
+
+    By default both files are written (the shared file, plus a step file when
+    *step_name* is given), overwriting any existing copies. Pass
+    ``step_only=True`` from prompt-step execution so the step writes its own
+    ``xprompts_<step>.json`` but leaves an already-written shared
+    ``xprompts.json`` (the launch-boundary metadata) untouched. When no shared
+    file exists yet, a ``step_only`` write still seeds it so launch paths that
+    do not capture usage at their own boundary keep populating root rows.
+    """
     records = collect_used_xprompts(raw_prompt, extra_xprompts=extra_xprompts)
     if not records or artifacts_dir is None:
         return records
@@ -107,9 +121,12 @@ def write_used_xprompts(
     if not artifacts_path.is_dir():
         return records
 
-    _write_json(artifacts_path / "xprompts.json", records)
     if step_name:
         _write_json(artifacts_path / f"xprompts_{step_name}.json", records)
+
+    shared_path = artifacts_path / "xprompts.json"
+    if not (step_only and shared_path.exists()):
+        _write_json(shared_path, records)
 
     return records
 

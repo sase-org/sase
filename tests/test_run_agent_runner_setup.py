@@ -51,6 +51,49 @@ def test_submitted_xprompt_artifact_does_not_change_raw_xprompt_behavior(
     assert (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8") == resolved
 
 
+def test_preprocess_prompt_xprompts_captures_launch_boundary_usage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The runner writes xprompts.json (e.g. #plan) before expansion erases it."""
+    import sase.xprompt.used_xprompts as used_xprompts
+    from sase.xprompt.models import XPrompt
+
+    monkeypatch.setattr(
+        used_xprompts,
+        "get_all_xprompts",
+        lambda: {"plan": XPrompt(name="plan", content="plan body")},
+    )
+    monkeypatch.setattr(used_xprompts, "get_all_workflows", lambda: {})
+    monkeypatch.setattr(used_xprompts, "resolve_xprompt_aliases", lambda prompt: prompt)
+    monkeypatch.setattr(
+        used_xprompts, "normalize_vcs_underscore_refs", lambda prompt: prompt
+    )
+
+    with (
+        patch(
+            "sase.xprompt.resolve_xprompt_aliases", side_effect=lambda prompt: prompt
+        ),
+        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
+        patch(
+            "sase.xprompt.processor.process_xprompt_references",
+            side_effect=lambda prompt: "expanded",
+        ),
+    ):
+        expanded, _, _ = preprocess_prompt_xprompts("Make a #plan now", str(tmp_path))
+
+    # Expansion still runs and returns the expanded text.
+    assert expanded == "expanded"
+    # The pre-expansion #plan reference is captured into the shared file that
+    # the root (non-step) agent row reads.
+    data = json.loads((tmp_path / "xprompts.json").read_text(encoding="utf-8"))
+    assert [(r["name"], r["kind"]) for r in data] == [("plan", "part")]
+    # raw_xprompt.md and the captured metadata derive from the same text.
+    assert (tmp_path / "raw_xprompt.md").read_text(
+        encoding="utf-8"
+    ) == "Make a #plan now"
+
+
 def test_runner_setup_artifacts_keep_project_alias_canonical(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
