@@ -5,7 +5,7 @@ description: Skill file generation pipeline, CLI/skill contract synchronization,
 keywords:
   - sase commit
   - SKILL.md
-  - init-skills
+  - sase skill init
   - sase_commit
   - sase_git_commit
   - sase_hg_commit
@@ -17,9 +17,9 @@ keywords:
 # Generated Skill Files
 
 Chezmoi skill files (`SKILL.md`) are **generated**, not hand-edited. The source templates live in
-`src/sase/xprompts/skills/` and are rendered per-provider by `sase init-skills`.
+`src/sase/xprompts/skills/` and are rendered per-provider by `sase skill init`.
 
-- Run `sase init-skills --force` after changing any skill source file in `src/sase/xprompts/skills/`
+- Run `sase skill init --force` after changing any skill source file in `src/sase/xprompts/skills/`
 - Then run `chezmoi apply` to deploy the generated files to their live locations
 - Do NOT edit the chezmoi skill files directly — changes will be overwritten on the next generation
 

@@ -30,7 +30,7 @@ sase memory list
 sase memory review --list
 sase memory log
 sase memory log --include proposals
-sase memory log --path long/generated_skills.md
+sase memory log --path generated_skills.md
 sase memory log --id <read-id>
 sase init sdd
 sase init sdd --check
@@ -40,7 +40,7 @@ sase skill log
 sase skill log --runtime codex
 
 # Agent-side audited operations, normally run from a SASE-launched agent:
-sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory read generated_skills.md --reason "Need generated skill context"
 sase skill use sase_plan --reason "Need to prepare an implementation plan"
 sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
 ```
@@ -136,7 +136,7 @@ own `./sase.yml` opts in with `amd_h1_title`; global config values are ignored f
 
 `sase memory init` initializes both project-local and home-level memory surfaces:
 
-- Project memory under `./memory/`, including `memory/README.md`, `memory/short/sase.md`, and `memory/long/`.
+- Project memory under `./memory/`, including `memory/README.md` and flat note files with `type`/`parent` frontmatter.
 - Home memory under `~/memory/`, or under `~/.local/share/chezmoi/home/` when `use_chezmoi: true`.
 - A minimal `AGENTS.md` when one does not already exist and the repo is not opted into AMD-managed instructions.
 - Provider shims `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`; project roots contain `@AGENTS.md`, while
@@ -144,14 +144,14 @@ own `./sase.yml` opts in with `amd_h1_title`; global config values are ignored f
   provider shim sources containing `@{{ .chezmoi.homeDir }}/AGENTS.md`.
 
 When the project-local `./sase.yml` sets `amd_h1_title`, `sase memory init` synchronizes the AMD-managed memory blocks
-inside `AGENTS.md`, adds missing `description` frontmatter to long-memory files, and renders the Tier 3 list from those
-descriptions before reachability validation runs.
+inside `AGENTS.md`, adds missing canonical frontmatter to memory files, and renders the long-memory list from
+`description` values before reachability validation runs.
 
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The command can then commit those home
 changes and run `chezmoi apply --force`; `--no-commit` does not disable that home deployment path.
 
-The generated `memory/short/sase.md` summarizes workspace naming and sibling repositories. Project memory reads sibling
-repo descriptions from the project-local `./sase.yml`; home memory reads them from the global config
+The generated `memory/sase.md` summarizes workspace naming and sibling repositories. Project memory reads sibling repo
+descriptions from the project-local `./sase.yml`; home memory reads them from the global config
 `~/.config/sase/sase.yml`, or from the chezmoi-managed config path when `use_chezmoi: true`. Generated memory
 distinguishes static-path siblings (`workspace.strategy: none`) from numbered-workspace siblings, lists the direct path
 for static siblings, and includes `sase workspace open` instructions only when at least one configured sibling uses
@@ -166,20 +166,19 @@ read-only drift check, or `sase memory init --no-commit` when you want to review
 committing. `--no-commit` only skips the project deploy path; home memory deployment still follows `use_chezmoi` when it
 is enabled.
 
-Memory validation is reachability-based: Markdown files under `memory/short/` and `memory/long/` must be reachable from
-`AGENTS.md` directly or through transitive `@memory/...` or `memory/...` references. Unreferenced memory files make the
-command fail so important agent context is not silently ignored.
+Memory validation is reachability-based: Markdown files under `memory/` must be reachable from `AGENTS.md` directly or
+through transitive `@memory/...` or `memory/...` references. Unreferenced memory files make the command fail so
+important agent context is not silently ignored.
 
 ## Memory Context List
 
 `sase memory list`, or bare `sase memory`, renders a read-only dashboard for the current directory. It reports:
 
 - `loaded` files reached by transitive `@...` references from `AGENTS.md` in the project or home context.
-- `referenced` files mentioned by plain `memory/...` text from loaded context, or by memory-relative `long/...` paths in
-  audited `sase memory read` instructions. These are visible in the dashboard, but their contents are not loaded unless
-  another `@...` edge reaches them.
-- `available` files present under project or home `memory/short/` and `memory/long/` that the current launch context
-  does not reach.
+- `referenced` files mentioned by plain `memory/...` text from loaded context or by audited `sase memory read`
+  instructions. These are visible in the dashboard, but their contents are not loaded unless another `@...` edge reaches
+  them.
+- `available` files present under project or home `memory/` that the current launch context does not reach.
 - `missing` referenced memory paths that do not exist.
 
 The dashboard includes approximate local token estimates for loaded memory context.
@@ -190,18 +189,18 @@ For day-to-day read/write operations, including audited reads and reviewed long-
 ## Memory Read Audit Log
 
 `sase memory read <memory-relative-path> -r <reason>` is the audited path for agent-initiated long-term memory reads.
-The path is relative to `memory/`; the command allows Markdown files under `memory/long/` and rejects `memory/short`
+The path is relative to `memory/`; the command allows `type: long` Markdown notes and rejects `type: short` notes
 because short-term memory is expected to arrive through instruction loading. The command strips one leading YAML
-frontmatter block from stdout, but the audit log records only metadata such as path, agent name, timestamp, cwd, byte
-count, and reason.
+frontmatter block from stdout and appends `## Children` when nested long notes exist, but the audit log records only
+metadata such as path, agent name, timestamp, cwd, byte count, and reason.
 
 Every read must include a non-empty reason via `-r` or `--reason`. The command also requires agent attribution from
 `SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`; unattributed reads fail instead of writing a
 log row. Human shell users normally inspect files directly and use `sase memory review` for promotion decisions.
 
-`sase memory write` creates an attributable proposal under `~/.sase/projects/<project>/` and never writes
-`memory/long/*.md` directly. It uses the same agent-attribution rules as `read`; `--manual-author` is intended for tests
-and demos. Pass `--notify` when you want a best-effort `memory.proposed` notification in the SASE inbox.
+`sase memory write` creates an attributable proposal under `~/.sase/projects/<project>/` and never writes canonical
+memory files directly. It uses the same agent-attribution rules as `read`; `--manual-author` is intended for tests and
+demos. Pass `--notify` when you want a best-effort `memory.proposed` notification in the SASE inbox.
 `sase memory review` is the human promotion path for listing, showing, approving, editing, or rejecting those proposals.
 
 `sase memory log` reads the project-scoped audit log from SASE state under `~/.sase/projects/<project>/`, not from the
@@ -211,12 +210,12 @@ events alongside read-log summaries.
 
 ```bash
 # read requires SASE agent identity; write requires agent identity unless --manual-author is used for demos
-sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory read generated_skills.md --reason "Need generated skill context"
 sase memory write --title "Generated skills" --slug generated_skills --evidence chat:abc123 --body "Durable memory body" --notify
 sase memory review --list
 sase memory log
 sase memory log --include proposals
-sase memory log --path long/generated_skills.md
+sase memory log --path generated_skills.md
 sase memory log --id <read-id>
 ```
 

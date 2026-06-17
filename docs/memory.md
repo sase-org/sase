@@ -1,13 +1,13 @@
 # Memory
 
-SASE memory is durable context that survives individual agent chats. It has two file tiers plus an audited operation
-ledger:
+SASE memory is durable context that survives individual agent chats. Notes live as Markdown files directly under
+`memory/`; each non-README note declares its tier in YAML frontmatter:
 
-- **Short-term memory** under `memory/short/` is instruction context. The files are loaded only when `AGENTS.md` reaches
-  them through `@memory/...` references; `sase memory init` creates that wiring for the generated defaults and
-  synchronizes AMD-managed `AGENTS.md` memory blocks when the project opts in with `amd_h1_title`.
-- **Long-term memory** under `memory/long/` is reference context. Files can carry `description` frontmatter; AMD-managed
-  `AGENTS.md` files use those descriptions for the long-memory list.
+- **Short-term memory** uses `type: short`. It is instruction context, loaded only when `AGENTS.md` reaches it through
+  `@memory/...` references. `sase memory init` creates that wiring for generated defaults and synchronizes AMD-managed
+  `AGENTS.md` memory blocks when the project opts in with `amd_h1_title`.
+- **Long-term memory** uses `type: long`. It is reference context, requires `description` frontmatter, and can set
+  `parent: memory/<note>.md` to appear under another long note's `## Children` section.
 - **Audited memory operations** live under the project state directory and record agent reads plus proposed writes and
   human review decisions.
 
@@ -31,10 +31,8 @@ The dashboard separates:
 - `loaded` files reached by transitive `@...` references from `AGENTS.md` in the project or home context. Provider shims
   normally point at `AGENTS.md`; they are reported as instruction roots but are not separate traversal roots for this
   dashboard.
-- `referenced` files mentioned by plain `memory/...` text, or by memory-relative `long/...` paths in audited
-  `sase memory read` instructions, but not loaded.
-- `available` files present under project or home `memory/short/` and `memory/long/` but unreachable from the current
-  launch context.
+- `referenced` files mentioned by plain `memory/...` text or by audited `sase memory read` instructions, but not loaded.
+- `available` files present under project or home `memory/` but unreachable from the current launch context.
 - `missing` referenced files that do not exist.
 
 Approximate token counts are included so large instruction surfaces are visible before an agent launch.
@@ -44,18 +42,18 @@ Approximate token counts are included so large instruction surfaces are visible 
 Agents should read long-term memory through `sase memory read` so the access is attributable:
 
 ```bash
-sase memory read long/generated_skills.md --reason "Need generated skill context"
+sase memory read generated_skills.md --reason "Need generated skill context"
 sase memory log
 sase memory log --include proposals
-sase memory log --path long/generated_skills.md
+sase memory log --path generated_skills.md
 sase memory log --agent agent-a
 sase memory log --id <read-id>
 ```
 
-The read path is relative to `memory/` and currently accepts Markdown files under `memory/long/`. `memory/short` is
-excluded because short-term memory is intended to arrive through instruction loading rather than ad hoc reads. The
-command strips one leading YAML frontmatter block from stdout, while the audit event records metadata such as path,
-agent name, timestamp, cwd, byte count, and reason.
+The read path is relative to `memory/` and accepts long-term notes (`type: long`). Short-term notes are excluded because
+they are intended to arrive through instruction loading rather than ad hoc reads. The command strips one leading YAML
+frontmatter block from stdout and appends a `## Children` section when the note has nested long-term children. The audit
+event records metadata such as path, agent name, timestamp, cwd, byte count, and reason.
 
 Every read requires a non-empty reason via `-r` or `--reason` and agent attribution from `SASE_AGENT_NAME`,
 `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json` (`name`, `workflow_name`, or `agent_name`). Unattributed reads
@@ -67,7 +65,7 @@ agent filters also apply to proposal target paths and proposal/review actors.
 
 ## Propose Memory
 
-Agents do not write canonical `memory/long/*.md` files directly. They create proposals:
+Agents do not write canonical long-term memory files directly. They create proposals:
 
 ```bash
 sase memory write \
@@ -80,22 +78,22 @@ sase memory write \
 
 cat draft.md | sase memory write \
   --title "Generated skills" \
-  --target long/generated_skills.md \
+  --target generated_skills.md \
   --from-chat abc123 \
   --keyword "commit skill"
 ```
 
 `sase memory write` is the agent-side authoring path. It writes proposal state only under `~/.sase/projects/<project>/`;
-it never modifies canonical `memory/long` files. A proposal needs:
+it never modifies canonical memory files. A proposal needs:
 
 - `--title`
-- exactly one of `--slug <slug>` or `--target long/<slug>.md`
+- exactly one of `--slug <slug>` or `--target <slug>.md`
 - at least one non-note evidence item
 - body content from `--body`, `--file <path>`, `--file -`, or piped stdin when neither `--body` nor `--file` is supplied
 
 Use `--file -` when a wrapper needs the explicit `--file` form but should still pass the body on stdin.
 
-Targets must be one-level long-memory paths such as `long/generated_skills.md`; slugs must match `[a-z0-9][a-z0-9_-]*`.
+Targets must be one-level long-memory paths such as `generated_skills.md`; slugs must match `[a-z0-9][a-z0-9_-]*`.
 Evidence can be a path, `chat:<id>`, `--from-chat <id>`, `url:<url>`, a bare HTTP(S) URL, or a supplemental
 `note:<text>`. Note-only evidence is rejected.
 
@@ -135,21 +133,23 @@ Agents cannot approve, edit-approve, or reject proposals: those actions fail whe
 `SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`. Human review events record the local user and
 hostname. `--edit` opens `$VISUAL` or `$EDITOR`, then approves the edited body.
 
-Approval writes the canonical file under the current repo's `memory/long/` path and prepends frontmatter:
+Approval writes the canonical file under the current repo's `memory/` path and prepends frontmatter:
 
 ```yaml
 ---
+type: long
+parent: AGENTS.md
+description: Generated skills
+source_candidate: mem-20260523-142233-a1b2c3d4
 keywords:
   - "commit skill"
-source_candidate: mem-20260523-142233-a1b2c3d4
 ---
 ```
 
-Approval refuses to overwrite an existing target. Use `--target long/<slug>.md` to approve into a different unused
-one-level target, `--edit` to open `$VISUAL`/`$EDITOR` before approving, or `--edited-file` for non-interactive edited
-approval.
+Approval refuses to overwrite an existing target. Use `--target <slug>.md` to approve into a different unused one-level
+target, `--edit` to open `$VISUAL`/`$EDITOR` before approving, or `--edited-file` for non-interactive edited approval.
 
-If approved memory should be loaded every time, add an explicit `@memory/long/...` reference from the appropriate
+If approved memory should be loaded every time, add an explicit `@memory/<note>.md` reference from the appropriate
 instruction file.
 
 ## Review TUI
