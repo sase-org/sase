@@ -19,7 +19,10 @@ from ._loading_compute_types import (
     PreparedApplySnapshot,
     PreparedFinalizePlan,
 )
-from ._loading_helpers import should_clear_loaded_agent_status_override
+from ._loading_helpers import (
+    build_question_answer_family_index,
+    should_clear_loaded_agent_status_override,
+)
 
 if TYPE_CHECKING:
     from ....agent_query import QueryExpr
@@ -187,13 +190,14 @@ def _compute_status_override_plan(
 ) -> PreparedStatusOverridePlan:
     """Determine which agent rows need an override applied or cleared."""
     loaded_identities = {a.identity for a in agents}
+    family_index = build_question_answer_family_index(agents)
     to_apply: list[tuple[tuple[AgentType, str, str | None], str]] = []
     cleared: list[tuple[AgentType, str, str | None]] = []
     for agent in agents:
         override = overrides.get(agent.identity)
         if override is None:
             continue
-        if should_clear_loaded_agent_status_override(agent, override):
+        if should_clear_loaded_agent_status_override(agent, override, family_index):
             cleared.append(agent.identity)
             continue
         to_apply.append((agent.identity, override))

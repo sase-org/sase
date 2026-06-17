@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 08:11:28
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_question_answered_status.md
 ---
 # Plan: Fix Answered Question Agent Status

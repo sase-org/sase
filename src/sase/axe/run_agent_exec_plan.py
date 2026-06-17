@@ -62,6 +62,9 @@ def record_workflow_metadata(
         "sdd_plan_path",
         "plan_committed",
         "questions_submitted_at",
+        "question_request_path",
+        "question_response_path",
+        "question_session_id",
     }
     for key, value in relationships.items():
         if key in retained_fields and value is not None and value != "":

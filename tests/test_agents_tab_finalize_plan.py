@@ -8,6 +8,8 @@ changes mid-flight, and status-override cleanup.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sase.ace.tui.actions.agents._loading_compute import (
     PreparedApplyData,
     attach_finalize_plan_to_boundary,
@@ -16,7 +18,7 @@ from sase.ace.tui.actions.agents._loading_compute import (
 from sase.ace.tui.actions.agents._loading_compute_finalize import (
     _compute_finalize_plan,
 )
-from sase.ace.tui.models.agent import AgentType
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_content_search import AgentContentSearchIndex
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
@@ -443,3 +445,172 @@ def test_sync_finalize_clears_stale_question_for_running_root() -> None:
     assert root.status == "RUNNING"
     assert root.identity not in app._agent_status_overrides
     assert root.identity not in app._agent_pre_question_status
+
+
+def _make_answered_question_family() -> tuple[Agent, Agent]:
+    """Build the screenshot shape: an asking code row + answered continuation.
+
+    The asking row (``92.f1--code``) carries a stale loader-derived ``QUESTION``
+    status (a historical artifact missing response metadata). A newer
+    same-family continuation (``92.f1--code-0``) carries
+    ``question_response_path`` and started after the asking row submitted its
+    question — proving the question was answered.
+    """
+    asking = _make_agent(
+        cl_name="sase",
+        agent_name="92.f1--code",
+        status="QUESTION",
+        raw_suffix="20260617074954",
+        parent_timestamp="20260617070857",
+        role_suffix="--code",
+        agent_family="92.f1",
+        agent_family_role="code",
+        run_start_time=datetime(2026, 6, 17, 7, 49, 54),
+        questions_times=[datetime(2026, 6, 17, 8, 0, 5)],
+    )
+    continuation = _make_agent(
+        cl_name="sase",
+        agent_name="92.f1--code-0",
+        status="RUNNING",
+        raw_suffix="20260617080041",
+        parent_timestamp="20260617070857",
+        role_suffix="--code-0",
+        agent_family="92.f1",
+        agent_family_role="code",
+        run_start_time=datetime(2026, 6, 17, 8, 0, 41),
+        questions_times=[datetime(2026, 6, 17, 8, 0, 5)],
+        question_response_path="/home/u/.sase/user_question/abc/question_response.json",
+    )
+    return asking, continuation
+
+
+def test_status_override_plan_clears_question_answered_by_continuation() -> None:
+    """A newer same-family continuation with a response clears a stale QUESTION."""
+    asking, continuation = _make_answered_question_family()
+    app = FakeAgentApp()
+    app._agent_status_overrides = {asking.identity: "QUESTION"}
+    app._agent_pre_question_status = {asking.identity: "RUNNING"}
+    app._agents = [asking, continuation]
+
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+    )
+    plan = _compute_finalize_plan([asking, continuation], snapshot)
+
+    assert plan.overrides.overrides_to_apply == []
+    assert plan.overrides.cleared_identities == [asking.identity]
+
+    app._finalize_agent_list(
+        on_agents_tab=False,
+        selected_identity=None,
+        save_unfiltered=False,
+        fold_filter_already_applied=True,
+        precomputed_plan=plan,
+    )
+
+    # Override gone; the loader-derived status shows through.
+    assert asking.identity not in app._agent_status_overrides
+    assert asking.identity not in app._agent_pre_question_status
+    assert asking.status == "QUESTION"
+
+
+def test_sync_finalize_clears_question_answered_by_continuation() -> None:
+    """The synchronous path clears the same stale QUESTION override."""
+    asking, continuation = _make_answered_question_family()
+    app = FakeAgentApp()
+    app._agent_status_overrides = {asking.identity: "QUESTION"}
+    app._agent_pre_question_status = {asking.identity: "RUNNING"}
+    app._agents = [asking, continuation]
+
+    app._finalize_agent_list(
+        on_agents_tab=False,
+        selected_identity=None,
+        save_unfiltered=False,
+        fold_filter_already_applied=True,
+    )
+
+    assert asking.identity not in app._agent_status_overrides
+    assert asking.identity not in app._agent_pre_question_status
+
+
+def test_status_override_plan_keeps_question_without_answered_continuation() -> None:
+    """A genuinely unanswered question keeps its QUESTION override.
+
+    No same-family continuation carries ``question_response_path``, so the
+    family-aware reconciliation must not clear the override (which would hide a
+    real, still-blocked question).
+    """
+    asking, _continuation = _make_answered_question_family()
+    app = FakeAgentApp()
+    app._agent_status_overrides = {asking.identity: "QUESTION"}
+    app._agent_pre_question_status = {asking.identity: "RUNNING"}
+    app._agents = [asking]
+
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+    )
+    plan = _compute_finalize_plan([asking], snapshot)
+
+    assert plan.overrides.overrides_to_apply == [(asking.identity, "QUESTION")]
+    assert plan.overrides.cleared_identities == []
+
+    app._finalize_agent_list(
+        on_agents_tab=False,
+        selected_identity=None,
+        save_unfiltered=False,
+        fold_filter_already_applied=True,
+        precomputed_plan=plan,
+    )
+
+    assert asking.status == "QUESTION"
+    assert app._agent_status_overrides[asking.identity] == "QUESTION"
+
+
+def test_status_override_plan_keeps_question_when_continuation_predates_question() -> (
+    None
+):
+    """An older continuation's response must not clear a newer question round.
+
+    The continuation carrying ``question_response_path`` started *before* the
+    asking row submitted its current question, so it answered an earlier round
+    and cannot supersede the open one.
+    """
+    asking, continuation = _make_answered_question_family()
+    # The continuation's response predates the asking row's question round.
+    continuation.run_start_time = datetime(2026, 6, 17, 7, 30, 0)
+    app = FakeAgentApp()
+    app._agent_status_overrides = {asking.identity: "QUESTION"}
+    app._agents = [asking, continuation]
+
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+    )
+    plan = _compute_finalize_plan([asking, continuation], snapshot)
+
+    assert plan.overrides.overrides_to_apply == [(asking.identity, "QUESTION")]
+    assert plan.overrides.cleared_identities == []
+
+
+def test_status_override_plan_answered_override_survives_continuation() -> None:
+    """An ANSWERED override is unaffected by the family answer reconciliation."""
+    asking, continuation = _make_answered_question_family()
+    asking.status = "QUESTION"  # loader still sees pending_question.json
+    app = FakeAgentApp()
+    app._agent_status_overrides = {asking.identity: "ANSWERED"}
+    app._agents = [asking, continuation]
+
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+    )
+    plan = _compute_finalize_plan([asking, continuation], snapshot)
+
+    assert plan.overrides.overrides_to_apply == [(asking.identity, "ANSWERED")]
+    assert plan.overrides.cleared_identities == []

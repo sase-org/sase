@@ -65,8 +65,83 @@ def is_always_visible(agent: Agent) -> bool:
     return True
 
 
-def should_clear_loaded_agent_status_override(agent: Agent, override: str) -> bool:
-    """Return True when a loaded row should discard an in-memory override."""
+def _question_answer_family_key(agent: Agent) -> str | None:
+    """Return a stable family key for QUESTION-override answer reconciliation.
+
+    Rows in one agent family share ``agent_family``; sibling continuations
+    additionally share ``parent_timestamp``. Either is enough to recognize the
+    continuation that answered an asking row's question.
+    """
+    if agent.agent_family:
+        return agent.agent_family
+    return agent.parent_timestamp or None
+
+
+def build_question_answer_family_index(
+    agents: list[Agent],
+) -> dict[str, list[Agent]]:
+    """Index continuation rows that carry persisted question-response metadata.
+
+    Only rows with a ``question_response_path`` are indexed: their presence is
+    the loaded-graph proof that a family question was answered and the runner
+    spawned a continuation. The index is keyed by family so a stale
+    ``QUESTION`` override on an asking row can find the continuation that
+    superseded it without any disk reads.
+    """
+    index: dict[str, list[Agent]] = {}
+    for agent in agents:
+        if not agent.question_response_path:
+            continue
+        key = _question_answer_family_key(agent)
+        if key is None:
+            continue
+        index.setdefault(key, []).append(agent)
+    return index
+
+
+def _question_override_answered_by_family(
+    agent: Agent,
+    override: str,
+    family_index: dict[str, list[Agent]],
+) -> bool:
+    """Return True when a ``QUESTION`` override is overtaken by a loaded answer.
+
+    An asking row keeps a stale ``QUESTION`` override after its question was
+    answered out-of-band (e.g. the notification was dismissed before the
+    answer, or the row is a historical artifact that predates response-metadata
+    persistence). The override is stale once a same-family continuation row —
+    one carrying ``question_response_path`` — was launched after this row's
+    latest question submission. Gating on the question time keeps a still-open
+    follow-up question from being cleared by an earlier answered round.
+    """
+    if override != "QUESTION" or not agent.questions_times:
+        return False
+    key = _question_answer_family_key(agent)
+    if key is None:
+        return False
+    threshold = max(agent.questions_times)
+    for continuation in family_index.get(key, ()):
+        if continuation is agent:
+            continue
+        launched = continuation.run_start_time or continuation.start_time
+        if launched is not None and launched >= threshold:
+            return True
+    return False
+
+
+def should_clear_loaded_agent_status_override(
+    agent: Agent,
+    override: str,
+    question_answer_family_index: dict[str, list[Agent]] | None = None,
+) -> bool:
+    """Return True when a loaded row should discard an in-memory override.
+
+    When *question_answer_family_index* is supplied (built by
+    :func:`build_question_answer_family_index`), a stale ``QUESTION`` override
+    is also cleared once a same-family continuation proves the question was
+    answered — even when the loaded row's own status (e.g. a loader-derived
+    ``QUESTION`` on a historical artifact) would otherwise keep it.
+    """
     if agent.status in DISMISSABLE_STATUSES:
         return True
     if override in ("QUESTION", "ANSWERED"):
@@ -78,6 +153,12 @@ def should_clear_loaded_agent_status_override(agent: Agent, override: str) -> bo
         # until the runner consumes the response and the marker clears.
         if override == "QUESTION" and agent.status == "ANSWERED":
             return True
+    if question_answer_family_index is not None and (
+        _question_override_answered_by_family(
+            agent, override, question_answer_family_index
+        )
+    ):
+        return True
     return False
 
 
