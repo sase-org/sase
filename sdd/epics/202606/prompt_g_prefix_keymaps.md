@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 13:19:17
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_g_prefix_keymaps.md
 bead_id: sase-4s
 tier: epic
