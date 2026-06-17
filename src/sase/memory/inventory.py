@@ -31,7 +31,7 @@ LOADED_INSTRUCTION_ROOT_FILENAMES = ("AGENTS.md",)
 
 _AT_REF_RE = re.compile(r"(?:^|(?<=\s)|(?<=[\"'`(]))@([^\s,;:()[\]{}\"'`]+)")
 _MEMORY_PATH_RE = re.compile(
-    r"(?<![\w./-])((?:memory/)?(?:short|long)/[^\s,;:()[\]{}\"'`]+?\.md)"
+    r"(?<![\w./-])((?:memory/[^\s,;:()[\]{}\"'`]+?|(?:short|long)/[^\s,;:()[\]{}\"'`]+?)\.md)"
 )
 _MEMORY_RELATIVE_TIERS = frozenset({"short", "long"})
 _TRAILING_TOKEN_PUNCTUATION = ".,;:!?)"
@@ -151,8 +151,8 @@ def _overlaps(span: tuple[int, int], spans: tuple[tuple[int, int], ...]) -> bool
 def _parse_references(text: str) -> tuple[_ParsedMemoryReference, ...]:
     """Return typed reference tokens found in ``text``.
 
-    ``@memory/short/foo.md`` is reported only as a loaded reference, not also as
-    a plain memory-path mention. Memory-relative ``long/foo.md`` tokens are
+    ``@memory/foo.md`` is reported only as a loaded reference, not also as a
+    plain memory-path mention. Memory-relative legacy ``long/foo.md`` tokens are
     plain references for audited ``sase memory read`` instructions.
     """
     references: list[tuple[int, _ParsedMemoryReference]] = []
@@ -189,6 +189,12 @@ def _iter_memory_files(
     overlay_files = _normalize_overlay(overlay)
     memory_root = root_resolved / "memory"
     results: list[Path] = []
+    if memory_root.exists():
+        results.extend(
+            path.resolve(strict=False)
+            for path in memory_root.glob("*.md")
+            if path.is_file() and path.name != "README.md"
+        )
     for tier in ("short", "long"):
         tier_root = memory_root / tier
         if not tier_root.exists():
@@ -268,6 +274,12 @@ def _is_memory_path(root: Path, path: Path) -> bool:
     if path.suffix != ".md":
         return False
     memory_root = root / "memory"
+    try:
+        relative = path.relative_to(memory_root)
+    except ValueError:
+        return False
+    if len(relative.parts) == 1:
+        return relative.name != "README.md"
     for tier in ("short", "long"):
         try:
             path.relative_to(memory_root / tier)

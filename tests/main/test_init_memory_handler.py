@@ -85,16 +85,16 @@ sibling_repos:
     out = capsys.readouterr().out
     assert "init memory: initialized memory" in out
 
-    project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
-    home_memory = (home_root / "memory" / "short" / "sase.md").read_text()
+    project_memory = (project_root / "memory" / "sase.md").read_text()
+    home_memory = (home_root / "memory" / "sase.md").read_text()
     assert "`core`: Local Rust core." in project_memory
     assert "`github`: Global GitHub plugin." not in project_memory
     assert "../local-core" not in project_memory
     assert "`github`: Global GitHub plugin." in home_memory
     assert "`core`: Local Rust core." not in home_memory
     assert "/global/github" not in home_memory
-    assert project_memory.startswith(_SASE_MEMORY_HEADER)
-    assert home_memory.startswith(_SASE_MEMORY_HEADER)
+    assert _SASE_MEMORY_HEADER in project_memory
+    assert _SASE_MEMORY_HEADER in home_memory
 
     sibling_trigger = (
         "When you need to make changes to files in a numbered-workspace sibling "
@@ -111,14 +111,14 @@ sibling_repos:
         (project_root, PROVIDER_SHIM_CONTENT),
         (home_root, home_provider_shim_content(home_root)),
     ):
-        assert (root / "memory" / "long").is_dir()
+        assert not (root / "memory" / "long").exists()
         assert (root / "memory" / "README.md").is_file()
         readme = (root / "memory" / "README.md").read_text()
         assert "`sase memory list`" in readme
         assert "`sase memory init`" in readme
-        assert "`@memory/...` reference" in readme
-        assert "Plain `memory/...` mentions" in readme
-        assert "@memory/short/sase.md" in (root / "AGENTS.md").read_text()
+        assert "Non-README Markdown files live directly under `memory/`" in readme
+        assert "`type: long` notes are detailed reference material" in readme
+        assert "@memory/sase.md" in (root / "AGENTS.md").read_text()
         for filename in PROVIDER_SHIM_FILES:
             assert (root / filename).read_text() == shim_content
 
@@ -159,7 +159,7 @@ sibling_repos:
 
     assert run_handler() == 0
 
-    project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
+    project_memory = (project_root / "memory" / "sase.md").read_text()
     single_line = _single_line(project_memory)
     assert "Static-path sibling repositories (`workspace.strategy: none`)" not in (
         project_memory
@@ -207,7 +207,7 @@ sibling_repos:
 
     assert run_handler() == 0
 
-    project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
+    project_memory = (project_root / "memory" / "sase.md").read_text()
     single_line = _single_line(project_memory)
     assert "Static-path sibling repositories (`workspace.strategy: none`)" not in (
         project_memory
@@ -266,7 +266,7 @@ sibling_repos:
 
     assert run_handler() == 0
 
-    project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
+    project_memory = (project_root / "memory" / "sase.md").read_text()
     assert (
         "- `shared`: Static shared checkout. This repo is defined in the "
         "`../shared/` directory."
@@ -296,9 +296,9 @@ def test_init_memory_project_memory_includes_workspace_section(
 
     assert run_handler() == 0
 
-    project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
-    home_memory = (home_root / "memory" / "short" / "sase.md").read_text()
-    assert project_memory.startswith(_SASE_MEMORY_HEADER)
+    project_memory = (project_root / "memory" / "sase.md").read_text()
+    home_memory = (home_root / "memory" / "sase.md").read_text()
+    assert _SASE_MEMORY_HEADER in project_memory
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
     assert "full clones of the project repo" in project_memory
     assert "directories are named `project_<N>`" in project_memory
@@ -306,7 +306,7 @@ def test_init_memory_project_memory_includes_workspace_section(
     assert "sase workspace open -p <sibling_repo> <workspace_num>" not in home_memory
     assert "{{ project }}" not in project_memory
     assert "Ephemeral" not in home_memory
-    assert home_memory.startswith(_SASE_MEMORY_HEADER)
+    assert _SASE_MEMORY_HEADER in home_memory
 
 
 def test_init_memory_project_memory_uses_managed_checkout_marker_name(
@@ -340,7 +340,7 @@ def test_init_memory_project_memory_uses_managed_checkout_marker_name(
 
     assert run_handler() == 0
 
-    project_memory = (project_root / "memory" / "short" / "sase.md").read_text()
+    project_memory = (project_root / "memory" / "sase.md").read_text()
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
     assert "full clones of the project repo" in project_memory
     assert "project_10_<N>" not in project_memory
@@ -393,7 +393,7 @@ def test_init_memory_overwrites_provider_shims(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "AGENTS.md", "@memory/short/sase.md\n")
+    write(project_root / "AGENTS.md", "@memory/sase.md\n")
     write(project_root / "CLAUDE.md", "old instructions\n")
 
     assert run_handler() == 0
@@ -507,7 +507,7 @@ def test_init_memory_rejects_unreferenced_memory_files(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "AGENTS.md", "@memory/short/sase.md\n")
+    write(project_root / "AGENTS.md", "@memory/sase.md\n")
     write(
         project_root / "memory" / "long" / "orphan.md",
         "# Orphan\n\n@memory/long/orphan.md\n",
@@ -547,9 +547,9 @@ sibling_repos:
     assert run_memory() == 0
 
     generated = [
-        project_root / "memory" / "short" / "sase.md",
+        project_root / "memory" / "sase.md",
         project_root / "memory" / "README.md",
-        home_root / "memory" / "short" / "sase.md",
+        home_root / "memory" / "sase.md",
         home_root / "memory" / "README.md",
     ]
     before = {path: path.read_text(encoding="utf-8") for path in generated}
@@ -594,7 +594,7 @@ def test_init_memory_generated_markdown_passes_prettier_check(
     assert run_memory() == 0
 
     generated = [
-        project_root / "memory" / "short" / "sase.md",
+        project_root / "memory" / "sase.md",
         project_root / "memory" / "README.md",
     ]
     assert all(path.read_bytes().endswith(b"\n") for path in generated)

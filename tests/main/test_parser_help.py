@@ -522,7 +522,7 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "sase memory review --list" in memory_help
     assert "sase memory review mem-20260523-142233-a1b2c3d4 --edit" in memory_help
     assert "sase memory log --include proposals" in memory_help
-    assert "sase memory log --path long/generated_skills.md" in memory_help
+    assert "sase memory log --path generated_skills.md" in memory_help
     assert "sase memory log --id <read-id>" in memory_help
     assert "loaded, referenced, available, and missing memory files" in memory_help
     assert "`sase init memory` is a compatibility alias" in memory_init_help
@@ -536,7 +536,7 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "--evidence EVIDENCE" in memory_write_help
     assert "--manual-author NAME" in memory_write_help
     assert "--notify" in memory_write_help
-    assert "never modifies canonical memory/long files" in memory_write_help
+    assert "never modifies canonical memory files" in memory_write_help
     assert "--approve" in memory_review_help
     assert "--reject" in memory_review_help
     assert "--edited-file PATH" in memory_review_help

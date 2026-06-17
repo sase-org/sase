@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
+from sase.memory.notes import uses_legacy_memory_layout
 from sase.workflows.commit.precommit_hooks import run_precommit
 
 from ._init_chezmoi_deploy import (
@@ -57,7 +58,17 @@ def _home_root_path(use_chezmoi: bool) -> Path:
 
 def _home_memory_path(use_chezmoi: bool) -> Path:
     """Return the home-level short memory target for the active config mode."""
-    return _home_root_path(use_chezmoi) / "memory" / "short" / "sase.md"
+    return _sase_memory_path(_home_root_path(use_chezmoi))
+
+
+def _sase_memory_path(root: Path) -> Path:
+    """Return the generated SASE memory path for ``root``."""
+    relative = (
+        Path("memory") / "short" / "sase.md"
+        if uses_legacy_memory_layout(root)
+        else Path("memory") / "sase.md"
+    )
+    return root / relative
 
 
 def _global_config_path(use_chezmoi: bool) -> Path:
@@ -143,7 +154,7 @@ def _deploy_to_project_repo(
     if not run_precommit(str(git_root)):
         return 1
 
-    memory_path = project_result.root / "memory" / "short" / "sase.md"
+    memory_path = _sase_memory_path(project_result.root)
     stage_paths = _unique_paths(
         (*project_result.written_paths, *project_result.deleted_paths, memory_path)
     )
@@ -398,7 +409,7 @@ def run_init_memory(args: argparse.Namespace) -> int:
         return 1
 
     print(f"{COMMAND_LABEL}: initialized memory")
-    print(f"  project memory target: {Path.cwd() / 'memory' / 'short' / 'sase.md'}")
+    print(f"  project memory target: {_sase_memory_path(Path.cwd())}")
     print(f"  home memory target: {_home_memory_path(inputs.use_chezmoi)}")
     print(f"  global config source: {inputs.global_config}")
 

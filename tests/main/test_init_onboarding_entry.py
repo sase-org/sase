@@ -50,7 +50,7 @@ def test_init_check_memory_alias_does_not_apply(
         "plan_init_memory",
         lambda args: _plan(
             "memory",
-            actions=(_changed_action("memory/short/sase.md"),),
+            actions=(_changed_action("memory/sase.md"),),
             summary="create memory files",
         ),
     )

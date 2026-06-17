@@ -41,7 +41,7 @@ _PROMPT_INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 def validate_memory_proposal_target(
     target: str | None = None, *, slug: str | None = None
 ) -> str:
-    """Validate a one-level ``long/<slug>.md`` proposal target path."""
+    """Validate a one-level flat ``<slug>.md`` proposal target path."""
     if target is not None and slug is not None:
         raise MemoryProposalTargetError("pass either --target or --slug, not both")
     if target is None and slug is None:
@@ -53,7 +53,7 @@ def validate_memory_proposal_target(
             raise MemoryProposalTargetError(
                 "memory proposal slug must match [a-z0-9][a-z0-9_-]*"
             )
-        return f"long/{normalized_slug}.md"
+        return f"{normalized_slug}.md"
 
     raw_target = (target or "").strip()
     path = Path(raw_target)
@@ -65,9 +65,9 @@ def validate_memory_proposal_target(
         raise MemoryProposalTargetError(
             "memory proposal target must not contain traversal"
         )
-    if len(path.parts) != 2 or path.parts[0] != "long":
+    if len(path.parts) != 1:
         raise MemoryProposalTargetError(
-            "memory proposal target must be a one-level long/<slug>.md path"
+            "memory proposal target must be a one-level <slug>.md path"
         )
     if path.suffix != ".md":
         raise MemoryProposalTargetError("memory proposal target must end with .md")

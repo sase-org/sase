@@ -23,10 +23,10 @@ _LONG_LIST_HEADING = "#### Long-Term Memory Files"
 _H2_RE = re.compile(r"^##\s+")
 _LEGACY_AMD_COMMENT_RE = re.compile(r"^\s*<!--\s*sase-" r"amd:[^>]+-->\s*$")
 _SHORT_MEMORY_BULLET_RE = re.compile(
-    r"^- @(?P<path>memory/short/[A-Za-z0-9_./-]+\.md)$"
+    r"^- @(?P<path>memory/(?:short/)?[A-Za-z0-9_./-]+\.md)$"
 )
 _LONG_MEMORY_ENTRY_RE = re.compile(
-    r"^\*\*`(?P<path>memory/long/[^`]+\.md)`\*\*(?P<description>.*?)$"
+    r"^\*\*`(?P<path>memory/[^`]+\.md)`\*\*(?P<description>.*?)$"
 )
 
 

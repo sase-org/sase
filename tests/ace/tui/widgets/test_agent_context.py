@@ -36,7 +36,7 @@ def _memory_event() -> MemoryReadDisplayEvent:
             project="test",
             cwd="/tmp/test",
             canonical_path="long/generated_skills.md",
-            resolved_path="/tmp/test/memory/long/generated_skills.md",
+            resolved_path="/tmp/test/memory/generated_skills.md",
             agent_name="alpha",
             agent_source="SASE_AGENT_NAME",
             artifacts_dir="/tmp/test/artifacts",

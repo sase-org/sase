@@ -162,7 +162,7 @@ class TestNotifyMemoryProposed:
             proposal_id="mem-20260523-120000-1234abcd",
             title="Generated skills",
             author_name="agent-a",
-            target_path="long/generated_skills.md",
+            target_path="generated_skills.md",
             evidence=(
                 SimpleNamespace(resolved_path="/tmp/evidence.md"),
                 SimpleNamespace(resolved_path=None),

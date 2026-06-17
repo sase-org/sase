@@ -1,3 +1,8 @@
+---
+type: short
+parent: AGENTS.md
+---
+
 # Rust Core Backend Boundary
 
 Shared backend and domain behavior belongs in the sibling Rust core repo at `../sase-core/crates/sase_core`. Python and

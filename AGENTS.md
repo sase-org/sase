@@ -6,22 +6,22 @@ IMPORTANT: You should not modify any of these memory files without approval from
 
 The following memory files contain core (always loaded) context:
 
-- @memory/short/build_and_run.md
-- @memory/short/glossary.md
-- @memory/short/gotchas.md
-- @memory/short/rust_core_backend_boundary.md
-- @memory/short/sase.md
+- @memory/build_and_run.md
+- @memory/glossary.md
+- @memory/gotchas.md
+- @memory/rust_core_backend_boundary.md
+- @memory/sase.md
 
 ## Tier 2 (long-term) Memory
 
 The below files contain detailed reference material. When working in their domain, you MUST use your `/sase_memory_read`
-skill to review their contents. Do not read canonical `memory/long/*.md` files directly.
+skill to review their contents. Do not read canonical memory files directly.
 
-**`memory/long/cli_rules.md`**  
+**`memory/cli_rules.md`**  
 Read anytime new CLI subcommands or options are added.
 
-**`memory/long/generated_skills.md`**  
+**`memory/generated_skills.md`**  
 Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime.
 
-**`memory/long/tui_perf.md`**  
+**`memory/tui_perf.md`**  
 Read before changing anything that affects TUI performance or responsiveness (navigation, refresh, rendering, startup).

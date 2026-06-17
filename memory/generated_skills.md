@@ -1,17 +1,17 @@
 ---
-keywords:
-  [
-    sase commit,
-    SKILL.md,
-    init-skills,
-    sase_commit,
-    sase_git_commit,
-    sase_hg_commit,
-    commit workflow,
-    commit skill,
-    xprompt skill,
-  ]
+type: long
+parent: AGENTS.md
 description: Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime.
+keywords:
+  - sase commit
+  - SKILL.md
+  - init-skills
+  - sase_commit
+  - sase_git_commit
+  - sase_hg_commit
+  - commit workflow
+  - commit skill
+  - xprompt skill
 ---
 
 # Generated Skill Files

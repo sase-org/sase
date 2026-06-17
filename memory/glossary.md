@@ -1,3 +1,8 @@
+---
+type: short
+parent: AGENTS.md
+---
+
 # Glossary
 
 **Agent Family**  

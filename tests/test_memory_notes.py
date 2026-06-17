@@ -99,9 +99,10 @@ def test_apply_memory_frontmatter_uses_canonical_key_order_and_preserves_extra()
         "parent: AGENTS.md\n"
         "description: New description.\n"
         "keywords:\n"
-        "- skills\n"
+        "  - skills\n"
         "owner: docs\n"
         "---\n"
+        "\n"
         "# Body\n"
     )
 

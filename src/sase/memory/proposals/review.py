@@ -5,10 +5,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import fcntl
 import hashlib
-import json
 from pathlib import Path
 
 from sase.memory.locks import locked_file
+from sase.memory.notes import AGENTS_PARENT, apply_memory_frontmatter
 from sase.memory.proposals.identity import require_proposal_reviewer
 from sase.memory.proposals.ledger import (
     append_event_to_ledger_unlocked,
@@ -147,6 +147,7 @@ def approve_memory_proposal(
         body_sha256 = hashlib.sha256(body_bytes).hexdigest()
         canonical_body = _canonical_memory_content(
             proposal_id=state.proposal_id,
+            title=state.title,
             keywords=state.keywords,
             body=body,
         )
@@ -265,17 +266,18 @@ def _read_required_text(path: Path, *, label: str) -> str:
 
 
 def _canonical_memory_content(
-    *, proposal_id: str, keywords: tuple[str, ...], body: str
+    *, proposal_id: str, title: str, keywords: tuple[str, ...], body: str
 ) -> str:
-    lines = ["---"]
+    extra: dict[str, object] = {"source_candidate": proposal_id}
     if keywords:
-        lines.append("keywords:")
-        lines.extend(
-            f"  - {json.dumps(keyword, ensure_ascii=True)}" for keyword in keywords
-        )
-    lines.append(f"source_candidate: {proposal_id}")
-    lines.append("---")
-    content = "\n".join(lines) + "\n\n" + body
+        extra["keywords"] = list(keywords)
+    content = apply_memory_frontmatter(
+        body,
+        note_type="long",
+        parent=AGENTS_PARENT,
+        description=title,
+        extra=extra,
+    )
     if not content.endswith("\n"):
         content += "\n"
     return content

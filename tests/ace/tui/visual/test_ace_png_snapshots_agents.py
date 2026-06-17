@@ -189,7 +189,7 @@ def _context_memory_reads() -> list[MemoryReadEvent]:
             project="visual",
             cwd="/workspace/sase",
             canonical_path="long/generated_skills.md",
-            resolved_path="/workspace/sase/memory/long/generated_skills.md",
+            resolved_path="/workspace/sase/memory/generated_skills.md",
             agent_name="zoom.snapshot.agent",
             agent_source="SASE_AGENT_NAME",
             artifacts_dir="/workspace/sase/artifacts/visual-zoom",

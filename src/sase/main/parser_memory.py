@@ -24,7 +24,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase memory review mem-20260523-142233-a1b2c3d4 --edit\n"
             "  sase memory log\n"
             "  sase memory log --include proposals\n"
-            "  sase memory log --path long/generated_skills.md\n"
+            "  sase memory log --path generated_skills.md\n"
             "  sase memory log --id <read-id>"
         ),
     )
@@ -107,7 +107,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Create an attributable, reviewable long-term memory proposal. "
             "This command writes only proposal state under ~/.sase/projects; "
-            "it never modifies canonical memory/long files."
+            "it never modifies canonical memory files."
         ),
         epilog=(
             "examples:\n"
@@ -118,7 +118,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "generated_skills --evidence chat:abc123 --body "
             '"Durable memory body" --notify\n'
             '  cat draft.md | sase memory write --title "Generated skills" '
-            "--target long/generated_skills.md --evidence chat:abc123"
+            "--target generated_skills.md --evidence chat:abc123"
         ),
     )
     write_parser.add_argument(
@@ -146,13 +146,13 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     target_group = write_parser.add_mutually_exclusive_group(required=True)
     target_group.add_argument(
         "--target",
-        metavar="long/<slug>.md",
-        help="One-level canonical long-memory target path",
+        metavar="<slug>.md",
+        help="One-level canonical long-memory target filename",
     )
     target_group.add_argument(
         "--slug",
         metavar="SLUG",
-        help="Slug used to derive the target path long/<slug>.md",
+        help="Slug used to derive the target filename <slug>.md",
     )
     write_parser.add_argument(
         "--keyword",
@@ -249,7 +249,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     review_parser.add_argument(
         "--target",
-        metavar="long/<slug>.md",
+        metavar="<slug>.md",
         help="Override the canonical approval target",
     )
     review_parser.add_argument(
@@ -280,7 +280,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase memory log\n"
             "  sase memory log --include proposals\n"
-            "  sase memory log --path long/generated_skills.md\n"
+            "  sase memory log --path generated_skills.md\n"
             "  sase memory log --id <read-id>"
         ),
     )

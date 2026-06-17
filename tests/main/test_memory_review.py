@@ -18,7 +18,7 @@ def _create_proposal(
     proposal_id: str = "mem-20260523-120000-1234abcd",
     title: str = "Memory",
     body: str = "Body\n",
-    target: str = "long/memory.md",
+    target: str = "memory.md",
     keywords: tuple[str, ...] = ("memory",),
 ) -> str:
     result = create_memory_proposal(
@@ -53,7 +53,7 @@ def test_memory_review_list_json_defaults_to_pending(
     rejected_id = _create_proposal(
         tmp_path,
         proposal_id="mem-20260523-120001-5678abcd",
-        target="long/rejected.md",
+        target="rejected.md",
     )
     reject_args = create_parser().parse_args(
         ["memory", "review", rejected_id, "--reject", "--reason", "no", "--json"]
@@ -170,10 +170,12 @@ def test_memory_review_approve_writes_canonical_file(
     handle_memory_review_command(args)
 
     payload = json.loads(capsys.readouterr().out)
-    canonical_path = tmp_path / "memory" / "long" / "memory.md"
+    canonical_path = tmp_path / "memory" / "memory.md"
     assert payload["event"]["event_type"] == "approved"
     assert payload["canonical_path"] == str(canonical_path)
-    assert canonical_path.read_text(encoding="utf-8").startswith("---\nkeywords:")
+    assert canonical_path.read_text(encoding="utf-8").startswith(
+        "---\ntype: long\nparent: AGENTS.md\n"
+    )
 
 
 def test_memory_review_approve_with_edited_file_records_edited_event(
@@ -207,7 +209,7 @@ def test_memory_review_approve_with_edited_file_records_edited_event(
     assert payload["event"]["event_type"] == "approved_with_edits"
     assert reviewed_path.name == "reviewed.md"
     assert reviewed_path.read_text(encoding="utf-8") == "Edited body\n"
-    assert "Edited body\n" in (tmp_path / "memory" / "long" / "memory.md").read_text(
+    assert "Edited body\n" in (tmp_path / "memory" / "memory.md").read_text(
         encoding="utf-8"
     )
 
@@ -259,7 +261,7 @@ def test_memory_review_edit_uses_fake_editor_then_approves(
     payload = json.loads(capsys.readouterr().out)
     assert payload["event"]["event_type"] == "approved_with_edits"
     assert Path(payload["reviewed_path"]).read_text(encoding="utf-8") == "Editor body\n"
-    assert "Editor body\n" in (tmp_path / "memory" / "long" / "memory.md").read_text(
+    assert "Editor body\n" in (tmp_path / "memory" / "memory.md").read_text(
         encoding="utf-8"
     )
 

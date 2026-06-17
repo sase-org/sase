@@ -141,11 +141,9 @@ _lint-pyscripts: _setup
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
         --epic-symbol 'sase-4u(MemoryNoteValidationError)' \
-        --epic-symbol 'sase-4u(apply_memory_frontmatter)' \
         --epic-symbol 'sase-4u(children_of)' \
         --epic-symbol 'sase-4u(read_memory_note)' \
         --epic-symbol 'sase-4u(render_memory_frontmatter)' \
-        --epic-symbol 'sase-4u(render_memory_note_references)' \
         --epic-symbol 'sase-4u(split_frontmatter)' \
         --epic-symbol 'sase-4u(validate_notes)'
 
@@ -321,11 +319,9 @@ all: fix lint pylimit test
 pyvision *args: _setup (_header "pyvision")
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
         --epic-symbol 'sase-4u(MemoryNoteValidationError)' \
-        --epic-symbol 'sase-4u(apply_memory_frontmatter)' \
         --epic-symbol 'sase-4u(children_of)' \
         --epic-symbol 'sase-4u(read_memory_note)' \
         --epic-symbol 'sase-4u(render_memory_frontmatter)' \
-        --epic-symbol 'sase-4u(render_memory_note_references)' \
         --epic-symbol 'sase-4u(split_frontmatter)' \
         --epic-symbol 'sase-4u(validate_notes)' \
         {{ args }}

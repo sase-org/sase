@@ -12,9 +12,10 @@ from sase.amd._shared import (
     apply_planned_delete,
     provider_shim_plan,
 )
-
-from .constants import (
-    MINIMAL_AGENTS_CONTENT,
+from sase.memory.notes import (
+    AGENTS_PARENT,
+    apply_memory_frontmatter,
+    uses_legacy_memory_layout,
 )
 from .formatting import format_generated_memory_markdown
 from .inventory import unreferenced_memory_files
@@ -114,19 +115,62 @@ def _render_sase_memory(
     return "\n".join(lines)
 
 
-def _render_memory_readme() -> str:
+def _generated_sase_memory_relative_path(root: Path) -> Path:
+    if uses_legacy_memory_layout(root):
+        return Path("memory") / "short" / "sase.md"
+    return Path("memory") / "sase.md"
+
+
+def _render_generated_sase_memory(
+    root: Path,
+    entries: Iterable[SiblingMemoryEntry],
+    *,
+    project_name: str | None = None,
+) -> str:
+    body = format_generated_memory_markdown(
+        _render_sase_memory(entries, project_name=project_name)
+    )
+    if uses_legacy_memory_layout(root):
+        return body
+    return apply_memory_frontmatter(
+        body,
+        note_type="short",
+        parent=AGENTS_PARENT,
+    )
+
+
+def _render_memory_readme(root: Path) -> str:
+    if uses_legacy_memory_layout(root):
+        return (
+            "# SASE Memory\n\n"
+            "The `memory/` directory holds agent-facing project context. Use "
+            "`sase memory list` to inspect what a launch would load or reference, "
+            "and `sase memory init` to create or refresh generated memory files.\n\n"
+            "- `memory/short/` contains short-term context that is loaded when an "
+            "instruction root reaches it through an `@memory/...` reference.\n"
+            "- `memory/long/` contains detailed long-term context. Plain "
+            "`memory/...` mentions make files visible as references, but do not "
+            "load file contents unless the file is also reached through an "
+            "`@...` reference.\n"
+        )
     return (
         "# SASE Memory\n\n"
         "The `memory/` directory holds agent-facing project context. Use "
         "`sase memory list` to inspect what a launch would load or reference, "
         "and `sase memory init` to create or refresh generated memory files.\n\n"
-        "- `memory/short/` contains short-term context that is loaded when an "
-        "instruction root reaches it through an `@memory/...` reference.\n"
-        "- `memory/long/` contains detailed long-term context. Plain "
-        "`memory/...` mentions make files visible as references, but do not "
-        "load file contents unless the file is also reached through an "
-        "`@...` reference.\n"
+        "- Non-README Markdown files live directly under `memory/` and use "
+        "YAML frontmatter for `type` and `parent`.\n"
+        "- `type: short` notes are always-loaded context when reached through "
+        "an `@memory/...` reference.\n"
+        "- `type: long` notes are detailed reference material. They require a "
+        "`description` and are read with `sase memory read`.\n"
+        "- Long notes can set `parent: memory/<note>.md` to appear in that "
+        "parent note's `## Children` section.\n"
     )
+
+
+def _minimal_agents_content(root: Path) -> str:
+    return f"# Agent Instructions\n\n@{_generated_sase_memory_relative_path(root).as_posix()}\n"
 
 
 def _render_expected_memory_files(
@@ -138,15 +182,17 @@ def _render_expected_memory_files(
 ) -> tuple[MemoryExpectedFile, ...]:
     expected: list[MemoryExpectedFile] = [
         MemoryExpectedFile(
-            path=root / "memory" / "short" / "sase.md",
-            content=format_generated_memory_markdown(
-                _render_sase_memory(sibling_entries, project_name=project_name)
+            path=root / _generated_sase_memory_relative_path(root),
+            content=_render_generated_sase_memory(
+                root,
+                sibling_entries,
+                project_name=project_name,
             ),
             detail="generated SASE memory",
         ),
         MemoryExpectedFile(
             path=root / "memory" / "README.md",
-            content=format_generated_memory_markdown(_render_memory_readme()),
+            content=format_generated_memory_markdown(_render_memory_readme(root)),
             detail="memory README",
         ),
     ]
@@ -172,7 +218,7 @@ def _render_expected_memory_files(
         expected.append(
             MemoryExpectedFile(
                 path=root / "AGENTS.md",
-                content=MINIMAL_AGENTS_CONTENT,
+                content=_minimal_agents_content(root),
                 detail="agent instruction file",
                 write_policy="create_if_missing",
             )
@@ -299,12 +345,11 @@ def _is_memory_markdown_path(root: Path, path: Path) -> bool:
         relative = path.resolve(strict=False).relative_to(root_resolved)
     except ValueError:
         return False
-    return (
-        len(relative.parts) >= 3
-        and relative.parts[0] == "memory"
-        and relative.parts[1] in {"short", "long"}
-        and path.suffix == ".md"
-    )
+    if path.suffix != ".md" or not relative.parts or relative.parts[0] != "memory":
+        return False
+    if len(relative.parts) == 2:
+        return relative.name != "README.md"
+    return len(relative.parts) >= 3 and relative.parts[1] in {"short", "long"}
 
 
 def _validation_overlay_for_expected_files(
@@ -387,7 +432,8 @@ def initialize_memory_root(
     written = (*written, *_apply_provider_shim_plan(shim_plan))
     deleted = _delete_provider_shim_paths(shim_plan)
 
-    (root / "memory" / "long").mkdir(parents=True, exist_ok=True)
+    if uses_legacy_memory_layout(root):
+        (root / "memory" / "long").mkdir(parents=True, exist_ok=True)
 
     return MemoryRootResult(
         root=root,

@@ -39,7 +39,7 @@ def test_memory_plan_missing_tree_reports_create_actions_without_writing(
     plan = plan_memory()
 
     assert {action.operation for action in plan.actions} == {"create"}
-    assert project_root / "memory" / "short" / "sase.md" in {
+    assert project_root / "memory" / "sase.md" in {
         action.path for action in plan.actions
     }
     assert project_root / "AGENTS.md" in {action.path for action in plan.actions}
@@ -193,7 +193,7 @@ def test_memory_plan_preserves_existing_user_agents_file(
     )
     write(
         project_root / "AGENTS.md",
-        "# Custom Instructions\n\n@memory/short/sase.md\n",
+        "# Custom Instructions\n\n@memory/sase.md\n",
     )
 
     plan = plan_memory()

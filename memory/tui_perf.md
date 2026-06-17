@@ -1,4 +1,6 @@
 ---
+type: long
+parent: AGENTS.md
 description:
   Read before changing anything that affects TUI performance or responsiveness (navigation, refresh, rendering,
   startup).

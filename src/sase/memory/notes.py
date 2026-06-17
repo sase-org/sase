@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+import textwrap
 from typing import Any, Literal, cast
 
 import yaml  # type: ignore[import-untyped]
@@ -24,6 +25,7 @@ _LEGACY_TYPE_DIRS: Mapping[str, MemoryNoteType] = {
 }
 _CANONICAL_FRONTMATTER_KEYS = frozenset({"type", "parent", "description"})
 _YAML_WIDTH = 1_000_000
+_FRONTMATTER_WRAP_WIDTH = 120
 
 
 @dataclass(frozen=True)
@@ -86,6 +88,8 @@ def _parse_frontmatter_block(text: str) -> _FrontmatterBlock:
     first_line_end = text.find("\n") + 1
     raw_frontmatter = text[first_line_end:close_start]
     body = text[close_end:]
+    if body.startswith("\n"):
+        body = body[1:]
     try:
         loaded = yaml.safe_load(raw_frontmatter) or {}
     except yaml.YAMLError:
@@ -219,6 +223,12 @@ def discover_memory_notes(root: Path) -> tuple[MemoryNote, ...]:
     return tuple(notes)
 
 
+def uses_legacy_memory_layout(root: Path) -> bool:
+    """Return whether ``root`` still has legacy ``memory/short|long`` dirs."""
+    memory_root = root / MEMORY_DIR
+    return any((memory_root / tier).exists() for tier in _LEGACY_TYPE_DIRS)
+
+
 def render_memory_frontmatter(
     *,
     note_type: str,
@@ -248,7 +258,43 @@ def render_memory_frontmatter(
             width=_YAML_WIDTH,
         ),
     ).strip()
-    return f"---\n{dumped}\n---\n"
+    dumped = _prettier_stable_frontmatter(dumped)
+    return f"---\n{dumped}\n---\n\n"
+
+
+def _prettier_stable_frontmatter(dumped: str) -> str:
+    """Return frontmatter shaped the same way Prettier will keep it."""
+    lines: list[str] = []
+    in_sequence = False
+    for line in dumped.splitlines():
+        prefix = "description: "
+        value = line.removeprefix(prefix)
+        if (
+            line.startswith(prefix)
+            and len(line) > _FRONTMATTER_WRAP_WIDTH
+            and _can_wrap_plain_description(value)
+        ):
+            lines.append("description:")
+            wrapper = textwrap.TextWrapper(
+                width=_FRONTMATTER_WRAP_WIDTH - 2,
+                initial_indent="  ",
+                subsequent_indent="  ",
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+            lines.extend(wrapper.wrap(value))
+            in_sequence = False
+            continue
+        if in_sequence and line.startswith("- "):
+            lines.append(f"  {line}")
+            continue
+        lines.append(line)
+        in_sequence = line.endswith(":")
+    return "\n".join(lines)
+
+
+def _can_wrap_plain_description(value: str) -> bool:
+    return ": " not in value and "#" not in value and "\t" not in value
 
 
 def apply_memory_frontmatter(
@@ -280,6 +326,7 @@ def apply_memory_frontmatter(
             }
         )
 
+    body = block.body.lstrip("\n")
     return (
         render_memory_frontmatter(
             note_type=note_type,
@@ -287,7 +334,7 @@ def apply_memory_frontmatter(
             description=description,
             extra=preserved_extra,
         )
-        + block.body
+        + body
     )
 
 
@@ -517,5 +564,6 @@ __all__ = [
     "render_memory_frontmatter",
     "render_memory_note_references",
     "split_frontmatter",
+    "uses_legacy_memory_layout",
     "validate_notes",
 ]

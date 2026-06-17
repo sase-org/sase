@@ -283,7 +283,7 @@ class MemoryReviewTuiApp(App[None]):
             TextInputModal(
                 "Approval target",
                 value=current,
-                placeholder="long/<slug>.md; blank resets to proposal target",
+                placeholder="<slug>.md; blank resets to proposal target",
                 validator=validate_target,
             ),
             apply_target,

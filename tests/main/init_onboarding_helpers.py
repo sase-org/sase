@@ -42,7 +42,7 @@ def _plan(
     )
 
 
-def _changed_action(path: str = "memory/short/sase.md") -> InitAction:
+def _changed_action(path: str = "memory/sase.md") -> InitAction:
     return InitAction(Path(path), "update", "changed")
 
 

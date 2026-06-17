@@ -67,14 +67,14 @@ async def test_memory_review_tui_opens_with_pending_rows_and_preview(
         proposal_id="mem-20260523-120000-11111111",
         title="First memory",
         body="First body\n",
-        target="long/first.md",
+        target="first.md",
     )
     _create_proposal(
         tmp_path,
         proposal_id="mem-20260523-120001-22222222",
         title="Second memory",
         body="Second body\n",
-        target="long/second.md",
+        target="second.md",
     )
 
     app = MemoryReviewTuiApp(cwd=tmp_path)
@@ -97,14 +97,14 @@ async def test_memory_review_tui_navigation_updates_preview(
         proposal_id="mem-20260523-120000-11111111",
         title="First memory",
         body="First body\n",
-        target="long/first.md",
+        target="first.md",
     )
     second_id = _create_proposal(
         tmp_path,
         proposal_id="mem-20260523-120001-22222222",
         title="Second memory",
         body="Second body\n",
-        target="long/second.md",
+        target="second.md",
     )
 
     app = MemoryReviewTuiApp(cwd=tmp_path)
@@ -126,14 +126,14 @@ async def test_memory_review_tui_honors_initial_proposal_selection(
         proposal_id="mem-20260523-120000-11111111",
         title="First memory",
         body="First body\n",
-        target="long/first.md",
+        target="first.md",
     )
     second_id = _create_proposal(
         tmp_path,
         proposal_id="mem-20260523-120001-22222222",
         title="Second memory",
         body="Second body\n",
-        target="long/second.md",
+        target="second.md",
     )
 
     app = MemoryReviewTuiApp(initial_proposal_id=second_id, cwd=tmp_path)
@@ -154,7 +154,7 @@ async def test_memory_review_tui_drill_down_opens_and_exits(
         proposal_id="mem-20260523-120000-11111111",
         title="First memory",
         body="First body\n",
-        target="long/first.md",
+        target="first.md",
     )
 
     app = MemoryReviewTuiApp(cwd=tmp_path)
@@ -180,7 +180,7 @@ async def test_memory_review_tui_reject_modal_dispatches_domain_rejection(
         proposal_id="mem-20260523-120000-11111111",
         title="First memory",
         body="First body\n",
-        target="long/first.md",
+        target="first.md",
     )
     calls: list[tuple[str, str]] = []
 
@@ -216,7 +216,7 @@ async def test_memory_review_tui_approve_dispatches_domain_approval(
         proposal_id="mem-20260523-120000-11111111",
         title="First memory",
         body="First body\n",
-        target="long/first.md",
+        target="first.md",
     )
     calls: list[tuple[str, str | None, str | Path | None]] = []
 
@@ -240,7 +240,7 @@ async def test_memory_review_tui_approve_dispatches_domain_approval(
         await pilot.pause()
 
     assert calls == [(proposal_id, None, None)]
-    assert (tmp_path / "memory" / "long" / "first.md").exists()
+    assert (tmp_path / "memory" / "first.md").exists()
     assert read_memory_proposals()[0].status == "approved"
 
 
@@ -254,7 +254,7 @@ async def test_memory_review_tui_target_edit_feeds_approval_target(
         proposal_id="mem-20260523-120000-11111111",
         title="First memory",
         body="First body\n",
-        target="long/first.md",
+        target="first.md",
     )
     calls: list[tuple[str, str | None, str | Path | None]] = []
 
@@ -277,11 +277,11 @@ async def test_memory_review_tui_target_edit_feeds_approval_target(
         await pilot.press("t")
         await pilot.pause()
         input_widget = app.screen.query_one("#memory-review-input", Input)
-        input_widget.value = "long/renamed.md"
+        input_widget.value = "renamed.md"
         await pilot.press("enter")
         await pilot.pause()
         await pilot.press("a")
         await pilot.pause()
 
-    assert calls == [(proposal_id, "long/renamed.md", None)]
-    assert (tmp_path / "memory" / "long" / "renamed.md").exists()
+    assert calls == [(proposal_id, "renamed.md", None)]
+    assert (tmp_path / "memory" / "renamed.md").exists()

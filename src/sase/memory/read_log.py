@@ -291,8 +291,12 @@ def strip_leading_frontmatter(text: str) -> FrontmatterStripResult:
 
     for index, line in enumerate(lines[1:], start=1):
         if _is_frontmatter_delimiter(line):
+            body_lines = lines[index + 1 :]
+            if body_lines and not body_lines[0].strip():
+                body_lines = body_lines[1:]
             return FrontmatterStripResult(
-                body="".join(lines[index + 1 :]), stripped=True
+                body="".join(body_lines),
+                stripped=True,
             )
     return FrontmatterStripResult(body=text, stripped=False)
 

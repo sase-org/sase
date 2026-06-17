@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 import re
 from typing import Any
@@ -16,9 +17,16 @@ from ._shared import (
     read_text,
 )
 from .constants import AGENTS_FILENAME
+from sase.memory.notes import (
+    AGENTS_PARENT,
+    apply_memory_frontmatter,
+    discover_memory_notes,
+    render_memory_note_references,
+    uses_legacy_memory_layout,
+)
 
 _AGENTS_LONG_MEMORY_RE = re.compile(
-    r"^\*\*`(?P<path>memory/long/[^`]+\.md)`\*\*[ \t]*\n(?P<body>.*?)(?=\n\n|\Z)",
+    r"^\*\*`(?P<path>memory/[^`]+\.md)`\*\*[ \t]*\n(?P<body>.*?)(?=\n\n|\Z)",
     re.MULTILINE | re.DOTALL,
 )
 
@@ -92,26 +100,22 @@ def _first_body_paragraph_or_h1(body: str) -> str:
 
 
 def _long_memory_description(
-    path: Path,
+    note_path: Path,
     *,
-    root: Path,
+    body: str,
+    relative_path: str,
+    description: str | None,
     existing_agents_descriptions: dict[str, str],
 ) -> str:
-    rel = path.relative_to(root).as_posix()
-    text, error = read_text(path)
-    if error is not None or text is None:
-        return path.stem.replace("_", " ").replace("-", " ").strip().capitalize()
-    frontmatter, body = _split_frontmatter(text)
-    raw_description = frontmatter.get("description")
-    if isinstance(raw_description, str) and raw_description.strip():
-        return " ".join(raw_description.split())
-    existing = existing_agents_descriptions.get(rel)
+    if description:
+        return description
+    existing = existing_agents_descriptions.get(relative_path)
     if existing:
         return existing
     fallback = _first_body_paragraph_or_h1(body)
     if fallback:
         return fallback
-    return path.stem.replace("_", " ").replace("-", " ").strip().capitalize()
+    return note_path.stem.replace("_", " ").replace("-", " ").strip().capitalize()
 
 
 def _frontmatter_description_line(description: str) -> str:
@@ -152,13 +156,17 @@ def _with_description_frontmatter(text: str, description: str) -> str:
 
 def _long_memory_descriptions(root: Path) -> dict[str, str]:
     existing_agents_descriptions = _existing_agents_long_descriptions(root)
+    notes = discover_memory_notes(root)
     return {
-        path.relative_to(root).as_posix(): _long_memory_description(
-            path,
-            root=root,
+        note.relative_path: _long_memory_description(
+            root / note.path,
+            body=note.body,
+            relative_path=note.relative_path,
+            description=note.description,
             existing_agents_descriptions=existing_agents_descriptions,
         )
-        for path in _iter_memory_markdown(root, "long")
+        for note in notes
+        if note.type == "long"
     }
 
 
@@ -166,17 +174,33 @@ def _long_memory_description_updates(
     root: Path, descriptions: dict[str, str]
 ) -> tuple[AmdLongMemoryDescriptionUpdate, ...]:
     updates: list[AmdLongMemoryDescriptionUpdate] = []
-    for path in _iter_memory_markdown(root, "long"):
-        rel = path.relative_to(root).as_posix()
+    legacy_layout = uses_legacy_memory_layout(root)
+    for note in discover_memory_notes(root):
+        if note.type != "long":
+            continue
+        path = root / note.path
+        rel = note.relative_path
         description = descriptions[rel]
         text, error = read_text(path)
         if error is not None or text is None:
             continue
-        frontmatter, _body = _split_frontmatter(text)
-        raw_description = frontmatter.get("description")
-        if isinstance(raw_description, str) and raw_description.strip():
-            continue
-        content = _with_description_frontmatter(text, description)
+        if legacy_layout:
+            frontmatter, _body = _split_frontmatter(text)
+            raw_description = frontmatter.get("description")
+            if isinstance(raw_description, str) and raw_description.strip():
+                continue
+            content = _with_description_frontmatter(text, description)
+        else:
+            content = apply_memory_frontmatter(
+                text,
+                note_type="long",
+                parent=(
+                    note.parent
+                    if note.parent_source == "frontmatter"
+                    else AGENTS_PARENT
+                ),
+                description=description,
+            )
         if content != text:
             updates.append(
                 AmdLongMemoryDescriptionUpdate(
@@ -187,16 +211,16 @@ def _long_memory_description_updates(
     return tuple(updates)
 
 
-def _iter_memory_markdown(root: Path, tier: str) -> tuple[Path, ...]:
-    memory_root = root / "memory" / tier
-    if not memory_root.exists():
-        return ()
-    return tuple(sorted(path for path in memory_root.rglob("*.md") if path.is_file()))
-
-
 def _short_memory_references(root: Path) -> tuple[str, ...]:
-    refs = {Path("memory/short/sase.md")}
-    refs.update(path.relative_to(root) for path in _iter_memory_markdown(root, "short"))
+    generated_path = (
+        Path("memory/short/sase.md")
+        if uses_legacy_memory_layout(root)
+        else Path("memory/sase.md")
+    )
+    refs = {generated_path}
+    refs.update(
+        note.path for note in discover_memory_notes(root) if note.type == "short"
+    )
     return tuple(f"@{path.as_posix()}" for path in sorted(refs))
 
 
@@ -208,7 +232,23 @@ def render_managed_agents(
 ) -> str:
     """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
     existing_descriptions = _existing_agents_long_descriptions(root)
-    long_paths = _iter_memory_markdown(root, "long")
+    notes = discover_memory_notes(root)
+    legacy_layout = uses_legacy_memory_layout(root)
+    canonical_file_instruction = (
+        "`memory/long/*.md` files directly."
+        if legacy_layout
+        else "memory files directly."
+    )
+    top_level_long_notes = tuple(
+        sorted(
+            (
+                note
+                for note in notes
+                if note.type == "long" and note.parent == AGENTS_PARENT
+            ),
+            key=lambda note: note.relative_path,
+        )
+    )
     descriptions = long_memory_descriptions or {}
 
     lines = [
@@ -230,22 +270,25 @@ def render_managed_agents(
             "",
             "The below files contain detailed reference material. When working "
             "in their domain, you MUST use your `/sase_memory_read`",
-            "skill to review their contents. Do not read canonical "
-            "`memory/long/*.md` files directly.",
+            f"skill to review their contents. Do not read canonical {canonical_file_instruction}",
             "",
         ]
     )
-    for index, path in enumerate(long_paths):
+    for index, note in enumerate(top_level_long_notes):
         if index:
             lines.append("")
-        rel = path.relative_to(root).as_posix()
-        description = descriptions.get(rel) or _long_memory_description(
-            path,
-            root=root,
+        description = descriptions.get(note.relative_path) or _long_memory_description(
+            root / note.path,
+            body=note.body,
+            relative_path=note.relative_path,
+            description=note.description,
             existing_agents_descriptions=existing_descriptions,
         )
-        lines.append(f"**`{rel}`**  ")
-        lines.append(description)
+        lines.extend(
+            render_memory_note_references(
+                (replace(note, description=description),)
+            ).splitlines()
+        )
     lines.append("")
     return "\n".join(lines)
 

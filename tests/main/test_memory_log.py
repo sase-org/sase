@@ -253,7 +253,7 @@ def test_memory_log_include_proposals_json_adds_proposal_events(
         title="Memory",
         body="Body\n",
         evidence_values=["chat:abc"],
-        target="long/memory.md",
+        target="memory.md",
         author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         cwd=tmp_path,
         now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
@@ -305,7 +305,7 @@ def test_memory_log_include_proposals_rich_output(
         title="Memory",
         body="Body\n",
         evidence_values=["chat:abc"],
-        target="long/memory.md",
+        target="memory.md",
         author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         cwd=tmp_path,
         now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
@@ -327,7 +327,7 @@ def test_memory_log_include_proposals_rich_output(
     assert "Memory Proposal Events (1)" in text
     assert "mem-20260523-120000-1234abcd" in text
     assert "agent-a" in text
-    assert "long/memory.md" in text
+    assert "memory.md" in text
 
 
 def test_memory_log_json_id_outputs_raw_event(

@@ -1,3 +1,8 @@
+---
+type: short
+parent: AGENTS.md
+---
+
 # Code Conventions and Gotchas
 
 **Default Keymap Config**  

@@ -87,7 +87,7 @@ def test_parser_registers_memory_namespace() -> None:
             "mem-20260523-120000-1234abcd",
             "--approve",
             "--target",
-            "long/reviewed.md",
+            "reviewed.md",
             "--edited-file",
             "reviewed.md",
         ]
@@ -96,7 +96,7 @@ def test_parser_registers_memory_namespace() -> None:
     assert review_approve_args.memory_subcommand == "review"
     assert review_approve_args.proposal_id == "mem-20260523-120000-1234abcd"
     assert review_approve_args.approve is True
-    assert review_approve_args.target == "long/reviewed.md"
+    assert review_approve_args.target == "reviewed.md"
     assert review_approve_args.edited_file == "reviewed.md"
 
     log_args = parser.parse_args(
@@ -104,7 +104,7 @@ def test_parser_registers_memory_namespace() -> None:
             "memory",
             "log",
             "--path",
-            "long/generated_skills.md",
+            "generated_skills.md",
             "--agent",
             "agent-a",
             "--json",
@@ -114,7 +114,7 @@ def test_parser_registers_memory_namespace() -> None:
     )
     assert log_args.command == "memory"
     assert log_args.memory_subcommand == "log"
-    assert log_args.path == "long/generated_skills.md"
+    assert log_args.path == "generated_skills.md"
     assert log_args.agent == "agent-a"
     assert log_args.json is True
     assert log_args.include == ["proposals"]

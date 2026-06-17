@@ -36,10 +36,10 @@ def _write(path: Path, content: str) -> None:
 
 def test_validate_memory_proposal_target_accepts_slug_and_one_level_target() -> None:
     assert validate_memory_proposal_target(slug="generated_skills") == (
-        "long/generated_skills.md"
+        "generated_skills.md"
     )
-    assert validate_memory_proposal_target("long/generated-skills.md") == (
-        "long/generated-skills.md"
+    assert validate_memory_proposal_target("generated-skills.md") == (
+        "generated-skills.md"
     )
 
 
@@ -48,11 +48,12 @@ def test_validate_memory_proposal_target_accepts_slug_and_one_level_target() -> 
     [
         "/tmp/foo.md",
         "../long/foo.md",
+        "long/foo.md",
         "short/foo.md",
         "long/nested/foo.md",
-        "long/foo.txt",
-        "long/Foo.md",
-        "long/foo bar.md",
+        "foo.txt",
+        "Foo.md",
+        "foo bar.md",
     ],
 )
 def test_validate_memory_proposal_target_rejects_invalid_paths(target: str) -> None:
@@ -133,7 +134,7 @@ def test_create_memory_proposal_writes_draft_ledger_and_reduces_state(
     assert result.state.proposal_id == proposal_id
     assert result.state.status == "pending"
     assert result.state.title == "Generated skills"
-    assert result.state.target_path == "long/generated_skills.md"
+    assert result.state.target_path == "generated_skills.md"
     assert result.state.keywords == ("skills", "codex")
     assert result.state.author_name == "agent-a"
     assert result.state.artifacts_dir == "/tmp/artifacts"
@@ -156,7 +157,7 @@ def test_read_memory_proposal_events_skips_malformed_rows(tmp_path: Path) -> Non
         title="Memory",
         body="Body\n",
         evidence_values=["chat:abc"],
-        target="long/memory.md",
+        target="memory.md",
         author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         project="demo",
         cwd=tmp_path,
@@ -178,7 +179,7 @@ def test_create_memory_proposal_rejects_missing_body_oversize_and_anonymous_auth
     common = {
         "title": "Memory",
         "evidence_values": ["chat:abc"],
-        "target": "long/memory.md",
+        "target": "memory.md",
         "project": "demo",
         "cwd": tmp_path,
         "ledger_path": tmp_path / "state" / "memory_proposals.jsonl",
@@ -207,7 +208,7 @@ def test_create_memory_proposal_records_large_body_warning(tmp_path: Path) -> No
         title="Memory",
         body="x" * (17 * 1024),
         evidence_values=["chat:abc"],
-        target="long/memory.md",
+        target="memory.md",
         author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         project="demo",
         cwd=tmp_path,
@@ -225,7 +226,7 @@ def test_resolve_memory_proposal_id_exact_unknown_and_ambiguous_prefix(
         "title": "Memory",
         "body": "Body\n",
         "evidence_values": ["chat:abc"],
-        "target": "long/memory.md",
+        "target": "memory.md",
         "author": ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         "project": "demo",
         "cwd": tmp_path,
@@ -257,7 +258,7 @@ def test_reject_memory_proposal_records_reviewer_and_reason(tmp_path: Path) -> N
         title="Memory",
         body="Body\n",
         evidence_values=["chat:abc"],
-        target="long/memory.md",
+        target="memory.md",
         author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         project="demo",
         cwd=tmp_path,
@@ -291,7 +292,7 @@ def test_approve_memory_proposal_writes_canonical_file_and_event(
         title="Memory",
         body="Body\n",
         evidence_values=["chat:abc"],
-        target="long/memory.md",
+        target="memory.md",
         keywords=["memory", "review"],
         author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         project="demo",
@@ -309,15 +310,21 @@ def test_approve_memory_proposal_writes_canonical_file_and_event(
         ledger_path=ledger_path,
     )
 
-    canonical_path = tmp_path / "memory" / "long" / "memory.md"
+    canonical_path = tmp_path / "memory" / "memory.md"
     assert result.event.event_type == "approved"
     assert result.state.status == "approved"
     assert result.canonical_path == canonical_path
     assert canonical_path.read_text(encoding="utf-8") == (
         "---\n"
-        'keywords:\n  - "memory"\n  - "review"\n'
+        "type: long\n"
+        "parent: AGENTS.md\n"
+        "description: Memory\n"
         f"source_candidate: {proposal.proposal_id}\n"
-        "---\n\n"
+        "keywords:\n"
+        "  - memory\n"
+        "  - review\n"
+        "---\n"
+        "\n"
         "Body\n"
     )
     assert read_memory_proposals(ledger_path=ledger_path)[0].canonical_path == str(
@@ -327,12 +334,12 @@ def test_approve_memory_proposal_writes_canonical_file_and_event(
 
 def test_approve_memory_proposal_refuses_existing_target(tmp_path: Path) -> None:
     ledger_path = tmp_path / "state" / "memory_proposals.jsonl"
-    _write(tmp_path / "memory" / "long" / "memory.md", "existing\n")
+    _write(tmp_path / "memory" / "memory.md", "existing\n")
     proposal = create_memory_proposal(
         title="Memory",
         body="Body\n",
         evidence_values=["chat:abc"],
-        target="long/memory.md",
+        target="memory.md",
         author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         project="demo",
         cwd=tmp_path,
@@ -359,7 +366,7 @@ def test_approve_memory_proposal_with_edited_file_records_edits(
         title="Memory",
         body="Draft body\n",
         evidence_values=["chat:abc"],
-        target="long/memory.md",
+        target="memory.md",
         author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         project="demo",
         cwd=tmp_path,
@@ -384,7 +391,7 @@ def test_approve_memory_proposal_with_edited_file_records_edits(
     assert result.state.status == "approved_with_edits"
     assert result.reviewed_path == reviewed_path
     assert reviewed_path.read_text(encoding="utf-8") == "Edited body\n"
-    assert "Edited body\n" in (tmp_path / "memory" / "long" / "memory.md").read_text(
+    assert "Edited body\n" in (tmp_path / "memory" / "memory.md").read_text(
         encoding="utf-8"
     )
 
@@ -398,7 +405,7 @@ def test_reviewer_identity_rejects_agent_environment(
         title="Memory",
         body="Body\n",
         evidence_values=["chat:abc"],
-        target="long/memory.md",
+        target="memory.md",
         author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         project="demo",
         cwd=tmp_path,

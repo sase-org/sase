@@ -314,12 +314,12 @@ def test_yes_runs_one_deferred_chezmoi_deploy_after_selected_runs(
             label="Memory",
             plan=lambda args: _plan(
                 "memory",
-                actions=(InitAction(Path("memory/short/sase.md"), "update"),),
+                actions=(InitAction(Path("memory/sase.md"), "update"),),
                 summary="update memory",
             ),
             run=_deferred_run(
                 "memory",
-                Path("/home/x/chezmoi/home/memory/short/sase.md"),
+                Path("/home/x/chezmoi/home/memory/sase.md"),
                 apply_force=True,
             ),
         ),
@@ -415,9 +415,7 @@ def test_needs_attention_output_snapshot_caps_path_details(
                 "memory",
                 summary="refresh 4 memory files",
                 actions=(
-                    InitAction(
-                        Path("memory/short/sase.md"), "update", "project memory"
-                    ),
+                    InitAction(Path("memory/sase.md"), "update", "project memory"),
                     InitAction(Path("AGENTS.md"), "create", "project instructions"),
                     InitAction(Path("CLAUDE.md"), "overwrite", "provider shim"),
                     InitAction(Path("GEMINI.md"), "overwrite", "provider shim"),
@@ -443,7 +441,7 @@ def test_needs_attention_output_snapshot_caps_path_details(
         "\n"
         "Needs attention:\n"
         "  run  init memory  refresh 4 memory files\n"
-        "    - update    memory/short/sase.md  project memory\n"
+        "    - update    memory/sase.md  project memory\n"
         "    - create    AGENTS.md  project instructions\n"
         "    - overwrite CLAUDE.md  provider shim\n"
         "    ... 1 more action\n"

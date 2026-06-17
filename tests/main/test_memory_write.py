@@ -53,7 +53,7 @@ def test_memory_write_json_creates_proposal(
     payload = json.loads(captured.out)
     proposal = payload["proposal"]
     assert proposal["status"] == "pending"
-    assert proposal["target_path"] == "long/memory.md"
+    assert proposal["target_path"] == "memory.md"
     assert proposal["keywords"] == ["memory"]
     assert proposal["author_name"] == "agent-a"
     assert Path(payload["draft_path"]).read_text(encoding="utf-8") == "Body\n"
@@ -138,7 +138,7 @@ def test_memory_write_manual_author_is_visible_test_escape_hatch(
             "--title",
             "Memory",
             "--target",
-            "long/memory.md",
+            "memory.md",
             "--evidence",
             "chat:abc",
             "--body",
@@ -173,7 +173,7 @@ def test_memory_write_file_dash_reads_body_from_stdin(
             "--title",
             "Memory",
             "--target",
-            "long/memory.md",
+            "memory.md",
             "--evidence",
             "chat:abc",
             "--file",
@@ -213,7 +213,7 @@ def test_memory_write_notify_attempts_notification(
             "--title",
             "Memory",
             "--target",
-            "long/memory.md",
+            "memory.md",
             "--evidence",
             "chat:abc",
             "--body",
@@ -251,7 +251,7 @@ def test_memory_write_notify_failure_does_not_fail_write(
             "--title",
             "Memory",
             "--target",
-            "long/memory.md",
+            "memory.md",
             "--evidence",
             "chat:abc",
             "--body",
