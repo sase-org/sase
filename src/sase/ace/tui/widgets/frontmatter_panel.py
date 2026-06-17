@@ -54,14 +54,15 @@ from sase.ace.tui.widgets._frontmatter_panel_rendering import (
 from sase.xprompt.frontmatter_schema import frontmatter_field_schema
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
-# The two Textual key spellings for the physical ``Ctrl+Shift+-`` chord that
-# toggles the xprompt properties panel.  Many terminals encode the chord as
-# ``Ctrl+_`` (``ctrl+underscore``), so both names must map to the same toggle.
-# Shared between the prompt body (:class:`PromptTextArea`) and the panel itself
-# so the alias list can never drift between the two entry points.
-FRONTMATTER_PANEL_TOGGLE_KEYS: frozenset[str] = frozenset(
-    {"ctrl+shift+minus", "ctrl+underscore"}
-)
+# Textual key spellings for the physical ``Ctrl+Shift+-`` chord that toggles the
+# xprompt properties panel.  ``ctrl+underscore`` also names legacy ``Ctrl+-`` /
+# ``Ctrl+_`` / ``Ctrl+/`` (the ``0x1f`` control byte), so the prompt body keeps
+# only the disambiguated spelling; when the panel itself owns focus, either
+# spelling may deactivate it.
+FRONTMATTER_PANEL_BODY_TOGGLE_KEYS: frozenset[str] = frozenset({"ctrl+shift+minus"})
+FRONTMATTER_PANEL_TOGGLE_KEYS: frozenset[str] = FRONTMATTER_PANEL_BODY_TOGGLE_KEYS | {
+    "ctrl+underscore"
+}
 
 
 class FrontmatterPanel(

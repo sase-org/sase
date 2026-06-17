@@ -24,7 +24,7 @@ from sase.ace.tui.widgets._xprompt_arg_hints import XPromptArgHintMixin
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
 )
-from sase.ace.tui.widgets.frontmatter_panel import FRONTMATTER_PANEL_TOGGLE_KEYS
+from sase.ace.tui.widgets.frontmatter_panel import FRONTMATTER_PANEL_BODY_TOGGLE_KEYS
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
@@ -402,15 +402,22 @@ class PromptTextArea(
                 bar.move_active_pane(delta, target_mode=self._vim_mode)
             return
 
-        # Prompt-stack add-pane.  ``Ctrl+-`` (Textual normalizes ``-`` to
-        # ``minus``) appends a new empty bottom pane and drops into it, the
-        # structural sibling of the Ctrl+Shift focus / reorder chords.  Like
-        # them it works while typing (insert) or browsing (normal), and the
-        # event is always swallowed so the chord never falls through to text
-        # insertion, completion, normal-mode editing, or app-level bindings.
-        # ``add_bottom_pane`` no-ops outside prompt mode, so feedback /
-        # approve-prompt bars stay non-stackable.
-        if event.key == "ctrl+minus" and self._vim_mode in {"insert", "normal"}:
+        # Prompt-stack add-pane.  ``Ctrl+-`` is ``ctrl+minus`` when the terminal
+        # stack preserves Kitty CSI-u disambiguation, but legacy / tmux paths
+        # collapse it to the ``0x1f`` control byte that Textual reports as
+        # ``ctrl+underscore`` (shared with Ctrl+_ and Ctrl+/).  All those legacy
+        # physical chords are indistinguishable, so they append a new empty
+        # bottom pane and drop into it.
+        #
+        # Like the Ctrl+Shift focus / reorder chords this works while typing
+        # (insert) or browsing (normal), and the event is always swallowed so the
+        # chord never falls through to text insertion, completion, normal-mode
+        # editing, or app-level bindings.  ``add_bottom_pane`` no-ops outside
+        # prompt mode, so feedback / approve-prompt bars stay non-stackable.
+        if event.key in ("ctrl+minus", "ctrl+underscore") and self._vim_mode in {
+            "insert",
+            "normal",
+        }:
             event.stop()
             event.prevent_default()
             bar = self._find_prompt_bar()
@@ -418,16 +425,15 @@ class PromptTextArea(
                 bar.add_bottom_pane()
             return
 
-        # XPrompt properties panel toggle.  ``Ctrl+Shift+-`` (also delivered as
-        # ``ctrl+underscore`` by terminals that encode it as ``Ctrl+_``) shows
-        # and focuses the frontmatter panel from the body, and deactivates it
-        # again — the structural sibling of ``,f``.  Like the
-        # stack chords it works while typing (insert) or browsing (normal) and is
-        # always swallowed so it never falls through to text insertion,
-        # completion, normal-mode editing, or app-level bindings.
+        # XPrompt properties panel toggle.  ``Ctrl+Shift+-`` shows and focuses
+        # the frontmatter panel from the body, and deactivates it again — the
+        # structural sibling of ``,f``.  Like the stack chords it works while
+        # typing (insert) or browsing (normal) and is always swallowed so it
+        # never falls through to text insertion, completion, normal-mode editing,
+        # or app-level bindings.
         # ``toggle_frontmatter_panel`` no-ops outside prompt mode, so feedback /
         # approve-prompt bars (which mount no panel) stay inert.
-        if event.key in FRONTMATTER_PANEL_TOGGLE_KEYS and self._vim_mode in {
+        if event.key in FRONTMATTER_PANEL_BODY_TOGGLE_KEYS and self._vim_mode in {
             "insert",
             "normal",
         }:

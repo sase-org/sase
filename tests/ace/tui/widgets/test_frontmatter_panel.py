@@ -381,21 +381,21 @@ async def test_ctrl_shift_minus_toggles_focus_with_populated_panel() -> None:
         assert app.focused is bar.active_text_area()
 
 
-async def test_ctrl_underscore_alias_toggles_panel() -> None:
-    """``ctrl+underscore`` (terminal spelling of ``Ctrl+_``) is an equal alias."""
+async def test_ctrl_underscore_alias_deactivates_focused_panel() -> None:
+    """``ctrl+underscore`` can still deactivate the focused panel."""
     app = _PromptBarApp("")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        await pilot.press("ctrl+underscore")  # open + focus
+        await pilot.press("ctrl+shift+minus")  # open + focus
         await pilot.pause()
         await pilot.pause()
         panel = app.query_one(FrontmatterPanel)
         assert app.focused is panel
 
-        await pilot.press("ctrl+underscore")  # toggle off
+        await pilot.press("ctrl+underscore")  # toggle off from the panel
         await pilot.pause()
         await pilot.pause()
         assert not bar._frontmatter_panel_visible()

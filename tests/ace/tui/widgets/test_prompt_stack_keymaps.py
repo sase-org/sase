@@ -11,6 +11,7 @@ the comma leader coexists with vim's reverse char-search repeat and the normal
 
 from __future__ import annotations
 
+import pytest
 from textual.app import App, ComposeResult
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -224,7 +225,10 @@ async def test_comma_jk_no_longer_reorders_but_other_leaders_work() -> None:
 # --- add a bottom pane (Ctrl+-) --------------------------------------------
 
 
-async def test_ctrl_minus_adds_bottom_pane_from_normal() -> None:
+@pytest.mark.parametrize("add_pane_key", ("ctrl+minus", "ctrl+underscore"))
+async def test_ctrl_minus_adds_bottom_pane_from_normal(add_pane_key: str) -> None:
+    # Textual reports legacy ``0x1f`` as ``ctrl+underscore`` (also Ctrl-hyphen),
+    # so this covers both Kitty CSI-u and tmux / legacy terminal paths.
     app = _PromptBarApp("solo prompt")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -234,7 +238,7 @@ async def test_ctrl_minus_adds_bottom_pane_from_normal() -> None:
         assert len(app.query(".prompt-input")) == 1
 
         await pilot.press("escape")
-        await pilot.press("ctrl+minus")
+        await pilot.press(add_pane_key)
         await pilot.pause()
         await pilot.pause()
 
@@ -247,7 +251,8 @@ async def test_ctrl_minus_adds_bottom_pane_from_normal() -> None:
         assert bar.active_text_area()._vim_mode == "insert"
 
 
-async def test_ctrl_minus_adds_bottom_pane_from_insert() -> None:
+@pytest.mark.parametrize("add_pane_key", ("ctrl+minus", "ctrl+underscore"))
+async def test_ctrl_minus_adds_bottom_pane_from_insert(add_pane_key: str) -> None:
     app = _PromptBarApp("solo prompt")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -258,7 +263,7 @@ async def test_ctrl_minus_adds_bottom_pane_from_insert() -> None:
         # Default mode is insert; add a pane without leaving insert first.
         assert bar.active_text_area()._vim_mode == "insert"
 
-        await pilot.press("ctrl+minus")
+        await pilot.press(add_pane_key)
         await pilot.pause()
         await pilot.pause()
 
@@ -290,7 +295,8 @@ async def test_plain_dash_no_longer_adds_pane_in_normal() -> None:
         assert bar.all_prompt_texts() == ["solo prompt"]
 
 
-async def test_ctrl_minus_is_noop_in_feedback_mode() -> None:
+@pytest.mark.parametrize("add_pane_key", ("ctrl+minus", "ctrl+underscore"))
+async def test_ctrl_minus_is_noop_in_feedback_mode(add_pane_key: str) -> None:
     app = _PromptBarApp("feedback text", mode="feedback")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -298,7 +304,7 @@ async def test_ctrl_minus_is_noop_in_feedback_mode() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("ctrl+minus")
+        await pilot.press(add_pane_key)
         await pilot.pause()
 
         assert len(app.query(".prompt-input")) == 1
