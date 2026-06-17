@@ -68,6 +68,11 @@ _JINJA_VALID_PROMPT = (
 )
 
 _JINJA_INVALID_PROMPT = "Hello {{ missing }\nPlease fix before sending."
+_SEARCH_PROMPT = (
+    "Draft alpha release notes for the prompt search polish\n"
+    "Compare the alpha match highlight against the active cursor\n"
+    "Ship the final alpha search behavior with clear wrap feedback"
+)
 
 
 async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar:
@@ -228,6 +233,28 @@ async def test_prompt_stack_g_prefix_hints_png_snapshot(
             page,
             "prompt_stack_g_prefix_hints_120x40",
             title="ACE prompt stack — g prefix hints",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_prompt_search_highlight_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        await _mount_prompt_bar(page, _SEARCH_PROMPT)
+
+        await page.press("escape", "slash", "a", "l", "p", "h", "a")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_search_highlight_120x40",
+            title="ACE prompt input - active search highlight",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

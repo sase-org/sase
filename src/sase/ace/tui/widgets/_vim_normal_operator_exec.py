@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
 from sase.ace.tui.widgets._vim_motions import (
     find_char_backward,
@@ -17,6 +19,10 @@ from sase.ace.tui.widgets._vim_transforms import (
 
 class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
     """Mixin providing vim normal-mode operator execution helpers."""
+
+    if TYPE_CHECKING:
+
+        def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None: ...
 
     def _execute_charwise_operator(
         self,
@@ -110,6 +116,7 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         self.read_only = False
         self.redo()
         self.read_only = was_readonly
+        self._clear_prompt_search(clear_highlights=True)
 
     def _execute_linewise_operator(
         self,

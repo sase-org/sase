@@ -22,6 +22,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("{{ / {% / {#", "Auto-pair delimiters"),
         ("Ctrl+T / Ctrl+L", "Complete inside Jinja tags"),
         ("/ / ?", "Search prompt fwd/rev (NORMAL)"),
+        ("n / N", "Repeat prompt search fwd/rev"),
         ("Enter / Esc", "Confirm / cancel prompt search"),
         ("g=", "Frontmatter panel"),
         ("gs / gS", "Stash current / all panes"),

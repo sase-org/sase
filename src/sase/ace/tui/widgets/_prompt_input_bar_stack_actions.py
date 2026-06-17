@@ -452,7 +452,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         self._rebuild_stack(enter_mode="insert")
 
     def _clear_active_completion_state(self) -> None:
-        """Drop completion / soft-completion / arg-hint state before mutation."""
+        """Drop transient active-pane state before stack focus/mutation."""
         try:
             text_area = self.active_text_area()
         except Exception:
@@ -461,5 +461,6 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             text_area._clear_file_completion()
             text_area._clear_soft_completion(cancel_timer=True)
             text_area._clear_xprompt_arg_hint()
+            text_area._clear_prompt_search(clear_highlights=True)
         self.hide_file_completions()
         self.hide_soft_completion()

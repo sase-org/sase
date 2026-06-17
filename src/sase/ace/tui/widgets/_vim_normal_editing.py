@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from textual.events import Key
 
 from sase.ace.tui.widgets._vim_normal_motions import VimNormalMotionsMixin
@@ -9,6 +11,10 @@ from sase.ace.tui.widgets._vim_normal_motions import VimNormalMotionsMixin
 
 class VimNormalEditingMixin(VimNormalMotionsMixin):
     """Mixin for normal-mode edit commands and mode changes."""
+
+    if TYPE_CHECKING:
+
+        def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None: ...
 
     def _handle_normal_edit_key(
         self,
@@ -25,6 +31,7 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             self.read_only = False
             self.undo()
             self.read_only = was_readonly
+            self._clear_prompt_search(clear_highlights=True)
             return True
         if event.key == "ctrl+r":
             self._redo()

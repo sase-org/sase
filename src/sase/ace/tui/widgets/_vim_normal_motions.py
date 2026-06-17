@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from textual.events import Key
 
 from sase.ace.tui.widgets._vim_motions import (
@@ -24,6 +26,15 @@ from sase.ace.tui.widgets._vim_text_objects import (
 
 class VimNormalMotionsMixin(VimNormalPendingMixin):
     """Mixin for normal-mode motions and operator motions."""
+
+    if TYPE_CHECKING:
+
+        def _repeat_prompt_search(
+            self,
+            *,
+            reverse: bool = False,
+            count: int = 1,
+        ) -> bool: ...
 
     def _handle_normal_motion_key(
         self,
@@ -257,6 +268,13 @@ class VimNormalMotionsMixin(VimNormalPendingMixin):
             self._pending_count = count if has_count else None
             self._update_count_display()
             return True
+
+        if key in ("n", "N"):
+            if self._pending_operator:
+                self._pending_operator = ""
+                self._pending_operator_count = 1
+                self._update_count_display()
+            return self._repeat_prompt_search(reverse=key == "N", count=count)
 
         if key in ";," and self._last_char_search:
             motion, target_char = self._last_char_search

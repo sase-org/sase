@@ -212,3 +212,102 @@ class PromptSearchMixin(_MixinBase):
         hide = getattr(bar, "hide_search_command_line", None)
         if callable(hide):
             hide()
+
+    def _replace_via_keyboard(
+        self,
+        insert: str,
+        start: tuple[int, int],
+        end: tuple[int, int],
+    ) -> Any:
+        """Clear transient search highlights after a keyboard edit."""
+        result = super()._replace_via_keyboard(insert, start, end)
+        if result is not None:
+            self._clear_prompt_search(clear_highlights=True)
+        return result
+
+    def delete(
+        self,
+        start: tuple[int, int],
+        end: tuple[int, int],
+        *,
+        maintain_selection_offset: bool = True,
+    ) -> Any:
+        """Clear transient search highlights after a direct text deletion."""
+        result = super().delete(
+            start,
+            end,
+            maintain_selection_offset=maintain_selection_offset,
+        )
+        self._clear_prompt_search(clear_highlights=True)
+        return result
+
+    def _repeat_prompt_search(
+        self,
+        *,
+        reverse: bool = False,
+        count: int = 1,
+    ) -> bool:
+        """Repeat the last confirmed search, optionally inverting direction."""
+        if self._last_search is None:
+            self._show_prompt_search_feedback("no previous search")
+            return True
+
+        query, recorded_direction = self._last_search
+        direction = (
+            self._invert_search_direction(recorded_direction)
+            if reverse
+            else recorded_direction
+        )
+        repeat_count = max(1, count)
+        wrapped_direction: SearchDirection | None = None
+        selection: SearchSelection | None = None
+        spans: tuple[SearchSpan, ...] = ()
+
+        for _ in range(repeat_count):
+            spans = find_search_matches(self.text, query)
+            origin = self._absolute_offset(self.cursor_location)
+            selection = select_search_match(
+                spans,
+                origin,
+                direction,
+                include_origin=False,
+            )
+            if selection is None:
+                self._search_current_selection = None
+                self._clear_search_highlights()
+                self._show_prompt_search_feedback("pattern not found")
+                return True
+
+            if selection.wrapped:
+                wrapped_direction = direction
+            start, _end = spans[selection.index]
+            self.cursor_location = self._location_from_absolute(start)
+
+        self._search_current_selection = selection
+        self._set_search_highlights(
+            spans,
+            current_index=selection.index if selection is not None else None,
+        )
+        if wrapped_direction is not None:
+            self._show_prompt_search_feedback(
+                self._wrap_feedback_message(wrapped_direction)
+            )
+        return True
+
+    @staticmethod
+    def _invert_search_direction(direction: SearchDirection) -> SearchDirection:
+        """Return the opposite search direction."""
+        return "reverse" if direction == "forward" else "forward"
+
+    @staticmethod
+    def _wrap_feedback_message(direction: SearchDirection) -> str:
+        """Return Vim-style wrap feedback for *direction*."""
+        if direction == "forward":
+            return "search hit BOTTOM, continuing at TOP"
+        return "search hit TOP, continuing at BOTTOM"
+
+    def _show_prompt_search_feedback(self, message: str) -> None:
+        """Surface non-blocking prompt-search feedback."""
+        notify = getattr(self.app, "notify", None)
+        if callable(notify):
+            notify(message, severity="information")

@@ -253,7 +253,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
 
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
-        self._clear_prompt_search(clear_highlights=False)
+        self._clear_prompt_search(clear_highlights=True)
         self._clear_visual_state()
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
@@ -300,6 +300,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
 
     def on_blur(self) -> None:
         """Schedule a deferred refocus when the text area loses focus."""
+        self._clear_prompt_search(clear_highlights=True)
         self.call_later(self._refocus_if_needed)
 
     def _refocus_if_needed(self) -> None:

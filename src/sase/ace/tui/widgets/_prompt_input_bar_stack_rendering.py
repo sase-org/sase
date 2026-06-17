@@ -91,6 +91,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         @property
         def _base_title(self) -> str: ...
         def _active_jinja_chip_markup(self) -> str: ...
+        def _clear_active_completion_state(self) -> None: ...
         def _frontmatter_panel_reserved_rows(self) -> int: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
@@ -331,6 +332,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
 
     def focus_item(self, index: int) -> int:
         """Focus the pane at *index* (clamped); return the clamped index."""
+        self._clear_active_completion_state()
         self._stack.focus(index)
         self._apply_active_classes()
         self.active_text_area().focus()
@@ -358,6 +360,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
             except Exception:
                 continue
             if text_area is widget and index != self._stack.selected_index:
+                self._clear_active_completion_state()
                 self._stack.selected_index = index
                 self._apply_active_classes()
                 self._schedule_height_update()

@@ -6,7 +6,9 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
+from sase.ace.tui.widgets._jinja_highlight import _MAX_OVERLAY_LINES
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 
 class _PromptSearchApp(App[None]):
@@ -23,6 +25,7 @@ class _PromptSearchApp(App[None]):
         self._initial_value = initial_value
         self.edit_query_count = 0
         self.show_help_count = 0
+        self.notifications: list[str] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(initial_value=self._initial_value)
@@ -33,9 +36,16 @@ class _PromptSearchApp(App[None]):
     def action_show_help(self) -> None:
         self.show_help_count += 1
 
+    def notify(self, message: str, *args: object, **kwargs: object) -> None:
+        self.notifications.append(message)
+
 
 def _search_panel(bar: PromptInputBar) -> Static:
     return bar.query_one("#prompt-search-command", Static)
+
+
+def _highlight_names(ta: PromptTextArea) -> list[str]:
+    return [name for row in ta._highlights.values() for *_range, name in row]
 
 
 async def test_forward_search_previews_confirms_and_records_last_search() -> None:
@@ -155,3 +165,158 @@ async def test_search_entry_keys_do_not_bubble_to_app_bindings() -> None:
 
     assert app.edit_query_count == 0
     assert app.show_help_count == 0
+
+
+async def test_repeat_search_n_and_shift_n_respect_recorded_direction() -> None:
+    app = _PromptSearchApp("alpha beta alpha beta alpha")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        await pilot.press("escape")
+        text_area.cursor_location = (0, 1)
+
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.pause()
+        assert text_area.cursor_location == (0, 11)
+
+        await pilot.press("n")
+        await pilot.pause()
+        assert text_area.cursor_location == (0, 22)
+        assert text_area._search_current_match_index == 2
+
+        await pilot.press("N")
+        await pilot.pause()
+        assert text_area.cursor_location == (0, 11)
+        assert text_area._search_current_match_index == 1
+
+
+async def test_repeat_search_wraps_with_vim_style_feedback() -> None:
+    app = _PromptSearchApp("alpha beta alpha")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        await pilot.press("escape")
+        text_area.cursor_location = (0, 1)
+
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert text_area.cursor_location == (0, 0)
+        assert app.notifications[-1] == "search hit BOTTOM, continuing at TOP"
+
+        await pilot.press("N")
+        await pilot.pause()
+
+        assert text_area.cursor_location == (0, 11)
+        assert app.notifications[-1] == "search hit TOP, continuing at BOTTOM"
+
+
+async def test_repeat_search_without_previous_search_is_hint_only() -> None:
+    app = _PromptSearchApp("alpha beta")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        await pilot.press("escape")
+        text_area.cursor_location = (0, 3)
+
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert text_area.cursor_location == (0, 3)
+        assert text_area._search_match_spans == ()
+        assert app.notifications[-1] == "no previous search"
+
+
+async def test_repeat_search_reports_not_found_after_buffer_changes() -> None:
+    app = _PromptSearchApp("alpha beta alpha")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        await pilot.press("escape")
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.pause()
+
+        assert text_area._last_search == ("alpha", "forward")
+        text_area.load_text("beta only")
+        text_area.cursor_location = (0, 0)
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert text_area._last_search == ("alpha", "forward")
+        assert text_area._search_match_spans == ()
+        assert app.notifications[-1] == "pattern not found"
+
+
+async def test_search_highlights_clear_on_insert_mode_entry() -> None:
+    app = _PromptSearchApp("alpha beta alpha")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        await pilot.press("escape")
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.pause()
+        assert text_area._search_match_spans
+
+        await pilot.press("i")
+        await pilot.pause()
+
+        assert text_area._vim_mode == "insert"
+        assert text_area._search_match_spans == ()
+
+
+async def test_search_state_is_scoped_to_active_prompt_pane() -> None:
+    app = _PromptSearchApp("top alpha alpha\n---\nbottom alpha alpha")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bottom = bar.active_text_area()
+        await pilot.press("escape")
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.pause()
+
+        assert bar._stack.selected_index == 1
+        assert bottom._last_search == ("alpha", "forward")
+        assert bottom._search_match_spans
+
+        await pilot.press("g", "k")
+        await pilot.pause()
+
+        top = bar.active_text_area()
+        assert bar._stack.selected_index == 0
+        assert top is not bottom
+        assert bottom._search_match_spans == ()
+        assert top._last_search is None
+        assert _search_panel(bar).has_class("hidden")
+
+
+async def test_large_buffer_search_jumps_even_when_overlay_is_skipped() -> None:
+    app = _PromptSearchApp(
+        "first needle\n" + ("filler\n" * (_MAX_OVERLAY_LINES + 1)) + "last needle"
+    )
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        await pilot.press("escape")
+
+        await pilot.press("slash", "n", "e", "e", "d", "l", "e")
+        await pilot.pause()
+
+        assert text_area.cursor_location == (0, 6)
+        assert text_area._search_match_spans
+        assert not any(
+            name.startswith("search.") for name in _highlight_names(text_area)
+        )
