@@ -9,6 +9,7 @@ archiving or closing a project does not hide prior agent rows from history
 views.
 """
 
+from concurrent.futures import CancelledError
 from pathlib import Path
 
 from sase.core.agent_scan_wire import (
@@ -207,7 +208,7 @@ def load_done_agents(
     Returns:
         List of Agent objects with DONE or FAILED status.
     """
-    from ._json_cache import get_loader_executor
+    from ._json_cache import get_loader_executor, is_loader_executor_shutdown_error
 
     projects_dir = sase_projects_dir()
 
@@ -235,11 +236,23 @@ def load_done_agents(
         return []
 
     executor = get_loader_executor()
-    results = executor.map(
-        lambda t: _load_done_agent_for_dir(t[0], t[1], bug_by_cl_name, cl_by_cl_name),
-        tasks,
-    )
-    return [agent for agent in results if agent is not None]
+    agents: list[Agent] = []
+    try:
+        for agent in executor.map(
+            lambda t: _load_done_agent_for_dir(
+                t[0], t[1], bug_by_cl_name, cl_by_cl_name
+            ),
+            tasks,
+        ):
+            if agent is not None:
+                agents.append(agent)
+    except CancelledError:
+        return agents
+    except RuntimeError as exc:
+        if is_loader_executor_shutdown_error(exc):
+            return agents
+        raise
+    return agents
 
 
 def _is_done_record(record: AgentArtifactRecordWire) -> bool:

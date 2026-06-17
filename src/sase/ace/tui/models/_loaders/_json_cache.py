@@ -80,8 +80,8 @@ def get_loader_executor() -> Any:
     """Return a process-wide ThreadPoolExecutor for parallel JSON reads.
 
     The pool is created lazily; callers should use ``executor.map()`` or
-    ``executor.submit()`` and never shut it down — it lives for the life of
-    the process and is shared across refreshes.
+    ``executor.submit()``. It is shared across refreshes and should only be
+    torn down by ``shutdown_loader_executor()`` during TUI/process teardown.
     """
     global _LOADER_EXECUTOR
     if _LOADER_EXECUTOR is None:
@@ -94,3 +94,24 @@ def get_loader_executor() -> Any:
                     thread_name_prefix="sase-loader",
                 )
     return _LOADER_EXECUTOR
+
+
+def shutdown_loader_executor() -> None:
+    """Cancel queued loader work and detach the shared executor.
+
+    ``ThreadPoolExecutor`` workers are non-daemon threads. If queued loader
+    work is left behind during interpreter shutdown, Python drains the whole
+    queue before process exit. Cancelling pending futures here leaves only the
+    already-running reads to finish.
+    """
+    global _LOADER_EXECUTOR
+    with _EXECUTOR_LOCK:
+        executor = _LOADER_EXECUTOR
+        _LOADER_EXECUTOR = None
+    if executor is not None:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
+def is_loader_executor_shutdown_error(exc: RuntimeError) -> bool:
+    """Return True for executor errors caused by shutdown/interpreter teardown."""
+    return "cannot schedule new futures after" in str(exc)

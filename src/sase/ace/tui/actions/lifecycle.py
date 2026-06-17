@@ -40,6 +40,11 @@ class LifecycleMixin:
         )
         if cancel_content_search is not None:
             cancel_content_search()
+        from sase.ace.tui.models._loaders._json_cache import (
+            shutdown_loader_executor,
+        )
+
+        shutdown_loader_executor()
         restore_artifact_decoration = getattr(
             self, "_restore_artifact_tmux_decoration", None
         )
@@ -209,6 +214,11 @@ class LifecycleMixin:
         )
         if cancel_content_search is not None:
             cancel_content_search()
+        from sase.ace.tui.models._loaders._json_cache import (
+            shutdown_loader_executor,
+        )
+
+        shutdown_loader_executor()
         restore_artifact_decoration = getattr(
             self, "_restore_artifact_tmux_decoration", None
         )

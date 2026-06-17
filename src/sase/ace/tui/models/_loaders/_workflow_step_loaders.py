@@ -1,5 +1,6 @@
 """Workflow agent-step loaders (filesystem prompt_step_*.json markers)."""
 
+from concurrent.futures import CancelledError
 from pathlib import Path
 
 from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
@@ -7,7 +8,11 @@ from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ._diff_path import diff_path_from_step_output
-from ._json_cache import get_loader_executor, load_json_cached
+from ._json_cache import (
+    get_loader_executor,
+    is_loader_executor_shutdown_error,
+    load_json_cached,
+)
 from ._meta_enrichment import enrich_agent_from_meta
 from ._workflow_loaders import get_workflow_timestamp_dirs
 
@@ -246,16 +251,22 @@ def load_workflow_agent_steps(
         return [], {}
 
     executor = get_loader_executor()
-    results = list(
-        executor.map(
+    results: list[tuple[list[Agent], dict[str, str]]] = []
+    try:
+        for result in executor.map(
             lambda pair: _load_workflow_agent_steps_for_dir(pair[0], pair[1]),
             dirs,
-        )
-    )
+        ):
+            results.append(result)
+    except CancelledError:
+        pass
+    except RuntimeError as exc:
+        if not is_loader_executor_shutdown_error(exc):
+            raise
 
     agents: list[Agent] = []
     meta_by_parent: dict[str, dict[str, str]] = {}
-    for pair, (dir_agents, dir_meta) in zip(dirs, results, strict=True):
+    for pair, (dir_agents, dir_meta) in zip(dirs, results, strict=False):
         agents.extend(dir_agents)
         if dir_meta:
             meta_by_parent[pair[1].name] = dir_meta

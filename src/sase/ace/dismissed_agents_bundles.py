@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import CancelledError
 import json
 import os
 import sqlite3
@@ -326,11 +327,24 @@ def load_dismissed_bundles(ctx: Any, suffixes: set[str] | None = None) -> list[A
     if not bundle_paths:
         return []
 
-    from .tui.models._loaders._json_cache import get_loader_executor
+    from .tui.models._loaders._json_cache import (
+        get_loader_executor,
+        is_loader_executor_shutdown_error,
+    )
 
     executor = get_loader_executor()
-    results = executor.map(ctx._load_bundle_file, bundle_paths)
-    return [agent for agent in results if agent is not None]
+    agents: list[Agent] = []
+    try:
+        for agent in executor.map(ctx._load_bundle_file, bundle_paths):
+            if agent is not None:
+                agents.append(agent)
+    except CancelledError:
+        return agents
+    except RuntimeError as exc:
+        if is_loader_executor_shutdown_error(exc):
+            return agents
+        raise
+    return agents
 
 
 def load_bundle_file(filepath: Path) -> Agent | None:

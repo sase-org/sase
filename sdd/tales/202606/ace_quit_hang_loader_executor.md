@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 10:56:03
-status: wip
+status: done
 prompt: sdd/prompts/202606/ace_quit_hang_loader_executor.md
 ---
 # Fix `sase ace` hanging for a long time after quitting with `q`
