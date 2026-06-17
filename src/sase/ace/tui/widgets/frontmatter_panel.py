@@ -16,9 +16,9 @@ Phase 3 scope (this widget):
   edit scalars / lists inline; **delete** the focused field with ``d``.
 - **Raw** YAML mode with ``R``: edit the canonical serialized frontmatter in a
   single text area, validated live by core; on exit it re-parses into the model.
-- **Done** with ``esc`` / ``q`` (or the ``Ctrl+Shift+=`` toggle that opened it):
-  hands focus back to the prompt body (the host bar removes the frontmatter
-  entirely when the panel is left empty).
+- **Done** with ``esc`` / ``q`` (or the ``g=`` toggle that opened it): hands
+  focus back to the prompt body (the host bar removes the frontmatter entirely
+  when the panel is left empty).
 
 Phase 4 adds structured editing of individual ``input`` / ``xprompts`` items:
 ``j``/``k`` navigate into the unfolded sub-trees, and ``a``/``e``/``d`` (or
@@ -53,17 +53,6 @@ from sase.ace.tui.widgets._frontmatter_panel_rendering import (
 )
 from sase.xprompt.frontmatter_schema import frontmatter_field_schema
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-
-# Textual key spellings for the physical ``Ctrl+Shift+=`` chord that toggles the
-# xprompt properties panel.  Terminals / Textual report the shifted-equals key
-# along the equals / plus path under several spellings, so all of them map to
-# the same toggle.  ``ctrl+underscore`` is intentionally NOT included here: it
-# stays bound to the legacy add-pane path, not the properties-panel toggle.  The
-# same set also deactivates the panel when it owns focus.
-FRONTMATTER_PANEL_BODY_TOGGLE_KEYS: frozenset[str] = frozenset(
-    {"ctrl+shift+equal", "ctrl+shift+equals", "ctrl+shift+plus", "ctrl+plus"}
-)
-FRONTMATTER_PANEL_TOGGLE_KEYS: frozenset[str] = FRONTMATTER_PANEL_BODY_TOGGLE_KEYS
 
 
 class FrontmatterPanel(
@@ -105,6 +94,8 @@ class FrontmatterPanel(
         self._folded: set[str] = set()
         # "rows" (navigate), "edit" (inline scalar/list), or "raw" (YAML escape).
         self._edit_mode = "rows"
+        # Pending panel-local ``g`` prefix (rows mode only); ``g=`` deactivates.
+        self._pending_g = False
         self._editing_field: str | None = None
         self._adding_field: str | None = None
         self._content_lines = 1
@@ -141,14 +132,16 @@ class FrontmatterPanel(
         self._fields = self._model.present_fields()
         self._selected = min(self._selected, max(0, len(self._fields) - 1))
         self._edit_mode = "rows"
+        self._pending_g = False
         self._editing_field = None
         self._adding_field = None
         self._show_rows_only()
         self._refresh()
 
     def focus_panel(self) -> None:
-        """Focus the panel for row navigation (the ``,f`` keymap target)."""
+        """Focus the panel for row navigation (the ``g=`` show/focus target)."""
         self._edit_mode = "rows"
+        self._pending_g = False
         self._show_rows_only()
         self.focus()
         self._refresh()
@@ -171,9 +164,9 @@ class FrontmatterPanel(
     # -- key handling ---------------------------------------------------------
 
     def deactivate(self) -> None:
-        """Toggle the panel off (the ``Ctrl+Shift+=`` chord from inside it).
+        """Toggle the panel off (the in-panel ``g=`` sequence from inside it).
 
-        Mirrors the per-mode ``esc`` semantics before leaving, so the chord and
+        Mirrors the per-mode ``esc`` semantics before leaving, so ``g=`` and
         ``esc`` agree on how an in-progress edit is resolved:
 
         - **rows**: post :class:`Closed` straight away;
@@ -195,22 +188,37 @@ class FrontmatterPanel(
 
     def on_key(self, event: events.Key) -> None:
         """Dispatch panel keys, deferring to child editors while editing."""
-        if event.key in FRONTMATTER_PANEL_TOGGLE_KEYS:
-            # The ``Ctrl+Shift+=`` toggle deactivates the panel from any mode,
-            # ahead of the per-mode dispatch below (and the child editors).
-            event.stop()
-            event.prevent_default()
-            self.deactivate()
-            return
         if self._edit_mode == "edit":
+            # Inline editing: literal text entry is preserved (``g`` / ``=`` type
+            # into the child ``Input``); only ``esc`` is intercepted here.
+            self._pending_g = False
             if event.key == "escape":
                 event.stop()
                 self._cancel_inline_edit()
             return
         if self._edit_mode == "raw":
+            # Raw YAML editing: likewise literal; only ``esc`` is intercepted.
+            self._pending_g = False
             if event.key == "escape":
                 event.stop()
                 self._commit_raw()
+            return
+        # Rows (navigate) mode owns a panel-local ``g`` prefix so the same ``g=``
+        # sequence that opened the panel from the body also closes it from
+        # inside.  ``g`` alone is a pending prefix; ``g=`` deactivates with the
+        # per-mode ``esc`` semantics, while any other continuation is dispatched
+        # as its own rows command so navigation keys are never swallowed.
+        if self._pending_g:
+            self._pending_g = False
+            if (event.character or event.key) == "=":
+                event.stop()
+                event.prevent_default()
+                self.deactivate()
+                return
+            # Fall through: handle the continuation as an ordinary rows key.
+        elif event.character == "g":
+            event.stop()
+            self._pending_g = True
             return
         handled = True
         key = event.key

@@ -178,9 +178,9 @@ async def test_enter_on_empty_selected_pane_drops_it_without_submitting() -> Non
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        # Add an empty bottom pane, then submit it.
+        # Add an empty bottom pane (NORMAL-mode ``g-``), then submit it.
         await pilot.press("escape")
-        await pilot.press("ctrl+minus")
+        await pilot.press("g", "-")
         await pilot.pause()
         await pilot.pause()
         assert bar.all_prompt_texts() == ["first", "second", ""]

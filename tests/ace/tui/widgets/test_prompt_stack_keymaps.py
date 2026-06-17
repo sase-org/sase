@@ -5,12 +5,12 @@ prompt ``g`` prefix ``gj`` (next/lower) / ``gk`` (prev/higher) and pane reorder
 on ``gJ`` (lower/later) / ``gK`` (higher/earlier) -- all NORMAL-mode-only.  Bare
 normal-mode ``J`` is once again vim's line join and bare ``K`` is a swallowed
 no-op, while normal-mode ``Up``/``Down`` move the cursor (no pane reorder).
-``Ctrl+-`` still adds a new bottom pane; a typed ``---`` separator line is inert
-(panes are created only through ``Ctrl+-``); the prompt stash/structural keymaps
-migrated to the ``g`` prefix, so ``,`` is now a prompt-local no-op that still
-defers to vim's reverse char-search repeat; and the retired structural chords
-(``Ctrl+H``/``Ctrl+L`` focus, ``Ctrl+Shift+H``/``Ctrl+Shift+L`` reorder) no
-longer fire.
+NORMAL-mode ``g-`` adds a new bottom pane; a typed ``---`` separator line is
+inert (panes are created only through ``g-``); the prompt stash/structural
+keymaps migrated to the ``g`` prefix, so ``,`` is now a prompt-local no-op that
+still defers to vim's reverse char-search repeat; and the retired structural
+chords (``Ctrl+-``/``ctrl+underscore`` add-pane, ``Ctrl+H``/``Ctrl+L`` focus,
+``Ctrl+Shift+H``/``Ctrl+Shift+L`` reorder) no longer fire.
 """
 
 from __future__ import annotations
@@ -511,13 +511,11 @@ async def test_comma_is_inert_now_that_stack_keymaps_moved_to_g_prefix() -> None
         assert bar.all_prompt_texts() == ["first", "second"]
 
 
-# --- add a bottom pane (Ctrl+-) --------------------------------------------
+# --- add a bottom pane (NORMAL-mode g-) ------------------------------------
 
 
-@pytest.mark.parametrize("add_pane_key", ("ctrl+minus", "ctrl+underscore"))
-async def test_ctrl_minus_adds_bottom_pane_from_normal(add_pane_key: str) -> None:
-    # Textual reports legacy ``0x1f`` as ``ctrl+underscore`` (also Ctrl-hyphen),
-    # so this covers both Kitty CSI-u and tmux / legacy terminal paths.
+async def test_g_minus_adds_bottom_pane_from_normal() -> None:
+    """``g-`` appends an empty bottom pane and drops into it (insert mode)."""
     app = _PromptBarApp("solo prompt")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -527,7 +525,7 @@ async def test_ctrl_minus_adds_bottom_pane_from_normal(add_pane_key: str) -> Non
         assert len(app.query(".prompt-input")) == 1
 
         await pilot.press("escape")
-        await pilot.press(add_pane_key)
+        await pilot.press("g", "-")
         await pilot.pause()
         await pilot.pause()
 
@@ -540,33 +538,28 @@ async def test_ctrl_minus_adds_bottom_pane_from_normal(add_pane_key: str) -> Non
         assert bar.active_text_area()._vim_mode == "insert"
 
 
-@pytest.mark.parametrize("add_pane_key", ("ctrl+minus", "ctrl+underscore"))
-async def test_ctrl_minus_adds_bottom_pane_from_insert(add_pane_key: str) -> None:
+async def test_g_minus_is_normal_mode_only() -> None:
+    """``g-`` is NORMAL-mode-only: in insert mode the keys type literally."""
     app = _PromptBarApp("solo prompt")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
+        # Default mode is insert; ``g`` then ``-`` are ordinary characters.
+        assert bar.active_text_area()._vim_mode == "insert"
+
+        await pilot.press("g", "-")
+        await pilot.pause()
+        await pilot.pause()
+
+        # No new pane: the chord was typed into the active pane verbatim.
         assert len(app.query(".prompt-input")) == 1
-        # Default mode is insert; add a pane without leaving insert first.
-        assert bar.active_text_area()._vim_mode == "insert"
-
-        await pilot.press(add_pane_key)
-        await pilot.pause()
-        await pilot.pause()
-
-        assert len(app.query(".prompt-input")) == 2
-        assert bar.all_prompt_texts() == ["solo prompt", ""]
-        assert bar._stack.selected_index == 1
-        assert bar.active_text() == ""
-        assert app.focused is bar.active_text_area()
-        # The new pane stays selected in insert mode so the user keeps typing.
-        assert bar.active_text_area()._vim_mode == "insert"
+        assert bar.all_prompt_texts() == ["solo promptg-"]
 
 
 async def test_plain_dash_no_longer_adds_pane_in_normal() -> None:
-    """The retired ``-`` keymap no longer mutates the stack in normal mode."""
+    """A bare ``-`` (no ``g`` prefix) does not mutate the stack in normal mode."""
     app = _PromptBarApp("solo prompt")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -579,13 +572,43 @@ async def test_plain_dash_no_longer_adds_pane_in_normal() -> None:
         await pilot.pause()
 
         # Plain hyphen is inert in normal mode (read-only): no new pane, and the
-        # existing prompt text is untouched.
+        # existing prompt text is untouched.  Add-pane lives on ``g-`` now.
         assert len(app.query(".prompt-input")) == 1
         assert bar.all_prompt_texts() == ["solo prompt"]
 
 
 @pytest.mark.parametrize("add_pane_key", ("ctrl+minus", "ctrl+underscore"))
-async def test_ctrl_minus_is_noop_in_feedback_mode(add_pane_key: str) -> None:
+async def test_ctrl_minus_no_longer_adds_pane(add_pane_key: str) -> None:
+    """The retired ``Ctrl+-`` / ``ctrl+underscore`` chords no longer add a pane.
+
+    Textual reports legacy ``0x1f`` as ``ctrl+underscore`` (also Ctrl-hyphen),
+    so this covers both the Kitty CSI-u and tmux / legacy terminal paths; both
+    are inert now that add-pane migrated to the NORMAL-mode ``g-`` keymap.
+    """
+    app = _PromptBarApp("solo prompt")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        assert len(app.query(".prompt-input")) == 1
+
+        # From insert (the old chord worked while typing) ...
+        await pilot.press(add_pane_key)
+        await pilot.pause()
+        await pilot.pause()
+        # ... and from normal (the old chord worked while browsing too).
+        await pilot.press("escape")
+        await pilot.press(add_pane_key)
+        await pilot.pause()
+        await pilot.pause()
+
+        # Still a single pane: the legacy chord adds nothing in either mode.
+        assert len(app.query(".prompt-input")) == 1
+        assert bar.all_prompt_texts() == ["solo prompt"]
+
+
+async def test_g_minus_is_noop_in_feedback_mode() -> None:
     app = _PromptBarApp("feedback text", mode="feedback")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -593,7 +616,7 @@ async def test_ctrl_minus_is_noop_in_feedback_mode(add_pane_key: str) -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press(add_pane_key)
+        await pilot.press("g", "-")
         await pilot.pause()
 
         assert len(app.query(".prompt-input")) == 1

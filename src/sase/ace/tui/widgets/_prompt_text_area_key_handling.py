@@ -8,7 +8,6 @@ from textual.events import Key
 
 from sase.ace.tui.widgets._prompt_text_area_actions import prompt_bar_class
 from sase.ace.tui.widgets._vcs_mru_cycling import VcsMruCycleKey
-from sase.ace.tui.widgets.frontmatter_panel import FRONTMATTER_PANEL_BODY_TOGGLE_KEYS
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -148,51 +147,16 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             event.prevent_default()
             return
 
-        # Prompt-stack add-pane. ``Ctrl+-`` is ``ctrl+minus`` when the terminal
-        # stack preserves Kitty CSI-u disambiguation, but legacy / tmux paths
-        # collapse it to the ``0x1f`` control byte that Textual reports as
-        # ``ctrl+underscore`` (shared with Ctrl+_ and Ctrl+/). All those legacy
-        # physical chords are indistinguishable, so they append a new empty
-        # bottom pane and drop into it.
-        #
-        # Unlike the normal-mode-only ``K``/``J`` focus and ``Up``/``Down``
-        # reorder keys, add-pane works while typing (insert) or browsing
-        # (normal), and the event is always swallowed so the chord never falls
-        # through to text insertion, completion, normal-mode editing, or
-        # app-level bindings. ``add_bottom_pane`` no-ops outside prompt mode, so
-        # feedback / approve-prompt bars stay non-stackable.
-        if event.key in ("ctrl+minus", "ctrl+underscore") and self._vim_mode in {
-            "insert",
-            "normal",
-        }:
-            event.stop()
-            event.prevent_default()
-            bar = self._find_prompt_bar()
-            if bar is not None:
-                bar.add_bottom_pane()
-            return
-
-        # XPrompt properties panel toggle. ``Ctrl+Shift+=`` shows and focuses
-        # the frontmatter panel from the body, and deactivates it again -- the
-        # structural sibling of ``,f``. Like the stack chords it works while
-        # typing (insert) or browsing (normal) and is always swallowed so it
-        # never falls through to text insertion, completion, normal-mode editing,
-        # or app-level bindings.
-        # ``toggle_frontmatter_panel`` no-ops outside prompt mode, so feedback /
-        # approve-prompt bars (which mount no panel) stay inert.
-        if event.key in FRONTMATTER_PANEL_BODY_TOGGLE_KEYS and self._vim_mode in {
-            "insert",
-            "normal",
-        }:
-            event.stop()
-            event.prevent_default()
-            self._clear_soft_completion(cancel_timer=True)
-            self._clear_file_completion()
-            self._clear_xprompt_arg_hint()
-            bar = self._find_prompt_bar()
-            if bar is not None:
-                bar.toggle_frontmatter_panel()
-            return
+        # Prompt-stack add-pane and the xprompt properties panel toggle both
+        # migrated to the prompt ``g`` prefix: ``g-`` appends a new empty bottom
+        # pane (``add_bottom_pane``) and ``g=`` toggles the frontmatter panel
+        # (``toggle_frontmatter_panel``), dispatched through the vim ``g`` pending
+        # state in ``_handle_normal_pending_key``. Both are NORMAL-mode-only now,
+        # so the old insert-mode chords (``Ctrl+-`` / ``ctrl+underscore`` and
+        # ``Ctrl+Shift+=``) no longer fire here; insert-mode users reach them via
+        # ``Esc`` then the ``g`` sequence. The structural actions still clear
+        # transient completion state internally, just as the old chord handlers
+        # did before mutating the stack.
 
         if self._vim_mode in {"visual", "visual_line"}:
             if self._handle_visual_mode_key(event):

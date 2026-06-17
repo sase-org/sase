@@ -5,9 +5,10 @@ Presentation-only glue between the prompt stack and the structured
 
 - the panel is mounted (hidden) directly above ``#prompt-stack`` and auto-shows
   when the bar opens on a prompt that already carries frontmatter;
-- ``,f`` focuses the panel (``Ctrl+Shift+=`` toggles it from the body and back)
-  and ``esc`` / ``q`` hands focus back to the body, removing the frontmatter
-  entirely when the panel is left empty;
+- the normal-mode ``g=`` keymap toggles the panel from the body and back (the
+  panel routes its own in-panel ``g=`` here too) and ``esc`` / ``q`` hands focus
+  back to the body, removing the frontmatter entirely when the panel is left
+  empty;
 - panel edits are persisted onto the stack's byte-stable ``frontmatter`` string
   via :meth:`PromptStackState.set_frontmatter_model`, so ``parse_multi_prompt``
   stays the launch source of truth.
@@ -45,6 +46,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         _stack: PromptStackState
 
         def active_text_area(self) -> PromptTextArea: ...
+        def _clear_active_completion_state(self) -> None: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
@@ -144,7 +146,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         self._schedule_height_update()
 
     def focus_frontmatter_panel(self) -> None:
-        """Focus the panel (the ``,f`` keymap); show it first if hidden."""
+        """Focus the panel (the ``g=`` show/focus path); show it first if hidden."""
         if self._mode != "prompt":
             return
         panel = self._frontmatter_panel()
@@ -159,22 +161,26 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         self._schedule_height_update()
 
     def toggle_frontmatter_panel(self) -> None:
-        """Toggle the xprompt properties panel (the ``Ctrl+Shift+=`` chord).
+        """Toggle the xprompt properties panel (the ``g=`` keymap).
 
         Prompt mode only, and only when a panel is mounted — feedback /
-        approve-prompt bars mount none, so the chord is a no-op there.  When the
-        panel (or its inline / raw editor) already owns focus, hand off to the
-        panel so it deactivates with the right per-mode ``esc`` semantics and
-        returns focus to the body.  Otherwise reuse the ``,f`` show/focus path so
-        the two entry points stay identical: it syncs live pane text, shows the
-        panel if hidden, resyncs it from ``self._stack.frontmatter``, focuses it
-        after the refresh, and schedules the height update.
+        approve-prompt bars mount none, so the keymap is a no-op there.  Transient
+        completion / soft-completion / arg-hint state is cleared first, just as
+        the old ``Ctrl+Shift+=`` chord handler did before this structural action.
+        When the panel (or its inline / raw editor) already owns focus, hand off
+        to the panel so it deactivates with the right per-mode ``esc`` semantics
+        and returns focus to the body (the in-panel ``g=`` sequence routes here
+        too).  Otherwise reuse the show/focus path so the two entry points stay
+        identical: it syncs live pane text, shows the panel if hidden, resyncs it
+        from ``self._stack.frontmatter``, focuses it after the refresh, and
+        schedules the height update.
         """
         if self._mode != "prompt":
             return
         panel = self._frontmatter_panel()
         if panel is None:
             return
+        self._clear_active_completion_state()
         if self._frontmatter_panel_owns_focus():
             panel.deactivate()
             return

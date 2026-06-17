@@ -1,15 +1,16 @@
 """Widget-level tests for the prompt Frontmatter Panel (Phase 3).
 
 Covers the Phase 3 deliverable of the prompt-frontmatter-panel epic: a typed
-``---`` is inert (the panel opens only through the explicit ``g=`` /
-``Ctrl+Shift+=`` controls), the ``g=`` focus keymap, auto-show on existing
-frontmatter, the add-property picker plus inline scalar/list editing, ``d``
-delete, the ``R`` raw-YAML round-trip, and the empty-on-exit removal of the
-frontmatter.
+``---`` is inert (the panel opens only through the explicit NORMAL-mode ``g=``
+keymap), the ``g=`` focus keymap and its in-panel deactivate sequence, auto-show
+on existing frontmatter, the add-property picker plus inline scalar/list editing,
+``d`` delete, the ``R`` raw-YAML round-trip, and the empty-on-exit removal of the
+frontmatter.  The retired ``,f`` / ``Ctrl+Shift+=`` controls are kept inert.
 """
 
 from __future__ import annotations
 
+import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Input, TextArea
 
@@ -291,72 +292,37 @@ async def test_close_populated_keeps_panel_visible() -> None:
         assert app.focused is bar.active_text_area()
 
 
-# --- Ctrl+Shift+= toggle ---------------------------------------------------
+# --- g= toggle (body + in-panel) -------------------------------------------
 
 
-async def test_ctrl_shift_equals_opens_panel_from_insert() -> None:
-    """The chord shows and focuses an empty panel while typing (insert mode)."""
-    app = _PromptBarApp("")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-        assert bar.active_text_area()._vim_mode == "insert"
-
-        await pilot.press("ctrl+shift+equals")
-        await pilot.pause()
-        await pilot.pause()
-
-        panel = app.query_one(FrontmatterPanel)
-        assert bar._frontmatter_panel_visible()
-        assert app.focused is panel
-
-
-async def test_ctrl_shift_equals_opens_panel_from_normal() -> None:
-    """The chord shows and focuses the panel while browsing (normal mode)."""
-    app = _PromptBarApp("")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-        await pilot.press("escape")  # -> normal mode
-
-        await pilot.press("ctrl+shift+equals")
-        await pilot.pause()
-        await pilot.pause()
-
-        panel = app.query_one(FrontmatterPanel)
-        assert bar._frontmatter_panel_visible()
-        assert app.focused is panel
-
-
-async def test_ctrl_shift_equals_again_closes_empty_panel() -> None:
-    """Pressing the chord from an empty focused panel deactivates and hides it."""
+async def test_g_equals_again_closes_empty_panel_from_inside() -> None:
+    """``g=`` from inside an empty focused panel deactivates and hides it."""
     app = _PromptBarApp("")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        await pilot.press("ctrl+shift+equals")  # open + focus
+        await pilot.press("escape")
+        await pilot.press("g", "=")  # open + focus from the body
         await pilot.pause()
         await pilot.pause()
         panel = app.query_one(FrontmatterPanel)
         assert app.focused is panel
 
-        await pilot.press("ctrl+shift+equals")  # toggle off (panel owns focus)
+        await pilot.press("g", "=")  # toggle off from inside (panel owns focus)
         await pilot.pause()
         await pilot.pause()
 
         assert not bar._frontmatter_panel_visible()
         assert bar._stack.frontmatter == ""
-        # Focus returns to the body, ready to type.
+        # Focus returns to the previously active prompt pane, ready to type.
         assert app.focused is bar.active_text_area()
         assert bar.active_text_area()._vim_mode == "insert"
 
 
-async def test_ctrl_shift_equals_toggles_focus_with_populated_panel() -> None:
-    """With existing frontmatter the chord round-trips focus, keeping the panel."""
+async def test_g_equals_toggles_focus_with_populated_panel() -> None:
+    """With existing frontmatter ``g=`` round-trips focus, keeping the panel."""
     app = _PromptBarApp("---\ndescription: keep\n---\na\n---\nb")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -366,13 +332,14 @@ async def test_ctrl_shift_equals_toggles_focus_with_populated_panel() -> None:
         assert bar._frontmatter_panel_visible()
         assert app.focused is bar.active_text_area()
 
-        await pilot.press("ctrl+shift+equals")  # focus the visible panel
+        await pilot.press("escape")
+        await pilot.press("g", "=")  # focus the visible panel from the body
         await pilot.pause()
         await pilot.pause()
         panel = app.query_one(FrontmatterPanel)
         assert app.focused is panel
 
-        await pilot.press("ctrl+shift+equals")  # back to body, keep the panel
+        await pilot.press("g", "=")  # back to the body, keep the panel
         await pilot.pause()
         await pilot.pause()
 
@@ -381,25 +348,78 @@ async def test_ctrl_shift_equals_toggles_focus_with_populated_panel() -> None:
         assert app.focused is bar.active_text_area()
 
 
-async def test_ctrl_shift_plus_alias_opens_panel() -> None:
-    """The shifted-equals key path is also reported as ``ctrl+shift+plus``."""
-    app = _PromptBarApp("")
+async def test_g_equals_noop_in_feedback_mode() -> None:
+    """Feedback bars mount no panel, so ``g=`` creates nothing."""
+    app = _PromptBarApp("feedback text", mode="feedback")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        await pilot.press("ctrl+shift+plus")  # open + focus via the plus spelling
+        await pilot.press("escape")
+        await pilot.press("g", "=")
         await pilot.pause()
         await pilot.pause()
-        panel = app.query_one(FrontmatterPanel)
-        assert app.focused is panel
 
-        await pilot.press("ctrl+shift+plus")  # toggle off from the panel
+        assert bar._frontmatter_panel() is None
+        assert len(app.query(FrontmatterPanel)) == 0
+        # ``g=`` dispatched through the prompt ``g`` prefix table (a no-op here),
+        # so nothing was typed into the body either.
+        assert bar.active_text() == "feedback text"
+
+
+# --- retired panel-toggle keys are inert -----------------------------------
+
+
+@pytest.mark.parametrize(
+    "old_key",
+    ("ctrl+shift+equals", "ctrl+shift+equal", "ctrl+shift+plus", "ctrl+plus"),
+)
+async def test_old_frontmatter_chords_no_longer_open_panel(old_key: str) -> None:
+    """The retired ``Ctrl+Shift+=`` family no longer opens the properties panel.
+
+    The toggle migrated to the NORMAL-mode ``g=`` keymap, so the old shifted
+    -equals chords are inert from both insert and normal mode and never show the
+    panel.
+    """
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        assert not bar._frontmatter_panel_visible()
+
+        # From insert (the chord used to work while typing) ...
+        await pilot.press(old_key)
         await pilot.pause()
         await pilot.pause()
         assert not bar._frontmatter_panel_visible()
-        assert app.focused is bar.active_text_area()
+
+        # ... and from normal (it used to work while browsing too).
+        await pilot.press("escape")
+        await pilot.press(old_key)
+        await pilot.pause()
+        await pilot.pause()
+        assert not bar._frontmatter_panel_visible()
+
+
+async def test_comma_f_no_longer_opens_panel() -> None:
+    """The retired prompt comma leader ``,f`` no longer opens the panel."""
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        assert not bar._frontmatter_panel_visible()
+
+        await pilot.press("escape")
+        await pilot.press("comma", "f")
+        await pilot.pause()
+        await pilot.pause()
+
+        # ``,`` is a prompt-local no-op now and ``f`` falls through to vim's
+        # char-search; neither shows the properties panel.
+        assert not bar._frontmatter_panel_visible()
 
 
 async def test_ctrl_shift_minus_no_longer_opens_panel() -> None:
@@ -421,25 +441,11 @@ async def test_ctrl_shift_minus_no_longer_opens_panel() -> None:
         assert len(app.query(".prompt-input")) == 1
 
 
-async def test_ctrl_shift_equals_noop_in_feedback_mode() -> None:
-    """Feedback bars mount no panel, so the chord creates nothing."""
-    app = _PromptBarApp("feedback text", mode="feedback")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-
-        await pilot.press("ctrl+shift+equals")
-        await pilot.pause()
-        await pilot.pause()
-
-        assert bar._frontmatter_panel() is None
-        assert len(app.query(FrontmatterPanel)) == 0
-        assert bar.active_text() == "feedback text"
+# --- g / = stay literal while editing inside the panel ---------------------
 
 
-async def test_ctrl_shift_equals_cancels_inline_edit_then_closes() -> None:
-    """From an in-progress inline edit the chord cancels it, then deactivates."""
+async def test_g_equals_is_literal_during_inline_edit() -> None:
+    """In inline edit mode ``g`` / ``=`` type into the editor, not deactivate."""
     app = _PromptBarApp("")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -454,20 +460,19 @@ async def test_ctrl_shift_equals_cancels_inline_edit_then_closes() -> None:
         await pilot.pause()
         editor = panel.query_one("#frontmatter-inline", Input)
         assert app.focused is editor
-        editor.value = "typed but unsaved"
 
-        await pilot.press("ctrl+shift+equals")  # cancel inline edit + close
-        await pilot.pause()
+        await pilot.press("g", "=")
         await pilot.pause()
 
-        # The unsaved add is discarded and the empty panel closes.
-        assert panel.model.is_empty
-        assert not bar._frontmatter_panel_visible()
-        assert app.focused is bar.active_text_area()
+        # The chars are typed into the inline editor; the panel stays open in
+        # edit mode (the in-panel ``g=`` sequence is rows-mode-only).
+        assert panel._edit_mode == "edit"
+        assert "g=" in editor.value
+        assert bar._frontmatter_panel_visible()
 
 
-async def test_ctrl_shift_equals_applies_raw_then_closes() -> None:
-    """From raw mode the chord applies parseable YAML, then deactivates."""
+async def test_g_equals_is_literal_during_raw_edit() -> None:
+    """In raw YAML mode ``g`` / ``=`` type into the editor, not deactivate."""
     app = _PromptBarApp("")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -482,45 +487,14 @@ async def test_ctrl_shift_equals_applies_raw_then_closes() -> None:
         await pilot.pause()
         raw = panel.query_one("#frontmatter-raw", TextArea)
         assert app.focused is raw
-        raw.text = "description: from raw\n"
+
+        await pilot.press("g", "=")
         await pilot.pause()
 
-        await pilot.press("ctrl+shift+equals")  # apply raw + close
-        await pilot.pause()
-        await pilot.pause()
-
-        assert panel.model.description == "from raw"
-        assert "description: from raw" in bar._stack.frontmatter
-        # Applied + non-empty: panel stays visible, focus returns to the body.
-        assert bar._frontmatter_panel_visible()
-        assert app.focused is bar.active_text_area()
-
-
-async def test_ctrl_shift_equals_keeps_invalid_raw_active() -> None:
-    """Unparseable raw YAML keeps the raw editor open (no silent discard)."""
-    app = _PromptBarApp("")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-        bar.focus_frontmatter_panel()
-        await pilot.pause()
-        await pilot.pause()
-        panel = app.query_one(FrontmatterPanel)
-
-        await pilot.press("R")
-        await pilot.pause()
-        raw = panel.query_one("#frontmatter-raw", TextArea)
-        # A non-``_``-prefixed local xprompt name fails to parse.
-        raw.text = "xprompts:\n  badname:\n    prompt: hi\n"
-        await pilot.pause()
-
-        await pilot.press("ctrl+shift+equals")
-        await pilot.pause()
-        await pilot.pause()
-
+        # Still in raw mode with focus in the editor; the chars went into it.
         assert panel._edit_mode == "raw"
         assert app.focused is raw
+        assert "g=" in raw.text
         assert bar._frontmatter_panel_visible()
 
 
