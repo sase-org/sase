@@ -362,66 +362,6 @@ def test_split_selected_keeps_other_items() -> None:
     assert state.selected_index == 1
 
 
-# --- live split (typed `---`) ---------------------------------------------
-
-
-def test_split_selected_live_two_segments() -> None:
-    state = PromptStackState.single("alpha\n---\nbeta")
-    assert state.split_selected_live() is True
-    assert state.texts == ["alpha", "beta"]
-    assert state.selected_index == 1
-
-
-def test_split_selected_live_preserves_trailing_empty_pane() -> None:
-    """A freshly typed trailing `---` yields a new empty bottom pane."""
-    state = PromptStackState.single("foo\n---")
-    assert state.split_selected_live() is True
-    assert state.texts == ["foo", ""]
-    assert state.selected_index == 1
-
-
-def test_split_selected_live_preserves_trailing_empty_with_newline() -> None:
-    state = PromptStackState.single("foo\n---\n")
-    assert state.split_selected_live() is True
-    assert state.texts == ["foo", ""]
-
-
-def test_split_selected_live_noop_without_separator() -> None:
-    state = PromptStackState.single("no separators here")
-    assert state.split_selected_live() is False
-    assert state.texts == ["no separators here"]
-
-
-def test_split_selected_live_protects_fenced_separator() -> None:
-    state = PromptStackState.single("```\n---\nstill code\n```")
-    assert state.split_selected_live() is False
-    assert state.texts == ["```\n---\nstill code\n```"]
-
-
-def test_split_selected_live_protects_frontmatter_delimiters() -> None:
-    """The `---` lines that bound YAML frontmatter never split the pane."""
-    state = PromptStackState.single("---\nmodel: opus\n---\nbody")
-    assert state.split_selected_live() is False
-    assert state.texts == ["---\nmodel: opus\n---\nbody"]
-
-
-def test_split_selected_live_lifts_frontmatter_and_splits_body() -> None:
-    state = PromptStackState.single("---\nmodel: opus\n---\nalpha\n---\nbeta")
-    assert state.split_selected_live() is True
-    assert state.texts == ["alpha", "beta"]
-    assert state.frontmatter == "---\nmodel: opus\n---"
-    assert state.selected_index == 1
-
-
-def test_split_selected_live_keeps_other_items() -> None:
-    state = PromptStackState.from_text("first\n---\nsecond")
-    state.focus(0)
-    state.selected_item.text = "first\n---"
-    assert state.split_selected_live() is True
-    assert state.texts == ["first", "", "second"]
-    assert state.selected_index == 1
-
-
 # --- structured frontmatter model wiring ----------------------------------
 
 

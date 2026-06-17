@@ -5,9 +5,6 @@ Presentation-only glue between the prompt stack and the structured
 
 - the panel is mounted (hidden) directly above ``#prompt-stack`` and auto-shows
   when the bar opens on a prompt that already carries frontmatter;
-- typing a leading ``---`` then a newline at the very start of an empty prompt
-  promotes into frontmatter mode (distinct from a ``---`` *after* content, which
-  stays a multi-agent segment separator);
 - ``,f`` focuses the panel (``Ctrl+Shift+-`` toggles it from the body and back)
   and ``esc`` / ``q`` hands focus back to the body, removing the frontmatter
   entirely when the panel is left empty;
@@ -39,13 +36,9 @@ if TYPE_CHECKING:
 else:
     _MixinBase = object
 
-# The exact body a fresh ``---`` + newline produces at the very start of an empty
-# single-pane prompt: the trigger for promoting into frontmatter mode.
-_FRONTMATTER_TRIGGER_BODY = "---\n"
-
 
 class PromptInputBarFrontmatterMixin(_MixinBase):
-    """Mount, trigger, focus, persist, and size the Frontmatter Panel."""
+    """Mount, focus, persist, and size the Frontmatter Panel."""
 
     if TYPE_CHECKING:
         _mode: str
@@ -212,47 +205,6 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         else:
             panel.add_class("hidden")
             self._schedule_height_update()
-
-    # -- trigger --------------------------------------------------------------
-
-    def _should_reserve_for_frontmatter(self, text_area: PromptTextArea) -> bool:
-        """True while a lone leading ``---`` should wait to become frontmatter.
-
-        Reserves a bare ``---`` typed at the very start of an empty single-pane
-        prompt for the frontmatter trigger so live-split does not first turn it
-        into two empty panes; the panel opens once the newline lands.
-        """
-        return (
-            self._is_fresh_frontmatter_slot()
-            and text_area.document.line_count == 1
-            and text_area.document.get_line(0).rstrip() == "---"
-        )
-
-    def _maybe_open_frontmatter_panel(self, text_area: PromptTextArea) -> bool:
-        """Promote to frontmatter mode on a leading ``---`` + newline.
-
-        Returns ``True`` when the panel was opened so the caller skips the live
-        split.  Removes the typed ``---\\n`` from the body and focuses the empty
-        panel; a later whole-stack submit re-attaches the authored frontmatter.
-        """
-        if not self._is_fresh_frontmatter_slot():
-            return False
-        if text_area.text != _FRONTMATTER_TRIGGER_BODY:
-            return False
-        text_area.load_text("")
-        self._sync_state_from_widgets()
-        self._show_frontmatter_panel(focus=True)
-        return True
-
-    def _is_fresh_frontmatter_slot(self) -> bool:
-        """True for an empty single-pane prompt with no frontmatter / panel yet."""
-        return (
-            self._mode == "prompt"
-            and len(self._stack) == 1
-            and self._stack.selected_index == 0
-            and not self._stack.frontmatter
-            and not self._frontmatter_panel_visible()
-        )
 
     # -- panel messages -------------------------------------------------------
 

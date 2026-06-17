@@ -1,11 +1,10 @@
-"""Widget-level tests for the prompt-stack keymaps and live splitting.
+"""Widget-level tests for the prompt-stack keymaps.
 
 Covers the multi-agent prompt stack keymaps: pane focus navigation lives on
 ``Ctrl+Shift+J``/``Ctrl+Shift+K`` and pane reorder on
 ``Ctrl+Shift+H``/``Ctrl+Shift+L`` (both work in insert and normal mode); the
-comma leader stashes panes and ``Ctrl+-`` adds a new bottom pane; typing a
-``---`` separator line in insert mode splits the active pane into stacked panes;
-and
+comma leader stashes panes and ``Ctrl+-`` adds a new bottom pane; a typed
+``---`` separator line is inert (panes are created only through ``Ctrl+-``); and
 the comma leader coexists with vim's reverse char-search repeat and the normal
 ``J`` line join.
 """
@@ -306,16 +305,18 @@ async def test_ctrl_minus_is_noop_in_feedback_mode() -> None:
         assert bar.all_prompt_texts() == ["feedback text"]
 
 
-# --- live split (typed `---`) ----------------------------------------------
+# --- typed `---` is passive ------------------------------------------------
 
 
-async def test_typing_separator_splits_into_new_pane() -> None:
+async def test_typing_separator_stays_passive() -> None:
+    """A freshly typed ``---`` line no longer live-splits the active pane."""
     app = _PromptBarApp("foo")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
         assert len(app.query(".prompt-input")) == 1
 
         # In insert mode (default): complete a `---` separator line.
@@ -323,14 +324,16 @@ async def test_typing_separator_splits_into_new_pane() -> None:
         await pilot.pause()
         await pilot.pause()
 
-        assert len(app.query(".prompt-input")) == 2
-        assert bar.all_prompt_texts() == ["foo", ""]
-        assert bar._stack.selected_index == 1
-        assert bar.active_text() == ""
-        assert app.focused is bar.active_text_area()
+        # No split: still one pane, the same pane keeps focus, and the typed
+        # separator is preserved verbatim as body text.
+        assert len(app.query(".prompt-input")) == 1
+        assert bar.all_prompt_texts() == ["foo\n---"]
+        assert bar._stack.selected_index == 0
+        assert bar.active_text() == "foo\n---"
+        assert app.focused is text_area
 
 
-async def test_typing_separator_does_not_split_feedback_mode() -> None:
+async def test_typing_separator_stays_passive_in_feedback_mode() -> None:
     app = _PromptBarApp("plan note", mode="feedback")
 
     async with app.run_test(size=(80, 24)) as pilot:

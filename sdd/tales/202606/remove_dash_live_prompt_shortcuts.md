@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 10:46:04
-status: wip
+status: done
 prompt: sdd/prompts/202606/remove_dash_live_prompt_shortcuts.md
 ---
 # Remove `---` Live Prompt Shortcuts Plan

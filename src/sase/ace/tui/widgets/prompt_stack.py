@@ -22,22 +22,11 @@ later whole-stack submit can re-attach it, keeping ``split -> join`` lossless.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 
 from sase.agent.multi_prompt import split_segments_protecting_fences
-from sase.xprompt._fenced_blocks import (
-    protect_fenced_blocks,
-    unprotect_fenced_blocks,
-)
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-
-# A line that is exactly ``---`` (trailing whitespace allowed, no leading
-# whitespace) is a segment separator — the same rule the canonical multi-prompt
-# parser uses.  Kept local so live splitting does not depend on a private regex
-# in another module.
-_SEPARATOR_LINE_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
 
 def split_prompt_text(text: str) -> list[str]:
@@ -49,24 +38,6 @@ def split_prompt_text(text: str) -> list[str]:
     leading YAML frontmatter is consumed rather than split.
     """
     return split_segments_protecting_fences(text)
-
-
-def _split_preserving_empty(body: str) -> list[str] | None:
-    """Split *body* on real ``---`` separator lines, keeping empty segments.
-
-    Like :func:`split_prompt_text` this protects fenced code blocks so ``---``
-    inside a fence is never a separator, but unlike it the empty segments a real
-    separator produces are preserved.  That keeps a freshly typed trailing
-    ``---`` meaningful: it yields a new empty bottom pane to draft in rather than
-    being dropped.  Returns ``None`` when *body* has no real separator so callers
-    can cheaply skip the no-op case.
-    """
-    blocks: list[str] = []
-    protected = protect_fenced_blocks(body, blocks)
-    parts = _SEPARATOR_LINE_RE.split(protected)
-    if len(parts) <= 1:
-        return None
-    return [unprotect_fenced_blocks(part, blocks).strip("\n") for part in parts]
 
 
 def _extract_frontmatter(text: str) -> tuple[str, str]:
@@ -330,35 +301,6 @@ class PromptStackState:
         segments = split_prompt_text(self.selected_item.text)
         if len(segments) <= 1:
             return False
-        replacement = [self._new_item(segment) for segment in segments]
-        position = self.selected_index
-        self.items[position : position + 1] = replacement
-        self.selected_index = position + len(replacement) - 1
-        return True
-
-    def split_selected_live(self) -> bool:
-        """Split the active item on a freshly typed ``---`` separator line.
-
-        Unlike :meth:`split_selected`, empty leading/trailing segments produced
-        by a real separator are kept as panes, so typing ``---`` at the end of a
-        pane yields a new empty bottom pane to keep drafting in.  Frontmatter
-        typed above the first pane is lifted onto the state so a later
-        whole-stack ``join`` stays lossless.  Separators inside fenced code
-        blocks or YAML frontmatter delimiters never trigger a split.  Returns
-        ``True`` when a split occurred and the bottom new pane becomes active.
-        """
-        item = self.selected_item
-        if self.selected_index == 0:
-            frontmatter, body = _extract_frontmatter(item.text)
-        else:
-            # Only the first pane can carry prompt-level frontmatter; treat any
-            # leading ``---`` block in a later pane as plain body text.
-            frontmatter, body = "", item.text
-        segments = _split_preserving_empty(body)
-        if segments is None:
-            return False
-        if frontmatter and not self.frontmatter:
-            self.frontmatter = frontmatter
         replacement = [self._new_item(segment) for segment in segments]
         position = self.selected_index
         self.items[position : position + 1] = replacement

@@ -1,10 +1,11 @@
 """Widget-level tests for the prompt Frontmatter Panel (Phase 3).
 
-Covers the Phase 3 deliverable of the prompt-frontmatter-panel epic: the leading
-``---``-newline trigger (distinct from a multi-agent segment separator), the
-``,f`` focus keymap, auto-show on existing frontmatter, the add-property picker
-plus inline scalar/list editing, ``d`` delete, the ``R`` raw-YAML round-trip, and
-the empty-on-exit removal of the frontmatter.
+Covers the Phase 3 deliverable of the prompt-frontmatter-panel epic: a typed
+``---`` is inert (the panel opens only through the explicit ``,f`` /
+``Ctrl+Shift+-`` controls), the ``,f`` focus keymap, auto-show on existing
+frontmatter, the add-property picker plus inline scalar/list editing, ``d``
+delete, the ``R`` raw-YAML round-trip, and the empty-on-exit removal of the
+frontmatter.
 """
 
 from __future__ import annotations
@@ -35,37 +36,30 @@ class _PromptBarApp(App[None]):
         )
 
 
-# --- trigger ---------------------------------------------------------------
+# --- typed `---` is passive ------------------------------------------------
 
 
-async def test_leading_dash_newline_opens_panel() -> None:
-    """``---`` then a newline at the very start promotes into frontmatter mode."""
+async def test_leading_dash_newline_stays_passive() -> None:
+    """``---`` + newline at the very start no longer promotes into frontmatter."""
     app = _PromptBarApp("")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        await pilot.press("-", "-", "-")
+        await pilot.press("-", "-", "-", "ctrl+j")
         await pilot.pause()
-        # A bare leading ``---`` must NOT split into two empty panes; it waits.
+        await pilot.pause()
+
+        # The panel stays hidden, the bar keeps its single pane, and the typed
+        # delimiter is left verbatim in the body — no implicit promotion.
         assert len(app.query(".prompt-input")) == 1
         assert not bar._frontmatter_panel_visible()
-
-        await pilot.press("ctrl+j")  # the newline (Enter submits in this bar)
-        await pilot.pause()
-        await pilot.pause()
-
-        panel = app.query_one(FrontmatterPanel)
-        assert bar._frontmatter_panel_visible()
-        assert app.focused is panel
-        # The typed ``---\n`` is lifted off the body, leaving an empty pane.
-        assert bar.active_text() == ""
-        assert len(app.query(".prompt-input")) == 1
+        assert bar.active_text() == "---\n"
 
 
-async def test_dash_after_content_still_splits() -> None:
-    """A ``---`` typed after content stays a multi-agent segment separator."""
+async def test_dash_after_content_stays_passive() -> None:
+    """A ``---`` typed after content stays literal text, not a live split."""
     app = _PromptBarApp("foo")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -76,8 +70,12 @@ async def test_dash_after_content_still_splits() -> None:
         await pilot.pause()
         await pilot.pause()
 
-        assert len(app.query(".prompt-input")) == 2
+        # Still one pane (no split), focus stays in it, and the separator text is
+        # preserved exactly as typed.
+        assert len(app.query(".prompt-input")) == 1
         assert not bar._frontmatter_panel_visible()
+        assert bar.active_text() == "foo\n---"
+        assert app.focused is bar.active_text_area()
 
 
 # --- focus + auto-show -----------------------------------------------------

@@ -83,9 +83,6 @@ class PromptInputBar(
         # previous panes are still being detached never collides on widget ids.
         self._generation = 0
         self._placeholder = ""
-        # Guards against piling up deferred live-split passes while the user
-        # keeps typing past a freshly completed ``---`` separator line.
-        self._live_split_pending = False
         if initial_panes is not None:
             # Explicit pane seeding: one verbatim pane per entry, never split on
             # an embedded ``---`` or lifted frontmatter. Used by bulk
@@ -185,7 +182,7 @@ class PromptInputBar(
         The frontmatter panel sits directly above ``#prompt-stack`` (prompt mode
         only — feedback / approve-prompt bars are not multi-agent surfaces) and
         starts hidden, auto-showing on mount when the prompt already carries
-        frontmatter or when the user triggers it with a leading ``---``.
+        frontmatter; otherwise the user opens it with ``Ctrl+Shift+-`` / ``,f``.
         """
         self._placeholder = self._compute_placeholder()
         yield Static("", id="prompt-completion", classes="hidden")

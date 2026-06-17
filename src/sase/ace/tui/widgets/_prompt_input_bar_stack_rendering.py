@@ -88,8 +88,6 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         def _base_title(self) -> str: ...
         def _active_jinja_chip_markup(self) -> str: ...
         def _frontmatter_panel_reserved_rows(self) -> int: ...
-        def _maybe_live_split(self, text_area: PromptTextArea) -> None: ...
-        def _maybe_open_frontmatter_panel(self, text_area: PromptTextArea) -> bool: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
         def show_jinja_diagnostics(self, diagnostics: object) -> None: ...
@@ -160,12 +158,12 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         """Re-render the prompt stack to match ``self._stack`` from scratch.
 
         Used by deliberate whole-stack replacements (``load_stack_from_text``)
-        and by the Phase 3 structural keymaps (reorder, add pane, live split).
-        Bumps the generation so freshly mounted panes never share ids with the
-        panes still being detached asynchronously.  *enter_mode* optionally puts
-        the rebuilt active pane into vim ``"normal"`` or ``"insert"`` mode once
-        it has mounted, so reorder keeps the user in normal mode while adding /
-        splitting drops them into the new pane ready to type.
+        and by the Phase 3 structural keymaps (reorder, add pane).  Bumps the
+        generation so freshly mounted panes never share ids with the panes still
+        being detached asynchronously.  *enter_mode* optionally puts the rebuilt
+        active pane into vim ``"normal"`` or ``"insert"`` mode once it has
+        mounted, so reorder keeps the user in normal mode while adding a pane
+        drops them into the new pane ready to type.
         """
         self._generation += 1
         self._refresh_title()
@@ -346,16 +344,18 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
                 return
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
-        """Update height and line numbers when text changes."""
+        """Update height and line numbers when text changes.
+
+        Purely passive: a typed ``---`` is left as literal text in the pane.  The
+        properties panel and extra panes are reached only through the explicit
+        ``Ctrl+Shift+-`` / ``,f`` and ``Ctrl+-`` controls.
+        """
         text_area = event.text_area
         if not isinstance(text_area, PromptTextArea):
             text_area = self.active_text_area()
         text_area.show_line_numbers = text_area.document.line_count > 1
         text_area._on_prompt_completion_context_changed()
         self._schedule_height_update()
-        if self._maybe_open_frontmatter_panel(text_area):
-            return
-        self._maybe_live_split(text_area)
 
     def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
         """Refresh soft completion when the prompt cursor moves."""

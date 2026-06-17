@@ -104,7 +104,7 @@ def test_help_modal_lists_frontmatter_panel_toggle() -> None:
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert ("Ctrl+Shift+- / ,f / ---", "Frontmatter panel") in pairs
+        assert ("Ctrl+Shift+- / ,f", "Frontmatter panel") in pairs
 
 
 def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:

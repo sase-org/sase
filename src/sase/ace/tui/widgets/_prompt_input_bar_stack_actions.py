@@ -30,21 +30,17 @@ class StashedPromptPane:
 
 
 class PromptInputBarStackActionsMixin(_MixinBase):
-    """Prompt stack keymaps, live splitting, and completion cleanup."""
+    """Prompt stack keymaps and completion cleanup."""
 
     if TYPE_CHECKING:
         Stashed: Any
         RestoreRequested: Any
-        _live_split_pending: bool
         _mode: str
         _stack: PromptStackState
 
         def _apply_active_classes(self) -> None: ...
         def _rebuild_stack(self, enter_mode: str | None = None) -> None: ...
         def _schedule_height_update(self) -> None: ...
-        def _should_reserve_for_frontmatter(
-            self, text_area: PromptTextArea
-        ) -> bool: ...
         def _sync_state_from_widgets(self) -> None: ...
         def active_text_area(self) -> PromptTextArea: ...
         def hide_file_completions(self) -> None: ...
@@ -202,24 +198,6 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             self._stack.selected_index = len(self._stack.items) - 1
         self._rebuild_stack(enter_mode="insert")
 
-    def _live_split_active_pane(self) -> None:
-        """Split the active pane when a ``---`` line was just typed into it.
-
-        Deferred from ``on_text_area_changed`` so the pane is never unmounted
-        while still handling its own text change.  The canonical parser decides
-        whether a real split happens, so separators inside fenced code blocks or
-        YAML frontmatter never trigger one.  After a split the new bottom pane
-        is focused in insert mode to keep drafting.
-        """
-        self._live_split_pending = False
-        if self._mode != "prompt":
-            return
-        self._sync_state_from_widgets()
-        if not self._stack.split_selected_live():
-            return
-        self._clear_active_completion_state()
-        self._rebuild_stack(enter_mode="insert")
-
     def _clear_active_completion_state(self) -> None:
         """Drop completion / soft-completion / arg-hint state before mutation."""
         try:
@@ -232,20 +210,3 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             text_area._clear_xprompt_arg_hint()
         self.hide_file_completions()
         self.hide_soft_completion()
-
-    def _maybe_live_split(self, text_area: PromptTextArea) -> None:
-        """Schedule a live split when *text_area*'s cursor line became ``---``."""
-        if self._mode != "prompt" or self._live_split_pending:
-            return
-        if getattr(text_area, "_vim_mode", "insert") != "insert":
-            return
-        row = text_area.cursor_location[0]
-        if text_area.document.get_line(row).rstrip() != "---":
-            return
-        # A bare leading ``---`` in a fresh empty prompt is reserved for the
-        # frontmatter trigger (it opens the panel once the newline lands), so it
-        # must not first split into two empty panes.
-        if self._should_reserve_for_frontmatter(text_area):
-            return
-        self._live_split_pending = True
-        self.call_after_refresh(self._live_split_active_pane)

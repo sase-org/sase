@@ -421,7 +421,7 @@ class PromptTextArea(
         # XPrompt properties panel toggle.  ``Ctrl+Shift+-`` (also delivered as
         # ``ctrl+underscore`` by terminals that encode it as ``Ctrl+_``) shows
         # and focuses the frontmatter panel from the body, and deactivates it
-        # again — the structural sibling of ``,f`` / leading ``---``.  Like the
+        # again — the structural sibling of ``,f``.  Like the
         # stack chords it works while typing (insert) or browsing (normal) and is
         # always swallowed so it never falls through to text insertion,
         # completion, normal-mode editing, or app-level bindings.
