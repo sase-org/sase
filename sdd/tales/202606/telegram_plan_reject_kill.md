@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 17:48:53
-status: wip
+status: done
 prompt: sdd/prompts/202606/telegram_plan_reject_kill.md
 ---
 # Telegram Plan Reject Kill Fix
