@@ -8,6 +8,7 @@ import time
 from typing import TYPE_CHECKING
 
 from ._launch_tasks import LaunchSeverity, LaunchTaskOutcome, launch_results_tuple
+from ..failure_messages import with_log_panel_hint
 
 log = logging.getLogger(__name__)
 
@@ -159,7 +160,7 @@ class BulkLaunchMixin:
             # A mid-loop failure may have already spawned earlier CLs;
             # without results, only a refresh makes them visible.
             return LaunchTaskOutcome(
-                "Bulk launch failed (see log)",
+                with_log_panel_hint("Bulk launch failed"),
                 severity="error",
                 request_agents_refresh=True,
             )

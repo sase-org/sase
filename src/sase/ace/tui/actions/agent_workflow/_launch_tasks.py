@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
+from ..failure_messages import with_log_panel_hint
 from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
 
 if TYPE_CHECKING:
@@ -85,8 +86,9 @@ class LaunchTaskMixin:
         outcome = completion.payload
         if outcome is None:
             if not completion.success:
+                _schedule_payloadless_launch_failure_log(self, completion)
                 self.notify(  # type: ignore[attr-defined]
-                    "Launch failed (see log)",
+                    with_log_panel_hint("Launch failed"),
                     severity="error",
                 )
             elif completion.message:
@@ -116,6 +118,51 @@ def _refresh_notification_count_if_available(app: object) -> None:
     refresh = getattr(app, "_refresh_notification_count", None)
     if callable(refresh):
         refresh()
+
+
+def _schedule_payloadless_launch_failure_log(
+    app: Any,
+    completion: TrackedTaskCompletion[LaunchTaskOutcome],
+) -> None:
+    """Write payloadless launch task failures off the Textual event loop."""
+    import asyncio
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _log_payloadless_launch_failure(completion)
+        return
+
+    task = loop.create_task(
+        asyncio.to_thread(_log_payloadless_launch_failure, completion)
+    )
+    tasks = getattr(app, "_launch_failure_log_tasks", None)
+    if tasks is None:
+        tasks = set()
+        app._launch_failure_log_tasks = tasks
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)
+
+
+def _log_payloadless_launch_failure(
+    completion: TrackedTaskCompletion[LaunchTaskOutcome],
+) -> None:
+    """Persist a launch task failure when the worker produced no outcome."""
+    from sase.logs import log_launch_failure
+
+    task = completion.task_info
+    message = completion.error or completion.message or "Launch task failed"
+    log_launch_failure(
+        kind="single",
+        display_name=task.display_name or task.cl_name or "launch task",
+        exc=RuntimeError(message),
+        project=task.cl_name or None,
+        stage="launch_task",
+        task_id=task.task_id,
+        task_type=task.task_type,
+        project_file=task.project_file,
+        output=completion.output or None,
+    )
 
 
 __all__ = [

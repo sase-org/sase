@@ -255,5 +255,5 @@ def test_run_agent_launch_body_spawn_failure_records_failed_history() -> None:
         outcome = _run_launch_body_with_common_patches(app, "plain failed prompt")
 
     record_failed.assert_called_once_with("plain failed prompt")
-    assert outcome.message == "Agent launch failed (see log)"
+    assert outcome.message == "Agent launch failed - press ,L for the log"
     assert outcome.severity == "error"

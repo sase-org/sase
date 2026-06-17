@@ -7,6 +7,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from ._launch_tasks import LaunchTaskOutcome, launch_results_tuple
+from ..failure_messages import with_log_panel_hint
 
 log = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ class MultiPromptLaunchMixin:
             log.exception("Multi-prompt launch failed")
             _log_multi_prompt_failure(exc, ctx, multi, submitted_prompt)
             return LaunchTaskOutcome(
-                "Multi-prompt launch failed (see log)",
+                with_log_panel_hint("Multi-prompt launch failed"),
                 severity="error",
             )
 

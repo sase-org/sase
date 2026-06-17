@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from sase.core.paths import sase_projects_dir
 
+from ..failure_messages import with_log_panel_hint
 from ._types import PromptContext
 
 log = logging.getLogger(__name__)
@@ -229,7 +230,7 @@ class WorkflowExecMixin:
                     )
                     self.call_later(  # type: ignore[attr-defined]
                         lambda: self.notify(  # type: ignore[attr-defined]
-                            f"Workflow '{workflow_name}' failed (see log)",
+                            with_log_panel_hint(f"Workflow '{workflow_name}' failed"),
                             severity="error",
                         )
                     )

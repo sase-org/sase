@@ -11,6 +11,7 @@ from uuid import uuid4
 from sase.core.paths import sase_subdir
 
 from ._launch_tasks import LaunchTaskOutcome, launch_results_tuple
+from ..failure_messages import with_log_panel_hint
 
 log = logging.getLogger(__name__)
 
@@ -165,7 +166,7 @@ class MultiModelLaunchMixin:
                 submitted_xprompt=submitted_xprompt,
             )
             return LaunchTaskOutcome(
-                "Prompt fan-out launch failed (see log)",
+                with_log_panel_hint("Prompt fan-out launch failed"),
                 severity="error",
                 refresh_notifications=True,
             )

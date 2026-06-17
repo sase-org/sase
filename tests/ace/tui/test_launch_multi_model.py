@@ -144,7 +144,7 @@ def test_multi_model_failure_records_toast_and_persistent_notification() -> None
 
     assert app.notification_refresh_count == 1
     assert (
-        "Prompt fan-out launch failed (see log)",
+        "Prompt fan-out launch failed - press ,L for the log",
         "error",
     ) in app.notifications
 

@@ -27,6 +27,7 @@ from sase.axe.chop_runner import (
 from sase.axe.config import load_axe_config
 from sase.axe.state import chop_run_log_path
 
+from .failure_messages import with_log_panel_hint
 from ..widgets.bgcmd_list import ChopItem
 
 if TYPE_CHECKING:
@@ -160,7 +161,8 @@ class AxeChopRunMixin:
         except Exception as e:
             from sase.logs import log_launch_failure
 
-            log_launch_failure(
+            await asyncio.to_thread(
+                log_launch_failure,
                 kind="chop",
                 display_name=chop_name,
                 exc=e,
@@ -168,13 +170,16 @@ class AxeChopRunMixin:
                 lumberjack=lumberjack_name,
             )
             self.notify(  # type: ignore[attr-defined]
-                f"Failed to launch chop '{chop_name}': {e}", severity="error"
+                with_log_panel_hint(f"Failed to launch chop '{chop_name}': {e}"),
+                severity="error",
             )
             # Even on failure the runner may have written a partial run
             # entry; refresh so the dashboard reflects current on-disk state.
             self._schedule_axe_async_refresh()  # type: ignore[attr-defined]
             return
 
+        if _is_failure_chop_outcome(outcome):
+            await asyncio.to_thread(_log_chop_failure_outcome, outcome)
         self._notify_chop_outcome(outcome)
         # Always pull fresh state so the new (or updated) run entry shows
         # up in the dashboard and the sidebar status marker repaints.
@@ -196,13 +201,18 @@ class AxeChopRunMixin:
                 f" (exit {outcome.exit_code})" if outcome.exit_code is not None else ""
             )
             self.notify(  # type: ignore[attr-defined]
-                f"Chop '{chop}' failed{exit_str}", severity="error"
+                with_log_panel_hint(f"Chop '{chop}' failed{exit_str}"),
+                severity="error",
             )
         elif outcome.status == "timeout":
-            self.notify(f"Chop '{chop}' timed out", severity="error")  # type: ignore[attr-defined]
+            self.notify(  # type: ignore[attr-defined]
+                with_log_panel_hint(f"Chop '{chop}' timed out"),
+                severity="error",
+            )
         elif outcome.status == "missing_script":
             self.notify(  # type: ignore[attr-defined]
-                f"Chop '{chop}': script not found", severity="error"
+                with_log_panel_hint(f"Chop '{chop}': script not found"),
+                severity="error",
             )
         elif outcome.status == "agent_launched":
             pid = outcome.agent_pid
@@ -210,10 +220,36 @@ class AxeChopRunMixin:
             self.notify(f"Agent chop '{chop}' launched{suffix}")  # type: ignore[attr-defined]
         elif outcome.status == "agent_failed":
             self.notify(  # type: ignore[attr-defined]
-                f"Agent chop '{chop}' failed to launch", severity="error"
+                with_log_panel_hint(f"Agent chop '{chop}' failed to launch"),
+                severity="error",
             )
         else:
             self.notify(  # type: ignore[attr-defined]
                 f"Chop '{chop}': unexpected outcome '{outcome.status}'",
                 severity="warning",
             )
+
+
+def _is_failure_chop_outcome(outcome: ChopRunOutcome) -> bool:
+    return outcome.status in {"failure", "timeout", "missing_script", "agent_failed"}
+
+
+def _log_chop_failure_outcome(outcome: ChopRunOutcome) -> None:
+    """Durably record non-exception chop failure outcomes for the Log panel."""
+    from sase.logs import log_launch_failure
+
+    exc = outcome.error
+    if exc is None:
+        exc = RuntimeError(f"Chop '{outcome.chop_name}' failed: {outcome.status}")
+    log_launch_failure(
+        kind="chop",
+        display_name=outcome.chop_name,
+        exc=exc,
+        chop=outcome.chop_name,
+        lumberjack=outcome.lumberjack_name,
+        status=outcome.status,
+        run_id=outcome.run_id,
+        exit_code=outcome.exit_code,
+        agent_pid=outcome.agent_pid,
+        traceback=outcome.traceback,
+    )

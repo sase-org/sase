@@ -13,6 +13,7 @@ from ._launch_history import (
 from ._launch_tasks import LaunchTaskOutcome, launch_results_tuple
 from ._ref_resolution import is_non_workspace_workflow, strip_all_vcs_refs
 from ._types import PromptContext
+from ..failure_messages import with_log_panel_hint
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +48,8 @@ class AgentLaunchBodyMixin:
             log.exception("Agent launch body failed")
             from sase.logs import log_launch_failure
 
-            log_launch_failure(
+            await asyncio.to_thread(
+                log_launch_failure,
                 kind="single",
                 display_name=ctx.display_name if ctx is not None else "agent launch",
                 exc=exc,
@@ -57,7 +59,7 @@ class AgentLaunchBodyMixin:
                 stage="launch_body",
             )
             self.notify(  # type: ignore[attr-defined]
-                "Agent launch failed (see log)", severity="error"
+                with_log_panel_hint("Agent launch failed"), severity="error"
             )
             return
         if outcome is None:
@@ -131,7 +133,7 @@ class AgentLaunchBodyMixin:
                 if owns_context:
                     self._prompt_context = None
                 return LaunchTaskOutcome(
-                    "Agent name reuse failed (see log)", severity="error"
+                    with_log_panel_hint("Agent name reuse failed"), severity="error"
                 )
             prompt = rewrite_force_reuse_name_directives(prompt)
 
@@ -657,6 +659,6 @@ class AgentLaunchBodyMixin:
                 vcs_ref=None if vcs_ref is None else f"{vcs_ref[0]}:{vcs_ref[1]}",
             )
             return LaunchTaskOutcome(
-                "Agent launch failed (see log)",
+                with_log_panel_hint("Agent launch failed"),
                 severity="error",
             )

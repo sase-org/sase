@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
@@ -214,3 +215,102 @@ def test_chop_failure_persists_record() -> None:
     record = _assert_persisted("chop")
     assert record["chop"] == "my-chop"
     assert record["lumberjack"] == "lumber"
+    assert app.notifications[-1] == (
+        "Failed to launch chop 'my-chop': chop boom - press ,L for the log",
+        "error",
+    )
+
+
+def test_payloadless_launch_task_failure_persists_record() -> None:
+    from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskMixin
+    from sase.ace.tui.actions.task_actions import TrackedTaskCompletion
+    from sase.ace.tui.task_queue import TaskInfo
+
+    class _TaskApp(LaunchTaskMixin):
+        def __init__(self) -> None:
+            self.notifications: list[tuple[str, str | None]] = []
+
+        def notify(self, msg: str, *, severity: str | None = None) -> None:
+            self.notifications.append((msg, severity))
+
+    app = _TaskApp()
+    app._on_launch_task_complete(
+        TrackedTaskCompletion(
+            task_info=TaskInfo(
+                task_id="task-1",
+                task_type="launch",
+                cl_name="cl",
+                project_file="/tmp/proj.sase",
+                status="error",
+                message="launch cl started",
+                started_at=datetime.now(),
+                display_name="launch cl",
+            ),
+            success=False,
+            message="worker died",
+            output="captured output",
+            payload=None,
+            error="worker died",
+        )
+    )
+
+    assert app.notifications == [("Launch failed - press ,L for the log", "error")]
+    record = _assert_persisted("single")
+    assert record["display_name"] == "launch cl"
+    assert record["stage"] == "launch_task"
+    assert record["task_id"] == "task-1"
+    assert record["output"] == "captured output"
+
+
+def test_chop_agent_failed_outcome_persists_record() -> None:
+    from sase.ace.tui.actions.axe_chop_run import AxeChopRunMixin
+    from sase.axe.chop_runner_types import ChopRunOutcome
+
+    class _ChopApp(AxeChopRunMixin):
+        def __init__(self) -> None:
+            self.notifications: list[tuple[str, str | None]] = []
+
+        def notify(self, msg: str, *, severity: str | None = None) -> None:
+            self.notifications.append((msg, severity))
+
+        def _schedule_axe_async_refresh(self) -> None:
+            pass
+
+    match = SimpleNamespace(
+        chop=SimpleNamespace(name="my-chop"),
+        lumberjack=SimpleNamespace(chop_timeout=30),
+    )
+    outcome = ChopRunOutcome(
+        lumberjack_name="lumber",
+        chop_name="my-chop",
+        status="agent_failed",
+        run_id="run-1",
+        error=RuntimeError("agent launch failed"),
+        traceback="agent traceback",
+    )
+    app = _ChopApp()
+    with (
+        patch(
+            "sase.ace.tui.actions.axe_chop_run.load_axe_config",
+            return_value=object(),
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_chop_run.find_configured_chop",
+            return_value=match,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_chop_run.run_configured_chop_once",
+            return_value=outcome,
+        ),
+    ):
+        asyncio.run(app._launch_chop_run_async("lumber", "my-chop"))
+
+    assert app.notifications[-1] == (
+        "Agent chop 'my-chop' failed to launch - press ,L for the log",
+        "error",
+    )
+    record = _assert_persisted("chop")
+    assert record["chop"] == "my-chop"
+    assert record["lumberjack"] == "lumber"
+    assert record["status"] == "agent_failed"
+    assert record["run_id"] == "run-1"
