@@ -36,6 +36,9 @@ from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
 from sase.ace.tui.widgets._prompt_input_bar_stack_rendering import (
     PromptInputBarStackRenderingMixin,
 )
+from sase.ace.tui.widgets._prompt_input_bar_search import (
+    PromptInputBarSearchMixin,
+)
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_stack import PromptStackState
 
@@ -46,6 +49,7 @@ class PromptInputBar(
     PromptInputBarFrontmatterMixin,
     PromptInputBarStackActionsMixin,
     PromptInputBarGPrefixHintsMixin,
+    PromptInputBarSearchMixin,
     PromptInputBarActionsMixin,
     PromptInputBarCompletionMixin,
     PromptInputBarStackRenderingMixin,
@@ -83,6 +87,8 @@ class PromptInputBar(
         self._g_prefix_hints_visible = False
         self._g_prefix_hints_line_count = 0
         self._g_prefix_hints_signature: tuple[tuple[str, str], ...] = ()
+        self._search_command_visible = False
+        self._search_command_line_count = 0
         self._mode_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
         self._soft_completion_visible = False
         self._title_mode_suffix = ""
@@ -191,6 +197,7 @@ class PromptInputBar(
                 classes="hidden",
             )
         yield Static("", id="prompt-g-prefix-hints", classes="hidden")
+        yield Static("", id="prompt-search-command", classes="hidden")
         with Vertical(id="prompt-stack"):
             yield from self._build_pane_widgets()
 

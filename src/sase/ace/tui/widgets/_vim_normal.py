@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from textual.events import Key
 
 from sase.ace.tui.widgets._vim_normal_editing import VimNormalEditingMixin
+from sase.ace.tui.widgets._vim_search import SearchDirection
 
 
 class VimNormalModeMixin(VimNormalEditingMixin):
@@ -13,9 +16,20 @@ class VimNormalModeMixin(VimNormalEditingMixin):
     Mixed into :class:`~sase.ace.tui.widgets.prompt_text_area.PromptTextArea`.
     """
 
+    if TYPE_CHECKING:
+
+        def _start_prompt_search(self, direction: SearchDirection) -> None: ...
+
     def _handle_normal_mode_key(self, event: Key) -> bool:
         """Handle a key event in NORMAL mode. Returns True if handled."""
         key = event.character or event.key
+
+        if key in {"/", "?"} or event.key in {"slash", "question_mark"}:
+            direction: SearchDirection = (
+                "reverse" if key == "?" or event.key == "question_mark" else "forward"
+            )
+            self._start_prompt_search(direction)
+            return True
 
         if not self._replaying_dot:
             if (

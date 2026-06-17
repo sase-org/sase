@@ -17,6 +17,7 @@ from sase.ace.tui.widgets._prompt_text_area_actions import (
 from sase.ace.tui.widgets._prompt_text_area_key_handling import (
     PromptTextAreaKeyHandlingMixin,
 )
+from sase.ace.tui.widgets._prompt_search import PromptSearchMixin
 from sase.ace.tui.widgets._search_highlight import SearchHighlightMixin
 from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
@@ -56,6 +57,7 @@ class PromptTextArea(
     PromptTextAreaActionsMixin,
     JinjaDiagnosticsMixin,
     SearchHighlightMixin,
+    PromptSearchMixin,
     JinjaHighlightMixin,
     VimNormalModeMixin,
     FileCompletionMixin,

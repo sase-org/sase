@@ -1332,6 +1332,22 @@ PromptInputBar #prompt-g-prefix-hints.hidden {
     display: none;
 }
 
+/* Prompt Vim search command line, directly above the prompt stack. */
+PromptInputBar #prompt-search-command {
+    width: 100%;
+    height: auto;
+    max-height: 3;
+    border: round $accent;
+    background: $panel;
+    color: $text;
+    padding: 0 1;
+    margin: 0 0 1 0;
+}
+
+PromptInputBar #prompt-search-command.hidden {
+    display: none;
+}
+
 PromptInputBar #frontmatter-rows {
     width: 100%;
     height: auto;

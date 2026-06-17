@@ -84,6 +84,8 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         _g_prefix_hints_visible: bool
         _mode: str
         _placeholder: str
+        _search_command_line_count: int
+        _search_command_visible: bool
         _stack: PromptStackState
 
         @property
@@ -426,7 +428,10 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         g_prefix_rows = (
             self._g_prefix_hints_line_count if self._g_prefix_hints_visible else 0
         )
-        panel_rows = completion_rows + frontmatter_rows + g_prefix_rows
+        search_rows = (
+            self._search_command_line_count if self._search_command_visible else 0
+        )
+        panel_rows = completion_rows + frontmatter_rows + g_prefix_rows + search_rows
         if len(self._stack) <= 1:
             # Single pane: identical formula to the pre-stack bar. +2 for the
             # bar's top/bottom border, plus transient panels when visible.

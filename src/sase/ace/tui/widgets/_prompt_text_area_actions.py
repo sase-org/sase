@@ -48,6 +48,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
             *,
             clear_xprompt_arg_hint: bool = True,
         ) -> None: ...
+        def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None: ...
         def _clear_soft_completion(
             self,
             *,
@@ -252,6 +253,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
 
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
+        self._clear_prompt_search(clear_highlights=False)
         self._clear_visual_state()
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
@@ -273,6 +275,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
 
     def _enter_insert_mode(self) -> None:
         """Switch to vim INSERT mode."""
+        self._clear_prompt_search(clear_highlights=True)
         self._clear_visual_state()
         self._vim_mode = "insert"
         self._pending_operator = ""
