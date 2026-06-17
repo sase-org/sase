@@ -16,6 +16,7 @@ import threading
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from sase.xprompt.models import XPrompt
 from tests.ace.tui._agent_launch_helpers import (
     _LaunchBodyApp,
     _run_launch_body_with_common_patches,
@@ -54,6 +55,45 @@ def test_run_agent_launch_body_expands_possible_xprompt_for_model_dispatch() -> 
         (fn, args) for fn, args in app.scheduled if fn == app._launch_multi_model_agents
     ]
     assert len(multi_model_calls) == 1
+
+
+def test_run_agent_launch_body_xprompt_model_axis_joins_alt_fanout() -> None:
+    """An xprompt-injected %model axis joins the raw %( alternatives.
+
+    Regression for the "4 agents, all Opus" bug: a prompt that already
+    contains %( directives must still expand its launch-shaping xprompt
+    (#m_opus_codex -> %model(opus, #codex)) *before* the fan-out shape is
+    planned. Otherwise the raw prompt plans a 4-slot alternatives shape that
+    omits the injected model dimension, and the child runner expands the
+    model directive too late to fan out. With the expansion ordered first,
+    the model axis composes with both %( axes into a full Cartesian product:
+    2 alts x 2 alts x 2 models = 8 slots, split evenly across the models.
+    """
+    app = _LaunchBodyApp()
+    catalog = {
+        "codex": XPrompt(name="codex", content="gpt-5.5"),
+        "m_opus_codex": XPrompt(name="m_opus_codex", content="%model(opus, #codex)"),
+    }
+
+    with patch("sase.xprompt.processor.get_all_xprompts", return_value=dict(catalog)):
+        _run_launch_body_with_common_patches(
+            app,
+            "#gh:sase Describe this repo %(briefly, in detail). "
+            "%(Don't trust the documentation!) #m_opus_codex",
+        )
+
+    assert app.launched == []
+    fanout_calls = [
+        (fn, args) for fn, args in app.scheduled if fn == app._launch_multi_model_agents
+    ]
+    assert len(fanout_calls) == 1
+    _, args = fanout_calls[0]
+    assert args[4] == "model"
+    fanout_plan = args[7]
+    slot_models = [slot.model for slot in fanout_plan.slots]
+    assert len(slot_models) == 8
+    assert slot_models.count("opus") == 4
+    assert slot_models.count("gpt-5.5") == 4
 
 
 def test_run_agent_launch_body_dispatches_pure_alt_fanout() -> None:

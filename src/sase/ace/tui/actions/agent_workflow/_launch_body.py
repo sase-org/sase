@@ -475,34 +475,41 @@ class AgentLaunchBodyMixin:
 
         # Check for launch fan-out directives (e.g., %m(opus,sonnet) or %alt(a,b)).
         from sase.xprompt.directives import plan_prompt_fanout_variants
+        from sase.xprompt.processor import (
+            process_xprompt_references,
+            prompt_may_reference_xprompt,
+        )
 
         dispatch_prompt = "\n---\n".join(multi.segments)
         with timer.stage("fanout_plan", fanout_kind="prompt"):
-            fanout_plan = plan_prompt_fanout_variants(
-                dispatch_prompt,
-                extra_xprompts=local_xprompts or None,
-            )
-        if fanout_plan is None:
             # Expand inline xprompt references (e.g., #swarm -> %m(opus,sonnet))
-            # only when the prompt has a lexical xprompt candidate. The agent
-            # runner expands xprompts again in the subprocess; this TUI pass is
-            # solely to discover xprompt-injected fan-out directives.
-            from sase.xprompt.processor import (
-                process_xprompt_references,
-                prompt_may_reference_xprompt,
-            )
-
+            # *before* planning the fan-out shape, whenever the prompt has a
+            # lexical xprompt candidate — even if the raw prompt already
+            # contains %alt/%( directives. An xprompt can inject a model axis
+            # (e.g. #m_opus_codex -> %model(opus, #codex)) that must join the
+            # same Cartesian fan-out plan as the raw alternatives. Planning the
+            # raw prompt first would lock in a shape that omits the
+            # xprompt-injected model dimension, and the child runner would
+            # expand the model directive too late to fan out (the
+            # "4 agents, all Opus" bug).
+            #
+            # The agent runner expands xprompts again in the subprocess; this
+            # TUI pass is solely to discover the launch shape. Plain prompts
+            # that cannot reference an xprompt skip expansion entirely and plan
+            # directly from the dispatch prompt.
             if prompt_may_reference_xprompt(
                 dispatch_prompt, extra_xprompts=local_xprompts or None
             ):
-                expanded_prompt = process_xprompt_references(
+                planning_prompt = process_xprompt_references(
                     dispatch_prompt,
                     extra_xprompts=local_xprompts or None,
                 )
-                fanout_plan = plan_prompt_fanout_variants(
-                    expanded_prompt,
-                    extra_xprompts=local_xprompts or None,
-                )
+            else:
+                planning_prompt = dispatch_prompt
+            fanout_plan = plan_prompt_fanout_variants(
+                planning_prompt,
+                extra_xprompts=local_xprompts or None,
+            )
         if fanout_plan is not None:
             fanout_prompts = [slot.prompt for slot in fanout_plan.slots]
             timer.finish(

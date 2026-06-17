@@ -117,6 +117,45 @@ def test_split_prompt_for_models_requires_caller_expanded_xprompt_body() -> None
     ]
 
 
+def test_split_prompt_for_models_xprompt_model_axis_composes_with_alts() -> None:
+    """An expanded xprompt %model axis composes with raw %( alternative axes.
+
+    Regression for the launch fan-out shape bug: planning the raw prompt sees
+    only the two %( alternative axes — the launch-shaping xprompt
+    (#m_opus_codex -> %model(opus, #codex)) is still an unexpanded reference,
+    so the model dimension is missing and the split yields 4 model-less
+    variants. Expanding the xprompt before planning unlocks the model axis,
+    and %model(opus, #codex) joins the Cartesian product:
+    2 alts x 2 alts x 2 models = 8 variants, split evenly across opus/gpt-5.5.
+    """
+    from sase.xprompt.processor import process_xprompt_references
+
+    catalog = {
+        "codex": XPrompt(name="codex", content="gpt-5.5"),
+        "m_opus_codex": XPrompt(name="m_opus_codex", content="%model(opus, #codex)"),
+    }
+    prompt = (
+        "%n:foo Describe this repo %(briefly, in detail). "
+        "%(Don't trust the documentation!) #m_opus_codex"
+    )
+
+    # Raw planning sees only the two %( axes; the model dimension is absent
+    # because #m_opus_codex is still an unexpanded reference.
+    raw = split_prompt_for_models(prompt, extra_xprompts=catalog)
+    assert raw is not None
+    assert len(raw) == 4
+    assert all("%model" not in variant for variant in raw)
+
+    # Expanding the launch-shaping xprompt first unlocks the model axis.
+    with patch("sase.xprompt.processor.get_all_xprompts", return_value={}):
+        expanded = process_xprompt_references(prompt, extra_xprompts=catalog)
+    result = split_prompt_for_models(expanded, extra_xprompts=catalog)
+    assert result is not None
+    assert len(result) == 8
+    assert sum("%model:opus" in variant for variant in result) == 4
+    assert sum("%model:gpt-5.5" in variant for variant in result) == 4
+
+
 def test_split_prompt_for_models_direct_alt_same_as_multi_model() -> None:
     """Direct %alt(%model:...) produces the same output as %m(...)."""
     via_m = split_prompt_for_models("%n:foo\n%m(opus,sonnet)\nReview this code")

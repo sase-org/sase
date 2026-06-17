@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 14:22:44
-status: wip
+status: done
 prompt: sdd/prompts/202606/bad_fanout_xprompt.md
 ---
 # Fix xprompt-injected model fanout shape
