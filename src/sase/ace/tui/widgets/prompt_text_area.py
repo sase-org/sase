@@ -84,7 +84,6 @@ class PromptTextArea(
         ("alt+f", "cursor_word_right", "Forward word"),
         ("alt+b", "cursor_word_left", "Backward word"),
         ("ctrl+g", "open_editor", "Edit in editor"),
-        ("ctrl+shift+g", "open_all_editor", "Edit all in editor"),
         ("ctrl+y", "open_workflow_editor", "Workflow YAML"),
     ]
 
@@ -218,31 +217,25 @@ class PromptTextArea(
             self.move_cursor((row, 0), select=select)
 
     def action_open_editor(self) -> None:
-        """Request to open external editor."""
-        PromptInputBar = _prompt_bar_class()
-        bar = self._find_prompt_bar()
-        if bar:
-            self._clear_soft_completion(cancel_timer=True)
-            self._clear_xprompt_arg_hint()
-            row, col = self.cursor_location
-            bar.post_message(PromptInputBar.EditorRequested(self.text, row, col))
+        """Request to open the external editor (``^G``).
 
-    def action_open_all_editor(self) -> None:
-        """Request to open the whole prompt stack in the external editor.
-
-        Distinct from ``^G`` (active-pane only): this is a prompt-mode,
-        multi-agent surface keymap, so feedback / approve-prompt bars ignore it.
-        Keypress handling is kept light — clear transient completion / arg-hint
-        state and post the message — while the bar owns serializing the stack to
-        xprompt markdown off the keypress path.
+        A multi-pane prompt stack opens the whole stack as xprompt markdown (the
+        ``AllEditorRequested`` surface); a single-pane bar opens just the current
+        prompt.  Keypress handling stays light — clear transient completion /
+        arg-hint state and post the message — while the bar owns serializing the
+        stack off the keypress path.
         """
-        bar = self._find_prompt_bar()
-        if not bar or bar._mode != "prompt":
-            return
         PromptInputBar = _prompt_bar_class()
+        bar = self._find_prompt_bar()
+        if not bar:
+            return
         self._clear_soft_completion(cancel_timer=True)
         self._clear_xprompt_arg_hint()
-        bar.post_message(PromptInputBar.AllEditorRequested())
+        if bar._mode == "prompt" and bar.is_stacked():
+            bar.post_message(PromptInputBar.AllEditorRequested())
+            return
+        row, col = self.cursor_location
+        bar.post_message(PromptInputBar.EditorRequested(self.text, row, col))
 
     def action_open_workflow_editor(self) -> None:
         """Request to open workflow YAML editor."""

@@ -272,8 +272,9 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         Syncs the live panes into the model first, then joins them in launch
         order with ``---`` segment separators, re-attaching the canonical
         frontmatter only when properties are set (so an empty frontmatter leaves
-        no stray ``---\\n---`` block).  This is the buffer ``^⇧G`` opens; the
-        edited result is reloaded via :meth:`load_stack_from_xprompt_markdown`.
+        no stray ``---\\n---`` block).  This is the buffer multi-pane ``^G``
+        opens; the edited result is reloaded via
+        :meth:`load_stack_from_xprompt_markdown`.
         Single-pane prompts that carry inline leading frontmatter are preserved
         as authored, since that text lives verbatim in the pane.
         """
@@ -281,7 +282,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         return self._stack.join()
 
     def load_stack_from_xprompt_markdown(self, text: str) -> None:
-        """Reload the whole bar from edited xprompt markdown (the ``^⇧G`` return).
+        """Reload the whole bar from edited xprompt markdown (the multi-pane ``^G`` return).
 
         Unlike :meth:`load_stack_from_text` — which intentionally keeps a single
         prompt with frontmatter as one verbatim pane for history loads — this

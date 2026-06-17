@@ -308,7 +308,7 @@ async def test_load_single_cancelled_prompt_stays_single_pane() -> None:
         assert bar.active_text() == "a previously cancelled prompt"
 
 
-# --- ^G edits the active pane only -----------------------------------------
+# --- update_active_pane edits only the selected pane -----------------------
 
 
 async def test_update_active_pane_replaces_only_selected_pane() -> None:
@@ -361,7 +361,7 @@ async def test_feedback_mode_never_splits() -> None:
         assert bar.active_text() == "a\n---\nb"
 
 
-# --- all-pane editor (^⇧G) -------------------------------------------------
+# --- all-pane editor (^G when stacked) -------------------------------------
 
 
 class _RecordingPromptBarApp(App[None]):
@@ -404,53 +404,57 @@ class _RecordingPromptBarApp(App[None]):
         self.global_editor_calls += 1
 
 
-async def test_ctrl_g_requests_active_pane_text_only() -> None:
+async def test_ctrl_g_on_single_pane_requests_active_text() -> None:
+    app = _RecordingPromptBarApp("solo prompt")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.active_text_area().action_open_editor()
+        await pilot.pause()
+
+        # A single-pane bar posts the single-pane editor request, never the
+        # all-editor message.
+        assert len(app.editor_requests) == 1
+        assert app.editor_requests[0].current_text == "solo prompt"
+        assert app.all_editor_requests == []
+
+
+async def test_ctrl_g_on_stacked_bar_requests_whole_stack() -> None:
     app = _RecordingPromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.focus_item(1)  # edit the middle pane
+        bar.focus_item(1)  # the active pane must not narrow the editor scope
         await pilot.pause()
 
         bar.active_text_area().action_open_editor()
         await pilot.pause()
 
-        # ^G posts only the active pane's text — never the all-editor message.
-        assert len(app.editor_requests) == 1
-        assert app.editor_requests[0].current_text == "second"
-        assert app.all_editor_requests == []
-
-
-async def test_ctrl_shift_g_requests_whole_stack() -> None:
-    app = _RecordingPromptBarApp("alpha\n---\nbeta")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-
-        bar = app.query_one(PromptInputBar)
-        bar.active_text_area().action_open_all_editor()
-        await pilot.pause()
-
-        # ^⇧G posts the all-editor message; the serialized buffer is the whole
+        # ^G on a multi-pane stack posts exactly one all-editor message and never
+        # the single-pane editor request; the serialized buffer is the whole
         # stack joined with ``---`` separators.
         assert len(app.all_editor_requests) == 1
         assert app.editor_requests == []
-        assert bar.xprompt_markdown_for_editor() == "alpha\n---\nbeta"
+        assert bar.xprompt_markdown_for_editor() == "first\n---\nsecond\n---\nthird"
 
 
-async def test_all_editor_action_noop_in_feedback_mode() -> None:
+async def test_ctrl_g_in_feedback_mode_requests_single_pane() -> None:
     app = _RecordingPromptBarApp("draft feedback", mode="feedback")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.active_text_area().action_open_all_editor()
+        bar.active_text_area().action_open_editor()
         await pilot.pause()
 
-        # The all-pane editor is a prompt-mode (multi-agent) surface only.
+        # Feedback bars never stack, so ^G stays the single-pane editor and never
+        # reaches the all-editor (multi-agent) surface.
+        assert len(app.editor_requests) == 1
         assert app.all_editor_requests == []
 
 
@@ -470,10 +474,12 @@ async def test_focused_pane_ctrl_g_shadows_global_binding() -> None:
         assert app.global_editor_calls == 0
 
 
-def test_prompt_text_area_binds_both_editor_scopes() -> None:
+def test_prompt_text_area_binds_ctrl_g_editor_only() -> None:
     actions = {entry[0]: entry[1] for entry in PromptTextArea.BINDINGS}
     assert actions["ctrl+g"] == "open_editor"
-    assert actions["ctrl+shift+g"] == "open_all_editor"
+    # ``ctrl+shift+g`` is gone: ``ctrl+g`` is the single editor key, choosing the
+    # single-pane vs whole-stack scope from the live bar at action time.
+    assert "ctrl+shift+g" not in actions
 
 
 async def test_all_editor_markdown_serializes_canonical_frontmatter() -> None:

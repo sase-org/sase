@@ -189,7 +189,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
     def refresh_frontmatter_panel_from_stack(self) -> None:
         """Sync the panel's visibility + content to the stack's frontmatter.
 
-        Used after a whole-bar reload (the ``^⇧G`` all-editor return): shows and
+        Used after a whole-bar reload (the multi-pane ``^G`` all-editor return): shows and
         re-syncs the panel when the reloaded markdown lifted frontmatter onto the
         stack, and hides it when the edited markdown cleared all properties — so
         the structured panel always reflects the freshly loaded frontmatter

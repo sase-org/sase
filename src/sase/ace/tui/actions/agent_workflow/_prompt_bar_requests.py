@@ -17,7 +17,15 @@ class PromptBarRequestsMixin:
     _prompt_context: PromptContext | None
 
     def on_prompt_input_bar_editor_requested(self, event: object) -> None:
-        """Handle request to open external editor (Ctrl+G)."""
+        """Handle the single-pane editor request (``Ctrl+G`` on a solo bar).
+
+        A multi-pane stack reaches the editor via :meth:`AllEditorRequested`
+        instead, so this normally fires only for a single-pane bar.  The stacked
+        branch below stays as defensive coverage for any programmatic caller that
+        posts :class:`EditorRequested` while the bar holds multiple panes: the
+        editor result is loaded back into the active pane without launching or
+        disturbing the rest of the stack.
+        """
         from ...widgets import PromptInputBar
 
         if not isinstance(event, PromptInputBar.EditorRequested):
@@ -26,10 +34,7 @@ class PromptBarRequestsMixin:
         if self._prompt_context is None:
             return
 
-        # ``^G`` edits the active pane: in a multi-pane stack the editor opens on
-        # the selected pane's text alone, so its result is loaded back into that
-        # pane without launching or disturbing the rest of the stack. Capture the
-        # stacked state before suspending the TUI for the editor.
+        # Capture the stacked state before suspending the TUI for the editor.
         stacked_bar = self._stacked_prompt_bar()
 
         # Suspend TUI and open editor with current text
@@ -59,7 +64,7 @@ class PromptBarRequestsMixin:
             self._prompt_context = None
 
     def on_prompt_input_bar_all_editor_requested(self, event: object) -> None:
-        """Handle request to open the whole stack in the editor (Ctrl+Shift+G)."""
+        """Handle the whole-stack editor request (``Ctrl+G`` on a multi-pane bar)."""
         from ...widgets import PromptInputBar
 
         if not isinstance(event, PromptInputBar.AllEditorRequested):

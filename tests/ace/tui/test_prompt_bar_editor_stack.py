@@ -1,10 +1,14 @@
-"""Phase 5 tests: ``^G`` edits the active pane of a multi-pane prompt stack.
+"""Tests for the prompt-bar editor-return handlers.
 
-The editor-return handler must distinguish a single-pane bar (legacy behavior:
-``%edit`` reloads the whole bar, otherwise the edited text launches) from a
-multi-pane stack, where ``^G`` edits only the selected pane: the result is
-loaded back into that pane and the rest of the stack — and its mounted bar — is
-left untouched, never launched.
+``^G`` is the single editor key: on a single-pane bar it posts
+:class:`EditorRequested` (legacy behavior: ``%edit`` reloads the whole bar,
+otherwise the edited text launches); on a multi-pane stack it posts
+:class:`AllEditorRequested`, opening the whole stack as xprompt markdown and
+reloading the edited result without launching.
+
+The ``EditorRequested`` handler still carries a defensive stacked-bar branch
+(edit only the active pane, never launch) for any programmatic caller that posts
+that message while the bar holds multiple panes; the keymap no longer reaches it.
 """
 
 from __future__ import annotations
@@ -114,7 +118,11 @@ def _all_event() -> PromptInputBar.AllEditorRequested:
     return PromptInputBar.AllEditorRequested()
 
 
-# --- multi-pane stack: ^G edits the active pane ----------------------------
+# --- defensive: programmatic EditorRequested on a multi-pane stack ---------
+# The ^G keymap posts AllEditorRequested when stacked (see the all-editor tests
+# below); these cover the handler's defensive branch for a programmatic caller
+# that posts EditorRequested while the bar holds multiple panes -- it edits only
+# the active pane and never launches.
 
 
 def test_stacked_editor_return_updates_active_pane_without_launching() -> None:
@@ -227,7 +235,7 @@ def test_single_pane_editor_empty_return_unmounts() -> None:
     assert harness.notifications == [("No prompt from editor - cancelled", "warning")]
 
 
-# --- ^⇧G edits the whole stack (all-editor) --------------------------------
+# --- ^G on a multi-pane stack edits the whole stack (all-editor) -----------
 
 
 def test_all_editor_opens_whole_stack_not_active_pane() -> None:

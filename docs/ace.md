@@ -1618,7 +1618,7 @@ launched. The detailed multi-agent parsing rules live in the [XPrompt reference]
 | `Ctrl+J`       | Insert a newline                                                                              |
 | `Ctrl+A`       | Move to start of line (jumps to previous line start if already at col 0)                      |
 | `Ctrl+E`       | Move to end of line (jumps to next line end if already at end)                                |
-| `Ctrl+G`       | Open the current prompt or selected stack pane in `$EDITOR`                                   |
+| `Ctrl+G`       | Open the current prompt in `$EDITOR`; in a prompt stack, open the whole stack                 |
 | `Ctrl+Y`       | Open the workflow YAML editor                                                                 |
 | `Ctrl+K`       | Open prompt history, filtered by the current single-line prompt                               |
 | `Ctrl+T`       | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
@@ -1639,9 +1639,10 @@ default so you can keep drafting the newest segment; it is not a priority marker
 the submit chooser.
 
 Inactive panes stay compact, and the active pane takes the available height. Typing a `---` line in INSERT mode splits
-the active pane immediately, unless the separator is inside YAML frontmatter or a fenced code block. `Ctrl+G` edits only
-the selected pane when the stack already has multiple panes. Loading from history or returning from a whole-bar editor
-session replaces the whole stack, so those paths parse `---` separators into fresh panes.
+the active pane immediately, unless the separator is inside YAML frontmatter or a fenced code block. `Ctrl+G` opens the
+whole stack in `$EDITOR` when the bar already has multiple panes (a single-pane bar opens just the current prompt).
+Loading from history or returning from a whole-bar editor session replaces the whole stack, so those paths parse `---`
+separators into fresh panes.
 
 | Key            | Action                                                                                                 |
 | -------------- | ------------------------------------------------------------------------------------------------------ |

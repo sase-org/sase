@@ -204,7 +204,7 @@ class PromptInputBar(
             return "Type coder prompt...  [^G] editor  [^J] newline"
         return (
             "Type prompt  [^K] history  [^T] complete  [^R] find  "
-            "[^G] editor  [^⇧G] edit all  [^Y] workflow  [^J] newline"
+            "[^G] editor  [^Y] workflow  [^J] newline"
         )
 
     def on_mount(self) -> None:
