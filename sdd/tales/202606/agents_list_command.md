@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 07:11:06
-status: wip
+status: done
 prompt: sdd/prompts/202606/agents_list_command.md
 ---
 # Plan: Rename `sase agents status` to `sase agents list`

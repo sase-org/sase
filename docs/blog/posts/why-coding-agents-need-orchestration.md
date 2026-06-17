@@ -531,7 +531,7 @@ These are the commands I reach for most:
 | `sase version`                         | Exact SASE, Rust core, and plugin package inventory.                 |
 | `sase ace`                             | Open the TUI cockpit.                                                |
 | `sase run "..."`                       | Launch an agent, xprompt, or workflow.                               |
-| `sase agents status`                   | See active and recent agent runs from the terminal.                  |
+| `sase agents list`                     | See active and recent agent runs from the terminal.                  |
 | `sase xprompt list`                    | See available xprompts and workflows.                                |
 | `sase xprompt explain "#foo"`          | Inspect how a prompt reference resolves.                             |
 | `sase xprompt graph "#!workflow"`      | Visualize workflow structure.                                        |

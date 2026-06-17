@@ -67,7 +67,7 @@ Start with a read-only task in the directory you want the agent to inspect:
 
 ```bash
 sase run "#cd:$(pwd) summarize what this repository does; do not change files"
-sase agents status
+sase agents list
 ```
 
 The `#cd:$(pwd)` prefix makes the target workspace explicit. `sase run` allocates an isolated **workspace** — a sibling
@@ -75,7 +75,7 @@ clone of the repo named `sase_<N>` — and runs the provider CLI there. That iso
 agents at once without them colliding, and what lets a failed run be retried without touching your real checkout.
 
 The launched agent gets its own durable record on disk: prompt, reply transcript, artifacts directory, status, and
-workspace path. `sase agents status` gives you the first visible handle for that record while the model is thinking or
+workspace path. `sase agents list` gives you the first visible handle for that record while the model is thinking or
 after it finishes.
 
 **What you just did.** Dispatched a read-only coding-agent run inside an explicit [workspace](../../workspace.md), then
@@ -111,7 +111,7 @@ After you have seen the agent record, try a low-risk change:
 
 ```bash
 sase run "#cd:$(pwd) make a tiny documentation-only improvement and explain the diff"
-sase agents status
+sase agents list
 ```
 
 Now the agent has permission to make a visible diff in its isolated workspace. Review the resulting workspace or

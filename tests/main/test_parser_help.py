@@ -138,6 +138,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
     """Every command group with an exact ``list`` child parses bare as list."""
     parser = create_parser()
     expected_groups = {
+        "sase agents",
         "sase agents tag",
         "sase amd",
         "sase axe chop",
@@ -173,7 +174,6 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
             assert getattr(omitted_args, key) == value, f"{label} default {key}"
 
     assert expected_groups <= list_groups
-    assert "sase agents" not in list_groups
 
 
 def test_agents_help_renders_sorted_subcommands() -> None:
@@ -184,9 +184,9 @@ def test_agents_help_renders_sorted_subcommands() -> None:
         "artifacts",
         "index",
         "kill",
+        "list",
         "names",
         "show",
-        "status",
         "tag",
     }
 
@@ -196,7 +196,7 @@ def test_agents_help_renders_sorted_subcommands() -> None:
 
     assert help_commands == sorted(expected_commands)
     assert (
-        "{archive,artifacts,index,kill,names,show,status,tag}"
+        "{archive,artifacts,index,kill,list,names,show,tag}"
         in agents_parser.format_help()
     )
 
@@ -496,7 +496,7 @@ def test_run_help_shows_prompt_positional_and_beginner_examples() -> None:
     assert (
         'sase run -d "#cd:$(pwd) inspect pending work; do not change files"' in run_help
     )
-    assert "sase agents status" in run_help
+    assert "sase agents list" in run_help
     assert args.prompt == "hello"
 
 

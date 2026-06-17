@@ -16,17 +16,49 @@ from sase.main.agents_handler import handle_agents_command
 from sase.main.parser import create_parser
 
 
-def test_dispatch_bare_defaults_to_status() -> None:
-    """A bare `sase agents` (no subcommand) invokes the status handler."""
+def test_dispatch_bare_defaults_to_list() -> None:
+    """A bare `sase agents` (no subcommand) invokes the list handler."""
     args = argparse.Namespace(
         agents_subcommand=None, all=False, json=True, project=None
     )
     with (
-        patch("sase.agents.cli_status.list_running_agents", return_value=[]),
+        patch("sase.agents.cli_list.list_running_agents", return_value=[]),
         pytest.raises(SystemExit) as excinfo,
     ):
         handle_agents_command(args)
     assert excinfo.value.code == 0
+
+
+def test_dispatch_list_subcommand() -> None:
+    """`sase agents list` dispatches to the running-agents list handler."""
+    args = argparse.Namespace(
+        agents_subcommand="list", all=False, json=True, project=None
+    )
+    with (
+        patch("sase.agents.cli_list.list_running_agents", return_value=[]),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_command(args)
+    assert excinfo.value.code == 0
+
+
+def test_parser_bare_agents_defaults_to_list() -> None:
+    """Bare `sase agents` resolves to the `list` subcommand via list-default."""
+    args = create_parser().parse_args(["agents"])
+
+    assert args.command == "agents"
+    assert args.agents_subcommand == "list"
+
+
+def test_parser_registers_list_flags() -> None:
+    """`sase agents list` accepts the `-a/-j/-p` listing flags."""
+    args = create_parser().parse_args(["agents", "list", "-a", "-j", "-p", "proj"])
+
+    assert args.command == "agents"
+    assert args.agents_subcommand == "list"
+    assert args.all is True
+    assert args.json is True
+    assert args.project == "proj"
 
 
 def test_dispatch_unknown_subcommand(capsys: pytest.CaptureFixture[str]) -> None:

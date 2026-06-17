@@ -37,7 +37,7 @@ from tests.main.init_skills_handler_helpers import make_args
         (
             "sase_agents_status",
             (
-                "sase agents status -j",
+                "sase agents list -j",
                 "artifacts_dir",
                 "cite the artifact paths",
             ),

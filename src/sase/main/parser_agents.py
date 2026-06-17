@@ -13,12 +13,12 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="agents_subcommand", help="Agents subcommands"
     )
 
-    # sase agents status (default when no subcommand given)
-    status_parser = agents_sub.add_parser(
-        "status",
+    # sase agents list (default when no subcommand given)
+    list_parser = agents_sub.add_parser(
+        "list",
         help="List running agents (pretty table by default, JSON with -j)",
     )
-    status_parser.add_argument(
+    list_parser.add_argument(
         "-a",
         "--all",
         action="store_true",
@@ -27,13 +27,13 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
             " (capped at 50 most-recent per project)"
         ),
     )
-    status_parser.add_argument(
+    list_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
         help="Emit a machine-readable JSON array (stable schema)",
     )
-    status_parser.add_argument(
+    list_parser.add_argument(
         "-p",
         "--project",
         help="Only show agents for the given project name",

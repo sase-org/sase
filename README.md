@@ -35,7 +35,7 @@ to inspect:
 
 ```bash
 sase run "#cd:$(pwd) summarize what this repository does; do not change files"
-sase agents status
+sase agents list
 ```
 
 If `sase doctor` reports a missing provider executable or authentication gap, install and authenticate one of the
@@ -92,7 +92,7 @@ sase doctor -v           # readable install, config, project, provider, and stat
 sase version             # inspect the exact SASE packages loaded by this environment
 sase ace                  # open the interactive control surface; press ,p for project lifecycle management
 sase run "<prompt>"       # launch an agent or workflow
-sase agents status        # inspect running agents
+sase agents list          # inspect running agents
 sase plan                 # review pending, approved, and inferred rejected plan proposals
 sase bead onboard         # see the bead issue-tracking quick start
 sase workspace list       # inspect numbered workspaces for the current project

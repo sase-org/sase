@@ -1,4 +1,4 @@
-"""``sase agents status`` — list running (and optionally completed) agents."""
+"""``sase agents list`` — list running (and optionally completed) agents."""
 
 from __future__ import annotations
 
@@ -37,8 +37,8 @@ _PROMPT_PRETTY_MAX_CHARS = 80
 _PROMPT_JSON_MAX_CHARS = 200
 
 
-def handle_agents_status(args: argparse.Namespace) -> None:
-    """Render the running-agents status view (pretty or JSON)."""
+def handle_agents_list(args: argparse.Namespace) -> None:
+    """Render the running-agents list view (pretty or JSON)."""
     include_all = bool(getattr(args, "all", False))
     project_filter: str | None = getattr(args, "project", None)
     as_json = bool(getattr(args, "json", False))

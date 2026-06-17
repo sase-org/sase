@@ -380,7 +380,7 @@ The full per-percentile data (min / median / p95 / max) is in each artifact's `w
 ### End-to-end TUI / CLI surfaces (Phase 7C)
 
 Driver: `tests/perf/bench_phase7_e2e.py`. One artifact per `(surface, backend)` invocation under
-`sdd/tales/202604/perf_artifacts/rust_backend_phase7_<surface>_<backend>.json`; the home-tree `sase agents status` rows
+`sdd/tales/202604/perf_artifacts/rust_backend_phase7_<surface>_<backend>.json`; the home-tree `sase agents list` rows
 sit in the gitignored `sdd/tales/202604/perf_artifacts/local_only/` dir because they reflect a workstation-specific
 tree.
 
@@ -413,7 +413,7 @@ without depending on a specific workstation's sub-millisecond numbers.
 
 **Wins:**
 
-- `sase agents status -j` cold listing is the headline Rust win — ~2.6× on the synthetic 8×25 tree and ~2.0× on this
+- `sase agents list -j` cold listing is the headline Rust win — ~2.6× on the synthetic 8×25 tree and ~2.0× on this
   workstation's home tree. The cold subprocess wall-time is dominated by `scan_agent_artifacts`, which Rust ports.
 - `parse_project_bytes` is a clean ~2.4× win on small files and ~1.4× on a 200-spec synthetic file.
 - `parse_query` direct parsing is a ~2.1× win on the parse-only workload.

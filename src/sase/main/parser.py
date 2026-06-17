@@ -114,7 +114,7 @@ _COMPACT_ROOT_EXAMPLES: tuple[str, ...] = (
     "sase init -c",
     'sase run "#cd:$(pwd) summarize this repository; do not change files"',
     "sase ace",
-    "sase agents status",
+    "sase agents list",
     "sase --full-help",
 )
 

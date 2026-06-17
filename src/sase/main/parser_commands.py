@@ -555,7 +555,7 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
             "Examples:\n"
             '  sase run "#cd:$(pwd) summarize what this repository does; do not change files"\n'
             '  sase run -d "#cd:$(pwd) inspect pending work; do not change files"\n'
-            "  sase agents status"
+            "  sase agents list"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
