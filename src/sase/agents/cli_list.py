@@ -1,4 +1,4 @@
-"""``sase agents list`` — list running (and optionally completed) agents."""
+"""``sase agent list`` — list running (and optionally completed) agents."""
 
 from __future__ import annotations
 

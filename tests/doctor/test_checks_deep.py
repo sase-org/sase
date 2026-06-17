@@ -51,7 +51,7 @@ def test_agent_index_verify_warns_on_drift(monkeypatch, tmp_path: Path) -> None:
 
     assert check.status == "WARN"
     assert "missing_rows=1" in check.summary
-    assert check.next_steps == ("Run `sase agents index gc`.",)
+    assert check.next_steps == ("Run `sase agent index gc`.",)
 
 
 def test_provider_cli_versions_reports_success(monkeypatch, tmp_path: Path) -> None:

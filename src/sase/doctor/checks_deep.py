@@ -92,7 +92,7 @@ def _check_agent_index_verify() -> DiagnosticCheck:
         title="Agent artifact index verify",
         summary=summary,
         details=details,
-        next_steps=("Run `sase agents index gc`.",) if not result.ok else (),
+        next_steps=("Run `sase agent index gc`.",) if not result.ok else (),
         data=data,
     )
 

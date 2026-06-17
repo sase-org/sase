@@ -1,4 +1,4 @@
-"""Chat history management for sase agents.
+"""Chat history management for SASE agents.
 
 This module provides functions to save and load conversation histories
 from sase agent runs. Histories are stored in ~/.sase/chats/ with filenames

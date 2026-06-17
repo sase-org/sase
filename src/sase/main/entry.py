@@ -37,11 +37,11 @@ def main() -> NoReturn:
 
         handle_ace_command(args)
 
-    # --- agents ---
-    if args.command == "agents":
-        from .agents_handler import handle_agents_command
+    # --- agent ---
+    if args.command == "agent":
+        from .agent_handler import handle_agent_command
 
-        handle_agents_command(args)
+        handle_agent_command(args)
 
     # --- amd ---
     if args.command == "amd":

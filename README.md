@@ -35,7 +35,7 @@ to inspect:
 
 ```bash
 sase run "#cd:$(pwd) summarize what this repository does; do not change files"
-sase agents list
+sase agent list
 ```
 
 If `sase doctor` reports a missing provider executable or authentication gap, install and authenticate one of the
@@ -92,7 +92,7 @@ sase doctor -v           # readable install, config, project, provider, and stat
 sase version             # inspect the exact SASE packages loaded by this environment
 sase ace                  # open the interactive control surface; press ,p for project lifecycle management
 sase run "<prompt>"       # launch an agent or workflow
-sase agents list          # inspect running agents
+sase agent list          # inspect running agents
 sase plan                 # review pending, approved, and inferred rejected plan proposals
 sase bead onboard         # see the bead issue-tracking quick start
 sase workspace list       # inspect numbered workspaces for the current project
@@ -162,7 +162,7 @@ SASE keeps durable state outside any one chat session:
   commands, and external integrations can share state. Long-term memory reads and write proposals are also
   project-scoped and audited so agents can discover context without silently changing canonical memory files. ACE uses a
   persistent artifact index for its normal Agents-tab "visible inbox" - active plus recent completed, non-hidden rows -
-  so startup does not scan all history. Use `sase agents index status` for a lightweight health check, `verify` to
+  so startup does not scan all history. Use `sase agent index status` for a lightweight health check, `verify` to
   compare the index with source artifacts, and `gc` to rebuild the index and dismissed projection.
 
 ## Keep reading

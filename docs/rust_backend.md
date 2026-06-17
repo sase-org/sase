@@ -64,7 +64,7 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
 - Explicit agent artifact storage remains Python-owned because it copies or moves user files into `~/.sase/artifacts/`
   and updates the local JSONL association index under a file lock. Rust owns the separate agent-run artifact scanner and
   its persistent query index. Python owns best-effort lifecycle orchestration around that index: syncing dismissed-agent
-  projection inputs before ACE loads, refreshing rows after marker mutations, and dispatching `sase agents index gc`.
+  projection inputs before ACE loads, refreshing rows after marker mutations, and dispatching `sase agent index gc`.
 
 ## Why a Rust Backend?
 
@@ -380,9 +380,8 @@ The full per-percentile data (min / median / p95 / max) is in each artifact's `w
 ### End-to-end TUI / CLI surfaces (Phase 7C)
 
 Driver: `tests/perf/bench_phase7_e2e.py`. One artifact per `(surface, backend)` invocation under
-`sdd/tales/202604/perf_artifacts/rust_backend_phase7_<surface>_<backend>.json`; the home-tree `sase agents list` rows
-sit in the gitignored `sdd/tales/202604/perf_artifacts/local_only/` dir because they reflect a workstation-specific
-tree.
+`sdd/tales/202604/perf_artifacts/rust_backend_phase7_<surface>_<backend>.json`; the home-tree `sase agent list` rows sit
+in the gitignored `sdd/tales/202604/perf_artifacts/local_only/` dir because they reflect a workstation-specific tree.
 
 | Surface                      | Workload                          | runs |     rust | python (Phase 7B) |   speedup |
 | ---------------------------- | --------------------------------- | ---- | -------: | ----------------: | --------: |
@@ -413,7 +412,7 @@ without depending on a specific workstation's sub-millisecond numbers.
 
 **Wins:**
 
-- `sase agents list -j` cold listing is the headline Rust win — ~2.6× on the synthetic 8×25 tree and ~2.0× on this
+- `sase agent list -j` cold listing is the headline Rust win — ~2.6× on the synthetic 8×25 tree and ~2.0× on this
   workstation's home tree. The cold subprocess wall-time is dominated by `scan_agent_artifacts`, which Rust ports.
 - `parse_project_bytes` is a clean ~2.4× win on small files and ~1.4× on a 200-spec synthetic file.
 - `parse_query` direct parsing is a ~2.1× win on the parse-only workload.

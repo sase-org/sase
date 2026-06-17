@@ -327,16 +327,16 @@ through the persistent artifact index when it is available.
 
 If the index is missing or unhealthy, ACE falls back to a bounded source-artifact scan for the first paint and shows a
 repair warning with the reason. That repair state can arm a deferred full-history reconcile after the TUI is idle, but
-normal `y` refreshes still stay on the visible-inbox path. Use `sase agents index status --json` for a lightweight check
-that does not scan source artifacts, `sase agents index verify` to compare the index with source artifacts, and
-`sase agents index gc` to rebuild the index and dismissed projection. Use the Agents-tab leader command `,y` when you
+normal `y` refreshes still stay on the visible-inbox path. Use `sase agent index status --json` for a lightweight check
+that does not scan source artifacts, `sase agent index verify` to compare the index with source artifacts, and
+`sase agent index gc` to rebuild the index and dismissed projection. Use the Agents-tab leader command `,y` when you
 want an immediate full-history refresh from source artifacts.
 
 The dismissed projection that hides agents from the visible inbox is rebuilt from the in-memory dismissed set _unioned
 with every dismissed-bundle summary_. Reviving an agent now purges its dismissed bundle, so a revived agent stays
-visible. For archives that accumulated stale bundles before that fix, plain `sase agents index gc` is **not** a repair
-on its own -- it rebuilds the projection _from_ those lingering bundles and re-hides the revived agents. Run
-`sase agents index gc --purge-revived-bundles` (`-r`) to first delete dismissed-bundle files and summary rows for
+visible. For archives that accumulated stale bundles before that fix, plain `sase agent index gc` is **not** a repair on
+its own -- it rebuilds the projection _from_ those lingering bundles and re-hides the revived agents. Run
+`sase agent index gc --purge-revived-bundles` (`-r`) to first delete dismissed-bundle files and summary rows for
 suffixes that are no longer present in `dismissed_agents.json`, then rebuild the corrected projection.
 
 When one or more agents are marked, `e` edits the marked set instead of only the focused row. ACE opens editable
@@ -1183,7 +1183,7 @@ a reserved name from the TUI, launch with `%name:!<name>`; the `!` form confirms
 owner and then claim the name for the new agent. Reviving and dismissing agents preserve their stored names.
 
 The durable registry lives at `~/.sase/agent_name_registry.json` and is rebuilt from visible artifacts plus dismissed
-bundles when missing or stale. Use `sase agents names migrate-auto` to run the historical auto-name migration that moves
+bundles when missing or stale. Use `sase agent names migrate-auto` to run the historical auto-name migration that moves
 older generated names into the permanent namespace; pass `--force` to rerun after the migration marker is present or
 `--json` for machine-readable output.
 
@@ -1313,8 +1313,8 @@ There is no limit on the number of dismissed agents or saved groups that can be 
 Dismiss operations are O(1) per agent: each agent is saved to its own JSON file rather than a monolithic store. Parent
 workflow rows use `<raw_suffix>.json`; workflow children use `<raw_suffix>__c<step_index>.json`. ACE keeps a SQLite
 summary index in the dismissed-bundle directory so the revive modal and internal lookups can list dismissed agents
-without opening every bundle. Use `sase agents archive verify` to check that maintenance index, or
-`sase agents archive rebuild-index` to rebuild it from bundle files. The index stores metadata such as status, name,
+without opening every bundle. Use `sase agent archive verify` to check that maintenance index, or
+`sase agent archive rebuild-index` to rebuild it from bundle files. The index stores metadata such as status, name,
 project, model, provider, workflow, and ChangeSpec metadata; it is not a full-text copy of agent chat contents.
 
 Revival removes the agent identity from the dismissed set, restores enough artifact files for ACE to rediscover the

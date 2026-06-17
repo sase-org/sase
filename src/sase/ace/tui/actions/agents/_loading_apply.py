@@ -38,7 +38,7 @@ def _agent_index_repair_notice(load_state: AgentLoadState | None) -> str | None:
     reason = load_state.repair_reason or "unknown"
     return (
         f"Agent index repair recommended: {reason}. "
-        "Run `sase agents index status --json`, then `sase agents index gc`."
+        "Run `sase agent index status --json`, then `sase agent index gc`."
     )
 
 

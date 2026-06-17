@@ -89,6 +89,4 @@ def test_archive_unknown_subcommand_prints_maintenance_usage(
         handle_agents_archive(_archive_args("search"))
 
     assert excinfo.value.code == 1
-    assert (
-        "Usage: sase agents archive {rebuild-index,verify}" in capsys.readouterr().out
-    )
+    assert "Usage: sase agent archive {rebuild-index,verify}" in capsys.readouterr().out

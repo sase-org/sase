@@ -158,7 +158,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
     def _merge_external_dismissals(self) -> None:
         """Union on-disk dismissed-agent identities into the in-memory set.
 
-        External processes (Telegram kill, ``sase agents kill``, gchat) write
+        External processes (Telegram kill, ``sase agent kill``, gchat) write
         to ``~/.sase/dismissed_agents.json`` directly via
         :func:`sase.agent.running.kill_named_agent`. Without this merge a
         long-lived TUI would never observe those entries on its next refresh

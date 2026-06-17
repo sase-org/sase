@@ -29,7 +29,7 @@ from sase.core.paths import sase_projects_dir
 
 
 def handle_agents_index(args: argparse.Namespace) -> None:
-    """Dispatch ``sase agents index`` subcommands."""
+    """Dispatch ``sase agent index`` subcommands."""
     sub = getattr(args, "index_subcommand", None)
     if sub == "gc":
         _handle_agents_index_gc(args)
@@ -44,7 +44,7 @@ def handle_agents_index(args: argparse.Namespace) -> None:
         _handle_agents_index_verify(args)
         return
 
-    Console().print("Usage: sase agents index {gc,rebuild,status,verify}")
+    Console().print("Usage: sase agent index {gc,rebuild,status,verify}")
     raise SystemExit(1)
 
 
@@ -117,8 +117,8 @@ def _handle_agents_index_status(args: argparse.Namespace) -> None:
             "Agent artifact index repair recommended: "
             f"{payload['repair_reason']} ({index_path})"
         )
-        Console().print("Run: sase agents index verify")
-        Console().print("Repair: sase agents index gc")
+        Console().print("Run: sase agent index verify")
+        Console().print("Repair: sase agent index gc")
         return
 
     Console().print(
@@ -142,11 +142,11 @@ def _agent_index_status_payload(
         "dismissed_projection_rows": 0,
         "indexed_rows": 0,
         "normal_refresh": "visible-inbox artifact-index query",
-        "repair_command": "sase agents index gc",
+        "repair_command": "sase agent index gc",
         "repair_reason": None,
         "repair_recommended": False,
         "schema_version": 0,
-        "verify_command": "sase agents index verify",
+        "verify_command": "sase agent index verify",
         "visible_rows": 0,
     }
     if not base["index_exists"]:

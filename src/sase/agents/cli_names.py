@@ -8,7 +8,7 @@ import sys
 
 
 def handle_agents_names(args: argparse.Namespace) -> None:
-    """Dispatch ``sase agents names`` subcommands."""
+    """Dispatch ``sase agent names`` subcommands."""
     sub = getattr(args, "names_subcommand", None)
     if sub == "migrate-auto":
         from sase.agent.names import run_historical_auto_name_migration
@@ -36,5 +36,5 @@ def handle_agents_names(args: argparse.Namespace) -> None:
                 )
         return
 
-    print("Usage: sase agents names {migrate-auto}")
+    print("Usage: sase agent names {migrate-auto}")
     sys.exit(1)

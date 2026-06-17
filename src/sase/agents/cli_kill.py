@@ -1,4 +1,4 @@
-"""``sase agents kill`` — terminate a running agent by name."""
+"""``sase agent kill`` — terminate a running agent by name."""
 
 from __future__ import annotations
 

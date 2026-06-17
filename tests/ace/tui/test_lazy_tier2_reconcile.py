@@ -338,7 +338,7 @@ def test_repair_notice_only_when_repair_recommended() -> None:
     notice = _agent_index_repair_notice(repair)
     assert notice is not None
     assert "artifact_index_missing_bounded_fallback" in notice
-    assert "sase agents index gc" in notice
+    assert "sase agent index gc" in notice
 
 
 def _make_complete_load_state() -> Any:

@@ -1,4 +1,4 @@
-"""Tests for `sase agents` dispatch, archive, and index commands."""
+"""Tests for `sase agent` dispatch, archive, and index commands."""
 
 from __future__ import annotations
 
@@ -12,50 +12,48 @@ from sase.core.agent_scan_wire import (
     AgentArtifactIndexUpdateWire,
     AgentArtifactIndexVerifyWire,
 )
-from sase.main.agents_handler import handle_agents_command
+from sase.main.agent_handler import handle_agent_command
 from sase.main.parser import create_parser
 
 
 def test_dispatch_bare_defaults_to_list() -> None:
-    """A bare `sase agents` (no subcommand) invokes the list handler."""
-    args = argparse.Namespace(
-        agents_subcommand=None, all=False, json=True, project=None
-    )
+    """A bare `sase agent` (no subcommand) invokes the list handler."""
+    args = argparse.Namespace(agent_subcommand=None, all=False, json=True, project=None)
     with (
         patch("sase.agents.cli_list.list_running_agents", return_value=[]),
         pytest.raises(SystemExit) as excinfo,
     ):
-        handle_agents_command(args)
+        handle_agent_command(args)
     assert excinfo.value.code == 0
 
 
 def test_dispatch_list_subcommand() -> None:
-    """`sase agents list` dispatches to the running-agents list handler."""
+    """`sase agent list` dispatches to the running-agents list handler."""
     args = argparse.Namespace(
-        agents_subcommand="list", all=False, json=True, project=None
+        agent_subcommand="list", all=False, json=True, project=None
     )
     with (
         patch("sase.agents.cli_list.list_running_agents", return_value=[]),
         pytest.raises(SystemExit) as excinfo,
     ):
-        handle_agents_command(args)
+        handle_agent_command(args)
     assert excinfo.value.code == 0
 
 
 def test_parser_bare_agents_defaults_to_list() -> None:
-    """Bare `sase agents` resolves to the `list` subcommand via list-default."""
-    args = create_parser().parse_args(["agents"])
+    """Bare `sase agent` resolves to the `list` subcommand via list-default."""
+    args = create_parser().parse_args(["agent"])
 
-    assert args.command == "agents"
-    assert args.agents_subcommand == "list"
+    assert args.command == "agent"
+    assert args.agent_subcommand == "list"
 
 
 def test_parser_registers_list_flags() -> None:
-    """`sase agents list` accepts the `-a/-j/-p` listing flags."""
-    args = create_parser().parse_args(["agents", "list", "-a", "-j", "-p", "proj"])
+    """`sase agent list` accepts the `-a/-j/-p` listing flags."""
+    args = create_parser().parse_args(["agent", "list", "-a", "-j", "-p", "proj"])
 
-    assert args.command == "agents"
-    assert args.agents_subcommand == "list"
+    assert args.command == "agent"
+    assert args.agent_subcommand == "list"
     assert args.all is True
     assert args.json is True
     assert args.project == "proj"
@@ -63,17 +61,17 @@ def test_parser_registers_list_flags() -> None:
 
 def test_dispatch_unknown_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
     """Unknown subcommand prints usage and exits 1."""
-    args = argparse.Namespace(agents_subcommand="bogus")
+    args = argparse.Namespace(agent_subcommand="bogus")
     with pytest.raises(SystemExit) as excinfo:
-        handle_agents_command(args)
+        handle_agent_command(args)
     assert excinfo.value.code == 1
-    assert "Usage: sase agents" in capsys.readouterr().out
+    assert "Usage: sase agent" in capsys.readouterr().out
 
 
 def test_dispatch_archive_rebuild_index(capsys: pytest.CaptureFixture[str]) -> None:
     """Archive maintenance dispatches to the dismissed-bundle index rebuild."""
     args = argparse.Namespace(
-        agents_subcommand="archive",
+        agent_subcommand="archive",
         archive_subcommand="rebuild-index",
     )
     with (
@@ -83,7 +81,7 @@ def test_dispatch_archive_rebuild_index(capsys: pytest.CaptureFixture[str]) -> N
         ),
         pytest.raises(SystemExit) as excinfo,
     ):
-        handle_agents_command(args)
+        handle_agent_command(args)
     assert excinfo.value.code == 0
     assert (
         "Indexed 2 dismissed bundles; skipped 1 corrupt files."
@@ -96,7 +94,7 @@ def test_dispatch_archive_verify_exits_nonzero_when_stale(
 ) -> None:
     """Archive verify reports failures through its process exit code."""
     args = argparse.Namespace(
-        agents_subcommand="archive",
+        agent_subcommand="archive",
         archive_subcommand="verify",
     )
     with (
@@ -113,15 +111,15 @@ def test_dispatch_archive_verify_exits_nonzero_when_stale(
         ),
         pytest.raises(SystemExit) as excinfo,
     ):
-        handle_agents_command(args)
+        handle_agent_command(args)
     assert excinfo.value.code == 1
     assert '"missing_rows": 1' in capsys.readouterr().out
 
 
 def test_dispatch_index_rebuild_json(capsys: pytest.CaptureFixture[str]) -> None:
-    """`sase agents index rebuild -j` reports the Rust rebuild summary."""
+    """`sase agent index rebuild -j` reports the Rust rebuild summary."""
     args = argparse.Namespace(
-        agents_subcommand="index",
+        agent_subcommand="index",
         index_subcommand="rebuild",
         index_path="/tmp/index.sqlite",
         projects_root="/tmp/projects",
@@ -150,7 +148,7 @@ def test_dispatch_index_rebuild_json(capsys: pytest.CaptureFixture[str]) -> None
         ) as mock_rebuild,
         pytest.raises(SystemExit) as excinfo,
     ):
-        handle_agents_command(args)
+        handle_agent_command(args)
 
     assert excinfo.value.code == 0
     mock_rebuild.assert_called_once()
@@ -158,10 +156,10 @@ def test_dispatch_index_rebuild_json(capsys: pytest.CaptureFixture[str]) -> None
 
 
 def test_parser_registers_index_gc_options() -> None:
-    """`sase agents index gc` accepts the shared index path knobs."""
+    """`sase agent index gc` accepts the shared index path knobs."""
     args = create_parser().parse_args(
         [
-            "agents",
+            "agent",
             "index",
             "gc",
             "--index-path",
@@ -172,8 +170,8 @@ def test_parser_registers_index_gc_options() -> None:
         ]
     )
 
-    assert args.command == "agents"
-    assert args.agents_subcommand == "index"
+    assert args.command == "agent"
+    assert args.agent_subcommand == "index"
     assert args.index_subcommand == "gc"
     assert args.index_path == "/tmp/index.sqlite"
     assert args.projects_root == "/tmp/projects"
@@ -181,10 +179,10 @@ def test_parser_registers_index_gc_options() -> None:
 
 
 def test_parser_registers_artifacts_layout_migrate_options() -> None:
-    """`sase agents artifacts layout migrate` accepts migration knobs."""
+    """`sase agent artifacts layout migrate` accepts migration knobs."""
     args = create_parser().parse_args(
         [
-            "agents",
+            "agent",
             "artifacts",
             "layout",
             "migrate",
@@ -201,8 +199,8 @@ def test_parser_registers_artifacts_layout_migrate_options() -> None:
         ]
     )
 
-    assert args.command == "agents"
-    assert args.agents_subcommand == "artifacts"
+    assert args.command == "agent"
+    assert args.agent_subcommand == "artifacts"
     assert args.artifacts_subcommand == "layout"
     assert args.layout_subcommand == "migrate"
     assert args.dry_run is True
@@ -217,7 +215,7 @@ def test_parser_rejects_artifacts_layout_migrate_force() -> None:
     with pytest.raises(SystemExit):
         create_parser().parse_args(
             [
-                "agents",
+                "agent",
                 "artifacts",
                 "layout",
                 "migrate",
@@ -229,9 +227,9 @@ def test_parser_rejects_artifacts_layout_migrate_force() -> None:
 def test_dispatch_artifacts_layout_status_json(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """`sase agents artifacts layout status -j` dispatches to the layout handler."""
+    """`sase agent artifacts layout status -j` dispatches to the layout handler."""
     args = argparse.Namespace(
-        agents_subcommand="artifacts",
+        agent_subcommand="artifacts",
         artifacts_subcommand="layout",
         layout_subcommand="status",
         index_path="/tmp/index.sqlite",
@@ -250,7 +248,7 @@ def test_dispatch_artifacts_layout_status_json(
         ),
         pytest.raises(SystemExit) as excinfo,
     ):
-        handle_agents_command(args)
+        handle_agent_command(args)
 
     assert excinfo.value.code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -259,9 +257,9 @@ def test_dispatch_artifacts_layout_status_json(
 
 
 def test_dispatch_index_gc_json(capsys: pytest.CaptureFixture[str]) -> None:
-    """`sase agents index gc -j` reports reconciliation diagnostics."""
+    """`sase agent index gc -j` reports reconciliation diagnostics."""
     args = argparse.Namespace(
-        agents_subcommand="index",
+        agent_subcommand="index",
         index_subcommand="gc",
         index_path="/tmp/index.sqlite",
         projects_root="/tmp/projects",
@@ -312,7 +310,7 @@ def test_dispatch_index_gc_json(capsys: pytest.CaptureFixture[str]) -> None:
         ) as mock_hide,
         pytest.raises(SystemExit) as excinfo,
     ):
-        handle_agents_command(args)
+        handle_agent_command(args)
 
     assert excinfo.value.code == 0
     mock_verify.assert_called_once()
@@ -330,9 +328,9 @@ def test_dispatch_index_gc_json(capsys: pytest.CaptureFixture[str]) -> None:
 def test_dispatch_index_verify_json_exits_nonzero_when_stale(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """`sase agents index verify -j` reports drift and exits nonzero."""
+    """`sase agent index verify -j` reports drift and exits nonzero."""
     args = argparse.Namespace(
-        agents_subcommand="index",
+        agent_subcommand="index",
         index_subcommand="verify",
         index_path="/tmp/index.sqlite",
         projects_root="/tmp/projects",
@@ -354,7 +352,7 @@ def test_dispatch_index_verify_json_exits_nonzero_when_stale(
         ) as mock_verify,
         pytest.raises(SystemExit) as excinfo,
     ):
-        handle_agents_command(args)
+        handle_agent_command(args)
 
     assert excinfo.value.code == 1
     mock_verify.assert_called_once()

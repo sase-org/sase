@@ -24,7 +24,7 @@ def agent_index_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
 
 
 def _check_agent_index(context: DoctorContext) -> DiagnosticCheck:  # noqa: ARG001
-    """Adapt the lightweight ``sase agents index status`` payload."""
+    """Adapt the lightweight ``sase agent index status`` payload."""
     payload = build_agent_index_status_payload()
     repair_recommended = bool(payload.get("repair_recommended"))
     index_exists = bool(payload.get("index_exists"))
@@ -45,8 +45,8 @@ def _check_agent_index(context: DoctorContext) -> DiagnosticCheck:  # noqa: ARG0
     next_steps: tuple[str, ...] = ()
     if repair_recommended:
         next_steps = (
-            f"Run `{payload.get('verify_command') or 'sase agents index verify'}`.",
-            f"Repair with `{payload.get('repair_command') or 'sase agents index gc'}`.",
+            f"Run `{payload.get('verify_command') or 'sase agent index verify'}`.",
+            f"Repair with `{payload.get('repair_command') or 'sase agent index gc'}`.",
         )
 
     return DiagnosticCheck(

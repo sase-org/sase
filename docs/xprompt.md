@@ -767,7 +767,7 @@ local skill files. Coding agents invoke them as `/sase_<name>`. Runtime config o
 
 | Skill                | Purpose                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `sase_agents_status` | Report on currently-running sase agents (list, kill, show)                                                    |
+| `sase_agents_status` | Report on currently-running SASE agents (list, kill, show)                                                    |
 | `sase_artifact`      | Create explicit SASE artifacts from files produced during an agent run                                        |
 | `sase_beads`         | Reference for `sase bead` commands (create, update, list, ready, show, dep)                                   |
 | `sase_chats`         | Inspect prior sase agent chat transcripts via `sase chat list` and `sase chat show`                           |

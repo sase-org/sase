@@ -74,7 +74,7 @@ class PromptDirectives:
     repeat_count: int | None = None
     # Populated by the user-facing %group directive (alias %g). The internal
     # field name remains `tag` because the persisted concept (agent_tags.json,
-    # ACE grouping UI, sase agents tag CLI) still uses "tag".
+    # ACE grouping UI, sase agent tag CLI) still uses "tag".
     tag: str | None = None
     wait: list[str] = field(default_factory=list)
     wait_duration: float | None = None

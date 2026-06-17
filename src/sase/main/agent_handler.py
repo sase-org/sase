@@ -1,4 +1,4 @@
-"""Handler for ``sase agents`` subcommands."""
+"""Handler for ``sase agent`` subcommands."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import argparse
 import sys
 
 
-def handle_agents_command(args: argparse.Namespace) -> None:
-    """Dispatch to the appropriate agents sub-handler."""
-    sub = getattr(args, "agents_subcommand", None) or "list"
+def handle_agent_command(args: argparse.Namespace) -> None:
+    """Dispatch to the appropriate agent sub-handler."""
+    sub = getattr(args, "agent_subcommand", None) or "list"
 
     if sub == "list":
         from sase.agents.cli_list import handle_agents_list
@@ -48,7 +48,7 @@ def handle_agents_command(args: argparse.Namespace) -> None:
             handle_agents_artifacts_layout(args)
             sys.exit(0)
 
-        print("Usage: sase agents artifacts {layout}")
+        print("Usage: sase agent artifacts {layout}")
         sys.exit(1)
 
     if sub == "index":
@@ -63,5 +63,5 @@ def handle_agents_command(args: argparse.Namespace) -> None:
         handle_agents_names(args)
         sys.exit(0)
 
-    print("Usage: sase agents {archive,artifacts,index,kill,list,names,show,tag}")
+    print("Usage: sase agent {archive,artifacts,index,kill,list,names,show,tag}")
     sys.exit(1)

@@ -8,7 +8,7 @@ import sys
 
 
 def handle_agents_archive(args: argparse.Namespace) -> None:
-    """Dispatch ``sase agents archive`` subcommands."""
+    """Dispatch ``sase agent archive`` subcommands."""
 
     sub = getattr(args, "archive_subcommand", None)
     if sub == "rebuild-index":
@@ -25,5 +25,5 @@ def handle_agents_archive(args: argparse.Namespace) -> None:
         print(json.dumps(result, indent=2, sort_keys=True))
         sys.exit(0 if result["ok"] else 1)
 
-    print("Usage: sase agents archive {rebuild-index,verify}")
+    print("Usage: sase agent archive {rebuild-index,verify}")
     sys.exit(1)

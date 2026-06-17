@@ -1,19 +1,19 @@
-"""Argument parser definition for the 'agents' CLI subcommand."""
+"""Argument parser definition for the 'agent' CLI subcommand."""
 
 import argparse
 
 
-def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the 'agents' subcommand parser."""
+def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'agent' subcommand parser."""
     agents_parser = subparsers.add_parser(
-        "agents",
+        "agent",
         help="Inspect, show, and kill running agents across all projects",
     )
     agents_sub = agents_parser.add_subparsers(
-        dest="agents_subcommand", help="Agents subcommands"
+        dest="agent_subcommand", help="Agent subcommands"
     )
 
-    # sase agents list (default when no subcommand given)
+    # sase agent list (default when no subcommand given)
     list_parser = agents_sub.add_parser(
         "list",
         help="List running agents (pretty table by default, JSON with -j)",
@@ -39,7 +39,7 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Only show agents for the given project name",
     )
 
-    # sase agents kill -n NAME
+    # sase agent kill -n NAME
     kill_parser = agents_sub.add_parser(
         "kill",
         help="SIGTERM a running agent by name",
@@ -51,7 +51,7 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Name of the agent to kill",
     )
 
-    # sase agents show -n NAME
+    # sase agent show -n NAME
     show_parser = agents_sub.add_parser(
         "show",
         help="Render a full detail panel for one agent",
@@ -63,7 +63,7 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Name of the agent to show",
     )
 
-    # sase agents tag {set,unset,list}
+    # sase agent tag {set,unset,list}
     tag_parser = agents_sub.add_parser(
         "tag",
         help="Manage the user-defined tag on an agent (used by the Agents tab)",
@@ -109,7 +109,7 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Limit output to a single agent",
     )
 
-    # sase agents archive {rebuild-index,verify}
+    # sase agent archive {rebuild-index,verify}
     archive_parser = agents_sub.add_parser(
         "archive",
         help="Maintain dismissed-agent archive indexes",
@@ -128,7 +128,7 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Verify the dismissed bundle summary index",
     )
 
-    # sase agents artifacts layout {migrate,rollback,status,verify}
+    # sase agent artifacts layout {migrate,rollback,status,verify}
     artifacts_parser = agents_sub.add_parser(
         "artifacts",
         help="Inspect and migrate agent artifact storage",
@@ -199,7 +199,7 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
             help="Projects artifact root (default: ~/.sase/projects)",
         )
 
-    # sase agents index {gc,rebuild,status,verify}
+    # sase agent index {gc,rebuild,status,verify}
     index_parser = agents_sub.add_parser(
         "index",
         help="Manage the persistent agent artifact index",
@@ -306,7 +306,7 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Emit a machine-readable JSON object",
     )
 
-    # sase agents names migrate-auto
+    # sase agent names migrate-auto
     names_parser = agents_sub.add_parser(
         "names",
         help="Maintain the permanent agent-name registry and migrations",

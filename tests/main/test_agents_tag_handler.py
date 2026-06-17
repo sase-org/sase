@@ -1,4 +1,4 @@
-"""Tests for ``sase agents tag`` CLI subcommands."""
+"""Tests for ``sase agent tag`` CLI subcommands."""
 
 from __future__ import annotations
 
@@ -148,7 +148,7 @@ def test_resolve_identity_returns_none_when_agent_missing() -> None:
 
 def _tag_args(**overrides: Any) -> argparse.Namespace:
     defaults: dict[str, Any] = {
-        "agents_subcommand": "tag",
+        "agent_subcommand": "tag",
         "tag_subcommand": "set",
         "name": "brisk-otter",
         "tag": "release-blockers",
@@ -269,7 +269,7 @@ def test_tag_list_all_emits_json(
     with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
         handle_agents_tag(
             argparse.Namespace(
-                agents_subcommand="tag",
+                agent_subcommand="tag",
                 tag_subcommand="list",
                 name=None,
             )
@@ -298,7 +298,7 @@ def test_tag_list_one_agent_emits_object(
     ):
         handle_agents_tag(
             argparse.Namespace(
-                agents_subcommand="tag",
+                agent_subcommand="tag",
                 tag_subcommand="list",
                 name="brisk-otter",
             )
@@ -319,9 +319,9 @@ def test_tag_unknown_subcommand_exits_1(
     with pytest.raises(SystemExit) as excinfo:
         handle_agents_tag(
             argparse.Namespace(
-                agents_subcommand="tag",
+                agent_subcommand="tag",
                 tag_subcommand="bogus",
             )
         )
     assert excinfo.value.code == 1
-    assert "Usage: sase agents tag" in capsys.readouterr().err
+    assert "Usage: sase agent tag" in capsys.readouterr().err

@@ -29,8 +29,8 @@ def test_agent_index_warns_when_repair_recommended(monkeypatch, tmp_path) -> Non
             "complete_visible_inbox": False,
             "repair_recommended": True,
             "repair_reason": "artifact_index_query_soft_errors",
-            "verify_command": "sase agents index verify",
-            "repair_command": "sase agents index gc",
+            "verify_command": "sase agent index verify",
+            "repair_command": "sase agent index gc",
             "normal_refresh": "visible-inbox artifact-index query",
         },
     )
@@ -40,8 +40,8 @@ def test_agent_index_warns_when_repair_recommended(monkeypatch, tmp_path) -> Non
     assert check.status == "WARN"
     assert "repair recommended" in check.summary
     assert check.next_steps == (
-        "Run `sase agents index verify`.",
-        "Repair with `sase agents index gc`.",
+        "Run `sase agent index verify`.",
+        "Repair with `sase agent index gc`.",
     )
     assert check.data["repair_reason"] == "artifact_index_query_soft_errors"
 

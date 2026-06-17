@@ -4,7 +4,7 @@ Regression coverage for the bug where reviving an agent left its dismissed
 bundle on disk. The artifact-index dismissed projection is the in-memory
 dismissed set unioned with every dismissed-bundle summary, so a lingering
 bundle re-hid the revived agent on the next projection rebuild
-(``sase agents index gc`` / cold-start maintenance / drift-triggered sync).
+(``sase agent index gc`` / cold-start maintenance / drift-triggered sync).
 """
 
 from __future__ import annotations
@@ -208,17 +208,17 @@ def test_purge_revived_dismissed_bundles_only_drops_orphans(tmp_path: Path) -> N
 
 
 def test_index_gc_parser_accepts_purge_revived_bundles_flag() -> None:
-    """`sase agents index gc -r` toggles the revived-bundle purge."""
+    """`sase agent index gc -r` toggles the revived-bundle purge."""
     args = create_parser().parse_args(
-        ["agents", "index", "gc", "--purge-revived-bundles"]
+        ["agent", "index", "gc", "--purge-revived-bundles"]
     )
     assert args.index_subcommand == "gc"
     assert args.purge_revived_bundles is True
 
-    short = create_parser().parse_args(["agents", "index", "gc", "-r"])
+    short = create_parser().parse_args(["agent", "index", "gc", "-r"])
     assert short.purge_revived_bundles is True
 
-    default = create_parser().parse_args(["agents", "index", "gc"])
+    default = create_parser().parse_args(["agent", "index", "gc"])
     assert default.purge_revived_bundles is False
 
 

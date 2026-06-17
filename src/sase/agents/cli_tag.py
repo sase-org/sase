@@ -1,4 +1,4 @@
-"""``sase agents tag`` — set, unset, and list the user-managed tag on agents."""
+"""``sase agent tag`` — set, unset, and list the user-managed tag on agents."""
 
 from __future__ import annotations
 
@@ -78,7 +78,7 @@ def _resolve_identity_by_name(
 
 
 def handle_agents_tag(args: argparse.Namespace) -> None:
-    """Dispatch ``sase agents tag {set,unset,list}``."""
+    """Dispatch ``sase agent tag {set,unset,list}``."""
     sub = getattr(args, "tag_subcommand", None)
     if sub == "set":
         _handle_tag_set(args)
@@ -90,7 +90,7 @@ def handle_agents_tag(args: argparse.Namespace) -> None:
         _handle_tag_list(args)
         return
 
-    print("Usage: sase agents tag {set,unset,list}", file=sys.stderr)
+    print("Usage: sase agent tag {set,unset,list}", file=sys.stderr)
     sys.exit(1)
 
 

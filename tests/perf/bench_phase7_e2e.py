@@ -1,7 +1,7 @@
 """Phase 7C end-to-end TUI/CLI startup measurements.
 
 Bead ``sase-1e.3`` / ``sdd/tales/202604/rust_backend_phase7.md``. Captures
-user-facing surfaces (``sase ace`` cold-open, ``sase agents list -j``
+user-facing surfaces (``sase ace`` cold-open, ``sase agent list -j``
 listing, ``sase run`` startup up to the provider boundary) under both
 backends so Phase 7D can describe what users actually pay before any LLM
 work begins.
@@ -26,7 +26,7 @@ Surfaces:
   Python interpreter imports are warm; this measures Pilot/AceApp
   constructor + first paint, not full subprocess cold start. Phase 7D
   should pair this with the manual home-tree note for context.
-- ``sase_agents_status_listing`` — subprocess ``sase agents list -j``.
+- ``sase_agents_status_listing`` — subprocess ``sase agent list -j``.
   Synthetic workload writes a temporary ``HOME/.sase/projects`` tree;
   the ``home_tree`` workload uses the real ``$HOME`` so cold listing
   cost reflects the user's actual project count.
@@ -190,7 +190,7 @@ def _bench_ace_cold_open(
 
 
 def _build_synthetic_home(home: Path, *, projects: int, per_project: int) -> None:
-    """Lay out a synthetic ``~/.sase/projects`` tree for ``sase agents list``.
+    """Lay out a synthetic ``~/.sase/projects`` tree for ``sase agent list``.
 
     Mirrors the Phase 6E synthetic shape (one ``ace-run`` workflow tree
     per project, plus a stopped ``done.json`` per agent so the listing
@@ -227,7 +227,7 @@ def _bench_agents_status_listing(
     projects: int,
     per_project: int,
 ) -> dict[str, Any]:
-    """Time ``sase agents list -j`` cold subprocess launches."""
+    """Time ``sase agent list -j`` cold subprocess launches."""
     # ``shutil.which("sase")`` resolves the venv entry point for the
     # current python interpreter, which is what the user runs.
     sase_bin = _resolve_sase_bin()

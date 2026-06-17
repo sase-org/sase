@@ -145,7 +145,7 @@ def test_index_status_missing_index_recommends_repair(
     assert payload["complete_visible_inbox"] is False
     assert payload["repair_recommended"] is True
     assert payload["repair_reason"] == "artifact_index_missing"
-    assert payload["repair_command"] == "sase agents index gc"
+    assert payload["repair_command"] == "sase agent index gc"
 
 
 def test_index_status_json_reports_visible_inbox_without_verify_scan(
@@ -199,5 +199,5 @@ def test_index_unknown_subcommand_prints_maintenance_usage(
 
     assert excinfo.value.code == 1
     assert (
-        "Usage: sase agents index {gc,rebuild,status,verify}" in capsys.readouterr().out
+        "Usage: sase agent index {gc,rebuild,status,verify}" in capsys.readouterr().out
     )

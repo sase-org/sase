@@ -40,7 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_artifact_aliases_artifact_dir
 
 
 def handle_agents_artifacts_layout(args: argparse.Namespace) -> None:
-    """Dispatch ``sase agents artifacts layout`` subcommands."""
+    """Dispatch ``sase agent artifacts layout`` subcommands."""
     sub = getattr(args, "layout_subcommand", None)
     if sub == "migrate":
         _handle_migrate(args)
@@ -55,7 +55,7 @@ def handle_agents_artifacts_layout(args: argparse.Namespace) -> None:
         _handle_verify(args)
         return
     Console().print(
-        "Usage: sase agents artifacts layout {migrate,rollback,status,verify}"
+        "Usage: sase agent artifacts layout {migrate,rollback,status,verify}"
     )
     raise SystemExit(1)
 

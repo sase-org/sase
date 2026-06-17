@@ -138,8 +138,8 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
     """Every command group with an exact ``list`` child parses bare as list."""
     parser = create_parser()
     expected_groups = {
-        "sase agents",
-        "sase agents tag",
+        "sase agent",
+        "sase agent tag",
         "sase amd",
         "sase axe chop",
         "sase axe lumberjack",
@@ -178,7 +178,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
 
 def test_agents_help_renders_sorted_subcommands() -> None:
     """A formerly unsorted help view renders its user-facing rows sorted."""
-    agents_parser = _parser_for(("sase", "agents"))
+    agents_parser = _parser_for(("sase", "agent"))
     expected_commands = {
         "archive",
         "artifacts",
@@ -334,7 +334,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         "ace",
         "run",
         "prompt",
-        "agents",
+        "agent",
         "memory",
         "bead",
         "project",
@@ -496,7 +496,7 @@ def test_run_help_shows_prompt_positional_and_beginner_examples() -> None:
     assert (
         'sase run -d "#cd:$(pwd) inspect pending work; do not change files"' in run_help
     )
-    assert "sase agents list" in run_help
+    assert "sase agent list" in run_help
     assert args.prompt == "hello"
 
 

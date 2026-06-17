@@ -7,7 +7,7 @@ The evaluator is pure: no I/O, no global state, no TUI imports. The
 caller supplies ``now`` (for ``age`` comparisons) and an optional
 :class:`_ContentCache` (for searching prompt/reply content).
 The :class:`Agent` import is ``TYPE_CHECKING``-only so this module
-remains import-safe from a future ``sase agents search`` CLI.
+remains import-safe from a future ``sase agent search`` CLI.
 """
 
 from __future__ import annotations

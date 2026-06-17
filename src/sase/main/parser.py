@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.text import Text
 
 from sase.main.parser_ace import register_ace_parser, register_axe_parser
-from sase.main.parser_agents import register_agents_parser
+from sase.main.parser_agent import register_agent_parser
 from sase.main.parser_amd import register_amd_parser
 from sase.main.parser_artifact import register_artifact_parser
 from sase.main.parser_bead import register_bead_parser
@@ -88,7 +88,7 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
         "Inspect, search, replay, and curate previously submitted agent prompts.",
     ),
     _CompactRootCommand(
-        "agents",
+        "agent",
         "List, inspect, tag, or stop active and recent agent runs.",
     ),
     _CompactRootCommand(
@@ -114,7 +114,7 @@ _COMPACT_ROOT_EXAMPLES: tuple[str, ...] = (
     "sase init -c",
     'sase run "#cd:$(pwd) summarize this repository; do not change files"',
     "sase ace",
-    "sase agents list",
+    "sase agent list",
     "sase --full-help",
 )
 
@@ -367,7 +367,7 @@ def create_parser() -> argparse.ArgumentParser:
     # TOP-LEVEL SUBCOMMANDS (keep sorted alphabetically)
     # =========================================================================
     register_ace_parser(top_level_subparsers)
-    register_agents_parser(top_level_subparsers)
+    register_agent_parser(top_level_subparsers)
     register_amd_parser(top_level_subparsers)
     register_artifact_parser(top_level_subparsers)
     register_axe_parser(top_level_subparsers)

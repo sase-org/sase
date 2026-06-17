@@ -1,1 +1,1 @@
-"""CLI subpackage for ``sase agents`` subcommands."""
+"""CLI subpackage for ``sase agent`` subcommands."""

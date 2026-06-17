@@ -156,7 +156,7 @@ def mark_bundles_revived_by_suffixes(
     redundant. Worse, the artifact-index dismissed projection unions the
     in-memory dismissed set with *every* dismissed-bundle summary, so a
     lingering bundle re-hides the revived agent on the next projection rebuild
-    (``sase agents index gc``, cold-start archive maintenance, or a
+    (``sase agent index gc``, cold-start archive maintenance, or a
     drift-triggered non-authoritative sync). Delete both the bundle files and
     their summary index rows -- mirroring the name-wipe path
     (``agent/names/_wipe.py``) -- so the projection stops re-deriving the

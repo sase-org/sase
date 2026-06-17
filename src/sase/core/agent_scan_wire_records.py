@@ -61,7 +61,7 @@ class AgentArtifactScanOptionsWire:
         include_raw_prompt_snippets: When True, read the first 200 bytes
             of ``raw_xprompt.md`` into
             :attr:`AgentArtifactRecordWire.raw_prompt_snippet`. The CLI
-            ``sase agents`` listing uses this; lookup paths don't.
+            ``sase agent`` listing uses this; lookup paths don't.
         max_prompt_snippet_bytes: Upper bound on snippet length. Defaults
             to 200 (matches the existing Python truncation).
         only_workflow_dirs: When non-empty, restrict the scan to artifact

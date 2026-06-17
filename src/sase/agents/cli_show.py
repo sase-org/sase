@@ -1,4 +1,4 @@
-"""``sase agents show`` — detail panel for a single agent."""
+"""``sase agent show`` — detail panel for a single agent."""
 
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
 """Tests for the external-dismissal merge step in the TUI agent loader.
 
 A long-lived ``sase ace`` TUI loads ``self._dismissed_agents`` once at
-startup. External processes (Telegram kill, gchat, ``sase agents kill``)
+startup. External processes (Telegram kill, gchat, ``sase agent kill``)
 can append to ``~/.sase/dismissed_agents.json`` while the TUI is running;
 without re-merging on each refresh, the TUI would never observe those
 external dismissals and would surface the killed agent as FAILED.
