@@ -1,8 +1,8 @@
 """Widget-level tests for the prompt Frontmatter Panel (Phase 3).
 
 Covers the Phase 3 deliverable of the prompt-frontmatter-panel epic: a typed
-``---`` is inert (the panel opens only through the explicit ``,f`` /
-``Ctrl+Shift+=`` controls), the ``,f`` focus keymap, auto-show on existing
+``---`` is inert (the panel opens only through the explicit ``g=`` /
+``Ctrl+Shift+=`` controls), the ``g=`` focus keymap, auto-show on existing
 frontmatter, the add-property picker plus inline scalar/list editing, ``d``
 delete, the ``R`` raw-YAML round-trip, and the empty-on-exit removal of the
 frontmatter.
@@ -81,8 +81,8 @@ async def test_dash_after_content_stays_passive() -> None:
 # --- focus + auto-show -----------------------------------------------------
 
 
-async def test_comma_f_focuses_panel() -> None:
-    """``,f`` shows and focuses the panel from an empty single-pane prompt."""
+async def test_g_equals_focuses_panel() -> None:
+    """``g=`` shows and focuses the panel from an empty single-pane prompt."""
     app = _PromptBarApp("")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -90,7 +90,7 @@ async def test_comma_f_focuses_panel() -> None:
         bar = app.query_one(PromptInputBar)
 
         await pilot.press("escape")
-        await pilot.press("comma", "f")
+        await pilot.press("g", "=")
         await pilot.pause()
         await pilot.pause()
 
@@ -126,7 +126,7 @@ async def test_add_property_via_picker_and_edit() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("comma", "f")
+        await pilot.press("g", "=")
         await pilot.pause()
         await pilot.pause()
         panel = app.query_one(FrontmatterPanel)

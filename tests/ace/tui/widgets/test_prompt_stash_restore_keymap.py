@@ -1,6 +1,6 @@
-"""Widget-level tests for Phase 3 prompt-stash restore (``,P``).
+"""Widget-level tests for prompt-stash restore (``gP``).
 
-Covers the bar side of restore: the normal-mode comma leader posts a
+Covers the bar side of restore: the normal-mode ``g`` prefix posts a
 presentation-only ``PromptInputBar.RestoreRequested`` (carrying the bar mode so
 the app can guard), and ``restore_stashed_entries`` appends restored drafts as
 new panes — dropping a lone empty drafting pane, preserving existing panes, and
@@ -38,27 +38,27 @@ class _RestoreApp(App[None]):
         self.restore_requests.append(event)
 
 
-# --- ,P posts the request --------------------------------------------------
+# --- gP posts the request --------------------------------------------------
 
 
-async def test_comma_p_posts_restore_request_in_prompt_mode() -> None:
+async def test_gP_posts_restore_request_in_prompt_mode() -> None:
     app = _RestoreApp("draft")
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         await pilot.press("escape")  # insert -> normal
-        await pilot.press("comma", "P")
+        await pilot.press("g", "P")
         await pilot.pause()
 
         assert len(app.restore_requests) == 1
         assert app.restore_requests[0].mode == "prompt"
 
 
-async def test_comma_p_forwards_feedback_mode() -> None:
+async def test_gP_forwards_feedback_mode() -> None:
     app = _RestoreApp("plan note", mode="feedback")
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         await pilot.press("escape")
-        await pilot.press("comma", "P")
+        await pilot.press("g", "P")
         await pilot.pause()
 
         # The bar still signals intent in feedback mode; the app toasts a no-op.

@@ -15,8 +15,8 @@ from sase.ace.tui.widgets._prompt_input_bar_completion import (
 from sase.ace.tui.widgets._prompt_input_bar_frontmatter import (
     PromptInputBarFrontmatterMixin,
 )
-from sase.ace.tui.widgets._prompt_input_bar_leader_hints import (
-    PromptInputBarLeaderHintsMixin,
+from sase.ace.tui.widgets._prompt_input_bar_g_prefix_hints import (
+    PromptInputBarGPrefixHintsMixin,
 )
 from sase.ace.tui.widgets._prompt_input_bar_messages import (
     AllEditorRequested as _AllEditorRequested,
@@ -45,7 +45,7 @@ __all__ = ["PromptInputBar", "StashedPromptPane"]
 class PromptInputBar(
     PromptInputBarFrontmatterMixin,
     PromptInputBarStackActionsMixin,
-    PromptInputBarLeaderHintsMixin,
+    PromptInputBarGPrefixHintsMixin,
     PromptInputBarActionsMixin,
     PromptInputBarCompletionMixin,
     PromptInputBarStackRenderingMixin,
@@ -80,9 +80,9 @@ class PromptInputBar(
         self._completion_visible = False
         self._completion_line_count = 0
         self._completion_panel_kind: str | None = None
-        self._leader_hints_visible = False
-        self._leader_hints_line_count = 0
-        self._leader_hints_signature: tuple[tuple[str, str], ...] = ()
+        self._g_prefix_hints_visible = False
+        self._g_prefix_hints_line_count = 0
+        self._g_prefix_hints_signature: tuple[tuple[str, str], ...] = ()
         self._mode_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
         self._soft_completion_visible = False
         self._title_mode_suffix = ""
@@ -146,13 +146,11 @@ class PromptInputBar(
 
         ``<enter>`` opens the submit chooser, so a multi-pane stack swaps the
         ``[Esc] normal`` hint for ``[Esc] nav`` (Esc drops into NORMAL mode,
-        where the pane-focus / reorder and comma-leader stash keys live — see
+        where the ``g`` prefix pane-focus / reorder / stash keys live — see
         :meth:`normal_mode_subtitle`) and adds ``[^S] all`` / ``[^⇧S] this``
-        hints for the direct submit accelerators.  Pane focus (``K``/``J``) and
-        reorder (``Up``/``Down``) are NORMAL-mode-only now, so they are not
-        advertised in insert mode; the subtitle just points users to
-        ``[Esc] nav`` (``Ctrl+-`` adds a new bottom pane from either mode and
-        lives in the help modal to keep the line readable).
+        hints for the direct submit accelerators.  The ``g`` prefix keymaps are
+        NORMAL-mode-only, so they are not advertised in insert mode; the
+        subtitle just points users to ``[Esc] nav``.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
             return "[Enter] submit…  [Esc] nav  [^C] cancel  [^S] all  [^⇧S] this"
@@ -162,20 +160,22 @@ class PromptInputBar(
         """Return the normal-mode subtitle, advertising the stack keys.
 
         In a multi-pane stack the active pane's normal-mode hints surface the
-        prompt-stack pane-focus (``K``/``J``) and reorder (``Up``/``Down``)
-        keys, the ``Ctrl+-`` add-pane chord, and the comma leader (``,s``/``,S``
-        stash the active / all panes, ``,f`` opens the frontmatter panel) so the
-        stack is discoverable without crowding the single-pane footer.  A
-        single-pane prompt bar still advertises ``,s`` (stash this draft);
-        feedback / approve-prompt bars keep the original normal-mode hints since
-        they are not stashable.
+        prompt-stack pane-focus (``gj``/``gk``) and reorder (``gJ``/``gK``)
+        keys, the ``g-`` add-pane chord, and the ``g`` prefix stash keys
+        (``gs``/``gS`` stash the active / all panes, ``g=`` opens the
+        frontmatter panel) so the stack is discoverable without crowding the
+        single-pane footer.  A single-pane prompt bar still advertises ``gs``
+        (stash this draft); feedback / approve-prompt bars keep the original
+        normal-mode hints since they are not stashable.  The full ``g`` prefix
+        is also discoverable through the hint panel.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
             return (
-                "[K/J] pane  [↑/↓] move  [,s ,S] stash  [,f] fm  [^-] add  [i] insert"
+                "[gj/gk] pane  [gJ/gK] move  [gs gS] stash  [g=] fm  [g-] add  "
+                "[i] insert"
             )
         if self._mode == "prompt":
-            return "[Esc] clear  [i] insert  [,s] stash  [,f] fm  [^C] cancel"
+            return "[Esc] clear  [i] insert  [gs] stash  [g=] fm  [^C] cancel"
         return "[Esc] clear  [i] insert  [^C] cancel"
 
     def compose(self) -> ComposeResult:
@@ -184,7 +184,8 @@ class PromptInputBar(
         The frontmatter panel sits directly above ``#prompt-stack`` (prompt mode
         only — feedback / approve-prompt bars are not multi-agent surfaces) and
         starts hidden, auto-showing on mount when the prompt already carries
-        frontmatter; otherwise the user opens it with ``Ctrl+Shift+=`` / ``,f``.
+        frontmatter; otherwise the user opens it with ``g=`` (or the legacy
+        ``Ctrl+Shift+=`` chord, retired in a later phase).
         """
         self._placeholder = self._compute_placeholder()
         yield Static("", id="prompt-completion", classes="hidden")
@@ -194,7 +195,7 @@ class PromptInputBar(
                 id="frontmatter-panel",
                 classes="hidden",
             )
-        yield Static("", id="prompt-leader-hints", classes="hidden")
+        yield Static("", id="prompt-g-prefix-hints", classes="hidden")
         with Vertical(id="prompt-stack"):
             yield from self._build_pane_widgets()
 

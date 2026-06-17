@@ -99,8 +99,8 @@ class VimNormalStateMixin(_MixinBase):
             if self._count_prefix:
                 indicator += self._count_prefix
             # Derive the base from the bar so a stacked prompt keeps advertising
-            # its ^⇧J/^⇧K/^⇧H/^⇧L/- keymaps while a count/operator/comma leader
-            # is pending, instead of flipping back to the single-pane hints.
+            # its stack keymaps while a count/operator/``g`` prefix is pending,
+            # instead of flipping back to the single-pane hints.
             base = "[Esc] clear  [i] insert  [^C] cancel"
             getter = getattr(bar, "normal_mode_subtitle", None)
             if callable(getter):
@@ -111,12 +111,12 @@ class VimNormalStateMixin(_MixinBase):
                 setter(subtitle)
             else:
                 bar.border_subtitle = subtitle
-            if self._pending_keys == ",":
-                show_hints = getattr(bar, "show_leader_hints", None)
+            if self._pending_keys == "g":
+                show_hints = getattr(bar, "show_g_prefix_hints", None)
                 if callable(show_hints):
                     show_hints()
             else:
-                hide_hints = getattr(bar, "hide_leader_hints", None)
+                hide_hints = getattr(bar, "hide_g_prefix_hints", None)
                 if callable(hide_hints):
                     hide_hints()
 

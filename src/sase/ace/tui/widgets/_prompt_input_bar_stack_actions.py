@@ -30,16 +30,22 @@ class StashedPromptPane:
 
 
 @dataclass(frozen=True)
-class PromptLeaderHintEntry:
-    """One currently available prompt comma-leader hint."""
+class PromptGPrefixHintEntry:
+    """One currently available prompt ``g`` prefix hint."""
 
     key: str
     label: str
 
 
 @dataclass(frozen=True)
-class _PromptLeaderBinding:
-    """Declarative prompt comma-leader binding metadata."""
+class _PromptGPrefixBinding:
+    """Declarative prompt ``g`` prefix binding metadata.
+
+    One table drives both dispatch and the hint panel so the two cannot drift:
+    ``action_name`` is the zero-arg method invoked on the second key,
+    ``label_method_name`` renders the hint, and ``availability_method_name``
+    gates whether the continuation is currently useful (and thus hinted).
+    """
 
     key: str
     action_name: str
@@ -47,30 +53,66 @@ class _PromptLeaderBinding:
     availability_method_name: str
 
 
-_PROMPT_LEADER_BINDINGS: tuple[_PromptLeaderBinding, ...] = (
-    _PromptLeaderBinding(
+_PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
+    _PromptGPrefixBinding(
+        "j",
+        "_g_focus_next_pane",
+        "_g_prefix_label_focus_next",
+        "_g_prefix_available_pane_nav",
+    ),
+    _PromptGPrefixBinding(
+        "k",
+        "_g_focus_prev_pane",
+        "_g_prefix_label_focus_prev",
+        "_g_prefix_available_pane_nav",
+    ),
+    _PromptGPrefixBinding(
+        "J",
+        "_g_move_pane_down",
+        "_g_prefix_label_move_down",
+        "_g_prefix_available_pane_nav",
+    ),
+    _PromptGPrefixBinding(
+        "K",
+        "_g_move_pane_up",
+        "_g_prefix_label_move_up",
+        "_g_prefix_available_pane_nav",
+    ),
+    _PromptGPrefixBinding(
+        "-",
+        "add_bottom_pane",
+        "_g_prefix_label_add_pane",
+        "_g_prefix_available_add_pane",
+    ),
+    _PromptGPrefixBinding(
+        "=",
+        "toggle_frontmatter_panel",
+        "_g_prefix_label_frontmatter",
+        "_g_prefix_available_frontmatter",
+    ),
+    _PromptGPrefixBinding(
         "s",
         "stash_active_pane",
-        "_leader_label_stash_active",
-        "_leader_available_stash_active",
+        "_g_prefix_label_stash_active",
+        "_g_prefix_available_stash_active",
     ),
-    _PromptLeaderBinding(
+    _PromptGPrefixBinding(
         "S",
         "stash_all_panes",
-        "_leader_label_stash_all",
-        "_leader_available_stash_all",
+        "_g_prefix_label_stash_all",
+        "_g_prefix_available_stash_all",
     ),
-    _PromptLeaderBinding(
+    _PromptGPrefixBinding(
+        "p",
+        "request_load_stash",
+        "_g_prefix_label_load_stash",
+        "_g_prefix_available_stash_restore",
+    ),
+    _PromptGPrefixBinding(
         "P",
         "request_restore_stash",
-        "_leader_label_restore_stash",
-        "_leader_available_restore_stash",
-    ),
-    _PromptLeaderBinding(
-        "f",
-        "focus_frontmatter_panel",
-        "_leader_label_frontmatter",
-        "_leader_available_frontmatter",
+        "_g_prefix_label_restore_stash",
+        "_g_prefix_available_stash_restore",
     ),
 )
 
@@ -89,18 +131,23 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
         def active_text_area(self) -> PromptTextArea: ...
-        def focus_frontmatter_panel(self) -> None: ...
+        def toggle_frontmatter_panel(self) -> None: ...
         def hide_file_completions(self) -> None: ...
         def hide_soft_completion(self) -> None: ...
 
-    def dispatch_leader_key(self, key: str) -> bool:
-        """Dispatch the key following the prompt comma leader.
+    def dispatch_g_prefix_key(self, key: str) -> bool:
+        """Dispatch the key following the prompt ``g`` prefix.
 
-        Dispatch is keyed from the same table that feeds the hint panel, but it
-        intentionally does not consult hint availability: existing no-op/toast
-        behavior for hardcoded chords stays unchanged.
+        Returns ``True`` when *key* is a prompt-specific ``g`` continuation
+        (handled here, even if the action is a context no-op) so the caller can
+        fall through to vim's own ``g`` commands (``gg``, ``ge``/``gE``,
+        ``gu``/``gU``/``g~``) for anything not in this table.  Dispatch is keyed
+        from the same table that feeds the hint panel, but it intentionally does
+        not consult hint availability: each action method keeps its own
+        prompt-mode / multi-pane guards, so an unavailable continuation is a
+        harmless swallowed no-op.
         """
-        for binding in _PROMPT_LEADER_BINDINGS:
+        for binding in _PROMPT_G_PREFIX_BINDINGS:
             if binding.key != key:
                 continue
             action = getattr(self, binding.action_name, None)
@@ -109,19 +156,47 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             return True
         return False
 
-    def leader_hint_entries(self) -> list[PromptLeaderHintEntry]:
-        """Return currently useful prompt comma-leader entries for rendering."""
-        entries: list[PromptLeaderHintEntry] = []
-        for binding in _PROMPT_LEADER_BINDINGS:
+    def g_prefix_hint_entries(self) -> list[PromptGPrefixHintEntry]:
+        """Return currently useful prompt ``g`` prefix entries for rendering."""
+        entries: list[PromptGPrefixHintEntry] = []
+        for binding in _PROMPT_G_PREFIX_BINDINGS:
             is_available = getattr(self, binding.availability_method_name)
             if not is_available():
                 continue
             label = getattr(self, binding.label_method_name)()
-            entries.append(PromptLeaderHintEntry(binding.key, label))
+            entries.append(PromptGPrefixHintEntry(binding.key, label))
         return entries
 
-    def _leader_available_stash_active(self) -> bool:
-        """Whether ``,s`` would capture a non-empty active prompt pane."""
+    def _g_focus_next_pane(self) -> None:
+        """Focus the next/lower pane (the ``gj`` keymap)."""
+        self.focus_relative(1, target_mode="normal")
+
+    def _g_focus_prev_pane(self) -> None:
+        """Focus the previous/higher pane (the ``gk`` keymap)."""
+        self.focus_relative(-1, target_mode="normal")
+
+    def _g_move_pane_down(self) -> None:
+        """Move the active pane lower/later (the ``gJ`` keymap)."""
+        self.move_active_pane(1, target_mode="normal")
+
+    def _g_move_pane_up(self) -> None:
+        """Move the active pane higher/earlier (the ``gK`` keymap)."""
+        self.move_active_pane(-1, target_mode="normal")
+
+    def _g_prefix_available_pane_nav(self) -> bool:
+        """Whether ``gj``/``gk``/``gJ``/``gK`` apply to a real multi-pane stack."""
+        return self._mode == "prompt" and len(self._stack) > 1
+
+    def _g_prefix_available_add_pane(self) -> bool:
+        """Whether ``g-`` can append a bottom pane (prompt mode only)."""
+        return self._mode == "prompt"
+
+    def _g_prefix_available_frontmatter(self) -> bool:
+        """Whether ``g=`` can toggle the prompt frontmatter panel."""
+        return self._mode == "prompt"
+
+    def _g_prefix_available_stash_active(self) -> bool:
+        """Whether ``gs`` would capture a non-empty active prompt pane."""
         if self._mode != "prompt":
             return False
         try:
@@ -129,15 +204,15 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         except Exception:
             return bool(self._stack.selected_item.text.strip())
 
-    def _leader_available_stash_all(self) -> bool:
-        """Whether ``,S`` would capture at least one pane in a real stack."""
+    def _g_prefix_available_stash_all(self) -> bool:
+        """Whether ``gS`` would capture at least one pane in a real stack."""
         if self._mode != "prompt" or len(self._stack) <= 1:
             return False
         self._sync_state_from_widgets()
         return any(item.text.strip() for item in self._stack.items)
 
-    def _leader_available_restore_stash(self) -> bool:
-        """Whether ``,P`` has a restorable prompt stash in this app."""
+    def _g_prefix_available_stash_restore(self) -> bool:
+        """Whether ``gp``/``gP`` have a restorable prompt stash in this app."""
         if self._mode != "prompt":
             return False
         try:
@@ -146,35 +221,56 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         except Exception:
             return False
 
-    def _leader_available_frontmatter(self) -> bool:
-        """Whether ``,f`` can reveal the prompt frontmatter panel."""
-        return self._mode == "prompt"
+    def _g_prefix_label_focus_next(self) -> str:
+        """Return the ``gj`` label."""
+        return "focus next pane"
 
-    def _leader_label_stash_active(self) -> str:
-        """Return the context-sensitive ``,s`` label."""
+    def _g_prefix_label_focus_prev(self) -> str:
+        """Return the ``gk`` label."""
+        return "focus prev pane"
+
+    def _g_prefix_label_move_down(self) -> str:
+        """Return the ``gJ`` label."""
+        return "move pane down"
+
+    def _g_prefix_label_move_up(self) -> str:
+        """Return the ``gK`` label."""
+        return "move pane up"
+
+    def _g_prefix_label_add_pane(self) -> str:
+        """Return the ``g-`` label."""
+        return "add pane"
+
+    def _g_prefix_label_frontmatter(self) -> str:
+        """Return the ``g=`` label."""
+        return "toggle frontmatter"
+
+    def _g_prefix_label_stash_active(self) -> str:
+        """Return the context-sensitive ``gs`` label."""
         if len(self._stack) > 1:
             return "stash this pane"
         return "stash this draft"
 
-    def _leader_label_stash_all(self) -> str:
-        """Return the ``,S`` label."""
+    def _g_prefix_label_stash_all(self) -> str:
+        """Return the ``gS`` label."""
         return "stash all panes"
 
-    def _leader_label_restore_stash(self) -> str:
-        """Return the ``,P`` label."""
+    def _g_prefix_label_load_stash(self) -> str:
+        """Return the ``gp`` label."""
+        return "load stash…"
+
+    def _g_prefix_label_restore_stash(self) -> str:
+        """Return the ``gP`` label."""
         return "restore stash…"
 
-    def _leader_label_frontmatter(self) -> str:
-        """Return the ``,f`` label."""
-        return "toggle frontmatter"
-
     def focus_relative(self, delta: int, target_mode: str = "normal") -> bool:
-        """Move pane focus by *delta* (the normal-mode ``K`` / ``J`` keys).
+        """Move pane focus by *delta* (the ``gk`` / ``gj`` keymaps).
 
-        ``K`` focuses the previous/higher pane (``delta`` ``-1``) and ``J`` the
+        ``gk`` focuses the previous/higher pane (``delta`` ``-1``) and ``gj`` the
         next/lower pane (``delta`` ``+1``); focus cycles at the stack edges, so
-        ``K`` from the top pane wraps to the bottom and ``J`` from the bottom
-        wraps to the top.  Navigation is a pure focus change; no pane is
+        ``gk`` from the top pane wraps to the bottom and ``gj`` from the bottom
+        wraps to the top.  The legacy bare ``K`` / ``J`` keys still call this in
+        Phase 1.  Navigation is a pure focus change; no pane is
         rebuilt, so each pane keeps its cursor and edit state.  ``target_mode``
         ("normal" or "insert") selects the vim mode the newly active pane lands
         in; the pane-focus keys are normal-mode-only, so callers pass
@@ -196,12 +292,13 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         return True
 
     def move_active_pane(self, delta: int, target_mode: str = "normal") -> bool:
-        """Reorder the active pane by *delta* (the normal-mode ``Up``/``Down`` keys).
+        """Reorder the active pane by *delta* (the ``gK`` / ``gJ`` keymaps).
 
-        ``delta`` of ``-1`` moves the pane higher/earlier (``Up``) and ``+1``
-        lower/later (``Down``); reorder cycles at the stack edges, so ``Up`` from
-        the top pane wraps it to the bottom and ``Down`` from the bottom wraps it
-        to the top.  The live pane texts are synced into the model first so the
+        ``delta`` of ``-1`` moves the pane higher/earlier (``gK``) and ``+1``
+        lower/later (``gJ``); reorder cycles at the stack edges, so ``gK`` from
+        the top pane wraps it to the bottom and ``gJ`` from the bottom wraps it
+        to the top.  The legacy normal-mode ``Up`` / ``Down`` keys still call
+        this in Phase 1.  The live pane texts are synced into the model first so the
         rebuild preserves what the user has typed; the moved pane stays active
         and lands in *target_mode* ("normal" or "insert").  Pane reorder is
         normal-mode-only, so callers pass ``"normal"``.  Returns ``True`` when it
@@ -217,7 +314,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         return True
 
     def add_bottom_pane(self) -> None:
-        """Append a new empty bottom pane and drop into it (the ``Ctrl+-`` keymap).
+        """Append a new empty bottom pane and drop into it (the ``g-`` keymap).
 
         Only meaningful in prompt mode; feedback / approve-prompt bars are not
         multi-agent surfaces, so it is a no-op elsewhere.  The new pane is
@@ -232,7 +329,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         self._rebuild_stack(enter_mode="insert")
 
     def stash_active_pane(self) -> None:
-        """Stash the active pane's draft for later (the ``,s`` keymap).
+        """Stash the active pane's draft for later (the ``gs`` keymap).
 
         Prompt mode only — feedback / approve-prompt bars are not stashable, so
         it is a no-op there.  The pane's stripped text + the bar's shared YAML
@@ -263,7 +360,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             self._rebuild_stack(enter_mode="insert")
 
     def stash_all_panes(self) -> None:
-        """Stash every non-empty pane in the bar (the ``,S`` keymap).
+        """Stash every non-empty pane in the bar (the ``gS`` keymap).
 
         Prompt mode only.  Each non-empty pane becomes its own stash entry —
         order preserved, original ``pane_index`` recorded — and all of them
@@ -290,7 +387,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         self.post_message(self.Stashed(panes, source="all", dismiss_bar=True))
 
     def request_restore_stash(self) -> None:
-        """Ask the app to open the restore picker (the ``,P`` keymap).
+        """Ask the app to open the destructive restore picker (the ``gP`` keymap).
 
         Presentation-only: the bar posts ``RestoreRequested`` with its current
         mode and the app performs the snapshot read / pop / load (boundary rule
@@ -299,8 +396,18 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         """
         self.post_message(self.RestoreRequested(self._mode))
 
+    def request_load_stash(self) -> None:
+        """Ask the app to load stash entries non-destructively (the ``gp`` keymap).
+
+        Presentation-only intent signal that mirrors :meth:`request_restore_stash`
+        for now; Phase 4 differentiates the two so ``gp`` copies the chosen
+        entries into the bar without removing them from the stash, while ``gP``
+        keeps the destructive pop semantics.
+        """
+        self.post_message(self.RestoreRequested(self._mode))
+
     def restore_stashed_entries(self, entries: list[tuple[str, str]]) -> None:
-        """Append restored stash drafts as new panes (the ``,P`` restore path).
+        """Append restored stash drafts as new panes (the ``gP`` restore path).
 
         Prompt mode only.  Each ``(text, frontmatter)`` becomes a new bottom
         pane, preserving any panes the user is already drafting.  The bar's

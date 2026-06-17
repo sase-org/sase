@@ -206,7 +206,7 @@ async def test_prompt_stack_completion_panel_png_snapshot(
         )
 
 
-async def test_prompt_stack_leader_hints_png_snapshot(
+async def test_prompt_stack_g_prefix_hints_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -221,13 +221,13 @@ async def test_prompt_stack_leader_hints_png_snapshot(
         indicator.set_count(2)
         await _mount_prompt_bar(page, _TWO_PANE_PROMPT)
 
-        await page.press("escape", "comma")
+        await page.press("escape", "g")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
-            "prompt_stack_leader_hints_120x40",
-            title="ACE prompt stack — comma leader hints",
+            "prompt_stack_g_prefix_hints_120x40",
+            title="ACE prompt stack — g prefix hints",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

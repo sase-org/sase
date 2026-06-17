@@ -373,12 +373,12 @@ async def test_multi_pane_normal_subtitle_advertises_stack_keys() -> None:
         bar = app.query_one(PromptInputBar)
         subtitle = bar.normal_mode_subtitle()
         # Every stack keymap the active pane exposes is discoverable here.
-        # Pane focus lives on the normal-mode K/J keys; reorder on Up/Down.
-        assert "[K/J] pane" in subtitle
-        assert "[↑/↓] move" in subtitle
-        # The retired comma-leader reorder hint is gone.
-        assert ",J" not in subtitle and ",K" not in subtitle
-        assert "[^-] add" in subtitle
+        # Pane focus / reorder / add migrated onto the `g` prefix.
+        assert "[gj/gk] pane" in subtitle
+        assert "[gJ/gK] move" in subtitle
+        assert "[g-] add" in subtitle
+        # The retired comma-leader hints are gone.
+        assert "," not in subtitle
 
 
 async def test_single_pane_normal_subtitle_advertises_stash() -> None:
@@ -387,10 +387,10 @@ async def test_single_pane_normal_subtitle_advertises_stash() -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        # A single-pane prompt bar still advertises ,s so stashing the lone
-        # draft is discoverable, plus ,f for the frontmatter panel.
+        # A single-pane prompt bar still advertises gs so stashing the lone
+        # draft is discoverable, plus g= for the frontmatter panel.
         subtitle = bar.normal_mode_subtitle()
-        assert subtitle == "[Esc] clear  [i] insert  [,s] stash  [,f] fm  [^C] cancel"
+        assert subtitle == "[Esc] clear  [i] insert  [gs] stash  [g=] fm  [^C] cancel"
 
 
 async def test_feedback_normal_subtitle_omits_stash() -> None:
@@ -412,4 +412,4 @@ async def test_entering_normal_mode_applies_stack_subtitle() -> None:
         bar.active_text_area()._enter_normal_mode()
         await pilot.pause()
         # The wired-up normal-mode subtitle reaches the live border subtitle.
-        assert "[K/J] pane" in str(bar.border_subtitle)
+        assert "[gj/gk] pane" in str(bar.border_subtitle)

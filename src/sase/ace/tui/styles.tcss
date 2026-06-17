@@ -1316,11 +1316,11 @@ PromptInputBar #frontmatter-panel:focus {
     border: round $accent;
 }
 
-/* Comma-leader hints, directly above the prompt stack. */
-PromptInputBar #prompt-leader-hints {
+/* Prompt `g` prefix hints, directly above the prompt stack. */
+PromptInputBar #prompt-g-prefix-hints {
     width: 100%;
     height: auto;
-    max-height: 8;
+    max-height: 13;
     border: round $accent;
     background: $panel;
     color: $text;
@@ -1328,7 +1328,7 @@ PromptInputBar #prompt-leader-hints {
     margin: 0 0 1 0;
 }
 
-PromptInputBar #prompt-leader-hints.hidden {
+PromptInputBar #prompt-g-prefix-hints.hidden {
     display: none;
 }
 

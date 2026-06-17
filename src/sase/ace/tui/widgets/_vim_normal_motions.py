@@ -258,19 +258,6 @@ class VimNormalMotionsMixin(VimNormalPendingMixin):
             self._update_count_display()
             return True
 
-        if key == "," and not self._pending_operator:
-            bar = self._find_prompt_bar()
-            if bar is not None:
-                # The bar owns its own comma leader (,s/,S/,P/,f; retired
-                # ,j/,k/,J/,K are swallowed no-ops). It is always active in a
-                # multi-pane stack; in a single pane it also opens (so ,s can
-                # stash the lone draft) *unless* a prior char search exists, in
-                # which case vim's reverse-repeat ``,`` wins.
-                if len(getattr(bar, "_stack", ())) > 1 or not self._last_char_search:
-                    self._pending_keys = ","
-                    self._update_count_display()
-                    return True
-
         if key in ";," and self._last_char_search:
             motion, target_char = self._last_char_search
             if key == ",":
@@ -284,6 +271,14 @@ class VimNormalMotionsMixin(VimNormalPendingMixin):
             self._execute_char_search(
                 motion, target_char, count, op_info, col_offset=col_offset
             )
+            return True
+
+        if key == "," and not self._pending_operator:
+            # The prompt-stack comma leader migrated to the ``g`` prefix
+            # (``gs``/``gS``/``gP``/``g=`` and friends). With no reverse
+            # char-search pending (handled just above), swallow ``,`` as a
+            # prompt-local no-op so it never bubbles to the app-level comma
+            # leader while the prompt body owns focus.
             return True
 
         if key == "%":

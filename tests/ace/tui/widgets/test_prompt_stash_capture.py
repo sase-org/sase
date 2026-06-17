@@ -1,8 +1,8 @@
-"""Widget-level tests for Phase 2 prompt-stash capture (``,s`` / ``,S``).
+"""Widget-level tests for prompt-stash capture (``gs`` / ``gS``).
 
 Covers the capture deliverable of the prompt-stash feature: the bar's normal
--mode comma leader stashes the active pane (``,s``) or every non-empty pane
-(``,S``), posting a presentation-only ``PromptInputBar.Stashed`` message that
+-mode ``g`` prefix stashes the active pane (``gs``) or every non-empty pane
+(``gS``), posting a presentation-only ``PromptInputBar.Stashed`` message that
 carries the pane text(s) + shared frontmatter for the app to persist.  Capture
 removes the stashed pane(s), keeps the bar mounted while others remain, and
 asks the app to dismiss it once empty.  Empty panes and non-prompt bars are
@@ -38,17 +38,17 @@ class _CaptureApp(App[None]):
         self.stashed.append(event)
 
 
-# --- stash current (,s) ----------------------------------------------------
+# --- stash current (gs) ----------------------------------------------------
 
 
-async def test_comma_s_stashes_single_pane_and_asks_to_dismiss() -> None:
+async def test_gs_stashes_single_pane_and_asks_to_dismiss() -> None:
     app = _CaptureApp("solo draft")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
         await pilot.press("escape")  # insert -> normal
-        await pilot.press("comma", "s")
+        await pilot.press("g", "s")
         await pilot.pause()
 
         assert len(app.stashed) == 1
@@ -60,7 +60,7 @@ async def test_comma_s_stashes_single_pane_and_asks_to_dismiss() -> None:
         assert event.panes[0].frontmatter == ""
 
 
-async def test_comma_s_in_multi_pane_keeps_bar_and_removes_only_active() -> None:
+async def test_gs_in_multi_pane_keeps_bar_and_removes_only_active() -> None:
     app = _CaptureApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -70,7 +70,7 @@ async def test_comma_s_in_multi_pane_keeps_bar_and_removes_only_active() -> None
         assert bar._stack.selected_index == 2  # bottom pane active
 
         await pilot.press("escape")
-        await pilot.press("comma", "s")  # stash "third"
+        await pilot.press("g", "s")  # stash "third"
         await pilot.pause()
         await pilot.pause()
 
@@ -84,14 +84,14 @@ async def test_comma_s_in_multi_pane_keeps_bar_and_removes_only_active() -> None
         assert bar.all_prompt_texts() == ["first", "second"]
 
 
-async def test_comma_s_on_empty_pane_is_noop_with_empty_message() -> None:
+async def test_gs_on_empty_pane_is_noop_with_empty_message() -> None:
     app = _CaptureApp("")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
         await pilot.press("escape")
-        await pilot.press("comma", "s")
+        await pilot.press("g", "s")
         await pilot.pause()
 
         assert len(app.stashed) == 1
@@ -100,17 +100,17 @@ async def test_comma_s_on_empty_pane_is_noop_with_empty_message() -> None:
         assert event.dismiss_bar is False
 
 
-# --- stash all (,S) --------------------------------------------------------
+# --- stash all (gS) --------------------------------------------------------
 
 
-async def test_comma_shift_s_stashes_all_non_empty_panes_in_order() -> None:
+async def test_gS_stashes_all_non_empty_panes_in_order() -> None:
     app = _CaptureApp("alpha\n---\nbeta\n---\ngamma")
 
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
 
         await pilot.press("escape")
-        await pilot.press("comma", "S")
+        await pilot.press("g", "S")
         await pilot.pause()
 
         assert len(app.stashed) == 1
@@ -121,7 +121,7 @@ async def test_comma_shift_s_stashes_all_non_empty_panes_in_order() -> None:
         assert [p.pane_index for p in event.panes] == [0, 1, 2]
 
 
-async def test_comma_shift_s_preserves_shared_frontmatter() -> None:
+async def test_gS_preserves_shared_frontmatter() -> None:
     app = _CaptureApp("---\nmodel: claude\n---\nfirst\n---\nsecond")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -132,7 +132,7 @@ async def test_comma_shift_s_preserves_shared_frontmatter() -> None:
         assert bar._stack.frontmatter == "---\nmodel: claude\n---"
 
         await pilot.press("escape")
-        await pilot.press("comma", "S")
+        await pilot.press("g", "S")
         await pilot.pause()
 
         event = app.stashed[0]
@@ -140,14 +140,14 @@ async def test_comma_shift_s_preserves_shared_frontmatter() -> None:
         assert all(p.frontmatter == "---\nmodel: claude\n---" for p in event.panes)
 
 
-async def test_comma_shift_s_all_empty_is_noop() -> None:
+async def test_gS_all_empty_is_noop() -> None:
     app = _CaptureApp("")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
         await pilot.press("escape")
-        await pilot.press("comma", "S")
+        await pilot.press("g", "S")
         await pilot.pause()
 
         assert len(app.stashed) == 1
@@ -166,8 +166,8 @@ async def test_stash_is_noop_in_feedback_mode() -> None:
 
         bar = app.query_one(PromptInputBar)
         await pilot.press("escape")
-        await pilot.press("comma", "s")
-        await pilot.press("comma", "S")
+        await pilot.press("g", "s")
+        await pilot.press("g", "S")
         await pilot.pause()
 
         # Feedback bars are not stashable: no message posted, text intact.

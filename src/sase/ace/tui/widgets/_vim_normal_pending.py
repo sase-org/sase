@@ -33,6 +33,22 @@ class VimNormalPendingMixin(VimVisualModeMixin):
         self._clear_count_prefix()
         doc = self.document
 
+        # Prompt-specific ``g`` continuations win over vim's own ``g`` commands:
+        # let the prompt bar try to dispatch ``gj``/``gk``/``gJ``/``gK``/``g-``/
+        # ``g=``/``gs``/``gS``/``gp``/``gP`` first. Anything it does not own
+        # (``gg``, ``ge``/``gE``, ``gu``/``gU``/``g~``) falls through to the vim
+        # branches below. The pending state is already cleared, so the trailing
+        # ``_update_count_display`` hides the ``g`` hint panel either way and an
+        # unknown ``gX`` never leaves the hints stuck open.
+        if pending == "g":
+            bar = self._find_prompt_bar()
+            dispatch = (
+                getattr(bar, "dispatch_g_prefix_key", None) if bar is not None else None
+            )
+            if callable(dispatch) and dispatch(key):
+                self._update_count_display()
+                return True
+
         if pending == "surround":
             char = event.character
             if char is None and event.key == "space":
@@ -209,23 +225,6 @@ class VimNormalPendingMixin(VimVisualModeMixin):
                     sr, sc, er, ec = text_object
                     self._execute_charwise_operator((sr, sc), (er, ec), op)
                 self._update_count_display()
-        elif pending == ",":
-            self._handle_stack_leader_key(key)
 
         self._update_count_display()
         return True
-
-    def _handle_stack_leader_key(self, key: str) -> None:
-        """Dispatch the key following the prompt-stack comma leader.
-
-        Pane focus lives on the normal-mode ``K``/``J`` keys (see
-        :meth:`PromptInputBar.focus_relative`) and pane reorder on normal-mode
-        ``Up``/``Down`` (see :meth:`PromptInputBar.move_active_pane`); retired
-        ``,J``/``,K`` (like the earlier retired ``,j``/``,k``) fall through to a
-        swallowed no-op, so the comma leader never triggers the bare ``J``/``K``
-        pane-focus behavior.
-        """
-        bar = self._find_prompt_bar()
-        if bar is None:
-            return
-        bar.dispatch_leader_key(key)

@@ -2,10 +2,11 @@
 
 Covers the multi-agent prompt stack keymaps: pane focus navigation lives on the
 NORMAL-mode ``K``/``J`` keys and pane reorder on NORMAL-mode ``Up``/``Down``
-(both NORMAL-mode-only); the comma leader stashes panes and ``Ctrl+-`` adds a
-new bottom pane; a typed ``---`` separator line is inert (panes are created only
-through ``Ctrl+-``); the comma leader coexists with vim's reverse char-search
-repeat; and the retired structural chords (``Ctrl+H``/``Ctrl+L`` focus,
+(both NORMAL-mode-only); ``Ctrl+-`` adds a new bottom pane; a typed ``---``
+separator line is inert (panes are created only through ``Ctrl+-``); the prompt
+stash/structural keymaps migrated to the ``g`` prefix, so ``,`` is now a
+prompt-local no-op that still defers to vim's reverse char-search repeat; and
+the retired structural chords (``Ctrl+H``/``Ctrl+L`` focus,
 ``Ctrl+Shift+H``/``Ctrl+Shift+L`` reorder, ``J`` line join) no longer fire.
 """
 
@@ -370,11 +371,12 @@ async def test_single_pane_up_down_keep_cursor_movement() -> None:
         assert bar.all_prompt_texts() == ["alpha\nbeta\ngamma"]
 
 
-async def test_comma_jk_no_longer_reorders_but_other_leaders_work() -> None:
-    """Retired `,j`/`,k`/`,J`/`,K` no-op; other comma-leader actions still fire.
+async def test_comma_is_inert_now_that_stack_keymaps_moved_to_g_prefix() -> None:
+    """Bare ``,`` is a prompt-local no-op; the ``g`` prefix owns stack stash/nav.
 
-    The comma leader must also swallow ``,J``/``,K`` *without* triggering the
-    new bare-``J``/``K`` pane-focus behavior, so focus must not move either.
+    The retired comma leader must swallow a lone ``,`` *without* opening a
+    leader, stashing, or mutating the stack, while the migrated ``gs`` stash
+    still dispatches through the ``g`` prefix.
     """
     app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
@@ -385,17 +387,17 @@ async def test_comma_jk_no_longer_reorders_but_other_leaders_work() -> None:
         await pilot.press("escape")
         assert bar._stack.selected_index == 2
 
-        # Every comma-leader j/k case (both cases) is a swallowed no-op: neither
-        # the stack order nor the focused pane changes.
-        for key in ("j", "k", "J", "K"):
-            await pilot.press("comma", key)
-            await pilot.pause()
+        # A lone ``,`` (no prior f/t char-search) is a swallowed no-op: neither
+        # the stack order nor the focused pane changes, and nothing is stashed.
+        await pilot.press("comma")
+        await pilot.press("comma")
+        await pilot.pause()
         assert bar.all_prompt_texts() == ["first", "second", "third"]
         assert bar._stack.selected_index == 2
 
-        # A surviving comma-leader action (`,s` stash) still dispatches: it drops
-        # the active bottom pane, proving the leader itself is unaffected.
-        await pilot.press("comma", "s")
+        # The migrated ``gs`` stash still dispatches: it drops the active bottom
+        # pane, proving the stash action moved cleanly onto the ``g`` prefix.
+        await pilot.press("g", "s")
         await pilot.pause()
         await pilot.pause()
         assert bar.all_prompt_texts() == ["first", "second"]
@@ -556,8 +558,8 @@ async def test_single_pane_comma_still_reverses_char_search() -> None:
         assert text_area.cursor_location == (0, 1)
 
 
-async def test_multi_pane_comma_is_leader_not_char_search() -> None:
-    """In a multi-pane stack `,` is the stack leader, not char-search reverse."""
+async def test_multi_pane_comma_reverses_char_search() -> None:
+    """In a multi-pane stack `,` reverses char-search; the leader moved to `g`."""
     app = _PromptBarApp("a) b) c)\n---\nsecond")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -575,12 +577,12 @@ async def test_multi_pane_comma_is_leader_not_char_search() -> None:
         await pilot.press("semicolon")
         assert text_area.cursor_location == (0, 4)
 
-        # `,` here opens the stack leader; it must NOT reverse the search.
+        # `,` now reverses the search even in a multi-pane stack: the prompt
+        # -stack leader migrated to the `g` prefix, so `,` no longer intercepts.
         await pilot.press("comma")
         await pilot.pause()
-        assert text_area.cursor_location == (0, 4)
-        # Escape abandons a dangling leader harmlessly.
-        await pilot.press("escape")
+        assert text_area.cursor_location == (0, 1)
+        # Focus did not move.
         assert bar._stack.selected_index == 0
 
 

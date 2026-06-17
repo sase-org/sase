@@ -80,8 +80,8 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         _completion_line_count: int
         _completion_visible: bool
         _generation: int
-        _leader_hints_line_count: int
-        _leader_hints_visible: bool
+        _g_prefix_hints_line_count: int
+        _g_prefix_hints_visible: bool
         _mode: str
         _placeholder: str
         _stack: PromptStackState
@@ -423,8 +423,10 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         max_height = screen_height - 2
         completion_rows = self._completion_line_count if self._completion_visible else 0
         frontmatter_rows = self._frontmatter_panel_reserved_rows()
-        leader_rows = self._leader_hints_line_count if self._leader_hints_visible else 0
-        panel_rows = completion_rows + frontmatter_rows + leader_rows
+        g_prefix_rows = (
+            self._g_prefix_hints_line_count if self._g_prefix_hints_visible else 0
+        )
+        panel_rows = completion_rows + frontmatter_rows + g_prefix_rows
         if len(self._stack) <= 1:
             # Single pane: identical formula to the pre-stack bar. +2 for the
             # bar's top/bottom border, plus transient panels when visible.
