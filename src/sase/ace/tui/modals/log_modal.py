@@ -14,7 +14,8 @@ only renders that contract.
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
+from pathlib import Path
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -22,6 +23,8 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
+
+from sase.core.paths import sase_home
 
 from ..logs import LogSource, log_sources
 from .base import CopyModeForwardingMixin, OptionListNavigationMixin
@@ -58,12 +61,12 @@ def _format_size(num_bytes: int) -> str:
 
 
 def _format_mtime(source: LogSource) -> str | None:
-    """Last-modified time of *source* as ``YYYY-MM-DD HH:MM`` (``None`` if absent)."""
+    """Last-modified time of *source* as ``YYYY-MM-DD HH:MM UTC``."""
     try:
         ts = source.path.stat().st_mtime
     except OSError:
         return None
-    return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+    return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
 def _source_size(source: LogSource) -> int | None:
@@ -73,10 +76,21 @@ def _source_size(source: LogSource) -> int | None:
         return None
 
 
+def _display_path(path: Path) -> str:
+    """Return a stable, user-facing path for a log file."""
+    try:
+        resolved_path = path.expanduser().resolve(strict=False)
+        resolved_home = sase_home().expanduser().resolve(strict=False)
+        rel = resolved_path.relative_to(resolved_home)
+    except (OSError, RuntimeError, ValueError):
+        return str(path)
+    return str(Path("~/.sase") / rel)
+
+
 def _empty_message(source: LogSource) -> str:
     """Friendly empty-state copy for a missing/empty *source*."""
     if source.id == "launch_failures":
-        return "No launch failures logged \U0001f389"
+        return "No launch failures logged."
     return f"No {source.title.lower()} yet."
 
 
@@ -127,8 +141,11 @@ def _render_log_detail(source: LogSource, max_lines: int = _MAX_TAIL_LINES) -> T
     body = source.read_rendered_tail(max_lines)
     text = Text()
 
-    # Header: path · last modified · shown line count.
-    text.append(str(source.path), style=f"bold {_CYAN}")
+    # Header: source title, path, last modified, and shown line count.
+    text.append(source.title, style=f"bold {_GOLD}")
+    text.append("\n")
+    text.append(f"{source.description}\n", style="dim")
+    text.append(_display_path(source.path), style=f"bold {_CYAN}")
     mtime = _format_mtime(source)
     if mtime is not None:
         text.append(f"  ·  {mtime}", style="dim")
@@ -170,7 +187,7 @@ class LogModal(OptionListNavigationMixin, CopyModeForwardingMixin, ModalScreen[N
 
     def compose(self) -> ComposeResult:
         with Container(id="log-modal-container"):
-            yield Label("\U0001f4dc  Logs", id="log-modal-title")
+            yield Label("Logs", id="log-modal-title")
             with Horizontal(id="log-modal-panels"):
                 with Vertical(id="log-modal-list-panel"):
                     yield OptionList(
