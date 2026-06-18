@@ -9,9 +9,12 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui.models.agent_bead import (
+    BEAD_DISPLAY_CACHE_MISS,
     _BEAD_DISPLAY_CACHE,
+    cached_bead_display,
     derive_agent_bead_id,
     resolve_bead_display,
+    should_resolve_bead_display,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,
@@ -177,6 +180,49 @@ class TestAgentBeadMetadata:
             "Name: zorg-4.3.6\n"
             "Bead: zorg-4.3.6 - Phase 6: count() MVP And Final Epic Hardening\n"
         ) in header.plain
+
+    def test_cached_bead_display_is_scoped_by_project(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        alpha = make_agent(
+            agent_name="shared-1.2",
+            project_file="/home/me/.sase/projects/alpha/alpha.sase",
+        )
+        beta = make_agent(
+            agent_name="shared-1.2",
+            project_file="/home/me/.sase/projects/beta/beta.sase",
+        )
+        seen_project_names: list[str | None] = []
+
+        def lookup(
+            bead_id: str,
+            *,
+            project_name: str | None = None,
+            workspace_dir: str | None = None,
+        ) -> Issue | None:
+            del workspace_dir
+            seen_project_names.append(project_name)
+            return Issue(
+                id=bead_id,
+                title=f"{project_name} title",
+                description=f"{project_name} description",
+            )
+
+        monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", lookup)
+
+        assert resolve_bead_display(alpha) == "shared-1.2 - alpha description"
+        assert cached_bead_display(beta) is BEAD_DISPLAY_CACHE_MISS
+        assert should_resolve_bead_display(beta) is True
+
+        header, _ = build_header_text(
+            beta,
+            cheap=False,
+            summary=build_detail_header_summary(beta),
+        )
+
+        assert "Name: shared-1.2\nBead: shared-1.2\n" in header.plain
+        assert "alpha description" not in header.plain
+        assert seen_project_names == ["alpha"]
 
     def test_full_header_uses_agent_workspace_before_project_file(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

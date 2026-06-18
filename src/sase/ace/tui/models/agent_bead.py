@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+import os
 from pathlib import Path
 from threading import RLock
 from time import monotonic
@@ -18,6 +19,7 @@ from .agent import Agent
 BEAD_DISPLAY_CACHE_MISS: Final = object()
 _CACHE_TTL_SECONDS = 60.0
 _CACHE_MAX_ENTRIES = 256
+BeadDisplayCacheKey = tuple[str, str | None, str | None]
 
 
 class _BeadDisplayCache:
@@ -28,29 +30,31 @@ class _BeadDisplayCache:
     ) -> None:
         self._ttl_seconds = ttl_seconds
         self._max_entries = max_entries
-        self._entries: OrderedDict[str, tuple[float, str | None]] = OrderedDict()
+        self._entries: OrderedDict[BeadDisplayCacheKey, tuple[float, str | None]] = (
+            OrderedDict()
+        )
         self._lock = RLock()
 
-    def get(self, bead_id: str) -> str | None | object:
+    def get(self, key: BeadDisplayCacheKey) -> str | None | object:
         now = monotonic()
         with self._lock:
-            entry = self._entries.get(bead_id)
+            entry = self._entries.get(key)
             if entry is None:
                 return BEAD_DISPLAY_CACHE_MISS
 
             expires_at, value = entry
             if expires_at <= now:
-                self._entries.pop(bead_id, None)
+                self._entries.pop(key, None)
                 return BEAD_DISPLAY_CACHE_MISS
 
-            self._entries.move_to_end(bead_id)
+            self._entries.move_to_end(key)
             return value
 
-    def set(self, bead_id: str, value: str | None) -> None:
+    def set(self, key: BeadDisplayCacheKey, value: str | None) -> None:
         expires_at = monotonic() + self._ttl_seconds
         with self._lock:
-            self._entries[bead_id] = (expires_at, value)
-            self._entries.move_to_end(bead_id)
+            self._entries[key] = (expires_at, value)
+            self._entries.move_to_end(key)
             while len(self._entries) > self._max_entries:
                 self._entries.popitem(last=False)
 
@@ -69,18 +73,18 @@ def derive_agent_bead_id(agent: Agent) -> str | None:
 
 def cached_bead_display(agent: Agent) -> str | None | object:
     """Return cached enriched bead display text, if present and fresh."""
-    bead_id = derive_agent_bead_id(agent)
-    if bead_id is None:
+    key = _bead_display_cache_key(agent)
+    if key is None:
         return None
-    return _BEAD_DISPLAY_CACHE.get(bead_id)
+    return _BEAD_DISPLAY_CACHE.get(key)
 
 
 def should_resolve_bead_display(agent: Agent) -> bool:
     """Return True when the agent has an uncached bead display."""
-    bead_id = derive_agent_bead_id(agent)
-    if bead_id is None:
+    key = _bead_display_cache_key(agent)
+    if key is None:
         return False
-    return _BEAD_DISPLAY_CACHE.get(bead_id) is BEAD_DISPLAY_CACHE_MISS
+    return _BEAD_DISPLAY_CACHE.get(key) is BEAD_DISPLAY_CACHE_MISS
 
 
 def resolve_bead_display(agent: Agent) -> str | None:
@@ -89,12 +93,12 @@ def resolve_bead_display(agent: Agent) -> str | None:
     This may touch bead stores and must only be called off the Textual event
     loop.
     """
-    bead_id = derive_agent_bead_id(agent)
-    if bead_id is None:
+    key = _bead_display_cache_key(agent)
+    if key is None:
         return None
 
     display = format_agent_bead_display(agent, include_description=True)
-    _BEAD_DISPLAY_CACHE.set(bead_id, display)
+    _BEAD_DISPLAY_CACHE.set(key, display)
     return display
 
 
@@ -115,3 +119,16 @@ def _agent_project_name(agent: Agent) -> str | None:
         return None
     project_name = Path(agent.project_file).parent.name
     return project_name or None
+
+
+def _agent_workspace_cache_key(agent: Agent) -> str | None:
+    if not agent.workspace_dir:
+        return None
+    return os.path.normpath(os.path.expanduser(agent.workspace_dir))
+
+
+def _bead_display_cache_key(agent: Agent) -> BeadDisplayCacheKey | None:
+    bead_id = derive_agent_bead_id(agent)
+    if bead_id is None:
+        return None
+    return (bead_id, _agent_project_name(agent), _agent_workspace_cache_key(agent))
