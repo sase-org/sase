@@ -14,7 +14,7 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Input, TextArea
 
-from sase.ace.tui.modals import AddPropertyModal
+from sase.ace.tui.modals import AddableProperty, AddPropertyModal, XPromptItemModal
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
@@ -35,6 +35,19 @@ class _PromptBarApp(App[None]):
             mode=self._mode,
             id="prompt-input-bar",
         )
+
+
+def _modal_properties(panel: FrontmatterPanel) -> list[AddableProperty]:
+    return [
+        AddableProperty(
+            name=descriptor.name,
+            description=descriptor.description,
+            kind=descriptor.kind.value,
+            example=descriptor.example,
+            allowed_values=descriptor.allowed_values,
+        )
+        for descriptor in panel.addable_properties()
+    ]
 
 
 # --- typed `---` is passive ------------------------------------------------
@@ -178,6 +191,126 @@ async def test_add_property_via_picker_and_edit() -> None:
 
         assert panel.model.name == "demo"
         assert bar._stack.frontmatter == "---\nname: demo\n---"
+
+
+async def test_add_property_accelerator_picks_scalar_field() -> None:
+    """A property accelerator immediately selects that field without leaking text."""
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape")
+        await pilot.press("g", "=")
+        await pilot.pause()
+        await pilot.pause()
+        panel = app.query_one(FrontmatterPanel)
+
+        await pilot.press("a")
+        await pilot.pause()
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, AddPropertyModal)
+        assert {choice.prop.name: choice.key for choice in modal._choices}[
+            "tags"
+        ] == "t"
+
+        await pilot.press("t")
+        await pilot.pause()
+        await pilot.pause()
+
+        editor = panel.query_one("#frontmatter-inline", Input)
+        assert panel._editing_field == "tags"
+        assert app.focused is editor
+        assert editor.value == ""
+        assert bar._frontmatter_panel_visible()
+
+
+async def test_add_property_accelerator_opens_structured_modal() -> None:
+    """A structured property accelerator opens the matching sub-form modal."""
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape")
+        await pilot.press("g", "=")
+        await pilot.pause()
+        await pilot.pause()
+
+        await pilot.press("a")
+        await pilot.pause()
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, AddPropertyModal)
+        assert {choice.prop.name: choice.key for choice in modal._choices}[
+            "xprompts"
+        ] == "x"
+
+        await pilot.press("x")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert isinstance(app.screen, XPromptItemModal)
+        assert bar._frontmatter_panel_visible()
+
+
+def test_add_property_accelerators_are_unique_and_exclude_set_fields() -> None:
+    """Unset fields keep deterministic unique accelerator keys."""
+    empty_panel = FrontmatterPanel("")
+    modal = AddPropertyModal(_modal_properties(empty_panel))
+    keys_by_name = {choice.prop.name: choice.key for choice in modal._choices}
+
+    assert keys_by_name == {
+        "name": "n",
+        "description": "d",
+        "tags": "t",
+        "input": "i",
+        "xprompts": "x",
+        "skill": "s",
+        "snippet": "p",
+    }
+    assert len(set(keys_by_name.values())) == len(keys_by_name)
+
+    populated_panel = FrontmatterPanel("---\nname: demo\ntags: cli\n---")
+    addable_names = [
+        descriptor.name for descriptor in populated_panel.addable_properties()
+    ]
+    assert "name" not in addable_names
+    assert "tags" not in addable_names
+    populated_modal = AddPropertyModal(_modal_properties(populated_panel))
+    assert [choice.prop.name for choice in populated_modal._choices] == addable_names
+
+
+@pytest.mark.parametrize("cancel_key", ["escape", "q"])
+async def test_add_property_picker_cancel_returns_focus_to_panel(
+    cancel_key: str,
+) -> None:
+    """Cancelling the picker returns focus to panel row navigation."""
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape")
+        await pilot.press("g", "=")
+        await pilot.pause()
+        await pilot.pause()
+        panel = app.query_one(FrontmatterPanel)
+
+        await pilot.press("a")
+        await pilot.pause()
+        await pilot.pause()
+        assert isinstance(app.screen, AddPropertyModal)
+
+        await pilot.press(cancel_key)
+        await pilot.pause()
+        await pilot.pause()
+
+        assert not isinstance(app.screen, AddPropertyModal)
+        assert app.focused is panel
+        assert panel._edit_mode == "rows"
+        assert bar._frontmatter_panel_visible()
 
 
 async def test_edit_existing_scalar_inline() -> None:

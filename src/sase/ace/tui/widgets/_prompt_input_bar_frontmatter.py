@@ -249,8 +249,14 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         from sase.ace.tui.modals import AddableProperty, AddPropertyModal
 
         properties = [
-            AddableProperty(name=name, description=description)
-            for name, description in panel.addable_properties()
+            AddableProperty(
+                name=descriptor.name,
+                description=descriptor.description,
+                kind=descriptor.kind.value,
+                example=descriptor.example,
+                allowed_values=descriptor.allowed_values,
+            )
+            for descriptor in panel.addable_properties()
         ]
         if not properties:
             return

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from textual.widgets import Input
 
@@ -22,6 +22,17 @@ else:
 # ("true/false, yes/no, on/off, 1/0").
 _TRUE_WORDS = frozenset({"true", "yes", "on", "1"})
 _FALSE_WORDS = frozenset({"false", "no", "off", "0"})
+
+
+class _FrontmatterFieldDescriptor(Protocol):
+    """Schema descriptor shape consumed by the add-property picker."""
+
+    name: str
+    kind: FrontmatterFieldKind
+    required: bool
+    description: str
+    allowed_values: str | None
+    example: str
 
 
 class FrontmatterPanelEditingMixin(_MixinBase):
@@ -48,16 +59,16 @@ class FrontmatterPanelEditingMixin(_MixinBase):
         def _select_nav(self, target: tuple[str, str]) -> None: ...
         def _selected_nav(self) -> tuple[str, str] | None: ...
 
-    def addable_properties(self) -> list[tuple[str, str]]:
-        """``(name, description)`` of every unset field, in canonical order.
+    def addable_properties(self) -> list[_FrontmatterFieldDescriptor]:
+        """Core schema descriptors for every unset field, in canonical order.
 
         The host bar uses this to populate the add-property picker so the panel
-        keeps the core schema (and its descriptions) as the single source.
+        keeps the core schema (and its guidance text) as the single source.
         Structured fields (``input`` / ``xprompts``) are offered too; picking one
         opens its sub-form modal to author the first item.
         """
         return [
-            (name, self._schema[name].description)
+            self._schema[name]
             for name in self._schema_order
             if name not in self._fields
         ]

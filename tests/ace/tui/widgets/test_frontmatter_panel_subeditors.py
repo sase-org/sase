@@ -98,7 +98,9 @@ async def test_begin_add_structured_field_opens_modal() -> None:
         panel = await _open_panel(pilot, app)
 
         # ``xprompts`` is offered by the core-schema picker now.
-        assert "xprompts" in [name for name, _ in panel.addable_properties()]
+        assert "xprompts" in [
+            descriptor.name for descriptor in panel.addable_properties()
+        ]
 
         panel.begin_add("xprompts")
         await pilot.pause()
