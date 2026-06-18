@@ -18,6 +18,7 @@ class VimNormalModeMixin(VimNormalEditingMixin):
 
     if TYPE_CHECKING:
 
+        def _clear_search_highlights(self, *, refresh: bool = True) -> None: ...
         def _start_prompt_search(self, direction: SearchDirection) -> None: ...
 
     def _handle_normal_mode_key(self, event: Key) -> bool:
@@ -47,6 +48,7 @@ class VimNormalModeMixin(VimNormalEditingMixin):
             self._pending_operator_count = 1
             self._pending_surround_range = None
             self._pending_change_surround_locations = None
+            self._clear_search_highlights()
             self._clear_count_prefix()
             self._update_count_display()
             return True

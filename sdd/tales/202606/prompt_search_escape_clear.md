@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-18 07:41:10
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_search_escape_clear.md
 ---
 # Prompt Search Escape Clear Plan

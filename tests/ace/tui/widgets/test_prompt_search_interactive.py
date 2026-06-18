@@ -192,6 +192,41 @@ async def test_repeat_search_n_and_shift_n_respect_recorded_direction() -> None:
         assert text_area._search_current_match_index == 1
 
 
+async def test_normal_mode_escape_clears_highlights_but_keeps_repeat_search() -> None:
+    app = _PromptSearchApp("alpha beta alpha beta alpha")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        await pilot.press("escape")
+        text_area.cursor_location = (0, 1)
+
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.pause()
+        assert text_area.cursor_location == (0, 11)
+        assert text_area._last_search == ("alpha", "forward")
+        assert text_area._search_match_spans == ((0, 5), (11, 16), (22, 27))
+        assert any(name.startswith("search.") for name in _highlight_names(text_area))
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert text_area.cursor_location == (0, 11)
+        assert text_area._last_search == ("alpha", "forward")
+        assert text_area._search_match_spans == ()
+        assert not any(
+            name.startswith("search.") for name in _highlight_names(text_area)
+        )
+
+        await pilot.press("n")
+        await pilot.pause()
+        assert text_area.cursor_location == (0, 22)
+        assert text_area._last_search == ("alpha", "forward")
+        assert text_area._search_match_spans == ((0, 5), (11, 16), (22, 27))
+        assert text_area._search_current_match_index == 2
+        assert any(name.startswith("search.") for name in _highlight_names(text_area))
+
+
 async def test_repeat_search_wraps_with_vim_style_feedback() -> None:
     app = _PromptSearchApp("alpha beta alpha")
 
