@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.4.0](https://github.com/sase-org/sase/compare/v0.3.0...v0.4.0) (2026-06-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **tui:** Prompt Ctrl+G now starts the prompt-local INSERT-mode prefix instead of opening the editor directly. Use Ctrl+G g or Ctrl+G Ctrl+G to open the current prompt or prompt stack in the editor.
+
+### Features
+
+* **agents:** auto-add derived agent names to groups ([7862d83](https://github.com/sase-org/sase/commit/7862d83745e5c213b4b8831e98f3c414481a46a9))
+* **bead:** add Python search command (sase-4w.3) ([90d2d6e](https://github.com/sase-org/sase/commit/90d2d6ebec45b03e1214efe58018159d69331a40))
+* **tui:** add prompt Ctrl+G insert prefix ([d4dd47d](https://github.com/sase-org/sase/commit/d4dd47dd5272dc047f2adb3e64dca5030f90b38a))
+* **tui:** bundle multi-pane prompt stash rows ([599d71c](https://github.com/sase-org/sase/commit/599d71caac4cd02e845cccbd5c29b0c848229aff))
+* **tui:** improve frontmatter add-property picker ([6fbc748](https://github.com/sase-org/sase/commit/6fbc748f52453eed1a31ba253ca904ef2a93bd41))
+* **tui:** split frontmatter add keymaps ([36eb840](https://github.com/sase-org/sase/commit/36eb8403b5bbb6af0fe2bfb24c7b559f966eae48))
+
+
+### Bug Fixes
+
+* stop orphaned axe lifecycle processes ([1ba8c98](https://github.com/sase-org/sase/commit/1ba8c988e279bba47b23a47547487285e3db4d2b))
+* **tui:** acknowledge unread on mark auto-advance ([a011b42](https://github.com/sase-org/sase/commit/a011b4247f2d41f745cf10b236cef6d174dddc53))
+* **tui:** clear prompt search highlights on escape ([b2c9905](https://github.com/sase-org/sase/commit/b2c9905c369873cd7115540d8b95c06a9bd64bec))
+* **tui:** restore stashed prompt properties ([e7aaede](https://github.com/sase-org/sase/commit/e7aaedeee249de5db54e3d5a0bf1a5eab93b24be))
+* **tui:** scope bead display cache by project ([#179](https://github.com/sase-org/sase/issues/179)) ([821ae68](https://github.com/sase-org/sase/commit/821ae68a97195e2ade16a530c0dc77587fe9062f))
+
+
+### Documentation
+
+* **beads:** document search command (sase-4w.4) ([0a299d7](https://github.com/sase-org/sase/commit/0a299d7af0283f2d4095df4370c25159a769c8e5))
+
 ## [0.3.0](https://github.com/sase-org/sase/compare/v0.2.0...v0.3.0) (2026-06-18)
 
 
