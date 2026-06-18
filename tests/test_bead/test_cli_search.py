@@ -118,6 +118,26 @@ def test_handle_bead_search_compact_includes_closed_and_match_reason(
     assert "Closed Needle" in out
 
 
+def test_handle_bead_search_compact_snippet_uses_matching_line(
+    project_dir,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        proj.create(
+            "Multiline Description",
+            IssueType.PLAN,
+            description="Overview line\nNeedle appears later",
+        )
+
+    args = create_parser().parse_args(["bead", "search", "needle"])
+    bead_cli.handle_bead_search(args)
+
+    out = capsys.readouterr().out
+    assert "Multiline Description" in out
+    assert "Needle appears later" in out
+    assert "Overview line" not in out
+
+
 def test_handle_bead_search_json_outputs_envelope(
     project_dir,
     capsys: pytest.CaptureFixture[str],
