@@ -22,7 +22,7 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
         patch("sase.axe.state.AXE_STATE_DIR", state_dir),
         patch("sase.axe.orchestrator.AXE_STATE_DIR", state_dir),
         patch("sase.axe.orchestrator.ORCHESTRATOR_PID_FILE", pid_file),
-        patch("sase.axe.process.ORCHESTRATOR_PID_FILE", pid_file),
+        patch("sase.axe._process_probe.ORCHESTRATOR_PID_FILE", pid_file),
         patch("sase.axe.state.JACK_STATE_DIR", lumberjack_dir),
     ):
         yield state_dir
@@ -31,7 +31,7 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
 # --- is_axe_running Tests ---
 
 
-@patch("sase.axe.process.is_process_running", return_value=False)
+@patch("sase.axe._process_probe.is_process_running", return_value=False)
 def test_is_axe_running_stale_pid(
     mock_running: MagicMock, temp_state_dir: Path
 ) -> None:

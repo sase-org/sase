@@ -6,10 +6,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from sase.axe.config import AxeConfig
-from sase.axe.process import (
+from sase.axe._process_start import (
     _build_axe_start_command,
-    _AxeOrchestratorProbe,
     _wait_for_daemon_start,
+)
+from sase.axe._process_types import AxeOrchestratorProbe
+from sase.axe.process import (
     get_axe_status,
     restart_axe_daemon,
     start_axe_daemon,
@@ -31,7 +33,8 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
         patch("sase.axe.state.JACK_STATE_DIR", lumberjack_dir),
         patch("sase.axe.orchestrator.AXE_STATE_DIR", state_dir),
         patch("sase.axe.orchestrator.ORCHESTRATOR_PID_FILE", orch_pid_file),
-        patch("sase.axe.process.ORCHESTRATOR_PID_FILE", orch_pid_file),
+        patch("sase.axe._process_probe.ORCHESTRATOR_PID_FILE", orch_pid_file),
+        patch("sase.axe._process_start.AXE_STATE_DIR", state_dir),
     ):
         yield state_dir
 
@@ -53,8 +56,8 @@ def axe_config() -> AxeConfig:
 # --- start_axe_daemon Tests ---
 
 
-@patch("sase.axe.process.subprocess.Popen")
-@patch("sase.axe.process.is_process_running", return_value=True)
+@patch("sase.axe._process_start.subprocess.Popen")
+@patch("sase.axe._process_probe.is_process_running", return_value=True)
 def test_start_axe_daemon_returns_existing_pid(
     mock_is_running: MagicMock,
     mock_popen: MagicMock,
@@ -70,8 +73,8 @@ def test_start_axe_daemon_returns_existing_pid(
     mock_popen.assert_not_called()
 
 
-@patch("sase.axe.process.shutil.which", return_value="/usr/bin/sase")
-@patch("sase.axe.process.is_process_running", return_value=True)
+@patch("sase.axe._process_start.shutil.which", return_value="/usr/bin/sase")
+@patch("sase.axe._process_probe.is_process_running", return_value=True)
 def test_repeated_start_axe_daemon_spawns_once_after_pid_appears(
     mock_is_running: MagicMock,
     _mock_which: MagicMock,
@@ -86,7 +89,7 @@ def test_repeated_start_axe_daemon_spawns_once_after_pid_appears(
     mock_proc.pid = 22222
     mock_proc.poll.return_value = None
 
-    with patch("sase.axe.process.subprocess.Popen") as mock_popen:
+    with patch("sase.axe._process_start.subprocess.Popen") as mock_popen:
 
         def fake_popen(*_args: object, **_kwargs: object) -> MagicMock:
             pid_file.write_text("22222")
@@ -112,8 +115,8 @@ def test_wait_for_daemon_start_waits_for_published_pid() -> None:
     mock_proc.poll.return_value = None
 
     with (
-        patch("sase.axe.process.get_axe_pid", side_effect=[None, 4321]),
-        patch("sase.axe.process.time.sleep", return_value=None),
+        patch("sase.axe._process_start.get_axe_pid", side_effect=[None, 4321]),
+        patch("sase.axe._process_start.time.sleep", return_value=None),
     ):
         assert _wait_for_daemon_start(mock_proc, timeout=1.0) == 4321
 
@@ -124,7 +127,7 @@ def test_wait_for_daemon_start_does_not_return_child_pid_on_timeout() -> None:
     mock_proc.pid = 99999
     mock_proc.poll.return_value = None
 
-    with patch("sase.axe.process.get_axe_pid", return_value=None):
+    with patch("sase.axe._process_start.get_axe_pid", return_value=None):
         assert _wait_for_daemon_start(mock_proc, timeout=0.0) is None
 
 
@@ -134,8 +137,8 @@ def test_wait_for_daemon_start_returns_none_when_child_exits() -> None:
     mock_proc.poll.return_value = 1
 
     with (
-        patch("sase.axe.process.get_axe_pid", return_value=None),
-        patch("sase.axe.process.time.sleep", return_value=None),
+        patch("sase.axe._process_start.get_axe_pid", return_value=None),
+        patch("sase.axe._process_start.time.sleep", return_value=None),
     ):
         assert _wait_for_daemon_start(mock_proc, timeout=1.0) is None
 
@@ -164,10 +167,13 @@ def test_build_start_command_prefers_canonical_sase_from_ephemeral_workspace(
     ephemeral_python.write_text("")
 
     with (
-        patch("sase.axe.process.Path.home", return_value=tmp_path),
-        patch("sase.axe.process.sys.executable", str(ephemeral_python)),
-        patch("sase.axe.process.shutil.which", return_value=None),
-        patch("sase.axe.process._resolve_primary_workspace_sase", return_value=None),
+        patch("sase.axe._process_start.Path.home", return_value=tmp_path),
+        patch("sase.axe._process_start.sys.executable", str(ephemeral_python)),
+        patch("sase.axe._process_start.shutil.which", return_value=None),
+        patch(
+            "sase.axe._process_start._resolve_primary_workspace_sase",
+            return_value=None,
+        ),
     ):
         cmd = _build_axe_start_command(axe_config)
 
@@ -180,11 +186,14 @@ def test_start_axe_daemon_result_reports_held_lock_without_pid(
 ) -> None:
     """Start failure explains the held-lock/no-PID deadlock."""
     with (
-        patch("sase.axe.process.get_axe_pid", return_value=None),
-        patch("sase.axe.process._acquire_lifecycle_lock_for_start", return_value=None),
+        patch("sase.axe._process_start.get_axe_pid", return_value=None),
         patch(
-            "sase.axe.process._probe_orchestrator",
-            return_value=_AxeOrchestratorProbe(
+            "sase.axe._process_start._acquire_lifecycle_lock_for_start",
+            return_value=None,
+        ),
+        patch(
+            "sase.axe._process_start.probe_orchestrator",
+            return_value=AxeOrchestratorProbe(
                 lock_held=True,
                 lock_holder_pid=None,
                 orchestrator_pid_file_pid=None,
@@ -210,8 +219,8 @@ def test_stop_axe_daemon_returns_false_when_no_pid_file(
     assert stop_axe_daemon() is False
 
 
-@patch("sase.axe.process.os.kill")
-@patch("sase.axe.process.is_process_running")
+@patch("sase.axe._process_stop.os.kill")
+@patch("sase.axe._process_probe.is_process_running")
 def test_stop_axe_daemon_sends_sigterm(
     mock_is_running: MagicMock,
     mock_kill: MagicMock,
@@ -230,8 +239,8 @@ def test_stop_axe_daemon_sends_sigterm(
     mock_kill.assert_called_once_with(12345, signal.SIGTERM)
 
 
-@patch("sase.axe.process.os.kill")
-@patch("sase.axe.process.is_process_running")
+@patch("sase.axe._process_stop.os.kill")
+@patch("sase.axe._process_probe.is_process_running")
 def test_stop_axe_daemon_handles_process_not_found(
     mock_is_running: MagicMock,
     mock_kill: MagicMock,
@@ -249,9 +258,9 @@ def test_stop_axe_daemon_handles_process_not_found(
     assert not pid_file.exists()
 
 
-@patch("sase.axe.process.os.kill")
-@patch("sase.axe.process.is_lifecycle_lock_held", return_value=False)
-@patch("sase.axe.process.is_process_running", side_effect=[True, False])
+@patch("sase.axe._process_stop.os.kill")
+@patch("sase.axe._process_stop.is_lifecycle_lock_held", return_value=False)
+@patch("sase.axe._process_probe.is_process_running", side_effect=[True, False])
 def test_stop_axe_daemon_uses_lock_holder_when_pid_file_missing(
     mock_is_running: MagicMock,
     _mock_lock_held: MagicMock,
@@ -262,14 +271,14 @@ def test_stop_axe_daemon_uses_lock_holder_when_pid_file_missing(
     import signal
 
     del temp_state_dir
-    probe = _AxeOrchestratorProbe(
+    probe = AxeOrchestratorProbe(
         lock_held=True,
         lock_holder_pid=12345,
         orchestrator_pid_file_pid=None,
         legacy_pid=None,
         running_pid=12345,
     )
-    stopped_probe = _AxeOrchestratorProbe(
+    stopped_probe = AxeOrchestratorProbe(
         lock_held=False,
         lock_holder_pid=None,
         orchestrator_pid_file_pid=None,
@@ -278,7 +287,7 @@ def test_stop_axe_daemon_uses_lock_holder_when_pid_file_missing(
     )
 
     with patch(
-        "sase.axe.process._probe_orchestrator",
+        "sase.axe._process_stop.probe_orchestrator",
         side_effect=[probe, stopped_probe],
     ):
         result = stop_axe_daemon_result(timeout=1.0)
@@ -289,9 +298,9 @@ def test_stop_axe_daemon_uses_lock_holder_when_pid_file_missing(
     mock_is_running.assert_any_call(12345)
 
 
-@patch("sase.axe.process.os.kill")
-@patch("sase.axe.process.is_lifecycle_lock_held", return_value=False)
-@patch("sase.axe.process.is_process_running", side_effect=[True, False, False])
+@patch("sase.axe._process_stop.os.kill")
+@patch("sase.axe._process_stop.is_lifecycle_lock_held", return_value=False)
+@patch("sase.axe._process_probe.is_process_running", side_effect=[True, False, False])
 def test_stop_axe_daemon_sweeps_orphaned_lumberjacks(
     _mock_is_running: MagicMock,
     _mock_lock_held: MagicMock,
@@ -305,7 +314,7 @@ def test_stop_axe_daemon_sweeps_orphaned_lumberjacks(
     lumberjack_dir.mkdir(parents=True)
     pid_file = lumberjack_dir / "pid"
     pid_file.write_text("22222")
-    stopped_probe = _AxeOrchestratorProbe(
+    stopped_probe = AxeOrchestratorProbe(
         lock_held=False,
         lock_holder_pid=None,
         orchestrator_pid_file_pid=None,
@@ -313,7 +322,10 @@ def test_stop_axe_daemon_sweeps_orphaned_lumberjacks(
         running_pid=None,
     )
 
-    with patch("sase.axe.process._probe_orchestrator", return_value=stopped_probe):
+    with patch(
+        "sase.axe._process_stop.probe_orchestrator",
+        return_value=stopped_probe,
+    ):
         result = stop_axe_daemon_result(timeout=1.0)
 
     assert result.orchestrator_pid is None
@@ -336,7 +348,7 @@ def test_restart_axe_daemon_stops_then_starts(axe_config: AxeConfig) -> None:
 # --- get_axe_status Tests ---
 
 
-@patch("sase.axe.process.is_process_running")
+@patch("sase.axe._process_probe.is_process_running")
 def test_get_axe_status_returns_none_when_process_dead(
     mock_is_running: MagicMock,
     temp_state_dir: Path,
@@ -352,7 +364,7 @@ def test_get_axe_status_returns_none_when_process_dead(
     assert not pid_file.exists()
 
 
-@patch("sase.axe.process.is_process_running")
+@patch("sase.axe._process_probe.is_process_running")
 def test_get_axe_status_returns_full_status_when_no_status_file(
     mock_is_running: MagicMock,
     temp_state_dir: Path,
