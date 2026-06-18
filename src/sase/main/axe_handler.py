@@ -25,7 +25,7 @@ def handle_axe_command(args: argparse.Namespace) -> None:
     elif axe_sub == "start":
         _handle_start(args)
     elif axe_sub == "stop":
-        _handle_stop()
+        _handle_stop(args)
     else:
         print("Usage: sase axe {chop,lumberjack,maintenance,start,stop}")
         sys.exit(1)
@@ -108,6 +108,22 @@ def _handle_start(args: argparse.Namespace) -> None:
     """Handle 'sase axe start' — orchestrator mode."""
     from sase.axe.config import AxeConfig, load_axe_config
     from sase.axe.orchestrator import Orchestrator
+    from sase.axe.process import (
+        canonical_axe_start_command,
+        should_reexec_axe_start_from_canonical,
+    )
+
+    if should_reexec_axe_start_from_canonical():
+        canonical_cmd = canonical_axe_start_command()
+        if canonical_cmd is not None:
+            env = os.environ.copy()
+            env["SASE_AXE_CANONICALIZED"] = "1"
+            try:
+                os.execvpe(canonical_cmd, [canonical_cmd, *sys.argv[1:]], env)
+            except OSError:
+                pass
+
+    os.chdir(os.path.expanduser("~"))
 
     config = load_axe_config()
 
@@ -149,22 +165,24 @@ def _handle_start(args: argparse.Namespace) -> None:
     sys.exit(0 if success else 1)
 
 
-def _handle_stop() -> None:
+def _handle_stop(args: argparse.Namespace) -> None:
     """Handle 'sase axe stop'."""
     import time as _time
 
     from rich.console import Console
 
-    from sase.axe.process import stop_axe_daemon
+    from sase.axe.process import stop_axe_daemon_result
 
     console = Console()
     t0 = _time.monotonic()
-    if stop_axe_daemon():
+    result = stop_axe_daemon_result(force=bool(getattr(args, "force", False)))
+    if result.terminated_anything:
         elapsed = _time.monotonic() - t0
         console.print(
-            f"[bold green]Axe stopped[/bold green] — all lumberjacks"
-            f" terminated in [cyan]{elapsed:.1f}s[/cyan]"
+            f"[bold green]{result.summary()}[/bold green] "
+            f"in [cyan]{elapsed:.1f}s[/cyan]"
         )
     else:
-        console.print("[bold yellow]Axe orchestrator is not running.[/bold yellow]")
-    sys.exit(0)
+        style = "bold red" if result.error else "bold yellow"
+        console.print(f"[{style}]{result.summary()}[/{style}]")
+    sys.exit(1 if result.error and not result.terminated_anything else 0)

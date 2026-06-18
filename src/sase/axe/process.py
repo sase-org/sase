@@ -6,24 +6,134 @@ Orchestrator that manages individual Lumberjack sub-processes.
 """
 
 import os
+import re
 import shutil
 import signal
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from sase.ace.changespec import count_agent_runners_global, count_hook_runners_global
 from sase.ace.hooks.processes import is_process_running
 
 from .config import AxeConfig, load_axe_config
-from .lock import AXE_LOCK_FD_ENV, AxeLifecycleLock
+from .lock import (
+    AXE_LOCK_FD_ENV,
+    AxeLifecycleLock,
+    clear_lock_holder_pid,
+    is_lifecycle_lock_held,
+    read_lock_holder_pid,
+)
 from .orchestrator import ORCHESTRATOR_PID_FILE
 from .state import (
     AXE_STATE_DIR,
+    list_lumberjack_names,
+    read_lumberjack_pid,
     read_lumberjack_status,
     read_status,
+    remove_lumberjack_pid,
 )
+
+
+StartStatus = Literal["started", "already_running", "failed", "blocked"]
+
+
+@dataclass(frozen=True)
+class _AxeStartResult:
+    """Result of an axe daemon start request."""
+
+    status: StartStatus
+    pid: int | None = None
+    message: str = ""
+
+    @property
+    def succeeded(self) -> bool:
+        return self.pid is not None
+
+
+@dataclass(frozen=True)
+class _AxeOrchestratorProbe:
+    """Authoritative view of axe orchestrator liveness."""
+
+    lock_held: bool
+    lock_holder_pid: int | None
+    orchestrator_pid_file_pid: int | None
+    legacy_pid: int | None
+    running_pid: int | None
+
+    @property
+    def running(self) -> bool:
+        return self.lock_held or self.running_pid is not None
+
+
+@dataclass(frozen=True)
+class _AxeStopResult:
+    """Result of an axe daemon stop request."""
+
+    orchestrator_pid: int | None = None
+    orchestrator_signaled: bool = False
+    orchestrator_stopped: bool = False
+    lumberjack_pids: tuple[int, ...] = ()
+    lumberjacks_stopped: int = 0
+    force_killed_processes: int = 0
+    failed_pids: tuple[int, ...] = ()
+    lock_was_held: bool = False
+    lock_still_held: bool = False
+    force: bool = False
+    error: str | None = None
+
+    @property
+    def terminated_anything(self) -> bool:
+        return (
+            self.orchestrator_signaled
+            or self.lumberjacks_stopped > 0
+            or self.force_killed_processes > 0
+        )
+
+    @property
+    def succeeded(self) -> bool:
+        return self.terminated_anything and not self.failed_pids
+
+    def summary(self) -> str:
+        """Return a concise user-facing summary."""
+        if self.error and not self.terminated_anything:
+            return self.error
+        parts: list[str] = []
+        if self.orchestrator_signaled:
+            if self.orchestrator_stopped:
+                parts.append("orchestrator")
+            else:
+                parts.append("orchestrator signaled")
+        if self.lumberjacks_stopped:
+            parts.append(f"{self.lumberjacks_stopped} lumberjack(s)")
+        if self.force_killed_processes:
+            parts.append(f"{self.force_killed_processes} matched axe process(es)")
+        if parts:
+            return "Stopped " + " + ".join(parts)
+        if self.lock_was_held and self.lock_still_held:
+            return (
+                "Axe lifecycle lock is still held, but no live PID could be "
+                "resolved; retry with `sase axe stop --force`."
+            )
+        return "Axe orchestrator is not running."
+
+
+@dataclass(frozen=True)
+class _TerminateResult:
+    pid: int | None = None
+    signaled: bool = False
+    stopped: bool = False
+    failed: bool = False
+
+
+@dataclass(frozen=True)
+class _SweepResult:
+    seen: tuple[tuple[str, int], ...] = ()
+    stopped_pids: tuple[int, ...] = ()
+    failed_pids: tuple[int, ...] = ()
 
 
 def is_axe_running() -> bool:
@@ -32,8 +142,7 @@ def is_axe_running() -> bool:
     Returns:
         True if axe is running, False otherwise.
     """
-    pid = get_axe_pid()
-    return pid is not None
+    return _probe_orchestrator().running
 
 
 def start_axe_daemon(config: AxeConfig | None = None) -> int | None:
@@ -47,27 +156,68 @@ def start_axe_daemon(config: AxeConfig | None = None) -> int | None:
     Returns:
         PID of the running process, or None if startup failed.
     """
+    return start_axe_daemon_result(config).pid
+
+
+def start_axe_daemon_result(config: AxeConfig | None = None) -> _AxeStartResult:
+    """Start axe as a background daemon process and return a detailed result."""
     existing_pid = get_axe_pid()
     if existing_pid is not None:
-        return existing_pid
+        return _AxeStartResult(
+            status="already_running",
+            pid=existing_pid,
+            message=f"Axe is already running (pid {existing_pid}).",
+        )
 
     lifecycle_lock = _acquire_lifecycle_lock_for_start()
     if lifecycle_lock is None:
-        return get_axe_pid()
+        existing_pid = get_axe_pid()
+        if existing_pid is not None:
+            return _AxeStartResult(
+                status="already_running",
+                pid=existing_pid,
+                message=f"Axe is already running (pid {existing_pid}).",
+            )
+        probe = _probe_orchestrator()
+        if probe.lock_held:
+            lock_holder = (
+                f" by pid {probe.lock_holder_pid}"
+                if probe.lock_holder_pid is not None
+                else ""
+            )
+            return _AxeStartResult(
+                status="blocked",
+                message=(
+                    f"Axe lifecycle lock is held{lock_holder}, but no live "
+                    "orchestrator PID is published. Run `sase axe stop`; if "
+                    "the lock remains stuck, run `sase axe stop --force`."
+                ),
+            )
+        return _AxeStartResult(
+            status="failed",
+            message="Timed out acquiring the axe lifecycle lock.",
+        )
 
     handed_off = False
     process: subprocess.Popen[bytes] | None = None
     try:
-        existing_pid = get_axe_pid()
+        existing_pid = _get_pid_from_pid_files()
         if existing_pid is not None:
-            return existing_pid
+            return _AxeStartResult(
+                status="already_running",
+                pid=existing_pid,
+                message=f"Axe is already running (pid {existing_pid}).",
+            )
 
         if config is None:
             config = load_axe_config()
 
         cmd = _build_axe_start_command(config)
         if cmd is None:
-            return None
+            return _AxeStartResult(
+                status="failed",
+                message="Could not find a `sase` executable to start axe.",
+            )
 
         log_dir = AXE_STATE_DIR / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -83,6 +233,7 @@ def start_axe_daemon(config: AxeConfig | None = None) -> int | None:
                 start_new_session=True,
                 pass_fds=(lifecycle_lock.fd,),
                 env=env,
+                cwd=os.path.expanduser("~"),
             )
         handed_off = True
         lifecycle_lock.close_after_handoff()
@@ -91,8 +242,40 @@ def start_axe_daemon(config: AxeConfig | None = None) -> int | None:
             lifecycle_lock.release()
 
     if process is None:
-        return None
-    return _wait_for_daemon_start(process)
+        return _AxeStartResult(status="failed", message="Failed to spawn axe.")
+    pid = _wait_for_daemon_start(process)
+    if pid is not None:
+        return _AxeStartResult(
+            status="started",
+            pid=pid,
+            message=f"Axe started (pid {pid}).",
+        )
+
+    exit_code = process.poll()
+    if exit_code is not None:
+        return _AxeStartResult(
+            status="failed",
+            message=f"Axe start process exited before publishing a PID (code {exit_code}).",
+        )
+    probe = _probe_orchestrator()
+    if probe.lock_held:
+        lock_holder = (
+            f" by pid {probe.lock_holder_pid}"
+            if probe.lock_holder_pid is not None
+            else ""
+        )
+        return _AxeStartResult(
+            status="blocked",
+            message=(
+                f"Axe lifecycle lock is held{lock_holder}, but no live "
+                "orchestrator PID is published. Run `sase axe stop`; if the "
+                "lock remains stuck, run `sase axe stop --force`."
+            ),
+        )
+    return _AxeStartResult(
+        status="failed",
+        message="Timed out waiting for axe to publish its daemon PID.",
+    )
 
 
 def _acquire_lifecycle_lock_for_start(
@@ -114,12 +297,103 @@ def _acquire_lifecycle_lock_for_start(
         time.sleep(0.05)
 
 
+_EPHEMERAL_WORKSPACE_RE = re.compile(r"^sase_\d+$")
+
+
+def _path_is_ephemeral_workspace(path: Path) -> bool:
+    """Return True when *path* is inside a numbered SASE workspace clone."""
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = path.absolute()
+    return any(_EPHEMERAL_WORKSPACE_RE.fullmatch(part) for part in resolved.parts)
+
+
+def _running_from_ephemeral_workspace() -> bool:
+    """Return True when this process appears to be inside an agent workspace."""
+    paths: list[Path] = [Path(sys.executable)]
+    try:
+        paths.append(Path.cwd())
+    except OSError:
+        pass
+    if any(_path_is_ephemeral_workspace(path) for path in paths):
+        return True
+    return any(
+        os.environ.get(name)
+        for name in (
+            "SASE_AGENT_NAME",
+            "SASE_AGENT_PROJECT_FILE",
+            "SASE_AGENT_TIMESTAMP",
+        )
+    )
+
+
+def _resolve_primary_workspace_sase() -> str | None:
+    """Resolve a non-ephemeral primary workspace ``sase`` executable."""
+    try:
+        from sase.bead.workspace import resolve_primary_workspace
+
+        primary = resolve_primary_workspace()
+    except Exception:
+        return None
+    if primary is None or _path_is_ephemeral_workspace(primary):
+        return None
+    candidate = primary / ".venv" / "bin" / "sase"
+    if candidate.exists():
+        return str(candidate)
+    return None
+
+
+def _resolve_sase_executable(*, prefer_canonical: bool) -> str | None:
+    """Find the best ``sase`` executable for launching long-lived daemons."""
+    current_bin = Path(sys.executable).parent / "sase"
+    current = str(current_bin) if current_bin.exists() else None
+    path_sase = shutil.which("sase")
+
+    candidates: list[str | None]
+    if prefer_canonical:
+        candidates = [
+            str(Path.home() / ".local" / "bin" / "sase"),
+            path_sase,
+            _resolve_primary_workspace_sase(),
+            current,
+        ]
+    else:
+        candidates = [
+            current,
+            path_sase,
+            str(Path.home() / ".local" / "bin" / "sase"),
+        ]
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        candidate_path = Path(candidate)
+        if candidate != path_sase and not candidate_path.exists():
+            continue
+        if prefer_canonical and _path_is_ephemeral_workspace(candidate_path):
+            continue
+        return str(candidate_path)
+    return None
+
+
+def should_reexec_axe_start_from_canonical() -> bool:
+    """Return True when ``sase axe start`` should re-exec from a stable install."""
+    if os.environ.get("SASE_AXE_CANONICALIZED"):
+        return False
+    return _running_from_ephemeral_workspace()
+
+
+def canonical_axe_start_command() -> str | None:
+    """Return a stable ``sase`` executable for axe daemon startup."""
+    return _resolve_sase_executable(prefer_canonical=True)
+
+
 def _build_axe_start_command(config: AxeConfig) -> list[str] | None:
     """Build the detached orchestrator command."""
-    # Find sase executable — prefer the one next to the running interpreter
-    bin_dir = Path(sys.executable).parent
-    sase_in_bin = bin_dir / "sase"
-    sase_cmd = str(sase_in_bin) if sase_in_bin.exists() else shutil.which("sase")
+    sase_cmd = _resolve_sase_executable(
+        prefer_canonical=_running_from_ephemeral_workspace()
+    )
     if sase_cmd is None:
         return None
 
@@ -159,6 +433,8 @@ def _wait_for_daemon_start(
 def stop_axe_daemon(
     timeout: float = 15.0,
     kill_timeout: float = 5.0,
+    *,
+    force: bool = False,
 ) -> bool:
     """Stop the running axe orchestrator and wait for full shutdown.
 
@@ -169,42 +445,326 @@ def stop_axe_daemon(
     Args:
         timeout: Seconds to wait after SIGTERM before sending SIGKILL.
         kill_timeout: Seconds to wait after SIGKILL before giving up.
+        force: Also kill matched axe worker processes and reset PID state.
 
     Returns:
         True if process was stopped, False if not running.
     """
-    pid = get_axe_pid()
-    if pid is None:
-        return False
+    return stop_axe_daemon_result(
+        timeout=timeout,
+        kill_timeout=kill_timeout,
+        force=force,
+    ).terminated_anything
 
-    try:
-        os.kill(pid, signal.SIGTERM)
-    except (ProcessLookupError, PermissionError):
+
+def stop_axe_daemon_result(
+    timeout: float = 15.0,
+    kill_timeout: float = 5.0,
+    *,
+    force: bool = False,
+) -> _AxeStopResult:
+    """Stop axe and return a detailed lifecycle result."""
+    probe = _probe_orchestrator()
+    pid = probe.running_pid or probe.lock_holder_pid
+    orchestrator_result = _TerminateResult()
+    if pid is not None:
+        orchestrator_result = _terminate_process(
+            pid,
+            timeout=timeout,
+            kill_timeout=kill_timeout,
+            kill_group_on_timeout=True,
+        )
+
+    sweep = _sweep_lumberjack_orphans(
+        timeout=min(timeout, 5.0),
+        kill_timeout=min(kill_timeout, 2.0),
+        force=force,
+    )
+
+    force_killed = 0
+    if force:
+        force_killed = _force_kill_matching_axe_processes(
+            timeout=min(timeout, 3.0),
+            kill_timeout=min(kill_timeout, 2.0),
+        )
+
+    final_probe = _probe_orchestrator(cleanup=False)
+    should_clear_state = (
+        force
+        or orchestrator_result.stopped
+        or (pid is not None and not is_process_running(pid))
+        or not final_probe.running
+    )
+    if should_clear_state:
         _cleanup_pid_file()
-        return False
+        if not final_probe.lock_held or force:
+            clear_lock_holder_pid()
 
-    _cleanup_pid_file()
+    lock_still_held = is_lifecycle_lock_held()
+    failed_pids = tuple(
+        pid
+        for pid in ([orchestrator_result.pid] if orchestrator_result.failed else [])
+        + list(sweep.failed_pids)
+        if pid is not None
+    )
+    error: str | None = None
+    if probe.lock_held and pid is None and not sweep.stopped_pids and not force_killed:
+        error = (
+            "Axe lifecycle lock is held, but no live orchestrator PID could be "
+            "resolved. Run `sase axe stop --force` to sweep matched axe "
+            "processes and reset PID state."
+        )
 
-    # Wait for the orchestrator (and its children) to exit.
-    if _wait_for_exit(pid, timeout):
-        return True
-
-    # Escalate: SIGKILL the orchestrator process group.
-    try:
-        os.kill(pid, signal.SIGKILL)
-    except (ProcessLookupError, PermissionError):
-        _cleanup_pid_file()
-        return True
-
-    _wait_for_exit(pid, kill_timeout)
-    _cleanup_pid_file()
-    return True
+    return _AxeStopResult(
+        orchestrator_pid=pid,
+        orchestrator_signaled=orchestrator_result.signaled,
+        orchestrator_stopped=orchestrator_result.stopped,
+        lumberjack_pids=tuple(pid for _name, pid in sweep.seen),
+        lumberjacks_stopped=len(sweep.stopped_pids),
+        force_killed_processes=force_killed,
+        failed_pids=failed_pids,
+        lock_was_held=probe.lock_held,
+        lock_still_held=lock_still_held,
+        force=force,
+        error=error,
+    )
 
 
 def restart_axe_daemon(config: AxeConfig | None = None) -> int | None:
     """Restart the axe orchestrator and return the new/live PID."""
     stop_axe_daemon()
     return start_axe_daemon(config)
+
+
+def restart_axe_daemon_result(config: AxeConfig | None = None) -> _AxeStartResult:
+    """Restart axe and return detailed startup status."""
+    stop_axe_daemon_result()
+    return start_axe_daemon_result(config)
+
+
+def _send_signal(
+    pid: int,
+    sig: signal.Signals,
+    *,
+    prefer_group: bool = False,
+    signaled_groups: set[int] | None = None,
+) -> bool:
+    """Send *sig* to a PID or, when safe, its process group."""
+    if prefer_group:
+        try:
+            pgid = os.getpgid(pid)
+        except (ProcessLookupError, PermissionError, OSError):
+            pgid = None
+        if pgid is not None and pgid not in {os.getpgrp(), os.getpid()}:
+            if signaled_groups is not None and pgid in signaled_groups:
+                return True
+            try:
+                os.killpg(pgid, sig)
+            except ProcessLookupError:
+                return False
+            except PermissionError:
+                return False
+            if signaled_groups is not None:
+                signaled_groups.add(pgid)
+            return True
+
+    try:
+        os.kill(pid, sig)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return False
+    return True
+
+
+def _terminate_process(
+    pid: int,
+    *,
+    timeout: float,
+    kill_timeout: float,
+    kill_group_on_timeout: bool = False,
+    term_group: bool = False,
+) -> _TerminateResult:
+    """Terminate one process, escalating to SIGKILL on timeout."""
+    if not is_process_running(pid):
+        return _TerminateResult(pid=pid, stopped=True)
+
+    signaled = _send_signal(pid, signal.SIGTERM, prefer_group=term_group)
+    if not signaled:
+        still_running = is_process_running(pid)
+        return _TerminateResult(
+            pid=pid,
+            stopped=not still_running,
+            failed=still_running,
+        )
+    if _wait_for_exit(pid, timeout):
+        return _TerminateResult(pid=pid, signaled=True, stopped=True)
+
+    killed = _send_signal(
+        pid,
+        signal.SIGKILL,
+        prefer_group=kill_group_on_timeout,
+    )
+    if not killed and kill_group_on_timeout:
+        killed = _send_signal(pid, signal.SIGKILL, prefer_group=False)
+    stopped = _wait_for_exit(pid, kill_timeout)
+    return _TerminateResult(
+        pid=pid,
+        signaled=True,
+        stopped=stopped,
+        failed=not stopped,
+    )
+
+
+def _wait_for_all_exited(pids: set[int], timeout: float) -> set[int]:
+    """Wait until all PIDs exit and return those still running."""
+    deadline = time.monotonic() + timeout
+    remaining = set(pids)
+    while remaining and time.monotonic() < deadline:
+        remaining = {pid for pid in remaining if is_process_running(pid)}
+        if remaining:
+            time.sleep(0.1)
+    return {pid for pid in remaining if is_process_running(pid)}
+
+
+def _sweep_lumberjack_orphans(
+    *,
+    timeout: float,
+    kill_timeout: float,
+    force: bool,
+) -> _SweepResult:
+    """Terminate live lumberjacks tracked by their PID files."""
+    seen: list[tuple[str, int]] = []
+    for name in list_lumberjack_names():
+        pid = read_lumberjack_pid(name)
+        if pid is None:
+            continue
+        if not is_process_running(pid):
+            remove_lumberjack_pid(name)
+            continue
+        seen.append((name, pid))
+
+    if not seen:
+        return _SweepResult()
+
+    signaled_groups: set[int] = set()
+    signaled_pids: set[int] = set()
+    failed_pids: set[int] = set()
+    for _name, pid in seen:
+        if _send_signal(
+            pid,
+            signal.SIGTERM,
+            prefer_group=True,
+            signaled_groups=signaled_groups,
+        ):
+            signaled_pids.add(pid)
+        else:
+            failed_pids.add(pid)
+
+    remaining = _wait_for_all_exited(signaled_pids, timeout)
+    if remaining:
+        signaled_groups.clear()
+        for pid in remaining:
+            if not _send_signal(
+                pid,
+                signal.SIGKILL,
+                prefer_group=True,
+                signaled_groups=signaled_groups,
+            ):
+                failed_pids.add(pid)
+        remaining = _wait_for_all_exited(remaining, kill_timeout)
+
+    stopped_pids: set[int] = set()
+    for name, pid in seen:
+        if not is_process_running(pid):
+            stopped_pids.add(pid)
+            remove_lumberjack_pid(name)
+        elif force:
+            remove_lumberjack_pid(name)
+            failed_pids.add(pid)
+
+    return _SweepResult(
+        seen=tuple(seen),
+        stopped_pids=tuple(sorted(stopped_pids)),
+        failed_pids=tuple(sorted(failed_pids - stopped_pids)),
+    )
+
+
+def _force_kill_matching_axe_processes(
+    *,
+    timeout: float,
+    kill_timeout: float,
+) -> int:
+    """Last-resort force sweep for axe processes without usable PID files."""
+    matches = _matching_axe_process_pids()
+    if not matches:
+        return 0
+
+    signaled_groups: set[int] = set()
+    signaled_pids: set[int] = set()
+    for pid in matches:
+        if _send_signal(
+            pid,
+            signal.SIGTERM,
+            prefer_group=True,
+            signaled_groups=signaled_groups,
+        ):
+            signaled_pids.add(pid)
+
+    remaining = _wait_for_all_exited(signaled_pids, timeout)
+    if remaining:
+        signaled_groups.clear()
+        for pid in remaining:
+            _send_signal(
+                pid,
+                signal.SIGKILL,
+                prefer_group=True,
+                signaled_groups=signaled_groups,
+            )
+        _wait_for_all_exited(remaining, kill_timeout)
+    return len(matches)
+
+
+def _matching_axe_process_pids() -> list[int]:
+    """Return live axe process PIDs found by command-line matching."""
+    try:
+        completed = subprocess.run(
+            ["ps", "-eo", "pid=,args="],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return []
+    if completed.returncode != 0:
+        return []
+
+    current_pid = os.getpid()
+    pids: list[int] = []
+    for line in completed.stdout.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            pid_text, command = stripped.split(maxsplit=1)
+            pid = int(pid_text)
+        except ValueError:
+            continue
+        if pid == current_pid or not is_process_running(pid):
+            continue
+        if _is_matching_axe_process_command(command):
+            pids.append(pid)
+    return pids
+
+
+def _is_matching_axe_process_command(command: str) -> bool:
+    """Return True for long-lived axe orchestrator or lumberjack commands."""
+    padded = f" {command} "
+    if " axe stop" in padded:
+        return False
+    if "sase" not in command:
+        return False
+    return " axe lumberjack run " in padded or " axe start " in padded
 
 
 def _wait_for_exit(pid: int, timeout: float) -> bool:
@@ -309,33 +869,90 @@ def get_axe_status() -> dict | None:
 def get_axe_pid() -> int | None:
     """Get the PID of the running axe orchestrator.
 
-    Checks the orchestrator PID file first, then falls back to the
-    legacy global PID file for backward compatibility.
+    Reconciles the lifecycle lock with the orchestrator PID file and the
+    legacy global PID file. The lock is authoritative for liveness; this
+    function returns the best known live PID when one can be resolved.
 
     Returns:
         PID if running, None otherwise.
     """
-    # Check orchestrator PID file
-    if ORCHESTRATOR_PID_FILE.exists():
-        try:
-            pid = int(ORCHESTRATOR_PID_FILE.read_text().strip())
-        except (ValueError, OSError):
-            pid = None
-        if pid is not None:
-            if is_process_running(pid):
-                return pid
-            _cleanup_pid_file()
+    return _probe_orchestrator().running_pid
 
-    # Fall back to legacy PID file
+
+def _get_pid_from_pid_files() -> int | None:
+    """Return a live PID from PID files without consulting the lifecycle lock."""
+    orchestrator_pid = _read_pid_path(ORCHESTRATOR_PID_FILE)
+
+    from .state import read_pid_file
+
+    legacy_pid = read_pid_file()
+    if orchestrator_pid is not None and is_process_running(orchestrator_pid):
+        return orchestrator_pid
+    if legacy_pid is not None and is_process_running(legacy_pid):
+        return legacy_pid
+    return None
+
+
+def _probe_orchestrator(*, cleanup: bool = True) -> _AxeOrchestratorProbe:
+    """Probe axe orchestrator liveness from lock and PID-file state."""
+    lock_held = is_lifecycle_lock_held()
+    lock_holder_pid = read_lock_holder_pid() if lock_held else None
+    orchestrator_pid = _read_pid_path(ORCHESTRATOR_PID_FILE)
+
     from .state import read_pid_file, remove_pid_file
 
     legacy_pid = read_pid_file()
-    if legacy_pid is not None:
-        if is_process_running(legacy_pid):
-            return legacy_pid
-        remove_pid_file()
 
-    return None
+    lock_holder_running = lock_holder_pid is not None and is_process_running(
+        lock_holder_pid
+    )
+    orchestrator_running = orchestrator_pid is not None and is_process_running(
+        orchestrator_pid
+    )
+    legacy_running = legacy_pid is not None and is_process_running(legacy_pid)
+
+    running_pid: int | None = None
+    if lock_holder_running:
+        running_pid = lock_holder_pid
+    elif orchestrator_running:
+        running_pid = orchestrator_pid
+    elif legacy_running:
+        running_pid = legacy_pid
+
+    if cleanup:
+        if orchestrator_pid is not None and not orchestrator_running:
+            _remove_orchestrator_pid_file()
+        if legacy_pid is not None and not legacy_running:
+            remove_pid_file()
+        if not lock_held and read_lock_holder_pid() is not None:
+            clear_lock_holder_pid()
+
+    return _AxeOrchestratorProbe(
+        lock_held=lock_held,
+        lock_holder_pid=lock_holder_pid,
+        orchestrator_pid_file_pid=orchestrator_pid,
+        legacy_pid=legacy_pid,
+        running_pid=running_pid,
+    )
+
+
+def _read_pid_path(path: Path) -> int | None:
+    """Read an integer PID from *path*."""
+    if not path.exists():
+        return None
+    try:
+        pid = int(path.read_text().strip())
+    except (ValueError, OSError):
+        return None
+    return pid if pid > 0 else None
+
+
+def _remove_orchestrator_pid_file() -> None:
+    """Remove the orchestrator PID file."""
+    try:
+        ORCHESTRATOR_PID_FILE.unlink()
+    except OSError:
+        pass
 
 
 def get_lumberjack_names() -> list[str]:
@@ -352,8 +969,5 @@ def _cleanup_pid_file() -> None:
     """Remove all PID files (orchestrator + legacy)."""
     from .state import remove_pid_file
 
-    try:
-        ORCHESTRATOR_PID_FILE.unlink()
-    except OSError:
-        pass
+    _remove_orchestrator_pid_file()
     remove_pid_file()

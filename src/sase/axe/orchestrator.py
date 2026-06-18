@@ -24,7 +24,7 @@ from sase.telemetry.metrics import (
 )
 
 from .config import AxeConfig
-from .lock import acquire_axe_lifetime_lock
+from .lock import acquire_axe_lifetime_lock, read_lock_holder_pid
 from .state import AXE_STATE_DIR, append_bounded_log
 
 # Orchestrator PID file (separate from per-lumberjack PIDs)
@@ -170,7 +170,7 @@ class Orchestrator:
         """
         lifecycle_lock = acquire_axe_lifetime_lock()
         if lifecycle_lock is None:
-            existing_pid = self._read_orchestrator_pid()
+            existing_pid = self._read_orchestrator_pid() or read_lock_holder_pid()
             if existing_pid is not None:
                 print(f"Axe orchestrator is already running (pid {existing_pid})")
             else:
@@ -178,6 +178,7 @@ class Orchestrator:
             return True
 
         try:
+            lifecycle_lock.write_holder_pid()
             existing_pid = self._cleanup_stale_orchestrator_pid()
             if existing_pid is not None and existing_pid != os.getpid():
                 print(f"Axe orchestrator is already running (pid {existing_pid})")
@@ -239,6 +240,7 @@ class Orchestrator:
                         proc.wait(timeout=5)
                 self._remove_pid()
         finally:
+            lifecycle_lock.clear_holder_pid()
             lifecycle_lock.release()
 
         return True

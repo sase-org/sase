@@ -238,4 +238,12 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     # --- axe stop ---
-    axe_subparsers.add_parser("stop", help="Stop the running axe orchestrator")
+    axe_stop_parser = axe_subparsers.add_parser(
+        "stop", help="Stop the running axe orchestrator"
+    )
+    axe_stop_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Sweep orphaned axe processes and reset PID state",
+    )

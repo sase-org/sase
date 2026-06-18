@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from sase.axe.lock import AxeLifecycleLock
+from sase.axe.lock import AxeLifecycleLock, clear_lock_holder_pid, read_lock_holder_pid
 
 
 @pytest.fixture
@@ -39,3 +40,27 @@ def test_stale_lock_file_does_not_block_acquisition(temp_state_dir: Path) -> Non
     lock = AxeLifecycleLock.acquire(blocking=False)
     assert lock is not None
     lock.release()
+
+
+def test_lifecycle_lock_records_holder_pid(temp_state_dir: Path) -> None:
+    lock = AxeLifecycleLock.acquire(blocking=False)
+    assert lock is not None
+    try:
+        lock.write_holder_pid()
+        assert read_lock_holder_pid() == os.getpid()
+
+        lock.clear_holder_pid()
+        assert read_lock_holder_pid() == os.getpid()
+    finally:
+        lock.release()
+
+    assert read_lock_holder_pid() is None
+
+
+def test_clear_lock_holder_pid_without_lock(temp_state_dir: Path) -> None:
+    path = temp_state_dir / "orchestrator.lock"
+    path.write_text("12345")
+
+    clear_lock_holder_pid()
+
+    assert path.read_text() == ""

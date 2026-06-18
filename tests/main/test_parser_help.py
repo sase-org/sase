@@ -122,6 +122,15 @@ def test_all_subparser_choices_are_sorted() -> None:
         assert commands == sorted(commands), " ".join(path)
 
 
+def test_axe_stop_force_parser_aliases() -> None:
+    long_args = create_parser().parse_args(["axe", "stop", "--force"])
+    short_args = create_parser().parse_args(["axe", "stop", "-f"])
+
+    assert long_args.axe_subcommand == "stop"
+    assert long_args.force is True
+    assert short_args.force is True
+
+
 def test_all_visible_subparser_help_entries_are_sorted() -> None:
     """Every subcommand group renders its help rows sorted alphabetically."""
     parser = create_parser()

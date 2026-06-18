@@ -18,6 +18,86 @@ def _axe_lifecycle_lock_path() -> Path:
     return axe_state.AXE_STATE_DIR / "orchestrator.lock"
 
 
+def _read_recorded_lock_holder_pid() -> int | None:
+    """Read the PID recorded in the lifecycle lock file, if present."""
+    path = _axe_lifecycle_lock_path()
+    try:
+        raw = path.read_text().strip()
+    except OSError:
+        return None
+    try:
+        pid = int(raw)
+    except ValueError:
+        return None
+    return pid if pid > 0 else None
+
+
+def _find_proc_lock_holder_pid() -> int | None:
+    """Find the process currently holding the lifecycle flock on Linux."""
+    path = _axe_lifecycle_lock_path()
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+
+    target_major = os.major(stat.st_dev)
+    target_minor = os.minor(stat.st_dev)
+    target_inode = stat.st_ino
+
+    try:
+        with open("/proc/locks") as locks_file:
+            lines = locks_file.readlines()
+    except OSError:
+        return None
+
+    for line in lines:
+        parts = line.split()
+        if len(parts) < 6 or parts[1] != "FLOCK":
+            continue
+        try:
+            pid = int(parts[4])
+        except ValueError:
+            continue
+
+        lock_id = parts[5].split(":")
+        if len(lock_id) != 3:
+            continue
+        major_text, minor_text, inode_text = lock_id
+        try:
+            major = int(major_text, 16)
+            minor = int(minor_text, 16)
+            inode = int(inode_text)
+        except ValueError:
+            continue
+        if major == target_major and minor == target_minor and inode == target_inode:
+            return pid if pid > 0 else None
+    return None
+
+
+def read_lock_holder_pid() -> int | None:
+    """Return the lifecycle lock holder PID when it can be determined."""
+    return _find_proc_lock_holder_pid() or _read_recorded_lock_holder_pid()
+
+
+def clear_lock_holder_pid() -> None:
+    """Clear any recorded holder PID from the lifecycle lock file."""
+    path = _axe_lifecycle_lock_path()
+    try:
+        with open(path, "r+") as lock_file:
+            lock_file.truncate(0)
+    except OSError:
+        pass
+
+
+def is_lifecycle_lock_held() -> bool:
+    """Return True when another process currently holds the lifecycle lock."""
+    lock = AxeLifecycleLock.acquire(blocking=False)
+    if lock is None:
+        return True
+    lock.release()
+    return False
+
+
 class AxeLifecycleLock:
     """Exclusive flock held by the live axe orchestrator."""
 
@@ -69,6 +149,24 @@ class AxeLifecycleLock:
         if self._fd is None:
             raise RuntimeError("Axe lifecycle lock is closed")
         return self._fd
+
+    def write_holder_pid(self, pid: int | None = None) -> None:
+        """Record the PID of the process that owns the lifecycle lock."""
+        if self._fd is None:
+            raise RuntimeError("Axe lifecycle lock is closed")
+        holder_pid = os.getpid() if pid is None else pid
+        os.lseek(self._fd, 0, os.SEEK_SET)
+        os.ftruncate(self._fd, 0)
+        os.write(self._fd, f"{holder_pid}\n".encode())
+        os.fsync(self._fd)
+
+    def clear_holder_pid(self) -> None:
+        """Clear the recorded lifecycle lock holder PID."""
+        if self._fd is None:
+            return
+        os.lseek(self._fd, 0, os.SEEK_SET)
+        os.ftruncate(self._fd, 0)
+        os.fsync(self._fd)
 
     def release(self) -> None:
         """Unlock and close the lock fd."""

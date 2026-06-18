@@ -6,6 +6,11 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from textual.worker import Worker, WorkerState
 
+from sase.axe.process import (
+    restart_axe_daemon_result as _restart_axe_daemon_result,
+    start_axe_daemon_result as _start_axe_daemon_result,
+    stop_axe_daemon_result as _stop_axe_daemon_result,
+)
 from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
@@ -245,11 +250,10 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
         self._axe_worker_operation = "start"
 
         def _do_start() -> tuple[bool, str]:
-            proc = get_axe_process_module()
-            pid = proc.start_axe_daemon()
-            if pid is not None:
-                return (True, f"Axe running (pid {pid})")
-            return (False, "Failed to start axe")
+            result = _start_axe_daemon_result()
+            if result.pid is not None:
+                return (True, f"Axe running (pid {result.pid})")
+            return (False, result.message or "Failed to start axe")
 
         self._axe_worker = self.run_worker(_do_start, thread=True)  # type: ignore[attr-defined]
 
@@ -261,11 +265,10 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
         self._axe_worker_operation = "stop"
 
         def _do_stop() -> tuple[bool, str]:
-            proc = get_axe_process_module()
-            stopped = proc.stop_axe_daemon()
-            if stopped:
-                return (True, "Axe stopped")
-            return (False, "Axe was not running")
+            result = _stop_axe_daemon_result()
+            if result.terminated_anything:
+                return (True, result.summary())
+            return (False, result.summary())
 
         self._axe_worker = self.run_worker(_do_stop, thread=True)  # type: ignore[attr-defined]
 
@@ -277,11 +280,10 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
         self._axe_worker_operation = "restart"
 
         def _do_restart() -> tuple[bool, str]:
-            proc = get_axe_process_module()
-            pid = proc.restart_axe_daemon()
-            if pid is not None:
-                return (True, f"Axe restarted (pid {pid})")
-            return (False, "Failed to restart axe")
+            result = _restart_axe_daemon_result()
+            if result.pid is not None:
+                return (True, f"Axe restarted (pid {result.pid})")
+            return (False, result.message or "Failed to restart axe")
 
         self._axe_worker = self.run_worker(_do_restart, thread=True)  # type: ignore[attr-defined]
 
