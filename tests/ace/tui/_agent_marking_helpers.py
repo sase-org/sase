@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
+from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
 from sase.ace.tui.actions.agents._wait_resume import AgentWaitResumeMixin
 from sase.ace.tui.actions.marking import MarkingMixin
 from sase.ace.tui.modals.save_agent_group_modal import (
@@ -31,10 +32,10 @@ def _make_agent(**overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
+class _FakeMarkApp(AgentMarkingMixin, AgentUnreadMixin, MarkingMixin):
     """Minimal app implementing just what the marking flow touches."""
 
-    def __init__(self, agents: list[Agent]) -> None:
+    def __init__(self, agents: list[Agent], *, patch_result: bool = False) -> None:
         self.current_tab = "agents"
         self.current_idx = 0
         self._agents: list[Agent] = list(agents)
@@ -52,13 +53,21 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
             set()
         )
         self._current_group_key: tuple[str, ...] | None = None
+        self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._agent_info_metrics_cache: tuple[Any, ...] | None = None
         self._group_fold_registry = AgentGroupFoldRegistry()
+        self._patch_result = patch_result
+        self.patch_calls: list[Agent] = []
         self.refresh_calls: int = 0
+        self.refresh_call_kwargs: list[dict[str, Any]] = []
+        self.highlight_refresh_calls: int = 0
         self.notifications: list[tuple[str, str]] = []
         self.pushed_modals: list[Any] = []
         self.pushed_callbacks: list[Any] = []
         self._scheduled: list[tuple[Any, tuple[Any, ...]]] = []
         self.async_refreshes = 0
+        self.notification_count_refresh_calls = 0
         self.notification_refreshes_async = 0
         self.changespecs: list = []  # type: ignore[assignment]
         self.marked_indices: set[int] = set()
@@ -70,12 +79,13 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
         self, *, list_changed: bool = False, defer_detail: bool = False
     ) -> None:
         self.refresh_calls += 1
+        self.refresh_call_kwargs.append(
+            {"list_changed": list_changed, "defer_detail": defer_detail}
+        )
 
     def _try_patch_agent_row(self, agent: Agent) -> bool:
-        # Fall back to the full refresh path so this fake exercises the
-        # same code path it always did. Real-app tests cover patching.
-        del agent
-        return False
+        self.patch_calls.append(agent)
+        return self._patch_result
 
     def _try_patch_changespec_row(self, idx: int) -> bool:
         del idx
@@ -85,7 +95,10 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
         return
 
     def _refresh_panel_highlights(self) -> None:
-        pass
+        self.highlight_refresh_calls += 1
+
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refresh_calls += 1
 
     def _refresh_display(self) -> None:
         pass

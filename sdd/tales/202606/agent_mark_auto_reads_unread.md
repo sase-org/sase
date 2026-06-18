@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-18 11:00:02
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_mark_auto_reads_unread.md
 ---
 # Plan: Agents `m` Auto-Advance Acknowledges Unread Target

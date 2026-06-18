@@ -161,53 +161,98 @@ class AgentMarkingMixin:
         else:
             self._record_marked_agent(identity)
 
-        # Auto-advance cursor to the next visible agent row (wraparound).
+        # Auto-advance cursor to the next visible agent row (wraparound),
+        # including the same unread side effects as ordinary navigation.
         prev_idx = self.current_idx
-        self._advance_mark_selection(prev_idx)
+        selection_moved, new_agent, new_row_updated = self._advance_mark_selection(
+            prev_idx
+        )
 
         # Patch the just-marked row in place; the cursor's new position
         # is reflected by the per-panel highlight update so we avoid
         # rebuilding the whole tree for a one-bit mark change.
-        patched = self._try_patch_agent_row(agent)  # type: ignore[attr-defined]
-        if patched and prev_idx != self.current_idx:
+        patched = new_row_updated and new_agent is agent
+        if not patched:
+            patched = self._try_patch_agent_row(agent)  # type: ignore[attr-defined]
+        if patched and selection_moved:
             # Selection moved off prev_idx and onto current_idx — update
             # the on-screen highlight without a rebuild.
             self._refresh_panel_highlights()  # type: ignore[attr-defined]
             # Also patch the now-selected agent so its name styling
-            # reflects the new selection state.
-            new_agent = self._agents[self.current_idx]
-            self._try_patch_agent_row(new_agent)  # type: ignore[attr-defined]
+            # reflects the new selection state. Unread acknowledgment
+            # already patches the arrival row when it changes state.
+            if new_agent is not None and not new_row_updated:
+                self._try_patch_agent_row(new_agent)  # type: ignore[attr-defined]
         if not patched:
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
-    def _advance_mark_selection(self, prev_idx: int) -> None:
+    def _advance_mark_selection(self, prev_idx: int) -> tuple[bool, Agent | None, bool]:
         """Move mark focus to the next visible agent row.
 
         Marking targets agents, not collapsed banner rows, so auto-advance
         walks ``_agents_visible_order()`` rather than the full selectable
         stop list. When visible-order helpers are unavailable or the
         current agent is hidden, fall back to the legacy raw-list step.
+
+        Returns ``(selection_moved, arrival_agent, arrival_row_updated)``.
+        ``arrival_row_updated`` is true when unread acknowledgment already
+        patched or refreshed the newly selected row.
         """
-        if len(self._agents) <= 1:
-            return
+        if not self._agents:
+            return False, None, False
+        if len(self._agents) == 1:
+            if not (0 <= prev_idx < len(self._agents)):
+                return False, None, False
+            new_agent = self._agents[prev_idx]
+            self._current_group_key = None
+            return False, new_agent, self._acknowledge_mark_selection_arrival(new_agent)
 
         try:
             visible = self._agents_visible_order()  # type: ignore[attr-defined]
         except Exception:
             visible = []
 
+        target_idx: int | None = None
         if visible:
             try:
                 pos = visible.index(prev_idx)
             except ValueError:
                 pass
             else:
-                self.current_idx = visible[(pos + 1) % len(visible)]
-                self._current_group_key = None
-                return
+                target_idx = visible[(pos + 1) % len(visible)]
 
-        self.current_idx = (prev_idx + 1) % len(self._agents)
+        if target_idx is None:
+            target_idx = (prev_idx + 1) % len(self._agents)
+
+        if not (0 <= target_idx < len(self._agents)):
+            return False, None, False
+
+        selection_moved = target_idx != prev_idx
+        new_agent = self._agents[target_idx]
+        if not selection_moved:
+            self._current_group_key = None
+            return False, new_agent, self._acknowledge_mark_selection_arrival(new_agent)
+
+        old_agent = (
+            self._agents[prev_idx] if 0 <= prev_idx < len(self._agents) else None
+        )
+        if old_agent is not None:
+            arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
+            if callable(arm_manual):
+                arm_manual(old_agent)
+
+        self.current_idx = target_idx
         self._current_group_key = None
+        arrival_row_updated = self._acknowledge_mark_selection_arrival(new_agent)
+        return True, new_agent, arrival_row_updated
+
+    def _acknowledge_mark_selection_arrival(self, agent: Agent) -> bool:
+        """Run unread arrival side effects for mark auto-advance."""
+        arrival_row_updated = False
+        ack_unread = getattr(self, "_acknowledge_agent_unread", None)
+        if callable(ack_unread):
+            arrival_row_updated = bool(ack_unread(agent))
+        return arrival_row_updated
 
     def _clear_agent_marks(self) -> None:
         """Clear every agent mark."""
