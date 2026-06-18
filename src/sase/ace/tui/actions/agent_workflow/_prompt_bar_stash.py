@@ -51,8 +51,15 @@ class PromptBarStashMixin:
             return
 
         count = len(panes)
+        message = "Stashed prompt"
+        if count > 1:
+            message = (
+                f"Stashed {count} prompts as a bundle"
+                if event.source == "all"
+                else f"Stashed {count} prompts"
+            )
         self.notify(  # type: ignore[attr-defined]
-            "Stashed prompt" if count == 1 else f"Stashed {count} prompts"
+            message
         )
         self._refresh_prompt_stash_indicator()
 
@@ -68,11 +75,12 @@ class PromptBarStashMixin:
         *,
         source: str,
     ) -> None:
-        """Append each captured pane to the per-user prompt-stash store.
+        """Append the captured stash unit to the per-user prompt-stash store.
 
         The originating project (D2 metadata) comes from the active prompt
         context so the Phase 3 restore picker can show a project chip; id and
-        timestamp are minted here per entry.
+        timestamp are minted here per entry.  ``gS`` captures arrive as multiple
+        panes but are stored as one canonical multi-prompt row.
         """
         from datetime import datetime
         from uuid import uuid4
@@ -90,17 +98,18 @@ class PromptBarStashMixin:
             if self._prompt_context is not None
             else None
         )
-        for pane in panes:
-            entry = PromptStashEntryWire(
-                id=str(uuid4()),
-                created_at=datetime.now(get_timezone()).isoformat(),
-                text=pane.text,
-                frontmatter=pane.frontmatter,
-                project=project,
-                source=source,
-                pane_index=pane.pane_index,
-            )
-            append_prompt_stash(path, entry)
+        entry = PromptStashEntryWire(
+            id=str(uuid4()),
+            created_at=datetime.now(get_timezone()).isoformat(),
+            text="\n---\n".join(pane.text for pane in panes),
+            frontmatter=next(
+                (pane.frontmatter for pane in panes if pane.frontmatter), ""
+            ),
+            project=project,
+            source=source,
+            pane_index=min(pane.pane_index for pane in panes),
+        )
+        append_prompt_stash(path, entry)
 
     # -- restore / load ------------------------------------------------------
 
@@ -191,14 +200,16 @@ class PromptBarStashMixin:
         restored: list[PromptStashEntryWire] = [
             removed[entry_id] for entry_id in result.restore_ids if entry_id in removed
         ]
-        # Original drafting order (oldest first) so a "stash all" group restores
-        # its panes top-to-bottom exactly as captured.
+        # Original drafting order (oldest first); bundle rows expand later in
+        # their stored segment order.
         restored.sort(key=lambda entry: (entry.created_at, entry.pane_index))
+        restored_count = 0
         if restored:
+            restored_count = len(self._entries_to_restore_items(restored))
             self._load_restored_entries(restored)
 
         deleted = sum(1 for entry_id in result.delete_ids if entry_id in removed)
-        self._notify_restore_outcome(len(restored), deleted)
+        self._notify_restore_outcome(restored_count, deleted)
         self._refresh_prompt_stash_indicator()
 
     async def _apply_nondestructive_load(self, result: StashRestoreResult) -> None:
@@ -224,7 +235,7 @@ class PromptBarStashMixin:
             return
 
         self._load_restored_entries(loaded)
-        count = len(loaded)
+        count = len(self._entries_to_restore_items(loaded))
         self.notify(  # type: ignore[attr-defined]
             "Loaded prompt" if count == 1 else f"Loaded {count} prompts"
         )
@@ -239,13 +250,19 @@ class PromptBarStashMixin:
         """
         bar = self._mounted_prompt_bar()
         if bar is not None and bar._mode == "prompt":
-            bar.restore_stashed_entries(
-                [(entry.text, entry.frontmatter) for entry in entries]
-            )
+            bar.restore_stashed_entries(self._entries_to_restore_items(entries))
             return
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=self._stash_entries_to_prompt_text(entries)
         )
+
+    @staticmethod
+    def _entries_to_restore_items(
+        entries: list[PromptStashEntryWire],
+    ) -> list[tuple[str, str]]:
+        from ...prompt_stash_entries import entries_to_restore_items
+
+        return entries_to_restore_items(entries)
 
     @staticmethod
     def _stash_entries_to_prompt_text(
@@ -261,7 +278,13 @@ class PromptBarStashMixin:
             (entry.frontmatter for entry in entries if entry.frontmatter),
             "",
         )
-        body = "\n---\n".join(entry.text for entry in entries if entry.text.strip())
+        body = "\n---\n".join(
+            text
+            for text, _frontmatter in PromptBarStashMixin._entries_to_restore_items(
+                entries
+            )
+            if text.strip()
+        )
         if frontmatter and body:
             return f"{frontmatter}\n{body}"
         return frontmatter or body

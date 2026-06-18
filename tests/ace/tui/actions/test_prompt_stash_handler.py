@@ -5,10 +5,10 @@ These pin the app glue that turns a presentation-only
 top-bar badge (boundary rule D6):
 
 - An empty capture toasts a no-op and never touches the store or badge.
-- A real capture appends one row per pane (with project / source / pane_index
-  metadata), toasts a count-aware message, refreshes the badge, and — when the
-  bar emptied — unmounts via the post-submit path (no cancelled-history save)
-  and clears the prompt context.
+- A real capture appends one row per stash event (with project / source /
+  pane_index metadata), toasts a count-aware message, refreshes the badge, and
+  — when the bar emptied — unmounts via the post-submit path (no
+  cancelled-history save) and clears the prompt context.
 - A keep-bar capture leaves the bar + context intact.
 """
 
@@ -104,7 +104,7 @@ def test_non_stashed_event_is_ignored() -> None:
 # --- real persistence (needs the Rust store binding) -----------------------
 
 
-def test_stash_all_persists_each_pane_with_metadata(
+def test_stash_all_persists_one_bundle_row_with_metadata(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _skip_without_prompt_stash_bindings()
@@ -123,16 +123,17 @@ def test_stash_all_persists_each_pane_with_metadata(
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
     snapshot = read_prompt_stash_snapshot(path)
-    assert [e.text for e in snapshot.entries] == ["first", "second"]
-    assert [e.pane_index for e in snapshot.entries] == [0, 1]
-    assert all(e.project == "proj-a" for e in snapshot.entries)
-    assert all(e.source == "all" for e in snapshot.entries)
-    assert all(e.frontmatter == "model: c\n" for e in snapshot.entries)
-    # Each entry gets a distinct minted id.
-    assert len({e.id for e in snapshot.entries}) == 2
+    assert len(snapshot.entries) == 1
+    entry = snapshot.entries[0]
+    assert entry.text == "first\n---\nsecond"
+    assert entry.pane_index == 0
+    assert entry.project == "proj-a"
+    assert entry.source == "all"
+    assert entry.frontmatter == "model: c\n"
+    assert entry.id
 
-    assert harness.notifications == [("Stashed 2 prompts", None)]
-    assert harness.applied_counts == [2]  # badge reflects total on disk
+    assert harness.notifications == [("Stashed 2 prompts as a bundle", None)]
+    assert harness.applied_counts == [1]  # badge reflects total rows on disk
     assert harness.unmount_after_submit_calls == 1
     assert harness._prompt_context is None
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-18 09:05:09
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_stash_bundles_1.md
 ---
 # Prompt Stash Bundles Plan

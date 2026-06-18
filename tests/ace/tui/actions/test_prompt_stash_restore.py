@@ -10,8 +10,9 @@ read (``gp``) through ``prompt_stash_facade`` plus a load back into the bar
 - Opening reads the snapshot off-thread and pushes the picker with those entries
   in the requested destructive/non-destructive mode.
 - Destructive confirm pops the chosen ids, loads restored drafts (append to a
-  mounted bar, or mount the home bar pre-filled when none is shown), discards
-  delete-marked ids, toasts a count-aware summary, and refreshes the badge.
+  mounted bar, or mount the home bar pre-filled when none is shown), expands
+  bundle rows into panes, discards delete-marked ids, toasts a count-aware
+  summary, and refreshes the badge.
 - Non-destructive confirm loads the chosen ids without popping, toasts a load
   summary, and leaves the store and badge untouched.
 """
@@ -251,6 +252,34 @@ async def test_confirm_restores_into_mounted_bar_in_order(
     assert harness.applied_counts == [1]  # badge reflects remaining count
 
 
+async def test_confirm_restores_bundle_row_into_mounted_bar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("bundle", "2026-06-16T10:00:00", "alpha\n---\nbeta", "model: c"),
+            ("keep", "2026-06-16T11:00:00", "gamma", ""),
+        ],
+    )
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    await harness._on_prompt_stash_restore_confirmed(
+        StashRestoreResult(restore_ids=["bundle"], delete_ids=[])
+    )
+
+    assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["keep"]
+    assert harness.notifications == [("Restored 2 prompts", None)]
+    assert harness.applied_counts == [1]
+
+
 async def test_confirm_without_bar_mounts_home_with_combined_text(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -260,8 +289,8 @@ async def test_confirm_without_bar_mounts_home_with_combined_text(
     _seed(
         path,
         [
-            ("a", "2026-06-16T10:00:00", "first", "model: c"),
-            ("b", "2026-06-16T11:00:00", "second", ""),
+            ("a", "2026-06-16T10:00:00", "first\n---\nsecond", "model: c"),
+            ("b", "2026-06-16T11:00:00", "third", ""),
         ],
     )
     harness = _RestoreHarness(bar=None)
@@ -270,8 +299,8 @@ async def test_confirm_without_bar_mounts_home_with_combined_text(
         StashRestoreResult(restore_ids=["a", "b"], delete_ids=[])
     )
 
-    assert harness.home_mounts == ["model: c\nfirst\n---\nsecond"]
-    assert harness.notifications == [("Restored 2 prompts", None)]
+    assert harness.home_mounts == ["model: c\nfirst\n---\nsecond\n---\nthird"]
+    assert harness.notifications == [("Restored 3 prompts", None)]
 
 
 async def test_confirm_delete_only_pops_without_loading(
@@ -388,6 +417,31 @@ async def test_confirm_non_destructive_single_load_summary(
     assert harness.applied_counts == []
 
 
+async def test_confirm_non_destructive_expands_bundle_without_popping(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [("bundle", "2026-06-16T10:00:00", "alpha\n---\nbeta", "model: c")],
+    )
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    await harness._on_prompt_stash_restore_confirmed(
+        StashRestoreResult(restore_ids=["bundle"], destructive=False)
+    )
+
+    assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["bundle"]
+    assert harness.notifications == [("Loaded 2 prompts", None)]
+    assert harness.applied_counts == []
+
+
 # --- combine helper --------------------------------------------------------
 
 
@@ -415,3 +469,21 @@ def test_stash_entries_to_prompt_text_no_frontmatter() -> None:
         PromptStashEntryWire(id="a", created_at="t1", text="solo"),
     ]
     assert PromptBarStashMixin._stash_entries_to_prompt_text(entries) == "solo"
+
+
+def test_stash_entries_to_prompt_text_expands_bundle_rows() -> None:
+    from sase.core.prompt_stash_wire import PromptStashEntryWire
+
+    entries = [
+        PromptStashEntryWire(
+            id="a",
+            created_at="t1",
+            text="one\n---\ntwo",
+            frontmatter="model: c",
+        ),
+        PromptStashEntryWire(id="b", created_at="t2", text="three"),
+    ]
+    assert (
+        PromptBarStashMixin._stash_entries_to_prompt_text(entries)
+        == "model: c\none\n---\ntwo\n---\nthree"
+    )

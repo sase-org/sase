@@ -10,7 +10,7 @@ PROMPT_STASH_WIRE_SCHEMA_VERSION = 1
 
 @dataclass(frozen=True)
 class PromptStashEntryWire:
-    """One stashed prompt draft (a single prompt-bar pane)."""
+    """One stashed prompt draft row."""
 
     id: str
     created_at: str

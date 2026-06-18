@@ -1,10 +1,11 @@
 """Tests for the Phase 3 prompt-stash restore picker.
 
 Covers the pure row helpers (preview truncation, project chip, marker styling)
-and the modal's selection model: ``space`` toggles, ``a`` toggles all, ``d``
-marks for deletion, ``enter`` confirms (the toggled set, or the highlighted row
-when nothing is toggled), and ``esc`` cancels.  The modal is presentation-only,
-so confirm yields a :class:`StashRestoreResult` of ids — no store access here.
+and the modal's selection model: ``space`` toggles single-prompt rows, ``a``
+toggles all single-prompt rows, ``d`` marks a row for deletion, ``enter``
+confirms (the toggled set, or the highlighted row when nothing is toggled), and
+``esc`` cancels.  The modal is presentation-only, so confirm yields a
+:class:`StashRestoreResult` of ids — no store access here.
 """
 
 from __future__ import annotations
@@ -75,6 +76,18 @@ def test_row_label_markers() -> None:
     assert "2m ago" in plain_plain and "proj" in plain_plain and "hello" in plain_plain
 
 
+def test_row_label_shows_bundle_marker() -> None:
+    entry = _entry("bundle", "one\n---\ntwo")
+    plain = _stash_row_label(
+        entry,
+        selected=False,
+        marked_for_delete=False,
+        age="2m ago",
+        prompt_count=2,
+    ).plain
+    assert "2 prompts" in plain
+
+
 # --- modal interaction (pilot) ---------------------------------------------
 
 
@@ -124,6 +137,17 @@ async def test_enter_with_no_toggle_restores_highlighted() -> None:
     assert app.result.delete_ids == []
 
 
+async def test_enter_with_no_toggle_restores_highlighted_bundle() -> None:
+    app = _ModalHost([_entry("bundle", "one\n---\ntwo")])
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.restore_ids == ["bundle"]
+    assert app.result.delete_ids == []
+
+
 async def test_space_toggles_then_enter_restores_selected_set() -> None:
     app = _ModalHost(
         [
@@ -145,6 +169,24 @@ async def test_space_toggles_then_enter_restores_selected_set() -> None:
     assert app.result.delete_ids == []
 
 
+async def test_space_is_inert_for_bundle_rows() -> None:
+    app = _ModalHost(
+        [
+            _entry("bundle", "one\n---\ntwo", created_at="2026-06-16T12:00:00"),
+            _entry("single", "solo", created_at="2026-06-16T11:00:00"),
+        ]
+    )
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("space")  # highlighted bundle is not bulk-selectable
+        await pilot.press("j")
+        await pilot.press("enter")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.restore_ids == ["single"]
+    assert app.result.delete_ids == []
+
+
 async def test_toggle_all_then_enter_restores_everything() -> None:
     app = _ModalHost([_entry("a"), _entry("b")])
     async with app.run_test(size=(100, 30)) as pilot:
@@ -154,6 +196,24 @@ async def test_toggle_all_then_enter_restores_everything() -> None:
         await pilot.pause()
     assert isinstance(app.result, StashRestoreResult)
     assert set(app.result.restore_ids) == {"a", "b"}
+
+
+async def test_toggle_all_selects_only_single_prompt_rows() -> None:
+    app = _ModalHost(
+        [
+            _entry("bundle", "one\n---\ntwo", created_at="2026-06-16T12:00:00"),
+            _entry("a", "alpha", created_at="2026-06-16T11:00:00"),
+            _entry("b", "beta", created_at="2026-06-16T10:00:00"),
+        ]
+    )
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("a")
+        await pilot.press("enter")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert set(app.result.restore_ids) == {"a", "b"}
+    assert "bundle" not in app.result.restore_ids
 
 
 async def test_delete_mark_returns_delete_ids_not_restore() -> None:
@@ -180,6 +240,18 @@ async def test_delete_wins_over_prior_selection() -> None:
     assert isinstance(app.result, StashRestoreResult)
     assert app.result.restore_ids == []
     assert app.result.delete_ids == ["a"]
+
+
+async def test_delete_mark_can_delete_bundle_row() -> None:
+    app = _ModalHost([_entry("bundle", "one\n---\ntwo")])
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.press("enter")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.restore_ids == []
+    assert app.result.delete_ids == ["bundle"]
 
 
 async def test_escape_cancels_with_none() -> None:

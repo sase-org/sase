@@ -1,13 +1,14 @@
 """Restore/load picker for stashed prompt drafts (the ``gP`` / ``gp`` modal).
 
 Lists stashed prompts newest-first with a relative age, an originating-project
-chip, and a one-line preview.  ``space`` toggles an entry, ``a`` toggles all,
-``d`` marks an entry for deletion (only in destructive ``gP`` mode), and
-``enter`` confirms.  The modal is presentation-only: it never touches the store.
-It dismisses with a :class:`StashRestoreResult` describing which entries the
-chosen mode should apply (boundary rule D6); the app layer performs the actual
-``pop`` (destructive ``gP``) or snapshot read (non-destructive ``gp``) through
-``prompt_stash_facade`` and loads the chosen drafts into the bar.
+chip, bundle marker, and a one-line preview.  ``space``/``a`` toggle only
+single-prompt rows, ``d`` marks an entry for deletion (only in destructive
+``gP`` mode), and ``enter`` confirms.  The modal is presentation-only: it never
+touches the store.  It dismisses with a :class:`StashRestoreResult` describing
+which entries the chosen mode should apply (boundary rule D6); the app layer
+performs the actual ``pop`` (destructive ``gP``) or snapshot read
+(non-destructive ``gp``) through ``prompt_stash_facade`` and loads the chosen
+drafts into the bar.
 """
 
 from __future__ import annotations
@@ -21,18 +22,19 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.prompt_stash_entries import entry_is_bundle, entry_prompt_segments
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 from sase.notifications.models import format_relative_time
 
 from .base import OptionListNavigationMixin
 
-# Sized so a full row (marker + age + project chip + preview) fits on one line
-# inside the fixed 96-column modal — its option area is ~86 cols and the
-# fixed columns ahead of the preview spend ~29, so a longer preview would wrap
-# instead of truncating cleanly with an ellipsis.
-_PREVIEW_WIDTH = 52
+# Sized so a full row (marker + age + project chip + bundle chip + preview) fits
+# on one line inside the fixed 96-column modal — its option area is ~86 cols and
+# the fixed columns ahead of the preview spend ~41.
+_PREVIEW_WIDTH = 42
 _PROJECT_WIDTH = 14
 _AGE_WIDTH = 9
+_BUNDLE_WIDTH = 10
 _PROJECT_PLACEHOLDER = "—"
 
 
@@ -60,12 +62,21 @@ def _project_chip(project: str | None) -> str:
     return label.ljust(_PROJECT_WIDTH)
 
 
+def _bundle_chip(prompt_count: int) -> str:
+    """Return a fixed-width bundle marker for a stash row."""
+    label = f"{prompt_count} prompts" if prompt_count > 1 else ""
+    if len(label) > _BUNDLE_WIDTH:
+        label = f"{label[: _BUNDLE_WIDTH - 1]}…"
+    return label.ljust(_BUNDLE_WIDTH)
+
+
 def _stash_row_label(
     entry: PromptStashEntryWire,
     *,
     selected: bool,
     marked_for_delete: bool,
     age: str,
+    prompt_count: int = 1,
     preview_width: int = _PREVIEW_WIDTH,
 ) -> Text:
     """Build the styled single-line label for one stash row.
@@ -90,6 +101,11 @@ def _stash_row_label(
     text.append(
         _project_chip(entry.project),
         style="cyan" if not marked_for_delete else row_style,
+    )
+    text.append("  ")
+    text.append(
+        _bundle_chip(prompt_count),
+        style="magenta" if prompt_count > 1 and not marked_for_delete else row_style,
     )
     text.append("  ")
     preview = _first_line_preview(entry.text, preview_width)
@@ -140,6 +156,12 @@ class StashedPromptsModal(
             key=lambda e: (e.created_at, e.pane_index),
             reverse=True,
         )
+        self._prompt_counts = {
+            entry.id: len(entry_prompt_segments(entry)) for entry in self._entries
+        }
+        self._bundle_ids = {
+            entry.id for entry in self._entries if entry_is_bundle(entry)
+        }
         # ``gP`` pops the chosen entries (destructive); ``gp`` copies them while
         # leaving the stash intact and disables delete-marking entirely.
         self._destructive = destructive
@@ -187,11 +209,15 @@ class StashedPromptsModal(
                 selected=entry.id in self._selected,
                 marked_for_delete=entry.id in self._deleted,
                 age=format_relative_time(entry.created_at),
+                prompt_count=self._prompt_counts[entry.id],
             )
             options.append(Option(label, id=str(idx)))
         return options
 
     # -- selection state -----------------------------------------------------
+
+    def _is_selectable(self, entry: PromptStashEntryWire) -> bool:
+        return entry.id not in self._bundle_ids
 
     def _highlighted_entry(self) -> PromptStashEntryWire | None:
         try:
@@ -218,6 +244,8 @@ class StashedPromptsModal(
         entry = self._highlighted_entry()
         if entry is None:
             return
+        if not self._is_selectable(entry):
+            return
         if entry.id in self._selected:
             self._selected.discard(entry.id)
         else:
@@ -226,12 +254,16 @@ class StashedPromptsModal(
         self._refresh_rows()
 
     def action_toggle_all(self) -> None:
-        all_ids = {entry.id for entry in self._entries}
-        if all_ids <= self._selected:
-            self._selected.clear()
+        selectable_ids = {
+            entry.id for entry in self._entries if self._is_selectable(entry)
+        }
+        if not selectable_ids:
+            return
+        if selectable_ids <= self._selected:
+            self._selected.difference_update(selectable_ids)
         else:
-            self._selected = all_ids
-            self._deleted.clear()
+            self._selected.update(selectable_ids)
+            self._deleted.difference_update(selectable_ids)
         self._refresh_rows()
 
     def action_mark_delete(self) -> None:
