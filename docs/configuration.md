@@ -847,9 +847,10 @@ repo in the primary workspace for providers that support local SDD mode. Project
 VCS provider always use version-controlled SDD under `sdd/`, even if this option is false. See [`docs/sdd.md`](sdd.md)
 for storage behavior and [`docs/beads.md`](beads.md) for the bead system reference.
 
-Built-in bare-git projects also auto-create or refresh generated SDD guide files during `sase git init`, existing bare
-repo registration, `#git`/workspace materialization, and the first version-controlled SDD write. Setup/materialization
-flows commit and push only those generated init paths with an `Initialize SDD` init commit when needed.
+Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
+initialization, existing bare-repo registration, `#git`/workspace materialization, and the first version-controlled SDD
+write. Setup/materialization flows commit and push only those generated init paths with an `Initialize SDD` init commit
+when needed.
 
 Running `sase sdd init` or its `sase init sdd` alias is an explicit non-bare-git opt-in: it creates or updates the
 project-local `sase.yml` so `sdd.version_controlled` is true, then refreshes generated SDD guide files and the directory
@@ -1385,19 +1386,6 @@ before overwriting. `sase init skills` is a compatibility alias for `sase skill 
 | `sase skill log`   | `-a, --agent`; `-R, --runtime`; `-s, --skill`; `-i, --id`; `-j, --json` | Summarize or inspect audited generated skill-use events.                                    |
 | `sase skill use`   | `-r, --reason <reason>` required                                        | Agent-side audit event recording that the current agent is using a generated skill.         |
 | `sase init skills` | same as `sase skill init`                                               | Compatibility alias for `sase skill init`.                                                  |
-
-### `sase git init`
-
-| Flag              | Values | Default                    | Description                                             |
-| ----------------- | ------ | -------------------------- | ------------------------------------------------------- |
-| `project_name`    | string | (required)                 | Name of the project to initialize.                      |
-| `-b, --bare-dir`  | path   | `~/.sase/repos/<name>.git` | Override bare repo path.                                |
-| `-c, --clone-dir` | path   | `~/projects/git/<name>/`   | Override clone path.                                    |
-| `-e, --existing`  | path   | -                          | Register an existing bare repo instead of creating one. |
-
-New bare-git projects include generated SDD guide files in their initial commit. When `--existing` registers a bare repo
-that lacks current generated SDD guide files, SASE commits and pushes only those generated paths before writing the
-ProjectSpec.
 
 ### `sase workspace`
 

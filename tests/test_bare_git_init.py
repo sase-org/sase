@@ -1,13 +1,12 @@
-"""Tests for the `sase git init` CLI subcommand."""
+"""End-to-end tests for bare-git project initialization."""
 
 import shutil
 import subprocess
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-from sase.main.parser import create_parser
+from sase.workspace_provider.plugins.bare_git_init import init_bare_git_project
 
 _GIT_AVAILABLE = shutil.which("git") is not None
 
@@ -22,68 +21,13 @@ def _git(repo: Path | None, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-class TestInitGitArgParsing:
-    """Verify argparse correctly parses all argument combinations."""
-
-    def setup_method(self) -> None:
-        self.parser = create_parser()
-
-
-class TestInitGitHandler:
-    """Mock init_bare_git_project and verify the CLI handler calls it correctly."""
-
-    @patch("sase.workspace_provider.plugins.bare_git_workspace.init_bare_git_project")
-    def test_handler_passes_all_options(
-        self, mock_init: object, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        from unittest.mock import MagicMock
-
-        mock_init = MagicMock(return_value="/tmp/proj.sase")
-
-        with (
-            patch(
-                "sase.workspace_provider.plugins.bare_git_workspace.init_bare_git_project",
-                mock_init,
-            ),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            from sase.main.entry import main
-
-            with patch(
-                "sys.argv",
-                [
-                    "sase",
-                    "git",
-                    "init",
-                    "bar",
-                    "--bare-dir",
-                    "/tmp/bare.git",
-                    "--clone-dir",
-                    "/tmp/clone",
-                    "--existing",
-                    "/tmp/existing.git",
-                ],
-            ):
-                main()
-
-        assert exc_info.value.code == 0
-        mock_init.assert_called_once_with(
-            project_name="bar",
-            bare_dir="/tmp/bare.git",
-            clone_dir="/tmp/clone",
-            existing_bare="/tmp/existing.git",
-        )
-
-
 @pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
-class TestInitGitEndToEnd:
+class TestInitBareGitProjectEndToEnd:
     """Real git operations in tmp dirs to verify full init flow."""
 
     def test_new_project_initial_commit_contains_generated_sdd(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from sase.workspace_provider.plugins.bare_git_init import init_bare_git_project
-
         monkeypatch.setenv("HOME", str(tmp_path / "home"))
         bare = tmp_path / "demo.git"
         clone = tmp_path / "demo"
@@ -111,8 +55,6 @@ class TestInitGitEndToEnd:
     def test_existing_bare_project_commits_generated_sdd_only(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from sase.workspace_provider.plugins.bare_git_init import init_bare_git_project
-
         monkeypatch.setenv("HOME", str(tmp_path / "home"))
         bare = tmp_path / "existing.git"
         seed = tmp_path / "seed"

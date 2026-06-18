@@ -314,8 +314,8 @@ bare-git `home` project by default and gets normal numbered workspace, checkout,
 VCS workspace management.
 
 By default, a missing or uninitialized `home` ProjectSpec is bootstrapped as a managed empty bare-git project at the
-default `home` paths. To make bare prompts use an existing home/dotfiles bare repository, configure it first with
-`sase git init home --existing <bare-repo> --clone-dir <checkout-dir>`. Use `#cd:~` when you want a direct
+default `home` paths. To make bare prompts use an existing home/dotfiles bare repository, register a bare repository
+whose basename resolves to `home`, for example `#git:/path/to/home.git`. Use `#cd:~` when you want a direct
 home-directory run without VCS workspace management.
 
 Provider-prefixed refs that point at a known project name are preserved as workspace launches even if the matching

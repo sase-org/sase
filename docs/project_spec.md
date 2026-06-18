@@ -75,8 +75,8 @@ Project metadata fields are optional and appear before the first `NAME:` line. S
   canonicalized to the real project name before launch state, prompt history, and agent artifacts are written.
 - **RUNNING**: Active workspace claims written and released by SASE while agents or workflows are running.
 
-`BARE_REPO_DIR` and `WORKSPACE_DIR` are created by `sase git init` or by first-use `#git:<project>` initialization. They
-are parsed only before the first ChangeSpec.
+`BARE_REPO_DIR` and `WORKSPACE_DIR` are created by first-use `#git:<project>` initialization or `#git:<bare-repo-path>`
+registration. They are parsed only before the first ChangeSpec.
 
 `PROJECT_STATE` is managed by `sase project`. If you edit this field by hand, keep it before `RUNNING:` or the first
 `NAME:` line and use one of the valid lowercase values.

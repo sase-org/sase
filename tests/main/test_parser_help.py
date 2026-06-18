@@ -581,8 +581,8 @@ def test_skills_help_documents_log_command() -> None:
     assert "--reason REASON" in skills_use_help
 
 
-def test_init_and_git_namespace_parsers() -> None:
-    """New init and git namespaces parse their migrated leaf commands."""
+def test_init_namespace_parses_migrated_leaf_commands() -> None:
+    """The init namespace parses its migrated leaf commands."""
     parser = create_parser()
 
     amd_args = parser.parse_args(["init", "amd", "--check"])
@@ -613,25 +613,23 @@ def test_init_and_git_namespace_parsers() -> None:
     assert init_args.dry_run is True
     assert init_args.provider == "codex"
 
-    git_args = parser.parse_args(
-        [
-            "git",
-            "init",
-            "demo",
-            "--bare-dir",
-            "/tmp/demo.git",
-            "--clone-dir",
-            "/tmp/demo",
-            "--existing",
-            "/tmp/existing.git",
-        ]
-    )
-    assert git_args.command == "git"
-    assert git_args.git_subcommand == "init"
-    assert git_args.project_name == "demo"
-    assert git_args.bare_dir == "/tmp/demo.git"
-    assert git_args.clone_dir == "/tmp/demo"
-    assert git_args.existing == "/tmp/existing.git"
+
+def test_git_namespace_is_not_public_cli(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Bare-git project creation is internal to #git reference resolution."""
+    parser = create_parser()
+    root_subparsers = _root_subparser_action(parser)
+
+    assert "git" not in root_subparsers.choices
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["git", "init", "demo"])
+
+    assert exc_info.value.code == 2
+    stderr = capsys.readouterr().err
+    assert "invalid choice" in stderr
+    assert "git" in stderr
 
 
 def test_legacy_init_commands_are_rejected() -> None:

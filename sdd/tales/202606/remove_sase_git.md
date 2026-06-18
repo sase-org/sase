@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-18 14:30:30
-status: wip
+status: done
 prompt: sdd/prompts/202606/remove_sase_git.md
 ---
 # Remove the `sase git` CLI Command

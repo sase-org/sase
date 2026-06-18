@@ -235,9 +235,9 @@ Keep conceptual SDD documentation in [docs/sdd.md](sdd.md). The files generated 
 short project-local guides and are safe to overwrite. Use `--check` to compare the project config and generated files
 without rewriting them.
 
-Built-in bare-git projects run this same generated-file refresh automatically during `sase git init`, existing bare-repo
-registration, workspace materialization, and the first version-controlled SDD write. Manual `sase init sdd` is still
-useful when you want an explicit refresh or a drift check.
+Built-in bare-git projects run this same generated-file refresh automatically during first-use `#git:<project>`
+initialization, existing bare-repo registration, workspace materialization, and the first version-controlled SDD write.
+Manual `sase init sdd` is still useful when you want an explicit refresh or a drift check.
 
 ## Skill Initialization
 

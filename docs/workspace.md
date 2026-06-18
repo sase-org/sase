@@ -146,21 +146,19 @@ The bundled bare-git provider resolves `#git:<ref>` in four modes:
 1. A registered project shorthand, using `~/.sase/projects/<name>/<name>.sase` when it contains `BARE_REPO_DIR` and
    `WORKSPACE_DIR`.
 2. A ChangeSpec name found across registered projects.
-3. A missing project shorthand with no slash, which initializes a new bare-git project with the same defaults as
-   `sase git init <name>` and then resolves it.
-4. A bare repository path, deriving the project name from the path basename and creating the matching ProjectSpec.
+3. A missing project shorthand with no slash, which initializes a new bare-git project using `~/.sase/repos/<name>.git`
+   as the bare repository and `~/projects/git/<name>/` as the primary checkout.
+4. A bare repository path, deriving the project name from the path basename and creating the matching ProjectSpec with
+   that bare path and the default `~/projects/git/<name>/` primary checkout path.
 
 The missing-project shorthand is intended for first use from an xprompt or prompt bar: `#git:new_tool #!workflow`
-creates the bare-git project on demand instead of requiring a separate `sase git init new_tool` step.
+creates the bare-git project on demand.
 
 `#git:home` is special because it is the default for bare prompts. If the `home` ProjectSpec is missing or has not yet
-recorded `BARE_REPO_DIR`, SASE bootstraps a managed empty bare-git project at the default `home` paths. To point
-`#git:home` at an existing home/dotfiles bare repository instead, configure it first with
-`sase git init home --existing <bare-repo> --clone-dir <checkout-dir>`. Add `#cd:~` to a prompt for a one-off direct
-home-directory run without VCS.
-
-The `sase git init` command also supports `--bare-dir` and `--clone-dir` for new bare-git projects. Its defaults are
-`~/.sase/repos/<name>.git` for the bare repo and `~/projects/git/<name>/` for the primary clone.
+recorded `BARE_REPO_DIR`, SASE bootstraps a managed empty bare-git project at the default `home` paths. To point a
+project at an existing bare repository, use `#git:<bare-repo-path>`; the path basename becomes the SASE project name, so
+`#git:/path/to/home.git` registers the `home` project. Add `#cd:~` to a prompt for a one-off direct home-directory run
+without VCS.
 
 Bare-git projects use version-controlled SDD under `sdd/`. SASE creates or refreshes generated SDD guide files during
 new project initialization, existing bare-repo registration, and first `#git` or `sase workspace open` materialization.
