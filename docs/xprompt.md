@@ -1419,13 +1419,13 @@ deactivate/apply path. The panel also auto-shows when ACE has lifted leading fro
 multi-agent prompt load or an editor-file return from `%edit` / whole-stack `Ctrl+G`. A single prompt recalled from
 history with leading frontmatter but no segment separator stays one verbatim pane instead of auto-opening the panel.
 Typing `---` in the prompt body is passive during live editing: at the very start it stays literal text, and after
-content it does not split the active pane. Add a property with `a` (a picker sourced from the same core schema that
-backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, and use `R` for a live-validated
+content it does not split the active pane. Add a top-level property with `a` (a picker sourced from the same core schema
+that backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, and use `R` for a live-validated
 raw-YAML escape hatch. The panel owns the canonical YAML it serializes back onto the prompt, so the multi-agent launch
 path is unchanged.
 
 The structured `input` and `xprompts` fields render as foldable sub-trees (`h`/`l`): navigate into them with `j`/`k`,
-then `a`/`e`/`d` (or `enter`) add, edit, and delete individual items through small typed sub-form modals. The input
+then `A`/`e`/`d` (or `enter`) add, edit, and delete individual items through small typed sub-form modals. The input
 editor offers a `name`, a core-validated `type` (with its one-line rule shown inline), an optional `default` (blank
 means required), and a `description`; the xprompts editor offers a `_`-prefixed `name` (validated by the same underscore
 rule the launch path enforces), `content`, a compact `name:type[=default]` inputs field, and a `description`. A

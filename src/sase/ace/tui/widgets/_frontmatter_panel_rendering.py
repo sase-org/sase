@@ -28,8 +28,10 @@ _TOP_LEVEL_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):")
 # Width of the key column so value summaries align, matching the design mockups.
 _KEY_COLUMN = 13
 
-_SUBTITLE_POPULATED = "a add · e edit · d delete · R raw · h/l fold · esc done"
-_SUBTITLE_EMPTY = "a add · R raw · esc done"
+_SUBTITLE_POPULATED = (
+    "a property · A item · e edit · d delete · R raw · h/l fold · esc done"
+)
+_SUBTITLE_EMPTY = "a property · R raw · esc done"
 _SUBTITLE_EDIT = "enter save · esc cancel"
 _SUBTITLE_RAW = "esc apply · live-validated"
 

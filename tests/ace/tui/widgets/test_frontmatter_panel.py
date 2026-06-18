@@ -255,6 +255,28 @@ async def test_add_property_accelerator_opens_structured_modal() -> None:
         assert bar._frontmatter_panel_visible()
 
 
+async def test_a_on_existing_xprompts_header_opens_property_picker() -> None:
+    """``a`` stays the property picker even on a structured field header."""
+    app = _PromptBarApp(
+        "---\nxprompts:\n  _rules: Follow the checklist\n---\nfirst\n---\nsecond"
+    )
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.focus_frontmatter_panel()
+        await pilot.pause()
+        await pilot.pause()
+        panel = app.query_one(FrontmatterPanel)
+
+        assert panel._selected_nav() == ("field", "xprompts")
+        await pilot.press("a")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert isinstance(app.screen, AddPropertyModal)
+
+
 def test_add_property_accelerators_are_unique_and_exclude_set_fields() -> None:
     """Unset fields keep deterministic unique accelerator keys."""
     empty_panel = FrontmatterPanel("")

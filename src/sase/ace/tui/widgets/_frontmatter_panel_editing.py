@@ -88,18 +88,16 @@ class FrontmatterPanelEditingMixin(_MixinBase):
         """Ask the host bar to open the add-property picker."""
         self.post_message(self.AddRequested())
 
-    def _add_at_selection(self) -> None:
-        """Handle ``a``: add an item inside a sub-tree, else add a property."""
+    def _add_item_at_selection(self) -> None:
+        """Handle ``A``: add an item inside the selected structured field."""
         nav = self._selected_nav()
-        if nav is not None:
-            kind, key = nav
-            if kind == "input" or (kind == "field" and key == "input"):
-                self._add_structured_item("input")
-                return
-            if kind == "xprompt" or (kind == "field" and key == "xprompts"):
-                self._add_structured_item("xprompts")
-                return
-        self._request_add_property()
+        if nav is None:
+            return
+        kind, key = nav
+        if kind == "input" or (kind == "field" and key == "input"):
+            self._add_structured_item("input")
+        elif kind == "xprompt" or (kind == "field" and key == "xprompts"):
+            self._add_structured_item("xprompts")
 
     def _edit_selected(self) -> None:
         """Edit the selection: inline scalar, structured item, or add-on-header."""

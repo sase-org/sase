@@ -1,6 +1,6 @@
 """Structured ``input`` / ``xprompts`` sub-editing in the Frontmatter Panel (Phase 4).
 
-Covers navigating into the unfolded sub-trees and the ``a`` / ``e`` / ``d``
+Covers navigating into the unfolded sub-trees and the ``A`` / ``e`` / ``d``
 (and ``enter``) routing into the sub-form modals, with the results applied back
 onto the panel model and persisted onto the prompt stack's frontmatter string.
 """
@@ -57,7 +57,7 @@ async def test_jk_navigates_into_input_subtree() -> None:
 
 
 async def test_add_input_item_via_header_modal() -> None:
-    """``a`` on the ``input`` header opens the modal; saving adds the item."""
+    """``A`` on the ``input`` header opens the modal; saving adds the item."""
     app = _PromptBarApp("---\ninput:\n  service: word\n---\nfirst\n---\nsecond")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -65,7 +65,7 @@ async def test_add_input_item_via_header_modal() -> None:
         bar = app.query_one(PromptInputBar)
         panel = await _open_panel(pilot, app)
 
-        await pilot.press("a")  # header selected -> add item
+        await pilot.press("A")  # header selected -> add item
         await pilot.pause()
         await pilot.pause()
         modal = app.screen
@@ -86,6 +86,24 @@ async def test_add_input_item_via_header_modal() -> None:
         assert bar._frontmatter_panel_visible()
         assert app.focused is bar.active_text_area()
         assert bar.active_text_area()._vim_mode == "insert"
+
+
+async def test_add_xprompt_item_via_header_modal() -> None:
+    """``A`` on the ``xprompts`` header opens the local helper modal."""
+    app = _PromptBarApp(
+        "---\nxprompts:\n  _rules: Follow the checklist\n---\nfirst\n---\nsecond"
+    )
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        panel = await _open_panel(pilot, app)
+
+        assert panel._selected_nav() == ("field", "xprompts")
+        await pilot.press("A")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert isinstance(app.screen, XPromptItemModal)
 
 
 async def test_begin_add_structured_field_opens_modal() -> None:
@@ -131,7 +149,7 @@ async def test_cancel_input_item_modal_returns_focus_to_panel() -> None:
         await pilot.pause()
         panel = await _open_panel(pilot, app)
 
-        await pilot.press("a")  # header selected -> add item
+        await pilot.press("A")  # header selected -> add item
         await pilot.pause()
         await pilot.pause()
         modal = app.screen

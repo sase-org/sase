@@ -21,7 +21,7 @@ Phase 3 scope (this widget):
   when the panel is left empty).
 
 Phase 4 adds structured editing of individual ``input`` / ``xprompts`` items:
-``j``/``k`` navigate into the unfolded sub-trees, and ``a``/``e``/``d`` (or
+``j``/``k`` navigate into the unfolded sub-trees, and ``A``/``e``/``d`` (or
 ``enter``) add, edit, and delete items through small typed sub-form modals
 (:class:`~sase.ace.tui.modals.input_item_modal.InputItemModal` and
 :class:`~sase.ace.tui.modals.xprompt_item_modal.XPromptItemModal`).  Raw mode
@@ -234,7 +234,9 @@ class FrontmatterPanel(
         elif key in ("enter", "e"):
             self._edit_selected()
         elif key == "a":
-            self._add_at_selection()
+            self._request_add_property()
+        elif key == "A":
+            self._add_item_at_selection()
         elif key == "d":
             self._delete_selected()
         elif key == "R":

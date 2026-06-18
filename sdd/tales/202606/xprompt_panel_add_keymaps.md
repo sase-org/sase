@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-18 10:08:37
-status: wip
+status: done
 prompt: sdd/prompts/202606/xprompt_panel_add_keymaps.md
 ---
 # Plan: Split Frontmatter Panel Add Property vs Add Entry Keymaps
