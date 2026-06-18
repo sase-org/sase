@@ -1,7 +1,6 @@
 ---
-create_time: 2026-06-17 20:31:00
-status: wip
-prompt: sdd/prompts/202606/nested_memory_child_reachability.md
+create_time: 2026-06-17 20:47:45
+status: done
 ---
 # Plan: Nested Memory Child Reachability
 

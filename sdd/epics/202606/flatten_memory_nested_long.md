@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-17 17:51:32
-status: wip
+status: done
 prompt: sdd/prompts/202606/flatten_memory_nested_long.md
 bead_id: sase-4u
 tier: epic

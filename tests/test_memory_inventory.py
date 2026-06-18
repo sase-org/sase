@@ -14,6 +14,10 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _long_note(*, parent: str = "AGENTS.md", title: str = "Note") -> str:
+    return f"---\ntype: long\nparent: {parent}\ndescription: {title}.\n---\n# {title}\n"
+
+
 def test_inventory_tracks_transitive_loaded_references(tmp_path: Path) -> None:
     _write(tmp_path / "AGENTS.md", "@memory/base.md\n")
     _write(
@@ -194,3 +198,39 @@ def test_init_reachability_still_traverses_plain_memory_references(
     _write(tmp_path / "memory" / "detail.md", "# Detail\n")
 
     assert unreferenced_memory_files_for_init(tmp_path) == ()
+
+
+def test_init_reachability_follows_long_note_parent_metadata(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "AGENTS.md", "memory/hub.md\n")
+    _write(tmp_path / "memory" / "hub.md", _long_note(title="Hub"))
+    _write(
+        tmp_path / "memory" / "child.md",
+        _long_note(parent="memory/hub.md", title="Child"),
+    )
+    _write(
+        tmp_path / "memory" / "grandchild.md",
+        _long_note(parent="memory/child.md", title="Grandchild"),
+    )
+
+    assert unreferenced_memory_files_for_init(tmp_path) == ()
+
+
+def test_init_reachability_follows_overlay_parent_metadata(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "AGENTS.md", "memory/generated.md\n")
+    _write(
+        tmp_path / "memory" / "child.md",
+        _long_note(parent="memory/generated.md", title="Child"),
+    )
+
+    unreferenced = unreferenced_memory_files_for_init(
+        tmp_path,
+        overlay={
+            tmp_path / "memory" / "generated.md": _long_note(title="Generated"),
+        },
+    )
+
+    assert unreferenced == ()

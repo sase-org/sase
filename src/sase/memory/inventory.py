@@ -14,6 +14,8 @@ from pathlib import Path
 import re
 from typing import Literal
 
+from sase.memory.notes import AGENTS_PARENT, MemoryNote, parse_memory_note_text
+
 ReferenceKind = Literal["loaded", "plain"]
 MemoryEntryStatus = Literal["loaded", "referenced", "available", "missing"]
 MemoryEntryKind = Literal["memory", "instruction"]
@@ -350,6 +352,50 @@ def _stats_for_file(path: Path) -> _MemoryStats | None:
         return None
 
 
+def _memory_note_for_init(
+    root: Path,
+    path: Path,
+    *,
+    overlay: Mapping[Path, str],
+) -> MemoryNote | None:
+    text = _read_text(path, overlay)
+    if text is None:
+        return None
+    try:
+        relative_path = path.resolve(strict=False).relative_to(root)
+    except ValueError:
+        return None
+    return parse_memory_note_text(text, relative_path)
+
+
+def _children_by_parent_for_init(
+    root: Path,
+    memory_files: set[Path],
+    *,
+    overlay: Mapping[Path, str],
+) -> dict[Path, tuple[Path, ...]]:
+    notes_by_path = {
+        path: note
+        for path in memory_files
+        if (note := _memory_note_for_init(root, path, overlay=overlay)) is not None
+    }
+    children_by_parent: dict[Path, list[Path]] = {}
+    for path, note in notes_by_path.items():
+        if note.type != "long" or note.parent == AGENTS_PARENT:
+            continue
+
+        parent_path = (root / note.parent).resolve(strict=False)
+        parent_note = notes_by_path.get(parent_path)
+        if parent_note is None or parent_note.type != "long":
+            continue
+        children_by_parent.setdefault(parent_path, []).append(path)
+
+    return {
+        parent: tuple(sorted(children, key=lambda path: path.as_posix()))
+        for parent, children in children_by_parent.items()
+    }
+
+
 def _record_reference(
     references_by_target: dict[Path, list[MemoryReference]],
     *,
@@ -504,6 +550,11 @@ def _reachable_memory_files_for_init(
         return ()
 
     memory_files = set(_iter_memory_files(root_resolved, overlay=overlay_files))
+    child_memory_files = _children_by_parent_for_init(
+        root_resolved,
+        memory_files,
+        overlay=overlay_files,
+    )
     reachable: set[Path] = set()
     visited: set[Path] = {agents_path}
     queue: deque[Path] = deque(
@@ -523,6 +574,7 @@ def _reachable_memory_files_for_init(
         visited.add(path)
         if path in memory_files:
             reachable.add(path)
+            queue.extend(child_memory_files.get(path, ()))
         queue.extend(
             resolved.target
             for _, resolved in _references_from_file(

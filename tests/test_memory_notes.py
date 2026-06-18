@@ -5,14 +5,12 @@ from pathlib import Path
 from sase.memory.notes import (
     AGENTS_PARENT,
     MemoryNote,
-    MemoryNoteValidationError,
+    _children_of,
     apply_memory_frontmatter,
-    children_of,
     discover_memory_notes,
     parse_memory_note_text,
     render_children_section,
     render_memory_note_references,
-    validate_notes,
 )
 
 
@@ -37,12 +35,6 @@ def _note(
         lines.append(f"description: {description}")
     lines.extend(["---", f"# {Path(path).stem}", ""])
     return parse_memory_note_text("\n".join(lines), path)
-
-
-def _messages(
-    errors: tuple[MemoryNoteValidationError, ...], path: str
-) -> tuple[str, ...]:
-    return tuple(error.message for error in errors if error.path == path)
 
 
 def test_parse_note_without_frontmatter_marks_required_fields_missing() -> None:
@@ -141,7 +133,7 @@ def test_children_and_reference_rendering_match_agents_shape() -> None:
         description=None,
     )
 
-    children = children_of((child_b, hub, short_child, child_a), hub)
+    children = _children_of((child_b, hub, short_child, child_a), hub)
 
     assert tuple(note.relative_path for note in children) == (
         "memory/child_a.md",
@@ -159,110 +151,4 @@ def test_children_and_reference_rendering_match_agents_shape() -> None:
         "Alpha child.\n\n"
         "**`memory/child_b.md`**  \n"
         "Beta child.\n"
-    )
-
-
-def test_validate_notes_reports_required_frontmatter_errors() -> None:
-    missing = parse_memory_note_text("# Missing\n", "memory/missing.md")
-    invalid_type = parse_memory_note_text(
-        "---\ntype: medium\nparent: AGENTS.md\ndescription: Bad type.\n---\n# Bad\n",
-        "memory/invalid_type.md",
-    )
-    invalid_parent = parse_memory_note_text(
-        "---\ntype: long\nparent: ../AGENTS.md\ndescription: Bad parent.\n---\n# Bad\n",
-        "memory/invalid_parent.md",
-    )
-    missing_description = parse_memory_note_text(
-        "---\ntype: long\nparent: AGENTS.md\n---\n# No description\n",
-        "memory/no_description.md",
-    )
-
-    errors = validate_notes(
-        (missing, invalid_type, invalid_parent, missing_description)
-    )
-
-    assert "missing type frontmatter" in _messages(errors, "memory/missing.md")
-    assert "missing parent frontmatter" in _messages(errors, "memory/missing.md")
-    assert "invalid memory note type" in _messages(errors, "memory/invalid_type.md")
-    assert "invalid parent path" in _messages(errors, "memory/invalid_parent.md")
-    assert "long memory notes require a description" in _messages(
-        errors, "memory/no_description.md"
-    )
-
-
-def test_validate_notes_reports_duplicate_flat_names_and_bad_parents() -> None:
-    short_shared = _note(
-        "memory/shared.md",
-        note_type="short",
-        description=None,
-    )
-    duplicate_shared = _note("memory/shared.md", description="Shared.")
-    short_parent = _note(
-        "memory/hub.md",
-        note_type="short",
-        description=None,
-    )
-    long_under_short = _note(
-        "memory/child.md",
-        parent="memory/hub.md",
-        description="Child.",
-    )
-    orphan = _note(
-        "memory/orphan.md",
-        parent="memory/missing.md",
-        description="Orphan.",
-    )
-    short_nested = _note(
-        "memory/short_nested.md",
-        note_type="short",
-        parent="memory/shared.md",
-        description=None,
-    )
-
-    errors = validate_notes(
-        (
-            short_shared,
-            duplicate_shared,
-            short_parent,
-            long_under_short,
-            orphan,
-            short_nested,
-        )
-    )
-
-    assert "duplicate flat memory filename: shared.md" in _messages(
-        errors, "memory/shared.md"
-    )
-    assert "duplicate flat memory filename: shared.md" in _messages(
-        errors, "memory/shared.md"
-    )
-    assert "parent must be AGENTS.md or a long memory note" in _messages(
-        errors, "memory/child.md"
-    )
-    assert "parent memory note not found: memory/missing.md" in _messages(
-        errors, "memory/orphan.md"
-    )
-    assert "short memory notes must use parent AGENTS.md" in _messages(
-        errors, "memory/short_nested.md"
-    )
-
-
-def test_validate_notes_reports_parent_cycles() -> None:
-    note_a = _note("memory/a.md", parent="memory/b.md", description="A.")
-    note_b = _note("memory/b.md", parent="memory/c.md", description="B.")
-    note_c = _note("memory/c.md", parent="memory/a.md", description="C.")
-
-    errors = validate_notes((note_a, note_b, note_c))
-
-    assert any(
-        message.startswith("memory note parent cycle: ")
-        for message in _messages(errors, "memory/a.md")
-    )
-    assert any(
-        message.startswith("memory note parent cycle: ")
-        for message in _messages(errors, "memory/b.md")
-    )
-    assert any(
-        message.startswith("memory note parent cycle: ")
-        for message in _messages(errors, "memory/c.md")
     )
