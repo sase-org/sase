@@ -8,8 +8,9 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.ace.agent_tags import load_agent_tags, save_agent_tags
 from sase.ace.tui.models.agent import AgentType
-from sase.axe.run_agent_phases import extract_directives_and_write_meta
+from sase.axe.run_agent_phases import AgentInfo, extract_directives_and_write_meta
 from sase.llm_provider.temporary_override import set_temporary_override
 
 
@@ -48,6 +49,170 @@ def test_extract_directives_persists_tag_with_atomic_helper(
         (AgentType.WORKFLOW, "legend-cl", "20260506120000"),
         "sase-26",
     )
+
+
+def _extract_with_agent_tags(
+    tmp_path: Path,
+    prompt: str,
+    *,
+    seed_tags: dict[tuple[AgentType, str, str | None], str],
+    cl_name: str | None = "legend-cl",
+    planned_name: str | None = None,
+    raw_resolved_prompt: str | None = None,
+    artifacts_suffix: str = "20260506121000",
+) -> tuple[AgentInfo, dict[str, object], dict[tuple[AgentType, str, str | None], str]]:
+    workspace_dir = tmp_path / "workspace"
+    artifacts_dir = tmp_path / "artifacts" / artifacts_suffix
+    tag_file = tmp_path / "agent_tags.json"
+    workspace_dir.mkdir()
+    artifacts_dir.mkdir(parents=True)
+
+    env_patch = {}
+    if planned_name is not None:
+        env_patch["SASE_AGENT_PLANNED_NAME"] = planned_name
+
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+        assert save_agent_tags(seed_tags)
+        with (
+            patch.dict("os.environ", env_patch, clear=False),
+            patch(
+                "sase.llm_provider.temporary_override."
+                "resolve_effective_default_provider_model",
+                return_value=("codex", "gpt-5"),
+            ),
+            patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+            patch("sase.agent.names.claim_agent_name"),
+        ):
+            info = extract_directives_and_write_meta(
+                prompt,
+                str(workspace_dir),
+                str(artifacts_dir),
+                cl_name=cl_name,
+                raw_resolved_prompt=raw_resolved_prompt,
+            )
+
+        meta = json.loads((artifacts_dir / "agent_meta.json").read_text())
+        tags = load_agent_tags()
+    return info, meta, tags
+
+
+def test_explicit_group_wins_over_matching_existing_group(tmp_path: Path) -> None:
+    existing = (AgentType.RUNNING, "seed", "ts1")
+    identity = (AgentType.WORKFLOW, "legend-cl", "20260506121000")
+
+    info, meta, tags = _extract_with_agent_tags(
+        tmp_path,
+        "%name:foo.child\n%group:bar\nDo work",
+        seed_tags={existing: "foo"},
+    )
+
+    assert info.tag == "bar"
+    assert meta["tag"] == "bar"
+    assert tags == {
+        existing: "foo",
+        identity: "bar",
+    }
+
+
+def test_named_agent_auto_persists_existing_group(tmp_path: Path) -> None:
+    existing = (AgentType.RUNNING, "seed", "ts1")
+    identity = (AgentType.WORKFLOW, "legend-cl", "20260506121000")
+
+    info, meta, tags = _extract_with_agent_tags(
+        tmp_path,
+        "%name:foo.child\nDo work",
+        seed_tags={existing: "foo"},
+    )
+
+    assert info.tag == "foo"
+    assert meta["tag"] == "foo"
+    assert tags == {
+        existing: "foo",
+        identity: "foo",
+    }
+
+
+def test_wait_derived_agent_name_auto_persists_existing_group(
+    tmp_path: Path,
+) -> None:
+    existing = (AgentType.RUNNING, "seed", "ts1")
+    identity = (AgentType.WORKFLOW, "legend-cl", "20260506121000")
+
+    info, meta, tags = _extract_with_agent_tags(
+        tmp_path,
+        "%wait:foo\nDo work",
+        seed_tags={existing: "foo"},
+    )
+
+    assert info.name == "foo.w1"
+    assert info.tag == "foo"
+    assert meta["tag"] == "foo"
+    assert tags == {
+        existing: "foo",
+        identity: "foo",
+    }
+
+
+def test_fork_derived_agent_name_auto_persists_existing_group(
+    tmp_path: Path,
+) -> None:
+    existing = (AgentType.RUNNING, "seed", "ts1")
+    identity = (AgentType.WORKFLOW, "legend-cl", "20260506121000")
+
+    info, meta, tags = _extract_with_agent_tags(
+        tmp_path,
+        "expanded prompt",
+        seed_tags={existing: "foo"},
+        raw_resolved_prompt="#fork:foo\nDo work",
+    )
+
+    assert info.name == "foo.f1"
+    assert info.tag == "foo"
+    assert meta["tag"] == "foo"
+    assert tags == {
+        existing: "foo",
+        identity: "foo",
+    }
+
+
+def test_planned_template_name_auto_uses_final_longest_group(
+    tmp_path: Path,
+) -> None:
+    parent = (AgentType.RUNNING, "seed-parent", "ts1")
+    child = (AgentType.RUNNING, "seed-child", "ts2")
+    identity = (AgentType.WORKFLOW, "legend-cl", "20260506121000")
+
+    info, meta, tags = _extract_with_agent_tags(
+        tmp_path,
+        "%name:sase-42.3.@\nDo work",
+        seed_tags={
+            parent: "sase-42",
+            child: "sase-42.3",
+        },
+        planned_name="sase-42.3.1",
+    )
+
+    assert info.name == "sase-42.3.1"
+    assert info.tag == "sase-42.3"
+    assert meta["tag"] == "sase-42.3"
+    assert tags == {
+        parent: "sase-42",
+        child: "sase-42.3",
+        identity: "sase-42.3",
+    }
+
+
+def test_no_existing_group_skips_tag_metadata_and_store_write(
+    tmp_path: Path,
+) -> None:
+    _info, meta, tags = _extract_with_agent_tags(
+        tmp_path,
+        "%name:foo.child\nDo work",
+        seed_tags={},
+    )
+
+    assert "tag" not in meta
+    assert tags == {}
 
 
 def _mock_provider_config(
