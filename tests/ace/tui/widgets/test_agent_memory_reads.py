@@ -72,7 +72,7 @@ def test_empty_events_can_render_placeholder() -> None:
 def test_single_event_renders_timestamp_path_and_reason() -> None:
     text = Text()
     event = _event(
-        canonical_path="long/generated_skills.md",
+        canonical_path="generated_skills.md",
         timestamp="2026-05-24T14:22:08+00:00",
         reason="needed commit hook contract for runtime parity refactor",
     )
@@ -80,7 +80,7 @@ def test_single_event_renders_timestamp_path_and_reason() -> None:
 
     plain = text.plain
     assert "▸ MEMORY · 1 read · 1 file\n" in plain
-    assert "14:22:08  ◇ long/generated_skills.md" in plain
+    assert "14:22:08  ◇ generated_skills.md" in plain
     assert "↳ needed commit hook contract for runtime parity refactor" in plain
     assert "last 14:22:08" not in plain
     assert "+ " not in plain
@@ -89,7 +89,7 @@ def test_single_event_renders_timestamp_path_and_reason() -> None:
 def test_overflow_renders_truncation_footer() -> None:
     events = tuple(
         _event(
-            canonical_path=f"long/file_{index}.md",
+            canonical_path=f"file_{index}.md",
             timestamp=f"2026-05-24T14:{30 - index:02d}:00+00:00",
             reason=f"reason {index}",
             read_id=f"id-{index}",
@@ -114,7 +114,7 @@ def test_long_reason_is_wrapped_without_truncation() -> None:
     long_reason = " ".join(f"reason-word-{index:02d}" for index in range(18))
     text = Text()
     event = _event(
-        canonical_path="long/skill.md",
+        canonical_path="skill.md",
         timestamp="2026-05-24T14:00:00+00:00",
         reason=long_reason,
     )
@@ -140,7 +140,7 @@ def test_long_reason_is_wrapped_without_truncation() -> None:
 def test_frontmatter_marker_present_when_stripped() -> None:
     text = Text()
     event = _event(
-        canonical_path="long/skill.md",
+        canonical_path="skill.md",
         timestamp="2026-05-24T14:00:00+00:00",
         frontmatter_stripped=True,
     )
@@ -152,7 +152,7 @@ def test_frontmatter_marker_present_when_stripped() -> None:
 def test_frontmatter_marker_absent_when_not_stripped() -> None:
     text = Text()
     event = _event(
-        canonical_path="long/skill.md",
+        canonical_path="skill.md",
         timestamp="2026-05-24T14:00:00+00:00",
         frontmatter_stripped=False,
     )
@@ -164,17 +164,17 @@ def test_frontmatter_marker_absent_when_not_stripped() -> None:
 def test_distinct_path_count_in_summary() -> None:
     events = (
         _event(
-            canonical_path="long/a.md",
+            canonical_path="a.md",
             timestamp="2026-05-24T14:05:00+00:00",
             read_id="id-1",
         ),
         _event(
-            canonical_path="long/a.md",
+            canonical_path="a.md",
             timestamp="2026-05-24T14:04:00+00:00",
             read_id="id-2",
         ),
         _event(
-            canonical_path="long/b.md",
+            canonical_path="b.md",
             timestamp="2026-05-24T14:03:00+00:00",
             read_id="id-3",
         ),
@@ -193,7 +193,7 @@ def test_attributed_rows_render_role_labels() -> None:
     events = (
         _display(
             _event(
-                canonical_path="long/tui_perf.md",
+                canonical_path="tui_perf.md",
                 timestamp="2026-05-24T14:22:08+00:00",
                 read_id="id-1",
             ),
@@ -201,7 +201,7 @@ def test_attributed_rows_render_role_labels() -> None:
         ),
         _display(
             _event(
-                canonical_path="long/cli_rules.md",
+                canonical_path="cli_rules.md",
                 timestamp="2026-05-24T14:21:00+00:00",
                 read_id="id-2",
             ),
@@ -212,8 +212,8 @@ def test_attributed_rows_render_role_labels() -> None:
 
     plain = text.plain
     assert "▸ MEMORY · 2 reads · 2 files · 2 agents\n" in plain
-    assert "14:22:08  coder  ◇ long/tui_perf.md" in plain
-    assert "14:21:00  plan   ◇ long/cli_rules.md" in plain
+    assert "14:22:08  coder  ◇ tui_perf.md" in plain
+    assert "14:21:00  plan   ◇ cli_rules.md" in plain
 
 
 def test_role_column_padded_for_unlabeled_rows_in_attributed_lane() -> None:
@@ -221,7 +221,7 @@ def test_role_column_padded_for_unlabeled_rows_in_attributed_lane() -> None:
     events = (
         _display(
             _event(
-                canonical_path="long/tui_perf.md",
+                canonical_path="tui_perf.md",
                 timestamp="2026-05-24T14:22:08+00:00",
                 read_id="id-1",
             ),
@@ -229,7 +229,7 @@ def test_role_column_padded_for_unlabeled_rows_in_attributed_lane() -> None:
         ),
         _display(
             _event(
-                canonical_path="long/cli_rules.md",
+                canonical_path="cli_rules.md",
                 timestamp="2026-05-24T14:21:00+00:00",
                 read_id="id-2",
             ),
@@ -239,8 +239,8 @@ def test_role_column_padded_for_unlabeled_rows_in_attributed_lane() -> None:
     append_agent_memory_reads_section(text, events=events)
 
     lines = text.plain.splitlines()
-    labeled = next(line for line in lines if "long/tui_perf.md" in line)
-    unlabeled = next(line for line in lines if "long/cli_rules.md" in line)
+    labeled = next(line for line in lines if "tui_perf.md" in line)
+    unlabeled = next(line for line in lines if "cli_rules.md" in line)
     # Glyph stays column-aligned even though the second row has no label.
     assert labeled.index("◇") == unlabeled.index("◇")
 
@@ -250,7 +250,7 @@ def test_single_producer_summary_omits_agent_count() -> None:
     events = (
         _display(
             _event(
-                canonical_path="long/a.md",
+                canonical_path="a.md",
                 timestamp="2026-05-24T14:05:00+00:00",
                 read_id="id-1",
             ),
@@ -258,7 +258,7 @@ def test_single_producer_summary_omits_agent_count() -> None:
         ),
         _display(
             _event(
-                canonical_path="long/b.md",
+                canonical_path="b.md",
                 timestamp="2026-05-24T14:04:00+00:00",
                 read_id="id-2",
             ),
@@ -276,7 +276,7 @@ def test_attributed_reason_aligns_under_primary_text() -> None:
     events = (
         _display(
             _event(
-                canonical_path="long/tui_perf.md",
+                canonical_path="tui_perf.md",
                 timestamp="2026-05-24T14:22:08+00:00",
                 reason="perf budget context",
                 read_id="id-1",
@@ -287,6 +287,6 @@ def test_attributed_reason_aligns_under_primary_text() -> None:
     append_agent_memory_reads_section(text, events=events)
 
     lines = text.plain.splitlines()
-    row = next(line for line in lines if "long/tui_perf.md" in line)
+    row = next(line for line in lines if "tui_perf.md" in line)
     reason = next(line for line in lines if "↳" in line)
-    assert reason.index("↳") == row.index("long/tui_perf.md")
+    assert reason.index("↳") == row.index("tui_perf.md")

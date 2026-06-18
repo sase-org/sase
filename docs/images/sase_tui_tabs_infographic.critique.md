@@ -48,8 +48,8 @@ A bottom horizontal strip shows four nodes connected left-to-right by a circuit-
    `status lifecycle`), and _available actions_ (e.g. `review, mail, sync`, `resume, tag, kill`). A new reader cannot
    tell which row is "what you see" vs. "what you can do".
 4. **`status lifecycle` (PRs row 2) is opaque.** The actual CL lifecycle is documented as
-   `WIP → Draft → Ready → Mailed → Submitted` (per `memory/short/glossary.md`). Without those chips visible, the row is
-   a label without content.
+   `WIP → Draft → Ready → Mailed → Submitted` (per `memory/glossary.md`). Without those chips visible, the row is a
+   label without content.
 5. **`review, mail, sync` (PRs row 3) is a grab-bag.** "review" and "mail" are real PR actions (`docs/ace.md` lists `M`
    to mail, `a` to accept, etc.) but "sync" has no clear referent — it could mean refresh-interval auto-pulls, `fetch`
    from origin, or the SQLite/JSONL bead sync, none of which is a PRs-tab concept. A new user will guess.
@@ -94,8 +94,8 @@ The accuracy bar is whether the diagram matches today's `src/sase/ace/tui/widget
    the query result set), but that is global TUI behaviour, not a PRs-specific action.
 6. **Agents-tab "running + completed runs" is correct,** but the diagram omits the `AgentInfoPanel` summary banner at
    the top (`app.py:253`) and the agent **tree / retry chain** structure that `AgentList` renders. The retry chain
-   (`retry_of_timestamp` / `retried_as_timestamp` / `retry_chain_root_timestamp` per `memory/short/glossary.md`) is a
-   defining shape of the Agents tab and is invisible here.
+   (`retry_of_timestamp` / `retried_as_timestamp` / `retry_chain_root_timestamp` per `memory/glossary.md`) is a defining
+   shape of the Agents tab and is invisible here.
 7. **Agents-tab "prompts, files, diffs" matches `AgentDetail` panes** (`app.py:258`) — accurate. ✓
 8. **Agents-tab "resume, tag, kill" matches real keybindings** (resume, tag, kill are documented in `docs/ace.md`'s
    Agents-tab section) — accurate. ✓
@@ -106,9 +106,9 @@ The accuracy bar is whether the diagram matches today's `src/sase/ace/tui/widget
     `sase schedule` and surfaces only summarily. The diagram label suggests a "scheduled jobs view" that the tab does
     not really own.
 12. **The bottom `plan / launch / monitor / land` strip has no UI counterpart.** This is the conceptual lifecycle of an
-    SDD epic / agent run, drawn from `docs/ace.md` (agent phases) and the SDD epic-work flow
-    (`memory/short/glossary.md`). It is not literally rendered in the TUI; the diagram does not say so. Either it needs
-    an explicit eyebrow/caption ("Agent lifecycle that the three tabs together support") or it should be dropped.
+    SDD epic / agent run, drawn from `docs/ace.md` (agent phases) and the SDD epic-work flow (`memory/glossary.md`). It
+    is not literally rendered in the TUI; the diagram does not say so. Either it needs an explicit eyebrow/caption
+    ("Agent lifecycle that the three tabs together support") or it should be dropped.
 13. **The shared chrome is missing entirely.** `app.py:233-239,268-269` shows that every tab is wrapped by `Header`, the
     top-bar indicator stack, the `KeybindingFooter`, and the platform `Footer`. None of these is drawn, which is the
     most concrete miss against the "one control plane" framing.

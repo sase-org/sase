@@ -5,9 +5,9 @@ pdf: false
 # Critique: `docs/images/sase-rust-core-integration.png`
 
 Reviewed against `docs/architecture.md` (Rust Core Boundary section), `docs/rust_backend.md`, `src/sase/core/`, the
-top-level `Justfile`, and `memory/short/rust_core_backend_boundary.md`. No `sase-rust-core-integration.prompt.md`
-sidecar exists, so original intent is inferred from the embedding-doc claims in `sdd/epics/202605/diagram_review.md` and
-the image itself.
+top-level `Justfile`, and `memory/rust_core_backend_boundary.md`. No `sase-rust-core-integration.prompt.md` sidecar
+exists, so original intent is inferred from the embedding-doc claims in `sdd/epics/202605/diagram_review.md` and the
+image itself.
 
 ## Subject and Embedding
 
@@ -104,8 +104,7 @@ still renders" check the plan calls for.
 6. **`crates/sase_core` and `crates/sase_core_py` labels need a one-word qualifier.** The image labels them "for pure
    Rust logic" and "for PyO3 bindings" which is correct, but a new reader sees two crates and wonders why bindings are
    split out. A note like "split so the pure crate is reusable from non-Python frontends (CLI, future web)" matches the
-   rationale in `memory/short/rust_core_backend_boundary.md` ("reused by non-Python frontends") and would justify the
-   split.
+   rationale in `memory/rust_core_backend_boundary.md` ("reused by non-Python frontends") and would justify the split.
 
 7. **The `sase core health` chip says "verifies import + binding".** That's correct (`src/sase/core/health.py` runs
    `require_rust_extension` + a binding probe), but readers who don't already know what "binding" means in PyO3 context

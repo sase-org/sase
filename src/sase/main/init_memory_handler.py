@@ -10,7 +10,6 @@ import subprocess
 import sys
 
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
-from sase.memory.notes import uses_legacy_memory_layout
 from sase.workflows.commit.precommit_hooks import run_precommit
 
 from ._init_chezmoi_deploy import (
@@ -63,12 +62,7 @@ def _home_memory_path(use_chezmoi: bool) -> Path:
 
 def _sase_memory_path(root: Path) -> Path:
     """Return the generated SASE memory path for ``root``."""
-    relative = (
-        Path("memory") / "short" / "sase.md"
-        if uses_legacy_memory_layout(root)
-        else Path("memory") / "sase.md"
-    )
-    return root / relative
+    return root / "memory" / "sase.md"
 
 
 def _global_config_path(use_chezmoi: bool) -> Path:

@@ -23,6 +23,25 @@ def write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def short_note(body: str) -> str:
+    return "---\ntype: short\nparent: AGENTS.md\n---\n" + body
+
+
+def long_note(
+    body: str,
+    *,
+    description: str | None = "Long description.",
+    extra_frontmatter: str = "",
+) -> str:
+    lines = ["---", "type: long", "parent: AGENTS.md"]
+    if description is not None:
+        lines.append(f"description: {description}")
+    if extra_frontmatter:
+        lines.extend(extra_frontmatter.strip().splitlines())
+    lines.extend(["---", body])
+    return "\n".join(lines)
+
+
 def run_amd(*, check: bool = False) -> int:
     return run_amd_init(argparse.Namespace(check=check))
 
@@ -179,19 +198,22 @@ def test_amd_init_generates_managed_agents_from_project_local_title(
     monkeypatch.setattr(amd_init.config_core, "CONFIG_DIR", config_dir)
     write(config_dir / "sase_athena.yml", 'amd_h1_title: "Global Title"\n')
     write(tmp_path / "sase.yml", 'amd_h1_title: "Managed Agent Instructions"\n')
-    write(tmp_path / "memory" / "short" / "sase.md", "# SASE\n")
-    write(tmp_path / "memory" / "short" / "extra.md", "# Extra\n")
+    write(tmp_path / "memory" / "sase.md", short_note("# SASE\n"))
+    write(tmp_path / "memory" / "extra.md", short_note("# Extra\n"))
     write(
-        tmp_path / "memory" / "long" / "described.md",
-        "---\ndescription: Frontmatter description.\n---\n# Described\n",
+        tmp_path / "memory" / "described.md",
+        long_note("# Described\n", description="Frontmatter description."),
     )
     write(
-        tmp_path / "memory" / "long" / "curated.md",
-        "# Curated\n\nFallback body should not be used.\n",
+        tmp_path / "memory" / "curated.md",
+        long_note(
+            "# Curated\n\nFallback body should not be used.\n",
+            description=None,
+        ),
     )
     write(
         tmp_path / "AGENTS.md",
-        "# Previous\n\n**`memory/long/curated.md`**  \nCurated description survives.\n",
+        "# Previous\n\n**`memory/curated.md`**  \nCurated description survives.\n",
     )
 
     assert run_amd() == 0
@@ -199,16 +221,16 @@ def test_amd_init_generates_managed_agents_from_project_local_title(
     agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Managed Agent Instructions\n")
     assert "## Tier 1 (short-term) Memory" in agents
-    assert "- @memory/short/extra.md" in agents
-    assert "- @memory/short/sase.md" in agents
+    assert "- @memory/extra.md" in agents
+    assert "- @memory/sase.md" in agents
     assert "## Tier 2 (dynamic) Memory" not in agents
     assert "## Dynamic Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
     assert "## Tier 2 (long-term) Memory" in agents
     assert "## Tier 3 (long-term) Memory" not in agents
     assert "#### Long-Term Memory Files" not in agents
-    assert "**`memory/long/described.md`**  \nFrontmatter description." in agents
-    assert "**`memory/long/curated.md`**  \nCurated description survives." in agents
+    assert "**`memory/described.md`**  \nFrontmatter description." in agents
+    assert "**`memory/curated.md`**  \nCurated description survives." in agents
     assert ("sase-" + "amd:") not in agents
     for filename in PROVIDER_SHIM_FILES:
         assert (tmp_path / filename).read_text(encoding="utf-8") == (
@@ -222,14 +244,14 @@ def test_amd_init_does_not_render_dynamic_section_for_keyworded_long_memory(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     write(tmp_path / "sase.yml", 'amd_h1_title: "Managed Agent Instructions"\n')
-    write(tmp_path / "memory" / "short" / "sase.md", "# SASE\n")
+    write(tmp_path / "memory" / "sase.md", short_note("# SASE\n"))
     write(
-        tmp_path / "memory" / "long" / "dynamic.md",
-        "---\n"
-        "description: Dynamic description.\n"
-        "keywords: [foobar facts]\n"
-        "---\n"
-        "# Dynamic\n",
+        tmp_path / "memory" / "dynamic.md",
+        long_note(
+            "# Dynamic\n",
+            description="Dynamic description.",
+            extra_frontmatter="keywords: [foobar facts]",
+        ),
     )
 
     assert run_amd() == 0
@@ -242,7 +264,7 @@ def test_amd_init_does_not_render_dynamic_section_for_keyworded_long_memory(
     assert "## Tier 3 (long-term) Memory" not in agents
     assert "#### Long-Term Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
-    assert "**`memory/long/dynamic.md`**  \nDynamic description." in agents
+    assert "**`memory/dynamic.md`**  \nDynamic description." in agents
 
 
 def test_amd_init_ignores_global_amd_h1_title(
@@ -287,13 +309,13 @@ def test_amd_init_manages_live_home_from_user_overlay(
         tmp_path / "chezmoi" / "home",
     )
     write(config_dir / "sase_athena.yml", 'amd_h1_title: "Athena Home"\n')
-    write(home / "memory" / "short" / "sase.md", "# SASE\n")
+    write(home / "memory" / "sase.md", short_note("# SASE\n"))
 
     assert run_amd() == 0
 
     agents = (home / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Athena Home\n")
-    assert "- @memory/short/sase.md" in agents
+    assert "- @memory/sase.md" in agents
     for filename in PROVIDER_SHIM_FILES:
         assert (home / filename).read_text(encoding="utf-8") == (
             home_provider_shim_content(home)
@@ -318,7 +340,7 @@ def test_amd_init_manages_chezmoi_home_from_source_overlay(
         chezmoi_home / "dot_config" / "sase" / "sase_athena.yml",
         'amd_h1_title: "Source Title"\n',
     )
-    write(chezmoi_home / "memory" / "short" / "sase.md", "# SASE\n")
+    write(chezmoi_home / "memory" / "sase.md", short_note("# SASE\n"))
 
     assert run_amd() == 0
 
@@ -350,21 +372,21 @@ def test_amd_init_use_chezmoi_from_home_updates_source_agents(
         chezmoi_home / "dot_config" / "sase" / "sase_athena.yml",
         'amd_h1_title: "Source Home"\n',
     )
-    write(chezmoi_home / "memory" / "short" / "sase.md", "# SASE\n")
+    write(chezmoi_home / "memory" / "sase.md", short_note("# SASE\n"))
     write(
-        chezmoi_home / "memory" / "long" / "source.md",
-        "---\ndescription: Fresh source description.\n---\n# Source\n",
+        chezmoi_home / "memory" / "source.md",
+        long_note("# Source\n", description="Fresh source description."),
     )
     write(
         chezmoi_home / "AGENTS.md",
-        "# Source Home\n\n**`memory/long/source.md`**  \nStale description.\n",
+        "# Source Home\n\n**`memory/source.md`**  \nStale description.\n",
     )
 
     assert run_amd() == 0
 
     agents = (chezmoi_home / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Source Home\n")
-    assert "**`memory/long/source.md`**  \nFresh source description." in agents
+    assert "**`memory/source.md`**  \nFresh source description." in agents
     assert "Stale description." not in agents
     assert not (live_home / "AGENTS.md").exists()
     for filename in PROVIDER_SHIM_FILES:
@@ -391,29 +413,29 @@ def test_amd_init_use_chezmoi_from_project_updates_project_and_source(
     monkeypatch.setattr(amd_init.config_core, "CHEZMOI_HOME", chezmoi_home)
     monkeypatch.setattr(amd_init.config_core, "get_use_chezmoi", lambda: True)
     write(project / "sase.yml", 'amd_h1_title: "Project Instructions"\n')
-    write(project / "memory" / "short" / "sase.md", "# Project SASE\n")
+    write(project / "memory" / "sase.md", short_note("# Project SASE\n"))
     write(
-        project / "memory" / "long" / "project.md",
-        "---\ndescription: Project description.\n---\n# Project\n",
+        project / "memory" / "project.md",
+        long_note("# Project\n", description="Project description."),
     )
     write(
         chezmoi_home / "dot_config" / "sase" / "sase_athena.yml",
         'amd_h1_title: "Source Home"\n',
     )
-    write(chezmoi_home / "memory" / "short" / "sase.md", "# Home SASE\n")
+    write(chezmoi_home / "memory" / "sase.md", short_note("# Home SASE\n"))
     write(
-        chezmoi_home / "memory" / "long" / "source.md",
-        "---\ndescription: Source description.\n---\n# Source\n",
+        chezmoi_home / "memory" / "source.md",
+        long_note("# Source\n", description="Source description."),
     )
 
     assert run_amd() == 0
 
     project_agents = (project / "AGENTS.md").read_text(encoding="utf-8")
     assert project_agents.startswith("# Project Instructions\n")
-    assert "**`memory/long/project.md`**  \nProject description." in project_agents
+    assert "**`memory/project.md`**  \nProject description." in project_agents
     source_agents = (chezmoi_home / "AGENTS.md").read_text(encoding="utf-8")
     assert source_agents.startswith("# Source Home\n")
-    assert "**`memory/long/source.md`**  \nSource description." in source_agents
+    assert "**`memory/source.md`**  \nSource description." in source_agents
     for filename in PROVIDER_SHIM_FILES:
         assert (project / filename).read_text(encoding="utf-8") == (
             PROVIDER_SHIM_CONTENT
@@ -516,14 +538,12 @@ def test_amd_check_use_chezmoi_reports_source_drift_without_writing(
         chezmoi_home / "dot_config" / "sase" / "sase_athena.yml",
         'amd_h1_title: "Source Home"\n',
     )
-    write(chezmoi_home / "memory" / "short" / "sase.md", "# SASE\n")
+    write(chezmoi_home / "memory" / "sase.md", short_note("# SASE\n"))
     write(
-        chezmoi_home / "memory" / "long" / "source.md",
-        "---\ndescription: Fresh source description.\n---\n# Source\n",
+        chezmoi_home / "memory" / "source.md",
+        long_note("# Source\n", description="Fresh source description."),
     )
-    stale_agents = (
-        "# Source Home\n\n**`memory/long/source.md`**  \nStale description.\n"
-    )
+    stale_agents = "# Source Home\n\n**`memory/source.md`**  \nStale description.\n"
     write(chezmoi_home / "AGENTS.md", stale_agents)
     write_provider_shim_templates(chezmoi_home)
     if cwd_name == "project":

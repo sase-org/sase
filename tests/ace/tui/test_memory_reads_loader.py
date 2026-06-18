@@ -117,13 +117,13 @@ def test_filter_by_artifacts_dir_exact_match(
 
     events = [
         _make_event(
-            canonical_path="long/skill.md",
+            canonical_path="skill.md",
             timestamp="2026-05-24T10:00:00+00:00",
             agent_name="alpha",
             artifacts_dir=str(artifacts_a),
         ),
         _make_event(
-            canonical_path="long/other.md",
+            canonical_path="other.md",
             timestamp="2026-05-24T10:01:00+00:00",
             agent_name="beta",
             artifacts_dir=str(artifacts_b),
@@ -138,7 +138,7 @@ def test_filter_by_artifacts_dir_exact_match(
     )
     result = _load_memory_reads_for_agent(agent)
 
-    assert [event.canonical_path for event in result] == ["long/skill.md"]
+    assert [event.canonical_path for event in result] == ["skill.md"]
 
 
 def test_fallback_to_agent_name_when_artifacts_dir_missing(
@@ -149,13 +149,13 @@ def test_fallback_to_agent_name_when_artifacts_dir_missing(
 
     events = [
         _make_event(
-            canonical_path="long/skill.md",
+            canonical_path="skill.md",
             timestamp="2026-05-24T10:00:00+00:00",
             agent_name="alpha",
             artifacts_dir=None,
         ),
         _make_event(
-            canonical_path="long/other.md",
+            canonical_path="other.md",
             timestamp="2026-05-24T10:01:00+00:00",
             agent_name="beta",
             artifacts_dir=None,
@@ -170,7 +170,7 @@ def test_fallback_to_agent_name_when_artifacts_dir_missing(
     )
     result = _load_memory_reads_for_agent(agent)
 
-    assert [event.canonical_path for event in result] == ["long/skill.md"]
+    assert [event.canonical_path for event in result] == ["skill.md"]
 
 
 def test_results_are_newest_first(fake_project: Path, tmp_path: Path) -> None:
@@ -179,19 +179,19 @@ def test_results_are_newest_first(fake_project: Path, tmp_path: Path) -> None:
 
     events = [
         _make_event(
-            canonical_path="long/a.md",
+            canonical_path="a.md",
             timestamp="2026-05-24T10:00:00+00:00",
             agent_name="alpha",
             artifacts_dir=str(artifacts_dir),
         ),
         _make_event(
-            canonical_path="long/b.md",
+            canonical_path="b.md",
             timestamp="2026-05-24T10:05:00+00:00",
             agent_name="alpha",
             artifacts_dir=str(artifacts_dir),
         ),
         _make_event(
-            canonical_path="long/c.md",
+            canonical_path="c.md",
             timestamp="2026-05-24T10:02:00+00:00",
             agent_name="alpha",
             artifacts_dir=str(artifacts_dir),
@@ -207,9 +207,9 @@ def test_results_are_newest_first(fake_project: Path, tmp_path: Path) -> None:
     result = _load_memory_reads_for_agent(agent)
 
     assert [event.canonical_path for event in result] == [
-        "long/b.md",
-        "long/c.md",
-        "long/a.md",
+        "b.md",
+        "c.md",
+        "a.md",
     ]
 
 
@@ -219,7 +219,7 @@ def test_limit_caps_returned_events(fake_project: Path, tmp_path: Path) -> None:
 
     events = [
         _make_event(
-            canonical_path=f"long/file_{index}.md",
+            canonical_path=f"file_{index}.md",
             timestamp=f"2026-05-24T10:{index:02d}:00+00:00",
             agent_name="alpha",
             artifacts_dir=str(artifacts_dir),
@@ -237,7 +237,7 @@ def test_limit_caps_returned_events(fake_project: Path, tmp_path: Path) -> None:
     result = _load_memory_reads_for_agent(agent, limit=3)
 
     assert len(result) == 3
-    assert result[0].canonical_path == "long/file_9.md"
+    assert result[0].canonical_path == "file_9.md"
 
 
 def test_empty_project_returns_empty_tuple(fake_project: Path, tmp_path: Path) -> None:
@@ -259,7 +259,7 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
     log_path = memory_read_log_path("memory-reads-test")
     initial = [
         _make_event(
-            canonical_path="long/skill.md",
+            canonical_path="skill.md",
             timestamp="2026-05-24T10:00:00+00:00",
             agent_name="alpha",
             artifacts_dir=str(artifacts_dir),
@@ -279,7 +279,7 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
     # window may not have elapsed.
     later = list(initial) + [
         _make_event(
-            canonical_path="long/other.md",
+            canonical_path="other.md",
             timestamp="2026-05-24T10:10:00+00:00",
             agent_name="alpha",
             artifacts_dir=str(artifacts_dir),
@@ -297,8 +297,8 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
 
     second = _load_memory_reads_for_agent(agent)
     assert [event.canonical_path for event in second] == [
-        "long/other.md",
-        "long/skill.md",
+        "other.md",
+        "skill.md",
     ]
 
 
@@ -314,7 +314,7 @@ def test_event_with_artifacts_dir_does_not_match_other_agent(
     # fallback because artifacts_dir is set on the event.
     events = [
         _make_event(
-            canonical_path="long/skill.md",
+            canonical_path="skill.md",
             timestamp="2026-05-24T10:00:00+00:00",
             agent_name="alpha",
             artifacts_dir=str(other_artifacts),
@@ -340,7 +340,7 @@ def test_normalizes_trailing_slash_and_symlink(
     symlink_dir.symlink_to(real_dir)
 
     event = _make_event(
-        canonical_path="long/skill.md",
+        canonical_path="skill.md",
         timestamp="2026-05-24T10:00:00+00:00",
         agent_name="alpha",
         artifacts_dir=str(real_dir) + "/",
@@ -354,7 +354,7 @@ def test_normalizes_trailing_slash_and_symlink(
     )
     result = _load_memory_reads_for_agent(agent)
 
-    assert [event.canonical_path for event in result] == ["long/skill.md"]
+    assert [event.canonical_path for event in result] == ["skill.md"]
 
 
 def test_context_single_agent_has_no_labels(fake_project: Path, tmp_path: Path) -> None:
@@ -363,7 +363,7 @@ def test_context_single_agent_has_no_labels(fake_project: Path, tmp_path: Path) 
 
     events = [
         _make_event(
-            canonical_path="long/skill.md",
+            canonical_path="skill.md",
             timestamp="2026-05-24T10:00:00+00:00",
             agent_name="alpha",
             artifacts_dir=str(artifacts_dir),
@@ -378,7 +378,7 @@ def test_context_single_agent_has_no_labels(fake_project: Path, tmp_path: Path) 
     )
     result = load_memory_reads_for_agent_context(agent)
 
-    assert [item.event.canonical_path for item in result] == ["long/skill.md"]
+    assert [item.event.canonical_path for item in result] == ["skill.md"]
     assert [item.agent_label for item in result] == [None]
 
 
@@ -393,21 +393,21 @@ def test_context_aggregates_family_with_role_labels(
 
     events = [
         _make_event(
-            canonical_path="long/cli_rules.md",
+            canonical_path="cli_rules.md",
             timestamp="2026-05-24T10:00:00+00:00",
             agent_name="alpha--plan",
             artifacts_dir=str(plan_dir),
             read_id="plan-read",
         ),
         _make_event(
-            canonical_path="long/tui_perf.md",
+            canonical_path="tui_perf.md",
             timestamp="2026-05-24T10:05:00+00:00",
             agent_name="alpha--code",
             artifacts_dir=str(coder_dir),
             read_id="coder-read",
         ),
         _make_event(
-            canonical_path="long/generated_skills.md",
+            canonical_path="generated_skills.md",
             timestamp="2026-05-24T10:02:00+00:00",
             agent_name="alpha--q",
             artifacts_dir=str(q_dir),
@@ -443,9 +443,9 @@ def test_context_aggregates_family_with_role_labels(
 
     # Newest first across the whole family, each labeled by its producer.
     assert [(item.event.canonical_path, item.agent_label) for item in result] == [
-        ("long/tui_perf.md", "coder"),
-        ("long/generated_skills.md", "q"),
-        ("long/cli_rules.md", "plan"),
+        ("tui_perf.md", "coder"),
+        ("generated_skills.md", "q"),
+        ("cli_rules.md", "plan"),
     ]
 
 
@@ -461,7 +461,7 @@ def test_context_labels_phase_feedback_member_by_suffix(
     # records "alpha"; attribution is by the feedback follow-up artifacts dir.
     events = [
         _make_event(
-            canonical_path="long/tui_perf.md",
+            canonical_path="tui_perf.md",
             timestamp="2026-05-24T10:05:00+00:00",
             agent_name="alpha",
             artifacts_dir=str(feedback_dir),
@@ -491,7 +491,7 @@ def test_context_labels_phase_feedback_member_by_suffix(
 
     # The phase-feedback member renders by its concrete suffix name, not fb2.
     assert [(item.event.canonical_path, item.agent_label) for item in result] == [
-        ("long/tui_perf.md", "plan-0"),
+        ("tui_perf.md", "plan-0"),
     ]
 
 
@@ -508,7 +508,7 @@ def test_context_artifacts_dir_mismatch_does_not_fall_back_to_name(
     # be attributed to the coder via name fallback because it has a dir.
     events = [
         _make_event(
-            canonical_path="long/skill.md",
+            canonical_path="skill.md",
             timestamp="2026-05-24T10:00:00+00:00",
             agent_name="alpha--code",
             artifacts_dir=str(other_dir),
@@ -546,7 +546,7 @@ def test_context_dedupes_synthetic_planner_sharing_root_dir(
 
     events = [
         _make_event(
-            canonical_path="long/skill.md",
+            canonical_path="skill.md",
             timestamp="2026-05-24T10:00:00+00:00",
             agent_name="alpha--plan",
             artifacts_dir=str(plan_dir),
@@ -582,7 +582,7 @@ def test_context_dedupes_synthetic_planner_sharing_root_dir(
     result = load_memory_reads_for_agent_context(root)
 
     assert [(item.event.canonical_path, item.agent_label) for item in result] == [
-        ("long/skill.md", "plan")
+        ("skill.md", "plan")
     ]
 
 
@@ -598,7 +598,7 @@ def test_context_caps_to_limit_newest_first(fake_project: Path, tmp_path: Path) 
         name = "alpha--plan" if index % 2 == 0 else "alpha--code"
         events.append(
             _make_event(
-                canonical_path=f"long/file_{index}.md",
+                canonical_path=f"file_{index}.md",
                 timestamp=f"2026-05-24T10:{index:02d}:00+00:00",
                 agent_name=name,
                 artifacts_dir=str(directory),
@@ -626,7 +626,7 @@ def test_context_caps_to_limit_newest_first(fake_project: Path, tmp_path: Path) 
     result = load_memory_reads_for_agent_context(root, limit=2)
 
     assert [item.event.canonical_path for item in result] == [
-        "long/file_5.md",
-        "long/file_4.md",
+        "file_5.md",
+        "file_4.md",
     ]
     assert [item.agent_label for item in result] == ["coder", "plan"]

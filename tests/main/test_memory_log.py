@@ -27,21 +27,21 @@ def test_memory_log_summary_renders_grouped_read_stats() -> None:
     events = (
         memory_read_event(
             read_id="read-a",
-            canonical_path="long/foo.md",
+            canonical_path="foo.md",
             agent_name="agent-a",
             timestamp="2026-05-23T12:00:00+00:00",
             reason="Need foo context",
         ),
         memory_read_event(
             read_id="read-b",
-            canonical_path="long/foo.md",
+            canonical_path="foo.md",
             agent_name="agent-b",
             timestamp="2026-05-23T12:01:00+00:00",
             reason="Need updated foo context",
         ),
         memory_read_event(
             read_id="read-c",
-            canonical_path="long/bar.md",
+            canonical_path="bar.md",
             agent_name="agent-a",
             timestamp="2026-05-23T12:02:00+00:00",
             reason="Need bar context",
@@ -62,8 +62,8 @@ def test_memory_log_summary_renders_grouped_read_stats() -> None:
     assert "Read events" in text
     assert "3" in text
     assert "Memory Paths (2)" in text
-    assert "long/foo.md" in text
-    assert "long/bar.md" in text
+    assert "foo.md" in text
+    assert "bar.md" in text
     assert "agent-b" in text
     assert "Need updated foo context" in text
 
@@ -81,11 +81,11 @@ def test_memory_log_summary_renders_empty_state_for_unknown_filter() -> None:
         (),
         console=console,
         project_name="demo",
-        path_filter="long/missing.md",
+        path_filter="missing.md",
     )
 
     text = output.getvalue()
-    assert "path=long/missing.md" in text
+    assert "path=missing.md" in text
     assert "No memory read events match the current filters." in text
 
 
@@ -93,14 +93,14 @@ def test_memory_log_path_drilldown_renders_individual_events() -> None:
     events = (
         memory_read_event(
             read_id="read-a",
-            canonical_path="long/foo.md",
+            canonical_path="foo.md",
             agent_name="agent-a",
             timestamp="2026-05-23T12:00:00+00:00",
             reason="Need foo context",
         ),
         memory_read_event(
             read_id="read-b",
-            canonical_path="long/foo.md",
+            canonical_path="foo.md",
             agent_name="agent-b",
             timestamp="2026-05-23T12:01:00+00:00",
             reason="Need updated foo context",
@@ -118,11 +118,11 @@ def test_memory_log_path_drilldown_renders_individual_events() -> None:
         events,
         console=console,
         project_name="demo",
-        path_filter="long/foo.md",
+        path_filter="foo.md",
     )
 
     text = output.getvalue()
-    assert "path=long/foo.md" in text
+    assert "path=foo.md" in text
     assert "Memory Paths (1)" in text
     assert "Memory Read Events (2)" in text
     assert "read-a" in text
@@ -135,7 +135,7 @@ def test_memory_log_composed_filters_render_matching_agent_drilldown() -> None:
     events = (
         memory_read_event(
             read_id="read-b",
-            canonical_path="long/foo.md",
+            canonical_path="foo.md",
             agent_name="agent-b",
             timestamp="2026-05-23T12:01:00+00:00",
             reason="Need updated foo context",
@@ -153,17 +153,17 @@ def test_memory_log_composed_filters_render_matching_agent_drilldown() -> None:
         events,
         console=console,
         project_name="demo",
-        path_filter="long/foo.md",
+        path_filter="foo.md",
         agent_filter="agent-b",
     )
 
     text = output.getvalue()
-    assert "path=long/foo.md, agent=agent-b" in text
+    assert "path=foo.md, agent=agent-b" in text
     assert "Memory Paths (1)" in text
     assert "Agents (1)" in text
     assert "Memory Read Events (1)" in text
     assert "read-b" in text
-    assert "long/foo.md" in text
+    assert "foo.md" in text
     assert "agent-b" in text
 
 
@@ -179,7 +179,7 @@ def test_memory_log_json_output_filters_and_summarizes(
     append_memory_read_event(
         memory_read_event(
             read_id="read-a",
-            canonical_path="long/foo.md",
+            canonical_path="foo.md",
             agent_name="agent-a",
             timestamp="2026-05-23T12:00:00+00:00",
             reason="First",
@@ -189,7 +189,7 @@ def test_memory_log_json_output_filters_and_summarizes(
     append_memory_read_event(
         memory_read_event(
             read_id="read-b",
-            canonical_path="long/foo.md",
+            canonical_path="foo.md",
             agent_name="agent-b",
             timestamp="2026-05-23T12:01:00+00:00",
             reason="Second",
@@ -199,7 +199,7 @@ def test_memory_log_json_output_filters_and_summarizes(
     append_memory_read_event(
         memory_read_event(
             read_id="read-c",
-            canonical_path="long/bar.md",
+            canonical_path="bar.md",
             agent_name="agent-b",
             timestamp="2026-05-23T12:02:00+00:00",
             reason="Third",
@@ -211,7 +211,7 @@ def test_memory_log_json_output_filters_and_summarizes(
             "memory",
             "log",
             "--path",
-            "long/foo.md",
+            "foo.md",
             "--agent",
             "agent-b",
             "--json",
@@ -222,11 +222,11 @@ def test_memory_log_json_output_filters_and_summarizes(
 
     payload = json.loads(capsys.readouterr().out)
     assert payload == {
-        "filters": {"agent": "agent-b", "path": "long/foo.md"},
+        "filters": {"agent": "agent-b", "path": "foo.md"},
         "project": project,
         "summary": [
             {
-                "canonical_path": "long/foo.md",
+                "canonical_path": "foo.md",
                 "distinct_agent_count": 1,
                 "last_agent": "agent-b",
                 "last_read_at": "2026-05-23T12:01:00+00:00",
@@ -341,7 +341,7 @@ def test_memory_log_json_id_outputs_raw_event(
     monkeypatch.setattr(Path, "home", lambda: home)
     event = memory_read_event(
         read_id="read-b",
-        canonical_path="long/foo.md",
+        canonical_path="foo.md",
         agent_name="agent-b",
         timestamp="2026-05-23T12:01:00+00:00",
         reason="Need updated foo context",
@@ -358,13 +358,13 @@ def test_memory_log_json_id_outputs_raw_event(
         "agent_source": "SASE_AGENT_NAME",
         "artifacts_dir": None,
         "byte_count": 123,
-        "canonical_path": "long/foo.md",
+        "canonical_path": "foo.md",
         "cwd": "/tmp/demo",
         "frontmatter_stripped": True,
         "id": "read-b",
         "project": project,
         "reason": "Need updated foo context",
-        "resolved_path": "/tmp/demo/memory/long/foo.md",
+        "resolved_path": "/tmp/demo/memory/foo.md",
         "schema_version": 1,
         "timestamp": "2026-05-23T12:01:00+00:00",
     }
@@ -381,7 +381,7 @@ def test_memory_log_id_drilldown_renders_full_event(
     append_memory_read_event(
         memory_read_event(
             read_id="read-b",
-            canonical_path="long/foo.md",
+            canonical_path="foo.md",
             agent_name="agent-b",
             timestamp="2026-05-23T12:01:00+00:00",
             reason="Need updated foo context",
@@ -412,9 +412,9 @@ def test_memory_log_id_drilldown_renders_full_event(
     assert "CWD" in text
     assert "/tmp/demo" in text
     assert "Memory path" in text
-    assert "long/foo.md" in text
+    assert "foo.md" in text
     assert "Resolved path" in text
-    assert "/tmp/demo/memory/long/foo.md" in text
+    assert "/tmp/demo/memory/foo.md" in text
     assert "Artifacts dir" in text
     assert "none" in text
 

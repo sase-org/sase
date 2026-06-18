@@ -40,10 +40,10 @@ regen produces will essentially be greenfield — there is no inline prose to an
 
 This is the single biggest accuracy problem. The image's whole reason to live in `docs/` is that SASE wants to project a
 curated zettelkasten into agent memory (`sdd/research/202605/zettel_sase_shared_memory.md`). None of that bridge is
-shown: no projection arrow into `memory/long/*.md`, no `keywords`-frontmatter step, no inbox/promotion box, no
-`APPLIES:` / `TRIGGERS:` / `PROVENANCE:` labels, no runtime injection step. A reader of `docs/index.md` will look at
-this and reasonably ask "why is the SASE site showing me a generic zettelkasten with no SASE in it?" The image is
-currently a personal-tool vision picture, not a SASE doc-set asset.
+shown: no projection arrow into `memory/*.md`, no `keywords`-frontmatter step, no inbox/promotion box, no `APPLIES:` /
+`TRIGGERS:` / `PROVENANCE:` labels, no runtime injection step. A reader of `docs/index.md` will look at this and
+reasonably ask "why is the SASE site showing me a generic zettelkasten with no SASE in it?" The image is currently a
+personal-tool vision picture, not a SASE doc-set asset.
 
 ### A2. `@foo/bar` is presented as the canonical ID syntax, but zorg has two competing syntaxes
 
@@ -173,7 +173,7 @@ brief should be referenced explicitly in the regen prompt.
 The regen phase (`sase-2s.20`, `codex/gpt-5.5`) should:
 
 1. **Decide first whether this is a SASE doc image or a personal-zorg image.** If it stays in `docs/`, add the SASE
-   bridge: a projection arrow from the slip-box into a `memory/long/*.md` block (or into `.sase/memory/zettel/`), an
+   bridge: a projection arrow from the slip-box into a `memory/*.md` block (or into `.sase/memory/zettel/`), an
    `inbox / promotion` box upstream of the slip-box, and visible `APPLIES` / `TRIGGERS` / `PROVENANCE` labels on a
    sample zettel. The research note in `sdd/research/202605/zettel_sase_shared_memory.md` is the source of truth for
    this layer.

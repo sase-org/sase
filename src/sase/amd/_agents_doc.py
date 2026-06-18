@@ -9,24 +9,18 @@ import re
 _SHORT_SECTION_HEADINGS = frozenset(
     {
         "## Tier 1 (short-term) Memory",
-        "## Short-Term Memory Files",
     }
 )
 _LONG_SECTION_HEADINGS = frozenset(
     {
         "## Tier 2 (long-term) Memory",
-        "## Tier 3 (long-term) Memory",
-        "## Long-Term Memory Files",
     }
 )
-_LONG_LIST_HEADING = "#### Long-Term Memory Files"
 _H2_RE = re.compile(r"^##\s+")
 _LEGACY_AMD_COMMENT_RE = re.compile(r"^\s*<!--\s*sase-" r"amd:[^>]+-->\s*$")
-_SHORT_MEMORY_BULLET_RE = re.compile(
-    r"^- @(?P<path>memory/(?:short/)?[A-Za-z0-9_./-]+\.md)$"
-)
+_SHORT_MEMORY_BULLET_RE = re.compile(r"^- @(?P<path>memory/[A-Za-z0-9_.-]+\.md)$")
 _LONG_MEMORY_ENTRY_RE = re.compile(
-    r"^\*\*`(?P<path>memory/[^`]+\.md)`\*\*(?P<description>.*?)$"
+    r"^\*\*`(?P<path>memory/[A-Za-z0-9_.-]+\.md)`\*\*(?P<description>.*?)$"
 )
 
 
@@ -100,14 +94,6 @@ def _description_text(lines: list[str]) -> str:
     return re.sub(r"\s+_Read when\b.*?_$", "", body).strip()
 
 
-def _long_list_start(lines: list[str], bounds: tuple[int, int]) -> int:
-    start, end = bounds
-    for index in range(start, end):
-        if _normalized_line(lines[index]) == _LONG_LIST_HEADING:
-            return index + 1
-    return start
-
-
 def _long_memory_entries(
     lines: list[str],
     bounds: tuple[int, int] | None,
@@ -116,8 +102,7 @@ def _long_memory_entries(
         return ()
 
     entries: list[_AmdLongMemoryEntry] = []
-    index = _long_list_start(lines, bounds)
-    _start, end = bounds
+    index, end = bounds
     while index < end:
         raw_line = lines[index]
         if _is_legacy_amd_comment(raw_line) or not raw_line.strip():

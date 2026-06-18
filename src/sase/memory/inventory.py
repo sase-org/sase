@@ -1,8 +1,7 @@
 """Memory inventory graph discovery.
 
 The inventory separates loaded ``@`` references from plain memory path mentions
-so CLI rendering can explain what enters agent context without changing the
-legacy init-memory reachability checks.
+so CLI rendering can explain what enters agent context.
 """
 
 from __future__ import annotations
@@ -30,10 +29,7 @@ INSTRUCTION_ROOT_FILENAMES = (
 LOADED_INSTRUCTION_ROOT_FILENAMES = ("AGENTS.md",)
 
 _AT_REF_RE = re.compile(r"(?:^|(?<=\s)|(?<=[\"'`(]))@([^\s,;:()[\]{}\"'`]+)")
-_MEMORY_PATH_RE = re.compile(
-    r"(?<![\w./-])((?:memory/[^\s,;:()[\]{}\"'`]+?|(?:short|long)/[^\s,;:()[\]{}\"'`]+?)\.md)"
-)
-_MEMORY_RELATIVE_TIERS = frozenset({"short", "long"})
+_MEMORY_PATH_RE = re.compile(r"(?<![\w./-])(memory/[^\s,;:()[\]{}\"'`/]+?\.md)")
 _TRAILING_TOKEN_PUNCTUATION = ".,;:!?)"
 _STATUS_SORT_ORDER: dict[MemoryEntryStatus, int] = {
     "loaded": 0,
@@ -152,8 +148,7 @@ def _parse_references(text: str) -> tuple[_ParsedMemoryReference, ...]:
     """Return typed reference tokens found in ``text``.
 
     ``@memory/foo.md`` is reported only as a loaded reference, not also as a
-    plain memory-path mention. Memory-relative legacy ``long/foo.md`` tokens are
-    plain references for audited ``sase memory read`` instructions.
+    plain memory-path mention.
     """
     references: list[tuple[int, _ParsedMemoryReference]] = []
     loaded_spans: list[tuple[int, int]] = []
@@ -194,15 +189,6 @@ def _iter_memory_files(
             path.resolve(strict=False)
             for path in memory_root.glob("*.md")
             if path.is_file() and path.name != "README.md"
-        )
-    for tier in ("short", "long"):
-        tier_root = memory_root / tier
-        if not tier_root.exists():
-            continue
-        results.extend(
-            path.resolve(strict=False)
-            for path in tier_root.rglob("*.md")
-            if path.is_file()
         )
     results.extend(
         path
@@ -253,13 +239,9 @@ def _candidate_paths(root: Path, source: Path, token: str) -> tuple[Path, ...]:
     if expanded.is_absolute():
         return (expanded,)
 
-    memory_relative_candidates: list[Path] = []
-    if expanded.parts and expanded.parts[0] in _MEMORY_RELATIVE_TIERS:
-        memory_relative_candidates.append(root / "memory" / expanded)
-
     if token.startswith(("./", "../")):
-        return (*memory_relative_candidates, source.parent / expanded)
-    return (*memory_relative_candidates, root / expanded, source.parent / expanded)
+        return (source.parent / expanded,)
+    return (root / expanded, source.parent / expanded)
 
 
 def _inside_root(root: Path, path: Path) -> bool:
@@ -278,15 +260,7 @@ def _is_memory_path(root: Path, path: Path) -> bool:
         relative = path.relative_to(memory_root)
     except ValueError:
         return False
-    if len(relative.parts) == 1:
-        return relative.name != "README.md"
-    for tier in ("short", "long"):
-        try:
-            path.relative_to(memory_root / tier)
-        except ValueError:
-            continue
-        return True
-    return False
+    return len(relative.parts) == 1 and relative.name != "README.md"
 
 
 def display_path_for_context(
@@ -316,7 +290,7 @@ def _resolve_reference(
     *,
     overlay: Mapping[Path, str] | None = None,
 ) -> _ResolvedReference | None:
-    """Resolve ``token`` using the legacy init-memory root containment rules."""
+    """Resolve ``token`` using init-memory root containment rules."""
     if token.startswith(("http://", "https://")):
         return None
 
@@ -518,10 +492,10 @@ def build_memory_inventory(
 def _reachable_memory_files_for_init(
     root: Path, *, overlay: Mapping[Path, str] | None = None
 ) -> tuple[Path, ...]:
-    """Return legacy init-memory reachability from ``AGENTS.md``.
+    """Return init-memory reachability from ``AGENTS.md``.
 
     This intentionally follows both ``@`` and plain memory path references so
-    existing ``sase init memory`` validation remains backward-compatible.
+    ``sase init memory`` validation can catch unreachable files.
     """
     root_resolved = root.resolve(strict=False)
     overlay_files = _normalize_overlay(overlay)

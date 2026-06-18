@@ -41,6 +41,25 @@ def _single_line(text: str) -> str:
 _SASE_MEMORY_HEADER = "# SASE = Structured Agentic Software Engineering"
 
 
+def short_note(body: str) -> str:
+    return "---\ntype: short\nparent: AGENTS.md\n---\n" + body
+
+
+def long_note(
+    body: str,
+    *,
+    description: str | None = "Long description.",
+    extra_frontmatter: str = "",
+) -> str:
+    lines = ["---", "type: long", "parent: AGENTS.md"]
+    if description is not None:
+        lines.append(f"description: {description}")
+    if extra_frontmatter:
+        lines.extend(extra_frontmatter.strip().splitlines())
+    lines.extend(["---", body])
+    return "\n".join(lines)
+
+
 def home_provider_shim_content(root: Path) -> str:
     return f"@{root.resolve(strict=False).as_posix()}/AGENTS.md\n"
 
@@ -420,13 +439,16 @@ def test_init_memory_allows_transitive_memory_references(
     )
     write(
         project_root / "AGENTS.md",
-        "@memory/short/sase.md\n\nmemory/long/index.md\n",
+        "@memory/sase.md\n\nmemory/index.md\n",
     )
     write(
-        project_root / "memory" / "long" / "index.md",
-        "# Index\n\n@memory/long/detail.md\n",
+        project_root / "memory" / "index.md",
+        long_note("# Index\n\n@memory/detail.md\n", description="Index."),
     )
-    write(project_root / "memory" / "long" / "detail.md", "# Detail\n")
+    write(
+        project_root / "memory" / "detail.md",
+        long_note("# Detail\n", description="Detail."),
+    )
 
     assert run_handler() == 0
 
@@ -447,19 +469,26 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
         config_dir=config_dir,
     )
     write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
-    write(project_root / "memory" / "short" / "extra.md", "# Extra\n")
+    write(project_root / "memory" / "extra.md", short_note("# Extra\n"))
     write(
-        project_root / "memory" / "long" / "described.md",
-        "---\ndescription: Existing description.\nkeywords: [existing]\n---\n# Described\n",
+        project_root / "memory" / "described.md",
+        long_note(
+            "# Described\n",
+            description="Existing description.",
+            extra_frontmatter="keywords:\n  - existing",
+        ),
     )
     write(
-        project_root / "memory" / "long" / "curated.md",
-        "# Curated\n\nFallback body should not be used.\n",
+        project_root / "memory" / "curated.md",
+        long_note(
+            "# Curated\n\nFallback body should not be used.\n",
+            description=None,
+        ),
     )
     write(
         project_root / "AGENTS.md",
         "# Previous\n\n"
-        "**`memory/long/curated.md`**  \n"
+        "**`memory/curated.md`**  \n"
         "Curated description survives. _Read when touching curated memory._\n",
     )
 
@@ -468,27 +497,30 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Managed Instructions\n")
     assert "## Tier 1 (short-term) Memory" in agents
-    assert "- @memory/short/extra.md" in agents
-    assert "- @memory/short/sase.md" in agents
+    assert "- @memory/extra.md" in agents
+    assert "- @memory/sase.md" in agents
     assert "## Tier 2 (dynamic) Memory" not in agents
     assert "## Dynamic Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
     assert "## Tier 2 (long-term) Memory" in agents
     assert "## Tier 3 (long-term) Memory" not in agents
     assert "#### Long-Term Memory Files" not in agents
-    assert "**`memory/long/curated.md`**  \nCurated description survives." in agents
-    assert "**`memory/long/described.md`**  \nExisting description." in agents
+    assert "**`memory/curated.md`**  \nCurated description survives." in agents
+    assert "**`memory/described.md`**  \nExisting description." in agents
     assert ("sase-" + "amd:") not in agents
 
-    curated = (project_root / "memory" / "long" / "curated.md").read_text(
-        encoding="utf-8"
+    curated = (project_root / "memory" / "curated.md").read_text(encoding="utf-8")
+    assert curated.startswith(
+        "---\n"
+        "type: long\n"
+        "parent: AGENTS.md\n"
+        "description: Curated description survives.\n"
+        "---\n"
     )
-    assert curated.startswith("---\ndescription: Curated description survives.\n---\n")
-    described = (project_root / "memory" / "long" / "described.md").read_text(
-        encoding="utf-8"
-    )
+    described = (project_root / "memory" / "described.md").read_text(encoding="utf-8")
     assert "description: Existing description." in described
-    assert "keywords: [existing]" in described
+    assert "keywords:" in described
+    assert "  - existing" in described
 
 
 def test_init_memory_rejects_unreferenced_memory_files(
@@ -509,14 +541,14 @@ def test_init_memory_rejects_unreferenced_memory_files(
     )
     write(project_root / "AGENTS.md", "@memory/sase.md\n")
     write(
-        project_root / "memory" / "long" / "orphan.md",
-        "# Orphan\n\n@memory/long/orphan.md\n",
+        project_root / "memory" / "orphan.md",
+        long_note("# Orphan\n\n@memory/orphan.md\n", description="Orphan."),
     )
 
     assert run_handler() == 1
     err = capsys.readouterr().err
     assert "unreferenced memory files" in err
-    assert "memory/long/orphan.md" in err
+    assert "memory/orphan.md" in err
 
 
 def test_init_memory_plan_empty_after_prettier_formats_generated_files(

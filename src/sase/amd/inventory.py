@@ -56,9 +56,7 @@ _PRUNED_DIR_NAMES = frozenset(
     }
 )
 _H1_RE = re.compile(r"^\s*#\s+(.+?)\s*$", re.MULTILINE)
-_MEMORY_REF_RE = re.compile(
-    r"@?(?P<path>memory/(?P<tier>short|long)/[A-Za-z0-9_./-]+?\.md)"
-)
+_MEMORY_REF_RE = re.compile(r"(?P<loaded>@)?(?P<path>memory/[A-Za-z0-9_.-]+\.md)")
 _SCOPE_ORDER: dict[AmdScope, int] = {
     "project": 0,
     "project-subdir": 1,
@@ -160,10 +158,15 @@ def _h1_title(text: str | None) -> str | None:
 def _broad_memory_reference_counts(text: str | None) -> tuple[int, int]:
     if text is None:
         return 0, 0
-    refs_by_tier: dict[str, set[str]] = {"short": set(), "long": set()}
+    loaded_refs: set[str] = set()
+    plain_refs: set[str] = set()
     for match in _MEMORY_REF_RE.finditer(text):
-        refs_by_tier[match.group("tier")].add(match.group("path"))
-    return len(refs_by_tier["short"]), len(refs_by_tier["long"])
+        path = match.group("path")
+        if match.group("loaded"):
+            loaded_refs.add(path)
+        else:
+            plain_refs.add(path)
+    return len(loaded_refs), len(plain_refs)
 
 
 def _management_state_and_memory_counts(

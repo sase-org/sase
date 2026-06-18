@@ -188,7 +188,7 @@ def _context_memory_reads() -> list[MemoryReadEvent]:
             timestamp="2026-06-14T14:22:08+00:00",
             project="visual",
             cwd="/workspace/sase",
-            canonical_path="long/generated_skills.md",
+            canonical_path="generated_skills.md",
             resolved_path="/workspace/sase/memory/generated_skills.md",
             agent_name="zoom.snapshot.agent",
             agent_source="SASE_AGENT_NAME",
@@ -203,8 +203,8 @@ def _context_memory_reads() -> list[MemoryReadEvent]:
             timestamp="2026-06-14T14:18:30+00:00",
             project="visual",
             cwd="/workspace/sase",
-            canonical_path="short/gotchas.md",
-            resolved_path="/workspace/sase/memory/short/gotchas.md",
+            canonical_path="gotchas.md",
+            resolved_path="/workspace/sase/memory/gotchas.md",
             agent_name="zoom.snapshot.agent",
             agent_source="SASE_AGENT_NAME",
             artifacts_dir="/workspace/sase/artifacts/visual-zoom",
@@ -285,7 +285,7 @@ async def test_agents_context_zoom_modal_png_snapshot(
 
         _assert_page_svg_contains(page, "AGENT CONTEXT")
         _assert_page_svg_contains(page, "◇")
-        _assert_page_svg_contains(page, "long/generated_skills.md")
+        _assert_page_svg_contains(page, "generated_skills.md")
         _assert_page_svg_contains(page, "◆")
         _assert_page_svg_contains(page, "sase_plan")
         ace_png_visual.assert_page_png(

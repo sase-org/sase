@@ -45,18 +45,18 @@ def _messages(
     return tuple(error.message for error in errors if error.path == path)
 
 
-def test_parse_legacy_note_infers_type_and_default_parent() -> None:
+def test_parse_note_without_frontmatter_marks_required_fields_missing() -> None:
     note = parse_memory_note_text(
         "# Build\n\nBody stays exact.\n",
-        "memory/short/build_and_run.md",
+        "memory/build_and_run.md",
     )
 
-    assert note.path == Path("memory/short/build_and_run.md")
-    assert note.relative_path == "memory/short/build_and_run.md"
-    assert note.type == "short"
-    assert note.type_source == "legacy_path"
+    assert note.path == Path("memory/build_and_run.md")
+    assert note.relative_path == "memory/build_and_run.md"
+    assert note.type is None
+    assert note.type_source == "missing"
     assert note.parent == AGENTS_PARENT
-    assert note.parent_source == "default"
+    assert note.parent_source == "missing"
     assert note.description is None
     assert note.body == "# Build\n\nBody stays exact.\n"
 
@@ -107,7 +107,7 @@ def test_apply_memory_frontmatter_uses_canonical_key_order_and_preserves_extra()
     )
 
 
-def test_discover_memory_notes_reads_flat_and_legacy_layouts(tmp_path: Path) -> None:
+def test_discover_memory_notes_reads_flat_layout_only(tmp_path: Path) -> None:
     _write(tmp_path / "memory" / "README.md", "# Memory\n")
     _write(
         tmp_path / "memory" / "flat.md",
@@ -118,12 +118,8 @@ def test_discover_memory_notes_reads_flat_and_legacy_layouts(tmp_path: Path) -> 
 
     notes = discover_memory_notes(tmp_path)
 
-    assert tuple(note.relative_path for note in notes) == (
-        "memory/flat.md",
-        "memory/long/nested/detail.md",
-        "memory/short/base.md",
-    )
-    assert tuple(note.type for note in notes) == ("long", "long", "short")
+    assert tuple(note.relative_path for note in notes) == ("memory/flat.md",)
+    assert tuple(note.type for note in notes) == ("long",)
 
 
 def test_children_and_reference_rendering_match_agents_shape() -> None:
@@ -194,28 +190,21 @@ def test_validate_notes_reports_required_frontmatter_errors() -> None:
     )
 
 
-def test_validate_notes_can_allow_transitional_legacy_frontmatter() -> None:
-    short = parse_memory_note_text("# Short\n", "memory/short/base.md")
-    long = parse_memory_note_text("# Long\n", "memory/long/detail.md")
-
-    assert validate_notes((short, long), require_frontmatter=False) == ()
-
-
 def test_validate_notes_reports_duplicate_flat_names_and_bad_parents() -> None:
     short_shared = _note(
-        "memory/short/shared.md",
+        "memory/shared.md",
         note_type="short",
         description=None,
     )
-    long_shared = _note("memory/long/shared.md", description="Shared.")
+    duplicate_shared = _note("memory/shared.md", description="Shared.")
     short_parent = _note(
-        "memory/short/hub.md",
+        "memory/hub.md",
         note_type="short",
         description=None,
     )
     long_under_short = _note(
         "memory/child.md",
-        parent="memory/short/hub.md",
+        parent="memory/hub.md",
         description="Child.",
     )
     orphan = _note(
@@ -226,14 +215,14 @@ def test_validate_notes_reports_duplicate_flat_names_and_bad_parents() -> None:
     short_nested = _note(
         "memory/short_nested.md",
         note_type="short",
-        parent="memory/long/shared.md",
+        parent="memory/shared.md",
         description=None,
     )
 
     errors = validate_notes(
         (
             short_shared,
-            long_shared,
+            duplicate_shared,
             short_parent,
             long_under_short,
             orphan,
@@ -242,10 +231,10 @@ def test_validate_notes_reports_duplicate_flat_names_and_bad_parents() -> None:
     )
 
     assert "duplicate flat memory filename: shared.md" in _messages(
-        errors, "memory/short/shared.md"
+        errors, "memory/shared.md"
     )
     assert "duplicate flat memory filename: shared.md" in _messages(
-        errors, "memory/long/shared.md"
+        errors, "memory/shared.md"
     )
     assert "parent must be AGENTS.md or a long memory note" in _messages(
         errors, "memory/child.md"

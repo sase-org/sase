@@ -73,10 +73,9 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Read a long-term memory markdown file from project memory/, "
             "falling back to ~/memory/ when the project file is absent. "
-            "Pass a flat note name such as generated_skills.md; legacy "
-            "long/... paths are still accepted during migration. Leading "
-            "YAML frontmatter is stripped before printing, child notes are "
-            "listed when present, and each read appends an attributable "
+            "Pass a flat note name such as generated_skills.md. Leading YAML "
+            "frontmatter is stripped before printing, child notes are listed "
+            "when present, and each read appends an attributable "
             "audit log row."
         ),
         epilog=(

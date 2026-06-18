@@ -15,14 +15,10 @@ MEMORY_DIR = "memory"
 README_FILENAME = "README.md"
 
 MemoryNoteType = Literal["short", "long"]
-MemoryNoteTypeSource = Literal["frontmatter", "legacy_path", "missing", "invalid"]
-MemoryNoteParentSource = Literal["frontmatter", "default", "invalid"]
+MemoryNoteTypeSource = Literal["frontmatter", "missing", "invalid"]
+MemoryNoteParentSource = Literal["frontmatter", "missing", "invalid"]
 
 _VALID_NOTE_TYPES = frozenset({"short", "long"})
-_LEGACY_TYPE_DIRS: Mapping[str, MemoryNoteType] = {
-    "short": "short",
-    "long": "long",
-}
 _CANONICAL_FRONTMATTER_KEYS = frozenset({"type", "parent", "description"})
 _YAML_WIDTH = 1_000_000
 _FRONTMATTER_WRAP_WIDTH = 120
@@ -110,13 +106,6 @@ def split_frontmatter(text: str) -> tuple[Mapping[str, Any], str]:
     return block.frontmatter, block.body
 
 
-def _legacy_type_from_path(path: Path) -> MemoryNoteType | None:
-    parts = path.parts
-    if len(parts) >= 3 and parts[0] == MEMORY_DIR:
-        return _LEGACY_TYPE_DIRS.get(parts[1])
-    return None
-
-
 def _normalized_scalar(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
@@ -145,8 +134,8 @@ def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
             "frontmatter" if parsed_type in _VALID_NOTE_TYPES else "invalid"
         )
     else:
-        note_type = _legacy_type_from_path(relative_path)
-        type_source = "legacy_path" if note_type is not None else "missing"
+        note_type = None
+        type_source = "missing"
 
     raw_parent = frontmatter.get("parent")
     if "parent" in frontmatter:
@@ -157,7 +146,7 @@ def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
         )
     else:
         parent = AGENTS_PARENT
-        parent_source = "default"
+        parent_source = "missing"
 
     description = _normalized_scalar(frontmatter.get("description"))
 
@@ -196,20 +185,11 @@ def _iter_discoverable_memory_paths(root: Path) -> tuple[Path, ...]:
         for path in memory_root.glob("*.md")
         if path.is_file() and path.name != README_FILENAME
     )
-    for tier in sorted(_LEGACY_TYPE_DIRS):
-        tier_root = memory_root / tier
-        if not tier_root.exists():
-            continue
-        paths.extend(
-            path
-            for path in tier_root.rglob("*.md")
-            if path.is_file() and path.name != README_FILENAME
-        )
     return tuple(sorted(set(paths), key=lambda path: path.as_posix()))
 
 
 def discover_memory_notes(root: Path) -> tuple[MemoryNote, ...]:
-    """Discover flat and legacy nested memory notes under ``root``."""
+    """Discover flat memory notes under ``root``."""
     root_resolved = root.resolve(strict=False)
     notes: list[MemoryNote] = []
     for path in _iter_discoverable_memory_paths(root_resolved):
@@ -221,12 +201,6 @@ def discover_memory_notes(root: Path) -> tuple[MemoryNote, ...]:
             )
         )
     return tuple(notes)
-
-
-def uses_legacy_memory_layout(root: Path) -> bool:
-    """Return whether ``root`` still has legacy ``memory/short|long`` dirs."""
-    memory_root = root / MEMORY_DIR
-    return any((memory_root / tier).exists() for tier in _LEGACY_TYPE_DIRS)
 
 
 def render_memory_frontmatter(
@@ -394,7 +368,7 @@ def _valid_parent_path(parent: str) -> bool:
         return False
     parts = path.parts
     return (
-        len(parts) >= 2
+        len(parts) == 2
         and parts[0] == MEMORY_DIR
         and path.suffix == ".md"
         and path.name != README_FILENAME
@@ -402,22 +376,16 @@ def _valid_parent_path(parent: str) -> bool:
     )
 
 
-def _validate_required_frontmatter(
-    note: MemoryNote,
-    *,
-    require_frontmatter: bool,
-) -> list[MemoryNoteValidationError]:
+def _validate_required_frontmatter(note: MemoryNote) -> list[MemoryNoteValidationError]:
     errors: list[MemoryNoteValidationError] = []
     if note.type_source == "missing":
         errors.append(_validation_error(note, "missing type frontmatter"))
     elif note.type not in _VALID_NOTE_TYPES:
         errors.append(_validation_error(note, "invalid memory note type"))
-    elif require_frontmatter and note.type_source != "frontmatter":
-        errors.append(_validation_error(note, "missing type frontmatter"))
 
     if note.parent_source == "invalid":
         errors.append(_validation_error(note, "invalid parent frontmatter"))
-    elif require_frontmatter and note.parent_source != "frontmatter":
+    elif note.parent_source != "frontmatter":
         errors.append(_validation_error(note, "missing parent frontmatter"))
 
     if not _valid_parent_path(note.parent):
@@ -426,7 +394,7 @@ def _validate_required_frontmatter(
     raw_description = note.frontmatter.get("description")
     if "description" in note.frontmatter and not isinstance(raw_description, str):
         errors.append(_validation_error(note, "invalid description frontmatter"))
-    elif require_frontmatter and note.type == "long" and not note.description:
+    elif note.type == "long" and not note.description:
         errors.append(
             _validation_error(note, "long memory notes require a description")
         )
@@ -527,19 +495,12 @@ def _cycle_errors(notes: tuple[MemoryNote, ...]) -> list[MemoryNoteValidationErr
 
 def validate_notes(
     notes: Iterable[MemoryNote],
-    *,
-    require_frontmatter: bool = True,
 ) -> tuple[MemoryNoteValidationError, ...]:
     """Validate memory note frontmatter and parent/child relationships."""
     note_tuple = tuple(sorted(notes, key=lambda note: note.relative_path))
     errors: list[MemoryNoteValidationError] = []
     for note in note_tuple:
-        errors.extend(
-            _validate_required_frontmatter(
-                note,
-                require_frontmatter=require_frontmatter,
-            )
-        )
+        errors.extend(_validate_required_frontmatter(note))
     errors.extend(_duplicate_flat_name_errors(note_tuple))
     errors.extend(_parent_graph_errors(note_tuple))
     errors.extend(_cycle_errors(note_tuple))
@@ -564,6 +525,5 @@ __all__ = [
     "render_memory_frontmatter",
     "render_memory_note_references",
     "split_frontmatter",
-    "uses_legacy_memory_layout",
     "validate_notes",
 ]

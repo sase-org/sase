@@ -17,14 +17,20 @@ from sase.memory.read_log import memory_read_log_path, read_memory_read_events
 from .memory_handler_helpers import write
 
 
-def test_memory_list_dashboard_renders_inventory_statuses(tmp_path: Path) -> None:
-    write(tmp_path / "AGENTS.md", "@memory/short/base.md\nmemory/long/missing.md\n")
-    write(
-        tmp_path / "memory" / "short" / "base.md",
-        "# Base\nSee memory/long/index.md\n",
+def _long_note(body: str, *, description: str = "Memory note.") -> str:
+    return (
+        f"---\ntype: long\nparent: AGENTS.md\ndescription: {description}\n---\n{body}"
     )
-    write(tmp_path / "memory" / "long" / "index.md", "# Index\n")
-    write(tmp_path / "memory" / "long" / "orphan.md", "# Orphan\n")
+
+
+def test_memory_list_dashboard_renders_inventory_statuses(tmp_path: Path) -> None:
+    write(tmp_path / "AGENTS.md", "@memory/base.md\nmemory/missing.md\n")
+    write(
+        tmp_path / "memory" / "base.md",
+        "# Base\nSee memory/index.md\n",
+    )
+    write(tmp_path / "memory" / "index.md", "# Index\n")
+    write(tmp_path / "memory" / "orphan.md", "# Orphan\n")
 
     inventory = build_memory_inventory(tmp_path)
     output = StringIO()
@@ -49,13 +55,13 @@ def test_memory_list_dashboard_renders_inventory_statuses(tmp_path: Path) -> Non
     assert "Approx loaded tokens" in text
     assert "AGENTS.md" in text
     assert "loaded" in text
-    assert "memory/short/base.md" in text
+    assert "memory/base.md" in text
     assert "referenced" in text
-    assert "memory/long/index.md" in text
+    assert "memory/index.md" in text
     assert "available" in text
-    assert "memory/long/orphan.md" in text
+    assert "memory/orphan.md" in text
     assert "missing" in text
-    assert "memory/long/missing.md" in text
+    assert "memory/missing.md" in text
     assert "@path loads file contents" in text
     assert "AGENTS.md is counted because it is loaded instruction context." in text
     assert "Plain memory/... paths are visible references only." in text
@@ -69,8 +75,8 @@ def test_memory_read_prints_body_and_appends_log(
     home = tmp_path / "home"
     artifacts_dir = tmp_path / "artifacts"
     write(
-        tmp_path / "memory" / "long" / "foo.md",
-        "---\nkeywords: [foo]\n---\n# Body\n\n",
+        tmp_path / "memory" / "foo.md",
+        _long_note("# Body\n\n"),
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda: home)
@@ -78,7 +84,7 @@ def test_memory_read_prints_body_and_appends_log(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
 
     handle_memory_read_command(
-        argparse.Namespace(memory_path="long/foo.md", reason=" Need foo ")
+        argparse.Namespace(memory_path="foo.md", reason=" Need foo ")
     )
 
     captured = capsys.readouterr()
@@ -86,7 +92,7 @@ def test_memory_read_prints_body_and_appends_log(
     assert captured.err == ""
     events = read_memory_read_events(log_path=memory_read_log_path(cwd=tmp_path))
     assert len(events) == 1
-    assert events[0].canonical_path == "long/foo.md"
+    assert events[0].canonical_path == "foo.md"
     assert events[0].agent_name == "agent-a"
     assert events[0].artifacts_dir == str(artifacts_dir)
     assert events[0].reason == "Need foo"
@@ -178,14 +184,14 @@ def test_memory_read_falls_back_to_home_memory_and_logs_resolved_path(
     project = tmp_path / "project"
     home = tmp_path / "home"
     project.mkdir()
-    home_memory = home / "memory" / "long" / "foo.md"
-    write(home_memory, "---\nkeywords: [foo]\n---\n# Home Body\n\n")
+    home_memory = home / "memory" / "foo.md"
+    write(home_memory, _long_note("# Home Body\n\n"))
     monkeypatch.chdir(project)
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
 
     handle_memory_read_command(
-        argparse.Namespace(memory_path="long/foo.md", reason="Need home foo")
+        argparse.Namespace(memory_path="foo.md", reason="Need home foo")
     )
 
     captured = capsys.readouterr()
@@ -193,13 +199,13 @@ def test_memory_read_falls_back_to_home_memory_and_logs_resolved_path(
     assert captured.err == ""
     events = read_memory_read_events(log_path=memory_read_log_path(cwd=project))
     assert len(events) == 1
-    assert events[0].canonical_path == "long/foo.md"
+    assert events[0].canonical_path == "foo.md"
     assert events[0].resolved_path == str(home_memory.resolve())
     assert events[0].reason == "Need home foo"
     assert events[0].frontmatter_stripped is True
 
 
-def test_memory_read_rejects_short_memory_without_logging(
+def test_memory_read_rejects_nested_legacy_short_path_without_logging(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -218,7 +224,7 @@ def test_memory_read_rejects_short_memory_without_logging(
     captured = capsys.readouterr()
     assert exc.value.code == 1
     assert captured.out == ""
-    assert "memory/short" in captured.err
+    assert "flat" in captured.err
     assert not memory_read_log_path(cwd=tmp_path).exists()
 
 
@@ -254,14 +260,14 @@ def test_memory_read_rejects_blank_reason_before_logging(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     home = tmp_path / "home"
-    write(tmp_path / "memory" / "long" / "foo.md", "# Body\n")
+    write(tmp_path / "memory" / "foo.md", _long_note("# Body\n"))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
 
     with pytest.raises(SystemExit) as exc:
         handle_memory_read_command(
-            argparse.Namespace(memory_path="long/foo.md", reason="   ")
+            argparse.Namespace(memory_path="foo.md", reason="   ")
         )
 
     captured = capsys.readouterr()
@@ -277,7 +283,7 @@ def test_memory_read_requires_agent_attribution_before_logging(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     home = tmp_path / "home"
-    write(tmp_path / "memory" / "long" / "foo.md", "# Body\n")
+    write(tmp_path / "memory" / "foo.md", _long_note("# Body\n"))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
@@ -286,7 +292,7 @@ def test_memory_read_requires_agent_attribution_before_logging(
 
     with pytest.raises(SystemExit) as exc:
         handle_memory_read_command(
-            argparse.Namespace(memory_path="long/foo.md", reason="Need foo")
+            argparse.Namespace(memory_path="foo.md", reason="Need foo")
         )
 
     captured = capsys.readouterr()
@@ -299,10 +305,10 @@ def test_memory_read_requires_agent_attribution_before_logging(
 def test_memory_list_dashboard_renders_home_context_paths(tmp_path: Path) -> None:
     project = tmp_path / "project"
     home = tmp_path / "home"
-    write(project / "AGENTS.md", "@memory/short/project.md\n")
-    write(project / "memory" / "short" / "project.md", "# Project\n")
-    write(home / "AGENTS.md", "@memory/short/home.md\n")
-    write(home / "memory" / "short" / "home.md", "# Home\n")
+    write(project / "AGENTS.md", "@memory/project.md\n")
+    write(project / "memory" / "project.md", "# Project\n")
+    write(home / "AGENTS.md", "@memory/home.md\n")
+    write(home / "memory" / "home.md", "# Home\n")
 
     inventory = build_memory_inventory(project, home_root=home)
     output = StringIO()
@@ -317,7 +323,7 @@ def test_memory_list_dashboard_renders_home_context_paths(tmp_path: Path) -> Non
 
     text = output.getvalue()
     assert "AGENTS.md" in text
-    assert "memory/short/project.md" in text
+    assert "memory/project.md" in text
     assert "~/AGENTS.md" in text
-    assert "~/memory/short/home.md" in text
-    assert "~/AGENTS.md -> @memory/short/home.md" in text
+    assert "~/memory/home.md" in text
+    assert "~/AGENTS.md -> @memory/home.md" in text

@@ -27,7 +27,6 @@ from sase.memory.locks import locked_file
 from sase.memory.notes import MEMORY_DIR, MemoryNote, parse_memory_note_text
 
 READ_LOG_SCHEMA_VERSION = 1
-ALLOWED_READ_SUBDIRS = frozenset({"long"})
 
 
 class MemoryReadError(ValueError):
@@ -107,7 +106,6 @@ def validate_memory_read_path(
     *,
     project_root: Path | None = None,
     home_root: Path | None = None,
-    allowed_subdirs: frozenset[str] = ALLOWED_READ_SUBDIRS,
 ) -> ValidatedMemoryPath:
     """Validate and canonicalize a path relative to an allowed memory root."""
     raw_path = Path(memory_relative_path)
@@ -121,20 +119,14 @@ def validate_memory_read_path(
         raise MemoryReadPathError("memory read path must not contain traversal")
     if Path(*parts).suffix != ".md":
         raise MemoryReadPathError("memory read path must point to a .md file")
-    if not _is_flat_note_path(parts) and not _is_legacy_note_path(
-        parts, allowed_subdirs
-    ):
-        allowed = ", ".join(f"{subdir}/" for subdir in sorted(allowed_subdirs))
-        raise MemoryReadPathError(
-            f"memory read path must be a flat .md note name or legacy {allowed} path"
-        )
+    if not _is_flat_note_path(parts):
+        raise MemoryReadPathError("memory read path must be a flat .md note name")
 
     for memory_root in _memory_read_roots(project_root, home_root):
         path = _validate_memory_read_candidate(
             memory_root=memory_root,
             parts=parts,
             raw_path=raw_path,
-            flat=_is_flat_note_path(parts),
         )
         if path is not None:
             return path
@@ -151,16 +143,6 @@ def _normalize_memory_read_parts(raw_path: Path) -> tuple[str, ...]:
 
 def _is_flat_note_path(parts: tuple[str, ...]) -> bool:
     return len(parts) == 1
-
-
-def _is_legacy_note_path(
-    parts: tuple[str, ...],
-    allowed_subdirs: frozenset[str],
-) -> bool:
-    if len(parts) < 2:
-        return False
-    subdir = parts[0]
-    return subdir == "short" or subdir in allowed_subdirs
 
 
 def _memory_read_roots(
@@ -185,10 +167,8 @@ def _validate_memory_read_candidate(
     memory_root: Path,
     parts: tuple[str, ...],
     raw_path: Path,
-    flat: bool,
 ) -> ValidatedMemoryPath | None:
-    subdir = parts[0] if not flat else ""
-    allowed_root = (memory_root if flat else memory_root / subdir).resolve(strict=False)
+    allowed_root = memory_root.resolve(strict=False)
     candidate = memory_root.joinpath(*parts)
 
     try:
@@ -207,9 +187,8 @@ def _validate_memory_read_candidate(
     if not candidate.is_file():
         raise MemoryReadPathError(f"memory path is not a file: {raw_path.as_posix()}")
     if not _is_relative_to(resolved, allowed_root):
-        location = "memory/" if flat else f"{subdir}/"
         raise MemoryReadPathError(
-            f"memory file resolves outside the allowed {location} directory"
+            "memory file resolves outside the allowed memory/ directory"
         )
 
     note = _read_validated_memory_note(

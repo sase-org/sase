@@ -55,7 +55,6 @@ def managed_agents(
     title: str = "Managed Instructions",
     *,
     markered: bool = False,
-    long_heading: str = "## Tier 2 (long-term) Memory",
 ) -> str:
     short_markers = ([legacy_marker("short-memory:start")] if markered else []) + (
         [legacy_marker("short-memory:end")] if markered else []
@@ -72,18 +71,16 @@ def managed_agents(
             "The following memory files contain core context.",
             "",
             *short_markers[:1],
-            "- @memory/short/extra.md",
-            "- @memory/short/sase.md",
+            "- @memory/extra.md",
+            "- @memory/sase.md",
             *short_markers[1:],
             "",
-            long_heading,
+            "## Tier 2 (long-term) Memory",
             "",
-            "Prose mentions @memory/short/prose.md and memory/long/prose.md.",
-            "",
-            "#### Long-Term Memory Files",
+            "Prose mentions @memory/prose.md and memory/prose.md.",
             "",
             *long_markers[:1],
-            "**`memory/long/generated_skills.md`**  ",
+            "**`memory/generated_skills.md`**  ",
             "Skill pipeline notes.",
             *long_markers[1:],
             "",
@@ -110,7 +107,7 @@ def test_build_inventory_scans_project_agents_from_vcs_root_and_prunes(
     write_shims(project)
     write(
         project / "tools" / "AGENTS.md",
-        "# Tools Instructions\n\n@memory/short/tools.md\n",
+        "# Tools Instructions\n\n@memory/tools.md\n",
     )
     write_shims(project / "tools", ("CLAUDE.md", "GEMINI.md"))
     write(project / ".sase" / "AGENTS.md", "# Ignored\n")
@@ -265,18 +262,12 @@ def test_build_inventory_reports_legacy_chezmoi_plain_shim_status(
     ]
 
 
-def test_build_inventory_treats_legacy_markered_structure_as_managed(
+def test_build_inventory_treats_markered_current_structure_as_managed(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "repo"
     (project / ".git").mkdir(parents=True)
-    write(
-        project / "AGENTS.md",
-        managed_agents(
-            markered=True,
-            long_heading="## Tier 3 (long-term) Memory",
-        ),
-    )
+    write(project / "AGENTS.md", managed_agents(markered=True))
 
     inventory = _build_amd_inventory(
         root=project,
@@ -302,7 +293,7 @@ def test_build_inventory_reports_partial_visible_amd_structure(tmp_path: Path) -
                 "",
                 "## Tier 1 (short-term) Memory",
                 "",
-                "- @memory/short/sase.md",
+                "- @memory/sase.md",
                 "",
             ]
         ),
@@ -328,7 +319,7 @@ def test_build_inventory_uses_broad_memory_counts_for_custom_documents(
     (project / ".git").mkdir(parents=True)
     write(
         project / "AGENTS.md",
-        "# Custom Instructions\n\n@memory/short/base.md\nmemory/long/detail.md\n",
+        "# Custom Instructions\n\n@memory/base.md\nmemory/detail.md\n",
     )
 
     inventory = _build_amd_inventory(
@@ -353,7 +344,7 @@ def test_render_amd_inventory_outputs_compact_rich_table(
     write_shims(project)
     write(
         project / "tools" / "AGENTS.md",
-        "# Tools Instructions\n\n@memory/short/tools.md\n",
+        "# Tools Instructions\n\n@memory/tools.md\n",
     )
     write_shims(project / "tools", ("CLAUDE.md", "GEMINI.md"))
     inventory = _build_amd_inventory(

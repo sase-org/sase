@@ -274,13 +274,13 @@ sibling_repos:
 def test_memory_reference_validation_uses_rendered_overlay(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    write(root / "AGENTS.md", "@memory/short/generated.md\n")
-    write(root / "memory" / "long" / "detail.md", "# Detail\n")
+    write(root / "AGENTS.md", "@memory/generated.md\n")
+    write(root / "memory" / "detail.md", "# Detail\n")
 
     unreferenced = unreferenced_memory_files(
         root,
         overlay={
-            root / "memory" / "short" / "generated.md": "@memory/long/detail.md\n",
+            root / "memory" / "generated.md": "@memory/detail.md\n",
         },
     )
 
@@ -304,7 +304,10 @@ def test_memory_plan_uses_amd_agents_overlay_when_project_is_opted_in(
     )
     write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
     write(project_root / "AGENTS.md", "# Stale Instructions\n")
-    write(project_root / "memory" / "long" / "detail.md", "# Detail\n")
+    write(
+        project_root / "memory" / "detail.md",
+        "---\ntype: long\nparent: AGENTS.md\n---\n# Detail\n",
+    )
 
     plan = plan_memory()
 
@@ -312,7 +315,7 @@ def test_memory_plan_uses_amd_agents_overlay_when_project_is_opted_in(
     assert ("overwrite", project_root / "AGENTS.md") in {
         (action.operation, action.path) for action in plan.actions
     }
-    assert ("update", project_root / "memory" / "long" / "detail.md") in {
+    assert ("update", project_root / "memory" / "detail.md") in {
         (action.operation, action.path) for action in plan.actions
     }
 

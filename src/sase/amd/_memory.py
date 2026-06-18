@@ -5,9 +5,6 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 import re
-from typing import Any
-
-import yaml  # type: ignore[import-untyped]
 
 from ._agents_doc import parse_amd_agents_document
 from ._config import load_amd_h1_title
@@ -22,7 +19,6 @@ from sase.memory.notes import (
     apply_memory_frontmatter,
     discover_memory_notes,
     render_memory_note_references,
-    uses_legacy_memory_layout,
 )
 
 _AGENTS_LONG_MEMORY_RE = re.compile(
@@ -54,25 +50,6 @@ def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
         if body:
             descriptions[match.group("path")] = body
     return descriptions
-
-
-def _split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-    if not text.startswith("---\n"):
-        return {}, text
-    end = text.find("\n---", 4)
-    if end == -1:
-        return {}, text
-    raw_frontmatter = text[4:end]
-    body_start = end + len("\n---")
-    if text[body_start : body_start + 1] == "\n":
-        body_start += 1
-    try:
-        loaded = yaml.safe_load(raw_frontmatter) or {}
-    except yaml.YAMLError:
-        return {}, text
-    if not isinstance(loaded, dict):
-        return {}, text[body_start:]
-    return loaded, text[body_start:]
 
 
 def _first_body_paragraph_or_h1(body: str) -> str:
@@ -118,42 +95,6 @@ def _long_memory_description(
     return note_path.stem.replace("_", " ").replace("-", " ").strip().capitalize()
 
 
-def _frontmatter_description_line(description: str) -> str:
-    return yaml.safe_dump(
-        {"description": description},
-        allow_unicode=True,
-        default_flow_style=False,
-        sort_keys=False,
-    ).strip()
-
-
-def _frontmatter_close_line_range(text: str) -> tuple[int, int] | None:
-    if not text.startswith("---\n"):
-        return None
-    offset = 0
-    for index, line in enumerate(text.splitlines(keepends=True)):
-        line_start = offset
-        offset += len(line)
-        if index == 0:
-            continue
-        if line.strip() == "---":
-            return line_start, offset
-    return None
-
-
-def _with_description_frontmatter(text: str, description: str) -> str:
-    description_line = _frontmatter_description_line(description)
-    close_range = _frontmatter_close_line_range(text)
-    if close_range is None:
-        return f"---\n{description_line}\n---\n{text}"
-
-    close_start, _close_end = close_range
-    before_close = text[:close_start]
-    if not before_close.endswith("\n"):
-        before_close = f"{before_close}\n"
-    return f"{before_close}{description_line}\n{text[close_start:]}"
-
-
 def _long_memory_descriptions(root: Path) -> dict[str, str]:
     existing_agents_descriptions = _existing_agents_long_descriptions(root)
     notes = discover_memory_notes(root)
@@ -174,7 +115,6 @@ def _long_memory_description_updates(
     root: Path, descriptions: dict[str, str]
 ) -> tuple[AmdLongMemoryDescriptionUpdate, ...]:
     updates: list[AmdLongMemoryDescriptionUpdate] = []
-    legacy_layout = uses_legacy_memory_layout(root)
     for note in discover_memory_notes(root):
         if note.type != "long":
             continue
@@ -184,23 +124,14 @@ def _long_memory_description_updates(
         text, error = read_text(path)
         if error is not None or text is None:
             continue
-        if legacy_layout:
-            frontmatter, _body = _split_frontmatter(text)
-            raw_description = frontmatter.get("description")
-            if isinstance(raw_description, str) and raw_description.strip():
-                continue
-            content = _with_description_frontmatter(text, description)
-        else:
-            content = apply_memory_frontmatter(
-                text,
-                note_type="long",
-                parent=(
-                    note.parent
-                    if note.parent_source == "frontmatter"
-                    else AGENTS_PARENT
-                ),
-                description=description,
-            )
+        content = apply_memory_frontmatter(
+            text,
+            note_type="long",
+            parent=(
+                note.parent if note.parent_source == "frontmatter" else AGENTS_PARENT
+            ),
+            description=description,
+        )
         if content != text:
             updates.append(
                 AmdLongMemoryDescriptionUpdate(
@@ -212,11 +143,7 @@ def _long_memory_description_updates(
 
 
 def _short_memory_references(root: Path) -> tuple[str, ...]:
-    generated_path = (
-        Path("memory/short/sase.md")
-        if uses_legacy_memory_layout(root)
-        else Path("memory/sase.md")
-    )
+    generated_path = Path("memory/sase.md")
     refs = {generated_path}
     refs.update(
         note.path for note in discover_memory_notes(root) if note.type == "short"
@@ -233,12 +160,6 @@ def render_managed_agents(
     """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
     existing_descriptions = _existing_agents_long_descriptions(root)
     notes = discover_memory_notes(root)
-    legacy_layout = uses_legacy_memory_layout(root)
-    canonical_file_instruction = (
-        "`memory/long/*.md` files directly."
-        if legacy_layout
-        else "memory files directly."
-    )
     top_level_long_notes = tuple(
         sorted(
             (
@@ -270,7 +191,7 @@ def render_managed_agents(
             "",
             "The below files contain detailed reference material. When working "
             "in their domain, you MUST use your `/sase_memory_read`",
-            f"skill to review their contents. Do not read canonical {canonical_file_instruction}",
+            "skill to review their contents. Do not read canonical memory files directly.",
             "",
         ]
     )

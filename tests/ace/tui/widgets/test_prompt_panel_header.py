@@ -177,7 +177,7 @@ def test_header_renders_workflow_variables_before_agent_context(
     _write_events(
         [
             _event(
-                canonical_path="long/generated_skills.md",
+                canonical_path="generated_skills.md",
                 timestamp="2026-05-24T14:22:08+00:00",
                 artifacts_dir=str(artifacts_dir),
                 reason="needed commit hook contract for runtime parity refactor",
@@ -195,7 +195,7 @@ def test_header_renders_workflow_variables_before_agent_context(
     assert "▸ MEMORY · 1 read · 1 file\n" in plain
     assert "▸ SKILLS" not in plain
     assert "WORKFLOW VARIABLES\n" in plain
-    assert "long/generated_skills.md" in plain
+    assert "generated_skills.md" in plain
     assert "↳ needed commit hook contract for runtime parity refactor" in plain
     assert "none recorded" not in plain
     _assert_dim_divider_before(header, "AGENT CONTEXT\n")
@@ -240,7 +240,7 @@ def test_cheap_header_omits_agent_context(tmp_path: Path) -> None:
     _write_events(
         [
             _event(
-                canonical_path="long/skill.md",
+                canonical_path="skill.md",
                 timestamp="2026-05-24T14:22:08+00:00",
                 artifacts_dir=str(artifacts_dir),
             )
@@ -279,13 +279,13 @@ def test_family_header_renders_followup_role_attribution(tmp_path: Path) -> None
     _write_events(
         [
             _event(
-                canonical_path="long/cli_rules.md",
+                canonical_path="cli_rules.md",
                 timestamp="2026-05-24T14:22:08+00:00",
                 artifacts_dir=str(plan_dir),
                 reason="planner reviewed CLI rules",
             ),
             _event(
-                canonical_path="long/tui_perf.md",
+                canonical_path="tui_perf.md",
                 timestamp="2026-05-24T14:30:00+00:00",
                 artifacts_dir=str(coder_dir),
                 reason="coder checked perf budget",
@@ -332,8 +332,8 @@ def test_family_header_renders_followup_role_attribution(tmp_path: Path) -> None
     assert "AGENT CONTEXT\n" in plain
     # Memory lane: 2 reads from 2 producers, newest (coder) first.
     assert "▸ MEMORY · 2 reads · 2 files · 2 agents\n" in plain
-    assert "coder  ◇ long/tui_perf.md" in plain
-    assert "plan   ◇ long/cli_rules.md" in plain
+    assert "coder  ◇ tui_perf.md" in plain
+    assert "plan   ◇ cli_rules.md" in plain
     # Skills lane: the question follow-up's audited use is attributed to `q`.
     assert "▸ SKILLS · 1 use · 1 skill\n" in plain
     assert "q      ◆ sase_questions" in plain

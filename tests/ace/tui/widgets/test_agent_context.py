@@ -35,7 +35,7 @@ def _memory_event() -> MemoryReadDisplayEvent:
             timestamp="2026-06-14T14:22:08+00:00",
             project="test",
             cwd="/tmp/test",
-            canonical_path="long/generated_skills.md",
+            canonical_path="generated_skills.md",
             resolved_path="/tmp/test/memory/generated_skills.md",
             agent_name="alpha",
             agent_source="SASE_AGENT_NAME",
@@ -90,7 +90,7 @@ def test_memory_only_context_omits_empty_skills_lane() -> None:
     plain = text.plain
     assert "AGENT CONTEXT\n" in plain
     assert "▸ MEMORY · 1 read · 1 file\n" in plain
-    assert "long/generated_skills.md" in plain
+    assert "generated_skills.md" in plain
     assert "▸ SKILLS" not in plain
     assert "none recorded" not in plain
 
@@ -155,7 +155,7 @@ def test_memory_and_skills_rows_share_columns() -> None:
     )
 
     lines = text.plain.splitlines()
-    memory_row = next(line for line in lines if "◇ long/" in line)
+    memory_row = next(line for line in lines if "◇ generated_skills.md" in line)
     skill_row = next(line for line in lines if "◆ sase_plan" in line)
     memory_reason = next(
         line for line in lines if "needed generated skill rules" in line
@@ -165,6 +165,6 @@ def test_memory_and_skills_rows_share_columns() -> None:
     )
 
     assert memory_row.index("◇") == skill_row.index("◆")
-    assert memory_row.index("long/") == skill_row.index("sase_plan")
+    assert memory_row.index("generated_skills.md") == skill_row.index("sase_plan")
     assert memory_reason.index("↳") == skill_reason.index("↳")
-    assert memory_reason.index("↳") == memory_row.index("long/")
+    assert memory_reason.index("↳") == memory_row.index("generated_skills.md")
