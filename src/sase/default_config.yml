@@ -539,8 +539,7 @@ xprompts:
       ## THE PROMPT
       {{ prompt }}
   research: |
-    Store new research in a markdown file under the sdd/research/ directory. Organize research files in YYYYMM month
-    subdirectories.
+    Write this research to a new markdown file under the sdd/research/$(date +%Y%m)/ directory.
   review: |
     Can you help me fix any bugs that were introduced by this implementation? Also, look for any ways you can improve
     the implementation, but make sure any improvements you make are clear wins (not subjective).
