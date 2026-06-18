@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-18 12:03:39
-status: wip
+status: done
 prompt: sdd/prompts/202606/xprompt_stash_properties.md
 ---
 # Preserve xprompt properties through prompt stash bundles

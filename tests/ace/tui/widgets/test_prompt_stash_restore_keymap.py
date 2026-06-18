@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from textual.app import App, ComposeResult
 
+from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
 
@@ -148,6 +149,27 @@ async def test_restore_adopts_frontmatter_when_bar_has_none() -> None:
         # First restored frontmatter wins; bodies become panes.
         assert bar._stack.frontmatter == "---\nmodel: claude\n---"
         assert bar.all_prompt_texts() == ["alpha", "beta"]
+
+
+async def test_restore_adopted_xprompts_sync_to_frontmatter_panel() -> None:
+    app = _RestoreApp("")
+    frontmatter = "---\nxprompts:\n  _stash_helper: Use restored helper\n---"
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        bar.restore_stashed_entries([("alpha", frontmatter)])
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar._stack.frontmatter == frontmatter
+        assert bar._stack.frontmatter_model.xprompts["_stash_helper"].content == (
+            "Use restored helper"
+        )
+        panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
+        assert not panel.has_class("hidden")
+        assert panel.model.xprompts["_stash_helper"].content == "Use restored helper"
+        assert bar.all_prompt_texts() == ["alpha"]
 
 
 async def test_restore_is_noop_in_feedback_mode() -> None:

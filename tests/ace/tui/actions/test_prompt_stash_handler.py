@@ -138,6 +138,34 @@ def test_stash_all_persists_one_bundle_row_with_metadata(
     assert harness._prompt_context is None
 
 
+def test_stash_all_persists_bundle_with_canonical_xprompt_frontmatter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    harness = _StashHarness(project="proj-a")
+    frontmatter = "---\nxprompts:\n  _stash_helper: Use saved helper rules\n---"
+
+    panes = [
+        StashedPromptPane(text="first", frontmatter=frontmatter, pane_index=0),
+        StashedPromptPane(text="second", frontmatter=frontmatter, pane_index=1),
+    ]
+    harness.on_prompt_input_bar_stashed(
+        PromptInputBar.Stashed(panes, source="all", dismiss_bar=True)
+    )
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    snapshot = read_prompt_stash_snapshot(path)
+    assert len(snapshot.entries) == 1
+    entry = snapshot.entries[0]
+    assert entry.text == "first\n---\nsecond"
+    assert entry.frontmatter == frontmatter
+    assert "xprompts:\n" in entry.frontmatter
+    assert "  _stash_helper: Use saved helper rules\n" in entry.frontmatter
+
+
 def test_stash_single_pane_singular_toast_and_dismiss(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

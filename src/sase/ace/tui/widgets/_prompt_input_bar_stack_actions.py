@@ -142,6 +142,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
         def active_text_area(self) -> PromptTextArea: ...
+        def refresh_frontmatter_panel_from_stack(self) -> None: ...
         def toggle_frontmatter_panel(self) -> None: ...
         def hide_file_completions(self) -> None: ...
         def hide_soft_completion(self) -> None: ...
@@ -451,14 +452,18 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         drop_empty_lead = (
             len(self._stack) == 1 and not self._stack.selected_item.text.strip()
         )
+        adopted_frontmatter = False
         for text, frontmatter in entries:
             if frontmatter and not self._stack.frontmatter:
                 self._stack.frontmatter = frontmatter
+                adopted_frontmatter = True
             self._stack.append_bottom(text)
         if drop_empty_lead:
             del self._stack.items[0]
             self._stack.selected_index = len(self._stack.items) - 1
         self._rebuild_stack(enter_mode="insert")
+        if adopted_frontmatter:
+            self.refresh_frontmatter_panel_from_stack()
 
     def _clear_active_completion_state(self) -> None:
         """Drop transient active-pane state before stack focus/mutation."""

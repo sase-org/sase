@@ -12,8 +12,16 @@ no-ops.
 from __future__ import annotations
 
 from textual.app import App, ComposeResult
+from textual.widgets import Input, TextArea
 
+from sase.ace.tui.modals.xprompt_item_modal import XPromptItemModal
+from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+
+
+_LOCAL_XPROMPT_NAME = "_stash_helper"
+_LOCAL_XPROMPT_CONTENT = "Use saved helper rules"
 
 
 class _CaptureApp(App[None]):
@@ -36,6 +44,44 @@ class _CaptureApp(App[None]):
 
     def on_prompt_input_bar_stashed(self, event: PromptInputBar.Stashed) -> None:
         self.stashed.append(event)
+
+
+async def _add_local_xprompt_from_panel(
+    pilot: object,
+    app: _CaptureApp,
+    *,
+    name: str = _LOCAL_XPROMPT_NAME,
+    content: str = _LOCAL_XPROMPT_CONTENT,
+) -> None:
+    """Author one local ``xprompts:`` helper through the real panel sub-editor."""
+    bar = app.query_one(PromptInputBar)
+    bar.focus_frontmatter_panel()
+    await pilot.pause()  # type: ignore[attr-defined]
+    await pilot.pause()  # type: ignore[attr-defined]
+
+    panel = app.query_one(FrontmatterPanel)
+    panel.begin_add("xprompts")
+    await pilot.pause()  # type: ignore[attr-defined]
+    await pilot.pause()  # type: ignore[attr-defined]
+
+    modal = app.screen
+    assert isinstance(modal, XPromptItemModal)
+    modal.query_one("#xprompt-item-name", Input).value = name
+    modal.query_one("#xprompt-item-content", TextArea).text = content
+    await pilot.pause()  # type: ignore[attr-defined]
+    modal.action_save()
+    await pilot.pause()  # type: ignore[attr-defined]
+    await pilot.pause()  # type: ignore[attr-defined]
+
+
+def _assert_frontmatter_contains_local_xprompt(frontmatter: str) -> None:
+    """Assert the stashed frontmatter has canonical delimiters and helper data."""
+    assert frontmatter.startswith("---\n")
+    assert frontmatter.endswith("---")
+    assert "xprompts:\n" in frontmatter
+    assert f"  {_LOCAL_XPROMPT_NAME}: {_LOCAL_XPROMPT_CONTENT}\n" in frontmatter
+    model = PromptFrontmatter.parse(frontmatter)
+    assert model.xprompts[_LOCAL_XPROMPT_NAME].content == _LOCAL_XPROMPT_CONTENT
 
 
 # --- stash current (gs) ----------------------------------------------------
@@ -170,6 +216,42 @@ async def test_gS_preserves_shared_frontmatter() -> None:
         event = app.stashed[0]
         assert [p.text for p in event.panes] == ["first", "second"]
         assert all(p.frontmatter == "---\nmodel: claude\n---" for p in event.panes)
+
+
+async def test_gS_preserves_panel_authored_xprompt_properties() -> None:
+    app = _CaptureApp("alpha\n---\nbeta")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        await _add_local_xprompt_from_panel(pilot, app)
+
+        await pilot.press("escape")  # insert -> normal after panel save
+        await pilot.press("g", "S")
+        await pilot.pause()
+
+        event = app.stashed[0]
+        assert event.source == "all"
+        assert [p.text for p in event.panes] == ["alpha", "beta"]
+        assert all(p.frontmatter == event.panes[0].frontmatter for p in event.panes)
+        for pane in event.panes:
+            _assert_frontmatter_contains_local_xprompt(pane.frontmatter)
+
+
+async def test_ctrl_gS_preserves_panel_authored_xprompts_from_insert() -> None:
+    app = _CaptureApp("alpha\n---\nbeta")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        await _add_local_xprompt_from_panel(pilot, app)
+
+        await pilot.press("ctrl+g", "S")
+        await pilot.pause()
+
+        event = app.stashed[0]
+        assert event.source == "all"
+        assert [p.text for p in event.panes] == ["alpha", "beta"]
+        for pane in event.panes:
+            _assert_frontmatter_contains_local_xprompt(pane.frontmatter)
 
 
 async def test_gS_all_empty_is_noop() -> None:

@@ -60,6 +60,7 @@ class _RestoreHarness(PromptBarStashMixin):
         self.notifications: list[tuple[str, str | None]] = []
         self.pushed: list[tuple[object, object]] = []
         self.home_mounts: list[str] = []
+        self.home_mount_xprompt_markdown: list[bool] = []
         self.applied_counts: list[int] = []
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
@@ -71,8 +72,16 @@ class _RestoreHarness(PromptBarStashMixin):
     def _mounted_prompt_bar(self):  # type: ignore[override]
         return self._bar
 
-    def _show_prompt_input_bar_for_home(self, initial_text: str = "") -> None:
+    def _show_prompt_input_bar_for_home(
+        self,
+        initial_text: str = "",
+        display_name: str = "~",
+        history_sort_key: str = "home",
+        *,
+        as_xprompt_markdown: bool = False,
+    ) -> None:
         self.home_mounts.append(initial_text)
+        self.home_mount_xprompt_markdown.append(as_xprompt_markdown)
 
     def _apply_prompt_stash_count(self, count: int) -> None:
         self.applied_counts.append(count)
@@ -300,7 +309,37 @@ async def test_confirm_without_bar_mounts_home_with_combined_text(
     )
 
     assert harness.home_mounts == ["model: c\nfirst\n---\nsecond\n---\nthird"]
+    assert harness.home_mount_xprompt_markdown == [True]
     assert harness.notifications == [("Restored 3 prompts", None)]
+
+
+async def test_confirm_without_bar_mounts_single_body_as_xprompt_markdown(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    frontmatter = "---\nxprompts:\n  _stash_helper: Use restored helper\n---"
+    _seed(
+        path,
+        [
+            (
+                "a",
+                "2026-06-16T10:00:00",
+                "single body",
+                frontmatter,
+            )
+        ],
+    )
+    harness = _RestoreHarness(bar=None)
+
+    await harness._on_prompt_stash_restore_confirmed(
+        StashRestoreResult(restore_ids=["a"], delete_ids=[])
+    )
+
+    assert harness.home_mounts == [f"{frontmatter}\nsingle body"]
+    assert harness.home_mount_xprompt_markdown == [True]
+    assert harness.notifications == [("Restored prompt", None)]
 
 
 async def test_confirm_delete_only_pops_without_loading(

@@ -253,7 +253,8 @@ class PromptBarStashMixin:
             bar.restore_stashed_entries(self._entries_to_restore_items(entries))
             return
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
-            initial_text=self._stash_entries_to_prompt_text(entries)
+            initial_text=self._stash_entries_to_prompt_text(entries),
+            as_xprompt_markdown=True,
         )
 
     @staticmethod
