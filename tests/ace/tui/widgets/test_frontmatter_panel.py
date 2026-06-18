@@ -100,6 +100,23 @@ async def test_g_equals_focuses_panel() -> None:
         assert app.focused is panel
 
 
+async def test_ctrl_g_equals_focuses_panel_from_insert() -> None:
+    """``Ctrl+G =`` shows and focuses the panel from INSERT mode."""
+    app = _PromptBarApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("ctrl+g", "=")
+        await pilot.pause()
+        await pilot.pause()
+
+        panel = app.query_one(FrontmatterPanel)
+        assert bar._frontmatter_panel_visible()
+        assert app.focused is panel
+
+
 async def test_auto_show_on_existing_frontmatter() -> None:
     """Opening on a prompt that already carries frontmatter mounts the panel."""
     app = _PromptBarApp("---\ndescription: hi\n---\nfirst\n---\nsecond")

@@ -39,6 +39,25 @@ async def test_gk_focuses_previous_pane_from_normal() -> None:
         assert bar.active_text_area()._vim_mode == "normal"
 
 
+async def test_ctrl_gk_focuses_previous_pane_from_insert_and_keeps_insert() -> None:
+    app = PromptStackKeymapApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        assert bar._stack.selected_index == 2
+        assert bar.active_text_area()._vim_mode == "insert"
+
+        await pilot.press("ctrl+g", "k")
+        await pilot.pause()
+
+        assert bar._stack.selected_index == 1
+        assert bar.active_text() == "second"
+        assert app.focused is bar.active_text_area()
+        assert bar.active_text_area()._vim_mode == "insert"
+
+
 async def test_gk_then_gj_round_trips_focus() -> None:
     app = PromptStackKeymapApp("first\n---\nsecond\n---\nthird")
 

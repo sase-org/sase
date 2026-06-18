@@ -60,6 +60,22 @@ async def test_gs_stashes_single_pane_and_asks_to_dismiss() -> None:
         assert event.panes[0].frontmatter == ""
 
 
+async def test_ctrl_gs_stashes_single_pane_from_insert() -> None:
+    app = _CaptureApp("solo draft")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("ctrl+g", "s")
+        await pilot.pause()
+
+        assert len(app.stashed) == 1
+        event = app.stashed[0]
+        assert event.source == "current"
+        assert event.dismiss_bar is True
+        assert [p.text for p in event.panes] == ["solo draft"]
+
+
 async def test_gs_in_multi_pane_keeps_bar_and_removes_only_active() -> None:
     app = _CaptureApp("first\n---\nsecond\n---\nthird")
 
@@ -119,6 +135,22 @@ async def test_gS_stashes_all_non_empty_panes_in_order() -> None:
         assert event.dismiss_bar is True
         assert [p.text for p in event.panes] == ["alpha", "beta", "gamma"]
         assert [p.pane_index for p in event.panes] == [0, 1, 2]
+
+
+async def test_ctrl_gS_stashes_all_non_empty_panes_from_insert() -> None:
+    app = _CaptureApp("alpha\n---\nbeta\n---\ngamma")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("ctrl+g", "S")
+        await pilot.pause()
+
+        assert len(app.stashed) == 1
+        event = app.stashed[0]
+        assert event.source == "all"
+        assert event.dismiss_bar is True
+        assert [p.text for p in event.panes] == ["alpha", "beta", "gamma"]
 
 
 async def test_gS_preserves_shared_frontmatter() -> None:

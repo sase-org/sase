@@ -90,6 +90,7 @@ class PromptInputBarActionsMixin(_MixinBase):
         approve-prompt mode) the whole bar is dismissed as before.
         """
         text_area = self.active_text_area()
+        text_area._clear_insert_g_prefix()
         text_area._clear_soft_completion(cancel_timer=True)
         text_area._clear_xprompt_arg_hint()
 

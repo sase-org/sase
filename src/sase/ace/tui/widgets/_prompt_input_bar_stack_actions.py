@@ -51,6 +51,7 @@ class _PromptGPrefixBinding:
     action_name: str
     label_method_name: str
     availability_method_name: str
+    uses_target_mode: bool = False
 
 
 _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
@@ -65,24 +66,28 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_focus_next_pane",
         "_g_prefix_label_focus_next",
         "_g_prefix_available_pane_nav",
+        uses_target_mode=True,
     ),
     _PromptGPrefixBinding(
         "k",
         "_g_focus_prev_pane",
         "_g_prefix_label_focus_prev",
         "_g_prefix_available_pane_nav",
+        uses_target_mode=True,
     ),
     _PromptGPrefixBinding(
         "J",
         "_g_move_pane_down",
         "_g_prefix_label_move_down",
         "_g_prefix_available_pane_nav",
+        uses_target_mode=True,
     ),
     _PromptGPrefixBinding(
         "K",
         "_g_move_pane_up",
         "_g_prefix_label_move_up",
         "_g_prefix_available_pane_nav",
+        uses_target_mode=True,
     ),
     _PromptGPrefixBinding(
         "-",
@@ -141,7 +146,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         def hide_file_completions(self) -> None: ...
         def hide_soft_completion(self) -> None: ...
 
-    def dispatch_g_prefix_key(self, key: str) -> bool:
+    def dispatch_g_prefix_key(self, key: str, *, target_mode: str = "normal") -> bool:
         """Dispatch the key following the prompt ``g`` prefix.
 
         Returns ``True`` when *key* is a prompt-specific ``g`` continuation
@@ -151,14 +156,19 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         from the same table that feeds the hint panel, but it intentionally does
         not consult hint availability: each action method keeps its own
         prompt-mode / multi-pane guards, so an unavailable continuation is a
-        harmless swallowed no-op.
+        harmless swallowed no-op.  ``target_mode`` only affects pane focus /
+        reorder continuations; normal-mode callers keep the default while
+        insert-mode ``Ctrl+G`` callers can keep the destination pane in INSERT.
         """
         for binding in _PROMPT_G_PREFIX_BINDINGS:
             if binding.key != key:
                 continue
             action = getattr(self, binding.action_name, None)
             if callable(action):
-                action()
+                if binding.uses_target_mode:
+                    action(target_mode=target_mode)
+                else:
+                    action()
             return True
         return False
 
@@ -179,21 +189,21 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             return
         self.active_text_area().action_submit_prompt()
 
-    def _g_focus_next_pane(self) -> None:
+    def _g_focus_next_pane(self, *, target_mode: str = "normal") -> None:
         """Focus the next/lower pane (the ``gj`` keymap)."""
-        self.focus_relative(1, target_mode="normal")
+        self.focus_relative(1, target_mode=target_mode)
 
-    def _g_focus_prev_pane(self) -> None:
+    def _g_focus_prev_pane(self, *, target_mode: str = "normal") -> None:
         """Focus the previous/higher pane (the ``gk`` keymap)."""
-        self.focus_relative(-1, target_mode="normal")
+        self.focus_relative(-1, target_mode=target_mode)
 
-    def _g_move_pane_down(self) -> None:
+    def _g_move_pane_down(self, *, target_mode: str = "normal") -> None:
         """Move the active pane lower/later (the ``gJ`` keymap)."""
-        self.move_active_pane(1, target_mode="normal")
+        self.move_active_pane(1, target_mode=target_mode)
 
-    def _g_move_pane_up(self) -> None:
+    def _g_move_pane_up(self, *, target_mode: str = "normal") -> None:
         """Move the active pane higher/earlier (the ``gK`` keymap)."""
-        self.move_active_pane(-1, target_mode="normal")
+        self.move_active_pane(-1, target_mode=target_mode)
 
     def _g_prefix_available_pane_nav(self) -> bool:
         """Whether ``gj``/``gk``/``gJ``/``gK`` apply to a real multi-pane stack."""
@@ -293,9 +303,8 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         ``gk`` from the top pane wraps to the bottom and ``gj`` from the bottom
         wraps to the top.  Navigation is a pure focus change; no pane is
         rebuilt, so each pane keeps its cursor and edit state.  ``target_mode``
-        ("normal" or "insert") selects the vim mode the newly active pane lands
-        in; the pane-focus keys are normal-mode-only, so callers pass
-        ``"normal"``.  Returns ``True`` when the selection moved.
+        in; normal ``g`` callers pass ``"normal"`` and insert ``Ctrl+G``
+        callers pass ``"insert"``.  Returns ``True`` when the selection moved.
         """
         if len(self._stack) <= 1:
             return False
@@ -320,9 +329,9 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         the top pane wraps it to the bottom and ``gJ`` from the bottom wraps it
         to the top.  The live pane texts are synced into the model first so the
         rebuild preserves what the user has typed; the moved pane stays active
-        and lands in *target_mode* ("normal" or "insert").  Pane reorder is
-        normal-mode-only, so callers pass ``"normal"``.  Returns ``True`` when it
-        moved.
+        and lands in *target_mode* ("normal" or "insert").  Normal ``g`` callers
+        pass ``"normal"`` and insert ``Ctrl+G`` callers pass ``"insert"``.
+        Returns ``True`` when it moved.
         """
         if len(self._stack) <= 1:
             return False
@@ -458,6 +467,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         except Exception:
             text_area = None
         if text_area is not None:
+            text_area._clear_insert_g_prefix()
             text_area._clear_file_completion()
             text_area._clear_soft_completion(cancel_timer=True)
             text_area._clear_xprompt_arg_hint()

@@ -1,6 +1,6 @@
 """Tests for the prompt-bar editor-return handlers.
 
-``^G`` is the single editor key: on a single-pane bar it posts
+The prompt editor key: on a single-pane bar it posts
 :class:`EditorRequested` (legacy behavior: ``%edit`` reloads the whole bar,
 otherwise the edited text launches); on a multi-pane stack it posts
 :class:`AllEditorRequested`, opening the whole stack as xprompt markdown and
@@ -121,8 +121,9 @@ def _all_event() -> PromptInputBar.AllEditorRequested:
 
 
 # --- defensive: programmatic EditorRequested on a multi-pane stack ---------
-# The ^G keymap posts AllEditorRequested when stacked (see the all-editor tests
-# below); these cover the handler's defensive branch for a programmatic caller
+# The prompt editor keymap posts AllEditorRequested when stacked (see the
+# all-editor tests below); these cover the handler's defensive branch for a
+# programmatic caller
 # that posts EditorRequested while the bar holds multiple panes -- it edits only
 # the active pane and never launches.
 
@@ -237,7 +238,7 @@ def test_single_pane_editor_empty_return_unmounts() -> None:
     assert harness.notifications == [("No prompt from editor - cancelled", "warning")]
 
 
-# --- ^G on a multi-pane stack edits the whole stack (all-editor) -----------
+# --- prompt editor keymap on a multi-pane stack edits the whole stack -------
 
 
 def test_all_editor_opens_whole_stack_not_active_pane() -> None:

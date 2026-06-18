@@ -40,6 +40,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
             | None
         )
         _snippet_tabstops: list[int]
+        _insert_g_prefix_pending: bool
         _vcs_mru_index: int | None
         _vim_mode: str
 
@@ -82,8 +83,30 @@ class PromptTextAreaActionsMixin(_MixinBase):
             parent = parent.parent
         return None
 
+    def _show_insert_g_prefix_hints(self) -> None:
+        """Reveal prompt-local ``Ctrl+G`` continuation hints for INSERT mode."""
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return
+        show = getattr(bar, "show_g_prefix_hints", None)
+        if callable(show):
+            show(prefix_label="^G", include_editor=True)
+
+    def _clear_insert_g_prefix(self) -> None:
+        """Clear any pending INSERT-mode ``Ctrl+G`` prefix and hide its hints."""
+        if not self._insert_g_prefix_pending:
+            return
+        self._insert_g_prefix_pending = False
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return
+        hide = getattr(bar, "hide_g_prefix_hints", None)
+        if callable(hide):
+            hide()
+
     def action_submit_prompt(self) -> None:
         """Submit the prompt text (only the selected pane in a stack)."""
+        self._clear_insert_g_prefix()
         self._snippet_tabstops = []
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
@@ -95,6 +118,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
 
     def action_submit_prompt_stack(self) -> None:
         """Submit the whole prompt stack as one multi-prompt (``<ctrl+s>``)."""
+        self._clear_insert_g_prefix()
         self._snippet_tabstops = []
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
@@ -112,6 +136,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         if self.document.line_count != 1:
             return
 
+        self._clear_insert_g_prefix()
         self._snippet_tabstops = []
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
@@ -150,7 +175,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
             self.move_cursor((row, 0), select=select)
 
     def action_open_editor(self) -> None:
-        """Request to open the external editor (``^G``).
+        """Request to open the external editor (``^G g`` / ``^G ^G``).
 
         A multi-pane prompt stack opens the whole stack as xprompt markdown (the
         ``AllEditorRequested`` surface); a single-pane bar opens just the current
@@ -162,6 +187,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         bar = self._find_prompt_bar()
         if not bar:
             return
+        self._clear_insert_g_prefix()
         self._clear_soft_completion(cancel_timer=True)
         self._clear_xprompt_arg_hint()
         if bar._mode == "prompt" and bar.is_stacked():
@@ -177,6 +203,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
             return
         PromptInputBar = prompt_bar_class()
         if bar:
+            self._clear_insert_g_prefix()
             self._clear_soft_completion(cancel_timer=True)
             self._clear_xprompt_arg_hint()
             bar.post_message(PromptInputBar.WorkflowEditorRequested())
@@ -253,6 +280,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
 
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
+        self._clear_insert_g_prefix()
         self._clear_prompt_search(clear_highlights=True)
         self._clear_visual_state()
         self._clear_file_completion()
@@ -275,6 +303,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
 
     def _enter_insert_mode(self) -> None:
         """Switch to vim INSERT mode."""
+        self._clear_insert_g_prefix()
         self._clear_prompt_search(clear_highlights=True)
         self._clear_visual_state()
         self._vim_mode = "insert"
@@ -300,6 +329,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
 
     def on_blur(self) -> None:
         """Schedule a deferred refocus when the text area loses focus."""
+        self._clear_insert_g_prefix()
         self._clear_prompt_search(clear_highlights=True)
         self.call_later(self._refocus_if_needed)
 

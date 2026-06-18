@@ -36,6 +36,28 @@ async def test_g_minus_adds_bottom_pane_from_normal() -> None:
         assert bar.active_text_area()._vim_mode == "insert"
 
 
+async def test_ctrl_g_minus_adds_bottom_pane_from_insert() -> None:
+    """``Ctrl+G -`` reaches add-pane without leaving INSERT mode first."""
+    app = PromptStackKeymapApp("solo prompt")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        assert len(app.query(".prompt-input")) == 1
+        assert bar.active_text_area()._vim_mode == "insert"
+
+        await pilot.press("ctrl+g", "-")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.query(".prompt-input")) == 2
+        assert bar.all_prompt_texts() == ["solo prompt", ""]
+        assert bar._stack.selected_index == 1
+        assert app.focused is bar.active_text_area()
+        assert bar.active_text_area()._vim_mode == "insert"
+
+
 async def test_g_minus_is_normal_mode_only() -> None:
     """``g-`` is NORMAL-mode-only: in insert mode the keys type literally."""
     app = PromptStackKeymapApp("solo prompt")

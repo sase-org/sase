@@ -15,10 +15,10 @@ from ._prompt_input_bar_stack_helpers import (
 )
 
 
-# --- all-pane editor (^G when stacked) -------------------------------------
+# --- all-pane editor (prompt editor prefix when stacked) -------------------
 
 
-async def test_ctrl_g_on_single_pane_requests_active_text() -> None:
+async def test_action_open_editor_on_single_pane_requests_active_text() -> None:
     app = _RecordingPromptBarApp("solo prompt")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -35,7 +35,7 @@ async def test_ctrl_g_on_single_pane_requests_active_text() -> None:
         assert app.all_editor_requests == []
 
 
-async def test_ctrl_g_on_stacked_bar_requests_whole_stack() -> None:
+async def test_action_open_editor_on_stacked_bar_requests_whole_stack() -> None:
     app = _RecordingPromptBarApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -48,9 +48,9 @@ async def test_ctrl_g_on_stacked_bar_requests_whole_stack() -> None:
         bar.active_text_area().action_open_editor()
         await pilot.pause()
 
-        # ^G on a multi-pane stack posts exactly one all-editor message and never
-        # the single-pane editor request; the serialized buffer is the whole
-        # stack joined with blank-line-padded ``---`` separators.
+        # A multi-pane stack posts exactly one all-editor message and never the
+        # single-pane editor request; the serialized buffer is the whole stack
+        # joined with blank-line-padded ``---`` separators.
         assert len(app.all_editor_requests) == 1
         assert app.editor_requests == []
         assert (
@@ -59,7 +59,7 @@ async def test_ctrl_g_on_stacked_bar_requests_whole_stack() -> None:
         )
 
 
-async def test_ctrl_g_in_feedback_mode_requests_single_pane() -> None:
+async def test_action_open_editor_in_feedback_mode_requests_single_pane() -> None:
     app = _RecordingPromptBarApp("draft feedback", mode="feedback")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -69,33 +69,111 @@ async def test_ctrl_g_in_feedback_mode_requests_single_pane() -> None:
         bar.active_text_area().action_open_editor()
         await pilot.pause()
 
-        # Feedback bars never stack, so ^G stays the single-pane editor and never
+        # Feedback bars never stack, so editor access stays single-pane and never
         # reaches the all-editor (multi-agent) surface.
         assert len(app.editor_requests) == 1
         assert app.all_editor_requests == []
 
 
-async def test_focused_pane_ctrl_g_shadows_global_binding() -> None:
+async def test_focused_pane_ctrl_g_starts_prefix_and_shadows_global_binding() -> None:
     app = _RecordingPromptBarApp("solo prompt")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
-        assert app.focused is app.query_one(PromptInputBar).active_text_area()
+        bar = app.query_one(PromptInputBar)
+        assert app.focused is bar.active_text_area()
 
         await pilot.press("ctrl+g")
         await pilot.pause()
 
-        # The widget-local ^G wins: the editor request fires, the global
-        # "edit last VCS xprompt" action never runs.
-        assert len(app.editor_requests) == 1
+        # The focused prompt owns the prefix, so the app-level "edit last VCS
+        # xprompt" action never runs and no editor opens until a continuation.
+        assert app.editor_requests == []
+        assert app.all_editor_requests == []
+        assert app.global_editor_calls == 0
+        assert bar.active_text_area()._insert_g_prefix_pending is True
+
+
+async def test_focused_normal_mode_ctrl_g_is_swallowed() -> None:
+    app = _RecordingPromptBarApp("solo prompt")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("escape", "ctrl+g")
+        await pilot.pause()
+
+        assert bar.active_text_area()._vim_mode == "normal"
+        assert app.editor_requests == []
+        assert app.all_editor_requests == []
         assert app.global_editor_calls == 0
 
 
-def test_prompt_text_area_binds_ctrl_g_editor_only() -> None:
+async def test_ctrl_g_g_on_single_pane_requests_active_text() -> None:
+    app = _RecordingPromptBarApp("solo prompt")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("ctrl+g", "g")
+        await pilot.pause()
+
+        assert len(app.editor_requests) == 1
+        assert app.editor_requests[0].current_text == "solo prompt"
+        assert app.all_editor_requests == []
+        assert app.global_editor_calls == 0
+
+
+async def test_ctrl_g_ctrl_g_on_single_pane_requests_active_text() -> None:
+    app = _RecordingPromptBarApp("solo prompt")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("ctrl+g", "ctrl+g")
+        await pilot.pause()
+
+        assert len(app.editor_requests) == 1
+        assert app.editor_requests[0].current_text == "solo prompt"
+        assert app.all_editor_requests == []
+        assert app.global_editor_calls == 0
+
+
+async def test_ctrl_g_g_on_stacked_bar_requests_whole_stack() -> None:
+    app = _RecordingPromptBarApp("first\n---\nsecond")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("ctrl+g", "g")
+        await pilot.pause()
+
+        assert len(app.all_editor_requests) == 1
+        assert app.editor_requests == []
+        assert app.global_editor_calls == 0
+
+
+async def test_ctrl_g_g_in_feedback_mode_requests_single_pane() -> None:
+    app = _RecordingPromptBarApp("draft feedback", mode="feedback")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("ctrl+g", "g")
+        await pilot.pause()
+
+        assert len(app.editor_requests) == 1
+        assert app.editor_requests[0].current_text == "draft feedback"
+        assert app.all_editor_requests == []
+        assert app.global_editor_calls == 0
+
+
+def test_prompt_text_area_no_longer_binds_direct_ctrl_g_editor() -> None:
     actions = {entry[0]: entry[1] for entry in PromptTextArea.BINDINGS}
-    assert actions["ctrl+g"] == "open_editor"
-    # ``ctrl+shift+g`` is gone: ``ctrl+g`` is the single editor key, choosing the
-    # single-pane vs whole-stack scope from the live bar at action time.
+    assert "ctrl+g" not in actions
+    # ``ctrl+shift+g`` is gone too: editor access lives behind the prompt-local
+    # insert-mode ``Ctrl+G`` prefix and the programmatic action stays intact.
     assert "ctrl+shift+g" not in actions
 
 

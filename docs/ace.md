@@ -1619,12 +1619,19 @@ The detailed multi-agent parsing rules live in the [XPrompt reference](xprompt.m
 | -------------- | --------------------------------------------------------------------------------------------- |
 | `Enter`        | Submit; in a prompt stack, open the submit chooser                                            |
 | `Ctrl+S`       | Submit the whole stack top-to-bottom                                                          |
-| `Esc g<enter>` | Submit only the selected pane                                                                 |
+| `Ctrl+G Enter` | Submit only the selected pane                                                                 |
 | `Ctrl+C`       | Cancel the prompt; in a prompt stack, cancel only the selected pane                           |
 | `Ctrl+J`       | Insert a newline                                                                              |
 | `Ctrl+A`       | Move to start of line (jumps to previous line start if already at col 0)                      |
 | `Ctrl+E`       | Move to end of line (jumps to next line end if already at end)                                |
-| `Ctrl+G`       | Open the current prompt in `$EDITOR`; in a prompt stack, open the whole stack                 |
+| `Ctrl+G`       | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                  |
+| `Ctrl+G Enter` | Submit only the selected pane                                                                 |
+| `Ctrl+G j/k`   | Focus the next / previous pane and leave the target pane in INSERT mode                       |
+| `Ctrl+G J/K`   | Move the active pane down / up and leave it in INSERT mode                                    |
+| `Ctrl+G -`     | Add an empty bottom pane                                                                      |
+| `Ctrl+G =`     | Show/focus the xprompt frontmatter panel                                                      |
+| `Ctrl+G s/S`   | Stash the selected pane / every non-empty pane                                                |
+| `Ctrl+G p/P`   | Load / restore stashed prompt drafts                                                          |
 | `Ctrl+Y`       | Open the workflow YAML editor                                                                 |
 | `Ctrl+K`       | Open prompt history, filtered by the current single-line prompt                               |
 | `Ctrl+T`       | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
@@ -1647,11 +1654,15 @@ pane is active by default so you can keep drafting the newest segment; it is not
 immediately opens the submit chooser.
 
 Inactive panes stay compact, and the active pane takes the available height. A `---` line typed while INSERT mode is
-active stays literal prompt text; use `g-` from prompt NORMAL mode to add a new bottom pane while drafting. `Ctrl+G`
-opens the whole stack in `$EDITOR` when the bar already has multiple panes (a single-pane bar opens just the current
-prompt). Returning from a whole-bar editor session or from `%edit` reloads xprompt-style Markdown and parses `---`
-separators into fresh panes. History loads parse only real multi-agent prompts; a single history item with leading YAML
-frontmatter stays one verbatim pane instead of auto-opening the Frontmatter Panel.
+active stays literal prompt text; use `Ctrl+G -` while drafting, or `g-` from prompt NORMAL mode, to add a new bottom
+pane. `Ctrl+G g` and `Ctrl+G Ctrl+G` open the whole stack in `$EDITOR` when the bar already has multiple panes (a
+single-pane bar opens just the current prompt). Returning from a whole-bar editor session or from `%edit` reloads
+xprompt-style Markdown and parses `---` separators into fresh panes. History loads parse only real multi-agent prompts;
+a single history item with leading YAML frontmatter stays one verbatim pane instead of auto-opening the Frontmatter
+Panel.
+
+In prompt INSERT mode, pressing `Ctrl+G` opens the same context-aware hint row as prompt NORMAL mode's `g` prefix, plus
+the editor continuation. Press `Esc` while the prefix is pending to cancel it and stay in INSERT mode.
 
 In prompt NORMAL mode, pressing `g` opens a small hint row for the prompt-local `g` prefix actions currently available.
 

@@ -42,6 +42,7 @@ class PromptSearchMixin(_MixinBase):
         _pending_surround_range: tuple[str, tuple[int, int], tuple[int, int]] | None
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
+        def _clear_insert_g_prefix(self) -> None: ...
         def _clear_file_completion(
             self,
             *,
@@ -81,6 +82,7 @@ class PromptSearchMixin(_MixinBase):
 
     def _start_prompt_search(self, direction: SearchDirection) -> None:
         """Open incremental search from the current cursor location."""
+        self._clear_insert_g_prefix()
         self._search_active = True
         self._search_direction = direction
         self._search_query = ""

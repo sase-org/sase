@@ -56,12 +56,36 @@ async def test_gP_posts_destructive_restore_request_in_prompt_mode() -> None:
         assert app.restore_requests[0].destructive is True
 
 
+async def test_ctrl_gP_posts_destructive_restore_request_from_insert() -> None:
+    app = _RestoreApp("draft")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+g", "P")
+        await pilot.pause()
+
+        assert len(app.restore_requests) == 1
+        assert app.restore_requests[0].mode == "prompt"
+        assert app.restore_requests[0].destructive is True
+
+
 async def test_gp_posts_non_destructive_load_request_in_prompt_mode() -> None:
     app = _RestoreApp("draft")
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         await pilot.press("escape")  # insert -> normal
         await pilot.press("g", "p")
+        await pilot.pause()
+
+        assert len(app.restore_requests) == 1
+        assert app.restore_requests[0].mode == "prompt"
+        assert app.restore_requests[0].destructive is False
+
+
+async def test_ctrl_gp_posts_non_destructive_load_request_from_insert() -> None:
+    app = _RestoreApp("draft")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+g", "p")
         await pilot.pause()
 
         assert len(app.restore_requests) == 1

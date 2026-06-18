@@ -165,6 +165,29 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert "gP" not in plain
 
 
+async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
+    app = _GPrefixHintApp("solo draft")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = _hint_panel(bar)
+
+        assert panel.has_class("hidden")
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+
+        assert not panel.has_class("hidden")
+        assert panel.border_title == " ^G "
+        assert panel.border_subtitle == "\\[esc] cancel"
+        plain = panel.render().plain
+        assert "^Gg / ^G^G   edit in editor" in plain
+        assert "^G<enter>   submit this draft" in plain
+        assert "^G-   add pane" in plain
+        assert "^G=   toggle frontmatter" in plain
+        assert "^Gs   stash this draft" in plain
+
+
 async def test_second_g_prefix_key_hides_hints_after_dispatch() -> None:
     app = _GPrefixHintApp("solo draft")
 
@@ -199,6 +222,27 @@ async def test_escape_hides_pending_g_prefix_hints() -> None:
         assert bar._g_prefix_hints_visible is False
 
 
+async def test_escape_cancels_insert_prefix_and_stays_insert_mode() -> None:
+    app = _GPrefixHintApp("solo draft")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = _hint_panel(bar)
+
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+        assert not panel.has_class("hidden")
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert panel.has_class("hidden")
+        assert bar._g_prefix_hints_visible is False
+        assert bar.active_text_area()._insert_g_prefix_pending is False
+        assert bar.active_text_area()._vim_mode == "insert"
+
+
 async def test_unknown_g_prefix_key_hides_hints_without_side_effects() -> None:
     app = _GPrefixHintApp("solo draft", stash_exists=True)
 
@@ -216,6 +260,27 @@ async def test_unknown_g_prefix_key_hides_hints_without_side_effects() -> None:
         await pilot.pause()
 
         assert panel.has_class("hidden")
+        assert app.stashed == []
+        assert app.restore_requests == []
+
+
+async def test_unknown_insert_prefix_key_hides_hints_without_inserting() -> None:
+    app = _GPrefixHintApp("solo draft", stash_exists=True)
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = _hint_panel(bar)
+
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+        assert not panel.has_class("hidden")
+
+        await pilot.press("z")
+        await pilot.pause()
+
+        assert panel.has_class("hidden")
+        assert bar.active_text() == "solo draft"
         assert app.stashed == []
         assert app.restore_requests == []
 
@@ -317,3 +382,32 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "p",
             "P",
         ]
+
+
+async def test_dispatch_g_prefix_key_can_target_insert_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _GPrefixHintApp("one\n---\ntwo")
+
+    async with app.run_test(size=(80, 24)):
+        bar = app.query_one(PromptInputBar)
+        calls: list[str] = []
+        monkeypatch.setattr(
+            bar,
+            "focus_relative",
+            lambda delta, *, target_mode="normal": calls.append(
+                f"focus{delta:+d}:{target_mode}"
+            ),
+        )
+        monkeypatch.setattr(
+            bar,
+            "move_active_pane",
+            lambda delta, *, target_mode="normal": calls.append(
+                f"move{delta:+d}:{target_mode}"
+            ),
+        )
+
+        assert bar.dispatch_g_prefix_key("j", target_mode="insert") is True
+        assert bar.dispatch_g_prefix_key("K", target_mode="insert") is True
+
+        assert calls == ["focus+1:insert", "move-1:insert"]

@@ -149,6 +149,28 @@ async def test_g_enter_submits_selected_pane_and_keeps_bar() -> None:
         assert app.cancelled == []
 
 
+async def test_ctrl_g_enter_submits_selected_pane_from_insert() -> None:
+    app = _CaptureApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        assert bar._stack.selected_index == 2
+        assert bar.active_text_area()._vim_mode == "insert"
+
+        await pilot.press("ctrl+g", "enter")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.submitted) == 1
+        event = app.submitted[0]
+        assert event.value == "third"
+        assert event.keep_bar is True
+        assert event.whole_stack is False
+        assert bar.all_prompt_texts() == ["first", "second"]
+        assert bar.active_text_area()._vim_mode == "insert"
+
+
 async def test_g_enter_reattaches_frontmatter_to_single_pane_submit() -> None:
     # Prompt-level YAML frontmatter is held on the stack, not as a pane; a lone
     # pane submit must carry it so referenced local xprompts still resolve.
@@ -336,7 +358,7 @@ async def test_multi_pane_subtitle_advertises_send_all() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         assert "[^S] all" in bar.insert_mode_subtitle()
-        assert "[Esc g<enter>] this" in bar.insert_mode_subtitle()
+        assert "[^G Enter] this" in bar.insert_mode_subtitle()
 
 
 async def test_single_pane_subtitle_omits_send_all() -> None:

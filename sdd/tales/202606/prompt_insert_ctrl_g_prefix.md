@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-18 08:01:17
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_insert_ctrl_g_prefix.md
 ---
 # Prompt Insert-Mode Ctrl+G Prefix Plan

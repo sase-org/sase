@@ -22,20 +22,31 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _g_prefix_hints_line_count: int
-        _g_prefix_hints_signature: tuple[tuple[str, str], ...]
+        _g_prefix_hints_signature: tuple[str, tuple[tuple[str, str], ...]]
         _g_prefix_hints_visible: bool
 
         def _update_height(self) -> None: ...
         def g_prefix_hint_entries(self) -> list[PromptGPrefixHintEntry]: ...
 
-    def show_g_prefix_hints(self) -> None:
-        """Render and reveal the prompt ``g`` prefix hint panel if useful."""
+    def show_g_prefix_hints(
+        self,
+        *,
+        prefix_label: str = "g",
+        include_editor: bool = False,
+    ) -> None:
+        """Render and reveal the prompt prefix hint panel if useful."""
         entries = self.g_prefix_hint_entries()
+        if include_editor:
+            entries = [
+                PromptGPrefixHintEntry("g / ^G^G", "edit in editor"),
+                *entries,
+            ]
         if not entries:
             self.hide_g_prefix_hints()
             return
 
-        signature = tuple((entry.key, entry.label) for entry in entries)
+        entry_signature = tuple((entry.key, entry.label) for entry in entries)
+        signature = (prefix_label, entry_signature)
         if self._g_prefix_hints_visible and signature == self._g_prefix_hints_signature:
             return
 
@@ -44,8 +55,8 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
         except Exception:
             return
 
-        content = self._render_g_prefix_hints(entries)
-        panel.border_title = " g "
+        content = self._render_g_prefix_hints(entries, prefix_label=prefix_label)
+        panel.border_title = f" {prefix_label} "
         panel.border_subtitle = "\\[esc] cancel"
         panel.update(content)
         panel.remove_class("hidden")
@@ -73,17 +84,21 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
         panel.border_subtitle = ""
         panel.add_class("hidden")
         self._g_prefix_hints_visible = False
-        self._g_prefix_hints_signature = ()
+        self._g_prefix_hints_signature = ("", ())
         self._g_prefix_hints_line_count = 0
         self._update_height()
 
     @staticmethod
-    def _render_g_prefix_hints(entries: list[PromptGPrefixHintEntry]) -> Text:
-        """Build Rich text for the prompt ``g`` prefix hint rows."""
+    def _render_g_prefix_hints(
+        entries: list[PromptGPrefixHintEntry],
+        *,
+        prefix_label: str,
+    ) -> Text:
+        """Build Rich text for the prompt prefix hint rows."""
         content = Text()
         for index, entry in enumerate(entries):
             content.append("  ")
-            content.append("g", style="dim #87D7FF")
+            content.append(prefix_label, style="dim #87D7FF")
             content.append(
                 PromptInputBarGPrefixHintsMixin._display_g_prefix_key(entry.key),
                 style="bold #00D7AF",

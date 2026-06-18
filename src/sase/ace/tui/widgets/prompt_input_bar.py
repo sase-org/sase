@@ -86,7 +86,10 @@ class PromptInputBar(
         self._completion_panel_kind: str | None = None
         self._g_prefix_hints_visible = False
         self._g_prefix_hints_line_count = 0
-        self._g_prefix_hints_signature: tuple[tuple[str, str], ...] = ()
+        self._g_prefix_hints_signature: tuple[str, tuple[tuple[str, str], ...]] = (
+            "",
+            (),
+        )
         self._search_command_visible = False
         self._search_command_line_count = 0
         self._mode_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
@@ -151,15 +154,13 @@ class PromptInputBar(
         """Return the insert-mode subtitle, advertising the stack when stacked.
 
         ``<enter>`` opens the submit chooser, so a multi-pane stack swaps the
-        ``[Esc] normal`` hint for ``[Esc] nav`` (Esc drops into NORMAL mode,
-        where the ``g`` prefix pane-focus / reorder / stash / submit-this-pane
-        keys live — see :meth:`normal_mode_subtitle`) and adds ``[^S] all`` plus
-        ``[Esc g<enter>] this`` hints for the direct submit accelerators.
+        ``[Esc] normal`` hint for ``[Esc] nav`` and adds ``[^S] all`` plus
+        ``[^G Enter] this`` hints for the direct submit accelerators.  ``Esc``
+        still drops into NORMAL mode for the normal ``g`` prefix; INSERT mode
+        reaches the same prompt-local actions through the ``Ctrl+G`` prefix.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
-            return (
-                "[Enter] submit…  [Esc] nav  [^C] cancel  [^S] all  [Esc g<enter>] this"
-            )
+            return "[Enter] submit…  [Esc] nav  [^C] cancel  [^S] all  [^G Enter] this"
         return "[Enter] send  [Esc] normal  [^C] cancel"
 
     def normal_mode_subtitle(self) -> str:
@@ -204,12 +205,12 @@ class PromptInputBar(
     def _compute_placeholder(self) -> str:
         """Return the empty-pane placeholder text for the current mode."""
         if self._mode == "feedback":
-            return "Type plan feedback...  [^G] editor  [^J] newline"
+            return "Type plan feedback...  [^G g] editor  [^J] newline"
         if self._mode == "approve_prompt":
-            return "Type coder prompt...  [^G] editor  [^J] newline"
+            return "Type coder prompt...  [^G g] editor  [^J] newline"
         return (
             "Type prompt  [^K] history  [^T] complete  [^R] find  "
-            "[^G] editor  [^Y] workflow  [^J] newline"
+            "[^G g] editor  [^Y] workflow  [^J] newline"
         )
 
     def on_mount(self) -> None:

@@ -82,7 +82,6 @@ class PromptTextArea(
         ("ctrl+b", "cursor_left", "Backward"),
         ("alt+f", "cursor_word_right", "Forward word"),
         ("alt+b", "cursor_word_left", "Backward word"),
-        ("ctrl+g", "open_editor", "Edit in editor"),
         ("ctrl+y", "open_workflow_editor", "Workflow YAML"),
     ]
 
@@ -90,6 +89,7 @@ class PromptTextArea(
         super().__init__(*args, **kwargs)
         self._vim_mode: str = "insert"
         self._pending_keys: str = ""
+        self._insert_g_prefix_pending: bool = False
         self._count_prefix: str = ""
         self._pending_count: int | None = None
         self._pending_operator: str = ""

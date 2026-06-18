@@ -35,6 +35,26 @@ async def test_gk_moves_active_pane_higher() -> None:
         assert bar.active_text_area()._vim_mode == "normal"
 
 
+async def test_ctrl_gk_moves_active_pane_higher_from_insert_and_keeps_insert() -> None:
+    """``Ctrl+G K`` reorders without requiring an Esc/i round trip."""
+    app = PromptStackKeymapApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        assert bar.active_text_area()._vim_mode == "insert"
+
+        await pilot.press("ctrl+g", "K")  # move "third" higher/earlier
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar.all_prompt_texts() == ["first", "third", "second"]
+        assert bar._stack.selected_index == 1
+        assert bar.active_text() == "third"
+        assert bar.active_text_area()._vim_mode == "insert"
+
+
 async def test_gj_moves_active_pane_lower() -> None:
     """``gJ`` moves the active pane lower/later."""
     app = PromptStackKeymapApp("first\n---\nsecond\n---\nthird")

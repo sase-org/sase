@@ -103,7 +103,7 @@ class RestoreRequested(Message, namespace="prompt_input_bar"):
 
 
 class EditorRequested(Message, namespace="prompt_input_bar"):
-    """Message sent when user requests external editor (Ctrl+G)."""
+    """Message sent when user requests the single-pane external editor."""
 
     def __init__(
         self,
@@ -120,8 +120,8 @@ class EditorRequested(Message, namespace="prompt_input_bar"):
 class AllEditorRequested(Message, namespace="prompt_input_bar"):
     """Message sent when user requests the whole-stack editor.
 
-    Reached by ``Ctrl+G`` when the prompt bar holds multiple panes.  Unlike
-    :class:`EditorRequested` (the single-pane editor), this opens the entire
+    Reached by the prompt editor keymap when the bar holds multiple panes.
+    Unlike :class:`EditorRequested` (the single-pane editor), this opens the entire
     prompt stack as xprompt markdown.  The bar owns the serialization, so the
     message carries no payload: the handler reads the joined markdown off the
     mounted bar and reloads the edited result back as a stack.
