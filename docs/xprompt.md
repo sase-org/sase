@@ -807,7 +807,7 @@ defaults. Common entries include:
 | `#review`             | Asks the agent to fix bugs and apply only clear-win improvements                                    |
 | `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan`   |
 | `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                    |
-| `#research`           | Tells the agent to store research in a new `sdd/research/` markdown file                            |
+| `#research`           | Tells the agent to store research in a new current-month `sdd/research/YYYYMM/` markdown file       |
 | `#research/image`     | Asks the agent to generate an infographic for an existing research markdown file                    |
 | `#research/more`      | Asks the agent to improve an existing research markdown file by filling missed gaps                 |
 | `#research/prompt`    | Wraps a `prompt` input and asks for prior art, alternatives, and a recommended solution             |

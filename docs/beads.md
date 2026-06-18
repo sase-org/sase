@@ -36,6 +36,7 @@ sase bead create -t "Sub-task" --type "phase(beads-001)"   # Create a phase unde
 sase bead list                                          # List open and in-progress issues
 sase bead list --status=open                            # List open issues
 sase bead list --status=closed                          # List closed issues
+sase bead search auth                                   # Search open, in-progress, and closed issues
 sase bead ready                                         # Show issues ready to work on
 sase bead show beads-001                                # View issue details
 sase bead update beads-001.1 --status=in_progress       # Claim an issue
@@ -181,6 +182,31 @@ List issues with optional filtering. Without `--status`, the command lists `open
 | `-t, --type`   | `plan`, `phase`                 | Filter by type (repeatable)   |
 | `--tier`       | `plan`, `epic`, `legend`        | Filter by plan-bead tier      |
 
+### `sase bead search <query>`
+
+Find beads whose human-readable fields contain a case-insensitive literal substring. Search covers title, description,
+notes, plan path, owner, assignee, model, ChangeSpec metadata, status, type, tier, and ID. Unlike `sase bead list`, it
+searches `open`, `in_progress`, and `closed` beads by default, so it is the quickest way to recover older context.
+
+Compact output prints each matching bead with a short snippet. For multi-line descriptions or notes, the snippet uses
+the line that matched the query when possible instead of always showing the first line.
+
+```bash
+sase bead search auth
+sase bead search auth --format json
+sase bead search auth --format full --limit 3
+sase bead search auth --status open --type phase
+sase bead search auth --type plan --tier epic
+```
+
+| Flag           | Values                          | Description                           |
+| -------------- | ------------------------------- | ------------------------------------- |
+| `-f, --format` | `compact`, `json`, `full`       | Output format; defaults to `compact`  |
+| `-n, --limit`  | integer                         | Maximum results; `0` means unlimited  |
+| `-s, --status` | `open`, `in_progress`, `closed` | Filter by status (repeatable)         |
+| `-t, --type`   | `plan`, `phase`                 | Filter by type (repeatable)           |
+| `--tier`       | `plan`, `epic`, `legend`        | Filter by plan-bead tier (repeatable) |
+
 ### `sase bead show <id>`
 
 Display complete details for an issue including status, type, tier, epic count, parent/children, dependencies, blockers,
@@ -316,6 +342,7 @@ Legend work does not create phase beads directly. The spawned epic-planning agen
 | Flag            | Description                                                                       |
 | --------------- | --------------------------------------------------------------------------------- |
 | `-n, --dry-run` | Print the wave plan and rendered multi-prompt without mutating state or launching |
+| `-P, --no-push` | Commit launched bead state locally but skip the post-commit `git push`            |
 | `-y, --yes`     | Skip the launch confirmation prompt                                               |
 
 The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the

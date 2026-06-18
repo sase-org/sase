@@ -1448,6 +1448,17 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 | `-t, --type`   | `plan`, `phase`                 | -       | Filter by type (repeatable)           |
 | `--tier`       | `plan`, `epic`, `legend`        | -       | Filter by plan-bead tier (repeatable) |
 
+#### `sase bead search`
+
+| Flag           | Values                          | Default    | Description                                                         |
+| -------------- | ------------------------------- | ---------- | ------------------------------------------------------------------- |
+| `query`        | string                          | (required) | Literal non-empty text to search for                                |
+| `-f, --format` | `compact`, `json`, `full`       | `compact`  | Output format                                                       |
+| `-n, --limit`  | integer                         | `0`        | Maximum results to print; `0` means unlimited                       |
+| `-s, --status` | `open`, `in_progress`, `closed` | -          | Filter by status (repeatable); all statuses are searched by default |
+| `-t, --type`   | `plan`, `phase`                 | -          | Filter by type (repeatable)                                         |
+| `--tier`       | `plan`, `epic`, `legend`        | -          | Filter by plan-bead tier (repeatable)                               |
+
 #### `sase bead show`
 
 | Flag | Values | Default    | Description |
@@ -1506,6 +1517,7 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 | --------------- | ------ | ---------- | ------------------------------------------------------------------------ |
 | `id`            | string | (required) | Epic or legend plan bead ID.                                             |
 | `-n, --dry-run` | flag   | -          | Print the wave plan and rendered multi-prompt without mutating state.    |
+| `-P, --no-push` | flag   | -          | Commit launched bead state locally but skip the post-commit `git push`.  |
 | `-y, --yes`     | flag   | -          | Skip the launch confirmation prompt when launching phase or epic agents. |
 
 ### `sase sdd`

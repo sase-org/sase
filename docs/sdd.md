@@ -110,7 +110,8 @@ materialization, and `sase workspace open` commit and push an `Initialize SDD` i
 missing or stale. First SDD writes, plan archiving, and `sase bead init` also refresh the generated files before writing
 project-local SDD content.
 
-Research notes live under `sdd/research/` alongside the rest of the repository-local SDD corpus.
+Research notes live under `sdd/research/{YYYYMM}/` alongside the rest of the repository-local SDD corpus; the built-in
+`#research` xprompt uses the current month directory.
 
 The directory examples above show the storage roots. Most frontmatter links include the root prefix when the root is
 well-known: `sdd/...` in version-controlled mode and `.sase/sdd/...` in local mode.
@@ -138,10 +139,10 @@ The plan file produced by the agent is:
    - epic approval: `sdd/epics/{YYYYMM}/{plan_name}.md`
    - legend approval: `sdd/legends/{YYYYMM}/{plan_name}.md`
 
-Prompt snapshots and plans are organized into `YYYYMM` subdirectories (for example, `202603/`) based on the creation
-date. This keeps the directories manageable as the number of prompts and plans grows over time. Both flat and `YYYYMM`
-layouts are supported for backwards compatibility — SDD also searches legacy `specs` and `plans` paths when resolving
-files.
+Prompt snapshots, plans, and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on
+the creation date. This keeps the directories manageable as the number of prompts, plans, and research artifacts grows
+over time. Both flat and `YYYYMM` layouts are supported for backwards compatibility — SDD also searches legacy `specs`
+and `plans` paths when resolving files.
 
 Planning artifacts may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to
 the bead issue tracker. Legend artifacts use `legend_bead_id` for the legend container bead and `epic_count` for the
