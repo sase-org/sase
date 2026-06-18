@@ -12,7 +12,14 @@ from sase.bead import db as db_mod
 from sase.bead.config import get_default_config, load_config, save_config
 from sase.bead.ids import IdGenerator, max_top_level_counter
 from sase.bead.jsonl import export_to_jsonl
-from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
+from sase.bead.model import (
+    BeadSearchMatch,
+    BeadTier,
+    Dependency,
+    Issue,
+    IssueType,
+    Status,
+)
 from sase.bead.sync import bead_state_is_clean, git_sync, rebuild_from_jsonl
 from sase.telemetry.metrics import (
     BEAD_ACTIVE,
@@ -155,6 +162,26 @@ class BeadProject:
         if statuses is None:
             self._update_active_gauge(issues)
         return issues
+
+    def search(
+        self,
+        query: str,
+        statuses: list[Status] | None = None,
+        issue_types: list[IssueType] | None = None,
+        tiers: list[BeadTier] | None = None,
+        limit: int | None = None,
+    ) -> list[BeadSearchMatch]:
+        """Search issues with optional filters."""
+        from sase.core import bead_read_facade as rust_beads
+
+        return rust_beads.search(
+            self.beads_dir,
+            query,
+            statuses=statuses,
+            issue_types=issue_types,
+            tiers=tiers,
+            limit=limit,
+        )
 
     def ready(self) -> list[Issue]:
         """Return open issues with no active blockers."""

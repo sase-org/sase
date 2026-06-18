@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.model import BeadSearchMatch, Issue, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.core import bead_read_facade as rust_beads
 
@@ -17,6 +17,10 @@ GOLDEN = Path(__file__).parents[1] / "test_bead" / "golden"
 
 def _ids(issues: list[Issue]) -> list[str]:
     return [issue.id for issue in issues]
+
+
+def _match_pairs(matches: list[BeadSearchMatch]) -> list[tuple[str, list[str]]]:
+    return [(match.issue.id, match.matched_fields) for match in matches]
 
 
 @pytest.fixture
@@ -52,6 +56,9 @@ def test_read_facade_matches_bead_project_queries(
         ) == _ids(project.list_issues(issue_types=[IssueType.PLAN]))
         assert _ids(rust_beads.ready(beads_dir)) == _ids(project.ready())
         assert _ids(rust_beads.blocked(beads_dir)) == _ids(project.blocked())
+        assert _match_pairs(rust_beads.search(beads_dir, "alpha")) == _match_pairs(
+            project.search("alpha")
+        )
         assert rust_beads.stats(beads_dir) == project.stats()
         assert _ids(rust_beads.get_epic_children(beads_dir, issues["epic"].id)) == _ids(
             project.get_epic_children(issues["epic"].id)

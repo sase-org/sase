@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
+from sase.bead.model import (
+    BeadSearchMatch,
+    BeadTier,
+    Dependency,
+    Issue,
+    IssueType,
+    Status,
+)
 
 
 def status_values(
@@ -105,11 +112,23 @@ def issues_from_list(items: list[dict[str, Any]]) -> list[Issue]:
     return [issue_from_dict(item) for item in items]
 
 
+def _search_match_from_dict(data: dict[str, Any]) -> BeadSearchMatch:
+    return BeadSearchMatch(
+        issue=issue_from_dict(dict(data["issue"])),
+        matched_fields=[str(field) for field in data.get("matched_fields", [])],
+    )
+
+
+def search_matches_from_list(items: list[dict[str, Any]]) -> list[BeadSearchMatch]:
+    return [_search_match_from_dict(item) for item in items]
+
+
 __all__ = [
     "issue_from_dict",
     "issue_type_value",
     "issue_type_values",
     "issues_from_list",
+    "search_matches_from_list",
     "status_values",
     "tier_value",
     "tier_values",

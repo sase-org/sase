@@ -3,6 +3,13 @@
 import argparse
 
 
+def _nonnegative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be a non-negative integer")
+    return parsed
+
+
 def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'bead' subcommand parser."""
     bead_parser = subparsers.add_parser(
@@ -115,6 +122,69 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         "rm", help="Remove an issue and all its children"
     )
     bead_rm_parser.add_argument("id", help="Issue ID to remove")
+
+    # sase bead search
+    bead_search_parser = bead_subparsers.add_parser(
+        "search",
+        help="Search issues by text",
+        description=(
+            "Find beads whose human-readable fields contain a literal query "
+            "string. Searches open, in-progress, and closed beads by default."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead search auth\n"
+            "  sase bead search auth --format json\n"
+            "  sase bead search auth --format full --limit 3\n"
+            "  sase bead search auth --status open --type phase"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    bead_search_parser.add_argument(
+        "query",
+        help="Literal non-empty text to search for",
+    )
+    bead_search_parser.add_argument(
+        "-c",
+        "--color",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Color output: auto, always, or never (default: auto)",
+    )
+    bead_search_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["compact", "json", "full"],
+        default="compact",
+        help="Output format: compact, json, or full (default: compact)",
+    )
+    bead_search_parser.add_argument(
+        "-n",
+        "--limit",
+        type=_nonnegative_int,
+        default=None,
+        help="Maximum results to print; 0 means unlimited",
+    )
+    bead_search_parser.add_argument(
+        "-s",
+        "--status",
+        choices=["open", "in_progress", "closed"],
+        action="append",
+        help="Filter by status (repeatable)",
+    )
+    bead_search_parser.add_argument(
+        "--tier",
+        choices=["plan", "epic", "legend"],
+        action="append",
+        help="Filter by plan-bead tier (repeatable)",
+    )
+    bead_search_parser.add_argument(
+        "-t",
+        "--type",
+        choices=["plan", "phase"],
+        action="append",
+        help="Filter by type (repeatable)",
+    )
 
     # sase bead show
     bead_show_parser = bead_subparsers.add_parser("show", help="Show issue details")

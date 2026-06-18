@@ -21,6 +21,7 @@ from sase.bead.cli_query import (
     handle_bead_blocked,
     handle_bead_list,
     handle_bead_ready,
+    handle_bead_search,
     handle_bead_show,
     handle_bead_stats,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "handle_bead_open",
     "handle_bead_ready",
     "handle_bead_rm",
+    "handle_bead_search",
     "handle_bead_show",
     "handle_bead_stats",
     "handle_bead_sync",

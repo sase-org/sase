@@ -82,3 +82,9 @@ class Issue:
             raise ValueError("Phase issues cannot carry ChangeSpec metadata")
         if self.changespec_bug_id and not self.changespec_name:
             raise ValueError("changespec_bug_id requires changespec_name")
+
+
+@dataclass
+class BeadSearchMatch:
+    issue: Issue
+    matched_fields: list[str]

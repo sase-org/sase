@@ -5,11 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.model import BeadSearchMatch, BeadTier, Issue, IssueType, Status
 from sase.core.bead_wire import (
     issue_from_dict,
     issue_type_values,
     issues_from_list,
+    search_matches_from_list,
     status_values,
     tier_values,
 )
@@ -40,6 +41,26 @@ def list_issues(
         tier_values(tiers),
     )
     return issues_from_list(payload)
+
+
+def search(
+    beads_dir: Path | str,
+    query: str,
+    statuses: list[Status] | tuple[Status, ...] | None = None,
+    issue_types: list[IssueType] | tuple[IssueType, ...] | None = None,
+    tiers: list[BeadTier] | tuple[BeadTier, ...] | None = None,
+    limit: int | None = None,
+) -> list[BeadSearchMatch]:
+    binding = require_rust_binding("bead_search")
+    payload: list[dict[str, Any]] = binding(
+        str(beads_dir),
+        query,
+        status_values(statuses),
+        issue_type_values(issue_types),
+        tier_values(tiers),
+        limit,
+    )
+    return search_matches_from_list(payload)
 
 
 def ready(beads_dir: Path | str) -> list[Issue]:
@@ -82,6 +103,7 @@ __all__ = [
     "get_epic_children",
     "list_issues",
     "ready",
+    "search",
     "show",
     "stats",
 ]
