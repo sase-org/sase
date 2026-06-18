@@ -226,11 +226,19 @@ def _compact_snippet(match: BeadSearchMatch, query: str) -> str:
 
 
 def _single_line_snippet(value: str, query: str, max_chars: int = 96) -> str:
-    line = value.splitlines()[0].strip() if value.splitlines() else ""
+    lines = [line.strip() for line in value.splitlines() if line.strip()]
+    if not lines:
+        return ""
+
+    lowered_query = query.lower()
+    line = next(
+        (line for line in lines if lowered_query in line.lower()),
+        lines[0],
+    )
     if len(line) <= max_chars:
         return line
 
-    index = line.lower().find(query.lower())
+    index = line.lower().find(lowered_query)
     if index < 0:
         return line[: max_chars - 1].rstrip() + "…"
     start = max(0, index - max_chars // 2)
