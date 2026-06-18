@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-18 10:05:52
-status: wip
+status: done
 prompt: sdd/prompts/202606/bead_search_highlight.md
 ---
 # Plan: Make `sase bead search` match highlighting readable
