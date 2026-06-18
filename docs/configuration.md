@@ -1450,14 +1450,15 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead search`
 
-| Flag           | Values                          | Default    | Description                                                         |
-| -------------- | ------------------------------- | ---------- | ------------------------------------------------------------------- |
-| `query`        | string                          | (required) | Literal non-empty text to search for                                |
-| `-f, --format` | `compact`, `json`, `full`       | `compact`  | Output format                                                       |
-| `-n, --limit`  | integer                         | `0`        | Maximum results to print; `0` means unlimited                       |
-| `-s, --status` | `open`, `in_progress`, `closed` | -          | Filter by status (repeatable); all statuses are searched by default |
-| `-t, --type`   | `plan`, `phase`                 | -          | Filter by type (repeatable)                                         |
-| `--tier`       | `plan`, `epic`, `legend`        | -          | Filter by plan-bead tier (repeatable)                               |
+| Flag           | Values                          | Default     | Description                                                         |
+| -------------- | ------------------------------- | ----------- | ------------------------------------------------------------------- |
+| `query`        | string                          | (required)  | Literal non-empty text to search for                                |
+| `-c, --color`  | `auto`, `always`, `never`       | `auto`      | Color mode for compact output                                       |
+| `-f, --format` | `compact`, `json`, `full`       | `compact`   | Output format                                                       |
+| `-n, --limit`  | non-negative integer            | (unlimited) | Maximum results to print; `0` also means unlimited                  |
+| `-s, --status` | `open`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default |
+| `--tier`       | `plan`, `epic`, `legend`        | -           | Filter by plan-bead tier (repeatable)                               |
+| `-t, --type`   | `plan`, `phase`                 | -           | Filter by type (repeatable)                                         |
 
 #### `sase bead show`
 

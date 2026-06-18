@@ -184,12 +184,14 @@ List issues with optional filtering. Without `--status`, the command lists `open
 
 ### `sase bead search <query>`
 
-Find beads whose human-readable fields contain a case-insensitive literal substring. Search covers title, description,
-notes, plan path, owner, assignee, model, ChangeSpec metadata, status, type, tier, and ID. Unlike `sase bead list`, it
-searches `open`, `in_progress`, and `closed` beads by default, so it is the quickest way to recover older context.
+Find beads whose indexed text fields contain a case-insensitive literal substring. This is substring search, not regex
+or glob matching. Current indexed fields include ID, title, description, notes, design/plan path, owner, assignee,
+model, ChangeSpec name/bug ID, status, type, and tier; timestamps are not searched. Unlike `sase bead list`, search
+includes `open`, `in_progress`, and `closed` beads by default, so it is the quickest way to recover older context.
 
-Compact output prints each matching bead with a short snippet. For multi-line descriptions or notes, the snippet uses
-the line that matched the query when possible instead of always showing the first line.
+Compact output prints each matching bead with a short snippet. For multi-line fields such as descriptions or notes, the
+snippet uses the line that matched the query when possible instead of always showing the first line. JSON output exposes
+the exact `matched_fields` list for each result.
 
 ```bash
 sase bead search auth
@@ -199,13 +201,14 @@ sase bead search auth --status open --type phase
 sase bead search auth --type plan --tier epic
 ```
 
-| Flag           | Values                          | Description                           |
-| -------------- | ------------------------------- | ------------------------------------- |
-| `-f, --format` | `compact`, `json`, `full`       | Output format; defaults to `compact`  |
-| `-n, --limit`  | integer                         | Maximum results; `0` means unlimited  |
-| `-s, --status` | `open`, `in_progress`, `closed` | Filter by status (repeatable)         |
-| `-t, --type`   | `plan`, `phase`                 | Filter by type (repeatable)           |
-| `--tier`       | `plan`, `epic`, `legend`        | Filter by plan-bead tier (repeatable) |
+| Flag           | Values                          | Description                                     |
+| -------------- | ------------------------------- | ----------------------------------------------- |
+| `-c, --color`  | `auto`, `always`, `never`       | Color mode for compact output                   |
+| `-f, --format` | `compact`, `json`, `full`       | Output format; defaults to `compact`            |
+| `-n, --limit`  | non-negative integer            | Maximum results; omitted or `0` means unlimited |
+| `-s, --status` | `open`, `in_progress`, `closed` | Filter by status (repeatable)                   |
+| `--tier`       | `plan`, `epic`, `legend`        | Filter by plan-bead tier (repeatable)           |
+| `-t, --type`   | `plan`, `phase`                 | Filter by type (repeatable)                     |
 
 ### `sase bead show <id>`
 

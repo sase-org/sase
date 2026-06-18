@@ -73,7 +73,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase bead init`                             | Initialize bead storage for the current project.                                             | [Beads](beads.md#storage)                              |
 | `sase bead create`                           | Create plan, epic, legend, or phase issues.                                                  | [Beads](beads.md#cli-commands)                         |
 | `sase bead list`                             | List bead issues by status, type, or tier.                                                   | [Beads](beads.md#cli-commands)                         |
-| `sase bead search`                           | Search bead titles, descriptions, notes, metadata, and lifecycle fields.                     | [Beads](beads.md#sase-bead-search-query)               |
+| `sase bead search`                           | Search bead IDs, titles, notes, plan paths, metadata, and lifecycle fields.                  | [Beads](beads.md#sase-bead-search-query)               |
 | `sase bead ready`                            | Show open issues whose dependencies are closed.                                              | [Beads](beads.md#dependencies)                         |
 | `sase bead blocked`                          | Show issues blocked by open dependencies.                                                    | [Beads](beads.md#dependencies)                         |
 | `sase bead show`                             | Show one issue.                                                                              | [Beads](beads.md#cli-commands)                         |
