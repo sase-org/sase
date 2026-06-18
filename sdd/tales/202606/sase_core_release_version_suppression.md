@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-18 10:42:24
-status: wip
+status: done
 prompt: sdd/prompts/202606/sase_core_release_version_suppression.md
 ---
 # Plan: Fix sase-core release `0.1.3`-instead-of-`0.2.0` versioning defect
