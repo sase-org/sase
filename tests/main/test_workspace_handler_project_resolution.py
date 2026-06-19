@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.main.workspace_handler import handle_workspace_command
+from sase.sibling_repos import opened_sibling_names
 from tests.main.workspace_handler_helpers import make_args
 
 
@@ -170,6 +171,51 @@ class TestWorkspaceProjectResolution:
         assert "PROJECT_STATE: sibling\n" in content
         assert f"WORKSPACE_DIR: {sibling}\n" in content
         assert capsys.readouterr().out.strip() == checkout
+
+    def test_open_existing_sibling_project_spec_records_marker(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        home, _, sibling = _setup_current_project(tmp_path, monkeypatch)
+        _write_project(
+            home,
+            "core",
+            f"PROJECT_STATE: sibling\nWORKSPACE_DIR: {sibling}\nNAME: core\n",
+        )
+        artifacts_dir = tmp_path / "artifacts"
+        monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+        checkout = str(tmp_path / "managed" / "core_10")
+        args = make_args(
+            workspace_subcommand="open",
+            project="core",
+            workspace_num=10,
+            print_path=False,
+            clean=True,
+        )
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+            pytest.raises(SystemExit) as exc,
+        ):
+            mp.setattr(
+                "sase.sdd.files.ensure_bare_git_sdd_initialized",
+                lambda *_args, **_kwargs: None,
+            )
+            mp.setattr(
+                "sase.main.workspace_handler._resolve_checkout_path",
+                lambda *_args, **_kwargs: checkout,
+            )
+            mp.setattr(
+                "sase.axe.runner_utils.prepare_workspace",
+                lambda *_args, **_kwargs: True,
+            )
+            handle_workspace_command(args)
+
+        assert exc.value.code == 0
+        assert capsys.readouterr().out.strip() == checkout
+        assert opened_sibling_names(artifacts_dir) == {"core"}
 
     def test_unconfigured_unknown_project_still_fails(
         self,

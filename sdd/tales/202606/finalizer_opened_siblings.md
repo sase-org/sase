@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 17:08:44
-status: wip
+status: done
 prompt: sdd/prompts/202606/finalizer_opened_siblings.md
 ---
 # Plan: Commit finalizer only checks sibling repos the agent actually opened

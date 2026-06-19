@@ -28,6 +28,7 @@ class ProjectContext:
     project_file: str
     primary_workspace_dir: str
     store: WorkspaceStore
+    is_sibling: bool = False
 
 
 def resolve_project_context(
@@ -84,6 +85,10 @@ def resolve_project_context(
         project_file=project_file,
         primary_workspace_dir=primary,
         store=store,
+        is_sibling=_is_sibling_project_spec(
+            project_file,
+            read_project_lifecycle=read_project_lifecycle,
+        ),
     )
 
 
@@ -152,6 +157,7 @@ def _materialize_sibling_project_context(
         project_file=project_file,
         primary_workspace_dir=primary,
         store=store,
+        is_sibling=True,
     )
 
 
@@ -173,6 +179,22 @@ def _current_project_context(*, load_config: ConfigLoader) -> ProjectContext | N
         primary_workspace_dir=primary,
         store=WorkspaceStore(primary, config=load_config()),
     )
+
+
+def _is_sibling_project_spec(
+    project_file: str,
+    *,
+    read_project_lifecycle: LifecycleReader,
+) -> bool:
+    try:
+        content = Path(project_file).expanduser().read_text(encoding="utf-8")
+    except OSError:
+        return False
+    try:
+        lifecycle = read_project_lifecycle(content)
+    except Exception:
+        return False
+    return getattr(lifecycle, "state", "") == "sibling"
 
 
 def _sibling_project_metadata(

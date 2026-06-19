@@ -11,7 +11,7 @@ import pytest
 
 from sase.llm_provider.commit_finalizer import run_commit_finalizer
 from sase.llm_provider.types import InvokeResult
-from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
+from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, record_opened_sibling
 
 
 def _init_git_repo(path: Path) -> None:
@@ -68,6 +68,55 @@ def _read_result_json(artifacts_dir: Path) -> dict[str, object]:
     )
 
 
+def _mark_opened_sibling(
+    monkeypatch: pytest.MonkeyPatch,
+    artifacts_dir: Path,
+    name: str,
+    workspace_dir: Path,
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    record_opened_sibling(name, str(workspace_dir))
+
+
+def test_dirty_configured_sibling_without_open_marker_is_ignored(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main = tmp_path / "sase_10"
+    sibling = tmp_path / "sase-core_10"
+    main.mkdir()
+    _init_git_repo(sibling)
+    dirty_file = sibling / "dirty.txt"
+    dirty_file.write_text("dirty\n", encoding="utf-8")
+    _set_agent_env(monkeypatch, main)
+    _set_clean_main(monkeypatch)
+    monkeypatch.setenv(
+        SIBLING_REPOS_JSON_ENV,
+        json.dumps(
+            [
+                {
+                    "name": "core",
+                    "primary_dir": str(tmp_path / "sase-core"),
+                    "workspace_dir": str(sibling),
+                    "workspace_num": 10,
+                    "workspace_strategy": "suffix",
+                }
+            ]
+        ),
+    )
+    provider = MagicMock()
+    artifacts_dir = tmp_path / "artifacts"
+
+    result = _run_finalizer(provider, artifacts_dir)
+
+    provider.invoke.assert_not_called()
+    assert result.content == "primary response"
+    assert dirty_file.exists()
+    result_json = _read_result_json(artifacts_dir)
+    assert result_json["status"] == "clean"
+    assert result_json["reason"] == "no_changes"
+
+
 def test_dirty_configured_sibling_triggers_follow_up_turn(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -94,6 +143,8 @@ def test_dirty_configured_sibling_triggers_follow_up_turn(
             ]
         ),
     )
+    artifacts_dir = tmp_path / "artifacts"
+    _mark_opened_sibling(monkeypatch, artifacts_dir, "core", sibling)
 
     prompts: list[str] = []
     provider = MagicMock()
@@ -105,7 +156,7 @@ def test_dirty_configured_sibling_triggers_follow_up_turn(
 
     provider.invoke.side_effect = invoke
 
-    result = _run_finalizer(provider, tmp_path / "artifacts")
+    result = _run_finalizer(provider, artifacts_dir)
 
     assert provider.invoke.call_count == 1
     assert result.content == "primary response\n\nfinalized sibling"
@@ -326,6 +377,8 @@ def test_config_fallback_checks_managed_root_sibling(
     _set_clean_main(monkeypatch)
     monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", str(project_file))
     monkeypatch.delenv(SIBLING_REPOS_JSON_ENV, raising=False)
+    artifacts_dir = tmp_path / "artifacts"
+    _mark_opened_sibling(monkeypatch, artifacts_dir, "core", managed_sibling)
 
     prompts: list[str] = []
     provider = MagicMock()
@@ -337,7 +390,7 @@ def test_config_fallback_checks_managed_root_sibling(
 
     provider.invoke.side_effect = invoke
 
-    result = _run_finalizer(provider, tmp_path / "artifacts")
+    result = _run_finalizer(provider, artifacts_dir)
 
     assert result.content == "primary response\n\nfinalized core"
     assert provider.invoke.call_count == 1
@@ -370,6 +423,9 @@ def test_multiple_dirty_configured_siblings_are_listed_and_rechecked(
             ]
         ),
     )
+    artifacts_dir = tmp_path / "artifacts"
+    _mark_opened_sibling(monkeypatch, artifacts_dir, "alpha", alpha)
+    _mark_opened_sibling(monkeypatch, artifacts_dir, "beta", beta)
 
     prompts: list[str] = []
     provider = MagicMock()
@@ -382,7 +438,7 @@ def test_multiple_dirty_configured_siblings_are_listed_and_rechecked(
 
     provider.invoke.side_effect = invoke
 
-    _run_finalizer(provider, tmp_path / "artifacts")
+    _run_finalizer(provider, artifacts_dir)
 
     assert provider.invoke.call_count == 1
     assert "sibling repo alpha" in prompts[0]
@@ -390,8 +446,56 @@ def test_multiple_dirty_configured_siblings_are_listed_and_rechecked(
     assert "sibling repo beta" in prompts[0]
     assert "beta.txt" in prompts[0]
     assert '"status": "finalized"' in (
-        tmp_path / "artifacts" / "commit_finalizer_result.json"
+        artifacts_dir / "commit_finalizer_result.json"
     ).read_text(encoding="utf-8")
+
+
+def test_only_opened_dirty_configured_siblings_are_listed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main = tmp_path / "sase_10"
+    alpha = tmp_path / "sase-alpha_10"
+    beta = tmp_path / "sase-beta_10"
+    main.mkdir()
+    _init_git_repo(alpha)
+    _init_git_repo(beta)
+    alpha_file = alpha / "alpha.txt"
+    beta_file = beta / "beta.txt"
+    alpha_file.write_text("alpha\n", encoding="utf-8")
+    beta_file.write_text("beta\n", encoding="utf-8")
+    _set_agent_env(monkeypatch, main)
+    _set_clean_main(monkeypatch)
+    monkeypatch.setenv(
+        SIBLING_REPOS_JSON_ENV,
+        json.dumps(
+            [
+                {"name": "alpha", "workspace_dir": str(alpha)},
+                {"name": "beta", "workspace_dir": str(beta)},
+            ]
+        ),
+    )
+    artifacts_dir = tmp_path / "artifacts"
+    _mark_opened_sibling(monkeypatch, artifacts_dir, "alpha", alpha)
+
+    prompts: list[str] = []
+    provider = MagicMock()
+
+    def invoke(prompt: str, **_: object) -> InvokeResult:
+        prompts.append(prompt)
+        alpha_file.unlink()
+        return InvokeResult(content="finalized alpha")
+
+    provider.invoke.side_effect = invoke
+
+    _run_finalizer(provider, artifacts_dir)
+
+    assert provider.invoke.call_count == 1
+    assert "sibling repo alpha" in prompts[0]
+    assert "alpha.txt" in prompts[0]
+    assert "sibling repo beta" not in prompts[0]
+    assert "beta.txt" not in prompts[0]
+    assert beta_file.exists()
 
 
 def test_mixed_dirty_siblings_report_static_but_only_suffix_blocks(
@@ -427,6 +531,8 @@ def test_mixed_dirty_siblings_report_static_but_only_suffix_blocks(
             ]
         ),
     )
+    artifacts_dir = tmp_path / "artifacts"
+    _mark_opened_sibling(monkeypatch, artifacts_dir, "core", suffix_sibling)
 
     prompts: list[str] = []
     provider = MagicMock()
@@ -438,7 +544,7 @@ def test_mixed_dirty_siblings_report_static_but_only_suffix_blocks(
 
     provider.invoke.side_effect = invoke
 
-    result = _run_finalizer(provider, tmp_path / "artifacts")
+    result = _run_finalizer(provider, artifacts_dir)
 
     assert provider.invoke.call_count == 1
     assert result.content == "primary response\n\nfinalized suffix sibling"
@@ -448,7 +554,7 @@ def test_mixed_dirty_siblings_report_static_but_only_suffix_blocks(
     assert "dotfile" in prompts[0]
     assert f"cd {static_sibling.resolve()}" in prompts[0]
     assert static_file.exists()
-    result_json = _read_result_json(tmp_path / "artifacts")
+    result_json = _read_result_json(artifacts_dir)
     assert result_json["status"] == "finalized"
     assert result_json["reason"] == "advisory_dirty_remaining"
     assert result_json["changed_files"] == []

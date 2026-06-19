@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,8 @@ from unittest.mock import patch
 import pytest
 
 from sase.main.workspace_handler import handle_workspace_command
+from sase.main.workspace_handler_context import ProjectContext
+from sase.sibling_repos import OPENED_SIBLINGS_FILENAME, opened_sibling_names
 from sase.vcs_provider import VCS_DEFAULT_REVISION
 from sase.workspace_provider.registry import record_workspace
 from sase.workspace_provider.store import WorkspaceStore
@@ -167,6 +170,27 @@ class TestPath:
 
 
 class TestOpen:
+    def _open_with_context(
+        self,
+        *,
+        args: argparse.Namespace,
+        ctx: ProjectContext,
+        checkout: str,
+    ) -> int:
+        with (
+            patch("sase.main.workspace_handler._resolve_project_context") as resolve,
+            patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
+            patch(
+                "sase.main.workspace_handler._resolve_checkout_path",
+                return_value=checkout,
+            ),
+            patch("sase.axe.runner_utils.prepare_workspace", return_value=True),
+            pytest.raises(SystemExit) as exc,
+        ):
+            resolve.return_value = ctx
+            handle_workspace_command(args)
+        return int(exc.value.code)
+
     @pytest.mark.parametrize("clean", [False, True])
     def test_open_materializes_and_prepares_by_default(
         self,
@@ -209,6 +233,101 @@ class TestOpen:
             project_basename=project_name,
         )
         assert capsys.readouterr().out.strip() == checkout
+
+    def test_open_records_sibling_when_artifacts_dir_is_set(
+        self,
+        project_layout: tuple[str, str, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _, project_file, primary = project_layout
+        artifacts_dir = tmp_path / "artifacts"
+        monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+        checkout = str(tmp_path / "managed" / "core_10")
+        ctx = ProjectContext(
+            project_name="core",
+            project_file=project_file,
+            primary_workspace_dir=str(primary),
+            store=WorkspaceStore(str(primary)),
+            is_sibling=True,
+        )
+        args = make_args(
+            workspace_subcommand="open",
+            project="core",
+            workspace_num=10,
+            print_path=False,
+            clean=True,
+        )
+
+        code = self._open_with_context(args=args, ctx=ctx, checkout=checkout)
+
+        assert code == 0
+        assert capsys.readouterr().out.strip() == checkout
+        assert opened_sibling_names(artifacts_dir) == {"core"}
+
+    def test_open_does_not_record_primary_when_artifacts_dir_is_set(
+        self,
+        project_layout: tuple[str, str, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_name, project_file, primary = project_layout
+        artifacts_dir = tmp_path / "artifacts"
+        monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+        checkout = str(tmp_path / "managed" / "primary_10")
+        ctx = ProjectContext(
+            project_name=project_name,
+            project_file=project_file,
+            primary_workspace_dir=str(primary),
+            store=WorkspaceStore(str(primary)),
+        )
+        args = make_args(
+            workspace_subcommand="open",
+            project=project_name,
+            workspace_num=10,
+            print_path=False,
+            clean=True,
+        )
+
+        code = self._open_with_context(args=args, ctx=ctx, checkout=checkout)
+
+        assert code == 0
+        assert capsys.readouterr().out.strip() == checkout
+        assert opened_sibling_names(artifacts_dir) == set()
+
+    def test_open_sibling_does_not_record_without_artifacts_dir(
+        self,
+        project_layout: tuple[str, str, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _, project_file, primary = project_layout
+        monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+        artifacts_dir = tmp_path / "artifacts"
+        checkout = str(tmp_path / "managed" / "core_10")
+        ctx = ProjectContext(
+            project_name="core",
+            project_file=project_file,
+            primary_workspace_dir=str(primary),
+            store=WorkspaceStore(str(primary)),
+            is_sibling=True,
+        )
+        args = make_args(
+            workspace_subcommand="open",
+            project="core",
+            workspace_num=10,
+            print_path=False,
+            clean=True,
+        )
+
+        code = self._open_with_context(args=args, ctx=ctx, checkout=checkout)
+
+        assert code == 0
+        assert capsys.readouterr().out.strip() == checkout
+        assert not (artifacts_dir / OPENED_SIBLINGS_FILENAME).exists()
 
     def test_open_materialization_failure_returns_1(
         self,

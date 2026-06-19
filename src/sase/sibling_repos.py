@@ -15,8 +15,10 @@ import yaml  # type: ignore[import-untyped]
 SIBLING_REPOS_JSON_ENV = "SASE_SIBLING_REPOS_JSON"
 SIBLING_REPO_ENV_PREFIX = "SASE_SIBLING_REPO_"
 SIBLING_REPO_ENV_SUFFIXES = ("_DIR", "_PRIMARY_DIR")
+OPENED_SIBLINGS_FILENAME = "opened_siblings.json"
 
 _VALID_WORKSPACE_STRATEGIES = {"suffix", "none"}
+_OPENED_SIBLINGS_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -107,6 +109,77 @@ def sibling_repo_metadata_from_env(
         if isinstance(item, Mapping):
             metadata.append({str(key): value for key, value in item.items()})
     return metadata
+
+
+def record_opened_sibling(name: str, workspace_dir: str) -> None:
+    """Record that the current agent run opened a configured sibling repo."""
+
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+
+    normalized_name = name.strip()
+    if not normalized_name:
+        return
+
+    root = Path(artifacts_dir).expanduser().resolve(strict=False)
+    marker = root / OPENED_SIBLINGS_FILENAME
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        records = _opened_sibling_records(marker)
+        records[normalized_name] = {
+            "name": normalized_name,
+            "workspace_dir": _normalize_path(workspace_dir),
+        }
+        payload = {
+            "schema_version": _OPENED_SIBLINGS_SCHEMA_VERSION,
+            "siblings": [records[key] for key in sorted(records)],
+        }
+        tmp = marker.with_name(f".{marker.name}.{os.getpid()}.tmp")
+        tmp.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(tmp, marker)
+    except OSError:
+        pass
+
+
+def opened_sibling_names(artifact_root: Path | None) -> set[str]:
+    """Return sibling repo names opened during the agent run."""
+
+    if artifact_root is None:
+        return set()
+    return set(_opened_sibling_records(artifact_root / OPENED_SIBLINGS_FILENAME))
+
+
+def _opened_sibling_records(marker: Path) -> dict[str, dict[str, str]]:
+    try:
+        loaded = json.loads(marker.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(loaded, Mapping):
+        return {}
+    siblings = loaded.get("siblings")
+    if not isinstance(siblings, list):
+        return {}
+
+    records: dict[str, dict[str, str]] = {}
+    for item in siblings:
+        if not isinstance(item, Mapping):
+            continue
+        name = item.get("name")
+        workspace_dir = item.get("workspace_dir")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        if not isinstance(workspace_dir, str):
+            workspace_dir = ""
+        normalized_name = name.strip()
+        records[normalized_name] = {
+            "name": normalized_name,
+            "workspace_dir": workspace_dir,
+        }
+    return records
 
 
 def resolve_sibling_repos_for_project(

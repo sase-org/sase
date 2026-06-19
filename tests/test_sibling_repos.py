@@ -5,8 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from sase.sibling_repos import (
+    OPENED_SIBLINGS_FILENAME,
     SIBLING_REPOS_JSON_ENV,
+    opened_sibling_names,
+    record_opened_sibling,
     resolve_sibling_repos_for_project,
 )
 
@@ -157,3 +162,60 @@ def test_missing_primary_paths_are_omitted(tmp_path: Path) -> None:
     assert resolution.repos == ()
     assert "primary path does not exist" in resolution.warnings[0]
     assert resolution.to_env() == {}
+
+
+def test_record_opened_sibling_unions_by_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    core = tmp_path / "sase-core_10"
+    nvim = tmp_path / "sase-nvim_10"
+
+    record_opened_sibling("core", str(core))
+    record_opened_sibling("nvim", str(nvim))
+    record_opened_sibling("core", str(core))
+
+    marker = json.loads(
+        (tmp_path / OPENED_SIBLINGS_FILENAME).read_text(encoding="utf-8")
+    )
+    assert marker["schema_version"] == 1
+    assert [item["name"] for item in marker["siblings"]] == ["core", "nvim"]
+    assert opened_sibling_names(tmp_path) == {"core", "nvim"}
+
+
+def test_record_opened_sibling_noops_without_artifacts_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    record_opened_sibling("core", str(tmp_path / "sase-core_10"))
+
+    assert not (tmp_path / OPENED_SIBLINGS_FILENAME).exists()
+    assert opened_sibling_names(tmp_path) == set()
+
+
+def test_opened_sibling_names_handles_missing_and_malformed_files(
+    tmp_path: Path,
+) -> None:
+    assert opened_sibling_names(tmp_path) == set()
+
+    marker = tmp_path / OPENED_SIBLINGS_FILENAME
+    marker.write_text("{", encoding="utf-8")
+    assert opened_sibling_names(tmp_path) == set()
+
+    marker.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "siblings": [
+                    {"name": "core", "workspace_dir": "/tmp/core"},
+                    {"name": "", "workspace_dir": "/tmp/empty"},
+                    {"workspace_dir": "/tmp/missing"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert opened_sibling_names(tmp_path) == {"core"}

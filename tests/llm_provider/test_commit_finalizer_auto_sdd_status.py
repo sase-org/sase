@@ -12,7 +12,7 @@ import pytest
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer import run_commit_finalizer
 from sase.llm_provider.types import InvokeResult
-from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
+from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, record_opened_sibling
 
 _PLAN_WIP = """---
 title: Test plan
@@ -195,6 +195,9 @@ def test_sibling_done_status_change_uses_provider_path(
         SIBLING_REPOS_JSON_ENV,
         json.dumps([{"name": "core", "workspace_dir": str(sibling)}]),
     )
+    artifacts_dir = tmp_path / "artifacts"
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    record_opened_sibling("core", str(sibling))
     provider = MagicMock()
 
     def invoke(*_: object, **__: object) -> InvokeResult:
@@ -203,7 +206,7 @@ def test_sibling_done_status_change_uses_provider_path(
 
     provider.invoke.side_effect = invoke
 
-    _run_finalizer(provider, tmp_path / "artifacts")
+    _run_finalizer(provider, artifacts_dir)
 
     assert provider.invoke.call_count == 1
     assert _run_git(sibling, "log", "-1", "--pretty=%s") == "initial\n"

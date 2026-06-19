@@ -5,7 +5,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, sibling_repo_metadata_from_env
+from sase.sibling_repos import (
+    SIBLING_REPOS_JSON_ENV,
+    opened_sibling_names,
+    sibling_repo_metadata_from_env,
+)
 
 from . import commit_finalizer_git as finalizer_git
 from .commit_finalizer_git import git_changed_files
@@ -44,7 +48,13 @@ def collect_dirty_state(
         else None
     )
     sibling_targets = _configured_sibling_targets(project_dir)
-    sibling_repos = tuple(_dirty_configured_sibling_repos(sibling_targets))
+    opened_names = opened_sibling_names(artifact_root)
+    sibling_repos = tuple(
+        _dirty_configured_sibling_repos(
+            sibling_targets,
+            opened_names=opened_names,
+        )
+    )
     advisory_sibling_repos = tuple(
         _dirty_configured_advisory_sibling_repos(sibling_targets)
     )
@@ -75,10 +85,13 @@ def _build_commit_details(project_dir: str) -> tuple[bool, list[str], str, str]:
 
 def _dirty_configured_sibling_repos(
     sibling_targets: list[SiblingTarget],
+    *,
+    opened_names: set[str],
 ) -> list[DirtyRepo]:
     return _dirty_configured_sibling_repos_for_strategy(
         sibling_targets,
         advisory=False,
+        opened_names=opened_names,
     )
 
 
@@ -88,6 +101,7 @@ def _dirty_configured_advisory_sibling_repos(
     return _dirty_configured_sibling_repos_for_strategy(
         sibling_targets,
         advisory=True,
+        opened_names=None,
     )
 
 
@@ -95,10 +109,13 @@ def _dirty_configured_sibling_repos_for_strategy(
     sibling_targets: list[SiblingTarget],
     *,
     advisory: bool,
+    opened_names: set[str] | None,
 ) -> list[DirtyRepo]:
     dirty: list[DirtyRepo] = []
     for target in sibling_targets:
         if (target.workspace_strategy == "none") != advisory:
+            continue
+        if opened_names is not None and target.name not in opened_names:
             continue
         changed_files = git_changed_files(target.workspace_dir)
         if not changed_files:
