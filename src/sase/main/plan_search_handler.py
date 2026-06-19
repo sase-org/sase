@@ -1,14 +1,12 @@
 """Handler for ``sase plan search``.
 
-Phase 4 of the plan-search work (the thin end-to-end slice): validate the
-parsed CLI args, call the :mod:`sase.plan_search` facade, and render the JSON
-envelope. The Rust core owns discovery/filtering/ranking; this handler only
-gates the inputs and serializes the results.
+Validate the parsed CLI args, call the :mod:`sase.plan_search` facade, and
+render the results. The Rust core owns discovery/filtering/ranking; this handler
+only gates the inputs, picks the format, and hands off to the renderer.
 
-Only ``--format json`` produces output here. The rich, colored
-``compact``/``full``/``markdown`` renderers land in Phase 5 (``plan_search_
-render.py``); until then the non-JSON formats report that they are not yet
-available.
+``--format json`` is serialized here; the colored ``compact``/``full`` and the
+agent-friendly ``markdown`` formats are produced by :mod:`sase.main.
+plan_search_render`.
 """
 
 from __future__ import annotations
@@ -72,11 +70,22 @@ def handle_plan_search_command(args: argparse.Namespace) -> None:
         print(_render_search_json(matches, args.query), end="")
         return
 
-    # Phase 5 replaces this branch with the compact/full/markdown renderers.
-    _usage_error(
-        f"--format {args.format} is not available yet (arrives in Phase 5); "
-        "use --format json for now"
+    from sase.main.plan_search_render import render as render_plan_search
+
+    render_plan_search(
+        matches,
+        query=args.query,
+        fmt=args.format,
+        color=args.color,
+        sort_label=_effective_sort_label(args),
     )
+
+
+def _effective_sort_label(args: argparse.Namespace) -> str:
+    """The sort actually applied: ``--sort`` if given, else the query default."""
+    if args.sort:
+        return str(args.sort)
+    return "relevance" if (args.query and args.query.strip()) else "recent"
 
 
 def _validate_args(args: argparse.Namespace) -> None:

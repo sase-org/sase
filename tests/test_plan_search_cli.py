@@ -202,15 +202,61 @@ def test_handler_rejects_invalid_date(
     assert "--until" in capsys.readouterr().err
 
 
-def test_handler_unimplemented_format_exits_usage_error(
+def test_handler_compact_renders_grouped_listing(
     corpus: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    with pytest.raises(SystemExit) as excinfo:
-        handle_plan_search_command(_search_namespace(format="compact"))
+    handle_plan_search_command(
+        _run(["plan", "search", "auth", "--format", "compact", "--color", "never"])
+    )
 
-    assert excinfo.value.code == 2
-    assert "Phase 5" in capsys.readouterr().err
+    out = capsys.readouterr().out
+    assert "REPO" in out and "LOCAL" in out
+    # REPO section is surfaced above LOCAL.
+    assert out.index("REPO") < out.index("LOCAL")
+    assert "auth_token_refresh" in out
+    assert "3 plans · 2 repo · 1 local · sorted by relevance" in out
+
+
+def test_handler_markdown_renders_grouped_tables(
+    corpus: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    handle_plan_search_command(_run(["plan", "search", "auth", "--format", "markdown"]))
+
+    out = capsys.readouterr().out
+    assert out.startswith("# Plan Search Results")
+    assert "**Query:** `auth`" in out
+    assert "## REPO — sdd/" in out
+    assert "## LOCAL — ~/.sase/plans/" in out
+    assert "| Status | Kind | Plan | Title | Created |" in out
+
+
+def test_handler_full_renders_panels(
+    corpus: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    handle_plan_search_command(
+        _run(["plan", "search", "auth", "--format", "full", "--color", "never"])
+    )
+
+    out = capsys.readouterr().out
+    # One bordered panel per match, with the title and metadata table.
+    assert "Refresh auth tokens on 401" in out
+    assert "Matched" in out
+    assert "╭" in out and "╰" in out
+
+
+def test_handler_browse_compact_sorts_by_recency(
+    corpus: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    handle_plan_search_command(
+        _run(["plan", "search", "--format", "compact", "--color", "never"])
+    )
+
+    out = capsys.readouterr().out
+    assert "sorted by recent" in out
 
 
 # --- dispatch routing ----------------------------------------------------
