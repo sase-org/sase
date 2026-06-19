@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 19:04:02
-status: wip
+status: done
 prompt: sdd/prompts/202606/completion_panel_excess_height.md
 ---
 # Fix: xprompt completion menu inflates prompt input height

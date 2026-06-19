@@ -24,6 +24,22 @@ if TYPE_CHECKING:
 else:
     _MixinBase = object
 
+# Mirror styles.tcss for #prompt-completion. The panel reserves a border-box
+# height capped by max-height, plus its one-row bottom margin.
+_PANEL_BORDER_ROWS = 2
+_PANEL_MARGIN_ROWS = 1
+_COMPLETION_PANEL_MAX_HEIGHT = 10
+_JINJA_PANEL_MAX_HEIGHT = 5
+
+
+def _reserved_panel_rows(
+    line_count: int,
+    max_height: int = _COMPLETION_PANEL_MAX_HEIGHT,
+) -> int:
+    """Rows occupied by the completion panel, clamped to its CSS max-height."""
+    border_box = min(line_count + _PANEL_BORDER_ROWS, max_height)
+    return border_box + _PANEL_MARGIN_ROWS
+
 
 def _vcs_project_label_width(candidate: CompletionCandidate) -> int:
     """Visible width for the badge + primary label in a VCS completion row."""
@@ -164,7 +180,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._completion_visible = True
         self._completion_panel_kind = "completion"
         line_count = len(content.plain.splitlines()) if content.plain else 0
-        self._completion_line_count = line_count + 3  # +3 for panel border + margin
+        self._completion_line_count = _reserved_panel_rows(line_count)
         self._update_height()
 
     def _append_xprompt_completion_row(
@@ -359,7 +375,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._completion_visible = True
         self._completion_panel_kind = "xprompt_arg_hint"
         line_count = len(content.plain.splitlines()) if content.plain else 0
-        self._completion_line_count = line_count + 3
+        self._completion_line_count = _reserved_panel_rows(line_count)
         self._update_height()
 
     def show_jinja_diagnostics(self, diagnostics: object) -> None:
@@ -396,7 +412,10 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._completion_visible = True
         self._completion_panel_kind = "jinja"
         line_count = len(content.plain.splitlines()) if content.plain else 0
-        self._completion_line_count = line_count + 3
+        self._completion_line_count = _reserved_panel_rows(
+            line_count,
+            _JINJA_PANEL_MAX_HEIGHT,
+        )
         self._update_height()
 
     def hide_jinja_diagnostics(self) -> None:
