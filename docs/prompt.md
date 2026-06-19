@@ -27,6 +27,7 @@ Adding newer prompts never changes an existing prompt's ID.
 | -------------------- | ---------------------------------------------------------------------------------- |
 | `sase prompt list`   | List recent prompts as a Rich table (default) or stable JSON (`-j`).               |
 | `sase prompt show`   | Print one prompt as raw text, Markdown, or JSON.                                   |
+| `sase prompt search` | Find prompts matching a query across repo SDD snapshots and local history.         |
 | `sase prompt stats`  | Summarize the store: counts, size, length percentiles, largest prompts, top chips. |
 | `sase prompt copy`   | Copy a prompt's exact text to the system clipboard.                                |
 | `sase prompt run`    | Replay a stored prompt through the normal launch path.                             |
@@ -38,11 +39,75 @@ Adding newer prompts never changes an existing prompt's ID.
 | `sase prompt save`   | Save a prompt as a reusable [xprompt](xprompt.md) markdown file.                   |
 | `sase prompt export` | Export a prompt to stdout, a file, or an [SDD](sdd.md) snapshot.                   |
 
-`list`, `show`, `stats`, and `doctor` are read-only. `list`, `stats`, and `doctor` never print full prompt text — they
-show previews only — so they stay bounded even on a history with thousands of entries. `show`, `export`, and `copy` are
-the intentional full-text escape hatches.
+`list`, `show`, `search`, `stats`, and `doctor` are read-only. `list`, `search` (default `compact` format), `stats`, and
+`doctor` never print full prompt text — they show previews only — so they stay bounded even on a history with thousands
+of entries. `show`, `export`, `copy`, and `search -f json|full` are the intentional full-text escape hatches.
 
 Run `sase prompt <command> --help` for the full flag list of any subcommand.
+
+## Search
+
+`sase prompt list -q` filters the **local history only**. `sase prompt search` is the broader tool: it searches **two
+stores at once** and ranks repo-relevant snapshots first, so it answers "I remember a prompt about X — find it, whether
+I snapshotted it into this repo or just ran it once last month."
+
+- **Repo SDD snapshots** — the committed `sdd/prompts/**/*.md` files written by `sase prompt export --sdd` (plus the
+  legacy root `prompts/` and local `.sase/sdd/prompts/` layouts). These are curated and repo-specific, so they always
+  **rank first**.
+- **Local prompt history** — the machine-wide `~/.sase/prompt_history.json` store: every prompt ever submitted on this
+  machine, across all repos.
+
+Matching is a **case-insensitive substring** test of the literal query (no regex or globbing) against every
+human-readable field — title, body, locator/ID, snapshot path, `plan:` link, and tags — so each hit can report _why_ it
+matched. Results are ranked deterministically: SDD before local, a title/locator/path hit before a body-only hit, newer
+before older, with a stable tiebreak so output is byte-identical across runs. `search` is **read-only**: it never writes
+or locks either store, so it is safe to run against a corrupt or unreadable history.
+
+```bash
+sase prompt search auth                  # both stores, compact, most-relevant first
+sase prompt search auth -s sdd           # only repo SDD snapshots
+sase prompt search auth -s local -x      # only cancelled local prompts
+sase prompt search auth -t review        # only prompts tagged "review" (repeatable; ORs)
+```
+
+### Output is bounded by default
+
+The local history can hold tens of thousands of entries, so `search` shows the **20 best matches by default** and never
+silently truncates — every format reports the full match count, and `-n 0` returns an unlimited result set.
+
+`-f compact` (default) groups hits by source under dim `── SDD prompts (N) ──` / `── Local history (N) ──` headers,
+prints one entry per hit with the matched term highlighted plus a one-line snippet (or a `plan: "…"` / `tag: "…"` line
+when the match was off-body), and ends with a footer such as `27 matches (3 SDD · 24 local) · showing 20`.
+
+`-f json` emits a stable, never-colored envelope — `query`, `count`, `total`, per-source `counts`, and a `results` array
+carrying the full prompt `text` — so editors and scripts can build on it. `count` versus `total` makes truncation
+explicit:
+
+```bash
+sase prompt search auth -f json | jq '.total, (.results | length)'
+```
+
+`-f full` prints each hit completely, divider-separated: a **local** hit reuses the exact `sase prompt show -f markdown`
+rendering, and an **SDD** hit shows a compact metadata header (path, `plan`, tags) plus its body with the match
+highlighted.
+
+### Filtering by date, tag, source, and status
+
+- `-a|--after` / `-b|--before` keep prompts within an inclusive date window. Both accept `2026-06-01`, `202606`
+  (`YYYYMM`), `260601` (`YYmmdd`), a full `260601_143000` SASE timestamp, or a relative offset `30d` / `2w` / `6m` /
+  `1y`; an unparseable date is a usage error. SDD snapshots are dated by their frontmatter timestamp, falling back to
+  the `YYYYMM` path segment, then the file mtime; local prompts use their last-used time.
+- `-t|--tag` keeps prompts carrying a matching tag — SDD `prompt_tags` frontmatter and the `#xprompt`/directive chips
+  parsed from the prompt body. Repeats OR together (`-t review -t auth` matches either).
+- `-s|--source` scopes to `sdd`, `local`, or `all` (default).
+- `-x|--cancelled` restricts **local** results to cancelled prompts; it has no effect on SDD snapshots, which have no
+  cancelled state.
+- `-c|--color` is `auto` (colorize on a TTY unless `NO_COLOR` is set), `always`, or `never`; JSON is never colored.
+
+An empty or whitespace-only query is a usage error (exit `2`). A query that matches nothing is **not** an error (exit
+`0`): `compact`/`full` print `No prompts match "<query>".` and `json` returns an envelope with `count: 0`. When `-s all`
+finds the same prompt in both stores (identical text), the local copy collapses into the SDD hit, annotated
+`also in local history`.
 
 ## Common Workflows
 
