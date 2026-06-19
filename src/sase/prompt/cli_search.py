@@ -1,19 +1,26 @@
 """``sase prompt search`` — cross-store search over SDD + local prompts.
 
 This is the CLI surface: argument validation, color resolution, the call into
-the pure :func:`~sase.prompt.search.engine.search_prompts` engine, and the
-``compact`` renderer. The ``json`` and ``full`` renderers arrive in a later
-phase; the parser already advertises them so the command contract is stable.
+the pure :func:`~sase.prompt.search.engine.search_prompts` engine, and the three
+renderers that mirror ``sase bead search`` — ``compact``, ``json``, ``full``.
 
-The ``compact`` format groups hits by source (SDD before local), prints a
-badge + locator + date + path/status line per hit, a dim indented snippet that
-highlights the matched term (or names the field that matched, so the user
-always sees *why* a hit matched), and a footer that makes truncation explicit.
+- ``compact`` (default) groups hits by source (SDD before local), prints a
+  badge + locator + date + path/status line per hit, a dim indented snippet that
+  highlights the matched term (or names the field that matched, so the user
+  always sees *why* a hit matched), and a footer that makes truncation explicit.
+- ``json`` emits a stable, never-colored envelope (``query``/``count``/``total``
+  /``counts``/``results[]`` with full prompt ``text``) so downstream tooling is
+  self-sufficient and truncation is explicit.
+- ``full`` renders each hit completely, divider-separated: a local hit reuses
+  ``sase prompt show``'s markdown verbatim (no second renderer to drift), and an
+  SDD hit shows a compact metadata header plus its body with the match
+  highlighted.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -21,8 +28,14 @@ from pathlib import Path
 from rich.console import Console
 from rich.text import Text
 
+from sase.history.prompt import (
+    PromptSelectorError,
+    resolve_prompt_selector,
+)
+from sase.prompt.cli_show import render_prompt_markdown
 from sase.prompt.render import (
     format_search_date,
+    format_search_date_iso,
     highlight_match,
     source_badge,
 )
@@ -74,15 +87,11 @@ def handle_prompt_search(args: argparse.Namespace) -> None:
     match fmt:
         case "compact":
             _render_compact(result, use_color=_resolve_color(args))
-        case "json" | "full":
-            # Implemented in the json + full renderer phase; the parser already
-            # accepts these so the command contract does not shift later.
-            print(
-                f"sase prompt search: --format {fmt} is not available yet;"
-                " use --format compact.",
-                file=sys.stderr,
-            )
-            sys.exit(2)
+        case "json":
+            # JSON is a contract for downstream tooling: never colored.
+            _render_json(result)
+        case "full":
+            _render_full(result, use_color=_resolve_color(args))
         case _:
             print(f"sase prompt search: unknown format: {fmt}", file=sys.stderr)
             sys.exit(2)
@@ -312,3 +321,141 @@ def _footer(result: PromptSearchResult) -> Text:
     if result.count < total:
         text.append(f" · showing {result.count}", style="dim")
     return text
+
+
+# ---------------------------------------------------------------------------
+# JSON renderer
+# ---------------------------------------------------------------------------
+
+
+def _render_json(result: PromptSearchResult) -> None:
+    """Print the stable, never-colored JSON envelope for *result*.
+
+    The envelope carries full prompt ``text`` (parity with ``bead search`` json
+    and ``prompt show -f json``) so downstream tooling is self-sufficient, and
+    ``count``/``total``/``counts`` make truncation explicit. Keys are emitted in
+    a fixed order so the schema is diff-stable across runs.
+    """
+    payload = {
+        "query": result.query,
+        "count": result.count,
+        "total": result.total,
+        "counts": {
+            PromptSource.SDD.value: result.count_for(PromptSource.SDD),
+            PromptSource.LOCAL.value: result.count_for(PromptSource.LOCAL),
+        },
+        "results": [_match_to_json(match) for match in result.matches],
+    }
+    json.dump(payload, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+
+
+def _match_to_json(match: PromptSearchMatch) -> dict[str, object]:
+    """Return one result object with the documented stable key order."""
+    hit = match.hit
+    return {
+        "source": hit.source.value,
+        "id": hit.id,
+        "path": hit.path,
+        "title": hit.title,
+        "date": format_search_date_iso(hit.date),
+        "matched_fields": list(match.matched_fields),
+        "tags": list(hit.tags),
+        "plan": hit.plan,
+        "cancelled": hit.cancelled,
+        "text_sha256": hit.text_sha256,
+        "text_chars": hit.text_chars,
+        "text": hit.text,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Full renderer
+# ---------------------------------------------------------------------------
+
+# Divider printed between consecutive hits in the ``full`` format.
+_DIVIDER = "─" * 72
+
+
+def _render_full(result: PromptSearchResult, *, use_color: bool) -> None:
+    """Print each hit completely, divider-separated, in ranked order.
+
+    A local hit reuses ``sase prompt show``'s markdown verbatim so the output
+    never drifts from ``prompt show``; an SDD hit shows a compact metadata
+    header (path, plan, tags) plus its body with the matched term highlighted.
+    The trailing footer keeps truncation explicit, as in every other format.
+    """
+    console = _make_console(use_color)
+    if result.total == 0:
+        console.print(f'No prompts match "{result.query}".', soft_wrap=True)
+        return
+
+    for index, match in enumerate(result.matches):
+        if index:
+            console.print(_DIVIDER, style="dim", soft_wrap=True)
+        console.print(_full_header(match.hit), soft_wrap=True)
+        console.print()
+        if match.hit.source is PromptSource.LOCAL:
+            _render_full_local(match.hit)
+        else:
+            _render_full_sdd(console, match, result.query)
+
+    console.print()
+    console.print(_footer(result), soft_wrap=True)
+
+
+def _full_header(hit: PromptHit) -> Text:
+    """Return the per-hit header line: ``<badge> <locator> · <date>``."""
+    line = Text()
+    line.append_text(source_badge(hit.source))
+    line.append("  ")
+    line.append(hit.id, style="cyan")
+    line.append(" · ", style="dim")
+    line.append(format_search_date(hit.date), style="dim")
+    return line
+
+
+def _render_full_local(hit: PromptHit) -> None:
+    """Render a local hit by reusing ``sase prompt show``'s markdown verbatim.
+
+    The hit's ``id`` is the ``ph_<sha>`` selector ``prompt show`` already
+    accepts, so re-resolving the record and reusing :func:`render_prompt_markdown`
+    keeps the local full output byte-identical to ``prompt show -f markdown``. If
+    the entry vanished mid-run the body text is printed rather than crashing.
+    """
+    try:
+        record = resolve_prompt_selector(hit.id)
+    except PromptSelectorError:
+        sys.stdout.write(hit.text if hit.text.endswith("\n") else hit.text + "\n")
+        return
+    sys.stdout.write(render_prompt_markdown(record))
+
+
+def _render_full_sdd(console: Console, match: PromptSearchMatch, query: str) -> None:
+    """Render an SDD hit: a compact metadata header plus the highlighted body."""
+    hit = match.hit
+    for label, value in _sdd_metadata(hit):
+        meta = Text()
+        meta.append(f"{label}: ", style="dim")
+        meta.append(value, style="dim")
+        console.print(meta, soft_wrap=True)
+    console.print()
+    console.print(highlight_match(hit.text, query), soft_wrap=True)
+
+
+def _sdd_metadata(hit: PromptHit) -> list[tuple[str, str]]:
+    """Return the present ``(label, value)`` metadata rows for an SDD hit.
+
+    The date already appears in the per-hit header, so it is not repeated here;
+    only the SDD-specific fields that exist on the hit are shown.
+    """
+    rows: list[tuple[str, str]] = []
+    if hit.path:
+        rows.append(("path", hit.path))
+    if hit.plan:
+        rows.append(("plan", hit.plan))
+    if hit.tags:
+        rows.append(("tags", ", ".join(hit.tags)))
+    if hit.also_in_local:
+        rows.append(("note", "also in local history"))
+    return rows

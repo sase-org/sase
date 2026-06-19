@@ -304,22 +304,3 @@ def test_limit_zero_is_unlimited(
     out = capsys.readouterr().out
     assert "2 matches (0 SDD · 2 local)" in out
     assert "showing" not in out  # not truncated
-
-
-# ---------------------------------------------------------------------------
-# Deferred formats (json/full arrive in a later phase)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("fmt", ["json", "full"])
-def test_unimplemented_formats_exit_cleanly(
-    fmt: str,
-    repo: Path,
-    history_file: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    _seed(_entry("auth prompt", "260601_000000"))
-    with pytest.raises(SystemExit) as exc:
-        handle_prompt_search(_ns("auth", source="local", format=fmt))
-    assert exc.value.code == 2
-    assert fmt in capsys.readouterr().err

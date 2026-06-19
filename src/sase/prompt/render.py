@@ -61,6 +61,22 @@ def format_search_date(ts: str) -> str:
     return format_timestamp(ts)
 
 
+def format_search_date_iso(ts: str) -> str | None:
+    """Return a hit's date as an ISO ``YYYY-MM-DD`` string, or ``None``.
+
+    Used by the never-colored ``json`` search envelope, where an undatable hit
+    (the all-zero ``YYmmdd_HHMMSS`` floor or an empty anchor) is reported as
+    ``null`` rather than a misleading ``2000-00-00``.
+    """
+    if not ts or set(ts) <= {"0", "_"}:
+        return None
+    match = _TIMESTAMP_RE.match(ts)
+    if not match:
+        return None
+    yy, mm, dd = match.group(1, 2, 3)
+    return f"20{yy}-{mm}-{dd}"
+
+
 def highlight_match(
     value: str,
     query: str,

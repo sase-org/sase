@@ -41,7 +41,12 @@ def handle_prompt_show(args: argparse.Namespace) -> None:
     sys.exit(2)
 
 
-def _print_markdown(record: PromptHistoryRecord) -> None:
+def render_prompt_markdown(record: PromptHistoryRecord) -> str:
+    """Return the ``markdown`` rendering of *record*: metadata header + body.
+
+    Shared by ``sase prompt show -f markdown`` and the ``full`` search renderer
+    so a local search hit's full rendering never drifts from ``prompt show``.
+    """
     lines = [
         f"# Prompt {record.id}",
         "",
@@ -53,10 +58,12 @@ def _print_markdown(record: PromptHistoryRecord) -> None:
         f"- chars: {record.text_chars}",
         "",
     ]
-    sys.stdout.write("\n".join(lines) + "\n")
-    sys.stdout.write(record.text)
-    if not record.text.endswith("\n"):
-        sys.stdout.write("\n")
+    body = record.text if record.text.endswith("\n") else record.text + "\n"
+    return "\n".join(lines) + "\n" + body
+
+
+def _print_markdown(record: PromptHistoryRecord) -> None:
+    sys.stdout.write(render_prompt_markdown(record))
 
 
 def _print_json(record: PromptHistoryRecord) -> None:
