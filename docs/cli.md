@@ -12,7 +12,7 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase ace`                      | Open ACE, the interactive control surface for ChangeSpecs, live agents, notifications, and axe state.                | [ACE TUI](ace.md)                                     |
 | `sase run [PROMPT]`             | Launch an agent or workflow from a prompt, an xprompt reference, a workflow reference, history, or an editor buffer. | [XPrompts](xprompt.md), [workflows](workflow_spec.md) |
 | `sase agent list`               | List active and recent agents across projects.                                                                       | [ACE Agents tab](ace.md#tab-system)                   |
-| `sase agent show`               | Render one agent's detail panel by name, timestamp, or path.                                                         | [Agent attachments](agent_images.md)                  |
+| `sase agent show`               | Render one agent's detail panel by name.                                                                             | [Agent attachments](agent_images.md)                  |
 | `sase agent kill`               | Terminate a running agent.                                                                                           | [ACE TUI](ace.md)                                     |
 | `sase agent tag`                | Set, clear, or list user-defined agent tags used for grouping.                                                       | [ACE TUI](ace.md)                                     |
 | `sase agent archive`            | Maintain dismissed-agent bundle summary indexes (`rebuild-index`, `verify`).                                         | [ACE TUI](ace.md#agent-revival)                       |

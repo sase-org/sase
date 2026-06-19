@@ -341,6 +341,12 @@ For compatibility, existing basename ProjectSpecs are reused when their `WORKSPA
 Owner/repo fallback avoids basename routing when duplicate GitHub basenames would make that ambiguous; direct
 `owner/repo` refs match the GitHub workspace path first, then only use a basename fallback when it is unambiguous.
 
+ACE and the xprompt LSP provide a project/PR completion helper for these references. Type `#+` at a token boundary, or
+type `+` at the very start of a prompt, to open a picker of active launchable projects and active ChangeSpecs in `WIP`,
+`Draft`, `Ready`, or `Mailed` status. Accepting a project row inserts a tag such as `#gh:sase`; accepting a ChangeSpec
+row inserts a tag such as `#gh:my_change`. The helper filters by project name, project alias, or ChangeSpec name prefix,
+and it ignores system-managed `home`, inactive projects, sibling records, and non-launchable projects.
+
 Known-project lookup defaults to active ProjectSpecs. Inactive and sibling projects are omitted from broad project-local
 xprompt catalogs and normal VCS workspace resolution; an explicit reference to an inactive known project fails with a
 hint to run `sase project activate <project>` before launching new work. Management and history code paths that need

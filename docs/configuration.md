@@ -212,13 +212,13 @@ ace:
     max_auto_rows: 1
 ```
 
-| Field               | Type        | Default | Description                                                                                                  |
-| ------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------ |
-| `auto`              | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.    |
-| `debounce_ms`       | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                       |
-| `auto_file_paths`   | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false. |
-| `auto_xprompt_menu` | bool        | `true`  | Automatically open the xprompt completion menu while typing matching `#name` or `#!name` tokens.             |
-| `max_auto_rows`     | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                   |
+| Field               | Type        | Default | Description                                                                                                                                   |
+| ------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auto`              | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.                                     |
+| `debounce_ms`       | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                                                        |
+| `auto_file_paths`   | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.                                  |
+| `auto_xprompt_menu` | bool        | `true`  | Automatically open xprompt and project/PR completion menus while typing matching `#name`, `#!name`, `#+name`, or prompt-start `+name` tokens. |
+| `max_auto_rows`     | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                                                    |
 
 File-path completion roots relative lookups in the prompt-selected workspace. A resolvable `#cd` reference takes
 precedence; without `#cd`, registered workspace-provider refs and known-project refs such as `#git:<project>` or
@@ -336,16 +336,17 @@ commit:
 | `commit.finalizer.enabled`    | bool | `true`  | Run the post-invocation commit finalizer for SASE-launched agent sessions.           |
 | `commit.finalizer.max_passes` | int  | `2`     | Maximum follow-up invocations before a still-dirty enforced workspace fails the run. |
 
-When enabled, the finalizer checks the main workspace through the active VCS provider and checks configured
-`sibling_repos` Git worktrees only at their resolved sibling `workspace_dir` for the agent's assigned workspace number.
-Dirty enforced workspaces trigger a follow-up invocation that instructs the same provider to use the appropriate commit
-skill. Dirty static siblings (`workspace.strategy: none`) are reported to that follow-up as advisory work and do not
-fail the finalizer if they remain dirty. Advisory-only static sibling changes still get one follow-up prompt so the
-agent can commit them when it made those changes. When the only enforced change is one tracked markdown file under
-`sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or `sdd/myths/`, and that file's only diff is leading front matter changing
-exactly from `status: wip` to `status: done`, the finalizer creates a direct `chore: Mark SDD plan done` commit instead
-of invoking the provider again. When `$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and
-the final outcome is recorded in `commit_finalizer_result.json`.
+When enabled, the finalizer checks the main workspace through the active VCS provider. For configured `sibling_repos`
+Git worktrees using the numbered-workspace strategy, it checks only the resolved sibling `workspace_dir` entries that
+the agent run actually opened, as recorded in the run's artifacts. Dirty enforced workspaces trigger a follow-up
+invocation that instructs the same provider to use the appropriate commit skill. Dirty static siblings
+(`workspace.strategy: none`) are reported to that follow-up as advisory work and do not fail the finalizer if they
+remain dirty. Advisory-only static sibling changes still get one follow-up prompt so the agent can commit them when it
+made those changes. When the only enforced change is one tracked markdown file under `sdd/tales/`, `sdd/epics/`,
+`sdd/legends/`, or `sdd/myths/`, and that file's only diff is leading front matter changing exactly from `status: wip`
+to `status: done`, the finalizer creates a direct `chore: Mark SDD plan done` commit instead of invoking the provider
+again. When `$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and the final outcome is
+recorded in `commit_finalizer_result.json`.
 
 Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable name is historical; it now disables
 the provider-neutral finalizer.
@@ -355,8 +356,9 @@ Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructio
 ### sibling_repos
 
 Declares related repositories that should be visible to launched agents. Git sibling worktrees using numbered workspace
-resolution are also checked by the commit finalizer at their resolved `workspace_dir`. Entries can live in user config
-or a project-local `sase.yml`; local entries are resolved relative to the project's primary workspace directory.
+resolution are also eligible for commit-finalizer checks at their resolved `workspace_dir`, but only after the agent run
+opens that sibling workspace. Entries can live in user config or a project-local `sase.yml`; local entries are resolved
+relative to the project's primary workspace directory.
 
 ```yaml
 sibling_repos:
@@ -1069,16 +1071,18 @@ Command groups that default to a nested `list` command still parse flags at the 
 
 ### `sase ace`
 
-| Flag                     | Values              | Default                   | Description                                                                                                                                                                           |
-| ------------------------ | ------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.                                                                                                                                               |
-| `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations.                                                                                                                                          |
-| `-M, --model-size`       | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.                                                                                                                                                  |
-| `-p, --profile`          | optional path       | -                         | Profile the TUI session with pyinstrument (default output `$SASE_TMPDIR/ace_profile_<ts>.txt`); after exit, print a shortened path and copy it to the system clipboard when possible. |
-| `-r, --refresh-interval` | int (seconds)       | `10`                      | Auto-refresh interval (0 to disable).                                                                                                                                                 |
-| `-R, --restart-axe`      | flag                | -                         | Restart the axe daemon on startup (no-op if axe is not running).                                                                                                                      |
-| `-x, --no-axe`           | flag                | -                         | Disable auto-starting the axe daemon.                                                                                                                                                 |
-| `-v, --vcs-provider`     | `git`, `hg`, `auto` | -                         | Override VCS provider.                                                                                                                                                                |
+| Flag                     | Values                         | Default                   | Description                                                                                                                                                                           |
+| ------------------------ | ------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[query]`                | string                         | last saved query or `!!!` | Query string for filtering ChangeSpecs.                                                                                                                                               |
+| `-m, --model-tier`       | `large`, `small`               | -                         | Override model tier for all LLM invocations.                                                                                                                                          |
+| `-M, --model-size`       | `big`, `little`                | -                         | Deprecated alias for `--model-tier`.                                                                                                                                                  |
+| `-p, --profile`          | optional path                  | -                         | Profile the TUI session with pyinstrument (default output `$SASE_TMPDIR/ace_profile_<ts>.txt`); after exit, print a shortened path and copy it to the system clipboard when possible. |
+| `-r, --refresh-interval` | int (seconds)                  | `10`                      | Auto-refresh interval (0 to disable).                                                                                                                                                 |
+| `-R, --restart-axe`      | flag                           | -                         | Restart the axe daemon on startup (no-op if axe is not running).                                                                                                                      |
+| `-t, --tab`              | `changespecs`, `agents`, `axe` | `agents`                  | Tab to focus on startup.                                                                                                                                                              |
+| `-T, --tmux`             | flag                           | -                         | Launch ACE in a new tmux window named `sase_tmux_<N>` and print the session/window target for external control.                                                                       |
+| `-x, --no-axe`           | flag                           | -                         | Disable auto-starting the axe daemon.                                                                                                                                                 |
+| `-v, --vcs-provider`     | `git`, `hg`, `auto`            | -                         | Override VCS provider.                                                                                                                                                                |
 
 ### `sase axe`
 

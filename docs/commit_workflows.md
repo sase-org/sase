@@ -40,9 +40,10 @@ and injects an instruction telling the agent **not** to create commits directly.
 When a provider invocation succeeds inside a SASE-launched agent session, the provider-neutral **commit finalizer** runs
 in the shared LLM invocation layer before normal success postprocessing. In practice this means the process has
 `SASE_AGENT_TIMESTAMP` set. The finalizer checks the main workspace for uncommitted changes through the active VCS
-provider, and checks configured sibling repository workspace directories as Git worktrees. It does not scan arbitrary
-same-remote numbered workspaces just because their paths appear in run artifacts. If everything is clean, the agent
-response is postprocessed normally.
+provider. It enforces configured numbered sibling repositories only after the agent run actually opens that sibling
+workspace; the run records those opened siblings in its artifacts. Static siblings are still checked only as advisory
+work, as described below. It does not scan arbitrary same-remote numbered workspaces just because their paths appear in
+run artifacts. If everything is clean, the agent response is postprocessed normally.
 
 There are two special cases before the normal enforced-work follow-up path:
 
@@ -59,8 +60,9 @@ same provider. Each pass sends one follow-up prompt that lists dirty files and i
 such as `/sase_git_commit` or `/sase_hg_commit`. For the main workspace, the skill name is selected from the detected
 VCS provider; provider-specific generated skills can be scoped to the runtimes that support that provider. For
 configured sibling repos, the current finalizer checks `git status` only in the resolved sibling `workspace_dir`
-assigned to the same workspace number and emits Git commit-skill instructions that first `cd` into that sibling
-workspace. Non-static dirty siblings are enforced; static siblings are advisory as described above.
+assigned to the same workspace number after that sibling has been opened, and emits Git commit-skill instructions that
+first `cd` into that sibling workspace. Non-static dirty siblings are enforced after they are opened; static siblings
+are advisory as described above.
 
 Generated skills normally run an observable wrapper such as `sase_git_commit`, which records skill invocation evidence
 and then delegates to `sase commit`. A typical Git skill invocation omits `--type` because the xprompt already set
@@ -419,7 +421,7 @@ Qwen, OpenCode, and provider plugins share the same behavior.
 2. Resolve the project directory from provider/workspace environment variables.
 3. Check the main workspace through the VCS provider's diff helpers.
 4. Check configured sibling repos from `SASE_SIBLING_REPOS_JSON`, or from project config when available, with
-   `git status --porcelain`, limited to each sibling's resolved `workspace_dir`.
+   `git status --porcelain`, limited to each opened sibling's resolved `workspace_dir`.
 5. Auto-commit an exact tracked SDD markdown `status: wip` to `status: done` closeout when that is the only enforced
    change and the file is under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or `sdd/myths/`.
 6. If dirty enforced repos or advisory static siblings exist, run follow-up provider invocations up to
@@ -434,8 +436,9 @@ Configured sibling repos are resolved to workspace-matched directories before ag
 `sase_10` sees a `../sase-core` sibling as `sase-core_10` when that checkout is available or can be materialized. Repos
 configured with `workspace.strategy: none` are exposed to the agent and reported as advisory dirty targets when they are
 Git repos, but they are not enforced because their singleton ownership is ambiguous. The current sibling dirty-check
-path is Git-specific: non-Git sibling paths can still be exposed to the agent through environment variables and
-metadata, but the finalizer does not enforce them as dirty targets.
+path is Git-specific and opened-workspace gated: non-Git sibling paths can still be exposed to the agent through
+environment variables and metadata, and unopened numbered siblings are ignored, but the finalizer does not enforce them
+as dirty targets.
 
 When the only enforced dirty state is the exact SDD status closeout described above, the finalizer creates the commit
 itself instead of running a follow-up provider invocation. The result artifact records

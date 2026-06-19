@@ -129,9 +129,11 @@ SASE keeps durable state outside any one chat session:
   directives, xprompts, slash skills, paths, and recent file references, plus a `Ctrl+R` recursive fuzzy file finder.
   Relative path lookup is prompt-aware: a resolvable `#cd` reference wins. When no `#cd` reference is present,
   registered workspace-provider refs and known-project refs such as `#git:sase` or `#gh:sase-org/sase` can root
-  completion in that project checkout. If no prompt workspace ref resolves, ACE uses the TUI process directory. When ACE
-  loads a prompt with literal top-level `---` multi-agent separators, it renders a stack of prompt panes so each agent
-  segment can be edited, reordered, launched individually, or submitted together in top-to-bottom order. In prompt
+  completion in that project checkout. Typing `+` at the start of a prompt, or `#+` at a token boundary, opens a
+  projects-and-PRs picker for active launchable projects and active ChangeSpecs; accepting a row inserts the canonical
+  VCS workspace tag such as `#gh:sase`. If no prompt workspace ref resolves, ACE uses the TUI process directory. When
+  ACE loads a prompt with literal top-level `---` multi-agent separators, it renders a stack of prompt panes so each
+  agent segment can be edited, reordered, launched individually, or submitted together in top-to-bottom order. In prompt
   NORMAL mode, use `g-` to add panes, `gj`/`gk` to focus panes, and `gJ`/`gK` to reorder them. Prompt-level frontmatter
   is edited from the Frontmatter Panel with `g=`, and draft panes can be stashed with `gs`/`gS` and loaded or restored
   with `gp`/`gP`. Use `%wait` when one segment must wait for another to finish.
@@ -152,13 +154,14 @@ SASE keeps durable state outside any one chat session:
   protocol as the TUI. Approval kinds decide whether the runner starts a coder without committing an SDD plan, commits
   the plan as a tale/epic/legend before the follow-up, or records the approved plan in SDD and stops there.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
-  provider-neutral finalizer checks the main workspace and configured Git sibling workspace directories for uncommitted
-  changes. Static siblings (`workspace.strategy: none`) are reported as advisory work that the agent may commit when it
-  made those changes, but they do not fail the run if they remain dirty. If the only enforced change is one tracked SDD
-  markdown file under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or `sdd/myths/` whose leading front matter changes
-  exactly from `status: wip` to `status: done`, SASE commits that closeout directly. Other dirty enforced workspaces
-  trigger bounded follow-up invocations that tell the same agent to use the configured commit skill; if enforced
-  workspaces are still dirty after the configured pass limit, the agent run fails with a clear artifact trail.
+  provider-neutral finalizer checks the main workspace and enforces only the configured numbered Git sibling workspaces
+  that the run actually opened. Static siblings (`workspace.strategy: none`) are reported as advisory work that the
+  agent may commit when it made those changes, but they do not fail the run if they remain dirty. If the only enforced
+  change is one tracked SDD markdown file under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or `sdd/myths/` whose
+  leading front matter changes exactly from `status: wip` to `status: done`, SASE commits that closeout directly. Other
+  dirty enforced workspaces trigger bounded follow-up invocations that tell the same agent to use the configured commit
+  skill; if enforced workspaces are still dirty after the configured pass limit, the agent run fails with a clear
+  artifact trail.
 - **Durable artifacts** - Agent metadata, chats, notifications, prompt history, dismissed-agent bundles, saved agent
   groups, ChangeSpecs, SDD files, and beads are stored in predictable project/user directories so ACE, AXE, CLI
   commands, and external integrations can share state. Long-term memory reads and write proposals are also

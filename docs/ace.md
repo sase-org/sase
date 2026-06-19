@@ -27,6 +27,7 @@ suffixes.
 | `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                              |
 | `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)              |
 | `-t`, `--tab`              | Tab to focus on startup (`changespecs`, `agents`, `axe`; default: `agents`) |
+| `-T`, `--tmux`             | Launch ACE in a new tmux window and print the target for external control   |
 
 When profiling is enabled, ACE writes text output to `PATH` or `$SASE_TMPDIR/ace_profile_<ts>.txt`, prints the shortened
 path on exit, and copies that path when a clipboard tool is available.
@@ -1710,6 +1711,12 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   visible typed inputs, with required arguments shown as `name: type` and optional arguments shown as `name?: type` plus
   a default when the default is a simple scalar. Standalone workflow references use the `#!name` insertion form; typing
   `#!` filters completion to entries whose canonical insertion starts with `#!`.
+- **Project/PR completion**: When the cursor is on a `#+` token, or on a `+` token at the very start of the prompt,
+  completion opens a `projects & PRs` picker. The picker contains active launchable projects plus active ChangeSpecs in
+  `WIP`, `Draft`, `Ready`, or `Mailed` status; system-managed `home`, inactive projects, sibling records, and
+  non-launchable projects are excluded. Typing after the trigger filters by project name, project alias, or ChangeSpec
+  name prefix. Accepting a row inserts the canonical workspace tag such as `#gh:sase` or `#gh:my_change`, replacing
+  existing line-start VCS tags when present or placing the tag after leading frontmatter/directives when no tag exists.
 - **Slash-skill completion**: When the cursor is on a slash-skill token such as `/` or `/sase_`, completion filters the
   same catalog to xprompts marked as `skill: true` and inserts `/skill_name`. Packaged built-in skills are included, so
   `/sase_plan`, `/sase_questions`, and other bundled SASE skills are available without a project-local xprompt file.
@@ -1753,10 +1760,11 @@ the prompt as typed, so live suggestions cannot accidentally replace text on sen
 
 Live soft completion covers directives, xprompt names, xprompt argument names, and bool argument values. File-path soft
 completion is disabled by default because it can scan the filesystem while typing; enable it with
-`ace.prompt_completion.auto_file_paths: true`. The xprompt menu also opens automatically while typing matching `#name`
-or `#!name` tokens; disable that menu with `ace.prompt_completion.auto_xprompt_menu: false`. Manual `Ctrl+T` completion
-still supports file paths and xprompt names regardless of those settings. Live suggestions pause while the manual
-completion panel is open, while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
+`ace.prompt_completion.auto_file_paths: true`. The xprompt/project menu also opens automatically while typing matching
+`#name`, `#!name`, `#+name`, or prompt-start `+name` tokens; disable that menu with
+`ace.prompt_completion.auto_xprompt_menu: false`. Manual `Ctrl+T` completion still supports file paths, xprompt names,
+and project/PR tags regardless of those settings. Live suggestions pause while the manual completion panel is open,
+while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The
