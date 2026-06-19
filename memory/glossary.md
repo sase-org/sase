@@ -32,6 +32,13 @@ part of the prompt).
 **Root Agent/Workflow Entry**  
 Any agent row entry on the "Agents" tab of the `sase ace` TUI that has child entries.
 
+**VCS Project Completion (`+`)**  
+A `+` at the start of a prompt, at its end, or after a space/newline opens a completion menu of active projects.
+Selecting one prepends that project's VCS xprompt workflow tag (e.g. `#gh:sase`), removes the `+query` token, and
+replaces any existing leading VCS tag. Works in the `sase ace` TUI prompt input and in Neovim via the xprompt LSP (`+`
+trigger character). The expansion is one canonical algorithm mirrored in Python (`xprompt/vcs_project_completion.py`)
+and Rust (`sase-core editor/completion.rs`), kept in parity by a shared golden-vector table.
+
 **xprompt**  
 Triggered with `#foo` in agent prompts. Defined in an xprompts/ directory (.md or .yml file) or in
 ~/.config/sase/sase.yml (`xprompts` field).
