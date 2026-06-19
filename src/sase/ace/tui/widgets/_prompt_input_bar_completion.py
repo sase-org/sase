@@ -11,11 +11,13 @@ from sase.ace.tui.widgets.directive_completion import DirectiveCompletionMetadat
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
 from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
+from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
     XPromptAssistEntry,
     append_input_hints,
 )
+from sase.xprompt.vcs_project_completion import VcsProjectEntry
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
@@ -62,6 +64,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_history = completion_kind == "file_history"
         is_arg_completion = completion_kind in ("xprompt_arg_name", "xprompt_arg_value")
         is_jinja = completion_kind == "jinja"
+        is_vcs_project = completion_kind == VCS_PROJECT_COMPLETION_KIND
         panel.remove_class("jinja-diagnostics")
         panel.remove_class("jinja-error")
         panel.remove_class("jinja-warning")
@@ -79,6 +82,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
                 self._append_xprompt_completion_row(content, candidate, is_selected)
             elif is_directive:
                 self._append_directive_completion_row(content, candidate, is_selected)
+            elif is_vcs_project:
+                self._append_vcs_project_completion_row(content, candidate, is_selected)
             elif is_arg_completion:
                 content.append(
                     candidate.display,
@@ -108,6 +113,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
             panel.border_title = "xprompts"
         elif is_directive:
             panel.border_title = "directives"
+        elif is_vcs_project:
+            panel.border_title = "projects"
         elif completion_kind == "xprompt_arg_name":
             panel.border_title = "xprompt arg names"
         elif completion_kind == "xprompt_arg_value":
@@ -191,6 +198,34 @@ class PromptInputBarCompletionMixin(_MixinBase):
             details.append(metadata.description)
         if details:
             content.append(f"  {'  '.join(details)}", style="dim")
+
+    def _append_vcs_project_completion_row(
+        self,
+        content: Text,
+        candidate: CompletionCandidate,
+        is_selected: bool,
+    ) -> None:
+        """Append one ``+`` project completion row.
+
+        Layout: the project name in an accent color, its provider, the resulting
+        ``#gh:sase`` tag dimmed as the expansion hint, then the description. The
+        empty-catalog placeholder (no :class:`VcsProjectEntry` metadata) renders
+        as a single dim row.
+        """
+        entry = (
+            candidate.metadata
+            if isinstance(candidate.metadata, VcsProjectEntry)
+            else None
+        )
+        if entry is None:
+            content.append(candidate.display, style="dim italic")
+            return
+
+        content.append(entry.name, style="bold cyan" if is_selected else "cyan")
+        content.append(f"  {entry.provider_display}", style="dim")
+        content.append(f"  {entry.display_tag}", style="dim green")
+        if entry.description:
+            content.append(f"  {entry.description}", style="dim")
 
     def _append_jinja_completion_row(
         self,

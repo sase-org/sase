@@ -72,6 +72,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         def _try_advance_tabstop(self) -> bool: ...
         def _try_expand_snippet(self) -> bool: ...
         def _try_file_completion_tab(self) -> bool: ...
+        def _try_vcs_project_completion(self) -> bool: ...
         def action_open_editor(self) -> None: ...
         def action_open_prompt_history(self) -> None: ...
         def action_submit_prompt(self) -> None: ...
@@ -305,6 +306,16 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self._vcs_mru_index = None
 
         self._refresh_file_completion_from_cursor()
+        # Auto-open the ``+`` project completion menu when a ``+`` is typed at a
+        # valid trigger position (BOF / after whitespace / line start). The
+        # refresh above already narrows an open menu, so only try to open when
+        # one is not already active.
+        if (
+            event.character == "+"
+            and self._vim_mode == "insert"
+            and not self._file_completion_active
+        ):
+            self._try_vcs_project_completion()
         self._refresh_xprompt_arg_hint_from_cursor()
         self._on_prompt_completion_context_changed()
 

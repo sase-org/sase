@@ -34,6 +34,16 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     detect_xprompt_arg_hint_at_cursor,
     xprompt_completion_skeleton,
 )
+from sase.ace.tui.widgets.vcs_project_completion import (
+    VCS_PROJECT_COMPLETION_KIND,
+    build_no_active_projects_placeholder,
+    vcs_project_completion_candidates,
+)
+from sase.xprompt.vcs_project_completion import (
+    VcsProjectEntry,
+    apply_vcs_project_selection,
+    build_vcs_project_completion_entries,
+)
 
 
 class FileCompletionMixin(FileCompletionContextMixin):
@@ -111,6 +121,75 @@ class FileCompletionMixin(FileCompletionContextMixin):
         if clear_xprompt_arg_hint:
             self._clear_xprompt_arg_hint()
 
+    def _warm_vcs_project_completion_catalog(self) -> None:
+        """Warm the ``+`` project catalog off the keystroke path.
+
+        The catalog build touches disk (project enumeration + provider
+        detection), so it must never run synchronously inside key handling
+        (``memory/tui_perf.md``). Building once in a background thread populates
+        the module-level cache in :mod:`sase.xprompt.vcs_project_completion`, so
+        the first ``+`` opens the menu instantly. Gated on the real app's
+        completion-settings capability so lightweight test harnesses skip it.
+        """
+        if getattr(self, "_vcs_project_catalog_warmed", False):
+            return
+        if not callable(getattr(self.app, "get_prompt_completion_settings", None)):
+            return
+        self._vcs_project_catalog_warmed = True
+        self.run_worker(
+            build_vcs_project_completion_entries,
+            name="prompt-vcs-project-catalog",
+            thread=True,
+        )
+
+    def _try_vcs_project_completion(self) -> bool:
+        """Open the ``+`` project completion menu at a ``+token``.
+
+        Returns ``True`` when a ``+`` trigger is present (menu opened, empty-state
+        row shown, or query matched nothing and the menu was dismissed), so the
+        caller stops dispatching other completion kinds. Returns ``False`` only
+        when there is no ``+`` trigger or the bar is not in prompt mode.
+        """
+        bar = self._find_prompt_bar()
+        if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
+            return False
+        trigger = self._get_vcs_project_trigger()
+        if trigger is None:
+            return False
+
+        candidates, catalog_empty = vcs_project_completion_candidates(trigger.query)
+        if catalog_empty:
+            candidates = [build_no_active_projects_placeholder()]
+        elif not candidates:
+            self._clear_file_completion()
+            return True
+
+        self._completion_kind = VCS_PROJECT_COMPLETION_KIND
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(trigger.query)
+        return True
+
+    def _accept_vcs_project_completion(self, selected: CompletionCandidate) -> bool:
+        """Apply the canonical expansion for the selected project candidate."""
+        entry = selected.metadata
+        if not isinstance(entry, VcsProjectEntry):
+            # The "no active projects" placeholder is not selectable.
+            self._clear_file_completion()
+            return False
+        trigger = self._get_vcs_project_trigger()
+        if trigger is None:
+            self._clear_file_completion()
+            return False
+        old_text = self.text
+        new_text = apply_vcs_project_selection(
+            old_text, trigger.span, entry.display_tag
+        )
+        self._replace_absolute_range(0, len(old_text), new_text)
+        self._clear_file_completion()
+        return True
+
     def _accept_xprompt_completion_candidate(
         self,
         selected: CompletionCandidate,
@@ -163,6 +242,10 @@ class FileCompletionMixin(FileCompletionContextMixin):
             )
             self._update_file_completion_panel("" if result is None else result.prefix)
             return True
+        if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:
+            trigger = self._get_vcs_project_trigger()
+            self._update_file_completion_panel("" if trigger is None else trigger.query)
+            return True
         ctx = self._get_token_context()
         self._update_file_completion_panel("" if ctx is None else ctx[3])
         return True
@@ -172,6 +255,8 @@ class FileCompletionMixin(FileCompletionContextMixin):
         if not self._file_completion_active or not self._file_completion_candidates:
             return False
         selected = self._file_completion_candidates[self._file_completion_index]
+        if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:
+            return self._accept_vcs_project_completion(selected)
         if self._completion_kind == "jinja":
             result = build_jinja_completion_result(
                 self.text,
@@ -291,6 +376,37 @@ class FileCompletionMixin(FileCompletionContextMixin):
             self._update_file_completion_panel(result.prefix)
             return
 
+        if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:
+            trigger = self._get_vcs_project_trigger()
+            if trigger is None:
+                self._clear_file_completion()
+                return
+            candidates, catalog_empty = vcs_project_completion_candidates(trigger.query)
+            if catalog_empty:
+                self._file_completion_candidates = [
+                    build_no_active_projects_placeholder()
+                ]
+                self._file_completion_index = 0
+                self._update_file_completion_panel(trigger.query)
+                return
+            if not candidates:
+                self._clear_file_completion()
+                return
+            previous = None
+            if self._file_completion_candidates:
+                previous = self._file_completion_candidates[
+                    self._file_completion_index
+                ].name
+            self._file_completion_candidates = candidates
+            self._file_completion_index = 0
+            if previous is not None:
+                for i, candidate in enumerate(candidates):
+                    if candidate.name == previous:
+                        self._file_completion_index = i
+                        break
+            self._update_file_completion_panel(trigger.query)
+            return
+
         # file_history mode has no active token — any edit that creates one
         # at the cursor dismisses. Cursor movement within whitespace is fine.
         if self._completion_kind == "file_history":
@@ -351,6 +467,9 @@ class FileCompletionMixin(FileCompletionContextMixin):
 
     def _try_file_completion_tab(self) -> bool:
         """Handle Ctrl+T-driven completion for path, xprompt, or history."""
+        if self._try_vcs_project_completion():
+            return True
+
         cursor_offset = self._absolute_offset(self.cursor_location)
         jinja_result = build_jinja_completion_result(self.text, cursor_offset)
         if jinja_result is not None:

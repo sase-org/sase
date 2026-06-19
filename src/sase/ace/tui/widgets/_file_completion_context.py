@@ -35,6 +35,10 @@ from sase.ace.tui.widgets.xprompt_completion import (
     build_xprompt_completion_candidates,
     is_xprompt_like_token,
 )
+from sase.xprompt.vcs_project_completion import (
+    VcsProjectTrigger,
+    find_vcs_project_trigger,
+)
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -217,6 +221,16 @@ class FileCompletionContextMixin(_MixinBase):
             cursor_offset,
             self._get_xprompt_arg_assist_entries(),
         )
+
+    def _get_vcs_project_trigger(self) -> VcsProjectTrigger | None:
+        """Return the ``+query`` trigger span at the cursor, or ``None``.
+
+        Used by the ``+`` project completion menu to detect the trigger token,
+        narrow the candidate list as the query grows, and locate the span the
+        canonical expansion transform must consume on accept.
+        """
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        return find_vcs_project_trigger(self.text, cursor_offset)
 
     def _get_xprompt_arg_token_context(self) -> tuple[int, int, int, str] | None:
         """Return row-local token context for active xprompt argument completion."""
