@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shlex
 from pathlib import Path
 from unittest.mock import patch
 
@@ -71,41 +70,6 @@ def corpus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _run(argv: list[str]) -> argparse.Namespace:
     return create_parser().parse_args(argv)
-
-
-# --- CLI <-> skill contract ---------------------------------------------
-
-
-def _skill_search_examples() -> list[str]:
-    """Every `sase plan search ...` example documented in the skill source."""
-    source_path = (
-        Path(__file__).resolve().parents[1]
-        / "src"
-        / "sase"
-        / "xprompts"
-        / "skills"
-        / "sase_plan_search.md"
-    )
-    source = source_path.read_text(encoding="utf-8")
-    return [
-        line.strip()
-        for line in source.splitlines()
-        if line.strip().startswith("sase plan search")
-    ]
-
-
-def test_skill_examples_parse_against_cli_contract() -> None:
-    """Documented skill examples must stay valid against the real parser."""
-    examples = _skill_search_examples()
-    # Guard against the extractor silently matching nothing.
-    assert len(examples) >= 5
-
-    for example in examples:
-        tokens = shlex.split(example)
-        # Drop the leading `sase` program token before handing argv to argparse.
-        args = create_parser().parse_args(tokens[1:])
-        assert args.command == "plan"
-        assert args.plan_subcommand == "search"
 
 
 # --- flag parsing --------------------------------------------------------

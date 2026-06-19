@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 10:43:56
-status: wip
+status: done
 prompt: sdd/prompts/202606/remove_plan_search_skill.md
 ---
 # Remove unintended plan-search skill

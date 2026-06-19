@@ -76,10 +76,6 @@ sdd/tales/202605/perf_artifacts/agent_launch_regression_check.json
 # Override global gitignore rule that ignores 'core'
 !src/sase/core/
 
-# Override global gitignore rule (`sase_plan_*`, for scratch plan files) so
-# tracked skill source templates like `sase_plan_search.md` are not ignored.
-!src/sase/xprompts/skills/sase_plan_*.md
-
 # Phase 7 perf artifacts that capture private home-tree data; keep raw
 # JSON local and link to it from the surface's handoff per
 # sdd/tales/202604/perf_artifacts/README.md.
