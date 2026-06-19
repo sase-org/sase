@@ -1,0 +1,148 @@
+"""Refresh active prompt file completions after cursor or text changes."""
+
+from __future__ import annotations
+
+from sase.ace.tui.widgets._file_completion_accept import FileCompletionAcceptMixin
+from sase.ace.tui.widgets._file_completion_xprompt_args import (
+    build_xprompt_arg_completion_candidates,
+)
+from sase.ace.tui.widgets.directive_completion import (
+    build_directive_completion_candidates,
+)
+from sase.ace.tui.widgets.file_completion import build_completion_candidates
+from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.ace.tui.widgets.vcs_project_completion import (
+    VCS_PROJECT_COMPLETION_KIND,
+    build_no_active_projects_placeholder,
+    vcs_project_completion_candidates,
+)
+
+
+class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
+    """Mixin providing active completion refresh behavior."""
+
+    def _refresh_file_completion_from_cursor(self) -> None:
+        """Recompute active completions after edits or cursor movement."""
+        if not self._file_completion_active:
+            return
+
+        if self._completion_kind == "jinja":
+            result = build_jinja_completion_result(
+                self.text,
+                self._absolute_offset(self.cursor_location),
+            )
+            if result is None or not result.candidates:
+                self._clear_file_completion()
+                return
+            previous = None
+            if self._file_completion_candidates:
+                previous = self._file_completion_candidates[
+                    self._file_completion_index
+                ].insertion
+            self._file_completion_candidates = result.candidates
+            if previous is not None:
+                for i, candidate in enumerate(result.candidates):
+                    if candidate.insertion == previous:
+                        self._file_completion_index = i
+                        break
+                else:
+                    self._file_completion_index = min(
+                        self._file_completion_index,
+                        len(result.candidates) - 1,
+                    )
+            else:
+                self._file_completion_index = min(
+                    self._file_completion_index,
+                    len(result.candidates) - 1,
+                )
+            self._update_file_completion_panel(result.prefix)
+            return
+
+        if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:
+            trigger = self._get_vcs_project_trigger()
+            if trigger is None:
+                self._clear_file_completion()
+                return
+            candidates, catalog_empty = vcs_project_completion_candidates(trigger.query)
+            if catalog_empty:
+                self._file_completion_candidates = [
+                    build_no_active_projects_placeholder()
+                ]
+                self._file_completion_index = 0
+                self._update_file_completion_panel(trigger.query)
+                return
+            if not candidates:
+                self._clear_file_completion()
+                return
+            previous = None
+            if self._file_completion_candidates:
+                previous = self._file_completion_candidates[
+                    self._file_completion_index
+                ].name
+            self._file_completion_candidates = candidates
+            self._file_completion_index = 0
+            if previous is not None:
+                for i, candidate in enumerate(candidates):
+                    if candidate.name == previous:
+                        self._file_completion_index = i
+                        break
+            self._update_file_completion_panel(trigger.query)
+            return
+
+        # file_history mode has no active token - any edit that creates one
+        # at the cursor dismisses. Cursor movement within whitespace is fine.
+        if self._completion_kind == "file_history":
+            if self._extract_token_around_cursor() is not None:
+                self._clear_file_completion()
+            return
+
+        ctx = self._get_token_context()
+        if ctx is None:
+            self._clear_file_completion()
+            return
+
+        _row, _start, _end, token = ctx
+        base_dir = self._prompt_completion_base_dir()
+        previous = None
+        if self._file_completion_candidates:
+            previous = self._file_completion_candidates[
+                self._file_completion_index
+            ].insertion
+        if self._completion_kind == "xprompt":
+            candidates, _shared = self._build_xprompt_completion_candidates(token)
+        elif self._completion_kind == "directive":
+            candidates, _shared = build_directive_completion_candidates(token)
+        elif self._completion_kind.startswith("xprompt_arg_"):
+            arg_ctx = self._get_xprompt_arg_completion_context()
+            if arg_ctx is None:
+                self._clear_file_completion()
+                return
+            candidates, _shared = build_xprompt_arg_completion_candidates(
+                arg_ctx,
+                base_dir=base_dir,
+            )
+        else:
+            candidates, _shared = build_completion_candidates(
+                token,
+                base_dir=base_dir,
+            )
+        if not candidates:
+            self._clear_file_completion()
+            return
+
+        self._file_completion_candidates = candidates
+        if previous is not None:
+            for i, candidate in enumerate(candidates):
+                if candidate.insertion == previous:
+                    self._file_completion_index = i
+                    break
+            else:
+                self._file_completion_index = min(
+                    self._file_completion_index, len(candidates) - 1
+                )
+        else:
+            self._file_completion_index = min(
+                self._file_completion_index, len(candidates) - 1
+            )
+
+        self._update_file_completion_panel(token)
