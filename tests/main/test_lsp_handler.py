@@ -16,6 +16,7 @@ from sase.integrations.xprompt_lsp import (
     SASE_XPROMPT_PACKAGE_DIR_ENV,
     SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV,
     SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV,
+    SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV,
     _XPromptLspLaunchError,
     _build_xprompt_lsp_argv,
     _prepare_xprompt_lsp_environment,
@@ -92,6 +93,75 @@ def test_prepare_lsp_environment_sets_package_catalog_paths(tmp_path: Path) -> N
     assert env[SASE_XPROMPT_BUILTIN_DIR_ENV] == "/custom/xprompts"
     assert env[SASE_XPROMPT_DEFAULT_DIR_ENV] == str(package_dir / "default_xprompts")
     assert env[SASE_DEFAULT_CONFIG_PATH_ENV] == str(package_dir / "default_config.yml")
+
+
+def test_prepare_lsp_environment_materializes_vcs_project_catalog(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / "vcs_project_catalog.json"
+    env: dict[str, str] = {
+        SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV: str(catalog_path),
+    }
+    payload = {
+        "schema_version": 1,
+        "workflow_names": ["gh", "git"],
+        "entries": [
+            {
+                "name": "sase",
+                "vcs_prefix": "gh",
+                "display_tag": "#gh:sase",
+                "provider_display": "GitHub",
+                "description": "",
+                "aliases": [],
+            }
+        ],
+    }
+
+    with patch(
+        "sase.xprompt.vcs_project_completion.vcs_project_catalog_payload",
+        return_value=payload,
+    ):
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    assert env[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV] == str(catalog_path)
+    assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
+
+
+def test_prepare_lsp_environment_defaults_vcs_catalog_path(tmp_path: Path) -> None:
+    env: dict[str, str] = {}
+    payload = {"schema_version": 1, "workflow_names": [], "entries": []}
+
+    with patch(
+        "sase.xprompt.vcs_project_completion.vcs_project_catalog_payload",
+        return_value=payload,
+    ):
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    catalog_path = Path(env[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV])
+    assert catalog_path.name == "vcs_project_catalog.json"
+    assert catalog_path.parent.name == "xprompt_lsp"
+    assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
+
+
+def test_prepare_lsp_environment_swallows_vcs_catalog_failure(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / "vcs_project_catalog.json"
+    env: dict[str, str] = {
+        SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV: str(catalog_path),
+    }
+
+    with patch(
+        "sase.xprompt.vcs_project_completion.vcs_project_catalog_payload",
+        side_effect=RuntimeError("boom"),
+    ):
+        # A broken catalog build must never propagate out of env preparation.
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    # The path is still exported (a later rewrite is honored), but the failed
+    # build leaves no file behind.
+    assert env[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV] == str(catalog_path)
+    assert not catalog_path.exists()
 
 
 def test_prepare_lsp_environment_emits_plugin_metadata(tmp_path: Path) -> None:

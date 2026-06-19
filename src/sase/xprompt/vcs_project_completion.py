@@ -26,11 +26,19 @@ from pathlib import Path
 
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
-from sase.workspace_provider import detect_workflow_type, get_display_name
+from sase.workspace_provider import (
+    detect_workflow_type,
+    get_display_name,
+    get_workflow_names,
+)
 from sase.xprompt import _parsing
 
 # The system-managed project that must never appear as a completion candidate.
 _HOME_PROJECT_NAME = "home"
+
+# Schema version for the materialized JSON catalog handed to the Rust LSP. Bump
+# when the on-disk shape changes; the Rust loader tolerates unknown extra keys.
+VCS_PROJECT_CATALOG_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -176,6 +184,46 @@ def clear_vcs_project_completion_cache() -> None:
     _ENTRIES_CACHE = None
 
 
+def vcs_project_catalog_payload(
+    projects_dir: Path | str | None = None,
+) -> dict[str, object]:
+    """Return the JSON-serializable ``vcs_project`` completion catalog.
+
+    Bundles the active-project entries (from
+    :func:`build_vcs_project_completion_entries`) with the full set of known VCS
+    workflow names. The names let the out-of-process Rust LSP replace *any*
+    existing workflow tag in a prompt (e.g. ``#git:foo``), not just those of
+    active projects, keeping its expansion byte-identical to the Python/TUI
+    side. This is the on-disk contract consumed by ``sase-xprompt-lsp``,
+    materialized at LSP launch by :mod:`sase.integrations.xprompt_lsp`.
+
+    Args:
+        projects_dir: Projects root to enumerate. Defaults to the SASE projects
+            directory.
+
+    Returns:
+        A mapping with ``schema_version``, sorted ``workflow_names``, and the
+        ordered ``entries`` list (each a plain dict mirroring
+        :class:`VcsProjectEntry`).
+    """
+    entries = build_vcs_project_completion_entries(projects_dir)
+    return {
+        "schema_version": VCS_PROJECT_CATALOG_SCHEMA_VERSION,
+        "workflow_names": sorted(get_workflow_names()),
+        "entries": [
+            {
+                "name": entry.name,
+                "vcs_prefix": entry.vcs_prefix,
+                "display_tag": entry.display_tag,
+                "provider_display": entry.provider_display,
+                "description": entry.description,
+                "aliases": list(entry.aliases),
+            }
+            for entry in entries
+        ],
+    }
+
+
 def filter_vcs_project_entries(
     entries: list[VcsProjectEntry],
     query: str,
@@ -302,6 +350,7 @@ def apply_vcs_project_selection(
 
 
 __all__ = [
+    "VCS_PROJECT_CATALOG_SCHEMA_VERSION",
     "VcsProjectEntry",
     "VcsProjectTrigger",
     "apply_vcs_project_selection",
@@ -309,4 +358,5 @@ __all__ = [
     "clear_vcs_project_completion_cache",
     "filter_vcs_project_entries",
     "find_vcs_project_trigger",
+    "vcs_project_catalog_payload",
 ]

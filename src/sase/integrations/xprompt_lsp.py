@@ -13,6 +13,7 @@ from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import NoReturn
 
+from sase.core.paths import sase_subdir
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
 SASE_XPROMPT_LSP_CMD_ENV = "SASE_XPROMPT_LSP_CMD"
@@ -22,6 +23,7 @@ SASE_XPROMPT_DEFAULT_DIR_ENV = "SASE_XPROMPT_DEFAULT_DIR"
 SASE_DEFAULT_CONFIG_PATH_ENV = "SASE_DEFAULT_CONFIG_PATH"
 SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV = "SASE_XPROMPT_PLUGIN_DIRS_JSON"
 SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV = "SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON"
+SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV = "SASE_XPROMPT_VCS_PROJECT_CATALOG"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -144,6 +146,39 @@ def _prepare_xprompt_lsp_environment(
     if SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV not in environ:
         environ[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV] = json.dumps(
             _discover_plugin_config_paths()
+        )
+    _materialize_vcs_project_catalog(environ)
+
+
+def _default_vcs_project_catalog_path() -> Path:
+    """Return the default on-disk location for the LSP project catalog."""
+    return sase_subdir("xprompt_lsp") / "vcs_project_catalog.json"
+
+
+def _materialize_vcs_project_catalog(environ: MutableMapping[str, str]) -> None:
+    """Write the active-project completion catalog and expose its path.
+
+    The Rust xprompt LSP re-reads this JSON file on every ``+`` completion
+    request, so project changes are reflected after the file is rewritten.
+    Writing is best-effort: an empty or missing catalog only means the ``+``
+    menu shows nothing, and must never prevent the LSP from starting. The path
+    is exported regardless so a later rewrite is still picked up.
+    """
+    existing = environ.get(SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV)
+    path = Path(existing) if existing else _default_vcs_project_catalog_path()
+    environ[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV] = str(path)
+    try:
+        from sase.xprompt.vcs_project_completion import (
+            vcs_project_catalog_payload,
+        )
+
+        payload = vcs_project_catalog_payload()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001 - never block LSP startup on catalog errors.
+        print(
+            f"Warning: failed to materialize VCS project catalog: {exc}",
+            file=sys.stderr,
         )
 
 

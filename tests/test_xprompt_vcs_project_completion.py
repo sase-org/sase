@@ -18,12 +18,14 @@ from sase.core.project_lifecycle_wire import (
 )
 from sase.xprompt import vcs_project_completion as vpc
 from sase.xprompt.vcs_project_completion import (
+    VCS_PROJECT_CATALOG_SCHEMA_VERSION,
     VcsProjectEntry,
     apply_vcs_project_selection,
     build_vcs_project_completion_entries,
     clear_vcs_project_completion_cache,
     filter_vcs_project_entries,
     find_vcs_project_trigger,
+    vcs_project_catalog_payload,
 )
 
 # A replace pattern covering gh/git/hg regardless of which workspace-provider
@@ -341,6 +343,48 @@ def test_returned_list_is_isolated_from_cache(tmp_path) -> None:
         second = build_vcs_project_completion_entries(projects_dir=tmp_path)
 
     assert [e.name for e in second] == ["sase"]
+
+
+# --- Catalog payload (the LSP materialization contract) --------------------
+
+
+def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
+    records = [_record("sase"), _record("bob", aliases=["bobby"])]
+    workflow_types = {"sase": "gh", "bob": "git"}
+    display_names = {"gh": "GitHub", "git": "Git (bare)"}
+    list_p, detect_p, display_p = _patch_catalog(records, workflow_types, display_names)
+
+    with (
+        list_p,
+        detect_p,
+        display_p,
+        patch.object(vpc, "get_workflow_names", return_value={"hg", "gh", "git"}),
+    ):
+        payload = vcs_project_catalog_payload(projects_dir="/tmp/projects")
+
+    assert payload["schema_version"] == VCS_PROJECT_CATALOG_SCHEMA_VERSION
+    # Workflow names cover every known prefix (not just active ones), sorted.
+    assert payload["workflow_names"] == ["gh", "git", "hg"]
+    # Entries mirror VcsProjectEntry field-for-field, sorted by name, so the
+    # Rust loader deserializes them directly.
+    assert payload["entries"] == [
+        {
+            "name": "bob",
+            "vcs_prefix": "git",
+            "display_tag": "#git:bob",
+            "provider_display": "Git (bare)",
+            "description": "",
+            "aliases": ["bobby"],
+        },
+        {
+            "name": "sase",
+            "vcs_prefix": "gh",
+            "display_tag": "#gh:sase",
+            "provider_display": "GitHub",
+            "description": "",
+            "aliases": [],
+        },
+    ]
 
 
 # --- Filtering -------------------------------------------------------------
