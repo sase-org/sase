@@ -10,9 +10,11 @@ rendering (and migratable to a shared backend later, per
   per-source date precedence.
 - :mod:`sase.prompt.search.sources` — SDD + local loaders, unification, and
   sha-based de-duplication into one corpus.
+- :mod:`sase.prompt.search.engine` — the pure, deterministic match/filter/rank/
+  limit engine over a loaded corpus.
 
-This module re-exports the public data-layer surface that the search engine
-and CLI layers build on.
+This module re-exports the public data-layer and engine surface that the CLI
+layer builds on.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from sase.prompt.search.dates import (
     parse_search_date,
     resolve_sdd_date,
 )
+from sase.prompt.search.engine import EmptyPromptQueryError, search_prompts
 from sase.prompt.search.model import (
     PromptHit,
     PromptSearchMatch,
@@ -36,6 +39,7 @@ from sase.prompt.search.sources import (
 )
 
 __all__ = [
+    "EmptyPromptQueryError",
     "PromptHit",
     "PromptSearchDateError",
     "PromptSearchMatch",
@@ -47,4 +51,5 @@ __all__ = [
     "load_sdd_prompt_hits",
     "parse_search_date",
     "resolve_sdd_date",
+    "search_prompts",
 ]
