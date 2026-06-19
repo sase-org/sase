@@ -159,6 +159,11 @@ writes the same approval response as the TUI and tells the runner to commit the 
 tier before launching the follow-up. `--kind approve` runs the coder without committing an SDD plan, while
 `--kind commit` records the approved plan in SDD without launching a coder.
 
+To recall prior plans, `sase plan search [QUERY]` searches the committed `sdd/` plans (surfaced first) and the
+machine-local `~/.sase/plans/` archive by content. The query is optional — omit it to browse and filter with `--kind`,
+`--status`, `--source`, and `--since`/`--until` date bounds. Results are ranked (relevance with a query, recency
+without) and render as colored `compact`/`full` output or as agent-friendly `json`/`markdown` via `--format`.
+
 ### Q&A Sections
 
 If the agent asks clarifying questions during planning (via the `/sase_questions` skill), the Q&A exchange is appended

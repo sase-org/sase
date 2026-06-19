@@ -25,6 +25,7 @@ plan-like artifact should link back with `prompt: sdd/prompts/202605/example.md`
 - `sase sdd list` lists SDD markdown artifacts.
 - `sase sdd validate` checks frontmatter links between prompts and plan-like artifacts.
 - `sase sdd repair-links` infers and repairs missing bidirectional links.
+- `sase plan search` searches these `sdd/` plans and the machine-local `~/.sase/plans/` archive by content.
 - `sase bead` manages SDD bead issues and epic work.
 
 ## Compatibility
