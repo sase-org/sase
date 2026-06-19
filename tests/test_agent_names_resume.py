@@ -1,0 +1,280 @@
+"""Resume and fork reference tests for sase.agent.names."""
+
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from sase.agent.names import (
+    AgentNameTemplateNotFoundError,
+    allocate_resume_name,
+    allocate_resume_names,
+    first_fork_agent_name,
+    first_resume_agent_name,
+    has_fork_reference,
+    resolve_resume_agent_name,
+)
+
+from tests._agent_names_fixtures import make_agent as _make_agent
+
+
+class TestResumeAgentNames:
+    def test_finds_resume_colon_paren_and_backtick(self) -> None:
+        assert first_resume_agent_name("#fork:foo do work") == "foo"
+        assert first_resume_agent_name("#fork(foo) do work") == "foo"
+        assert first_resume_agent_name("#fork:`foo bar` do work") == "foo bar"
+
+    def test_accepts_legacy_resume_references(self) -> None:
+        assert first_resume_agent_name("#resume:foo do work") == "foo"
+        assert first_resume_agent_name("#resume(foo) do work") == "foo"
+        assert first_resume_agent_name("#resume:`foo bar` do work") == "foo bar"
+
+    def test_ignores_fork_by_chat(self) -> None:
+        assert first_resume_agent_name("#fork_by_chat:foo.md") is None
+        assert first_resume_agent_name("#resume_by_chat:foo.md") is None
+
+    def test_ignores_fenced_and_disabled_regions(self) -> None:
+        prompt = (
+            "```\n#fork:fenced\n```\n"
+            "%xprompts_enabled:false\n#fork:disabled\n%xprompts_enabled:true\n"
+            "#fork:real"
+        )
+        assert first_resume_agent_name(prompt) == "real"
+
+    def test_first_resume_wins(self) -> None:
+        assert first_resume_agent_name("#fork:first then #fork:second") == "first"
+
+    def test_first_fork_finds_colon_paren_and_backtick(self) -> None:
+        assert first_fork_agent_name("#fork:foo do work") == "foo"
+        assert first_fork_agent_name("#fork(foo) do work") == "foo"
+        assert first_fork_agent_name("#fork:`foo bar` do work") == "foo bar"
+
+    def test_first_fork_ignores_legacy_resume_references(self) -> None:
+        assert first_fork_agent_name("#resume:foo do work") is None
+        assert first_fork_agent_name("#resume(foo) do work") is None
+
+    def test_first_fork_ignores_fork_by_chat_and_bare_fork(self) -> None:
+        assert first_fork_agent_name("#fork_by_chat:foo.md") is None
+        assert first_fork_agent_name("#fork do work") is None
+        assert first_fork_agent_name("#fork() do work") is None
+
+    def test_first_fork_ignores_fenced_and_disabled_regions(self) -> None:
+        prompt = (
+            "```\n#fork:fenced\n```\n"
+            "%xprompts_enabled:false\n#fork:disabled\n%xprompts_enabled:true\n"
+            "#fork:real"
+        )
+        assert first_fork_agent_name(prompt) == "real"
+
+    def test_first_fork_wins(self) -> None:
+        assert first_fork_agent_name("#fork:first then #fork:second") == "first"
+
+    def test_first_fork_resolves_template_reference(self, tmp_path: Path) -> None:
+        _make_agent(tmp_path, "proj", "run1", "build-1")
+        _make_agent(tmp_path, "proj", "run2", "build-4")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert first_fork_agent_name("#fork:build-@ do work") == "build-4"
+
+    def test_has_fork_reference_finds_colon_paren_and_backtick(self) -> None:
+        assert has_fork_reference("#fork:foo do work") is True
+        assert has_fork_reference("#fork(foo) do work") is True
+        assert has_fork_reference("#fork:`foo bar` do work") is True
+
+    def test_has_fork_reference_ignores_non_explicit_forks(self) -> None:
+        assert has_fork_reference("#resume:foo do work") is False
+        assert has_fork_reference("#resume(foo) do work") is False
+        assert has_fork_reference("#fork_by_chat:foo.md") is False
+        assert has_fork_reference("#fork do work") is False
+        assert has_fork_reference("#fork() do work") is False
+
+    def test_has_fork_reference_ignores_fenced_and_disabled_regions(self) -> None:
+        prompt = (
+            "```\n#fork:fenced\n```\n"
+            "%xprompts_enabled:false\n#fork:disabled\n%xprompts_enabled:true\n"
+            "#fork:real"
+        )
+        assert has_fork_reference(prompt) is True
+
+        prompt_without_live_fork = (
+            "```\n#fork:fenced\n```\n"
+            "%xprompts_enabled:false\n#fork:disabled\n%xprompts_enabled:true\n"
+        )
+        assert has_fork_reference(prompt_without_live_fork) is False
+
+    def test_has_fork_reference_does_not_resolve_templates(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert has_fork_reference("#fork:build-@ do work") is True
+
+    def test_template_resume_reference_resolves_latest_concrete_name(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(tmp_path, "proj", "run1", "build-1")
+        _make_agent(tmp_path, "proj", "run2", "build-4")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert first_resume_agent_name("#fork:build-@ do work") == "build-4"
+            assert first_resume_agent_name("#resume(build-@) do work") == "build-4"
+
+    def test_template_suffix_resume_reference_resolves_latest_concrete_name(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(tmp_path, "proj", "run1", "0.cld")
+        _make_agent(tmp_path, "proj", "run2", "1.cld")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert first_resume_agent_name("#fork:@.cld do work") == "1.cld"
+
+    def test_allocates_first_resume_slot(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_resume_name("foo") == "foo.f1"
+
+    def test_allocates_resume_slot_gap(self, tmp_path: Path) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo.f1", done=True)
+        _make_agent(tmp_path, "proj", "run3", "foo.f3", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_resume_name("foo") == "foo.f2"
+
+    def test_suffixed_descendants_reserve_resume_slot(self, tmp_path: Path) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo.f1.cld", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_resume_name("foo") == "foo.f2"
+
+    def test_legacy_r_descendants_reserve_fork_slot(self, tmp_path: Path) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo.r1.cld", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_resume_name("foo") == "foo.f2"
+
+    def test_allocates_multiple_resume_names_from_one_snapshot(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo.f1", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_resume_names("foo", 3) == ["foo.f2", "foo.f3", "foo.f4"]
+
+    def test_resolve_resume_root_uses_latest_completed_family_member(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010000",
+            "family",
+            done=True,
+            outcome="completed",
+        )
+        _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010101",
+            "family",
+            workflow_name="family",
+            agent_family="family",
+            role_suffix="-plan",
+            done=True,
+            outcome="completed",
+        )
+        child_dir = _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010202",
+            "family-code",
+            workflow_name="family",
+            agent_family="family",
+            role_suffix="-code",
+            parent_timestamp="20260506010101",
+            done=True,
+            outcome="completed",
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = resolve_resume_agent_name("family")
+
+        assert result is not None
+        assert result.name == "family-code"
+        assert result.artifacts_dir == str(child_dir)
+
+    def test_resolve_resume_child_keeps_exact_reference(self, tmp_path: Path) -> None:
+        child_dir = _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010202",
+            "family-code",
+            workflow_name="family",
+            agent_family="family",
+            role_suffix="-code",
+            parent_timestamp="20260506010101",
+            done=True,
+            outcome="completed",
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = resolve_resume_agent_name("family-code")
+
+        assert result is not None
+        assert result.artifacts_dir == str(child_dir)
+
+    def test_resolve_resume_template_uses_latest_concrete_name(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010101",
+            "build-1",
+            done=True,
+            outcome="completed",
+        )
+        latest_dir = _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010202",
+            "build-3",
+            done=True,
+            outcome="completed",
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = resolve_resume_agent_name("build-@")
+
+        assert result is not None
+        assert result.name == "build-3"
+        assert result.artifacts_dir == str(latest_dir)
+
+    def test_resolve_resume_template_suffix_uses_latest_concrete_name(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010101",
+            "0.cld",
+            done=True,
+            outcome="completed",
+        )
+        latest_dir = _make_agent(
+            tmp_path,
+            "proj",
+            "20260506010202",
+            "1.cld",
+            done=True,
+            outcome="completed",
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = resolve_resume_agent_name("@.cld")
+
+        assert result is not None
+        assert result.name == "1.cld"
+        assert result.artifacts_dir == str(latest_dir)
+
+    def test_first_resume_template_without_existing_name_raises(
+        self, tmp_path: Path
+    ) -> None:
+        with (
+            patch.object(Path, "home", return_value=tmp_path),
+            pytest.raises(AgentNameTemplateNotFoundError, match="build-@"),
+        ):
+            first_resume_agent_name("#fork:build-@")
