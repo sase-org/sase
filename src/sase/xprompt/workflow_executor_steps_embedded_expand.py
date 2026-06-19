@@ -13,6 +13,10 @@ from sase.content import (
     apply_section_marker_handling,
     content_ends_with_markdown_heading,
 )
+from sase.xprompt._disabled_regions import (
+    protect_disabled_regions,
+    unprotect_disabled_regions,
+)
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from sase.xprompt.models import UNSET
 from sase.xprompt.workflow_executor_steps_embedded_types import (
@@ -81,6 +85,9 @@ class EmbeddedWorkflowExpandMixin:
         """
         from sase.xprompt._parsing import _SEGMENT_SEPARATOR_RE
 
+        disabled_regions: list[str] = []
+        prompt = protect_disabled_regions(prompt, disabled_regions)
+
         segment_fenced_blocks: list[str] = []
         protected_for_segments = protect_fenced_blocks(prompt, segment_fenced_blocks)
         pieces = _SEGMENT_SEPARATOR_RE.split(protected_for_segments)
@@ -104,6 +111,7 @@ class EmbeddedWorkflowExpandMixin:
             rebuilt = expanded_pieces[0] if expanded_pieces else ""
             for sep, piece in zip(separators, expanded_pieces[1:], strict=False):
                 rebuilt = f"{rebuilt}{sep}{piece}"
+            rebuilt = unprotect_disabled_regions(rebuilt, disabled_regions)
             return rebuilt, all_embedded_workflows, total_pre_steps
 
         from sase.xprompt._parsing import (
@@ -176,6 +184,7 @@ class EmbeddedWorkflowExpandMixin:
 
         if not pending:
             prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
+            prompt = unprotect_disabled_regions(prompt, disabled_regions)
             return prompt, [], 0
 
         # ── Phase 2: Validation ──────────────────────────────────────────
@@ -316,6 +325,7 @@ class EmbeddedWorkflowExpandMixin:
 
         # Restore fenced code blocks now that matching and replacement are done.
         prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
+        prompt = unprotect_disabled_regions(prompt, disabled_regions)
 
         # ── Phase 5: Post-step list ──────────────────────────────────────
         # Build embedded_workflows: non-VCS in right-to-left order, then

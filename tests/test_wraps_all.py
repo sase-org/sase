@@ -29,13 +29,17 @@ from sase.xprompt.workflow_models import (
 
 
 def _make_workflow(
-    name: str, *, wraps_all: bool = False, has_prompt_part: bool = True
+    name: str,
+    *,
+    wraps_all: bool = False,
+    has_prompt_part: bool = True,
+    prompt_part: str = "",
 ) -> Workflow:
     """Create a minimal embeddable workflow for testing."""
     steps = []
     if has_prompt_part:
         steps.append(WorkflowStep(name="setup", bash="echo setup"))
-        steps.append(WorkflowStep(name="inject", prompt_part=""))
+        steps.append(WorkflowStep(name="inject", prompt_part=prompt_part))
         steps.append(WorkflowStep(name="teardown", bash="echo teardown"))
     else:
         steps.append(WorkflowStep(name="run", agent="Do thing"))
@@ -146,6 +150,97 @@ def test_single_wraps_all_does_not_raise() -> None:
         )
         # Should return results without error
         assert isinstance(prompt, str)
+
+
+def test_vcs_refs_inside_disabled_region_not_counted() -> None:
+    """VCS refs inside disabled regions are inert during embedded expansion."""
+    wf_git = _make_workflow("git", wraps_all=True)
+    wf_hg = _make_workflow("hg", wraps_all=True)
+    prompt = (
+        "before\n"
+        "%xprompts_enabled:false\n"
+        "#git:main\n"
+        "#hg:cl123\n"
+        "#git:feature\n"
+        "%xprompts_enabled:true\n"
+        "after"
+    )
+
+    executor = _FakeExecutor({"git": wf_git, "hg": wf_hg})
+
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"git": wf_git, "hg": wf_hg},
+    ):
+        expanded, embedded, pre_steps = executor._expand_embedded_workflows_in_prompt(
+            prompt
+        )
+
+    assert expanded == prompt
+    assert embedded == []
+    assert pre_steps == 0
+
+
+def test_single_vcs_outside_with_vcs_mentions_inside_disabled_region() -> None:
+    """Only the VCS ref outside a disabled region is expanded and counted."""
+    wf_git = _make_workflow("git", wraps_all=True, prompt_part="EXPANDED-GIT")
+    wf_hg = _make_workflow("hg", wraps_all=True)
+    prompt = (
+        "#git:main Do work\n"
+        "%xprompts_enabled:false\n"
+        "#git:ignored\n"
+        "#hg:also-ignored\n"
+        "#hg:still-ignored\n"
+        "%xprompts_enabled:true\n"
+    )
+
+    executor = _FakeExecutor({"git": wf_git, "hg": wf_hg})
+
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"git": wf_git, "hg": wf_hg},
+    ):
+        expanded, embedded, pre_steps = executor._expand_embedded_workflows_in_prompt(
+            prompt
+        )
+
+    assert "#git:main" not in expanded
+    assert "EXPANDED-GIT Do work" in expanded
+    assert "#git:ignored" in expanded
+    assert "#hg:also-ignored" in expanded
+    assert "#hg:still-ignored" in expanded
+    assert len(embedded) == 1
+    assert embedded[0].workflow_name == "git"
+    assert pre_steps == 1
+
+
+def test_segment_separator_inside_disabled_region_not_split() -> None:
+    """A disabled-region markdown separator is not a multi-agent split."""
+    wf_git = _make_workflow("git", wraps_all=True)
+    wf_hg = _make_workflow("hg", wraps_all=True)
+    prompt = (
+        "before\n"
+        "%xprompts_enabled:false\n"
+        "#git:left #hg:left\n"
+        "---\n"
+        "#git:right #hg:right\n"
+        "%xprompts_enabled:true\n"
+        "after"
+    )
+
+    executor = _FakeExecutor({"git": wf_git, "hg": wf_hg})
+
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"git": wf_git, "hg": wf_hg},
+    ):
+        expanded, embedded, pre_steps = executor._expand_embedded_workflows_in_prompt(
+            prompt
+        )
+
+    assert expanded == prompt
+    assert embedded == []
+    assert pre_steps == 0
 
 
 # ============================================================================
