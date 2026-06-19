@@ -50,15 +50,16 @@ def collect_prompt_hits(
 def load_sdd_prompt_hits(base_dir: Path) -> list[PromptHit]:
     """Discover and parse every SDD prompt snapshot under *base_dir*.
 
-    Discovery uses :func:`sdd_kind_roots` so the canonical ``sdd/prompts/``,
-    the legacy root ``prompts/``, and (when *base_dir* is a ``.sase/sdd`` root)
-    the local layout are all covered. Files are de-duplicated by resolved path
-    so overlapping roots are scanned once. A file that cannot be read is skipped
-    rather than failing the whole scan.
+    Discovery covers the canonical ``sdd/prompts/``, the legacy root
+    ``prompts/``, and the project-local ``.sase/sdd/prompts/`` layout (see
+    :func:`_sdd_prompt_roots`), so a normal project-root search surfaces local
+    SDD snapshots alongside committed ones. Files are de-duplicated by resolved
+    path so overlapping roots are scanned once. A file that cannot be read is
+    skipped rather than failing the whole scan.
     """
     hits: list[PromptHit] = []
     seen: set[Path] = set()
-    for root in sdd_kind_roots(base_dir, "prompts"):
+    for root in _sdd_prompt_roots(base_dir):
         if not root.is_dir():
             continue
         for path in sorted(root.rglob("*.md")):
@@ -73,6 +74,32 @@ def load_sdd_prompt_hits(base_dir: Path) -> list[PromptHit]:
             if hit is not None:
                 hits.append(hit)
     return hits
+
+
+def _sdd_prompt_roots(base_dir: Path) -> list[Path]:
+    """Return the de-duplicated prompt-discovery roots for *base_dir*.
+
+    Combines :func:`sdd_kind_roots` (the canonical ``sdd/prompts/`` and legacy
+    root ``prompts/`` layouts, plus their ``specs`` aliases) with the
+    project-local ``.sase/sdd`` store, which keeps the same canonical layout. A
+    normal project-root search therefore includes ``.sase/sdd/prompts/`` instead
+    of only finding it when *base_dir* is already a ``.sase/sdd`` root. Roots are
+    returned once each; :func:`load_sdd_prompt_hits` still de-dups by resolved
+    path so any overlap is scanned a single time.
+    """
+    roots: list[Path] = []
+    seen: set[Path] = set()
+    local_sdd = base_dir / ".sase" / "sdd"
+    for root in (
+        *sdd_kind_roots(base_dir, "prompts"),
+        local_sdd / "prompts",
+        local_sdd / "specs",
+    ):
+        if root in seen:
+            continue
+        seen.add(root)
+        roots.append(root)
+    return roots
 
 
 def _load_sdd_file(path: Path, base_dir: Path) -> PromptHit | None:

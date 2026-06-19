@@ -50,6 +50,32 @@ def test_sdd_discovers_canonical_legacy_and_local_layouts(tmp_path: Path) -> Non
     assert "localmode" in local_hits
 
 
+def test_sdd_project_root_includes_local_sase_sdd(tmp_path: Path) -> None:
+    # A normal project-root scan must also surface the project-local
+    # ``.sase/sdd/prompts`` store, not only the committed canonical/legacy roots.
+    _write(tmp_path / "sdd" / "prompts" / "202604" / "canonical.md", "canonical body\n")
+    _write(
+        tmp_path / ".sase" / "sdd" / "prompts" / "202605" / "localsnap.md",
+        "local snapshot body\n",
+    )
+
+    hits = _by_id(load_sdd_prompt_hits(tmp_path))
+    assert set(hits) == {"canonical", "localsnap"}
+    assert all(hit.source is PromptSource.SDD for hit in hits.values())
+    # The local hit's path is reported relative to the project root.
+    assert hits["localsnap"].path == ".sase/sdd/prompts/202605/localsnap.md"
+
+
+def test_sdd_no_duplicate_when_local_root_overlaps(tmp_path: Path) -> None:
+    # When *base_dir* is itself a ``.sase/sdd`` root, the canonical ``prompts/``
+    # arm and the appended local ``.sase/sdd/prompts`` arm both reach the same
+    # file; resolved-path de-dup must keep it to a single hit.
+    sdd_root = tmp_path / ".sase" / "sdd"
+    _write(sdd_root / "prompts" / "202605" / "localmode.md", "local body\n")
+    hits = load_sdd_prompt_hits(sdd_root)
+    assert [hit.id for hit in hits] == ["localmode"]
+
+
 def test_sdd_loader_empty_when_no_prompts_dir(tmp_path: Path) -> None:
     assert load_sdd_prompt_hits(tmp_path) == []
 

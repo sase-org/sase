@@ -227,6 +227,25 @@ def test_source_filter_scopes_results(
     assert "Local history (1)" in out
 
 
+def test_sdd_source_finds_local_sase_sdd_snapshot(
+    repo: Path,
+    history_file: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # A project-local ``.sase/sdd/prompts`` snapshot must be visible to an
+    # ``--source sdd`` search run from the project root.
+    local_path = repo / ".sase" / "sdd" / "prompts" / "202605" / "local_snapshot.md"
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path.write_text("Rotate auth tokens locally.\n", encoding="utf-8")
+
+    handle_prompt_search(_ns("auth", source="sdd"))
+
+    out = capsys.readouterr().out
+    assert "local_snapshot" in out
+    assert ".sase/sdd/prompts/202605/local_snapshot.md" in out
+    assert "1 match (1 SDD · 0 local)" in out
+
+
 def test_after_date_filter(
     repo: Path,
     history_file: Path,

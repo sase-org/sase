@@ -97,8 +97,10 @@ highlighted.
   (`YYYYMM`), `260601` (`YYmmdd`), a full `260601_143000` SASE timestamp, or a relative offset `30d` / `2w` / `6m` /
   `1y`; an unparseable date is a usage error. SDD snapshots are dated by their frontmatter timestamp, falling back to
   the `YYYYMM` path segment, then the file mtime; local prompts use their last-used time.
-- `-t|--tag` keeps prompts carrying a matching tag — SDD `prompt_tags` frontmatter and the `#xprompt`/directive chips
-  parsed from the prompt body. Repeats OR together (`-t review -t auth` matches either).
+- `-t|--tag` keeps prompts carrying a matching tag — SDD `prompt_tags` frontmatter plus the embedded `#xprompt` chips
+  parsed from the prompt body. Low-signal runner-control `%` directives (`%model`, `%name`, `%group`, …) are execution
+  mechanics, not content tags, so they are deliberately excluded. Repeats OR together (`-t review -t auth` matches
+  either).
 - `-s|--source` scopes to `sdd`, `local`, or `all` (default).
 - `-x|--cancelled` restricts **local** results to cancelled prompts; it has no effect on SDD snapshots, which have no
   cancelled state.
