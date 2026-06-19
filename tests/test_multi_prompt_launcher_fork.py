@@ -99,12 +99,14 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_resume_predecessor(
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/artifacts/alpha")
 @patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],
 )
 def test_launch_multi_prompt_polls_for_unplanned_resume_predecessor(
     mock_ws_dir: MagicMock,
+    mock_wait_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
@@ -134,6 +136,10 @@ def test_launch_multi_prompt_polls_for_unplanned_resume_predecessor(
     assert mock_spawn.call_args_list[1].kwargs["prompt"] == (
         "#fork:polled-builder\nReview"
     )
+    assert mock_spawn.call_args_list[1].kwargs["workspace_num"] == 0
+    assert mock_spawn.call_args_list[1].kwargs["workspace_dir"] == "/ws/main"
+    assert mock_spawn.call_args_list[1].kwargs["deferred_workspace"] is True
+    mock_wait_ws_dir.assert_called_once_with("test", 1)
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")

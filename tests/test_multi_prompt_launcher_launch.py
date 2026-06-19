@@ -1,5 +1,6 @@
 """Tests for core multi-prompt launch behavior."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
@@ -143,6 +144,53 @@ def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
     assert calls[2].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "0.w1.w1"
     assert calls[1].kwargs["prompt"].startswith("%wait:0")
     assert calls[2].kwargs["prompt"].startswith("%wait:0.w1")
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp")
+@patch("sase.artifacts.create_artifacts_directory")
+@patch("sase.running_field.claim_next_axe_workspace", return_value=100)
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    return_value=("/ws/100", None),
+)
+def test_launch_multi_prompt_fork_reference_defers_workspace(
+    mock_ws_dir: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_claim_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """A bare #fork:<name> launch should not claim a numbered workspace."""
+    mock_timestamp.return_value = "260501_120000"
+    mock_wait.return_value = "alpha"
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        launch_multi_prompt_agents(
+            segments=["#fork:foo\nReview"],
+            local_xprompts={},
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    kwargs = mock_spawn.call_args.kwargs
+    assert kwargs["workspace_num"] == 0
+    assert kwargs["workspace_dir"] == "/ws/main"
+    assert kwargs["deferred_workspace"] is True
+    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "foo.f1"
+    mock_claim_ws.assert_not_called()
+    mock_ws_dir.assert_not_called()
+    mock_create_artifacts.assert_not_called()
+    mock_wait.assert_not_called()
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")

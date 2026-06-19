@@ -117,16 +117,22 @@ def _has_wait_directive(prompt: str) -> bool:
 
 
 def has_deferred_start_directive(prompt: str) -> bool:
-    """Quick check whether a prompt defers launch (``%wait``/``%w`` or ``%time``/``%t``).
+    """Quick check whether a prompt defers launch.
 
     Used at the workspace-allocation boundary so a prompt that delays its
     start (waiting on a dependency or a wall-clock time) does not claim a
     workspace until it is actually ready to run.
     """
-    return _has_wait_directive(prompt) or _has_protected_directive_match(
+    if _has_wait_directive(prompt) or _has_protected_directive_match(
         prompt,
         r"(?:^|\s)%(?:time|t)(?:[:+(]|\s|$)",
-    )
+    ):
+        return True
+    if "#fork" not in prompt:
+        return False
+    from sase.agent.names import has_fork_reference
+
+    return has_fork_reference(prompt)
 
 
 def has_model_directive(prompt: str) -> bool:

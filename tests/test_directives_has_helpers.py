@@ -103,9 +103,19 @@ def test_has_deferred_start_directive_time() -> None:
     assert has_deferred_start_directive("Do %time(5m) more") is True
 
 
+def test_has_deferred_start_directive_fork_reference() -> None:
+    """A top-level explicit #fork target implies a deferred wait."""
+    assert has_deferred_start_directive("#fork:foo\nDo something") is True
+    assert has_deferred_start_directive("Do #fork(foo) more") is True
+    assert has_deferred_start_directive("#fork:`foo bar`\nDo something") is True
+
+
 def test_has_deferred_start_directive_absent() -> None:
     """Returns False when no deferred-start directive present."""
     assert has_deferred_start_directive("Do something %model:opus") is False
+    assert has_deferred_start_directive("#fork do something") is False
+    assert has_deferred_start_directive("#fork_by_chat:x.md do something") is False
+    assert has_deferred_start_directive("#resume:foo do something") is False
 
 
 def test_has_deferred_start_directive_no_percent() -> None:
@@ -132,6 +142,24 @@ def test_has_deferred_start_directive_ignores_disabled_regions(
 ) -> None:
     """Deferred-start syntax inside disabled regions does not defer launch."""
     prompt = f"%xprompts_enabled:false\n{directive}\n%xprompts_enabled:true\nDo work"
+    assert has_deferred_start_directive(prompt) is False
+
+
+@pytest.mark.parametrize("reference", ["#fork:old_agent", "#fork(old_agent)"])
+def test_has_deferred_start_directive_ignores_fenced_fork_references(
+    reference: str,
+) -> None:
+    """Fork references inside fences do not defer launch."""
+    prompt = f"snapshot\n```text\n{reference}\n```\nDo work"
+    assert has_deferred_start_directive(prompt) is False
+
+
+@pytest.mark.parametrize("reference", ["#fork:old_agent", "#fork(old_agent)"])
+def test_has_deferred_start_directive_ignores_disabled_fork_references(
+    reference: str,
+) -> None:
+    """Fork references inside disabled regions do not defer launch."""
+    prompt = f"%xprompts_enabled:false\n{reference}\n%xprompts_enabled:true\nDo work"
     assert has_deferred_start_directive(prompt) is False
 
 

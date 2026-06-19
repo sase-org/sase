@@ -70,22 +70,10 @@ def first_resume_agent_name(prompt: str | None) -> str | None:
     because their arguments are chat paths, not agent names. Fenced code blocks
     and disabled xprompt regions are protected before lexical matching.
     """
-    if not prompt or ("#fork" not in prompt and "#resume" not in prompt):
-        return None
+    for arg in _iter_reference_args(prompt, _RESUME_REF_RE, "#fork", "#resume"):
+        from sase.agent.names._templates import resolve_agent_name_template_reference
 
-    fenced: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced)
-    disabled: list[str] = []
-    protected = protect_disabled_regions(protected, disabled)
-
-    for match in _RESUME_REF_RE.finditer(protected):
-        arg = _resume_reference_argument(protected, match)
-        if arg:
-            from sase.agent.names._templates import (
-                resolve_agent_name_template_reference,
-            )
-
-            return resolve_agent_name_template_reference(arg)
+        return resolve_agent_name_template_reference(arg)
     return None
 
 
@@ -99,23 +87,21 @@ def first_fork_agent_name(prompt: str | None) -> str | None:
     no explicit agent name and are intentionally excluded. Fenced code blocks
     and disabled xprompt regions are protected before lexical matching.
     """
-    if not prompt or "#fork" not in prompt:
-        return None
+    for arg in _iter_reference_args(prompt, _FORK_REF_RE, "#fork"):
+        from sase.agent.names._templates import resolve_agent_name_template_reference
 
-    fenced: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced)
-    disabled: list[str] = []
-    protected = protect_disabled_regions(protected, disabled)
-
-    for match in _FORK_REF_RE.finditer(protected):
-        arg = _resume_reference_argument(protected, match)
-        if arg:
-            from sase.agent.names._templates import (
-                resolve_agent_name_template_reference,
-            )
-
-            return resolve_agent_name_template_reference(arg)
+        return resolve_agent_name_template_reference(arg)
     return None
+
+
+def has_fork_reference(prompt: str | None) -> bool:
+    """Return True when *prompt* contains a top-level explicit ``#fork`` target.
+
+    This is detection-only: unlike :func:`first_fork_agent_name`, it does not
+    resolve agent-name templates, touch active-agent state, or raise when a
+    template reference such as ``#fork:build-@`` has no concrete match yet.
+    """
+    return next(_iter_reference_args(prompt, _FORK_REF_RE, "#fork"), None) is not None
 
 
 def allocate_resume_name(
@@ -235,6 +221,27 @@ def active_wait_reserved_names(wait_name: str) -> set[str]:
             continue
         reserved.add(f"{wait_name}.w{match.group(1)}")
     return reserved
+
+
+def _iter_reference_args(
+    prompt: str | None,
+    pattern: re.Pattern[str],
+    *guard_substrings: str,
+) -> Iterator[str]:
+    if not prompt:
+        return
+    if guard_substrings and not any(guard in prompt for guard in guard_substrings):
+        return
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    for match in pattern.finditer(protected):
+        arg = _resume_reference_argument(protected, match)
+        if arg:
+            yield arg
 
 
 def _resume_reference_argument(text: str, match: re.Match[str]) -> str | None:

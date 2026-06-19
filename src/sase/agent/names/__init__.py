@@ -89,6 +89,7 @@ from sase.agent.names._resume import (
     allocate_wait_names,
     first_fork_agent_name,
     first_resume_agent_name,
+    has_fork_reference,
     single_wait_agent_name,
 )
 from sase.agent.names._templates import (
@@ -241,6 +242,7 @@ __all__ = [
     "find_agent_family",
     "first_fork_agent_name",
     "first_resume_agent_name",
+    "has_fork_reference",
     "get_active_agent_name_map",
     "get_active_agent_names",
     "get_active_child_names",

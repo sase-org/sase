@@ -19,6 +19,7 @@ from sase.agent.names import (
     find_named_agent,
     first_fork_agent_name,
     first_resume_agent_name,
+    has_fork_reference,
     resolve_resume_agent_name,
     single_wait_agent_name,
 )
@@ -255,6 +256,38 @@ class TestResumeAgentNames:
 
         with patch.object(Path, "home", return_value=tmp_path):
             assert first_fork_agent_name("#fork:build-@ do work") == "build-4"
+
+    def test_has_fork_reference_finds_colon_paren_and_backtick(self) -> None:
+        assert has_fork_reference("#fork:foo do work") is True
+        assert has_fork_reference("#fork(foo) do work") is True
+        assert has_fork_reference("#fork:`foo bar` do work") is True
+
+    def test_has_fork_reference_ignores_non_explicit_forks(self) -> None:
+        assert has_fork_reference("#resume:foo do work") is False
+        assert has_fork_reference("#resume(foo) do work") is False
+        assert has_fork_reference("#fork_by_chat:foo.md") is False
+        assert has_fork_reference("#fork do work") is False
+        assert has_fork_reference("#fork() do work") is False
+
+    def test_has_fork_reference_ignores_fenced_and_disabled_regions(self) -> None:
+        prompt = (
+            "```\n#fork:fenced\n```\n"
+            "%xprompts_enabled:false\n#fork:disabled\n%xprompts_enabled:true\n"
+            "#fork:real"
+        )
+        assert has_fork_reference(prompt) is True
+
+        prompt_without_live_fork = (
+            "```\n#fork:fenced\n```\n"
+            "%xprompts_enabled:false\n#fork:disabled\n%xprompts_enabled:true\n"
+        )
+        assert has_fork_reference(prompt_without_live_fork) is False
+
+    def test_has_fork_reference_does_not_resolve_templates(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert has_fork_reference("#fork:build-@ do work") is True
 
     def test_template_resume_reference_resolves_latest_concrete_name(
         self, tmp_path: Path

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 10:25:59
-status: wip
+status: done
 prompt: sdd/prompts/202606/fork_wait_defers_workspace.md
 ---
 # Plan: Make the Implicit `#fork:<name>` Wait Also Defer Workspace Allocation
