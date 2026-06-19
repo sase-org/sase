@@ -11,6 +11,11 @@ from sase.logs.launch_log import (
     log_launch_failure,
     tui_log_path,
 )
+from sase.logs.project_creation_log import (
+    log_project_creation,
+    project_creation_jsonl_path,
+    project_creation_log_path,
+)
 from sase.logs.run_log import events_log_path, runs_log_path
 
 __all__ = [
@@ -18,6 +23,9 @@ __all__ = [
     "launch_failures_jsonl_path",
     "launch_failures_log_path",
     "log_launch_failure",
+    "log_project_creation",
+    "project_creation_jsonl_path",
+    "project_creation_log_path",
     "runs_log_path",
     "tui_log_path",
 ]
