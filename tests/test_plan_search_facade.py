@@ -1,0 +1,177 @@
+"""Facade tests for ``sase.plan_search``.
+
+Exercises root resolution (``--source`` mapping, repo/local dir resolution) and
+drives the real Rust ``plan_search`` binding end-to-end over a temp repo ``sdd/``
+tree plus a temp local archive: query vs browse, kind/status/date filters,
+limit, and repo-prioritized ranking.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from sase.plan_search import facade
+
+
+def _write_plan(
+    path: Path, *, title: str, status: str, create_time: str, body: str
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"---\ncreate_time: {create_time}\nstatus: {status}\n---\n# {title}\n\n{body}\n"
+    )
+
+
+@pytest.fixture
+def corpus(tmp_path: Path) -> tuple[Path, Path]:
+    """Build a temp repo ``sdd/`` tree and a temp local archive."""
+    sdd = tmp_path / "sdd"
+    local = tmp_path / "local_plans"
+
+    _write_plan(
+        sdd / "tales" / "202606" / "auth_token_refresh.md",
+        title="Refresh auth tokens on 401",
+        status="wip",
+        create_time="2026-06-18 21:29:20",
+        body="Retry the request once after refreshing the auth token.",
+    )
+    _write_plan(
+        sdd / "epics" / "202605" / "unified_auth.md",
+        title="Unified auth across providers",
+        status="done",
+        create_time="2026-05-10 09:00:00",
+        body="Consolidate the providers behind one interface.",
+    )
+    _write_plan(
+        sdd / "tales" / "202601" / "login_flow.md",
+        title="Login flow",
+        status="wip",
+        create_time="2026-01-05 12:00:00",
+        body="Document the sign-in steps.",
+    )
+    _write_plan(
+        local / "202604" / "auth_login_fix.md",
+        title="Fix login auth race",
+        status="done",
+        create_time="2026-04-02 08:30:00",
+        body="Guard the session write behind a lock.",
+    )
+    _write_plan(
+        local / "flat_note.md",
+        title="Flat note",
+        status="wip",
+        create_time="2026-03-01 00:00:00",
+        body="A loose local plan with no shard dir.",
+    )
+    return sdd, local
+
+
+def _names(matches: list) -> list[str]:
+    return [match.plan.name for match in matches]
+
+
+def _search(corpus: tuple[Path, Path], **kwargs: object) -> list:
+    sdd, local = corpus
+    return facade.search(repo_root=sdd, local_dir=local, **kwargs)  # type: ignore[arg-type]
+
+
+# --- root resolution -----------------------------------------------------
+
+
+def test_local_plans_dir_honors_sase_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    assert facade._local_plans_dir() == tmp_path / ".sase" / "plans"
+
+
+def test_local_plans_dir_override_wins() -> None:
+    assert facade._local_plans_dir("/custom/plans") == Path("/custom/plans")
+
+
+def test_repo_sdd_root_resolves_from_cwd(tmp_path: Path) -> None:
+    (tmp_path / "sdd").mkdir()
+    assert facade._repo_sdd_root(cwd=tmp_path) == (tmp_path / "sdd").resolve()
+
+
+def test_invalid_source_raises() -> None:
+    with pytest.raises(ValueError, match="invalid source"):
+        facade.search("auth", source="bogus")
+
+
+# --- end-to-end search over the temp corpus ------------------------------
+
+
+def test_query_ranks_repo_above_local(corpus: tuple[Path, Path]) -> None:
+    matches = _search(corpus, query="auth")
+    # Both repo auth plans outrank the matching local plan (repo boost), and the
+    # title+name+path+body hit ranks first.
+    assert _names(matches) == [
+        "auth_token_refresh",
+        "unified_auth",
+        "auth_login_fix",
+    ]
+    assert matches[0].plan.source == "repo"
+    assert matches[-1].plan.source == "local"
+    assert matches[0].matched_fields == ["title", "name", "path", "body"]
+
+
+def test_source_repo_excludes_local(corpus: tuple[Path, Path]) -> None:
+    matches = _search(corpus, source=facade.SOURCE_REPO)
+    assert all(match.plan.source == "repo" for match in matches)
+    assert set(_names(matches)) == {
+        "auth_token_refresh",
+        "unified_auth",
+        "login_flow",
+    }
+
+
+def test_source_local_excludes_repo(corpus: tuple[Path, Path]) -> None:
+    matches = _search(corpus, source=facade.SOURCE_LOCAL)
+    assert all(match.plan.source == "local" for match in matches)
+    assert set(_names(matches)) == {"auth_login_fix", "flat_note"}
+
+
+def test_browse_without_query_sorts_by_recency(
+    corpus: tuple[Path, Path],
+) -> None:
+    matches = _search(corpus)
+    assert _names(matches) == [
+        "auth_token_refresh",
+        "unified_auth",
+        "auth_login_fix",
+        "flat_note",
+        "login_flow",
+    ]
+    assert all(match.matched_fields == [] for match in matches)
+
+
+def test_kind_filter_narrows_repo(corpus: tuple[Path, Path]) -> None:
+    matches = _search(corpus, source=facade.SOURCE_REPO, kinds=["epic"])
+    assert _names(matches) == ["unified_auth"]
+
+
+def test_status_filter(corpus: tuple[Path, Path]) -> None:
+    matches = _search(corpus, statuses=["done"])
+    assert set(_names(matches)) == {"unified_auth", "auth_login_fix"}
+
+
+def test_since_filter_excludes_older_plans(corpus: tuple[Path, Path]) -> None:
+    matches = _search(corpus, since="2026-05-01")
+    assert _names(matches) == ["auth_token_refresh", "unified_auth"]
+
+
+def test_until_filter_excludes_newer_plans(corpus: tuple[Path, Path]) -> None:
+    matches = _search(corpus, until="2026-04-30")
+    assert set(_names(matches)) == {"auth_login_fix", "flat_note", "login_flow"}
+
+
+def test_limit_caps_results(corpus: tuple[Path, Path]) -> None:
+    matches = _search(corpus, limit=2)
+    assert _names(matches) == ["auth_token_refresh", "unified_auth"]
+
+
+def test_no_match_returns_empty(corpus: tuple[Path, Path]) -> None:
+    assert _search(corpus, query="nonexistent-needle") == []
