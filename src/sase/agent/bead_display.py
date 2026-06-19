@@ -220,24 +220,40 @@ def format_agent_bead_display_for_name(
     agent_name: str | None,
     *,
     include_description: bool = True,
+    require_existing: bool = False,
     project_name: str | None = None,
     workspace_dir: str | None = None,
 ) -> str | None:
-    """Format the bead metadata value for an agent name."""
+    """Format the bead metadata value for an agent name.
+
+    When *require_existing* is ``True``, the candidate bead id is looked up in
+    the agent-context bead stores and ``None`` is returned unless a concrete
+    issue is found. This is the strict "confirmed bead" path used by the TUI,
+    which must not render bead metadata for names that merely look like bead
+    ids. The default (``require_existing=False``) preserves the legacy
+    fallback-to-id behavior that non-TUI callers (e.g. completion
+    notifications) depend on.
+    """
     bead_id = derive_agent_bead_id_from_name(agent_name)
     if not bead_id:
         return None
 
-    if include_description:
+    issue: Issue | None = None
+    if include_description or require_existing:
         issue = _lookup_bead_issue(
             bead_id,
             project_name=project_name,
             workspace_dir=workspace_dir,
         )
+
+    if require_existing and issue is None:
+        return None
+
+    if include_description and issue is not None:
         description = _normalize_bead_text(getattr(issue, "description", None))
         if description:
             return f"{bead_id} - {description}"
-        if issue is not None and _is_epic_land_issue(agent_name, issue):
+        if _is_epic_land_issue(agent_name, issue):
             title = _normalize_bead_text(getattr(issue, "title", None))
             if title:
                 return f"{bead_id} - Land epic: {title}"

@@ -13,6 +13,7 @@ private mixins so each file stays small and focused.
 from __future__ import annotations
 
 from ._loading_apply import AgentLoadingApplyMixin
+from ._loading_bead_warmup import AgentBeadWarmupMixin
 from ._loading_compute import (
     _CLEANED_ARTIFACT_DIRS,
     compute_apply_loaded_agents,
@@ -57,5 +58,6 @@ class AgentLoadingMixin(
     AgentLoadingRefreshMixin,
     AgentLoadingFilterMixin,
     AgentLiveHintMixin,
+    AgentBeadWarmupMixin,
 ):
     """Mixin providing agent loading and filtering methods."""

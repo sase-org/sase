@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 10:10:49
-status: wip
+status: done
 prompt: sdd/prompts/202606/confirmed_bead_display.md
 ---
 # Confirmed Bead Display in `sase ace` Agents Tab

@@ -14,7 +14,7 @@ from rich.text import Text
 from textual.widgets.option_list import Option
 
 from ..models.agent import Agent
-from ..models.agent_bead import derive_agent_bead_id
+from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import runtime_suffix_ticks
 from ._agent_list_helpers import ordered_row_providers
@@ -141,7 +141,7 @@ def agent_render_key(
         agent.tag,
         agent.agent_name,
         agent_file_change_hint(agent),
-        derive_agent_bead_id(agent),
+        agent_has_confirmed_bead(agent),
         ordered_row_providers(agent),
         agent.hidden,
         agent.retry_attempt,

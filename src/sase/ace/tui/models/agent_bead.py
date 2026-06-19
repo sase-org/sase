@@ -1,8 +1,20 @@
-"""TUI wrappers for inferring bead metadata from agent records."""
+"""TUI wrappers for inferring bead metadata from agent records.
+
+The bead display cache expresses three states for a candidate bead id:
+
+* **cache miss** (:data:`BEAD_DISPLAY_CACHE_MISS`) — the candidate has not been
+  checked against any bead store yet.
+* ``None`` — checked, but no concrete issue exists (do not render bead UI).
+* ``str`` — checked, the issue exists, and the display string is ready.
+
+A confirmed issue with no description/title caches the bare bead id string so
+``None`` stays reserved for "not confirmed / do not render".
+"""
 
 from __future__ import annotations
 
 from collections import OrderedDict
+from collections.abc import Iterable
 import os
 from pathlib import Path
 from threading import RLock
@@ -14,7 +26,7 @@ from sase.agent.bead_display import (
     format_agent_bead_display_for_name,
 )
 
-from .agent import Agent
+from .agent import Agent, AgentType
 
 BEAD_DISPLAY_CACHE_MISS: Final = object()
 _CACHE_TTL_SECONDS = 60.0
@@ -66,17 +78,32 @@ class _BeadDisplayCache:
 _BEAD_DISPLAY_CACHE = _BeadDisplayCache(max_entries=_CACHE_MAX_ENTRIES)
 
 
-def derive_agent_bead_id(agent: Agent) -> str | None:
+def _derive_agent_bead_id(agent: Agent) -> str | None:
     """Infer a bead id from an agent name written by ``sase bead work``."""
     return derive_agent_bead_id_from_name(agent.agent_name)
 
 
 def cached_bead_display(agent: Agent) -> str | None | object:
-    """Return cached enriched bead display text, if present and fresh."""
+    """Return the cached bead display state for *agent*.
+
+    Returns :data:`BEAD_DISPLAY_CACHE_MISS` when the candidate has not been
+    checked, ``None`` when checked but not confirmed, or the display string
+    when a concrete issue exists. A non-bead agent name (no candidate id)
+    reports ``None`` — there is nothing to confirm.
+    """
     key = _bead_display_cache_key(agent)
     if key is None:
         return None
     return _BEAD_DISPLAY_CACHE.get(key)
+
+
+def agent_has_confirmed_bead(agent: Agent) -> bool:
+    """Return True iff a confirmed bead display is cached for *agent*.
+
+    O(1) cache read only — never touches bead storage, so it is safe to call
+    from row rendering and render-key construction on the event loop.
+    """
+    return isinstance(cached_bead_display(agent), str)
 
 
 def should_resolve_bead_display(agent: Agent) -> bool:
@@ -88,30 +115,50 @@ def should_resolve_bead_display(agent: Agent) -> bool:
 
 
 def resolve_bead_display(agent: Agent) -> str | None:
-    """Resolve and cache enriched bead display text.
+    """Resolve and cache the confirmed bead display for *agent*.
 
-    This may touch bead stores and must only be called off the Textual event
-    loop.
+    Caches ``None`` when no concrete issue exists (so the TUI renders no bead
+    UI) and the display string when the issue is confirmed. This may touch
+    bead stores and must only be called off the Textual event loop.
     """
     key = _bead_display_cache_key(agent)
     if key is None:
         return None
 
-    display = format_agent_bead_display(agent, include_description=True)
+    display = format_agent_bead_display_for_name(
+        agent.agent_name,
+        include_description=True,
+        require_existing=True,
+        project_name=_agent_project_name(agent),
+        workspace_dir=agent.workspace_dir,
+    )
     _BEAD_DISPLAY_CACHE.set(key, display)
     return display
 
 
-def format_agent_bead_display(
-    agent: Agent, *, include_description: bool = True
-) -> str | None:
-    """Format the bead metadata value for an agent details header."""
-    return format_agent_bead_display_for_name(
-        agent.agent_name,
-        include_description=include_description,
-        project_name=_agent_project_name(agent),
-        workspace_dir=agent.workspace_dir,
-    )
+def warm_confirmed_bead_displays(
+    candidates: Iterable[Agent],
+) -> dict[tuple[AgentType, str, str | None], bool]:
+    """Resolve uncached bead candidates off the event loop.
+
+    Deduplicates the underlying bead-store lookups by cache key so each store
+    is read once per warmup even when several visible rows share a candidate.
+    Returns a mapping of agent identity to ``True`` for the candidates that
+    resolved to a confirmed display; identities whose candidate is missing (or
+    has no candidate id) are omitted so callers patch only rows whose confirmed
+    state actually changed. Must only be called off the Textual event loop.
+    """
+    resolved_by_key: dict[BeadDisplayCacheKey, str | None] = {}
+    results: dict[tuple[AgentType, str, str | None], bool] = {}
+    for agent in candidates:
+        key = _bead_display_cache_key(agent)
+        if key is None:
+            continue
+        if key not in resolved_by_key:
+            resolved_by_key[key] = resolve_bead_display(agent)
+        if resolved_by_key[key] is not None:
+            results[agent.identity] = True
+    return results
 
 
 def _agent_project_name(agent: Agent) -> str | None:
@@ -128,7 +175,7 @@ def _agent_workspace_cache_key(agent: Agent) -> str | None:
 
 
 def _bead_display_cache_key(agent: Agent) -> BeadDisplayCacheKey | None:
-    bead_id = derive_agent_bead_id(agent)
+    bead_id = _derive_agent_bead_id(agent)
     if bead_id is None:
         return None
     return (bead_id, _agent_project_name(agent), _agent_workspace_cache_key(agent))

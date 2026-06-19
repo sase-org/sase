@@ -33,6 +33,39 @@ def test_non_bead_agent_name_does_not_touch_bead_storage(
     assert format_agent_bead_display_for_name("aij.2") is None
 
 
+def test_require_existing_returns_none_for_missing_bead(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.agent.bead_display._lookup_bead_issue",
+        lambda bead_id, **_: None,
+    )
+
+    # The default fallback returns the bare id; the strict path returns None.
+    assert format_agent_bead_display_for_name("sase-x.3") == "sase-x.3"
+    assert format_agent_bead_display_for_name("sase-x.3", require_existing=True) is None
+
+
+def test_require_existing_confirms_via_lookup_even_without_description(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.model import Issue
+
+    monkeypatch.setattr(
+        "sase.agent.bead_display._lookup_bead_issue",
+        lambda bead_id, **_: Issue(id=bead_id, title="", description=""),
+    )
+
+    # require_existing forces a lookup even with include_description=False, and
+    # returns the bare id once existence is confirmed.
+    assert (
+        format_agent_bead_display_for_name(
+            "sase-x.3", include_description=False, require_existing=True
+        )
+        == "sase-x.3"
+    )
+
+
 def test_agent_bead_display_ignores_legacy_sibling_store(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

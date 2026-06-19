@@ -93,6 +93,12 @@ class FakeLoadingApp(AgentLoadingMixin):
         self._live_hints_scan_running = False
         self._live_hints_scan_pending = False
         self._live_hints_scan_source = "unknown"
+        # Deferred bead-confirmation warmup coalescing state (scheduled by the
+        # same apply path; recorded via ``call_later`` but never run here).
+        self._bead_warmup_scan_scheduled = False
+        self._bead_warmup_scan_running = False
+        self._bead_warmup_scan_pending = False
+        self._bead_warmup_scan_source = "unknown"
         self.call_later_calls: list[object] = []
 
     def set_timer(self, _delay: float, _callback: object) -> None:

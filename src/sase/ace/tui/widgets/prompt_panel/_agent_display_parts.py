@@ -28,7 +28,6 @@ from ...models.agent import Agent, AttemptRecord
 from ...models.agent_bead import (
     BEAD_DISPLAY_CACHE_MISS,
     cached_bead_display,
-    format_agent_bead_display,
 )
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ...util.lazy_syntax import lazy_renderable
@@ -112,12 +111,14 @@ def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
     if agent.step_type not in ("bash", "python", "parallel"):
         xprompts_used = load_xprompts_used(agent)
 
+    # Only confirmed bead displays surface in the header. A cache miss means
+    # the candidate has not been confirmed against a bead store yet, so render
+    # nothing here; the async worker resolves it off the event loop and the
+    # header re-renders once a concrete issue is confirmed.
     bead_display = None
     if agent.agent_name:
         cached_display = cached_bead_display(agent)
-        if cached_display is BEAD_DISPLAY_CACHE_MISS:
-            bead_display = format_agent_bead_display(agent, include_description=False)
-        else:
+        if cached_display is not BEAD_DISPLAY_CACHE_MISS:
             bead_display = cast(str | None, cached_display)
 
     from sase.ace.tui.memory_reads import load_memory_reads_for_agent_context
@@ -322,15 +323,15 @@ def build_header_text(
     header_text.append("Name: ", style="bold #87D7FF")
     if agent.agent_name:
         header_text.append(f"{agent.agent_name}\n", style=_AGENT_NAME_ANNOTATION_STYLE)
-        if cheap:
-            bead_display = format_agent_bead_display(agent, include_description=False)
-        elif summary is not None:
-            bead_display = summary.bead_display or format_agent_bead_display(
-                agent,
-                include_description=False,
-            )
+        # Render ``Bead:`` only from confirmed cache state. The full path reads
+        # the value precomputed onto ``summary`` (itself cache-derived); the
+        # cheap/cold paths read the cache directly. None of these touch bead
+        # storage, and an unconfirmed candidate renders nothing.
+        if summary is not None:
+            bead_display = summary.bead_display
         else:
-            bead_display = format_agent_bead_display(agent, include_description=False)
+            cached_display = cached_bead_display(agent)
+            bead_display = cached_display if isinstance(cached_display, str) else None
         if bead_display:
             header_text.append("Bead: ", style="bold #87D7FF")
             header_text.append(f"{bead_display}\n", style="bold #FFAF00")

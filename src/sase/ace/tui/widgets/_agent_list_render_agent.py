@@ -12,7 +12,7 @@ from sase.xprompt.workflow_output import get_substep_suffix
 from ..provider_styles import provider_emoji_badge
 from ..models.agent import Agent, AgentType, format_compact_duration
 from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
-from ..models.agent_bead import derive_agent_bead_id
+from ..models.agent_bead import agent_has_confirmed_bead
 from ._agent_list_helpers import (
     ordered_row_providers,
     short_model_name,
@@ -272,8 +272,10 @@ def format_agent_option(
         else:
             text.append(fold_annotation, style="dim #00D7D7")
 
-    bead_id = derive_agent_bead_id(agent)
-    if bead_id:
+    # Confirmed-only: the glyph appears solely when the TUI has confirmed the
+    # candidate id exists in a bead store (an O(1) cache read warmed off the
+    # event loop). Cold or missing candidates render no glyph.
+    if agent_has_confirmed_bead(agent):
         text.append(" ")
         text.append(_BEAD_GLYPH, style=_BEAD_GLYPH_STYLE)
 

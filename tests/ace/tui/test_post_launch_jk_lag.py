@@ -149,6 +149,11 @@ class _FakeApplyApp(AgentLoadingMixin):
         self._live_hints_scan_running = False
         self._live_hints_scan_pending = False
         self._live_hints_scan_source = "unknown"
+        # Deferred bead-confirmation warmup coalescing state (same apply path).
+        self._bead_warmup_scan_scheduled = False
+        self._bead_warmup_scan_running = False
+        self._bead_warmup_scan_pending = False
+        self._bead_warmup_scan_source = "unknown"
         self.call_later_calls: list[object] = []
         self.finalize_calls: int = 0
 

@@ -87,8 +87,12 @@ def test_cold_bead_display_schedules_worker_without_lookup(
 
     panel.update_display(agent)
 
+    # Cold cache: the header omits the Bead row, and the worker is scheduled to
+    # confirm the candidate off the event loop.
     assert panel.worker_fn is not None
-    assert "Name: sase-x.3\nBead: sase-x.3\n" in plain_of(panel.captured[-1])
+    rendered = plain_of(panel.captured[-1])
+    assert "Name: sase-x.3\n" in rendered
+    assert "Bead:" not in rendered
 
 
 def test_successful_bead_worker_rerenders_cached_description(
@@ -108,7 +112,8 @@ def test_successful_bead_worker_rerenders_cached_description(
     )
 
     panel.update_display(agent)
-    assert "Bead: sase-x.3\n" in plain_of(panel.captured[-1])
+    # Until the worker confirms existence, no Bead row is rendered.
+    assert "Bead:" not in plain_of(panel.captured[-1])
     assert panel.worker_fn is not None
     assert panel.worker_fn() == "sase-x.3 - First line"
 
@@ -117,6 +122,38 @@ def test_successful_bead_worker_rerenders_cached_description(
     )
 
     assert "Bead: sase-x.3 - First line\n" in plain_of(panel.captured[-1])
+
+
+def test_missing_bead_worker_stays_silent_and_does_not_reschedule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = make_agent(agent_name="sase-x.3")
+    panel = _BeadPanel()
+    _set_context(panel, agent, current=True)
+
+    monkeypatch.setattr(
+        "sase.agent.bead_display._lookup_bead_issue",
+        lambda bead_id, **_: None,
+    )
+
+    panel.update_display(agent)
+    assert "Bead:" not in plain_of(panel.captured[-1])
+    assert panel.worker_fn is not None
+
+    # Worker resolves the candidate as missing and caches None.
+    assert panel.worker_fn() is None
+    panel._apply_agent_bead_display_worker_result(
+        cast(Worker[Any], panel.worker), WorkerState.SUCCESS
+    )
+
+    # The re-render stays silent: no Bead row for a missing candidate.
+    assert "Bead:" not in plain_of(panel.captured[-1])
+
+    # A subsequent selection of the same agent does not reschedule a lookup:
+    # the cached None keeps ``should_resolve_bead_display`` false until TTL.
+    panel.worker_fn = None
+    panel.update_display(agent)
+    assert panel.worker_fn is None
 
 
 def test_stale_bead_worker_result_is_ignored(

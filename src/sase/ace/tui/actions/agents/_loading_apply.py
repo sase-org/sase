@@ -421,6 +421,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         # no-ops cheaply when there are no active candidates.
         self._schedule_live_hint_refresh(source="apply")  # type: ignore[attr-defined]
 
+        # Confirmed-bead glyph/field can only render from a warm cache, so
+        # confirm visible bead candidates off the event loop now that the list
+        # has painted; it no-ops cheaply when no visible row has an unconfirmed
+        # candidate.
+        self._schedule_bead_confirmation_warmup(source="apply")  # type: ignore[attr-defined]
+
     def _maybe_notify_agent_index_repair(
         self, load_state: AgentLoadState | None
     ) -> None:

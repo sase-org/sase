@@ -266,8 +266,74 @@ def test_render_key_changes_when_bead_agent_name_changes() -> None:
         now=None,
     )
 
-    assert "sase-x" in k2
+    assert "sase-x.land" in k2
     assert k1 != k2
+
+
+def _bead_key(a: Agent) -> tuple[object, ...]:
+    return agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+
+def test_render_key_changes_when_confirmed_bead_state_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.models.agent_bead import (
+        _BEAD_DISPLAY_CACHE,
+        resolve_bead_display,
+    )
+    from sase.bead.model import Issue
+
+    _BEAD_DISPLAY_CACHE.clear()
+    try:
+        a = _agent(agent_name="sase-x.3")
+        k_cold = _bead_key(a)
+
+        monkeypatch.setattr(
+            "sase.agent.bead_display._lookup_bead_issue",
+            lambda candidate_id, **_: Issue(id=candidate_id, title="", description=""),
+        )
+        resolve_bead_display(a)
+        k_confirmed = _bead_key(a)
+
+        assert k_cold != k_confirmed
+    finally:
+        _BEAD_DISPLAY_CACHE.clear()
+
+
+def test_render_key_unchanged_when_unconfirmed_candidate_resolves_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The candidate id alone must not bust the row cache: a cold candidate and a
+    # candidate confirmed-missing both render no glyph, so their keys match.
+    from sase.ace.tui.models.agent_bead import (
+        _BEAD_DISPLAY_CACHE,
+        resolve_bead_display,
+    )
+
+    _BEAD_DISPLAY_CACHE.clear()
+    try:
+        a = _agent(agent_name="sase-x.3")
+        k_cold = _bead_key(a)
+
+        monkeypatch.setattr(
+            "sase.agent.bead_display._lookup_bead_issue",
+            lambda candidate_id, **_: None,
+        )
+        resolve_bead_display(a)
+        k_missing = _bead_key(a)
+
+        assert k_cold == k_missing
+    finally:
+        _BEAD_DISPLAY_CACHE.clear()
 
 
 def test_render_key_changes_when_diff_path_appears_or_disappears() -> None:
