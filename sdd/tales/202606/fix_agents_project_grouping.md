@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 09:27:29
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_agents_project_grouping.md
 ---
 # Fix Agents Tab Project Grouping

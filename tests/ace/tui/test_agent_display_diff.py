@@ -328,3 +328,31 @@ def test_same_list_falls_back_when_previous_rows_were_not_rendered(
 
     assert app.full_rebuilds == 1
     assert "display_full_rebuild" in _display_costs(app)
+
+
+def test_stale_widget_grouping_mode_falls_back_to_full_rebuild(
+    monkeypatch: Any,
+) -> None:
+    # Reproduces the BY_STATUS -> STANDARD ("by project") cycle: app state
+    # advances to STANDARD while the rendered widgets still hold the previous
+    # mode's status-bucket tree. Patching those rows in place would leave the
+    # stale banners on screen, so the incremental path must defer to a full
+    # rebuild instead.
+    agent = _agent("alpha", tag=None, suffix="a1", status="RUNNING")
+    app = _DisplayDiffApp([agent], monkeypatch)
+    for widget in app._container.children:
+        widget._grouping_mode = GroupingMode.BY_STATUS
+
+    assert app._grouping_mode is GroupingMode.STANDARD
+
+    app._agents = [agent]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[agent],
+        defer_detail=True,
+    )
+
+    assert app.full_rebuilds == 1
+    assert app._agents_refresh_trace_records[0].fallback_reason == (
+        "stale_grouping_mode"
+    )
+    assert "display_full_rebuild" in _display_costs(app)

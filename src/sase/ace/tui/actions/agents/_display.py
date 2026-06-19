@@ -231,6 +231,9 @@ class AgentDisplayMixin(AgentSiblingMixin, PanelsMixin, DetailMixin):
         ):
             self._record_display_full_rebuild_fallback("unsupported_grouping")
             return False
+        if not self._agent_display_widgets_match_grouping_mode():
+            self._record_display_full_rebuild_fallback("stale_grouping_mode")
+            return False
 
         merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
         if not self._agent_display_widgets_have_previous_rows(previous_agents):
@@ -279,6 +282,42 @@ class AgentDisplayMixin(AgentSiblingMixin, PanelsMixin, DetailMixin):
                 defer_detail=defer_detail,
                 merge_tag_panels=merge_tag_panels,
             )
+
+    def _agent_display_widgets_match_grouping_mode(self) -> bool:
+        """Return True when every rendered ``AgentList`` matches the app mode.
+
+        The incremental refresh path patches and re-highlights existing rows
+        in place, so it is only safe when the widget trees already on screen
+        were built under the app's currently-active grouping mode. After a
+        grouping cycle (e.g. ``BY_STATUS -> STANDARD``) the agent identities
+        can be unchanged while the widgets still hold the previous mode's
+        banners; patching them would leave stale status buckets under a
+        project-mode label. When the widgets disagree with
+        ``self._grouping_mode`` we force the full rebuild path instead.
+        """
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+
+        active_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        try:
+            container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return True
+        try:
+            widgets = list(
+                container.query(AgentList).results(AgentList)  # type: ignore[attr-defined]
+            )
+        except (AttributeError, NoMatches):
+            widgets = [
+                widget
+                for widget in getattr(container, "children", [])
+                if isinstance(widget, AgentList)
+            ]
+        return all(
+            getattr(widget, "_grouping_mode", GroupingMode.STANDARD) is active_mode
+            for widget in widgets
+        )
 
     def _agent_display_widgets_have_previous_rows(
         self,
