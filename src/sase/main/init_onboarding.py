@@ -138,6 +138,8 @@ def _prompt_for_plan(
     if plan.command == "skills":
         command = f"{command} --force"
     prompt = f"Run `{command}` now?"
+    if plan.command == "amd":
+        prompt += " This may create a local git commit for AMD-managed changes."
     if plan.command == "memory":
         prompt += " This may commit and push generated project memory changes."
     answer = input_func(f"{prompt} [y/N] ")

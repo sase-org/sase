@@ -38,6 +38,36 @@ def test_parser_registers_amd_namespace() -> None:
     assert parent_check_alias_args.check is True
 
 
+def test_parser_accepts_amd_init_no_commit() -> None:
+    parser = create_parser()
+
+    default_args = parser.parse_args(["amd", "init"])
+    assert default_args.no_commit is False
+
+    short_args = parser.parse_args(["amd", "init", "-C"])
+    assert short_args.command == "amd"
+    assert short_args.amd_subcommand == "init"
+    assert short_args.no_commit is True
+
+    long_args = parser.parse_args(["amd", "init", "--no-commit"])
+    assert long_args.no_commit is True
+
+
+def test_parser_accepts_init_amd_alias_no_commit() -> None:
+    parser = create_parser()
+
+    default_args = parser.parse_args(["init", "amd"])
+    assert default_args.no_commit is False
+
+    short_args = parser.parse_args(["init", "amd", "-C"])
+    assert short_args.command == "init"
+    assert short_args.init_subcommand == "amd"
+    assert short_args.no_commit is True
+
+    long_args = parser.parse_args(["init", "amd", "--no-commit"])
+    assert long_args.no_commit is True
+
+
 def test_bare_amd_defaults_to_list(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[argparse.Namespace] = []
 

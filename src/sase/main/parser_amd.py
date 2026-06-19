@@ -17,13 +17,19 @@ def add_amd_init_arguments(
             default=argparse.SUPPRESS,
             help="Report AMD initialization drift without writing files",
         )
-        return
+    else:
+        parser.add_argument(
+            "-c",
+            "--check",
+            action="store_true",
+            help="Report AMD initialization drift without writing files",
+        )
 
     parser.add_argument(
-        "-c",
-        "--check",
+        "-C",
+        "--no-commit",
         action="store_true",
-        help="Report AMD initialization drift without writing files",
+        help="Skip the local git commit of AMD-managed changes",
     )
 
 

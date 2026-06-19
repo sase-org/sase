@@ -57,7 +57,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         epilog=(
             "Advanced deploy controls live on explicit subcommands; for example, "
-            "use `sase init amd --check`, `sase init memory --no-commit`, "
+            "use `sase init amd --no-commit`, `sase init memory --no-commit`, "
             "or `sase skill init --no-push`."
         ),
     )

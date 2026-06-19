@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 11:28:15
-status: wip
+status: done
 prompt: sdd/prompts/202606/amd_init_git_commit.md
 ---
 # Plan: Make AMD Init Commit Its Own Changes

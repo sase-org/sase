@@ -42,8 +42,8 @@ def long_note(
     return "\n".join(lines)
 
 
-def run_amd(*, check: bool = False) -> int:
-    return run_amd_init(argparse.Namespace(check=check))
+def run_amd(*, check: bool = False, no_commit: bool = True) -> int:
+    return run_amd_init(argparse.Namespace(check=check, no_commit=no_commit))
 
 
 def run_bare_init_amd() -> int:
@@ -53,6 +53,7 @@ def run_bare_init_amd() -> int:
             command="init",
             init_subcommand="amd",
             onboarding=True,
+            no_commit=True,
         )
     )
 
