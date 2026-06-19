@@ -22,10 +22,16 @@ def main() -> NoReturn:
         handle_run_special_cases(args_after_run)
         # If we get here, no special case was handled, continue to argparse
 
-    from .parser import create_parser
+    from .parser import create_parser, default_list_delegation_notice
 
     parser = create_parser()
     args = parser.parse_args()
+
+    # Announce when a bare command group was implicitly delegated to its `list`
+    # child, so the delegation starts the command output.
+    delegation_notice = default_list_delegation_notice(args)
+    if delegation_notice is not None:
+        print(delegation_notice)
 
     # =========================================================================
     # COMMAND HANDLERS (keep sorted alphabetically to match parser order)

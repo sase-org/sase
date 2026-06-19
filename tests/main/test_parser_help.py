@@ -9,9 +9,11 @@ from io import StringIO
 import pytest
 
 from sase.main.parser import (
+    _DEFAULT_LIST_GROUP_DEST,
     _format_compact_root_help,
     _print_compact_root_help,
     create_parser,
+    default_list_delegation_notice,
 )
 
 
@@ -179,10 +181,75 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
 
         assert getattr(omitted_args, action.dest) == "list", label
         for key, value in vars(explicit_args).items():
+            # The private delegation marker intentionally differs between a bare
+            # group and an explicit ``list``; all public defaults must match.
+            if key == _DEFAULT_LIST_GROUP_DEST:
+                continue
             assert hasattr(omitted_args, key), f"{label} missing {key}"
             assert getattr(omitted_args, key) == value, f"{label} default {key}"
 
     assert expected_groups <= list_groups
+
+
+def test_bare_list_group_records_delegation_metadata() -> None:
+    """Omitting a list-defaulted group records the omitted group path."""
+    parser = create_parser()
+
+    for path, action in _walk_subparser_actions(parser):
+        if "list" not in action.choices:
+            continue
+
+        label = " ".join(path)
+        omitted_args = parser.parse_args([*path[1:]])
+
+        assert getattr(omitted_args, _DEFAULT_LIST_GROUP_DEST) == label, label
+        assert default_list_delegation_notice(omitted_args) == (
+            f"No subcommand provided for '{label}'; delegating to '{label} list'."
+        ), label
+
+
+def test_nested_default_reports_only_the_omitted_group() -> None:
+    """Bare nested groups report themselves, not their parent group."""
+    parser = create_parser()
+
+    tag_args = parser.parse_args(["agent", "tag"])
+    alias_args = parser.parse_args(["project", "alias"])
+
+    assert getattr(tag_args, _DEFAULT_LIST_GROUP_DEST) == "sase agent tag"
+    assert getattr(alias_args, _DEFAULT_LIST_GROUP_DEST) == "sase project alias"
+    assert default_list_delegation_notice(tag_args) == (
+        "No subcommand provided for 'sase agent tag';"
+        " delegating to 'sase agent tag list'."
+    )
+
+
+def test_explicit_subcommands_record_no_delegation_metadata() -> None:
+    """Explicit list and non-list subcommands never look defaulted."""
+    parser = create_parser()
+
+    explicit_list = parser.parse_args(["agent", "list"])
+    explicit_other = parser.parse_args(["agent", "names"])
+    nested_explicit_list = parser.parse_args(["agent", "tag", "list"])
+    nested_explicit_group = parser.parse_args(["project", "alias", "list"])
+
+    for omitted_free in (
+        explicit_list,
+        explicit_other,
+        nested_explicit_list,
+        nested_explicit_group,
+    ):
+        assert getattr(omitted_free, _DEFAULT_LIST_GROUP_DEST) is None
+        assert default_list_delegation_notice(omitted_free) is None
+
+
+def test_non_list_group_has_no_delegation_metadata() -> None:
+    """Commands without a defaulted list child carry no delegation marker."""
+    parser = create_parser()
+
+    doctor_args = parser.parse_args(["doctor"])
+
+    assert getattr(doctor_args, _DEFAULT_LIST_GROUP_DEST, None) is None
+    assert default_list_delegation_notice(doctor_args) is None
 
 
 def test_agents_help_renders_sorted_subcommands() -> None:

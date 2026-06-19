@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-18 20:03:33
-status: wip
+status: done
 prompt: sdd/prompts/202606/default_list_notice.md
 ---
 # Default List Delegation Notice Plan
