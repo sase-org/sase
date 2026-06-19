@@ -139,7 +139,14 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
+        --epic-symbol 'sase-4z(VcsProjectEntry)' \
+        --epic-symbol 'sase-4z(VcsProjectTrigger)' \
+        --epic-symbol 'sase-4z(build_vcs_project_completion_entries)' \
+        --epic-symbol 'sase-4z(clear_vcs_project_completion_cache)' \
+        --epic-symbol 'sase-4z(filter_vcs_project_entries)' \
+        --epic-symbol 'sase-4z(find_vcs_project_trigger)' \
+        --epic-symbol 'sase-4z(apply_vcs_project_selection)'
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted

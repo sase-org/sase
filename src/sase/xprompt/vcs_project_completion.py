@@ -1,0 +1,312 @@
+"""Headless foundations for the ``+`` project-completion feature.
+
+This module provides the pure-logic building blocks shared by the TUI prompt
+input widget (Phase 2, consuming these helpers directly) and the Rust xprompt
+LSP (Phase 4, consuming a materialized JSON catalog built from
+:func:`build_vcs_project_completion_entries`).
+
+The four public helpers are:
+
+* :func:`build_vcs_project_completion_entries` -- the active-project catalog.
+* :func:`filter_vcs_project_entries` -- case-insensitive prefix filtering.
+* :func:`find_vcs_project_trigger` -- detect a ``+query`` trigger token.
+* :func:`apply_vcs_project_selection` -- expand a selected project into the
+  prompt via the canonical VCS-tag expansion algorithm.
+
+The canonical expansion algorithm implemented by
+:func:`apply_vcs_project_selection` is the cross-language parity contract: the
+Rust port (Phase 3) must produce byte-identical output for the golden test
+vectors. Keep both sides in sync when changing it.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from sase.core.paths import sase_projects_dir
+from sase.core.project_lifecycle_facade import list_project_records
+from sase.workspace_provider import detect_workflow_type, get_display_name
+from sase.xprompt import _parsing
+
+# The system-managed project that must never appear as a completion candidate.
+_HOME_PROJECT_NAME = "home"
+
+
+@dataclass(frozen=True)
+class VcsProjectEntry:
+    """One active-project completion candidate.
+
+    Attributes:
+        name: Project name (e.g. ``"sase"``).
+        vcs_prefix: VCS workflow prefix (e.g. ``"gh"``, ``"git"``).
+        display_tag: The resulting VCS workflow tag, without a trailing space
+            (e.g. ``"#gh:sase"``).
+        provider_display: Human-readable provider name (e.g. ``"GitHub"``),
+            falling back to ``vcs_prefix`` when no display name is registered.
+        description: Project description, when available (empty otherwise).
+        aliases: Alternate names the project can be matched by.
+    """
+
+    name: str
+    vcs_prefix: str
+    display_tag: str
+    provider_display: str
+    description: str = ""
+    aliases: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class VcsProjectTrigger:
+    """A detected ``+query`` completion trigger token.
+
+    Attributes:
+        start: Index of the leading ``+`` within the prompt.
+        end: Index one past the end of the trigger token (the next whitespace
+            boundary or end of prompt).
+        query: The filter text after ``+`` up to the cursor (empty for a bare
+            ``+``).
+    """
+
+    start: int
+    end: int
+    query: str
+
+    @property
+    def span(self) -> tuple[int, int]:
+        """Return the ``(start, end)`` span of the trigger token."""
+        return (self.start, self.end)
+
+
+# --- Catalog ---------------------------------------------------------------
+
+# Module-level cache: (signature, entries). Cheaply invalidated by the projects
+# directory mtime so external project additions/removals are picked up, and
+# explicitly clearable via :func:`clear_vcs_project_completion_cache`.
+_ENTRIES_CACHE: tuple[object, tuple[VcsProjectEntry, ...]] | None = None
+
+
+def _catalog_signature(projects_dir: Path) -> object | None:
+    """Return a cheap cache signature for *projects_dir*, or ``None``.
+
+    A single ``stat`` of the projects directory is enough to invalidate the
+    cache when projects are added or removed.
+    """
+    try:
+        stat = projects_dir.stat()
+    except OSError:
+        return None
+    return (str(projects_dir), stat.st_mtime_ns)
+
+
+def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
+    """Build the active-project completion catalog from *projects_dir*."""
+    entries: dict[str, VcsProjectEntry] = {}
+    for record in list_project_records(projects_dir, "active"):
+        if record.system_managed or not record.launchable:
+            continue
+        if record.project_name == _HOME_PROJECT_NAME:
+            continue
+        try:
+            vcs_prefix = detect_workflow_type(record.project_file)
+        except ValueError:
+            # No workspace plugin claims this project (e.g. its provider plugin
+            # is not installed); it cannot be expanded into a VCS tag, so skip.
+            continue
+        if not vcs_prefix:
+            continue
+        provider_display = get_display_name(vcs_prefix) or vcs_prefix
+        # Dedupe by project name (last record wins).
+        entries[record.project_name] = VcsProjectEntry(
+            name=record.project_name,
+            vcs_prefix=vcs_prefix,
+            display_tag=f"#{vcs_prefix}:{record.project_name}",
+            provider_display=provider_display,
+            description="",
+            aliases=tuple(record.aliases),
+        )
+    return sorted(entries.values(), key=lambda entry: entry.name)
+
+
+def build_vcs_project_completion_entries(
+    projects_dir: Path | str | None = None,
+    *,
+    use_cache: bool = True,
+) -> list[VcsProjectEntry]:
+    """Return ordered completion entries for all launchable active projects.
+
+    Records that are system-managed, non-launchable, or whose workflow type
+    cannot be detected are excluded. The result is deduped by name and sorted
+    by name.
+
+    Args:
+        projects_dir: Projects root to enumerate. Defaults to the SASE projects
+            directory.
+        use_cache: When ``True`` (default), reuse a cached catalog while the
+            projects directory is unchanged. Pass ``False`` to force a rebuild.
+
+    Returns:
+        A fresh list of :class:`VcsProjectEntry`, sorted by project name.
+    """
+    global _ENTRIES_CACHE  # noqa: PLW0603
+
+    resolved = Path(projects_dir) if projects_dir is not None else sase_projects_dir()
+    signature = _catalog_signature(resolved)
+
+    if use_cache and signature is not None and _ENTRIES_CACHE is not None:
+        cached_signature, cached_entries = _ENTRIES_CACHE
+        if cached_signature == signature:
+            return list(cached_entries)
+
+    entries = _build_entries(resolved)
+
+    if use_cache and signature is not None:
+        _ENTRIES_CACHE = (signature, tuple(entries))
+
+    return entries
+
+
+def clear_vcs_project_completion_cache() -> None:
+    """Drop the cached project-completion catalog.
+
+    Callers should invoke this when projects are created, archived, or
+    otherwise change lifecycle state, so the next build reflects the change.
+    """
+    global _ENTRIES_CACHE  # noqa: PLW0603
+    _ENTRIES_CACHE = None
+
+
+def filter_vcs_project_entries(
+    entries: list[VcsProjectEntry],
+    query: str,
+) -> list[VcsProjectEntry]:
+    """Return *entries* whose name or an alias prefix-matches *query*.
+
+    Matching is case-insensitive. An empty *query* returns all entries. Input
+    order (name-sorted, from the builder) is preserved.
+    """
+    needle = query.lower()
+    if not needle:
+        return list(entries)
+    return [
+        entry
+        for entry in entries
+        if entry.name.lower().startswith(needle)
+        or any(alias.lower().startswith(needle) for alias in entry.aliases)
+    ]
+
+
+# --- Trigger detection -----------------------------------------------------
+
+
+def find_vcs_project_trigger(prompt: str, cursor: int) -> VcsProjectTrigger | None:
+    """Detect a ``+query`` completion trigger at *cursor* within *prompt*.
+
+    The trigger fires when the token immediately preceding *cursor* starts with
+    ``+`` and that ``+`` sits at the beginning of the prompt, at the start of a
+    line, or directly after whitespace. A ``+`` embedded in a word (e.g.
+    ``c++``) is ordinary text and does not trigger.
+
+    Args:
+        prompt: The full prompt text.
+        cursor: Caret index within *prompt*.
+
+    Returns:
+        A :class:`VcsProjectTrigger` describing the token span and filter query,
+        or ``None`` when no trigger applies.
+    """
+    if cursor < 0 or cursor > len(prompt):
+        return None
+
+    # Walk back through the run of non-whitespace characters before the cursor
+    # to find the token start. By construction the character before ``start``
+    # is whitespace or the start of the prompt -- i.e. the position rule.
+    start = cursor
+    while start > 0 and not prompt[start - 1].isspace():
+        start -= 1
+
+    if start >= len(prompt) or prompt[start] != "+":
+        return None
+
+    # Extend forward to the end of the token (next whitespace or end of prompt).
+    end = start
+    while end < len(prompt) and not prompt[end].isspace():
+        end += 1
+
+    query = prompt[start + 1 : cursor]
+    return VcsProjectTrigger(start=start, end=end, query=query)
+
+
+# --- Expansion (the canonical parity contract) -----------------------------
+
+
+def _strip_trigger_token(prompt: str, start: int, end: int) -> str:
+    """Remove the trigger span ``[start, end)`` and collapse one stray space.
+
+    The collapse avoids leaving a double space, an orphan trailing space at the
+    end of a line/prompt, or an orphan leading space at the start of a
+    line/prompt.
+    """
+    before = prompt[:start]
+    after = prompt[end:]
+    before_space = before.endswith(" ")
+    after_space = after.startswith(" ")
+
+    if before_space and after_space:
+        # The token sat between two spaces; collapse to a single space.
+        after = after[1:]
+    elif before_space and (after == "" or after[0] in "\r\n"):
+        # A trailing space would be orphaned at end of line/prompt.
+        before = before[:-1]
+    elif after_space and (before == "" or before[-1] in "\r\n"):
+        # A leading space would be orphaned at start of line/prompt.
+        after = after[1:]
+
+    return before + after
+
+
+def apply_vcs_project_selection(
+    prompt: str,
+    trigger_span: tuple[int, int],
+    display_tag: str,
+) -> str:
+    """Expand a selected project into *prompt*, returning the new prompt text.
+
+    Implements the canonical expansion algorithm: remove the trigger token,
+    collapse one adjacent space, then either replace every line-start VCS
+    workflow tag with *display_tag* or, when none exist, prepend *display_tag*
+    after any leading frontmatter / whitespace / ``%directive`` tokens.
+
+    Args:
+        prompt: The full prompt text.
+        trigger_span: The ``(start, end)`` span of the ``+query`` trigger token.
+        display_tag: The selected project's VCS tag, without a trailing space
+            (e.g. ``"#gh:sase"``).
+
+    Returns:
+        The rewritten prompt text.
+    """
+    start, end = trigger_span
+    base = _strip_trigger_token(prompt, start, end)
+
+    # ``replace_vcs_workflow_tags`` replaces every line-start VCS tag, or -- when
+    # none exist -- prepends the tag at offset 0. Detect that no-tag case (its
+    # output is exactly the naive prepend) and redo it with frontmatter /
+    # directive-aware placement.
+    replaced = _parsing.replace_vcs_workflow_tags(base, display_tag)
+    if replaced != f"{display_tag} {base}":
+        return replaced
+
+    offset = _parsing.find_vcs_workflow_tag_prepend_offset(base)
+    return f"{base[:offset]}{display_tag} {base[offset:]}"
+
+
+__all__ = [
+    "VcsProjectEntry",
+    "VcsProjectTrigger",
+    "apply_vcs_project_selection",
+    "build_vcs_project_completion_entries",
+    "clear_vcs_project_completion_cache",
+    "filter_vcs_project_entries",
+    "find_vcs_project_trigger",
+]
