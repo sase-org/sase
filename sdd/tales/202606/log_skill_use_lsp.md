@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 11:26:10
-status: wip
+status: done
 prompt: sdd/prompts/202606/log_skill_use_lsp.md
 ---
 # Plan: Add LSP Support for `log_skill_use`

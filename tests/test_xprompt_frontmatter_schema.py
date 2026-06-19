@@ -77,3 +77,18 @@ def test_validate_frontmatter_flags_known_bad_value() -> None:
 def test_validate_frontmatter_accepts_bare_body_without_delimiters() -> None:
     diagnostics = validate_frontmatter("description: Refactor the auth module")
     assert not [d for d in diagnostics if d.is_error], diagnostics
+
+
+def test_validate_frontmatter_accepts_log_skill_use_boolean() -> None:
+    diagnostics = validate_frontmatter(
+        "---\nskill: true\ndescription: Plan helper\nlog_skill_use: false\n---\n"
+    )
+    assert not [d for d in diagnostics if d.is_error], diagnostics
+    codes = {d.code for d in diagnostics}
+    assert "unknown_xprompt_frontmatter_field" not in codes, diagnostics
+
+
+def test_validate_frontmatter_flags_non_boolean_log_skill_use() -> None:
+    diagnostics = validate_frontmatter('---\nlog_skill_use: "false"\n---\n')
+    codes = {d.code for d in diagnostics}
+    assert "invalid_xprompt_frontmatter_log_skill_use" in codes
