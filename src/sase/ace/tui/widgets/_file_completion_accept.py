@@ -30,7 +30,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         """Apply the canonical expansion for the selected project candidate."""
         entry = selected.metadata
         if not isinstance(entry, VcsProjectEntry):
-            # The "no active projects" placeholder is not selectable.
+            # The empty project/PR placeholder is not selectable.
             self._clear_file_completion()
             return False
         trigger = self._get_vcs_project_trigger()

@@ -1,4 +1,4 @@
-"""Prompt-bar candidate building for the ``+`` VCS-project completion menu.
+"""Prompt-bar candidate building for the ``+`` VCS project/PR completion menu.
 
 This is the thin TUI bridge between the headless Phase-1 helpers in
 :mod:`sase.xprompt.vcs_project_completion` (catalog, trigger detection, the
@@ -7,8 +7,8 @@ canonical expansion transform) and the prompt input bar's
 
 The accept path expands the *whole* prompt via
 :func:`~sase.xprompt.vcs_project_completion.apply_vcs_project_selection`, so a
-candidate's ``insertion`` is the project's ``display_tag`` for display only --
-it is never used as a token-local replacement.
+candidate's ``insertion`` is the entry's ``display_tag`` for display only -- it
+is never used as a token-local replacement.
 """
 
 from __future__ import annotations
@@ -21,14 +21,14 @@ from sase.xprompt.vcs_project_completion import (
 )
 
 VCS_PROJECT_COMPLETION_KIND = "vcs_project"
-"""``_completion_kind`` value identifying the ``+`` project completion menu."""
+"""``_completion_kind`` value identifying the ``+`` project/PR menu."""
 
-_NO_ACTIVE_PROJECTS_LABEL = "no active projects"
-"""Placeholder row text shown when the active-project catalog is empty."""
+_NO_ACTIVE_PROJECTS_LABEL = "no active projects or PRs"
+"""Placeholder row text shown when the active project/PR catalog is empty."""
 
 
 def build_no_active_projects_placeholder() -> CompletionCandidate:
-    """Return the single dim placeholder row for an empty project catalog.
+    """Return the single dim placeholder row for an empty project/PR catalog.
 
     The placeholder carries ``metadata=None`` so the accept path recognizes it
     as non-selectable (accepting it is a no-op dismiss) and the renderer styles
@@ -44,7 +44,7 @@ def build_no_active_projects_placeholder() -> CompletionCandidate:
 
 
 def _candidate(entry: VcsProjectEntry) -> CompletionCandidate:
-    """Build one completion candidate from a project *entry*."""
+    """Build one completion candidate from a project/PR *entry*."""
     return CompletionCandidate(
         display=entry.name,
         insertion=entry.display_tag,
@@ -61,17 +61,18 @@ def vcs_project_completion_candidates(
 ) -> tuple[list[CompletionCandidate], bool]:
     """Return ``(candidates, catalog_is_empty)`` for *query*.
 
-    ``catalog_is_empty`` is ``True`` only when there are *zero* active projects,
-    so the caller shows the :func:`build_no_active_projects_placeholder` row
-    rather than dismissing the menu. When the catalog is non-empty but *query*
-    filters everything out, ``candidates`` is empty and ``catalog_is_empty`` is
-    ``False`` (the caller dismisses).
+    ``catalog_is_empty`` is ``True`` only when there are *zero* active project
+    or PR entries, so the caller shows the
+    :func:`build_no_active_projects_placeholder` row rather than dismissing the
+    menu. When the catalog is non-empty but *query* filters everything out,
+    ``candidates`` is empty and ``catalog_is_empty`` is ``False`` (the caller
+    dismisses).
 
     The catalog build is cached by :mod:`sase.xprompt.vcs_project_completion`, so
     this stays cheap on the keystroke path once warmed.
 
     Args:
-        query: The filter text after the ``+`` (empty matches all projects).
+        query: The filter text after the ``+`` (empty matches all entries).
         entries: Pre-built catalog to filter; built lazily (cached) when omitted.
     """
     source = entries if entries is not None else build_vcs_project_completion_entries()

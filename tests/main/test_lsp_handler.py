@@ -103,7 +103,7 @@ def test_prepare_lsp_environment_materializes_vcs_project_catalog(
         SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV: str(catalog_path),
     }
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "workflow_names": ["gh", "git"],
         "entries": [
             {
@@ -113,6 +113,9 @@ def test_prepare_lsp_environment_materializes_vcs_project_catalog(
                 "provider_display": "GitHub",
                 "description": "",
                 "aliases": [],
+                "kind": "project",
+                "project": "sase",
+                "status": "",
             }
         ],
     }
@@ -129,7 +132,7 @@ def test_prepare_lsp_environment_materializes_vcs_project_catalog(
 
 def test_prepare_lsp_environment_defaults_vcs_catalog_path(tmp_path: Path) -> None:
     env: dict[str, str] = {}
-    payload = {"schema_version": 1, "workflow_names": [], "entries": []}
+    payload = {"schema_version": 2, "workflow_names": [], "entries": []}
 
     with patch(
         "sase.xprompt.vcs_project_completion.vcs_project_catalog_payload",

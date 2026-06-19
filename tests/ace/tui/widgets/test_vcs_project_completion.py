@@ -10,6 +10,7 @@ helper level in ``tests/test_xprompt_vcs_project_completion.py``.
 
 from __future__ import annotations
 
+from typing import Literal
 from unittest.mock import patch
 
 import pytest
@@ -38,6 +39,9 @@ def _entry(
     provider: str = "GitHub",
     description: str = "",
     aliases: tuple[str, ...] = (),
+    kind: Literal["project", "changespec"] = "project",
+    project: str | None = None,
+    status: str = "",
 ) -> VcsProjectEntry:
     return VcsProjectEntry(
         name=name,
@@ -46,6 +50,9 @@ def _entry(
         provider_display=provider,
         description=description,
         aliases=aliases,
+        kind=kind,
+        project=project or name,
+        status=status,
     )
 
 
@@ -54,6 +61,16 @@ _PROJECTS = [
     _entry("sase", description="SASE core repo"),
     _entry("telegram", vcs="git", provider="Git", aliases=("tg",)),
     _entry("widgets"),
+]
+
+_PROJECTS_AND_PRS = [
+    *_PROJECTS,
+    _entry(
+        "ship-completion",
+        kind="changespec",
+        project="sase",
+        status="Ready",
+    ),
 ]
 
 
@@ -96,7 +113,21 @@ def test_candidates_non_empty_catalog_no_match() -> None:
 def test_placeholder_is_non_selectable() -> None:
     placeholder = build_no_active_projects_placeholder()
     assert placeholder.metadata is None
-    assert "no active projects" in placeholder.display
+    assert "no active projects or PRs" in placeholder.display
+
+
+def test_candidates_include_changespec_metadata() -> None:
+    candidates, catalog_empty = vcs_project_completion_candidates(
+        "ship",
+        entries=_PROJECTS_AND_PRS,
+    )
+    assert catalog_empty is False
+    assert [c.name for c in candidates] == ["ship-completion"]
+    entry = candidates[0].metadata
+    assert isinstance(entry, VcsProjectEntry)
+    assert entry.kind == "changespec"
+    assert entry.project == "sase"
+    assert entry.status == "Ready"
 
 
 # --- Trigger auto-open -----------------------------------------------------
@@ -117,7 +148,7 @@ async def test_hash_plus_auto_opens_menu() -> None:
         assert ta._file_completion_active is True
         assert ta._completion_kind == VCS_PROJECT_COMPLETION_KIND
         panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "projects"
+        assert panel.border_title == "projects & PRs"
         rendered = panel.render().plain
         assert "sase" in rendered
         assert "telegram" in rendered
@@ -139,10 +170,28 @@ async def test_bare_plus_at_bof_auto_opens_menu() -> None:
         assert ta._file_completion_active is True
         assert ta._completion_kind == VCS_PROJECT_COMPLETION_KIND
         panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "projects"
+        assert panel.border_title == "projects & PRs"
         rendered = panel.render().plain
         assert "sase" in rendered
         assert "telegram" in rendered
+
+
+async def test_menu_renders_project_and_changespec_badges() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        with patch(_ENTRIES_PATH, return_value=_PROJECTS_AND_PRS):
+            await pilot.press("#")
+            await pilot.press("+")
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "projects & PRs"
+        rendered = panel.render().plain
+        assert "[P] sase" in rendered
+        assert "[PR] ship-completion" in rendered
+        assert "#gh:ship-completion" in rendered
+        assert "Ready" in rendered
+        assert "· sase" in rendered
 
 
 async def test_bare_plus_after_text_does_not_open() -> None:
@@ -335,7 +384,7 @@ async def test_empty_catalog_shows_placeholder_row() -> None:
         assert len(ta._file_completion_candidates) == 1
         assert ta._file_completion_candidates[0].metadata is None
         panel = bar.query_one("#prompt-completion", Static)
-        assert "no active projects" in panel.render().plain
+        assert "no active projects or PRs" in panel.render().plain
 
 
 async def test_accept_placeholder_is_noop() -> None:

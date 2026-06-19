@@ -7,7 +7,9 @@ test-vector table that the Rust port (Phase 3) must match byte-for-byte.
 
 from __future__ import annotations
 
+import os
 import re
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -273,6 +275,9 @@ def test_builder_basic_entries_sorted_by_name() -> None:
         provider_display="Git (bare)",
         description="",
         aliases=("bobby",),
+        kind="project",
+        project="bob",
+        status="",
     )
     assert sase.display_tag == "#gh:sase"
     assert sase.provider_display == "GitHub"
@@ -335,6 +340,89 @@ def test_builder_dedupes_by_name() -> None:
     assert len(entries) == 1
 
 
+def _changespec(name: str, project: str, status: str):
+    return SimpleNamespace(name=name, project_basename=project, status=status)
+
+
+def test_builder_appends_active_changespecs_after_projects() -> None:
+    records = [_record("sase"), _record("bob")]
+    workflow_types = {"sase": "gh", "bob": "git"}
+    display_names = {"gh": "GitHub", "git": "Git"}
+    changespecs = [
+        _changespec("ship-z", "sase", "Ready"),
+        _changespec("draft-b", "bob", "Draft (bob_2)"),
+    ]
+    list_p, detect_p, display_p = _patch_catalog(records, workflow_types, display_names)
+
+    with (
+        list_p,
+        detect_p,
+        display_p,
+        patch.object(vpc, "_iter_active_changespecs", return_value=changespecs),
+    ):
+        entries = build_vcs_project_completion_entries(
+            projects_dir="/tmp/projects", use_cache=False
+        )
+
+    assert [(entry.kind, entry.project, entry.name) for entry in entries] == [
+        ("project", "bob", "bob"),
+        ("project", "sase", "sase"),
+        ("changespec", "bob", "draft-b"),
+        ("changespec", "sase", "ship-z"),
+    ]
+    draft = entries[2]
+    assert draft.display_tag == "#git:draft-b"
+    assert draft.status == "Draft"
+
+
+def test_builder_filters_changespec_status_and_missing_project() -> None:
+    records = [_record("sase")]
+    workflow_types = {"sase": "gh"}
+    changespecs = [
+        _changespec("active", "sase", "Mailed"),
+        _changespec("done", "sase", "Submitted"),
+        _changespec("other", "missing", "Ready"),
+    ]
+    list_p, detect_p, display_p = _patch_catalog(records, workflow_types)
+
+    with (
+        list_p,
+        detect_p,
+        display_p,
+        patch.object(vpc, "_iter_active_changespecs", return_value=changespecs),
+    ):
+        entries = build_vcs_project_completion_entries(
+            projects_dir="/tmp/projects", use_cache=False
+        )
+
+    assert [(entry.kind, entry.name) for entry in entries] == [
+        ("project", "sase"),
+        ("changespec", "active"),
+    ]
+
+
+def test_builder_allows_changespec_name_to_match_project_name() -> None:
+    records = [_record("sase")]
+    workflow_types = {"sase": "gh"}
+    changespecs = [_changespec("sase", "sase", "WIP")]
+    list_p, detect_p, display_p = _patch_catalog(records, workflow_types)
+
+    with (
+        list_p,
+        detect_p,
+        display_p,
+        patch.object(vpc, "_iter_active_changespecs", return_value=changespecs),
+    ):
+        entries = build_vcs_project_completion_entries(
+            projects_dir="/tmp/projects", use_cache=False
+        )
+
+    assert [(entry.kind, entry.name, entry.display_tag) for entry in entries] == [
+        ("project", "sase", "#gh:sase"),
+        ("changespec", "sase", "#gh:sase"),
+    ]
+
+
 # --- Caching ---------------------------------------------------------------
 
 
@@ -389,6 +477,43 @@ def test_returned_list_is_isolated_from_cache(tmp_path) -> None:
     assert [e.name for e in second] == ["sase"]
 
 
+def test_cache_invalidates_when_project_spec_mtime_changes(tmp_path) -> None:
+    spec_file = tmp_path / "sase" / "sase.sase"
+    spec_file.parent.mkdir()
+    spec_file.write_text("NAME: first\nSTATUS: WIP\n", encoding="utf-8")
+    records = [_record("sase")]
+    workflow_types = {"sase": "gh"}
+    changespec_versions = [
+        [_changespec("first", "sase", "WIP")],
+        [_changespec("second", "sase", "Ready")],
+    ]
+    list_p, detect_p, display_p = _patch_catalog(records, workflow_types)
+
+    with (
+        list_p as list_mock,
+        detect_p,
+        display_p,
+        patch.object(vpc, "iter_changespec_project_files", return_value=[spec_file]),
+        patch.object(
+            vpc, "_iter_active_changespecs", side_effect=changespec_versions
+        ) as changespec_mock,
+    ):
+        first = build_vcs_project_completion_entries(projects_dir=tmp_path)
+        second = build_vcs_project_completion_entries(projects_dir=tmp_path)
+        stat = spec_file.stat()
+        os.utime(
+            spec_file,
+            ns=(stat.st_atime_ns + 1_000_000_000, stat.st_mtime_ns + 1_000_000_000),
+        )
+        third = build_vcs_project_completion_entries(projects_dir=tmp_path)
+
+    assert [entry.name for entry in first if entry.kind == "changespec"] == ["first"]
+    assert second == first
+    assert [entry.name for entry in third if entry.kind == "changespec"] == ["second"]
+    assert list_mock.call_count == 2
+    assert changespec_mock.call_count == 2
+
+
 # --- Catalog payload (the LSP materialization contract) --------------------
 
 
@@ -419,6 +544,9 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
             "provider_display": "Git (bare)",
             "description": "",
             "aliases": ["bobby"],
+            "kind": "project",
+            "project": "bob",
+            "status": "",
         },
         {
             "name": "sase",
@@ -427,6 +555,9 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
             "provider_display": "GitHub",
             "description": "",
             "aliases": [],
+            "kind": "project",
+            "project": "sase",
+            "status": "",
         },
     ]
 

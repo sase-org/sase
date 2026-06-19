@@ -1,4 +1,4 @@
-"""Headless foundations for the ``#+`` project-completion feature.
+"""Headless foundations for the ``#+`` project/PR-completion feature.
 
 This module provides the pure-logic building blocks shared by the TUI prompt
 input widget (Phase 2, consuming these helpers directly) and the Rust xprompt
@@ -7,12 +7,12 @@ LSP (Phase 4, consuming a materialized JSON catalog built from
 
 The four public helpers are:
 
-* :func:`build_vcs_project_completion_entries` -- the active-project catalog.
+* :func:`build_vcs_project_completion_entries` -- the active project/PR catalog.
 * :func:`filter_vcs_project_entries` -- case-insensitive prefix filtering.
 * :func:`find_vcs_project_trigger` -- detect a ``#+query`` or BOF ``+query``
   trigger token.
-* :func:`apply_vcs_project_selection` -- expand a selected project into the
-  prompt via the canonical VCS-tag expansion algorithm.
+* :func:`apply_vcs_project_selection` -- expand a selected project or PR into
+  the prompt via the canonical VCS-tag expansion algorithm.
 
 The canonical expansion algorithm implemented by
 :func:`apply_vcs_project_selection` is the cross-language parity contract: the
@@ -22,11 +22,19 @@ vectors. Keep both sides in sync when changing it.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
+from sase.ace.changespec import (
+    ChangeSpec,
+    iter_changespec_project_files,
+    parse_project_file,
+)
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
+from sase.status_state_machine import remove_workspace_suffix
 from sase.workspace_provider import (
     detect_workflow_type,
     get_display_name,
@@ -37,24 +45,33 @@ from sase.xprompt import _parsing
 # The system-managed project that must never appear as a completion candidate.
 _HOME_PROJECT_NAME = "home"
 
+_ACTIVE_CHANGESPEC_STATUSES = frozenset({"WIP", "Draft", "Ready", "Mailed"})
+
 # Schema version for the materialized JSON catalog handed to the Rust LSP. Bump
 # when the on-disk shape changes; the Rust loader tolerates unknown extra keys.
-VCS_PROJECT_CATALOG_SCHEMA_VERSION = 1
+VCS_PROJECT_CATALOG_SCHEMA_VERSION = 2
+
+VcsProjectEntryKind = Literal["project", "changespec"]
 
 
 @dataclass(frozen=True)
 class VcsProjectEntry:
-    """One active-project completion candidate.
+    """One active project or ChangeSpec completion candidate.
 
     Attributes:
-        name: Project name (e.g. ``"sase"``).
+        name: Project name (e.g. ``"sase"``) or ChangeSpec name.
         vcs_prefix: VCS workflow prefix (e.g. ``"gh"``, ``"git"``).
         display_tag: The resulting VCS workflow tag, without a trailing space
             (e.g. ``"#gh:sase"``).
         provider_display: Human-readable provider name (e.g. ``"GitHub"``),
             falling back to ``vcs_prefix`` when no display name is registered.
         description: Project description, when available (empty otherwise).
-        aliases: Alternate names the project can be matched by.
+        aliases: Alternate names the project can be matched by. ChangeSpecs do
+            not currently carry aliases.
+        kind: ``"project"`` for project rows, ``"changespec"`` for PR rows.
+        project: Owning project basename. For project rows, this equals
+            ``name``.
+        status: Base ChangeSpec status for PR rows; empty for project rows.
     """
 
     name: str
@@ -63,6 +80,9 @@ class VcsProjectEntry:
     provider_display: str
     description: str = ""
     aliases: tuple[str, ...] = field(default_factory=tuple)
+    kind: VcsProjectEntryKind = "project"
+    project: str = ""
+    status: str = ""
 
 
 @dataclass(frozen=True)
@@ -89,8 +109,8 @@ class VcsProjectTrigger:
 
 # --- Catalog ---------------------------------------------------------------
 
-# Module-level cache: (signature, entries). Cheaply invalidated by the projects
-# directory mtime so external project additions/removals are picked up, and
+# Module-level cache: (signature, entries). Invalidated by ProjectSpec file
+# mtimes so both project membership and ChangeSpec edits are picked up, and
 # explicitly clearable via :func:`_clear_vcs_project_completion_cache`.
 _ENTRIES_CACHE: tuple[object, tuple[VcsProjectEntry, ...]] | None = None
 
@@ -98,19 +118,43 @@ _ENTRIES_CACHE: tuple[object, tuple[VcsProjectEntry, ...]] | None = None
 def _catalog_signature(projects_dir: Path) -> object | None:
     """Return a cheap cache signature for *projects_dir*, or ``None``.
 
-    A single ``stat`` of the projects directory is enough to invalidate the
-    cache when projects are added or removed.
+    The catalog now includes ChangeSpecs, so a top-level projects-directory
+    ``stat`` would miss status/name edits inside ProjectSpec files. Use the
+    lifecycle-selected ProjectSpec files themselves as the cache key.
     """
     try:
-        stat = projects_dir.stat()
+        project_files = iter_changespec_project_files(
+            projects_dir=projects_dir,
+            include_states=("active",),
+            include_home=False,
+        )
     except OSError:
         return None
-    return (str(projects_dir), stat.st_mtime_ns)
+
+    file_signatures: list[tuple[str, int, int]] = []
+    for project_file in project_files:
+        try:
+            stat = project_file.stat()
+        except OSError:
+            continue
+        file_signatures.append((str(project_file), stat.st_mtime_ns, stat.st_size))
+    return (str(projects_dir), tuple(sorted(file_signatures)))
+
+
+def _iter_active_changespecs(projects_dir: Path) -> Iterator[ChangeSpec]:
+    """Yield ChangeSpecs from lifecycle-active ProjectSpec files."""
+    for project_file in iter_changespec_project_files(
+        projects_dir=projects_dir,
+        include_states=("active",),
+        include_home=False,
+    ):
+        yield from parse_project_file(str(project_file))
 
 
 def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
-    """Build the active-project completion catalog from *projects_dir*."""
-    entries: dict[str, VcsProjectEntry] = {}
+    """Build the active project/PR completion catalog from *projects_dir*."""
+    project_entries: dict[str, VcsProjectEntry] = {}
+    prefix_by_project: dict[str, tuple[str, str]] = {}
     for record in list_project_records(projects_dir, "active"):
         if record.system_managed or not record.launchable:
             continue
@@ -126,15 +170,47 @@ def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
             continue
         provider_display = get_display_name(vcs_prefix) or vcs_prefix
         # Dedupe by project name (last record wins).
-        entries[record.project_name] = VcsProjectEntry(
+        project_entries[record.project_name] = VcsProjectEntry(
             name=record.project_name,
             vcs_prefix=vcs_prefix,
             display_tag=f"#{vcs_prefix}:{record.project_name}",
             provider_display=provider_display,
             description="",
             aliases=tuple(record.aliases),
+            kind="project",
+            project=record.project_name,
+            status="",
         )
-    return sorted(entries.values(), key=lambda entry: entry.name)
+        prefix_by_project[record.project_name] = (vcs_prefix, provider_display)
+
+    changespec_entries: list[VcsProjectEntry] = []
+    for changespec in _iter_active_changespecs(projects_dir):
+        base_status = remove_workspace_suffix(changespec.status)
+        if base_status not in _ACTIVE_CHANGESPEC_STATUSES:
+            continue
+        project = changespec.project_basename
+        prefix_info = prefix_by_project.get(project)
+        if prefix_info is None:
+            continue
+        vcs_prefix, provider_display = prefix_info
+        changespec_entries.append(
+            VcsProjectEntry(
+                name=changespec.name,
+                vcs_prefix=vcs_prefix,
+                display_tag=f"#{vcs_prefix}:{changespec.name}",
+                provider_display=provider_display,
+                description="",
+                aliases=(),
+                kind="changespec",
+                project=project,
+                status=base_status,
+            )
+        )
+
+    return [
+        *sorted(project_entries.values(), key=lambda entry: entry.name),
+        *sorted(changespec_entries, key=lambda entry: (entry.project, entry.name)),
+    ]
 
 
 def build_vcs_project_completion_entries(
@@ -142,11 +218,11 @@ def build_vcs_project_completion_entries(
     *,
     use_cache: bool = True,
 ) -> list[VcsProjectEntry]:
-    """Return ordered completion entries for all launchable active projects.
+    """Return ordered completion entries for launchable active projects and PRs.
 
     Records that are system-managed, non-launchable, or whose workflow type
-    cannot be detected are excluded. The result is deduped by name and sorted
-    by name.
+    cannot be detected are excluded. Project rows are deduped by name and sorted
+    by name; active ChangeSpec rows follow, grouped by owning project and name.
 
     Args:
         projects_dir: Projects root to enumerate. Defaults to the SASE projects
@@ -155,7 +231,7 @@ def build_vcs_project_completion_entries(
             projects directory is unchanged. Pass ``False`` to force a rebuild.
 
     Returns:
-        A fresh list of :class:`VcsProjectEntry`, sorted by project name.
+        A fresh list of :class:`VcsProjectEntry`.
     """
     global _ENTRIES_CACHE  # noqa: PLW0603
 
@@ -176,7 +252,7 @@ def build_vcs_project_completion_entries(
 
 
 def _clear_vcs_project_completion_cache() -> None:
-    """Drop the cached project-completion catalog.
+    """Drop the cached project/PR-completion catalog.
 
     Test-only helper for resetting the module-level cache between cases; the
     cache is otherwise invalidated automatically by the projects directory
@@ -220,6 +296,9 @@ def vcs_project_catalog_payload(
                 "provider_display": entry.provider_display,
                 "description": entry.description,
                 "aliases": list(entry.aliases),
+                "kind": entry.kind,
+                "project": entry.project,
+                "status": entry.status,
             }
             for entry in entries
         ],

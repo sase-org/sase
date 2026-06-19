@@ -25,6 +25,17 @@ else:
     _MixinBase = object
 
 
+def _vcs_project_label_width(candidate: CompletionCandidate) -> int:
+    """Visible width for the badge + primary label in a VCS completion row."""
+    entry = (
+        candidate.metadata if isinstance(candidate.metadata, VcsProjectEntry) else None
+    )
+    if entry is None:
+        return len(candidate.display)
+    badge_width = 5 if entry.kind == "changespec" else 4
+    return badge_width + len(entry.name)
+
+
 class PromptInputBarCompletionMixin(_MixinBase):
     """Completion panel, soft-completion subtitle, and argument hint rendering."""
 
@@ -65,6 +76,14 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_arg_completion = completion_kind in ("xprompt_arg_name", "xprompt_arg_value")
         is_jinja = completion_kind == "jinja"
         is_vcs_project = completion_kind == VCS_PROJECT_COMPLETION_KIND
+        vcs_project_label_width = (
+            max(
+                (_vcs_project_label_width(candidate) for candidate in visible),
+                default=0,
+            )
+            if is_vcs_project
+            else 0
+        )
         panel.remove_class("jinja-diagnostics")
         panel.remove_class("jinja-error")
         panel.remove_class("jinja-warning")
@@ -83,7 +102,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
             elif is_directive:
                 self._append_directive_completion_row(content, candidate, is_selected)
             elif is_vcs_project:
-                self._append_vcs_project_completion_row(content, candidate, is_selected)
+                self._append_vcs_project_completion_row(
+                    content,
+                    candidate,
+                    is_selected,
+                    vcs_project_label_width,
+                )
             elif is_arg_completion:
                 content.append(
                     candidate.display,
@@ -114,7 +138,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         elif is_directive:
             panel.border_title = "directives"
         elif is_vcs_project:
-            panel.border_title = "projects"
+            panel.border_title = "projects & PRs"
         elif completion_kind == "xprompt_arg_name":
             panel.border_title = "xprompt arg names"
         elif completion_kind == "xprompt_arg_value":
@@ -204,13 +228,13 @@ class PromptInputBarCompletionMixin(_MixinBase):
         content: Text,
         candidate: CompletionCandidate,
         is_selected: bool,
+        label_width: int = 0,
     ) -> None:
-        """Append one ``#+`` project completion row.
+        """Append one ``#+`` project/PR completion row.
 
-        Layout: the project name in an accent color, its provider, the resulting
-        ``#gh:sase`` tag dimmed as the expansion hint, then the description. The
-        empty-catalog placeholder (no :class:`VcsProjectEntry` metadata) renders
-        as a single dim row.
+        Project and ChangeSpec rows use the same badges as the ProjectSelect
+        modal. The empty-catalog placeholder (no :class:`VcsProjectEntry`
+        metadata) renders as a single dim row.
         """
         entry = (
             candidate.metadata
@@ -221,11 +245,31 @@ class PromptInputBarCompletionMixin(_MixinBase):
             content.append(candidate.display, style="dim italic")
             return
 
-        content.append(entry.name, style="bold cyan" if is_selected else "cyan")
-        content.append(f"  {entry.provider_display}", style="dim")
+        if entry.kind == "changespec":
+            badge = "[PR] "
+            badge_style = "bold #00D7AF"
+            name_style = "bold #00D7AF" if is_selected else "#00D7AF"
+        else:
+            badge = "[P] "
+            badge_style = "bold #87D7FF"
+            name_style = "bold #87D7FF" if is_selected else "#87D7FF"
+
+        content.append(badge, style=badge_style)
+        content.append(entry.name, style=name_style)
+        padding = max(0, label_width - (len(badge) + len(entry.name)))
+        if padding:
+            content.append(" " * padding)
+
         content.append(f"  {entry.display_tag}", style="dim green")
-        if entry.description:
-            content.append(f"  {entry.description}", style="dim")
+        if entry.kind == "changespec":
+            if entry.status:
+                content.append(f"  {entry.status}", style="dim")
+            if entry.project:
+                content.append(f"  · {entry.project}", style="dim")
+        else:
+            content.append(f"  {entry.provider_display}", style="dim")
+            if entry.description:
+                content.append(f"  {entry.description}", style="dim")
 
     def _append_jinja_completion_row(
         self,
