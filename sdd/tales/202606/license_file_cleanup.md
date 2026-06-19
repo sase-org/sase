@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 13:34:19
-status: wip
+status: done
 prompt: sdd/prompts/202606/license_file_cleanup.md
 ---
 # Plan: Add Official MIT License File and Packaging Metadata

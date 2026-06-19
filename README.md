@@ -275,3 +275,7 @@ SQLite, JSONL export, plan tiers, and multi-workspace aggregation.
 The project name and direction were also influenced by
 [Agentic Software Engineering: Foundational Pillars and a Research Roadmap](https://arxiv.org/abs/2509.06216), and
 XPrompt workflows were influenced by [PDL: A Declarative Prompt Programming Language](https://arxiv.org/abs/2410.19135).
+
+## License
+
+sase is licensed under the MIT License. See [LICENSE](LICENSE).
