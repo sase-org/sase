@@ -178,9 +178,9 @@ projects; a registered project with `PROJECT_STATE: inactive` or `PROJECT_STATE:
 and broad known-project lookup. Legacy `archived` and `closed` values are read as inactive. If a prompt explicitly names
 an inactive known project, launch resolution fails with an activation hint instead of silently allocating work. Use
 `sase project list --state all` to inspect hidden projects and `sase project activate <project>` before launching normal
-work there. Configured sibling records are intended for `sase workspace open -p <sibling> <workspace_num>`. When a
-SASE-launched agent opens a configured sibling workspace this way, the run records that sibling in its artifacts so the
-commit finalizer can enforce only sibling workspaces the agent actually touched.
+work there. Configured sibling records are intended for `sase workspace open -p <sibling> <workspace_num>`. In a
+SASE-launched agent session, that command records the sibling name in the run artifacts; the commit finalizer uses that
+record to enforce only configured numbered sibling workspaces the agent explicitly opened.
 
 Non-wait launches allocate the next available numbered workspace for the project and set the VCS update target to the
 provider default revision. When registered workspace metadata provides an env prefix, SASE passes the matching

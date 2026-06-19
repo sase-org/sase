@@ -40,10 +40,11 @@ and injects an instruction telling the agent **not** to create commits directly.
 When a provider invocation succeeds inside a SASE-launched agent session, the provider-neutral **commit finalizer** runs
 in the shared LLM invocation layer before normal success postprocessing. In practice this means the process has
 `SASE_AGENT_TIMESTAMP` set. The finalizer checks the main workspace for uncommitted changes through the active VCS
-provider. It enforces configured numbered sibling repositories only after the agent run actually opens that sibling
-workspace; the run records those opened siblings in its artifacts. Static siblings are still checked only as advisory
-work, as described below. It does not scan arbitrary same-remote numbered workspaces just because their paths appear in
-run artifacts. If everything is clean, the agent response is postprocessed normally.
+provider. It enforces configured numbered sibling repositories only after the agent opens that sibling workspace with
+`sase workspace open -p <sibling> <workspace_num>`, which records the sibling name in the run's artifacts. Static
+siblings are still checked only as advisory work, as described below. It does not scan arbitrary same-remote numbered
+workspaces just because their paths appear in run artifacts. If everything is clean, the agent response is postprocessed
+normally.
 
 There are two special cases before the normal enforced-work follow-up path:
 
@@ -60,9 +61,9 @@ same provider. Each pass sends one follow-up prompt that lists dirty files and i
 such as `/sase_git_commit` or `/sase_hg_commit`. For the main workspace, the skill name is selected from the detected
 VCS provider; provider-specific generated skills can be scoped to the runtimes that support that provider. For
 configured sibling repos, the current finalizer checks `git status` only in the resolved sibling `workspace_dir`
-assigned to the same workspace number after that sibling has been opened, and emits Git commit-skill instructions that
-first `cd` into that sibling workspace. Non-static dirty siblings are enforced after they are opened; static siblings
-are advisory as described above.
+assigned to the same workspace number after that sibling name appears in `opened_siblings.json`, and emits Git
+commit-skill instructions that first `cd` into that sibling workspace. Non-static dirty siblings are enforced after they
+are opened; static siblings are advisory as described above.
 
 Generated skills normally run an observable wrapper such as `sase_git_commit`, which records skill invocation evidence
 and then delegates to `sase commit`. A typical Git skill invocation omits `--type` because the xprompt already set
@@ -421,7 +422,8 @@ Qwen, OpenCode, and provider plugins share the same behavior.
 2. Resolve the project directory from provider/workspace environment variables.
 3. Check the main workspace through the VCS provider's diff helpers.
 4. Check configured sibling repos from `SASE_SIBLING_REPOS_JSON`, or from project config when available, with
-   `git status --porcelain`, limited to each opened sibling's resolved `workspace_dir`.
+   `git status --porcelain`: numbered siblings are limited to names in `opened_siblings.json`, while static
+   `workspace.strategy: none` siblings are advisory.
 5. Auto-commit an exact tracked SDD markdown `status: wip` to `status: done` closeout when that is the only enforced
    change and the file is under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or `sdd/myths/`.
 6. If dirty enforced repos or advisory static siblings exist, run follow-up provider invocations up to

@@ -40,17 +40,17 @@ commands.
 
 The xprompt language server is focused on prompt and xprompt editing:
 
-| Feature               | Behavior                                                                                                                          |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| XPrompt completion    | Completes `#name`, `#!workflow`, namespaced references, and slash-skill references from the structured catalog.                   |
-| Project/PR completion | Completes `#+query` and prompt-start `+query` from the active project/ChangeSpec catalog, inserting canonical VCS workspace tags. |
-| Argument assistance   | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.        |
-| Directive completion  | Completes SASE prompt directives such as `%model`, `%wait`, and other known directive names.                                      |
-| File completion       | Completes path-like tokens and recent file-history entries for prompt references.                                                 |
-| Snippets              | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                     |
-| Hover                 | Shows xprompt metadata, descriptions, previews, source display paths, tags, and active input hints.                               |
-| Diagnostics           | Reports unknown xprompts, unknown slash skills, unknown directives, malformed xprompt arguments, and argument type/arity issues.  |
-| Definition            | Jumps from xprompt and slash-skill references to real source files when the catalog provides a resolvable path.                   |
+| Feature                 | Behavior                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| XPrompt completion      | Completes `#name`, `#!workflow`, namespaced references, and slash-skill references from the structured catalog.                      |
+| Project/ChangeSpec tags | Completes `#+query` and first-character `+query` from the active project/ChangeSpec catalog, inserting canonical VCS workspace tags. |
+| Argument assistance     | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.           |
+| Directive completion    | Completes SASE prompt directives such as `%model`, `%wait`, and other known directive names.                                         |
+| File completion         | Completes path-like tokens and recent file-history entries for prompt references.                                                    |
+| Snippets                | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                        |
+| Hover                   | Shows xprompt metadata, descriptions, previews, source display paths, tags, and active input hints.                                  |
+| Diagnostics             | Reports unknown xprompts, unknown slash skills, unknown directives, malformed xprompt arguments, and argument type/arity issues.     |
+| Definition              | Jumps from xprompt and slash-skill references to real source files when the catalog provides a resolvable path.                      |
 
 Snippet completions come from the same registry ACE uses: xprompts with `snippet` front matter plus user-defined
 `ace.snippets`, with `ace.snippets` winning on trigger collisions. The server asks the host helper bridge for that
