@@ -9,6 +9,10 @@ import pytest
 
 import sase.scripts.sase_chop_wait_checks as wait_checks_module
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
+from sase.core.wait_dependency_resolution import (
+    build_wait_dependency_index,
+    dependencies_resolved,
+)
 from sase.scripts.sase_chop_wait_checks import main as wait_checks_main
 
 from tests._agent_names_fixtures import make_agent
@@ -214,6 +218,43 @@ def test_successful_workflow_name_dependency_resolves(
         done=True,
         outcome="completed",
     )
+
+    _run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["wf"]}
+
+
+def test_shared_resolver_matches_wait_checks_workflow_fixture(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    waiter_dir = _make_waiting_agent(tmp_path, "wf")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "wf.1",
+        workflow_name="wf",
+        done=True,
+        outcome="completed",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "wf.2",
+        workflow_name="wf",
+        parent_timestamp="20260506010101",
+        done=True,
+        outcome="completed",
+    )
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+    assert dependencies_resolved(index, ["wf"])
 
     _run_wait_checks(tmp_path, monkeypatch)
 

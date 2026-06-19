@@ -11,6 +11,138 @@ import pytest
 
 from sase.axe.run_agent_wait import wait_for_dependencies
 
+from tests._agent_names_fixtures import make_agent
+
+
+def _make_waiter(base: Path, project: str = "proj") -> Path:
+    artifact_dir = base / ".sase/projects" / project / "artifacts/ace-run/waiter"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps({"pid": 123}),
+        encoding="utf-8",
+    )
+    return artifact_dir
+
+
+def test_resolved_named_wait_skips_waiting_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "dep",
+        done=True,
+        outcome="completed",
+    )
+    waiter_dir = _make_waiter(tmp_path)
+    agent_meta = {"pid": 123}
+    index_updates: list[str] = []
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch(
+            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: index_updates.append(path),
+        ),
+        patch("sase.axe.run_agent_wait.time.sleep") as sleep_mock,
+    ):
+        wait_for_dependencies(
+            ["dep"],
+            str(waiter_dir),
+            "cl",
+            "20260513120000",
+            agent_meta,
+            project_name="proj",
+        )
+
+    sleep_mock.assert_not_called()
+    assert index_updates == []
+    assert not (waiter_dir / "waiting.json").exists()
+    assert not (waiter_dir / "ready.json").exists()
+    assert isinstance(agent_meta.get("wait_completed_at"), str)
+    disk_meta = json.loads((waiter_dir / "agent_meta.json").read_text())
+    assert disk_meta["wait_completed_at"] == agent_meta["wait_completed_at"]
+
+
+def test_unresolved_named_wait_uses_slow_waiting_marker_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waiter_dir = _make_waiter(tmp_path)
+    (waiter_dir / "ready.json").write_text("{}", encoding="utf-8")
+    index_updates: list[str] = []
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch(
+            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: index_updates.append(path),
+        ),
+    ):
+        wait_for_dependencies(
+            ["missing"],
+            str(waiter_dir),
+            "cl",
+            "20260513120000",
+            {"pid": 123},
+            project_name="proj",
+        )
+
+    assert index_updates == [str(waiter_dir), str(waiter_dir)]
+    assert not (waiter_dir / "waiting.json").exists()
+    assert not (waiter_dir / "ready.json").exists()
+
+
+@pytest.mark.parametrize(
+    "wait_kwargs",
+    [
+        {"duration": 0},
+        {"wait_until": "2000-01-01T00:00:00"},
+    ],
+)
+def test_named_wait_with_time_floor_uses_slow_waiting_marker_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    wait_kwargs: dict[str, float | str],
+) -> None:
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "dep",
+        done=True,
+        outcome="completed",
+    )
+    waiter_dir = _make_waiter(tmp_path)
+    (waiter_dir / "ready.json").write_text("{}", encoding="utf-8")
+    index_updates: list[str] = []
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch(
+            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: index_updates.append(path),
+        ),
+    ):
+        wait_for_dependencies(
+            ["dep"],
+            str(waiter_dir),
+            "cl",
+            "20260513120000",
+            {"pid": 123},
+            project_name="proj",
+            **wait_kwargs,
+        )
+
+    assert index_updates == [str(waiter_dir), str(waiter_dir)]
+    assert not (waiter_dir / "waiting.json").exists()
+    assert not (waiter_dir / "ready.json").exists()
+
 
 def test_successful_wait_records_completion_before_cleanup(tmp_path: Path) -> None:
     """wait_completed_at is durable before waiting.json is removed."""

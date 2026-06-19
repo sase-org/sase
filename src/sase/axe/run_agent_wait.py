@@ -12,6 +12,10 @@ from sase.axe.runner_utils import was_killed
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.wait_dependency_resolution import (
+    build_wait_dependency_index,
+    dependencies_resolved,
+)
 
 
 def remaining_until(wait_until: str) -> float:
@@ -49,6 +53,21 @@ def _record_wait_completed_at(
     return wait_completed_at
 
 
+def _all_dependencies_already_resolved(
+    wait_names: list[str],
+    *,
+    project_name: str | None,
+) -> bool:
+    if not project_name:
+        return False
+
+    try:
+        dependency_index = build_wait_dependency_index(project_name)
+    except Exception:
+        return False
+    return dependencies_resolved(dependency_index, wait_names)
+
+
 def wait_for_dependencies(
     wait_names: list[str],
     artifacts_dir: str,
@@ -56,6 +75,7 @@ def wait_for_dependencies(
     timestamp: str,
     agent_meta: dict[str, Any],
     *,
+    project_name: str | None = None,
     duration: float | None = None,
     wait_until: str | None = None,
 ) -> None:
@@ -72,7 +92,19 @@ def wait_for_dependencies(
     _WAIT_POLL_INTERVAL = 2  # seconds
     _WAIT_MAX_TIMEOUT = 86400  # 24 hours
 
-    if wait_names:
+    if (
+        wait_names
+        and duration is None
+        and wait_until is None
+        and _all_dependencies_already_resolved(
+            wait_names,
+            project_name=project_name,
+        )
+    ):
+        print("Dependencies already satisfied, proceeding without waiting")
+        if not was_killed():
+            _record_wait_completed_at(artifacts_dir, agent_meta)
+    elif wait_names:
         # --- Agent-name dependency path (with optional duration/time floor) ---
         waiting_path = os.path.join(artifacts_dir, "waiting.json")
         waiting_data: dict[str, Any] = {

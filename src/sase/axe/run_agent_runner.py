@@ -368,6 +368,7 @@ def main() -> None:
                     cl_name,
                     timestamp,
                     agent_meta,
+                    project_name=project_name,
                     duration=info.wait_duration,
                     wait_until=info.wait_until,
                 )

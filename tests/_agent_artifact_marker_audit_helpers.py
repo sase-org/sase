@@ -407,6 +407,7 @@ _SAFE_PATH_CALLEES: frozenset[str] = frozenset(
         "read_json_object",
         "_read_json",
         "_read_json_dict",
+        "read_json_dict",
         "_read_json_string_field",
         "_read_path_from_json",
         "marker_signature",
