@@ -3,14 +3,23 @@
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
+
+from rich.text import Text
 
 from sase.history.prompt import PromptHistoryRecord
+
+if TYPE_CHECKING:
+    from sase.prompt.search.model import PromptSource
 
 # Preview width for list rows and JSON ``text_preview``. ``list`` never prints
 # full prompt text; ``show``/``export``/``copy`` are the full-text escape hatches.
 _PREVIEW_CHARS = 72
 
 _TIMESTAMP_RE = re.compile(r"^(\d{2})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$")
+
+# Default Rich style for the matched substring in search output.
+_MATCH_STYLE = "bold yellow"
 
 
 def prompt_preview(text: str, limit: int = _PREVIEW_CHARS) -> str:
@@ -38,6 +47,60 @@ def format_timestamp(ts: str) -> str:
         return ts
     yy, mm, dd, hh, mi = match.group(1, 2, 3, 4, 5)
     return f"20{yy}-{mm}-{dd} {hh}:{mi}"
+
+
+def format_search_date(ts: str) -> str:
+    """Format a hit's comparable date for display, or ``—`` when unresolved.
+
+    The search corpus floors an undatable hit to an all-zero ``YYmmdd_HHMMSS``
+    anchor; rendering that literally as ``2000-00-00`` would be misleading, so
+    an empty or all-zero anchor renders as an em dash instead.
+    """
+    if not ts or set(ts) <= {"0", "_"}:
+        return "—"
+    return format_timestamp(ts)
+
+
+def highlight_match(
+    value: str,
+    query: str,
+    *,
+    base_style: str = "",
+    match_style: str = _MATCH_STYLE,
+) -> Text:
+    """Return *value* as Rich ``Text`` with every *query* occurrence highlighted.
+
+    Matching is case-insensitive (via :meth:`str.lower`, which is length-stable
+    for the ASCII-dominant prompt corpus so highlight spans stay aligned with
+    the original text). *base_style* styles the whole string; *match_style*
+    styles each matched span on top of it.
+    """
+    text = Text(value, style=base_style)
+    needle = query.strip()
+    if not needle:
+        return text
+    lowered_value = value.lower()
+    lowered_needle = needle.lower()
+    start = 0
+    while True:
+        index = lowered_value.find(lowered_needle, start)
+        if index < 0:
+            break
+        text.stylize(match_style, index, index + len(needle))
+        start = index + len(needle)
+    return text
+
+
+def source_badge(source: PromptSource) -> Text:
+    """Return the colored one-word badge for a search hit's source store."""
+    from sase.prompt.search.model import PromptSource
+
+    badges = {
+        PromptSource.SDD: ("sdd", "bold cyan"),
+        PromptSource.LOCAL: ("local", "bold blue"),
+    }
+    label, style = badges.get(source, (str(source), ""))
+    return Text(label, style=style)
 
 
 def format_size(num_bytes: int) -> str:

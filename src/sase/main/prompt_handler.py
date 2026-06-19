@@ -64,6 +64,12 @@ def handle_prompt_command(args: argparse.Namespace) -> None:
         handle_prompt_save(args)
         sys.exit(0)
 
+    if sub == "search":
+        from sase.prompt.cli_search import handle_prompt_search
+
+        handle_prompt_search(args)
+        sys.exit(0)
+
     if sub == "select":
         from sase.prompt.cli_run import handle_prompt_select
 
@@ -84,6 +90,6 @@ def handle_prompt_command(args: argparse.Namespace) -> None:
 
     print(
         "Usage: sase prompt"
-        " {copy,delete,doctor,edit,export,list,prune,run,save,select,show,stats}"
+        " {copy,delete,doctor,edit,export,list,prune,run,save,search,select,show,stats}"
     )
     sys.exit(1)

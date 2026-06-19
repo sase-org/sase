@@ -3,6 +3,14 @@
 import argparse
 
 
+def _nonnegative_int(value: str) -> int:
+    """Argparse type for a non-negative integer (``0`` means unlimited)."""
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be a non-negative integer")
+    return parsed
+
+
 def _add_prefix_option(parser: argparse.ArgumentParser) -> None:
     """Add the shared ``-P/--prefix`` VCS-tag replacement option."""
     parser.add_argument(
@@ -265,6 +273,88 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         metavar="TAG",
         help="Tag recorded in xprompt frontmatter (repeatable)",
+    )
+
+    # sase prompt search
+    search_parser = prompt_sub.add_parser(
+        "search",
+        help="Search SDD snapshots and local history for matching prompts",
+        description=(
+            "Find prompts whose text or metadata contains a literal query,"
+            " across the repo's committed sdd/prompts/ snapshots and the"
+            " machine-wide local prompt history. SDD snapshots rank first."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase prompt search auth\n"
+            "  sase prompt search tui --source sdd\n"
+            "  sase prompt search review --after 30d --tag review\n"
+            "  sase prompt search deploy --format json --limit 0"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    search_parser.add_argument(
+        "query",
+        help="Literal, non-empty text to search for (case-insensitive)",
+    )
+    search_parser.add_argument(
+        "-a",
+        "--after",
+        default=None,
+        metavar="DATE",
+        help=(
+            "Keep prompts dated on/after DATE: 2026-01-01, 202601 (YYYYMM),"
+            " 260101 (YYmmdd), 260101_143000, or a relative 30d/2w/6m/1y"
+        ),
+    )
+    search_parser.add_argument(
+        "-b",
+        "--before",
+        default=None,
+        metavar="DATE",
+        help="Keep prompts dated on/before DATE (same forms as --after)",
+    )
+    search_parser.add_argument(
+        "-c",
+        "--color",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Color output: auto, always, or never (default: auto)",
+    )
+    search_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["compact", "json", "full"],
+        default="compact",
+        help="Output format: compact, json, or full (default: compact)",
+    )
+    search_parser.add_argument(
+        "-n",
+        "--limit",
+        type=_nonnegative_int,
+        default=20,
+        help="Maximum results to show after ranking; 0 means unlimited (default: 20)",
+    )
+    search_parser.add_argument(
+        "-s",
+        "--source",
+        choices=["sdd", "local", "all"],
+        default="all",
+        help="Which store to search: sdd, local, or all (default: all)",
+    )
+    search_parser.add_argument(
+        "-t",
+        "--tag",
+        action="append",
+        default=None,
+        metavar="TAG",
+        help="Keep prompts carrying TAG (repeatable; repeats OR together)",
+    )
+    search_parser.add_argument(
+        "-x",
+        "--cancelled",
+        action="store_true",
+        help="Restrict local results to cancelled prompts (no effect on SDD)",
     )
 
     # sase prompt select

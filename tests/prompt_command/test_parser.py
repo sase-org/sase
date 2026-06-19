@@ -129,6 +129,56 @@ def test_prompt_export_save_subcommands_parse_with_short_flags() -> None:
     assert project_args.project == "bob"
 
 
+def test_prompt_search_subcommand_parses_with_short_flags() -> None:
+    parser = create_parser()
+
+    search_args = parser.parse_args(
+        [
+            "prompt",
+            "search",
+            "auth",
+            "-a",
+            "30d",
+            "-b",
+            "2026-01-01",
+            "-c",
+            "never",
+            "-f",
+            "json",
+            "-n",
+            "5",
+            "-s",
+            "sdd",
+            "-t",
+            "review",
+            "-t",
+            "auth",
+            "-x",
+        ]
+    )
+    assert search_args.prompt_subcommand == "search"
+    assert search_args.query == "auth"
+    assert search_args.after == "30d"
+    assert search_args.before == "2026-01-01"
+    assert search_args.color == "never"
+    assert search_args.format == "json"
+    assert search_args.limit == 5
+    assert search_args.source == "sdd"
+    assert search_args.tag == ["review", "auth"]
+    assert search_args.cancelled is True
+
+
+def test_prompt_search_defaults() -> None:
+    parser = create_parser()
+    args = parser.parse_args(["prompt", "search", "tui"])
+    assert args.color == "auto"
+    assert args.format == "compact"
+    assert args.limit == 20
+    assert args.source == "all"
+    assert args.tag is None
+    assert args.cancelled is False
+
+
 def test_prompt_subcommands_are_sorted() -> None:
     assert list(_prompt_subparsers()) == sorted(_prompt_subparsers())
 
