@@ -10,11 +10,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import sase.config.core as config_core
 from sase.main import _init_chezmoi_deploy
 from sase.main._init_chezmoi_deploy import defer_chezmoi_paths
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_plan import InitAction
-from sase.main.init_registry import InitCommandSpec
+from sase.main.init_registry import InitCommandSpec, iter_init_command_specs
+from tests.main.init_memory_handler_helpers import patch_standard_paths, write
 from tests.main.init_onboarding_helpers import (
     _TtyStringIO,
     _args,
@@ -446,6 +448,57 @@ def test_needs_attention_output_snapshot_caps_path_details(
         "    - overwrite CLAUDE.md  provider shim\n"
         "    ... 1 more action\n"
     )
+
+
+def test_bare_init_yes_repairs_unreferenced_long_memory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    monkeypatch.setattr(config_core, "get_use_chezmoi", lambda: False)
+    # bob-cli shape: a long memory note left unreferenced by the minimal
+    # AGENTS.md, and no ``amd_h1_title`` configured.
+    write(project_root / "sase.yml", "sdd:\n  version_controlled: true\n")
+    write(project_root / "AGENTS.md", "# Agent Instructions\n\n@memory/sase.md\n")
+    write(
+        project_root / "memory" / "cli_rules.md",
+        "---\ntype: long\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
+        "# CLI Rules\n",
+    )
+
+    specs = tuple(
+        spec for spec in iter_init_command_specs() if spec.name in {"amd", "memory"}
+    )
+    args = argparse.Namespace(
+        command="init",
+        init_subcommand=None,
+        yes=True,
+        check=False,
+        no_commit=True,
+    )
+
+    exit_code = run_init_onboarding(
+        args,
+        specs=specs,
+        stdin=StringIO(),
+        input_func=_reject_prompt,
+    )
+
+    assert exit_code == 0
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "## Tier 2 (long-term) Memory" in agents
+    assert "**`memory/cli_rules.md`**" in agents
+    assert (project_root / "memory" / "sase.md").exists()
 
 
 def test_warning_without_changes_is_visible_and_successful(

@@ -33,7 +33,8 @@ def run_amd_init(args: argparse.Namespace) -> int:
             ),
         )
 
-    built = build_amd_init_plan()
+    onboarding = bool(getattr(args, "onboarding", False))
+    built = build_amd_init_plan(explicit=not onboarding, onboarding=onboarding)
     if built.plan.blockers:
         _print_blockers(built.plan.blockers)
         return 1

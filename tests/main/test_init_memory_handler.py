@@ -540,9 +540,13 @@ def test_init_memory_rejects_unreferenced_memory_files(
         config_dir=config_dir,
     )
     write(project_root / "AGENTS.md", "@memory/sase.md\n")
+    # Parented under a memory note that does not exist, so the managed
+    # instructions onboarding fallback (which only references short notes and
+    # top-level ``parent: AGENTS.md`` long notes) cannot make it reachable.
     write(
         project_root / "memory" / "orphan.md",
-        long_note("# Orphan\n\n@memory/orphan.md\n", description="Orphan."),
+        "---\ntype: long\nparent: memory/ghost.md\ndescription: Orphan.\n---\n"
+        "# Orphan\n",
     )
 
     assert run_handler() == 1

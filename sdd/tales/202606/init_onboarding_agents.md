@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 10:41:32
-status: wip
+status: done
 prompt: sdd/prompts/202606/init_onboarding_agents.md
 ---
 # Fix `sase init` AGENTS onboarding

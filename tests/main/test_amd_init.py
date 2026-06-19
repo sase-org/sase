@@ -46,6 +46,17 @@ def run_amd(*, check: bool = False) -> int:
     return run_amd_init(argparse.Namespace(check=check))
 
 
+def run_bare_init_amd() -> int:
+    return run_amd_init(
+        argparse.Namespace(
+            check=False,
+            command="init",
+            init_subcommand="amd",
+            onboarding=True,
+        )
+    )
+
+
 def write_provider_shims(root: Path, content: str = PROVIDER_SHIM_CONTENT) -> None:
     for filename in PROVIDER_SHIM_FILES:
         write(root / filename, content)
@@ -135,6 +146,62 @@ def test_bare_init_amd_plan_generates_when_project_title_is_set(
     assert ("create", tmp_path / "AGENTS.md") in planned
     for filename in PROVIDER_SHIM_FILES:
         assert ("create", tmp_path / filename) in planned
+
+
+def test_bare_init_amd_plan_uses_fallback_title_when_memory_exists(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    write(tmp_path / "memory" / "sase.md", short_note("# SASE\n"))
+    write(
+        tmp_path / "memory" / "cli_rules.md",
+        long_note("# CLI Rules\n", description="CLI rules reference."),
+    )
+
+    planned = plan_bare_init_amd()
+
+    assert ("create", tmp_path / "AGENTS.md") in planned
+    for filename in PROVIDER_SHIM_FILES:
+        assert ("create", tmp_path / filename) in planned
+
+
+def test_bare_init_amd_apply_writes_managed_agents_without_title(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    write(tmp_path / "AGENTS.md", "# Agent Instructions\n\n@memory/sase.md\n")
+    write(tmp_path / "memory" / "sase.md", short_note("# SASE\n"))
+    write(
+        tmp_path / "memory" / "cli_rules.md",
+        long_note("# CLI Rules\n", description="CLI rules reference."),
+    )
+
+    assert run_bare_init_amd() == 0
+
+    agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    first_line = agents.splitlines()[0]
+    assert first_line.startswith("# ")
+    assert first_line.endswith(" - Agent Instructions")
+    assert "## Tier 1 (short-term) Memory" in agents
+    assert "## Tier 2 (long-term) Memory" in agents
+    assert "**`memory/cli_rules.md`**  \nCLI rules reference." in agents
+    # Idempotent: the managed file is now current.
+    assert plan_bare_init_amd() == set()
+
+
+def test_bare_init_amd_plan_conservative_with_only_generated_memory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    write(tmp_path / "memory" / "sase.md", short_note("# SASE\n"))
+
+    planned = plan_bare_init_amd()
+
+    assert planned == set()
+    assert not (tmp_path / "AGENTS.md").exists()
 
 
 def test_amd_init_migrates_single_legacy_provider_file(

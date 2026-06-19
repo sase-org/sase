@@ -14,10 +14,10 @@ from ._shared import AmdInitPlan, AmdMemorySyncPlan
 
 
 def _build_amd_init_plan(
-    root: Path | None = None, *, explicit: bool = True
+    root: Path | None = None, *, explicit: bool = True, onboarding: bool = False
 ) -> AmdInitPlan:
     """Compatibility wrapper for tests that imported the former private helper."""
-    return _planner.build_amd_init_plan(root, explicit=explicit)
+    return _planner.build_amd_init_plan(root, explicit=explicit, onboarding=onboarding)
 
 
 __all__ = [

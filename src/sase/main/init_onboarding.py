@@ -147,6 +147,9 @@ def _prompt_for_plan(
 def _apply_args(args: argparse.Namespace, spec: InitCommandSpec) -> argparse.Namespace:
     apply_args = copy.copy(args)
     apply_args.init_subcommand = spec.name
+    # Mark the apply as part of bare-``sase init`` onboarding so AMD can derive
+    # a managed title fallback even though ``init_subcommand`` now names a spec.
+    apply_args.onboarding = True
     if spec.name == "skills":
         apply_args.force = True
     return apply_args

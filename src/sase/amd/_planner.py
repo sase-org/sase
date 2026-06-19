@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sase.main.init_plan import InitAction, InitPlan
 
-from ._config import amd_init_roots, load_amd_h1_title
+from ._config import amd_init_roots, resolve_amd_h1_title
 from ._memory import render_managed_agents
 from ._shared import (
     AmdInitPlan,
@@ -103,9 +103,11 @@ def _summarize_amd_actions(
     return f"{verb} {len(actions)} agent markdown documents"
 
 
-def _build_single_amd_init_plan(root: Path, *, explicit: bool = True) -> AmdInitPlan:
+def _build_single_amd_init_plan(
+    root: Path, *, explicit: bool = True, onboarding: bool = False
+) -> AmdInitPlan:
     """Return the pure AMD init plan for one root without writing files."""
-    title, title_error = load_amd_h1_title(root)
+    title, title_error = resolve_amd_h1_title(root, onboarding=onboarding)
     provider_status_map, provider_errors = provider_statuses(root)
     blockers = tuple(error for error in (title_error, *provider_errors) if error)
     writes: list[PlannedWrite] = []
@@ -188,15 +190,20 @@ def _combine_amd_init_plans(plans: tuple[AmdInitPlan, ...]) -> AmdInitPlan:
 
 
 def build_amd_init_plan(
-    root: Path | None = None, *, explicit: bool = True
+    root: Path | None = None, *, explicit: bool = True, onboarding: bool = False
 ) -> AmdInitPlan:
     """Return the pure AMD init plan without writing files."""
     if root is not None:
-        return _build_single_amd_init_plan(root, explicit=explicit)
+        return _build_single_amd_init_plan(
+            root, explicit=explicit, onboarding=onboarding
+        )
 
     roots = amd_init_roots(Path.cwd())
     return _combine_amd_init_plans(
-        tuple(_build_single_amd_init_plan(root, explicit=explicit) for root in roots)
+        tuple(
+            _build_single_amd_init_plan(root, explicit=explicit, onboarding=onboarding)
+            for root in roots
+        )
     )
 
 
@@ -207,7 +214,7 @@ def plan_amd_init_for_check(args: argparse.Namespace) -> InitPlan:
         and getattr(args, "init_subcommand", None) is None
     )
     explicit = not is_bare_onboarding
-    return build_amd_init_plan(explicit=explicit).plan
+    return build_amd_init_plan(explicit=explicit, onboarding=is_bare_onboarding).plan
 
 
 def plan_amd_init(args: argparse.Namespace) -> InitPlan:

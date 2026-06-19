@@ -207,7 +207,12 @@ def _render_expected_memory_files(
 
 
 def _amd_sync_plan(root: Path, *, enable_amd: bool) -> AmdMemorySyncPlan | None:
-    return plan_amd_memory_sync(root) if enable_amd else None
+    if not enable_amd:
+        return None
+    # ``enable_amd`` is only set for the project root, so the onboarding
+    # fallback (derive a managed title when memory exists but none is
+    # configured) is scoped to the project and never the home root.
+    return plan_amd_memory_sync(root, onboarding=True)
 
 
 def _compare_expected_memory_files(

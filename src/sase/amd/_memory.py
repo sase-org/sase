@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 from ._agents_doc import parse_amd_agents_document
-from ._config import load_amd_h1_title
+from ._config import resolve_amd_h1_title
 from ._shared import (
     AmdLongMemoryDescriptionUpdate,
     AmdMemorySyncPlan,
@@ -214,10 +214,12 @@ def render_managed_agents(
     return "\n".join(lines)
 
 
-def plan_amd_memory_sync(root: Path | None = None) -> AmdMemorySyncPlan:
+def plan_amd_memory_sync(
+    root: Path | None = None, *, onboarding: bool = False
+) -> AmdMemorySyncPlan:
     """Plan AMD-managed memory block synchronization for ``sase memory init``."""
     root = root or Path.cwd()
-    title, title_error = load_amd_h1_title(root)
+    title, title_error = resolve_amd_h1_title(root, onboarding=onboarding)
     if title_error is not None:
         return AmdMemorySyncPlan(
             title=None,
