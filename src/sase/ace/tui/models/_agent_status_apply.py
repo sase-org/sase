@@ -1,0 +1,290 @@
+"""Status override orchestration for TUI agents."""
+
+from collections.abc import Callable
+from datetime import datetime
+
+from sase.plan_chain import canonical_plan_chain_suffix
+
+from ._agent_status_diff import classify_diff_badges as classify_persisted_diff_badges
+from ._agent_status_family import (
+    active_approved_plan_handoff_status,
+    append_unique_timestamps,
+    child_launch_time,
+    children_by_parent_timestamp,
+    copy_missing_display_metadata,
+    done_handoff_status,
+    ensure_synthetic_planner_children,
+    feedback_child_progressed_past_review,
+    has_inherited_family_question,
+    has_unanswered_completed_question,
+    has_unreviewed_submitted_plan,
+    is_awaiting_plan_review,
+    is_completed_epic_followup_child,
+    is_completed_plan_handoff_child,
+    is_family_child,
+    is_main_workflow_agent_step,
+    latest_non_workflow_child_launch_by_parent,
+    merge_feedback_plan_paths,
+    root_child_suffix,
+    sync_planner_child_from_parent,
+    is_root_plan_workflow,
+)
+from ._agent_status_roles import agent_family_role, is_coder_agent, is_feedback_agent
+from .agent import Agent
+
+
+DiffBadgeClassifier = Callable[[list[Agent]], None]
+
+
+def apply_status_overrides(
+    agents: list[Agent],
+    workflow_agent_steps: list[Agent] | None = None,
+    *,
+    classify_diff_badges: bool = True,
+    diff_badge_classifier: DiffBadgeClassifier | None = None,
+) -> None:
+    """Override statuses based on workflow relationships (mutates in place).
+
+    Agent-family roots act as containers: their visible status mirrors the
+    newest planner/feedback/question/code child.  The pass still propagates
+    child timestamps, diff paths, and meta_* fields back to the root for the
+    detail panel.
+
+    Compatibility behavior for non-family agents remains:
+    - DONE -> QUESTION: agent submitted a question that was never answered
+    - DONE -> PLAN: agent submitted a plan that was never reviewed
+    """
+    all_agents = [*agents, *(workflow_agent_steps or [])]
+    for agent in all_agents:
+        agent.followup_agents.clear()
+
+    completed_statuses = {"DONE", "FAILED", "FAILED (RETRIED)", "PLAN REJECTED"}
+
+    parent_by_suffix: dict[str, Agent] = {}
+    for agent in all_agents:
+        if agent.raw_suffix and not agent.is_workflow_child:
+            parent_by_suffix[agent.raw_suffix] = agent
+
+    ensure_synthetic_planner_children(agents, all_agents, parent_by_suffix)
+    children_by_parent = children_by_parent_timestamp(all_agents)
+    latest_child_launch_by_parent = latest_non_workflow_child_launch_by_parent(
+        children_by_parent
+    )
+
+    # Propagate timestamps from feedback round children (.2, .3, ...) to parent
+    # so the metadata panel shows one entry per proposal/feedback/question round.
+    for agent in all_agents:
+        if (
+            agent.parent_timestamp
+            and not agent.parent_workflow
+            and is_feedback_agent(agent)
+        ):
+            parent = parent_by_suffix.get(agent.parent_timestamp)
+            if parent:
+                if agent.plan_times:
+                    append_unique_timestamps(parent.plan_times, agent.plan_times)
+                if agent.feedback_times:
+                    append_unique_timestamps(
+                        parent.feedback_times, agent.feedback_times
+                    )
+                    merge_feedback_plan_paths(parent, agent)
+                if agent.questions_times:
+                    append_unique_timestamps(
+                        parent.questions_times, agent.questions_times
+                    )
+                if agent.question_request_path:
+                    parent.question_request_path = agent.question_request_path
+                if agent.question_response_path:
+                    parent.question_response_path = agent.question_response_path
+                if agent.question_session_id:
+                    parent.question_session_id = agent.question_session_id
+
+    # Active workflow step child -> parent is running a step, not planning.
+    for agent in all_agents:
+        if agent.parent_workflow and agent.parent_timestamp:
+            parent = parent_by_suffix.get(agent.parent_timestamp)
+            if parent and agent.status not in completed_statuses:
+                if parent.status == "PLAN":
+                    parent.status = "RUNNING"
+
+    # Pre-compute which agents have follow-up children so unanswered questions
+    # can distinguish "waiting for user" from "answered and continued".
+    parents_with_followup: set[str] = set()
+    for parent_timestamp, children in children_by_parent.items():
+        if any(not child.parent_workflow for child in children):
+            parents_with_followup.add(parent_timestamp)
+
+    for agent in all_agents:
+        if (
+            agent.parent_workflow
+            and agent.parent_timestamp
+            and is_main_workflow_agent_step(agent)
+        ):
+            parent = parent_by_suffix.get(agent.parent_timestamp)
+            if (
+                parent
+                and is_root_plan_workflow(parent)
+                and canonical_plan_chain_suffix(agent.role_suffix)
+                == root_child_suffix(parent)
+            ):
+                sync_planner_child_from_parent(
+                    parent, agent, all_agents, children_by_parent
+                )
+        elif (
+            is_feedback_agent(agent)
+            and agent.status in {"DONE", "RUNNING"}
+            and is_awaiting_plan_review(agent)
+        ):
+            agent.status = (
+                "DONE"
+                if feedback_child_progressed_past_review(
+                    agent,
+                    all_agents,
+                    children_by_parent,
+                    latest_child_launch_by_parent,
+                )
+                else "PLAN"
+            )
+
+    for agent in all_agents:
+        if (
+            agent.parent_timestamp
+            and not agent.parent_workflow  # Follow-up agent, not workflow step
+        ):
+            parent = parent_by_suffix.get(agent.parent_timestamp)
+            if parent:
+                role = agent_family_role(agent)
+                if has_unanswered_completed_question(
+                    agent, parents_with_followup
+                ) and not has_inherited_family_question(agent, parent_by_suffix):
+                    agent.status = "QUESTION"
+
+                # Propagate meta_* fields from follow-up child to parent
+                # so the metadata panel shows dynamic variables (e.g. Commit
+                # Message) on the main workflow entry too.
+                if agent.step_output and isinstance(agent.step_output, dict):
+                    meta_fields = {
+                        k: v
+                        for k, v in agent.step_output.items()
+                        if k.startswith("meta_") and v
+                    }
+                    if meta_fields:
+                        if parent.step_output is None:
+                            parent.step_output = {}
+                        parent.step_output.update(meta_fields)
+
+                # Propagate code_time from coder follow-up to parent so
+                # the metadata panel shows when the coder was launched.
+                if is_coder_agent(agent):
+                    parent.code_time = agent.run_start_time or agent.start_time
+                if role == "epic":
+                    parent.epic_time = (
+                        agent.epic_time or agent.run_start_time or agent.start_time
+                    )
+
+                # Propagate diff_path from follow-up child to parent so the
+                # file panel can display the code diff (more relevant than
+                # the planner's own diff). Planner rows only fill a missing
+                # parent diff; synthetic planner rows copy the parent diff and
+                # must not clobber a coder diff propagated earlier in the pass.
+                if agent.diff_path and (role != "plan" or not parent.diff_path):
+                    parent.diff_path = agent.diff_path
+
+    # Override DONE -> QUESTION for agents whose last question was never answered.
+    # A persisted question_response_path means the row resumed after user input;
+    # pending_question.json remains the active-row signal before completion.
+    for agent in all_agents:
+        if has_unanswered_completed_question(
+            agent, parents_with_followup
+        ) and not has_inherited_family_question(agent, parent_by_suffix):
+            agent.status = "QUESTION"
+
+    # Override DONE -> PLAN for rows whose submitted plan still awaits manual
+    # review. This mirrors the QUESTION catch-all and covers planner entries
+    # that fall through suffix-gated workflow-step/feedback branches above.
+    for agent in all_agents:
+        if has_unreviewed_submitted_plan(
+            agent,
+            all_agents,
+            children_by_parent,
+            latest_child_launch_by_parent,
+        ):
+            agent.status = "PLAN"
+
+    # Active family code handoff rows display the plan approval state while the
+    # implementation agent runs. Normalize before root mirroring so the family
+    # root reflects PLAN APPROVED / TALE APPROVED instead of raw RUNNING.
+    for agent in all_agents:
+        if not (agent.parent_timestamp and not agent.parent_workflow):
+            continue
+        parent = parent_by_suffix.get(agent.parent_timestamp)
+        if parent and is_root_plan_workflow(parent):
+            handoff_status = active_approved_plan_handoff_status(parent, agent)
+            if handoff_status:
+                agent.status = handoff_status
+
+    # Completed family handoff rows are semantic terminal states rather than
+    # plain DONE. Do this after QUESTION normalization so unanswered rows keep
+    # their blocked status, and before root mirroring so the root sees it.
+    for agent in all_agents:
+        if not (agent.parent_timestamp and not agent.parent_workflow):
+            continue
+        parent = parent_by_suffix.get(agent.parent_timestamp)
+        if not (parent and is_root_plan_workflow(parent)):
+            continue
+        if is_completed_epic_followup_child(agent):
+            agent.status = "EPIC CREATED"
+        elif is_completed_plan_handoff_child(agent):
+            agent.status = done_handoff_status(parent, agent)
+
+    # Attach all follow-up agents to their parent's followup_agents list.
+    for agent in all_agents:
+        if agent.parent_timestamp and not agent.parent_workflow:
+            parent = parent_by_suffix.get(agent.parent_timestamp)
+            if parent:
+                parent.followup_agents.append(agent)
+
+    # Sort follow-up agents chronologically (oldest first).
+    for agent in all_agents:
+        if agent.followup_agents:
+            agent.followup_agents.sort(key=lambda a: a.start_time or datetime.min)
+
+    # Agent-family roots mirror the newest logical child. This runs after child
+    # statuses are normalized so active coder, failed latest child, and
+    # awaiting-review planner/feedback rows all flow directly to the root.
+    for parent in parent_by_suffix.values():
+        if not is_root_plan_workflow(parent):
+            continue
+        children = [
+            child
+            for child in children_by_parent.get(parent.raw_suffix or "", [])
+            if child is not parent and is_family_child(child, parent)
+        ]
+        if not children:
+            continue
+        newest = max(children, key=child_launch_time)
+        parent.status = newest.status
+        copy_missing_display_metadata(parent, newest)
+
+    # Spawn-on-retry: build the retry-chain linkage. Each retry child has a
+    # backward pointer (retry_of_timestamp) to its immediate parent; we
+    # reverse-index that into the parent's retry_chain_siblings list so the
+    # TUI can render the chain from either direction.
+    by_suffix: dict[str, Agent] = {}
+    for agent in all_agents:
+        if agent.raw_suffix and not agent.is_workflow_child:
+            by_suffix[agent.raw_suffix] = agent
+    for agent in all_agents:
+        if agent.retry_of_timestamp:
+            parent = by_suffix.get(agent.retry_of_timestamp)
+            if parent is not None:
+                parent.retry_chain_siblings.append(agent)
+    for agent in all_agents:
+        if agent.retry_chain_siblings:
+            agent.retry_chain_siblings.sort(
+                key=lambda a: a.retry_attempt or 0,
+            )
+
+    if classify_diff_badges:
+        classifier = diff_badge_classifier or classify_persisted_diff_badges
+        classifier(all_agents)
