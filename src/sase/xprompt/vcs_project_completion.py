@@ -90,7 +90,7 @@ class VcsProjectTrigger:
 
 # Module-level cache: (signature, entries). Cheaply invalidated by the projects
 # directory mtime so external project additions/removals are picked up, and
-# explicitly clearable via :func:`clear_vcs_project_completion_cache`.
+# explicitly clearable via :func:`_clear_vcs_project_completion_cache`.
 _ENTRIES_CACHE: tuple[object, tuple[VcsProjectEntry, ...]] | None = None
 
 
@@ -174,11 +174,12 @@ def build_vcs_project_completion_entries(
     return entries
 
 
-def clear_vcs_project_completion_cache() -> None:
+def _clear_vcs_project_completion_cache() -> None:
     """Drop the cached project-completion catalog.
 
-    Callers should invoke this when projects are created, archived, or
-    otherwise change lifecycle state, so the next build reflects the change.
+    Test-only helper for resetting the module-level cache between cases; the
+    cache is otherwise invalidated automatically by the projects directory
+    mtime (see :func:`_catalog_signature`).
     """
     global _ENTRIES_CACHE  # noqa: PLW0603
     _ENTRIES_CACHE = None
@@ -355,7 +356,6 @@ __all__ = [
     "VcsProjectTrigger",
     "apply_vcs_project_selection",
     "build_vcs_project_completion_entries",
-    "clear_vcs_project_completion_cache",
     "filter_vcs_project_entries",
     "find_vcs_project_trigger",
     "vcs_project_catalog_payload",

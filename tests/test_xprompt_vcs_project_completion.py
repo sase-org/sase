@@ -22,7 +22,6 @@ from sase.xprompt.vcs_project_completion import (
     VcsProjectEntry,
     apply_vcs_project_selection,
     build_vcs_project_completion_entries,
-    clear_vcs_project_completion_cache,
     filter_vcs_project_entries,
     find_vcs_project_trigger,
     vcs_project_catalog_payload,
@@ -47,9 +46,9 @@ def _patch_vcs_replace_pattern():
 @pytest.fixture(autouse=True)
 def _clear_catalog_cache():
     """Keep the module-level catalog cache from leaking across tests."""
-    clear_vcs_project_completion_cache()
+    vpc._clear_vcs_project_completion_cache()
     yield
-    clear_vcs_project_completion_cache()
+    vpc._clear_vcs_project_completion_cache()
 
 
 def _record(
@@ -314,7 +313,7 @@ def test_clear_cache_forces_rebuild(tmp_path) -> None:
 
     with list_p as list_mock, detect_p, display_p:
         build_vcs_project_completion_entries(projects_dir=tmp_path)
-        clear_vcs_project_completion_cache()
+        vpc._clear_vcs_project_completion_cache()
         build_vcs_project_completion_entries(projects_dir=tmp_path)
 
     assert list_mock.call_count == 2
