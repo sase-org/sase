@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 08:06:23
-status: wip
+status: done
 prompt: sdd/prompts/202606/reverse_bead_search_order.md
 ---
 # Plan: Reverse `sase bead search` Result Ordering
