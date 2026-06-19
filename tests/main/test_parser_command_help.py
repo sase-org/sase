@@ -1,0 +1,117 @@
+"""Tests for non-root CLI parser help rendering."""
+
+from __future__ import annotations
+
+from sase.main.parser import create_parser
+from tests.main.parser_help_helpers import flat_help, help_subcommand_rows, parser_for
+
+
+def test_agents_help_renders_sorted_subcommands() -> None:
+    """A formerly unsorted help view renders its user-facing rows sorted."""
+    agents_parser = parser_for(("sase", "agent"))
+    expected_commands = {
+        "archive",
+        "artifacts",
+        "index",
+        "kill",
+        "list",
+        "names",
+        "show",
+        "tag",
+    }
+
+    help_commands = help_subcommand_rows(agents_parser.format_help(), expected_commands)
+
+    assert help_commands == sorted(expected_commands)
+    assert (
+        "{archive,artifacts,index,kill,list,names,show,tag}"
+        in agents_parser.format_help()
+    )
+
+
+def test_run_help_shows_prompt_positional_and_beginner_examples() -> None:
+    """``sase run --help`` advertises the prompt and first-run examples."""
+    run_help = parser_for(("sase", "run")).format_help()
+    args = create_parser().parse_args(["run", "hello"])
+
+    assert "usage: sase run [-h] [-d] [-l] [-r [CONTINUE_HISTORY]] [PROMPT]" in run_help
+    assert "PROMPT" in run_help
+    assert (
+        'sase run "#cd:$(pwd) summarize what this repository does; do not change files"'
+        in run_help
+    )
+    assert (
+        'sase run -d "#cd:$(pwd) inspect pending work; do not change files"' in run_help
+    )
+    assert "sase agent list" in run_help
+    assert args.prompt == "hello"
+
+
+def test_memory_help_marks_primary_command_and_init_alias() -> None:
+    """Memory help text points users to the new primary command surface."""
+    memory_help = flat_help(parser_for(("sase", "memory")).format_help())
+    memory_init_help = flat_help(parser_for(("sase", "memory", "init")).format_help())
+    memory_list_help = flat_help(parser_for(("sase", "memory", "list")).format_help())
+    memory_read_help = flat_help(parser_for(("sase", "memory", "read")).format_help())
+    memory_write_help = flat_help(parser_for(("sase", "memory", "write")).format_help())
+    memory_review_help = flat_help(
+        parser_for(("sase", "memory", "review")).format_help()
+    )
+    memory_log_help = flat_help(parser_for(("sase", "memory", "log")).format_help())
+    init_alias_help = flat_help(parser_for(("sase", "init", "memory")).format_help())
+
+    assert "`sase memory list`" in memory_help
+    assert "{init,list,log,read,review,write}" in memory_help
+    assert "sase memory read generated_skills.md --reason" in memory_help
+    assert "sase memory write --title" in memory_help
+    assert "sase memory review --list" in memory_help
+    assert "sase memory review mem-20260523-142233-a1b2c3d4 --edit" in memory_help
+    assert "sase memory log --include proposals" in memory_help
+    assert "sase memory log --path generated_skills.md" in memory_help
+    assert "sase memory log --id <read-id>" in memory_help
+    assert "loaded, referenced, available, and missing memory files" in memory_help
+    assert "`sase init memory` is a compatibility alias" in memory_init_help
+    assert "loaded @ references" in memory_list_help
+    assert "referenced-only plain memory paths" in memory_list_help
+    assert "long-term memory markdown file" in memory_read_help
+    assert "falling back to ~/memory/" in memory_read_help
+    assert "flat note name such as generated_skills.md" in memory_read_help
+    assert "--reason REASON" in memory_read_help
+    assert "Need generated skill context" in memory_read_help
+    assert "--evidence EVIDENCE" in memory_write_help
+    assert "--manual-author NAME" in memory_write_help
+    assert "--notify" in memory_write_help
+    assert "never modifies canonical memory files" in memory_write_help
+    assert "--approve" in memory_review_help
+    assert "--reject" in memory_review_help
+    assert "--edited-file PATH" in memory_review_help
+    assert "--path MEMORY_PATH" in memory_log_help
+    assert "--agent AGENT_NAME" in memory_log_help
+    assert "--id READ_ID" in memory_log_help
+    assert "--include KIND" in memory_log_help
+    assert "sase memory log --id <read-id>" in memory_log_help
+    assert "Compatibility alias for `sase memory init`" in init_alias_help
+
+
+def test_skills_help_documents_log_command() -> None:
+    """Skills help text documents list/init/log/use and public log aliases."""
+    skills_help = flat_help(parser_for(("sase", "skill")).format_help())
+    skills_log_help = flat_help(parser_for(("sase", "skill", "log")).format_help())
+    skills_use_help = flat_help(parser_for(("sase", "skill", "use")).format_help())
+
+    assert "`sase skill list`" in skills_help
+    assert "{init,list,log,use}" in skills_help
+    assert "sase skill log --runtime codex" in skills_help
+    assert "sase skill use sase_plan --reason" in skills_help
+    assert "--agent AGENT_NAME" in skills_log_help
+    assert "-a AGENT_NAME" in skills_log_help
+    assert "--id USE_ID" in skills_log_help
+    assert "-i USE_ID" in skills_log_help
+    assert "--json" in skills_log_help
+    assert "-j" in skills_log_help
+    assert "--runtime RUNTIME" in skills_log_help
+    assert "-R RUNTIME" in skills_log_help
+    assert "--skill SKILL_NAME" in skills_log_help
+    assert "-s SKILL_NAME" in skills_log_help
+    assert "sase skill log --id <use-id>" in skills_log_help
+    assert "--reason REASON" in skills_use_help
