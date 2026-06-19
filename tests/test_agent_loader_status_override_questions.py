@@ -127,6 +127,122 @@ def test_apply_status_overrides_planner_child_with_answered_family_followup_is_d
     assert parent.status == "DONE"
 
 
+def test_apply_status_overrides_answered_question_only_family_is_done() -> None:
+    """An answered root-question family shows DONE with an ANSWERED asker row."""
+    question_time = datetime(2026, 6, 19, 15, 46, 14, 861080)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 6, 19, 10, 2, 17),
+        raw_suffix="20260619100217",
+        role_suffix="--0",
+        agent_name="sase-4z.5",
+        agent_family="sase-4z.5",
+        agent_family_role="root",
+        plan_chain_root=True,
+        questions_times=[question_time],
+    )
+    continuation = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 6, 19, 11, 46, 16),
+        raw_suffix="20260619114616",
+        parent_timestamp="20260619100217",
+        role_suffix="--1",
+        agent_name="sase-4z.5--1",
+        agent_family="sase-4z.5",
+        agent_family_role="q",
+        questions_times=[question_time],
+    )
+    agents = [parent, continuation]
+
+    _apply_status_overrides(agents)
+
+    asker = next(
+        agent
+        for agent in agents
+        if agent.parent_timestamp == parent.raw_suffix and agent.role_suffix == "--0"
+    )
+    assert continuation.status == "DONE"
+    assert parent.status == "DONE"
+    assert asker.status == "ANSWERED"
+
+
+def test_apply_status_overrides_inherited_question_with_new_round_is_question() -> None:
+    """A continuation with a new unanswered question timestamp remains blocked."""
+    first_question_time = datetime(2026, 6, 19, 15, 46, 14)
+    second_question_time = datetime(2026, 6, 19, 16, 20, 0)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 6, 19, 10, 2, 17),
+        raw_suffix="20260619100217",
+        role_suffix="--0",
+        agent_name="sase-4z.5",
+        agent_family="sase-4z.5",
+        agent_family_role="root",
+        plan_chain_root=True,
+        questions_times=[first_question_time],
+    )
+    continuation = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 6, 19, 11, 46, 16),
+        raw_suffix="20260619114616",
+        parent_timestamp="20260619100217",
+        role_suffix="--1",
+        agent_name="sase-4z.5--1",
+        agent_family="sase-4z.5",
+        agent_family_role="q",
+        questions_times=[first_question_time, second_question_time],
+    )
+    agents = [parent, continuation]
+
+    _apply_status_overrides(agents)
+
+    assert continuation.status == "QUESTION"
+    assert parent.status == "QUESTION"
+
+
+def test_apply_status_overrides_question_only_family_without_followup_is_question() -> (
+    None
+):
+    """A question-only family with no continuation still waits for user input."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 6, 19, 10, 2, 17),
+        raw_suffix="20260619100217",
+        role_suffix="--0",
+        agent_name="sase-4z.5",
+        agent_family="sase-4z.5",
+        agent_family_role="root",
+        plan_chain_root=True,
+        questions_times=[datetime(2026, 6, 19, 15, 46, 14)],
+    )
+    agents = [parent]
+
+    _apply_status_overrides(agents)
+
+    asker = next(
+        agent
+        for agent in agents
+        if agent.parent_timestamp == parent.raw_suffix and agent.role_suffix == "--0"
+    )
+    assert parent.status == "QUESTION"
+    assert asker.status == "QUESTION"
+
+
 def test_apply_status_overrides_parent_with_questioning_code_child_becomes_question() -> (
     None
 ):

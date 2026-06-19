@@ -110,6 +110,26 @@ def _has_unanswered_completed_question(
     return bool(agent.raw_suffix) and agent.raw_suffix not in parents_with_followup
 
 
+def _has_inherited_family_question(
+    agent: Agent,
+    parent_by_suffix: dict[str, Agent],
+) -> bool:
+    """Return True when a root-question continuation only mirrors its asker."""
+    if not agent.parent_timestamp or agent.parent_workflow:
+        return False
+    # Feedback/code rows can ask their own questions; only root-question
+    # continuations inherit the asker's question timestamp by construction.
+    if _agent_family_role(agent) != "q":
+        return False
+    parent = parent_by_suffix.get(agent.parent_timestamp)
+    if parent is None:
+        return False
+    question_times = set(agent.questions_times)
+    if not question_times:
+        return False
+    return question_times <= set(parent.questions_times)
+
+
 def _has_unreviewed_submitted_plan(
     agent: Agent,
     all_agents: list[Agent],
@@ -296,6 +316,8 @@ def _planner_child_status(
     if all_agents is not None and _has_family_followup_child(
         parent, all_agents, children_by_parent
     ):
+        if parent.questions_times and not parent.plan_times:
+            return "ANSWERED"
         return "DONE"
     if _has_unanswered_completed_question(parent):
         return "QUESTION"
@@ -559,7 +581,9 @@ def apply_status_overrides(
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 role = _agent_family_role(agent)
-                if _has_unanswered_completed_question(agent, parents_with_followup):
+                if _has_unanswered_completed_question(
+                    agent, parents_with_followup
+                ) and not _has_inherited_family_question(agent, parent_by_suffix):
                     agent.status = "QUESTION"
 
                 # Propagate meta_* fields from follow-up child to parent
@@ -597,7 +621,9 @@ def apply_status_overrides(
     # A persisted question_response_path means the row resumed after user input;
     # pending_question.json remains the active-row signal before completion.
     for agent in all_agents:
-        if _has_unanswered_completed_question(agent, parents_with_followup):
+        if _has_unanswered_completed_question(
+            agent, parents_with_followup
+        ) and not _has_inherited_family_question(agent, parent_by_suffix):
             agent.status = "QUESTION"
 
     # Override DONE -> PLAN for rows whose submitted plan still awaits manual

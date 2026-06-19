@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 13:14:42
-status: wip
+status: done
 prompt: sdd/prompts/202606/answered_question_status_1.md
 ---
 # Plan: Fix `sase-4z.5` family showing `QUESTION` after its question was answered
