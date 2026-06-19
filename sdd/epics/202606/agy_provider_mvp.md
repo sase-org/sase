@@ -2,6 +2,8 @@
 create_time: 2026-06-19 18:55:35
 status: wip
 prompt: sdd/prompts/202606/agy_provider_mvp.md
+bead_id: sase-50
+tier: epic
 ---
 # Plan: Add an Antigravity (`agy`) LLM Provider MVP
 
