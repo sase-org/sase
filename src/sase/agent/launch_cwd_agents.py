@@ -45,7 +45,16 @@ def launch_agents_from_cwd_impl(
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     ensure_historical_auto_name_migration()
-    query = canonicalize_project_aliases_in_prompt(query)
+    try:
+        query = canonicalize_project_aliases_in_prompt(query)
+    except Exception:
+        # An alias-map conflict here escapes before the validation/spawn
+        # branches below can record the failure; preserve the original
+        # submitted query so it stays recoverable from the stash.
+        from sase.history.prompt import record_failed_launch_prompt
+
+        record_failed_launch_prompt(query)
+        raise
     submitted_query = query
 
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (

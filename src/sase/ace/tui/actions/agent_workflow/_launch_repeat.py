@@ -54,6 +54,7 @@ class RepeatLaunchMixin:
             task_callable=lambda: self._run_repeat_launch(
                 prompt, snap, vcs_ref, has_wait
             ),
+            submitted_prompt=prompt,
         )
 
     def _run_repeat_launch(

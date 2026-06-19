@@ -51,6 +51,7 @@ class MultiPromptLaunchMixin:
             task_callable=lambda: self._run_multi_prompt_launch(
                 multi, snap, vcs_ref, submitted_prompt
             ),
+            submitted_prompt=submitted_prompt,
         )
 
     def _run_multi_prompt_launch(

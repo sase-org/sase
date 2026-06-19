@@ -48,8 +48,9 @@ class _FakeApp(AgentLaunchMixin):
         project_file: str,
         task_callable: object,
         dedup_key: str | None = None,
+        submitted_prompt: str | None = None,
     ) -> bool:
-        del display_name, cl_name, project_file, dedup_key
+        del display_name, cl_name, project_file, dedup_key, submitted_prompt
         if not callable(task_callable):
             return False
         outcome = task_callable()

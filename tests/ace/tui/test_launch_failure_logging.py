@@ -234,6 +234,9 @@ def test_single_body_failure_persists_record() -> None:
         def notify(self, msg: str, *, severity: str | None = None) -> None:
             self.notifications.append((msg, severity))
 
+        def _schedule_prompt_stash_badge_refresh(self) -> None:
+            pass
+
         def _run_agent_launch_body(self, prompt: str, ctx: Any = None) -> Any:
             raise RuntimeError("body boom")
 

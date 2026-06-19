@@ -57,6 +57,7 @@ class BulkLaunchMixin:
             cl_name=f"bulk {n} CLs",
             project_file="",
             task_callable=lambda: self._run_bulk_launch(prompt, changespecs),
+            submitted_prompt=prompt,
         )
 
     def _run_bulk_launch(
@@ -159,6 +160,13 @@ class BulkLaunchMixin:
             if failed_count > 0:
                 msg = f"Started {launched_count} agent(s), {failed_count} failed"
                 severity: LaunchSeverity | None = "warning"
+                # Any failed slot means the shared prompt was not fully launched;
+                # preserve it in the stash so it stays recoverable.
+                from sase.agent.failed_launch_prompt_stash import (
+                    stash_failed_launch_prompt,
+                )
+
+                stash_failed_launch_prompt(prompt)
             else:
                 msg = f"Started {launched_count} agent(s)"
                 severity = None
@@ -170,8 +178,12 @@ class BulkLaunchMixin:
             )
         except Exception as exc:
             log.exception("Bulk launch failed")
+            from sase.agent.failed_launch_prompt_stash import (
+                stash_failed_launch_prompt,
+            )
             from sase.logs import log_launch_failure
 
+            stash_failed_launch_prompt(prompt)
             log_launch_failure(
                 kind="bulk",
                 display_name=f"bulk {len(changespecs)} CLs",

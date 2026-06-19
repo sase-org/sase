@@ -46,8 +46,18 @@ class AgentLaunchBodyMixin:
             outcome = await asyncio.to_thread(self._run_agent_launch_body, prompt, ctx)
         except Exception as exc:
             log.exception("Agent launch body failed")
+            # An exception escaped the launch body before any inner failed-launch
+            # branch could run (e.g. a project-alias canonicalization conflict).
+            # Preserve the submitted prompt so it stays recoverable from the
+            # stash after the bar has been unmounted.
+            from sase.history.prompt import record_failed_launch_prompt
             from sase.logs import log_launch_failure
 
+            await asyncio.to_thread(
+                record_failed_launch_prompt,
+                prompt,
+                project=ctx.project_name if ctx is not None else None,
+            )
             await asyncio.to_thread(
                 log_launch_failure,
                 kind="single",
@@ -58,6 +68,8 @@ class AgentLaunchBodyMixin:
                 prompt_preview=prompt,
                 stage="launch_body",
             )
+            # The prompt was just stashed above; reflect it in the badge.
+            self._schedule_prompt_stash_badge_refresh()  # type: ignore[attr-defined]
             self.notify(  # type: ignore[attr-defined]
                 with_log_panel_hint("Agent launch failed"), severity="error"
             )
@@ -74,6 +86,10 @@ class AgentLaunchBodyMixin:
             refresh = getattr(self, "_refresh_notification_count", None)
             if callable(refresh):
                 refresh()
+        if outcome.severity in ("error", "warning"):
+            # An inner failed-launch branch already stashed the prompt
+            # synchronously; reflect the new row in the badge.
+            self._schedule_prompt_stash_badge_refresh()  # type: ignore[attr-defined]
         if outcome.notify and outcome.message:
             self.notify(outcome.message, severity=outcome.severity)  # type: ignore[attr-defined]
 
@@ -467,6 +483,7 @@ class AgentLaunchBodyMixin:
                     workflow_prompt,
                     has_vcs_ref=vcs_ref is not None
                     or known_project_vcs_ref is not None,
+                    submitted_prompt=original_submitted_prompt,
                 )
             if workflow_result is True:
                 # Full workflow executed successfully

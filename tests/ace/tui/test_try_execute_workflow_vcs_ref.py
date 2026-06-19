@@ -129,6 +129,7 @@ def test_explicit_standalone_workflow_executes_with_hitl_override() -> None:
         [],
         {},
         hitl_override=True,
+        submitted_prompt=None,
     )
 
 
@@ -164,6 +165,7 @@ def test_project_local_standalone_workflow_activates_inactive_project(
         [],
         {},
         hitl_override=None,
+        submitted_prompt=None,
     )
     assert app.notifications == []
     assert "PROJECT_STATE: active" in project_file.read_text(encoding="utf-8")

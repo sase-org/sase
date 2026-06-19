@@ -3,6 +3,9 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.history.prompt_catalog import get_prompts_for_fzf
 from sase.history.prompt_store import (
     PromptEntry,
@@ -11,6 +14,12 @@ from sase.history.prompt_store import (
     record_failed_launch_prompt,
     save_prompt_history,
 )
+
+
+def _skip_without_prompt_stash_bindings() -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    if not hasattr(rust_module, "append_prompt_stash"):
+        pytest.skip("sase_core_rs is too old (no append_prompt_stash binding).")
 
 
 def test_add_cancelled_prompt(tmp_path: Path) -> None:
@@ -90,6 +99,48 @@ def test_failed_launch_prompt_records_short_vcs_tag(tmp_path: Path) -> None:
         assert len(result) == 1
         assert result[0].text == "#gh:foobar"
         assert result[0].cancelled is True
+
+
+def test_failed_launch_prompt_appends_one_stash_entry(tmp_path: Path) -> None:
+    """A failed launch force-cancels history and stashes exactly one row."""
+    _skip_without_prompt_stash_bindings()
+    history_file = tmp_path / "prompt_history.json"
+    stash_path = tmp_path / "prompt_stash.jsonl"
+    with (
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file),
+        patch("sase.core.paths.prompt_stash_path", lambda: stash_path),
+    ):
+        long_prompt = "build the entire feature end to end " * 4
+        record_failed_launch_prompt(long_prompt, project="proj-z")
+
+        history = load_prompt_history()
+        assert any(p.text == long_prompt and p.cancelled for p in history)
+
+        from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+        entries = read_prompt_stash_snapshot(stash_path).entries
+        assert len(entries) == 1
+        assert entries[0].text == long_prompt.strip()
+        assert entries[0].source == "failed_launch"
+        assert entries[0].project == "proj-z"
+
+
+def test_failed_launch_prompt_stashes_short_vcs_tag(tmp_path: Path) -> None:
+    """Short failed prompts such as ``#gh:foo`` are stashed too."""
+    _skip_without_prompt_stash_bindings()
+    history_file = tmp_path / "prompt_history.json"
+    stash_path = tmp_path / "prompt_stash.jsonl"
+    with (
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file),
+        patch("sase.core.paths.prompt_stash_path", lambda: stash_path),
+    ):
+        record_failed_launch_prompt("#gh:foobar")
+
+        from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+        entries = read_prompt_stash_snapshot(stash_path).entries
+        assert [e.text for e in entries] == ["#gh:foobar"]
+        assert entries[0].source == "failed_launch"
 
 
 def test_cancelled_prompt_upgraded_on_launch(tmp_path: Path) -> None:

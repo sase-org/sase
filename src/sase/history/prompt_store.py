@@ -224,13 +224,18 @@ def add_or_update_prompt(
     _apply_prompt_mutations(mutations, current_timestamp)
 
 
-def record_failed_launch_prompt(text: str) -> None:
+def record_failed_launch_prompt(text: str, *, project: str | None = None) -> None:
     """Record a submitted prompt whose launch failed before producing agents.
 
     Failed launch attempts are different from ordinary prompt-bar cancellation:
     the user submitted the prompt, so even short prompts such as ``#gh:foo`` are
     useful history, and an earlier optimistic successful write must be forced
     back to cancelled.
+
+    The submitted prompt is also preserved in the prompt stash (best-effort) so
+    a long prompt remains recoverable through ``gp`` / ``gP`` after the prompt
+    bar has been unmounted. ``project`` is optional best-effort metadata for the
+    restore picker's project chip; it never gates recovery of the prompt text.
     """
     if not text.strip():
         return
@@ -247,6 +252,10 @@ def record_failed_launch_prompt(text: str) -> None:
     )
 
     _apply_prompt_mutations(mutations, current_timestamp)
+
+    from sase.agent.failed_launch_prompt_stash import stash_failed_launch_prompt
+
+    stash_failed_launch_prompt(text, project=project)
 
 
 def _multi_prompt_segment_mutations(

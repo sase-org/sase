@@ -41,6 +41,12 @@ class _FakeApp(AgentLaunchMixin):
         del kwargs
         self.scheduled.append((fn, args))
 
+    def _schedule_prompt_stash_badge_refresh(self) -> None:
+        pass
+
+    def _schedule_failed_launch_prompt_recovery(self, submitted_prompt: str) -> None:
+        del submitted_prompt
+
     def push_screen(self, screen: Any, callback: Any = None) -> None:
         self.pushed_screens.append((screen, callback))
 
@@ -65,6 +71,7 @@ class _FakeApp(AgentLaunchMixin):
         project_file: str,
         task_callable: Any,
         dedup_key: str | None = None,
+        submitted_prompt: str | None = None,
     ) -> bool:
         self.launch_tasks.append(
             {
@@ -73,6 +80,7 @@ class _FakeApp(AgentLaunchMixin):
                 "project_file": project_file,
                 "dedup_key": dedup_key,
                 "task_callable": task_callable,
+                "submitted_prompt": submitted_prompt,
             }
         )
         return True
@@ -100,10 +108,20 @@ class _LaunchBodyApp(AgentLaunchMixin):
         del kwargs
         self.scheduled.append((fn, args))
 
+    def _schedule_prompt_stash_badge_refresh(self) -> None:
+        pass
+
+    def _schedule_failed_launch_prompt_recovery(self, submitted_prompt: str) -> None:
+        del submitted_prompt
+
     def _try_execute_workflow(
-        self, prompt: str, *, has_vcs_ref: bool = False
+        self,
+        prompt: str,
+        *,
+        has_vcs_ref: bool = False,
+        submitted_prompt: str | None = None,
     ) -> bool | str:
-        del prompt, has_vcs_ref
+        del prompt, has_vcs_ref, submitted_prompt
         return False
 
     def _resolve_vcs_from_prompt(

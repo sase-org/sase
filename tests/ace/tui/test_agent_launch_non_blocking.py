@@ -51,6 +51,7 @@ class _SubmitLaunchBodyApp(_LaunchBodyApp):
         project_file: str,
         task_callable: Any,
         dedup_key: str | None = None,
+        submitted_prompt: str | None = None,
     ) -> bool:
         self.launch_tasks.append(
             {
@@ -59,6 +60,7 @@ class _SubmitLaunchBodyApp(_LaunchBodyApp):
                 "project_file": project_file,
                 "dedup_key": dedup_key,
                 "task_callable": task_callable,
+                "submitted_prompt": submitted_prompt,
             }
         )
         return True

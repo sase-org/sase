@@ -18,6 +18,15 @@ if TYPE_CHECKING:
     pass
 
 
+def _stash_failed_workflow_prompt(submitted_prompt: str | None) -> None:
+    """Preserve a lost workflow-launch prompt in the stash (best-effort)."""
+    if submitted_prompt is None:
+        return
+    from sase.agent.failed_launch_prompt_stash import stash_failed_launch_prompt
+
+    stash_failed_launch_prompt(submitted_prompt)
+
+
 class WorkflowExecMixin:
     """Mixin providing workflow execution functionality."""
 
@@ -25,7 +34,11 @@ class WorkflowExecMixin:
     _prompt_context: PromptContext | None
 
     def _try_execute_workflow(
-        self, prompt: str, has_vcs_ref: bool = False
+        self,
+        prompt: str,
+        has_vcs_ref: bool = False,
+        *,
+        submitted_prompt: str | None = None,
     ) -> bool | str:
         """Try to execute a workflow reference.
 
@@ -36,6 +49,8 @@ class WorkflowExecMixin:
                 the caller will expand them downstream via
                 ``process_xprompt_references`` (which splits colon args on
                 commas), and the rendered value would be discarded anyway.
+            submitted_prompt: The original prompt-bar submission, preserved in
+                the prompt stash if a workflow start/claim failure loses it.
 
         Returns:
             True if workflow was executed, False if not a valid workflow reference,
@@ -78,6 +93,7 @@ class WorkflowExecMixin:
                 activate_known_project_for_launch_ref(project)
             except RuntimeError as exc:
                 message = str(exc)
+                _stash_failed_workflow_prompt(submitted_prompt)
                 self.call_later(  # type: ignore[attr-defined]
                     lambda: self.notify(  # type: ignore[attr-defined]
                         message,
@@ -151,12 +167,20 @@ class WorkflowExecMixin:
         if has_changespec_context:
             # Launch as subprocess with workspace claiming
             return self._launch_workflow_subprocess(
-                workflow_name, positional_args, named_args, hitl_override=hitl_override
+                workflow_name,
+                positional_args,
+                named_args,
+                hitl_override=hitl_override,
+                submitted_prompt=submitted_prompt,
             )
 
         # Original behavior: daemon thread for home mode or no context
         return self._execute_workflow_in_thread(
-            workflow_name, positional_args, named_args, hitl_override=hitl_override
+            workflow_name,
+            positional_args,
+            named_args,
+            hitl_override=hitl_override,
+            submitted_prompt=submitted_prompt,
         )
 
     def _execute_workflow_in_thread(
@@ -165,6 +189,8 @@ class WorkflowExecMixin:
         positional_args: list[str],
         named_args: dict[str, str],
         hitl_override: bool | None = None,
+        *,
+        submitted_prompt: str | None = None,
     ) -> bool:
         """Execute workflow in a daemon thread (for home mode).
 
@@ -246,6 +272,7 @@ class WorkflowExecMixin:
             log.exception("Workflow '%s' failed to start", workflow_name)
             from sase.logs import log_launch_failure
 
+            _stash_failed_workflow_prompt(submitted_prompt)
             log_launch_failure(
                 kind="workflow",
                 display_name=workflow_name,
@@ -266,6 +293,8 @@ class WorkflowExecMixin:
         positional_args: list[str],
         named_args: dict[str, str],
         hitl_override: bool | None = None,
+        *,
+        submitted_prompt: str | None = None,
     ) -> bool:
         """Launch workflow as subprocess with workspace claiming.
 
@@ -359,6 +388,7 @@ class WorkflowExecMixin:
                 )
         except Exception as e:
             log.exception("Failed to start workflow subprocess for '%s'", workflow_name)
+            _stash_failed_workflow_prompt(submitted_prompt)
             err_msg = f"Failed to start workflow: {e}"
             self.call_later(  # type: ignore[attr-defined]
                 lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
@@ -377,6 +407,7 @@ class WorkflowExecMixin:
         )
         if not claim_result.success:
             err = claim_result.error or "unknown reason"
+            _stash_failed_workflow_prompt(submitted_prompt)
             self.call_later(  # type: ignore[attr-defined]
                 lambda err=err: self.notify(  # type: ignore[attr-defined]
                     f"Failed to claim workspace: {err}", severity="error"

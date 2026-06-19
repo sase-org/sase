@@ -125,6 +125,7 @@ class _FanOutHarness:
         project_file: str,
         task_callable: Callable[[], LaunchTaskOutcome],
         dedup_key: str | None = None,
+        submitted_prompt: str | None = None,
     ) -> bool:
         self.launch_tasks.append(
             {
@@ -133,6 +134,7 @@ class _FanOutHarness:
                 "project_file": project_file,
                 "task_callable": task_callable,
                 "dedup_key": dedup_key,
+                "submitted_prompt": submitted_prompt,
             }
         )
         return True

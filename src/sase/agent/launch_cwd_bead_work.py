@@ -53,33 +53,46 @@ def launch_planned_bead_work_agents(
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
     from sase.xprompt.directives import plan_prompt_fanout_variants
 
-    normalized_segments = [
-        normalize_default_vcs_workflow_segment(
-            canonicalize_project_aliases_in_prompt(segment)
-        )
-        for segment in segments
-    ]
+    try:
+        normalized_segments = [
+            normalize_default_vcs_workflow_segment(
+                canonicalize_project_aliases_in_prompt(segment)
+            )
+            for segment in segments
+        ]
+    except Exception:
+        # Alias canonicalization escapes before the existing validation/launch
+        # catch blocks; preserve the original submitted segments in the stash.
+        record_failed_launch_prompt("\n---\n".join(segments))
+        raise
 
     # Bead work renders deterministic single-agent segments. Assert no segment
     # carries a parent-side fan-out directive so the preplanned one-slot plans
     # below are guaranteed correct, and assert the rendered %name directives
     # match the planned names so a render bug cannot launch agents under the
     # wrong deterministic names.
-    rendered_names: set[str] = set()
-    for index, segment in enumerate(normalized_segments):
-        if plan_prompt_fanout_variants(segment) is not None:
+    try:
+        rendered_names: set[str] = set()
+        for index, segment in enumerate(normalized_segments):
+            if plan_prompt_fanout_variants(segment) is not None:
+                raise ValueError(
+                    f"bead-work segment {index} unexpectedly contains a "
+                    "fan-out directive"
+                )
+            name = extract_static_name_directive(segment)
+            if name:
+                rendered_names.add(name)
+        expected = set(expected_names)
+        if rendered_names != expected:
             raise ValueError(
-                f"bead-work segment {index} unexpectedly contains a fan-out directive"
+                f"bead-work rendered agent names {sorted(rendered_names)} do not "
+                f"match planned names {sorted(expected)}"
             )
-        name = extract_static_name_directive(segment)
-        if name:
-            rendered_names.add(name)
-    expected = set(expected_names)
-    if rendered_names != expected:
-        raise ValueError(
-            f"bead-work rendered agent names {sorted(rendered_names)} do not "
-            f"match planned names {sorted(expected)}"
-        )
+    except Exception:
+        # Pre-launch validation failed before the existing catch blocks; the
+        # normalized prompt is the user-submitted bundle to keep recoverable.
+        record_failed_launch_prompt("\n---\n".join(normalized_segments))
+        raise
 
     allow_bypass = internal_agent_name_bypass_for_launch(None, segment_extra_env)
 

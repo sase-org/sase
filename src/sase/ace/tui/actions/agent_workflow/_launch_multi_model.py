@@ -71,6 +71,7 @@ class MultiModelLaunchMixin:
                 submitted_xprompt,
                 fanout_plan,
             ),
+            submitted_prompt=submitted_xprompt,
         )
 
     def _run_multi_model_launch(

@@ -53,8 +53,15 @@ class LaunchTaskMixin:
         project_file: str,
         task_callable: Callable[[], LaunchTaskOutcome],
         dedup_key: str | None = None,
+        submitted_prompt: str | None = None,
     ) -> bool:
-        """Submit a tracked launch task and return whether it was accepted."""
+        """Submit a tracked launch task and return whether it was accepted.
+
+        ``submitted_prompt`` is launch-specific recovery metadata: if the worker
+        dies before returning a :class:`LaunchTaskOutcome` (a payloadless
+        failure), the completion handler stashes this prompt so it stays
+        recoverable. It is kept off the generic task-queue contract.
+        """
 
         def _callable() -> TrackedTaskResult[LaunchTaskOutcome]:
             outcome = task_callable()
@@ -76,6 +83,12 @@ class LaunchTaskMixin:
             reload_on_complete=False,
             notify_on_complete=False,
         )
+        if task_info is not None and submitted_prompt is not None:
+            prompts = getattr(self, "_launch_submitted_prompts", None)
+            if prompts is None:
+                prompts = {}
+                self._launch_submitted_prompts = prompts
+            prompts[task_info.task_id] = submitted_prompt
         return task_info is not None
 
     def _on_launch_task_complete(
@@ -83,10 +96,17 @@ class LaunchTaskMixin:
         completion: TrackedTaskCompletion[LaunchTaskOutcome],
     ) -> None:
         """Apply launch-specific completion effects on the UI thread."""
+        submitted_prompt = self._pop_launch_submitted_prompt(completion)
         outcome = completion.payload
         if outcome is None:
             if not completion.success:
                 _schedule_payloadless_launch_failure_log(self, completion)
+                if submitted_prompt is not None:
+                    # The worker died before recording the prompt; preserve it
+                    # in the stash and refresh the badge off the event loop.
+                    self._schedule_failed_launch_prompt_recovery(  # type: ignore[attr-defined]
+                        submitted_prompt
+                    )
                 self.notify(  # type: ignore[attr-defined]
                     with_log_panel_hint("Launch failed"),
                     severity="error",
@@ -107,11 +127,26 @@ class LaunchTaskMixin:
         if outcome.refresh_notifications:
             _refresh_notification_count_if_available(self)
 
+        if outcome.severity in ("error", "warning"):
+            # A failed/partial worker already stashed its prompt synchronously;
+            # refresh the badge so the new row is reflected.
+            self._schedule_prompt_stash_badge_refresh()  # type: ignore[attr-defined]
+
         if outcome.notify and outcome.message:
             self.notify(  # type: ignore[attr-defined]
                 outcome.message,
                 severity=outcome.severity,
             )
+
+    def _pop_launch_submitted_prompt(
+        self,
+        completion: TrackedTaskCompletion[LaunchTaskOutcome],
+    ) -> str | None:
+        """Remove and return the recovery prompt recorded for this launch task."""
+        prompts = getattr(self, "_launch_submitted_prompts", None)
+        if not prompts:
+            return None
+        return prompts.pop(completion.task_info.task_id, None)
 
 
 def _refresh_notification_count_if_available(app: object) -> None:

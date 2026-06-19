@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.agent.repeat_launcher import RepeatAgentSpec
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from tests.ace.tui._launch_fan_out_helpers import _BulkApp, _ctx, _RepeatApp
+
+
+def _skip_without_prompt_stash_bindings() -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    if not hasattr(rust_module, "append_prompt_stash"):
+        pytest.skip("sase_core_rs is too old (no append_prompt_stash binding).")
 
 
 def test_repeat_launch_runs_off_main_thread_and_batches_delta() -> None:
@@ -114,3 +124,34 @@ def test_bulk_launch_takes_changespec_snapshot() -> None:
     # A tracked launch task was submitted to drive the worker.
     assert len(app.launch_tasks) == 1
     assert app.launch_tasks[0]["display_name"] == "launch bulk 2 CLs"
+    # The shared prompt rides along as payloadless-failure recovery metadata.
+    assert app.launch_tasks[0]["submitted_prompt"] == "the prompt"
+
+
+def test_bulk_partial_failure_leaves_stash_row(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A bulk launch with any failed slot stashes the shared prompt once."""
+    _skip_without_prompt_stash_bindings()
+    stash_path = tmp_path / "prompt_stash.jsonl"
+    monkeypatch.setattr(
+        "sase.core.paths.prompt_stash_path", lambda: stash_path, raising=True
+    )
+
+    class _CS:
+        def __init__(self, name: str) -> None:
+            self.name = name
+            self.project_basename = "proj"
+
+    app = _BulkApp()
+    # A single changespec whose project file is missing fails the whole launch.
+    with patch("os.path.isfile", return_value=False):
+        outcome = app._run_bulk_launch("the bulk prompt", [_CS("a")])  # type: ignore[list-item]
+
+    assert outcome.severity == "warning"
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    entries = read_prompt_stash_snapshot(stash_path).entries
+    assert [e.text for e in entries] == ["the bulk prompt"]
+    assert entries[0].source == "failed_launch"
