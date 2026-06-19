@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 14:54:22
-status: wip
+status: done
 prompt: sdd/prompts/202606/vcs_project_completion_hash_plus_trigger.md
 ---
 # Plan: Change VCS project completion trigger from `+` to `#+`

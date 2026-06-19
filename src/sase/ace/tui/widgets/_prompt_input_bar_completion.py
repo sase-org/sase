@@ -205,7 +205,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         candidate: CompletionCandidate,
         is_selected: bool,
     ) -> None:
-        """Append one ``+`` project completion row.
+        """Append one ``#+`` project completion row.
 
         Layout: the project name in an accent color, its provider, the resulting
         ``#gh:sase`` tag dimmed as the expansion hint, then the description. The

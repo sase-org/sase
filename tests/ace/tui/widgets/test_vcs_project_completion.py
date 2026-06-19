@@ -1,4 +1,4 @@
-"""Tests for the ``+`` VCS-project completion menu in the prompt widget.
+"""Tests for the ``#+`` VCS-project completion menu in the prompt widget.
 
 Covers the Phase-2 TUI wiring on top of the Phase-1 headless helpers: trigger
 auto-open, query filtering, ``ctrl+n/p`` navigation, accept applying the
@@ -102,15 +102,18 @@ def test_placeholder_is_non_selectable() -> None:
 # --- Trigger auto-open -----------------------------------------------------
 
 
-async def test_plus_auto_opens_menu() -> None:
+async def test_hash_plus_auto_opens_menu() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
         with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("#")
+            assert ta.text == "#"
+            assert ta._file_completion_active is False
             await pilot.press("+")
 
-        assert ta.text == "+"
+        assert ta.text == "#+"
         assert ta._file_completion_active is True
         assert ta._completion_kind == VCS_PROJECT_COMPLETION_KIND
         panel = bar.query_one("#prompt-completion", Static)
@@ -123,17 +126,29 @@ async def test_plus_auto_opens_menu() -> None:
         assert "#gh:sase" in rendered
 
 
-async def test_plus_after_word_does_not_open() -> None:
-    """A ``+`` embedded in a word (e.g. ``c++``) is ordinary text."""
+async def test_bare_plus_does_not_open() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("+")
+
+        assert ta.text == "+"
+        assert ta._file_completion_active is False
+
+
+async def test_hash_plus_after_word_does_not_open() -> None:
+    """A ``#+`` embedded in a word is ordinary text."""
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("c")
         ta.cursor_location = (0, 1)
         with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("#")
             await pilot.press("+")
 
-        assert ta.text == "c+"
+        assert ta.text == "c#+"
         assert ta._file_completion_active is False
 
 
@@ -142,12 +157,13 @@ async def test_typing_filters_candidates() -> None:
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("#")
             await pilot.press("+")
             assert len(ta._file_completion_candidates) == 3
 
             # Typing forward narrows the list by case-insensitive name prefix.
             await pilot.press("t")
-            assert ta.text == "+t"
+            assert ta.text == "#+t"
             assert [c.name for c in ta._file_completion_candidates] == ["telegram"]
 
 
@@ -156,6 +172,7 @@ async def test_ctrl_n_p_cycle_highlight() -> None:
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("#")
             await pilot.press("+")
             assert ta._file_completion_index == 0
             await pilot.press("ctrl+n")
@@ -180,12 +197,12 @@ def _select(ta: PromptTextArea, name: str) -> None:
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
-        ("+", "#gh:sase "),  # golden #2
-        ("+sa", "#gh:sase "),  # golden #3
-        ("Describe this repo. +", "#gh:sase Describe this repo."),  # golden #1
-        ("#git:foo Fix bug +", "#gh:sase Fix bug"),  # golden #4 (replace)
-        ("Line one\n+", "#gh:sase Line one\n"),  # golden #7 (multi-line)
-        ("%model:opus Body +", "%model:opus #gh:sase Body"),  # golden #9
+        ("#+", "#gh:sase "),  # golden #2
+        ("#+sa", "#gh:sase "),  # golden #3
+        ("Describe this repo. #+", "#gh:sase Describe this repo."),  # golden #1
+        ("#git:foo Fix bug #+", "#gh:sase Fix bug"),  # golden #4 (replace)
+        ("Line one\n#+", "#gh:sase Line one\n"),  # golden #7 (multi-line)
+        ("%model:opus Body #+", "%model:opus #gh:sase Body"),  # golden #9
     ],
 )
 async def test_accept_applies_canonical_expansion(text: str, expected: str) -> None:
@@ -208,6 +225,7 @@ async def test_accept_places_cursor_after_inserted_tag() -> None:
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("#")
             await pilot.press("+")
         _select(ta, "sase")
         await pilot.press("ctrl+l")
@@ -225,6 +243,7 @@ async def test_empty_catalog_shows_placeholder_row() -> None:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
         with patch(_ENTRIES_PATH, return_value=[]):
+            await pilot.press("#")
             await pilot.press("+")
 
         assert ta._file_completion_active is True
@@ -240,10 +259,11 @@ async def test_accept_placeholder_is_noop() -> None:
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         with patch(_ENTRIES_PATH, return_value=[]):
+            await pilot.press("#")
             await pilot.press("+")
         await pilot.press("ctrl+l")
 
-        assert ta.text == "+"
+        assert ta.text == "#+"
         assert ta._file_completion_active is False
 
 
@@ -252,11 +272,12 @@ async def test_space_after_token_dismisses() -> None:
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("#")
             await pilot.press("+")
             assert ta._file_completion_active is True
             await pilot.press("space")
 
-        assert ta.text == "+ "
+        assert ta.text == "#+ "
         assert ta._file_completion_active is False
 
 
@@ -265,11 +286,12 @@ async def test_non_matching_query_dismisses() -> None:
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("#")
             await pilot.press("+")
             assert ta._file_completion_active is True
             await pilot.press("z")  # no project starts with "z"
 
-        assert ta.text == "+z"
+        assert ta.text == "#+z"
         assert ta._file_completion_active is False
 
 
@@ -278,6 +300,7 @@ async def test_escape_dismisses_menu() -> None:
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("#")
             await pilot.press("+")
             assert ta._file_completion_active is True
             await pilot.press("escape")
@@ -289,8 +312,8 @@ async def test_ctrl_t_on_existing_plus_token_opens_menu() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        ta.load_text("Review +te")
-        ta.cursor_location = (0, len("Review +te"))
+        ta.load_text("Review #+te")
+        ta.cursor_location = (0, len("Review #+te"))
         with patch(_ENTRIES_PATH, return_value=_PROJECTS):
             await pilot.press("ctrl+t")
 

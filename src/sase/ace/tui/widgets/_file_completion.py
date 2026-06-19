@@ -122,13 +122,13 @@ class FileCompletionMixin(FileCompletionContextMixin):
             self._clear_xprompt_arg_hint()
 
     def _warm_vcs_project_completion_catalog(self) -> None:
-        """Warm the ``+`` project catalog off the keystroke path.
+        """Warm the ``#+`` project catalog off the keystroke path.
 
         The catalog build touches disk (project enumeration + provider
         detection), so it must never run synchronously inside key handling
         (``memory/tui_perf.md``). Building once in a background thread populates
         the module-level cache in :mod:`sase.xprompt.vcs_project_completion`, so
-        the first ``+`` opens the menu instantly. Gated on the real app's
+        the first ``#+`` opens the menu instantly. Gated on the real app's
         completion-settings capability so lightweight test harnesses skip it.
         """
         if getattr(self, "_vcs_project_catalog_warmed", False):
@@ -143,12 +143,13 @@ class FileCompletionMixin(FileCompletionContextMixin):
         )
 
     def _try_vcs_project_completion(self) -> bool:
-        """Open the ``+`` project completion menu at a ``+token``.
+        """Open the ``#+`` project completion menu at a ``#+token``.
 
-        Returns ``True`` when a ``+`` trigger is present (menu opened, empty-state
-        row shown, or query matched nothing and the menu was dismissed), so the
-        caller stops dispatching other completion kinds. Returns ``False`` only
-        when there is no ``+`` trigger or the bar is not in prompt mode.
+        Returns ``True`` when a ``#+`` trigger is present (menu opened,
+        empty-state row shown, or query matched nothing and the menu was
+        dismissed), so the caller stops dispatching other completion kinds.
+        Returns ``False`` only when there is no ``#+`` trigger or the bar is not
+        in prompt mode.
         """
         bar = self._find_prompt_bar()
         if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":

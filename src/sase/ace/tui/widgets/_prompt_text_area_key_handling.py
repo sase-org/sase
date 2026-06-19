@@ -306,10 +306,9 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self._vcs_mru_index = None
 
         self._refresh_file_completion_from_cursor()
-        # Auto-open the ``+`` project completion menu when a ``+`` is typed at a
-        # valid trigger position (BOF / after whitespace / line start). The
-        # refresh above already narrows an open menu, so only try to open when
-        # one is not already active.
+        # Auto-open the ``#+`` project completion menu when the ``+`` completes
+        # a valid trigger token. The refresh above already narrows an open menu,
+        # so only try to open when one is not already active.
         if (
             event.character == "+"
             and self._vim_mode == "insert"

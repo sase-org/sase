@@ -1,4 +1,4 @@
-"""Tests for the ``+`` VCS project completion foundations (Phase 1).
+"""Tests for the ``#+`` VCS project completion foundations (Phase 1).
 
 Covers trigger detection, the active-project catalog builder, prefix filtering,
 and the canonical expansion algorithm -- including the cross-language golden
@@ -79,22 +79,22 @@ def _record(
 
 # --- Golden vectors (the cross-language parity contract) -------------------
 
-# ``‸`` marks the caret. The trigger token starts at the leading ``+`` and the
+# ``‸`` marks the caret. The trigger token starts at the leading ``#`` and the
 # caret sits at the end of the token, matching the design's golden table.
 _CURSOR = "‸"
 
 _GOLDEN_VECTORS = [
-    ("Describe this repo. +‸", "#gh:sase Describe this repo."),
-    ("+‸", "#gh:sase "),
-    ("+sa‸", "#gh:sase "),
-    ("+s‸\n", "#gh:sase \n"),
-    ("+s‸\nmore text", "#gh:sase \nmore text"),
-    ("#git:foo Fix bug +‸", "#gh:sase Fix bug"),
-    ("#gh!!:foo do X +‸", "#gh:sase do X"),
-    ("Fix +bug‸ here", "#gh:sase Fix here"),
-    ("Line one\n+‸", "#gh:sase Line one\n"),
-    ("---\nname: x\n---\nBody +‸", "---\nname: x\n---\n#gh:sase Body"),
-    ("%model:opus Body +‸", "%model:opus #gh:sase Body"),
+    ("Describe this repo. #+‸", "#gh:sase Describe this repo."),
+    ("#+‸", "#gh:sase "),
+    ("#+sa‸", "#gh:sase "),
+    ("#+s‸\n", "#gh:sase \n"),
+    ("#+s‸\nmore text", "#gh:sase \nmore text"),
+    ("#git:foo Fix bug #+‸", "#gh:sase Fix bug"),
+    ("#gh!!:foo do X #+‸", "#gh:sase do X"),
+    ("Fix #+bug‸ here", "#gh:sase Fix here"),
+    ("Line one\n#+‸", "#gh:sase Line one\n"),
+    ("---\nname: x\n---\nBody #+‸", "---\nname: x\n---\n#gh:sase Body"),
+    ("%model:opus Body #+‸", "%model:opus #gh:sase Body"),
 ]
 
 
@@ -117,56 +117,65 @@ def test_golden_vectors(marked: str, expected: str) -> None:
 
 
 def test_trigger_at_beginning_of_prompt() -> None:
-    trigger = find_vcs_project_trigger("+", 1)
+    trigger = find_vcs_project_trigger("#+", 2)
     assert trigger is not None
-    assert trigger.span == (0, 1)
+    assert trigger.span == (0, 2)
     assert trigger.query == ""
 
 
 def test_trigger_with_query() -> None:
-    trigger = find_vcs_project_trigger("+sa", 3)
+    trigger = find_vcs_project_trigger("#+sa", 4)
     assert trigger is not None
-    assert trigger.span == (0, 3)
+    assert trigger.span == (0, 4)
     assert trigger.query == "sa"
 
 
 def test_trigger_after_space() -> None:
-    trigger = find_vcs_project_trigger("Fix +bug", 8)
+    trigger = find_vcs_project_trigger("Fix #+bug", 9)
     assert trigger is not None
-    assert trigger.span == (4, 8)
+    assert trigger.span == (4, 9)
     assert trigger.query == "bug"
 
 
 def test_trigger_after_newline() -> None:
-    trigger = find_vcs_project_trigger("line\n+x", 7)
+    trigger = find_vcs_project_trigger("line\n#+x", 8)
     assert trigger is not None
-    assert trigger.span == (5, 7)
+    assert trigger.span == (5, 8)
     assert trigger.query == "x"
 
 
 def test_trigger_token_extends_past_cursor() -> None:
     """The span covers the whole token; the query stops at the cursor."""
-    trigger = find_vcs_project_trigger("+abc", 2)
+    trigger = find_vcs_project_trigger("#+abc", 3)
     assert trigger is not None
-    assert trigger.span == (0, 4)
+    assert trigger.span == (0, 5)
     assert trigger.query == "a"
 
 
-def test_trigger_fires_in_prose_after_space() -> None:
-    """``+`` after a space fires even in prose like ``2 + 2`` (noise tolerated)."""
-    trigger = find_vcs_project_trigger("2 + 2", 3)
+def test_trigger_fires_after_whitespace() -> None:
+    trigger = find_vcs_project_trigger("2 #+ 2", 4)
     assert trigger is not None
-    assert trigger.span == (2, 3)
+    assert trigger.span == (2, 4)
     assert trigger.query == ""
 
 
+def test_no_trigger_bare_plus() -> None:
+    assert find_vcs_project_trigger("+", 1) is None
+    assert find_vcs_project_trigger("+sa", 3) is None
+
+
+def test_no_trigger_hash_without_adjacent_plus() -> None:
+    assert find_vcs_project_trigger("# +", 3) is None
+    assert find_vcs_project_trigger("#", 1) is None
+
+
+def test_no_trigger_before_full_hash_plus_token() -> None:
+    assert find_vcs_project_trigger("#+", 0) is None
+    assert find_vcs_project_trigger("#+", 1) is None
+
+
 def test_no_trigger_inside_word() -> None:
-    """``c++`` is ordinary text -- the ``+`` is not at a token boundary."""
-    assert find_vcs_project_trigger("c++", 3) is None
-
-
-def test_no_trigger_plus_glued_to_word() -> None:
-    assert find_vcs_project_trigger("a+b", 3) is None
+    assert find_vcs_project_trigger("c#+x", 4) is None
 
 
 def test_no_trigger_without_plus() -> None:
@@ -178,8 +187,8 @@ def test_no_trigger_empty_prompt() -> None:
 
 
 def test_no_trigger_cursor_out_of_range() -> None:
-    assert find_vcs_project_trigger("+", 5) is None
-    assert find_vcs_project_trigger("+", -1) is None
+    assert find_vcs_project_trigger("#+", 5) is None
+    assert find_vcs_project_trigger("#+", -1) is None
 
 
 # --- Catalog builder -------------------------------------------------------
