@@ -3,7 +3,7 @@
 import argparse
 
 
-def _nonnegative_int(value: str) -> int:
+def nonnegative_int(value: str) -> int:
     parsed = int(value)
     if parsed < 0:
         raise argparse.ArgumentTypeError("must be a non-negative integer")
@@ -161,7 +161,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_search_parser.add_argument(
         "-n",
         "--limit",
-        type=_nonnegative_int,
+        type=nonnegative_int,
         default=None,
         help="Maximum results to print; 0 means unlimited",
     )

@@ -2,6 +2,9 @@
 
 import argparse
 
+from sase.main.parser_bead import nonnegative_int
+from sase.main.plan_search_handler import plan_date_arg
+
 
 def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'changespec' subcommand parser."""
@@ -425,10 +428,11 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'plan' subcommand parser."""
     plan_parser = subparsers.add_parser(
         "plan",
-        help="Review, approve, and propose implementation plans",
+        help="Review, approve, propose, and search implementation plans",
         description=(
             "Review the plan pipeline, approve pending proposals from the CLI, "
-            "or submit a new plan for review.\n\n"
+            "submit a new plan for review, or search SDD and machine-local "
+            "plans.\n\n"
             "With no subcommand, `sase plan` defaults to `sase plan list`."
         ),
         epilog=(
@@ -436,7 +440,8 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan\n"
             "  sase plan list --json\n"
             "  sase plan approve abcdef12 --kind tale\n"
-            "  sase plan propose sase_plan_feature.md"
+            "  sase plan propose sase_plan_feature.md\n"
+            "  sase plan search auth --format json"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -527,6 +532,100 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "plan_file",
         metavar="PLAN_FILE",
         help="Path to the plan .md file",
+    )
+
+    search_parser = plan_subparsers.add_parser(
+        "search",
+        help="Search SDD and machine-local markdown plans",
+        description=(
+            "Find plan artifacts whose text contains a literal, "
+            "case-insensitive query string, across the committed repo `sdd/` "
+            "plans (prioritized) and the machine-local `~/.sase/plans/` "
+            "archive. The query is optional: omit it to browse and filter. "
+            "Repo plans are surfaced above local plans on equal-relevance ties."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase plan search auth\n"
+            "  sase plan search auth --format json\n"
+            "  sase plan search --kind epic --since 14d --status wip\n"
+            "  sase plan search auth --source repo --sort recent --limit 5"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    search_parser.add_argument(
+        "query",
+        nargs="?",
+        help="Literal case-insensitive substring to match; omit to browse",
+    )
+    search_parser.add_argument(
+        "-c",
+        "--color",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Color output: auto, always, or never (default: auto)",
+    )
+    search_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["compact", "full", "json", "markdown"],
+        default="compact",
+        help="Output format: compact, full, json, or markdown (default: compact)",
+    )
+    search_parser.add_argument(
+        "-k",
+        "--kind",
+        choices=["tale", "epic", "legend", "myth", "research"],
+        action="append",
+        help="Filter repo plans by kind: tale, epic, legend, myth, or research "
+        "(repeatable)",
+    )
+    search_parser.add_argument(
+        "-n",
+        "--limit",
+        type=nonnegative_int,
+        default=20,
+        help="Maximum results to print; 0 means unlimited (default: 20)",
+    )
+    search_parser.add_argument(
+        "-A",
+        "--since",
+        type=plan_date_arg,
+        default=None,
+        metavar="DATE",
+        help="Only plans created on/after DATE "
+        "(YYYY-MM-DD, YYYY-MM, YYYYMM, or relative 14d/2w/3m)",
+    )
+    search_parser.add_argument(
+        "-o",
+        "--source",
+        choices=["all", "repo", "local"],
+        default="all",
+        help="Which corpus to scan: all, repo, or local (default: all)",
+    )
+    search_parser.add_argument(
+        "-r",
+        "--sort",
+        choices=["relevance", "recent", "title"],
+        default=None,
+        help="Sort order: relevance, recent, or title "
+        "(default: relevance with a query, else recent)",
+    )
+    search_parser.add_argument(
+        "-s",
+        "--status",
+        choices=["wip", "done"],
+        action="append",
+        help="Filter by frontmatter status: wip or done (repeatable)",
+    )
+    search_parser.add_argument(
+        "-B",
+        "--until",
+        type=plan_date_arg,
+        default=None,
+        metavar="DATE",
+        help="Only plans created on/before DATE "
+        "(YYYY-MM-DD, YYYY-MM, YYYYMM, or relative 14d/2w/3m)",
     )
 
 
