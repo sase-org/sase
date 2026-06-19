@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 07:25:36
-status: wip
+status: done
 prompt: sdd/prompts/202606/xprompt_separator_highlighting.md
 ---
 # Plan: Distinct LSP Syntax Highlighting for Multi-Agent xprompt `---` Separators
