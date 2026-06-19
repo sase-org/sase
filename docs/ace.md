@@ -1753,9 +1753,10 @@ the prompt as typed, so live suggestions cannot accidentally replace text on sen
 
 Live soft completion covers directives, xprompt names, xprompt argument names, and bool argument values. File-path soft
 completion is disabled by default because it can scan the filesystem while typing; enable it with
-`ace.prompt_completion.auto_file_paths: true`. Manual `Ctrl+T` completion still supports file paths regardless of that
-setting. Live suggestions pause while the manual completion panel is open, while snippet tabstops are active, in NORMAL
-mode, and during feedback prompts.
+`ace.prompt_completion.auto_file_paths: true`. The xprompt menu also opens automatically while typing matching `#name`
+or `#!name` tokens; disable that menu with `ace.prompt_completion.auto_xprompt_menu: false`. Manual `Ctrl+T` completion
+still supports file paths and xprompt names regardless of those settings. Live suggestions pause while the manual
+completion panel is open, while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The

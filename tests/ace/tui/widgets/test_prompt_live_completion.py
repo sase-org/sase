@@ -93,10 +93,16 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     assert parse_prompt_completion_settings({"auto": False}).auto == "off"
     assert parse_prompt_completion_settings({"auto": "soft"}).auto == "soft"
     parsed = parse_prompt_completion_settings(
-        {"debounce_ms": "-1", "auto_file_paths": True, "max_auto_rows": "0"}
+        {
+            "debounce_ms": "-1",
+            "auto_file_paths": True,
+            "auto_xprompt_menu": False,
+            "max_auto_rows": "0",
+        }
     )
     assert parsed.debounce_ms == 0
     assert parsed.auto_file_paths is True
+    assert parsed.auto_xprompt_menu is False
     assert parsed.max_auto_rows == 1
 
 

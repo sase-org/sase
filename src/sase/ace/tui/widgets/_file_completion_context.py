@@ -75,6 +75,7 @@ class FileCompletionContextMixin(_MixinBase):
             self,
         ) -> list[XPromptAssistEntry] | None: ...
         def _local_xprompt_assist_entries(self) -> list[XPromptAssistEntry]: ...
+        def _warm_current_xprompt_assist_entries(self) -> None: ...
 
     def _extract_token_around_cursor(self) -> tuple[int, int, str] | None:
         """Extract token bounds around the cursor in the current line."""
@@ -265,3 +266,22 @@ class FileCompletionContextMixin(_MixinBase):
             entries = self._get_xprompt_arg_assist_entries()
             return build_xprompt_completion_candidates(token, entries=entries)
         return build_xprompt_completion_candidates(token)
+
+    def _build_warm_xprompt_completion_candidates(
+        self,
+        token: str,
+    ) -> tuple[list[CompletionCandidate], str] | None:
+        """Build xprompt candidates from warm/local entries only.
+
+        Automatic completion runs on the keystroke path, so it must not fall
+        through to the synchronous catalog build used by explicit ``Ctrl+T``.
+        """
+        local = self._local_xprompt_assist_entries()
+        warm = self._get_warm_xprompt_arg_assist_entries()
+        if warm is None:
+            self._warm_current_xprompt_assist_entries()
+            if not local:
+                return None
+            return build_xprompt_completion_candidates(token, entries=local)
+        entries = merge_local_xprompt_entries(warm, local)
+        return build_xprompt_completion_candidates(token, entries=entries)

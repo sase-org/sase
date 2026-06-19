@@ -66,6 +66,8 @@ class PromptTextAreaActionsMixin(_MixinBase):
             ctx: Any,
             result: CompletionCandidate,
         ) -> None: ...
+        def _refresh_file_completion_from_cursor(self) -> None: ...
+        def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
         def _replace_via_keyboard(
             self,
             insert: str,
@@ -173,6 +175,31 @@ class PromptTextAreaActionsMixin(_MixinBase):
             self.move_cursor((row - 1, 0), select=select)
         else:
             self.move_cursor((row, 0), select=select)
+
+    def _refresh_completion_after_text_delete(self) -> None:
+        """Refresh prompt assist surfaces after TextArea delete actions."""
+        self._refresh_file_completion_from_cursor()
+        self._refresh_xprompt_arg_hint_from_cursor()
+
+    def action_delete_left(self) -> None:
+        """Delete left, then refresh any active completion menu."""
+        super().action_delete_left()
+        self._refresh_completion_after_text_delete()
+
+    def action_delete_right(self) -> None:
+        """Delete right, then refresh any active completion menu."""
+        super().action_delete_right()
+        self._refresh_completion_after_text_delete()
+
+    def action_delete_word_left(self) -> None:
+        """Delete word-left, then refresh any active completion menu."""
+        super().action_delete_word_left()
+        self._refresh_completion_after_text_delete()
+
+    def action_delete_word_right(self) -> None:
+        """Delete word-right, then refresh any active completion menu."""
+        super().action_delete_word_right()
+        self._refresh_completion_after_text_delete()
 
     def action_open_editor(self) -> None:
         """Request to open the external editor (``^G g`` / ``^G ^G``).

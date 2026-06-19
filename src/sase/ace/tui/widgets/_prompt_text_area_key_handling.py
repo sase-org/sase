@@ -12,9 +12,20 @@ from sase.ace.tui.widgets._vcs_mru_cycling import VcsMruCycleKey
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 
+    from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
     from sase.ace.tui.widgets.xprompt_arg_assist import ActiveXPromptArgHint
 else:
     _MixinBase = object
+
+
+def _is_auto_xprompt_menu_character(character: str | None) -> bool:
+    """Return True for printable non-whitespace inserted characters."""
+    return (
+        character is not None
+        and len(character) == 1
+        and character.isprintable()
+        and not character.isspace()
+    )
 
 
 class PromptTextAreaKeyHandlingMixin(_MixinBase):
@@ -58,6 +69,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         def _is_prompt_search_active(self) -> bool: ...
         def _move_file_completion(self, delta: int) -> bool: ...
         def _on_prompt_completion_context_changed(self) -> None: ...
+        def _prompt_completion_settings(self) -> PromptCompletionSettings: ...
         def _open_recursive_file_finder(self) -> None: ...
         def _open_submit_choice_panel(self) -> None: ...
         def _refresh_file_completion_from_cursor(self) -> None: ...
@@ -71,6 +83,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         def _show_insert_g_prefix_hints(self) -> None: ...
         def _try_advance_tabstop(self) -> bool: ...
         def _try_expand_snippet(self) -> bool: ...
+        def _try_auto_xprompt_completion(self) -> bool: ...
         def _try_file_completion_tab(self) -> bool: ...
         def _try_vcs_project_completion(self) -> bool: ...
         def action_open_editor(self) -> None: ...
@@ -315,6 +328,13 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             and not self._file_completion_active
         ):
             self._try_vcs_project_completion()
+        if (
+            self._vim_mode == "insert"
+            and not self._file_completion_active
+            and self._prompt_completion_settings().auto_xprompt_menu
+            and _is_auto_xprompt_menu_character(event.character)
+        ):
+            self._try_auto_xprompt_completion()
         self._refresh_xprompt_arg_hint_from_cursor()
         self._on_prompt_completion_context_changed()
 

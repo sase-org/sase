@@ -136,6 +136,11 @@
               "description": "Whether automatic completion may scan file path candidates while typing",
               "default": false
             },
+            "auto_xprompt_menu": {
+              "type": "boolean",
+              "description": "Whether matching #name and #!name tokens automatically open the xprompt completion menu while typing",
+              "default": true
+            },
             "max_auto_rows": {
               "type": "integer",
               "description": "Maximum automatic completion rows reserved for future popup modes",

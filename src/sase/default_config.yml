@@ -33,6 +33,7 @@ ace:
     auto: soft
     debounce_ms: 90
     auto_file_paths: false
+    auto_xprompt_menu: true
     max_auto_rows: 1
   keymaps:
     app:

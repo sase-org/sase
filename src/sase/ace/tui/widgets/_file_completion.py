@@ -74,6 +74,10 @@ class FileCompletionMixin(FileCompletionContextMixin):
         def _get_warm_xprompt_arg_assist_entries(
             self,
         ) -> list[XPromptAssistEntry] | None: ...
+        def _build_warm_xprompt_completion_candidates(
+            self,
+            token: str,
+        ) -> tuple[list[CompletionCandidate], str] | None: ...
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
         def _expand_snippet_template_at_range(
             self,
@@ -170,6 +174,37 @@ class FileCompletionMixin(FileCompletionContextMixin):
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
         self._update_file_completion_panel(trigger.query)
+        return True
+
+    def _try_auto_xprompt_completion(self) -> bool:
+        """Open the xprompt completion menu while typing a ``#`` token."""
+        bar = self._find_prompt_bar()
+        if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
+            return False
+        if self._get_vcs_project_trigger() is not None:
+            return False
+
+        ctx = self._get_xprompt_token_context()
+        if ctx is None:
+            return False
+        _row, _start, _end, token = ctx
+        if not token.startswith("#") or len(token) < 2:
+            return False
+        if not is_xprompt_like_token(token):
+            return False
+
+        result = self._build_warm_xprompt_completion_candidates(token)
+        if result is None:
+            return False
+        candidates, _shared_extension = result
+        if not candidates:
+            return False
+
+        self._completion_kind = "xprompt"
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(token)
         return True
 
     def _accept_vcs_project_completion(self, selected: CompletionCandidate) -> bool:

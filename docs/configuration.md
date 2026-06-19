@@ -208,15 +208,17 @@ ace:
     auto: soft
     debounce_ms: 90
     auto_file_paths: false
+    auto_xprompt_menu: true
     max_auto_rows: 1
 ```
 
-| Field             | Type        | Default | Description                                                                                                  |
-| ----------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------ |
-| `auto`            | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.    |
-| `debounce_ms`     | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                       |
-| `auto_file_paths` | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false. |
-| `max_auto_rows`   | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                   |
+| Field               | Type        | Default | Description                                                                                                  |
+| ------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `auto`              | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.    |
+| `debounce_ms`       | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                       |
+| `auto_file_paths`   | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false. |
+| `auto_xprompt_menu` | bool        | `true`  | Automatically open the xprompt completion menu while typing matching `#name` or `#!name` tokens.             |
+| `max_auto_rows`     | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                   |
 
 File-path completion roots relative lookups in the prompt-selected workspace. A resolvable `#cd` reference takes
 precedence; without `#cd`, registered workspace-provider refs and known-project refs such as `#git:<project>` or

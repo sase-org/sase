@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 15:48:29
-status: wip
+status: done
 prompt: sdd/prompts/202606/auto_xprompt_menu.md
 ---
 # Plan: Auto-trigger xprompt completion on `#<X>` (like `#+` project completion)
