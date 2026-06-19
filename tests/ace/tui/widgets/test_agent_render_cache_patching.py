@@ -1,0 +1,101 @@
+"""Tests for AgentList row patching through the render cache path."""
+
+from __future__ import annotations
+
+import pytest
+
+from sase.ace.tui.widgets.agent_list import AgentList
+
+from ._agent_render_cache_helpers import (
+    AgentListHarness as _Harness,
+    agent as _agent,
+    agent_row_index as _agent_row_index,
+)
+
+
+@pytest.mark.asyncio
+async def test_patch_agent_row_replaces_prompt_without_full_rebuild() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        a = _agent(approve=False)
+        widget.update_list([a], current_idx=0)
+        await pilot.pause()
+        before_count = widget.option_count
+        row = _agent_row_index(widget, 0)
+        before_id = widget.get_option_at_index(row).id
+
+        a.approve = True
+        ok = widget.patch_agent_row(0)
+        await pilot.pause()
+
+        assert ok is True
+        # Patch should not change row count or option_id.
+        assert widget.option_count == before_count
+        assert widget.get_option_at_index(row).id == before_id
+
+
+@pytest.mark.asyncio
+async def test_patch_agent_row_falls_back_when_index_out_of_range() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        a = _agent()
+        widget.update_list([a], current_idx=0)
+        await pilot.pause()
+        # Out-of-range index: caller should fall back to a full rebuild.
+        assert widget.patch_agent_row(7) is False
+
+
+@pytest.mark.asyncio
+async def test_patch_agent_row_returns_false_when_no_full_render_yet() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        # No update_list call -> no per-row context captured. Adding a
+        # bare agent without seeding context must trigger fallback.
+        widget._agents = [_agent()]
+        await pilot.pause()
+        assert widget.patch_agent_row(0) is False
+
+
+@pytest.mark.asyncio
+async def test_patch_agent_row_reflects_mark_change() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        a = _agent()
+        widget.update_list([a], current_idx=0, marked_agents=set())
+        await pilot.pause()
+        row = _agent_row_index(widget, 0)
+        prompt_unmarked = widget.get_option_at_index(row).prompt
+
+        ok = widget.patch_agent_row(0, marked_agents={a.identity})
+        await pilot.pause()
+        assert ok
+        prompt_marked = widget.get_option_at_index(row).prompt
+        # The mark glyph "[✓]" appears in the marked render but not the
+        # unmarked one, so the cached path must not return the stale Text.
+        assert "[✓]" in str(prompt_marked)
+        assert "[✓]" not in str(prompt_unmarked)
+
+
+@pytest.mark.asyncio
+async def test_patch_agent_row_reflects_unread_change() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        a = _agent()
+        widget.update_list([a], current_idx=0, unread_agents={a.identity})
+        await pilot.pause()
+        row = _agent_row_index(widget, 0)
+        prompt_unread = widget.get_option_at_index(row).prompt
+
+        ok = widget.patch_agent_row(0, unread_agents=set())
+        await pilot.pause()
+        assert ok
+        prompt_read = widget.get_option_at_index(row).prompt
+        assert "✦" not in str(prompt_unread)
+        assert "✅" in str(prompt_unread)
+        assert "✦" not in str(prompt_read)
+        assert "✅" not in str(prompt_read)
