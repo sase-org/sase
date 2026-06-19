@@ -2,7 +2,6 @@
 name: sase_plan
 description: Create an implementation plan. Use instead of plan mode (which is disabled).
 skill: true
-log_skill_use: false
 ---
 
 Use this skill when you need to plan before implementing. This replaces {{ provider_name }}'s native plan mode, which is
