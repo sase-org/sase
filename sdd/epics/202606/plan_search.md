@@ -2,7 +2,7 @@
 create_time: 2026-06-18 21:29:20
 bead_id: sase-4x
 tier: epic
-status: wip
+status: done
 prompt: sdd/prompts/202606/plan_search.md
 ---
 # Plan: `sase plan search` — Search SDD & Local Plans
