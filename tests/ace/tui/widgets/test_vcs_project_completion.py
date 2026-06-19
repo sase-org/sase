@@ -126,14 +126,51 @@ async def test_hash_plus_auto_opens_menu() -> None:
         assert "#gh:sase" in rendered
 
 
-async def test_bare_plus_does_not_open() -> None:
+async def test_bare_plus_at_bof_auto_opens_menu() -> None:
+    """A ``+`` at the very beginning of the prompt opens project completion."""
     app = CompletionTestApp()
     async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
         with patch(_ENTRIES_PATH, return_value=_PROJECTS):
             await pilot.press("+")
 
         assert ta.text == "+"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == VCS_PROJECT_COMPLETION_KIND
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "projects"
+        rendered = panel.render().plain
+        assert "sase" in rendered
+        assert "telegram" in rendered
+
+
+async def test_bare_plus_after_text_does_not_open() -> None:
+    """A bare ``+`` triggers only at offset 0, not after existing text."""
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Fix")
+        ta.cursor_location = (0, 3)
+        with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("space")
+            await pilot.press("+")
+
+        assert ta.text == "Fix +"
+        assert ta._file_completion_active is False
+
+
+async def test_bare_plus_after_whitespace_does_not_open() -> None:
+    """A bare ``+`` after a leading space is ordinary text."""
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text(" ")
+        ta.cursor_location = (0, 1)
+        with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("+")
+
+        assert ta.text == " +"
         assert ta._file_completion_active is False
 
 
@@ -218,6 +255,53 @@ async def test_accept_applies_canonical_expansion(text: str, expected: str) -> N
 
         assert ta.text == expected
         assert ta._file_completion_active is False
+
+
+async def test_bare_plus_accept_expands_to_tag() -> None:
+    """Accepting a bare ``+`` selection prepends the project's VCS tag."""
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("+")
+            assert ta._file_completion_active is True
+        _select(ta, "sase")
+        await pilot.press("ctrl+l")
+
+        assert ta.text == "#gh:sase "
+        assert ta._file_completion_active is False
+
+
+async def test_bare_plus_query_filters_and_accepts() -> None:
+    """Typing after a BOF ``+`` filters, and accept expands the match."""
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("+")
+            await pilot.press("t")
+            await pilot.press("e")
+            assert ta.text == "+te"
+            assert [c.name for c in ta._file_completion_candidates] == ["telegram"]
+        await pilot.press("ctrl+l")
+
+        assert ta.text == "#git:telegram "
+        assert ta._file_completion_active is False
+
+
+async def test_ctrl_t_on_bof_plus_token_opens_menu() -> None:
+    """Ctrl+T on an existing ``+query`` token at prompt start opens the menu."""
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("+te")
+        ta.cursor_location = (0, len("+te"))
+        with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            await pilot.press("ctrl+t")
+
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == VCS_PROJECT_COMPLETION_KIND
+        assert [c.name for c in ta._file_completion_candidates] == ["telegram"]
 
 
 async def test_accept_places_cursor_after_inserted_tag() -> None:

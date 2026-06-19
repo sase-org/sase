@@ -187,6 +187,21 @@ async def test_hash_plus_still_routes_to_project_completion() -> None:
         assert [c.insertion for c in ta._file_completion_candidates] == ["#gh:sase"]
 
 
+async def test_bof_plus_routes_to_project_completion() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [_entry("plus")])
+
+        with patch(_PROJECT_ENTRIES_PATH, return_value=[_project("sase")]):
+            await pilot.press("+")
+
+        assert ta.text == "+"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == VCS_PROJECT_COMPLETION_KIND
+        assert [c.insertion for c in ta._file_completion_candidates] == ["#gh:sase"]
+
+
 async def test_embedded_hash_token_does_not_auto_open() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:

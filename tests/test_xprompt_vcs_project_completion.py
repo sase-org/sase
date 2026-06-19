@@ -95,6 +95,10 @@ _GOLDEN_VECTORS = [
     ("Line one\n#+‸", "#gh:sase Line one\n"),
     ("---\nname: x\n---\nBody #+‸", "---\nname: x\n---\n#gh:sase Body"),
     ("%model:opus Body #+‸", "%model:opus #gh:sase Body"),
+    # Bare ``+`` at the very beginning of the prompt (offset 0).
+    ("+‸", "#gh:sase "),
+    ("+sa‸", "#gh:sase "),
+    ("+sa‸ Fix", "#gh:sase Fix"),
 ]
 
 
@@ -159,9 +163,39 @@ def test_trigger_fires_after_whitespace() -> None:
     assert trigger.query == ""
 
 
-def test_no_trigger_bare_plus() -> None:
-    assert find_vcs_project_trigger("+", 1) is None
-    assert find_vcs_project_trigger("+sa", 3) is None
+def test_trigger_bare_plus_at_beginning_of_prompt() -> None:
+    trigger = find_vcs_project_trigger("+", 1)
+    assert trigger is not None
+    assert trigger.span == (0, 1)
+    assert trigger.query == ""
+
+
+def test_trigger_bare_plus_with_query() -> None:
+    trigger = find_vcs_project_trigger("+sa", 3)
+    assert trigger is not None
+    assert trigger.span == (0, 3)
+    assert trigger.query == "sa"
+
+
+def test_trigger_bare_plus_token_extends_past_cursor() -> None:
+    """The span covers the whole token; the query stops at the cursor."""
+    trigger = find_vcs_project_trigger("+abc", 2)
+    assert trigger is not None
+    assert trigger.span == (0, 4)
+    assert trigger.query == "a"
+
+
+def test_no_trigger_bare_plus_outside_beginning_of_prompt() -> None:
+    """A bare ``+`` triggers only at absolute offset 0, not after text."""
+    assert find_vcs_project_trigger("Fix +", 5) is None
+    assert find_vcs_project_trigger(" +", 2) is None
+    assert find_vcs_project_trigger("\n+", 2) is None
+    assert find_vcs_project_trigger("word+", 5) is None
+
+
+def test_no_trigger_bare_plus_before_cursor_advances() -> None:
+    """The caret must sit past the bare ``+`` for the trigger to be live."""
+    assert find_vcs_project_trigger("+", 0) is None
 
 
 def test_no_trigger_hash_without_adjacent_plus() -> None:
