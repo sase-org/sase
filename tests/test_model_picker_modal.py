@@ -375,7 +375,9 @@ async def test_model_picker_selection_remains_valid_after_filter_change() -> Non
         assert highlighted is not None
         option = option_list.get_option_at_index(highlighted)
         assert option.id != "o3"
-        assert str(option.id).startswith("gemini-")
+        # A "gemini" filter matches both the lowercase gemini CLI models and
+        # the Antigravity (agy) "Gemini ..." display-name models.
+        assert "gemini" in str(option.id).lower()
 
 
 async def test_model_picker_escape_clears_filter_before_cancel() -> None:
@@ -435,10 +437,13 @@ async def test_model_picker_jump_hints_follow_filtered_visible_order() -> None:
         modal.action_jump_to_entry()
 
         visible_ids = modal._visible_selectable_option_ids()
+        # Providers render in entry-point order (alphabetical), so the
+        # Antigravity (agy) "Gemini ..." display-name models lead the filtered
+        # list ahead of the lowercase gemini CLI models.
         assert visible_ids[:3] == [
             "__default__",
-            "gemini-2.5-pro",
-            "gemini-2.5-flash",
+            "Gemini 3.5 Flash (High)",
+            "Gemini 3.5 Flash (Low)",
         ]
         assert modal._model_jump_hint_to_id["1"] == visible_ids[0]
         assert modal._model_jump_hint_to_id["2"] == visible_ids[1]
