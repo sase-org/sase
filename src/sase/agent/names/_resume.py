@@ -25,6 +25,15 @@ _RESUME_REF_RE = re.compile(
     r")"
 )
 
+_FORK_REF_RE = re.compile(
+    r"#fork(?![A-Za-z0-9_])"
+    r"(?:"
+    r":(?P<colon>`[^`]*`|[^\s,)]+)"
+    r"|"
+    r"(?P<open_paren>\()"
+    r")"
+)
+
 _PROCESS_NAME_LOCK = threading.RLock()
 _LOCK_STATE = threading.local()
 
@@ -70,6 +79,35 @@ def first_resume_agent_name(prompt: str | None) -> str | None:
     protected = protect_disabled_regions(protected, disabled)
 
     for match in _RESUME_REF_RE.finditer(protected):
+        arg = _resume_reference_argument(protected, match)
+        if arg:
+            from sase.agent.names._templates import (
+                resolve_agent_name_template_reference,
+            )
+
+            return resolve_agent_name_template_reference(arg)
+    return None
+
+
+def first_fork_agent_name(prompt: str | None) -> str | None:
+    """Return the first top-level ``#fork:<name>`` target, if any.
+
+    Unlike :func:`first_resume_agent_name`, legacy ``#resume`` references are
+    not matched: this is used to derive an implicit ``%wait`` dependency, and
+    only ``#fork`` should imply a wait. ``#fork_by_chat`` (chat-path argument)
+    and bare ``#fork`` (target resolved dynamically by the fork workflow) carry
+    no explicit agent name and are intentionally excluded. Fenced code blocks
+    and disabled xprompt regions are protected before lexical matching.
+    """
+    if not prompt or "#fork" not in prompt:
+        return None
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    for match in _FORK_REF_RE.finditer(protected):
         arg = _resume_reference_argument(protected, match)
         if arg:
             from sase.agent.names._templates import (

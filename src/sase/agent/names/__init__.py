@@ -87,6 +87,7 @@ from sase.agent.names._resume import (
     allocate_resume_names,
     allocate_wait_name,
     allocate_wait_names,
+    first_fork_agent_name,
     first_resume_agent_name,
     single_wait_agent_name,
 )
@@ -238,6 +239,7 @@ __all__ = [
     "delete_registered_name",
     "find_named_agent",
     "find_agent_family",
+    "first_fork_agent_name",
     "first_resume_agent_name",
     "get_active_agent_name_map",
     "get_active_agent_names",

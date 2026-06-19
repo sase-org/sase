@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 09:49:19
-status: wip
+status: done
 prompt: sdd/prompts/202606/fork_implies_wait.md
 ---
 # Plan: Make `#fork:<name>` Imply `%w:<name>`

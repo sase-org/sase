@@ -89,6 +89,20 @@ def extract_directives_and_write_meta(
     )
     _, directives = extract_prompt_directives(expanded_for_directives)
 
+    # A top-level `#fork:<name>` implies `%wait:<name>`: the forked agent must
+    # not start until its fork target finishes. We add the implied dependency as
+    # runner metadata (a local wait_names list) rather than rewriting the prompt
+    # text, so prompt history and raw xprompt artifacts stay clean while every
+    # launch surface behaves consistently. Bare `#fork` and `#fork_by_chat`
+    # resolve their targets dynamically and are excluded. An explicit
+    # `%wait:<name>` for the same target is not duplicated.
+    from sase.agent.names import first_fork_agent_name
+
+    wait_names = list(directives.wait)
+    fork_wait_target = first_fork_agent_name(raw_resolved_prompt)
+    if fork_wait_target and fork_wait_target not in wait_names:
+        wait_names.append(fork_wait_target)
+
     auto_dismiss = os.environ.get("SASE_AGENT_AUTO_DISMISS")
 
     agent_name = directives.name
@@ -98,8 +112,8 @@ def extract_directives_and_write_meta(
         from sase.agent.names import first_resume_agent_name
 
         resume_name = first_resume_agent_name(raw_resolved_prompt)
-        if resume_name is None and len(directives.wait) == 1:
-            wait_name = directives.wait[0]
+        if resume_name is None and len(wait_names) == 1:
+            wait_name = wait_names[0]
 
     repeat_name = os.environ.get("SASE_REPEAT_NAME")
     planned_name = os.environ.get("SASE_AGENT_PLANNED_NAME")
@@ -198,8 +212,8 @@ def extract_directives_and_write_meta(
         }
         if agent_name:
             agent_meta["name"] = agent_name
-        if directives.wait:
-            agent_meta["wait_for"] = directives.wait
+        if wait_names:
+            agent_meta["wait_for"] = wait_names
         if directives.wait_duration is not None:
             agent_meta["wait_duration"] = directives.wait_duration
         if directives.wait_until is not None:
@@ -275,7 +289,7 @@ def extract_directives_and_write_meta(
 
     return AgentInfo(
         name=agent_name,
-        wait_names=directives.wait,
+        wait_names=wait_names,
         wait_duration=directives.wait_duration,
         wait_until=directives.wait_until,
         model=agent_model,

@@ -424,6 +424,71 @@ class TestExtractDirectivesAutoDismiss:
         assert meta["changespec_name"] == "feature-branch"
 
 
+class TestExtractDirectivesImplicitForkWait:
+    """A top-level #fork:<name> implies %wait:<name> as runner metadata."""
+
+    def test_bare_fork_target_implies_wait(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork:foo do stuff",
+            )
+        assert result["meta"].get("wait_for") == ["foo"]
+        assert result["info"].wait_names == ["foo"]
+        # Fork-derived naming still wins over the implicit wait.
+        assert result["info"].name == "foo.f1"
+        assert result["meta"].get("name") == "foo.f1"
+
+    def test_fork_appends_after_explicit_waits(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%wait:bar expanded prompt",
+                raw_resolved_prompt="#fork:foo\n%wait:bar do stuff",
+            )
+        assert result["meta"].get("wait_for") == ["bar", "foo"]
+        assert result["info"].wait_names == ["bar", "foo"]
+        assert result["info"].name == "foo.f1"
+        assert result["meta"].get("name") == "foo.f1"
+
+    def test_explicit_duplicate_wait_is_not_repeated(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%wait:foo expanded prompt",
+                raw_resolved_prompt="#fork:foo %wait:foo do stuff",
+            )
+        assert result["meta"].get("wait_for") == ["foo"]
+        assert result["info"].wait_names == ["foo"]
+        assert result["info"].name == "foo.f1"
+
+    def test_bare_fork_without_name_adds_no_implicit_wait(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork do stuff",
+            )
+        assert "wait_for" not in result["meta"]
+        assert result["info"].wait_names == []
+
+    def test_legacy_resume_adds_no_implicit_wait(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#resume:foo do stuff",
+            )
+        assert "wait_for" not in result["meta"]
+        assert result["info"].wait_names == []
+
+
 def test_epic_directive_writes_plan_auto_action(tmp_path: Path) -> None:
     """%epic is plan-specific and does not enable full auto-approve."""
     with patch.object(Path, "home", return_value=tmp_path):

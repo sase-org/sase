@@ -252,14 +252,15 @@ class AgentWaitResumeMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Running named agents: use #fork with %w to wait for completion.
+        # Running named agents: a #fork:<name> implies %w:<name>, so the
+        # forked agent waits for the target to finish before starting.
         from ._core import DISMISSABLE_STATUSES
 
         prompt_name = _agent_prompt_name(agent)
 
         if agent.status not in DISMISSABLE_STATUSES and prompt_name:
             name = prompt_name
-            prefix = f"#fork:{name} %w:{name} "
+            prefix = f"#fork:{name} "
 
             vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
             if vcs_tag:
