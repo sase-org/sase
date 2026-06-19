@@ -87,6 +87,8 @@ _GOLDEN_VECTORS = [
     ("Describe this repo. +‸", "#gh:sase Describe this repo."),
     ("+‸", "#gh:sase "),
     ("+sa‸", "#gh:sase "),
+    ("+s‸\n", "#gh:sase \n"),
+    ("+s‸\nmore text", "#gh:sase \nmore text"),
     ("#git:foo Fix bug +‸", "#gh:sase Fix bug"),
     ("#gh!!:foo do X +‸", "#gh:sase do X"),
     ("Fix +bug‸ here", "#gh:sase Fix here"),

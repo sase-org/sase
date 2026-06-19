@@ -212,13 +212,13 @@ def find_vcs_workflow_tag_prepend_offset(prompt: str) -> int:
     """Return where a leading VCS workflow tag should be inserted.
 
     The insertion point follows the same placement rules as VCS workflow
-    normalization: after a leading YAML frontmatter block, leading whitespace,
-    and leading ``%directive`` tokens.
+    normalization: after a leading YAML frontmatter block, leading horizontal
+    whitespace, and leading ``%directive`` tokens.
     """
     frontmatter, body = _split_frontmatter_block(prompt)
     offset = len(frontmatter)
 
-    leading_ws_match = re.match(r"\s*", body)
+    leading_ws_match = re.match(r"[^\S\r\n]*", body)
     assert leading_ws_match is not None
     offset += leading_ws_match.end()
     body_after_ws = body[leading_ws_match.end() :]

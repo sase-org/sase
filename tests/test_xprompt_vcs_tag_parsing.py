@@ -222,6 +222,13 @@ def test_prepend_offset_preserves_frontmatter_directives() -> None:
     )
 
 
+def test_prepend_offset_does_not_skip_line_breaks() -> None:
+    assert find_vcs_workflow_tag_prepend_offset("\n") == 0
+    assert find_vcs_workflow_tag_prepend_offset("\nmore") == 0
+    assert find_vcs_workflow_tag_prepend_offset("  Body") == 2
+    assert find_vcs_workflow_tag_prepend_offset("\tBody") == 1
+
+
 def test_replace_ref_in_vcs_tag_colon() -> None:
     """Test replacing ref in colon format: #gh:sase -> #gh:new_branch."""
     assert replace_ref_in_vcs_tag("#gh:sase ", "sase_foobar_1") == "#gh:sase_foobar_1 "

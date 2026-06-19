@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 14:31:53
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_vcs_project_completion_blank_line.md
 ---
 # Plan: Fix blank line above expanded VCS tag in `+` project completion (LSP)
