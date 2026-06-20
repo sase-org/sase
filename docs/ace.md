@@ -1805,16 +1805,21 @@ a fan-out is easy to read at a glance:
 The alt overlay layers on top of the existing Jinja and search highlighting rather than replacing it, and it uses the
 same size guards, so highlighting stays responsive on large prompts.
 
-Editing help only fires for `|` separators inside the `%{...}` shorthand:
+Editing help in the ACE prompt input mirrors the Jinja auto-pair behavior and only fires for the `%{...}` shorthand:
 
+- **Auto-pair** — typing `{` immediately after a directive-valid `%` inserts the matching `}` and leaves the cursor
+  between the braces (`%{|}`).
+- **Paired delete** — backspacing the `{` in `%{|}` also removes the auto-inserted `}`; a forward delete on `%|{}`
+  removes both braces.
 - **`|` separator normalization** — typing `|` inside a live `%{...}` span inserts a padded `|` separator, keeps the
   cursor after the trailing space and before the closing `}`, and normalizes comma spacing in the current branch. For
   example, typing `|` at the end of `%{foo ,bar, and baz` yields `%{foo, bar, and baz | }` with the cursor before `}`.
 
 These edits are suppressed when there is an active selection or when the cursor is not inside a directive-valid `%{...}`
-context, so ordinary `|` typing elsewhere is unaffected. ACE does not auto-pair `%{` or paired-delete an empty `%{}`;
-normal editor brace-pair plugins own that lifecycle. The same separator behavior is available in the
-[Neovim plugin](https://github.com/sase-org/sase-nvim) for prompt buffers.
+context, so ordinary `{` and `|` typing elsewhere is unaffected. External editor integrations do not own `%{}`
+auto-pairing or paired delete; editor-local brace-pair plugins own that lifecycle there. The
+[Neovim plugin](https://github.com/sase-org/sase-nvim) still provides the same separator-normalization behavior for
+prompt buffers.
 
 ### NORMAL Mode
 

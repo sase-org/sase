@@ -2,17 +2,30 @@
 
 from __future__ import annotations
 
+from textual.app import App, ComposeResult
 from textual.widgets.text_area import Selection
 
 from sase.ace.tui.widgets._alt_syntax_editing import (
     AltEdit,
     _find_enclosing_alt_span,
     _is_directive_valid_brace_opening,
+    plan_alt_auto_pair,
+    plan_alt_paired_delete_left,
+    plan_alt_paired_delete_right,
     plan_alt_separator,
 )
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
-from ._completion_helpers import CompletionTestApp
+
+class AltEditTestApp(App[None]):
+    """Minimal app that hosts a PromptTextArea without frontmatter dependencies."""
+
+    ENABLE_COMMAND_PALETTE = False
+
+    def compose(self) -> ComposeResult:
+        yield PromptInputBar(mode="feedback")
+
 
 # --------------------------------------------------------------------------- #
 # Pure-helper tests                                                           #
@@ -26,6 +39,53 @@ def test_is_directive_valid_brace_opening_contexts() -> None:
     assert _is_directive_valid_brace_opening("a%", 1) is False
     assert _is_directive_valid_brace_opening("50%", 2) is False
     assert _is_directive_valid_brace_opening("x", 0) is False
+
+
+def test_plan_alt_auto_pair_after_directive_percent() -> None:
+    assert plan_alt_auto_pair("%", 1) == AltEdit(start=1, end=1, text="{}", cursor=2)
+    assert plan_alt_auto_pair("run %", 5) == AltEdit(
+        start=5, end=5, text="{}", cursor=6
+    )
+
+
+def test_plan_alt_auto_pair_requires_directive_context() -> None:
+    # ``%`` not at a directive-valid position.
+    assert plan_alt_auto_pair("a%", 2) is None
+    # Cursor not directly after a ``%``.
+    assert plan_alt_auto_pair("ab", 2) is None
+
+
+def test_plan_alt_auto_pair_rejects_when_text_follows() -> None:
+    # The inserted ``}`` would run into following non-whitespace text.
+    assert plan_alt_auto_pair("%foo", 1) is None
+    # Trailing whitespace is fine.
+    assert plan_alt_auto_pair("% foo", 1) == AltEdit(
+        start=1, end=1, text="{}", cursor=2
+    )
+
+
+def test_plan_alt_paired_delete_left_empty_pair() -> None:
+    assert plan_alt_paired_delete_left("%{}", 2) == AltEdit(
+        start=1, end=3, text="", cursor=1
+    )
+
+
+def test_plan_alt_paired_delete_left_rejects_nonempty_or_nondirective() -> None:
+    # Brace pair is not empty.
+    assert plan_alt_paired_delete_left("%{x}", 2) is None
+    # ``{`` is not a directive opening.
+    assert plan_alt_paired_delete_left("a{}", 2) is None
+
+
+def test_plan_alt_paired_delete_right_empty_pair() -> None:
+    assert plan_alt_paired_delete_right("%{}", 1) == AltEdit(
+        start=1, end=3, text="", cursor=1
+    )
+
+
+def test_plan_alt_paired_delete_right_rejects_nonempty_or_nondirective() -> None:
+    assert plan_alt_paired_delete_right("%{x}", 1) is None
+    assert plan_alt_paired_delete_right("a{}", 1) is None
 
 
 def test_find_enclosing_alt_span() -> None:
@@ -78,17 +138,17 @@ def test_plan_alt_separator_outside_span_returns_none() -> None:
 # --------------------------------------------------------------------------- #
 
 
-async def test_alt_open_brace_inserts_literally_after_percent() -> None:
-    app = CompletionTestApp()
+async def test_alt_auto_pair_inserts_braces() -> None:
+    app = AltEditTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         await pilot.press("%", "{")
-        assert ta.text == "%{"
+        assert ta.text == "%{}"
         assert ta.cursor_location == (0, 2)
 
 
-async def test_open_brace_inserts_literally_outside_alt_context() -> None:
-    app = CompletionTestApp()
+async def test_alt_auto_pair_only_after_directive_percent() -> None:
+    app = AltEditTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("word")
@@ -98,30 +158,30 @@ async def test_open_brace_inserts_literally_outside_alt_context() -> None:
         assert ta.text == "word{"
 
 
-async def test_alt_backspace_deletes_only_opening_brace() -> None:
-    app = CompletionTestApp()
+async def test_alt_paired_backspace_removes_both_braces() -> None:
+    app = AltEditTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("%{}")
         ta.cursor_location = (0, 2)
         await pilot.press("backspace")
-        assert ta.text == "%}"
+        assert ta.text == "%"
         assert ta.cursor_location == (0, 1)
 
 
-async def test_alt_delete_right_deletes_only_opening_brace() -> None:
-    app = CompletionTestApp()
+async def test_alt_paired_delete_right_removes_both_braces() -> None:
+    app = AltEditTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("%{}")
         ta.cursor_location = (0, 1)
         await pilot.press("delete")
-        assert ta.text == "%}"
+        assert ta.text == "%"
         assert ta.cursor_location == (0, 1)
 
 
 async def test_alt_separator_inside_braces() -> None:
-    app = CompletionTestApp()
+    app = AltEditTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("%{foo}")
@@ -132,7 +192,7 @@ async def test_alt_separator_inside_braces() -> None:
 
 
 async def test_alt_separator_acceptance_example() -> None:
-    app = CompletionTestApp()
+    app = AltEditTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("%{foo ,bar, and baz}")
@@ -143,7 +203,7 @@ async def test_alt_separator_acceptance_example() -> None:
 
 
 async def test_alt_separator_in_unclosed_span() -> None:
-    app = CompletionTestApp()
+    app = AltEditTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("%{foo")
@@ -154,7 +214,7 @@ async def test_alt_separator_in_unclosed_span() -> None:
 
 
 async def test_pipe_outside_alt_span_inserts_literal() -> None:
-    app = CompletionTestApp()
+    app = AltEditTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("foo")
@@ -164,7 +224,7 @@ async def test_pipe_outside_alt_span_inserts_literal() -> None:
 
 
 async def test_alt_edit_skipped_with_selection() -> None:
-    app = CompletionTestApp()
+    app = AltEditTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("%{foo}")
