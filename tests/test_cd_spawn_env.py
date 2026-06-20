@@ -260,14 +260,15 @@ def test_spawn_agent_subprocess_readds_prepared_deferred_workspace_env(
     assert captured_env["SASE_AGENT_VCS_WORKFLOW_TYPE"] == "git"
 
 
-def test_spawn_agent_subprocess_exports_sibling_repo_env_without_prompt_note(
+def test_spawn_agent_subprocess_exports_linked_repo_env_without_prompt_note(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     from sase.agent.launcher import spawn_agent_subprocess
-    from sase.sibling_repos import (
+    from sase.linked_repos import (
+        LINKED_REPOS_JSON_ENV,
         SIBLING_REPOS_JSON_ENV,
-        resolve_sibling_repos_for_project,
+        resolve_linked_repos_for_project,
     )
 
     workspace = tmp_path / "child-workspace"
@@ -281,17 +282,22 @@ def test_spawn_agent_subprocess_exports_sibling_repo_env_without_prompt_note(
     output = tmp_path / "agent.log"
     captured_env: dict[str, str] = {}
     prompt_file: list[Path] = []
+    # Seed stale env under both the canonical and legacy prefixes to prove the
+    # spawn boundary scrubs both before applying a fresh resolution.
+    monkeypatch.setenv(LINKED_REPOS_JSON_ENV, "stale")
     monkeypatch.setenv(SIBLING_REPOS_JSON_ENV, "stale")
+    monkeypatch.setenv("SASE_LINKED_REPO_OLD_DIR", "/stale")
+    monkeypatch.setenv("SASE_LINKED_REPO_OLD_PRIMARY_DIR", "/stale-primary")
     monkeypatch.setenv("SASE_SIBLING_REPO_OLD_DIR", "/stale")
     monkeypatch.setenv("SASE_SIBLING_REPO_OLD_PRIMARY_DIR", "/stale-primary")
 
-    resolution = resolve_sibling_repos_for_project(
+    resolution = resolve_linked_repos_for_project(
         project_file=str(project_file),
         workspace_dir=str(workspace),
         workspace_num=101,
         config={
             "workspace": {"root": "adjacent"},
-            "sibling_repos": [{"name": "core", "path": "../sase-core"}],
+            "linked_repos": [{"name": "core", "path": "../sase-core"}],
         },
         materialize=False,
     )
@@ -320,7 +326,7 @@ def test_spawn_agent_subprocess_exports_sibling_repo_env_without_prompt_note(
         ),
         patch("sase.axe.chop_agents.record_chop_agent_launch_from_env"),
         patch(
-            "sase.sibling_repos.resolve_sibling_repos_for_project",
+            "sase.linked_repos.resolve_linked_repos_for_project",
             return_value=resolution,
         ),
     ):
@@ -337,12 +343,21 @@ def test_spawn_agent_subprocess_exports_sibling_repo_env_without_prompt_note(
             vcs_ref=("git", "home"),
         )
 
+    # Canonical linked env vars are emitted...
+    assert captured_env["SASE_LINKED_REPO_CORE_DIR"] == str(tmp_path / "sase-core_101")
+    assert captured_env["SASE_LINKED_REPO_CORE_PRIMARY_DIR"] == str(
+        tmp_path / "sase-core"
+    )
+    assert json.loads(captured_env[LINKED_REPOS_JSON_ENV])[0]["name"] == "core"
+    # ...alongside the deprecated sibling aliases for mixed-version tooling.
     assert captured_env["SASE_SIBLING_REPO_CORE_DIR"] == str(tmp_path / "sase-core_101")
     assert captured_env["SASE_SIBLING_REPO_CORE_PRIMARY_DIR"] == str(
         tmp_path / "sase-core"
     )
-    assert "SASE_SIBLING_REPO_OLD_DIR" not in captured_env
     assert json.loads(captured_env[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"
+    # Stale inherited mappings under both prefixes are scrubbed.
+    assert "SASE_LINKED_REPO_OLD_DIR" not in captured_env
+    assert "SASE_SIBLING_REPO_OLD_DIR" not in captured_env
     assert prompt_file[0].read_text(encoding="utf-8") == "#git:home do work"
 
 

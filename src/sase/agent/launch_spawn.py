@@ -44,11 +44,11 @@ def _remove_inherited_agent_var_context_env(env: dict[str, str]) -> None:
     env.pop(SASE_AGENT_VAR_UPSTREAMS_ENV, None)
 
 
-def _remove_inherited_sibling_repo_env(env: dict[str, str]) -> None:
-    """Drop stale sibling-repo mappings inherited from parent agents."""
-    from sase.sibling_repos import scrub_sibling_repo_env
+def _remove_inherited_linked_repo_env(env: dict[str, str]) -> None:
+    """Drop stale linked-repo mappings inherited from parent agents."""
+    from sase.linked_repos import scrub_linked_repo_env
 
-    scrub_sibling_repo_env(env)
+    scrub_linked_repo_env(env)
 
 
 def _overwrite_project_dir_env(env: dict[str, str], workspace_dir: str) -> None:
@@ -170,16 +170,16 @@ def spawn_agent_subprocess(
         output_path_hint = sharded_path("workflows", output_filename)
         output_root = os.path.dirname(output_path_hint)
 
-    with timer.stage("sibling_repo_resolution"):
-        from sase.sibling_repos import (
-            SiblingRepoResolution,
-            resolve_sibling_repos_for_project,
+    with timer.stage("linked_repo_resolution"):
+        from sase.linked_repos import (
+            LinkedRepoResolution,
+            resolve_linked_repos_for_project,
         )
 
-        sibling_resolution = (
-            SiblingRepoResolution(())
+        linked_resolution = (
+            LinkedRepoResolution(())
             if deferred_workspace
-            else resolve_sibling_repos_for_project(
+            else resolve_linked_repos_for_project(
                 project_file=project_file,
                 workspace_dir=workspace_dir,
                 workspace_num=workspace_num,
@@ -228,11 +228,11 @@ def spawn_agent_subprocess(
         _remove_inherited_workspace_preallocation_env(subprocess_env)
         _remove_inherited_deferred_workspace_env(subprocess_env)
         _remove_inherited_agent_var_context_env(subprocess_env)
-        _remove_inherited_sibling_repo_env(subprocess_env)
+        _remove_inherited_linked_repo_env(subprocess_env)
         subprocess_env.update(prepared.env_delta)
-        from sase.sibling_repos import apply_sibling_repo_env
+        from sase.linked_repos import apply_linked_repo_env
 
-        apply_sibling_repo_env(subprocess_env, sibling_resolution)
+        apply_linked_repo_env(subprocess_env, linked_resolution)
         _overwrite_project_dir_env(subprocess_env, workspace_dir)
 
     resolved_project_name = project_name or (

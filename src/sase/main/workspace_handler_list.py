@@ -192,9 +192,9 @@ def handle_open_clean(
         return 1
 
     if ctx.is_sibling:
-        from sase.sibling_repos import record_opened_sibling
+        from sase.linked_repos import record_opened_linked_repo
 
-        record_opened_sibling(ctx.project_name, path)
+        record_opened_linked_repo(ctx.project_name, path)
 
     print(path)
     return 0

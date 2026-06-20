@@ -6,11 +6,12 @@ from collections.abc import Mapping
 import os
 from pathlib import Path
 
-from sase.sibling_repos import (
+from sase.linked_repos import (
+    LINKED_REPOS_JSON_ENV,
     SIBLING_REPOS_JSON_ENV,
-    opened_sibling_names,
-    opened_sibling_workspace_dirs,
-    sibling_repo_metadata_from_env,
+    linked_repo_metadata_from_env,
+    opened_linked_repo_names,
+    opened_linked_repo_workspace_dirs,
 )
 
 from . import commit_finalizer_git as finalizer_git
@@ -50,8 +51,8 @@ def collect_dirty_state(
         else None
     )
     sibling_targets = _configured_sibling_targets(project_dir)
-    opened_names = opened_sibling_names(artifact_root)
-    opened_workspace_dirs = opened_sibling_workspace_dirs(artifact_root)
+    opened_names = opened_linked_repo_names(artifact_root)
+    opened_workspace_dirs = opened_linked_repo_workspace_dirs(artifact_root)
     if opened_names:
         opened_workspace_dirs = {
             **dict.fromkeys(sorted(opened_names), ""),
@@ -181,14 +182,16 @@ def _dirty_configured_sibling_repos_for_strategy(
 def _configured_sibling_targets(
     project_dir: str,
 ) -> list[SiblingTarget]:
-    if SIBLING_REPOS_JSON_ENV in os.environ:
+    # Prefer the canonical linked env var and fall back to the deprecated
+    # sibling env var so old launches still drive finalizer behavior.
+    if LINKED_REPOS_JSON_ENV in os.environ or SIBLING_REPOS_JSON_ENV in os.environ:
         return _sibling_targets_from_env()
     return _sibling_targets_from_config(project_dir)
 
 
 def _sibling_targets_from_env() -> list[SiblingTarget]:
     targets: list[SiblingTarget] = []
-    for index, item in enumerate(sibling_repo_metadata_from_env(os.environ), start=1):
+    for index, item in enumerate(linked_repo_metadata_from_env(os.environ), start=1):
         workspace_dir = item.get("workspace_dir")
         if not isinstance(workspace_dir, str) or not workspace_dir.strip():
             continue
@@ -219,9 +222,9 @@ def _sibling_targets_from_config(
         return []
 
     try:
-        from sase.sibling_repos import resolve_sibling_repos_for_project
+        from sase.linked_repos import resolve_linked_repos_for_project
 
-        resolution = resolve_sibling_repos_for_project(
+        resolution = resolve_linked_repos_for_project(
             project_file=project_file,
             workspace_dir=project_dir,
             workspace_num=workspace_num,

@@ -13,11 +13,15 @@ from sase.axe.run_agent_exec_markers import (
 from sase.axe.run_agent_exec_plan_artifacts import write_plan_path_artifact
 from sase.axe.run_agent_runner_setup import (
     preprocess_prompt_xprompts,
-    refresh_sibling_repos_for_workspace,
+    refresh_linked_repos_for_workspace,
     setup_artifacts_directory,
     write_submitted_xprompt_artifact,
 )
-from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, resolve_sibling_repos_for_project
+from sase.linked_repos import (
+    LINKED_REPOS_JSON_ENV,
+    SIBLING_REPOS_JSON_ENV,
+    resolve_linked_repos_for_project,
+)
 
 
 def test_write_submitted_xprompt_artifact_preserves_exact_prompt(
@@ -152,7 +156,7 @@ def test_setup_artifacts_directory_updates_artifact_index(tmp_path: Path) -> Non
     assert (tmp_path / "workflow_state.json").is_file()
 
 
-def test_refresh_sibling_repos_for_workspace_updates_env_meta_without_prompt_note(
+def test_refresh_linked_repos_for_workspace_updates_env_meta_without_prompt_note(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     primary = tmp_path / "sase"
@@ -163,22 +167,22 @@ def test_refresh_sibling_repos_for_workspace_updates_env_meta_without_prompt_not
     workspace.mkdir()
     project_file = tmp_path / "project.sase"
     project_file.write_text(f"WORKSPACE_DIR: {primary}\nNAME: main\n")
-    resolution = resolve_sibling_repos_for_project(
+    resolution = resolve_linked_repos_for_project(
         project_file=str(project_file),
         workspace_dir=str(workspace),
         workspace_num=7,
         config={
             "workspace": {"root": "adjacent"},
-            "sibling_repos": [{"name": "core", "path": "../sase-core"}],
+            "linked_repos": [{"name": "core", "path": "../sase-core"}],
         },
         materialize=False,
     )
-    monkeypatch.setenv(SIBLING_REPOS_JSON_ENV, "stale")
+    monkeypatch.setenv(LINKED_REPOS_JSON_ENV, "stale")
     meta = {"pid": 123, "workspace_dir": "/placeholder"}
 
     with (
         patch(
-            "sase.sibling_repos.resolve_sibling_repos_for_project",
+            "sase.linked_repos.resolve_linked_repos_for_project",
             return_value=resolution,
         ),
         patch(
@@ -186,7 +190,7 @@ def test_refresh_sibling_repos_for_workspace_updates_env_meta_without_prompt_not
             "update_agent_artifact_index_for_marker_mutation",
         ),
     ):
-        prompt = refresh_sibling_repos_for_workspace(
+        prompt = refresh_linked_repos_for_workspace(
             project_file=str(project_file),
             workspace_dir=str(workspace),
             workspace_num=7,
@@ -197,9 +201,13 @@ def test_refresh_sibling_repos_for_workspace_updates_env_meta_without_prompt_not
 
     assert prompt == "Do work"
     assert meta["workspace_dir"] == str(workspace)
+    # Canonical key plus the deprecated alias both land in agent_meta.
+    assert meta["linked_repos"] == resolution.to_jsonable()
     assert meta["sibling_repos"] == resolution.to_jsonable()
     written = json.loads((tmp_path / "agent_meta.json").read_text(encoding="utf-8"))
+    assert written["linked_repos"][0]["workspace_dir"] == str(tmp_path / "sase-core_7")
     assert written["sibling_repos"][0]["workspace_dir"] == str(tmp_path / "sase-core_7")
+    assert json.loads(os.environ[LINKED_REPOS_JSON_ENV])[0]["name"] == "core"
     assert json.loads(os.environ[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"
 
 

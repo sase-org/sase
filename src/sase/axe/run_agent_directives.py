@@ -236,9 +236,11 @@ def extract_directives_and_write_meta(
             agent_meta["tag"] = agent_tag
         if directives.name_template and directives.name:
             agent_meta["agent_name_template"] = directives.name
-        sibling_repos = _sibling_repos_from_env()
-        if sibling_repos:
-            agent_meta["sibling_repos"] = sibling_repos
+        linked_repos = _linked_repos_from_env()
+        if linked_repos:
+            # Canonical key plus the deprecated alias for existing readers.
+            agent_meta["linked_repos"] = linked_repos
+            agent_meta["sibling_repos"] = linked_repos
         agent_meta.update(agent_meta_from_chop_env())
         if cl_name:
             agent_meta["changespec_name"] = cl_name
@@ -304,10 +306,10 @@ def extract_directives_and_write_meta(
     )
 
 
-def _sibling_repos_from_env() -> list[dict[str, object]]:
-    from sase.sibling_repos import sibling_repo_metadata_from_env
+def _linked_repos_from_env() -> list[dict[str, object]]:
+    from sase.linked_repos import linked_repo_metadata_from_env
 
-    return sibling_repo_metadata_from_env()
+    return linked_repo_metadata_from_env()
 
 
 def _planned_name_matches_resume_target(planned_name: str, resume_name: str) -> bool:

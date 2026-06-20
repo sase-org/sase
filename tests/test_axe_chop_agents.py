@@ -21,8 +21,8 @@ from sase.axe.chop_agents import (
     get_live_chop_agent_records,
     prompt_hash,
 )
+from sase.linked_repos import LinkedRepoResolution
 from sase.running_field import ClaimResult
-from sase.sibling_repos import SiblingRepoResolution
 
 
 def _spawn_agent_for_env_test(
@@ -195,8 +195,8 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
     monkeypatch.setattr("sase.axe.chop_agents.is_process_running", lambda _pid: True)
     monkeypatch.setattr(
-        "sase.sibling_repos.resolve_sibling_repos_for_project",
-        lambda **_: SiblingRepoResolution(()),
+        "sase.linked_repos.resolve_linked_repos_for_project",
+        lambda **_: LinkedRepoResolution(()),
     )
 
     result = spawn_agent_subprocess(
@@ -252,8 +252,8 @@ def test_spawn_agent_subprocess_ignores_post_spawn_chop_record_failure(
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
     monkeypatch.setattr(
-        "sase.sibling_repos.resolve_sibling_repos_for_project",
-        lambda **_: SiblingRepoResolution(()),
+        "sase.linked_repos.resolve_linked_repos_for_project",
+        lambda **_: LinkedRepoResolution(()),
     )
 
     with patch(

@@ -108,9 +108,9 @@ def _materialize_sibling_project_context(
     if current is None or current.project_name == project_name:
         return None
 
-    from sase.sibling_repos import resolve_sibling_repos_for_project
+    from sase.linked_repos import resolve_linked_repos_for_project
 
-    resolution = resolve_sibling_repos_for_project(
+    resolution = resolve_linked_repos_for_project(
         project_file=current.project_file,
         workspace_dir=current.primary_workspace_dir,
         workspace_num=0,

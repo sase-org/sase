@@ -42,7 +42,7 @@ def build_dirty_details(
             if repo.kind == "main":
                 label = "main workspace"
             elif repo.kind == "sibling":
-                label = f"sibling repo {repo.name}"
+                label = f"linked repo {repo.name}"
             lines.append(f"- {label}: {repo.path}")
             lines.extend(f"  - {path}" for path in repo.changed_files[:20])
             if len(repo.changed_files) > 20:
@@ -52,10 +52,10 @@ def build_dirty_details(
         if lines:
             lines.append("")
         lines.append(
-            "Advisory uncommitted changes detected in static sibling repositories:"
+            "Advisory uncommitted changes detected in static linked repositories:"
         )
         for repo in advisory_sibling_repos:
-            lines.append(f"- static sibling repo {repo.name}: {repo.path}")
+            lines.append(f"- static linked repo {repo.name}: {repo.path}")
             lines.extend(f"  - {path}" for path in repo.changed_files[:20])
             if len(repo.changed_files) > 20:
                 lines.append(f"  - ... ({len(repo.changed_files)} total)")
@@ -67,7 +67,7 @@ def build_dirty_details(
         lines.extend(
             [
                 "",
-                "Sibling repository commit instructions:",
+                "Linked repository commit instructions:",
                 _sibling_commit_instruction(),
             ]
         )
@@ -79,12 +79,12 @@ def build_dirty_details(
                 "your /sase_git_commit skill."
             )
         lines.append(
-            "After each sibling commit, run `git status --short --branch` in "
-            "that sibling repo and make sure it is clean before continuing."
+            "After each linked-repo commit, run `git status --short --branch` in "
+            "that linked repo and make sure it is clean before continuing."
         )
 
     if advisory_sibling_repos:
-        lines.extend(["", "Static sibling advisory instructions:"])
+        lines.extend(["", "Static linked advisory instructions:"])
         for repo in advisory_sibling_repos:
             lines.append(
                 f"- For `{repo.name}`, run `cd {repo.path}` before using "
@@ -92,7 +92,7 @@ def build_dirty_details(
                 "changes in this session."
             )
         lines.append(
-            "These static sibling repositories use `workspace.strategy: none`; "
+            "These static linked repositories use `workspace.strategy: none`; "
             "leaving advisory changes uncommitted will not make the finalizer "
             "fail."
         )

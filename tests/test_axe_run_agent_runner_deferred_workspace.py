@@ -94,13 +94,14 @@ class TestDeferredWorkspacePreparation:
 
         assert os.environ["SASE_ACTIVE_PROJECT_DIR"] == str(workspace_dir)
 
-    def test_claim_deferred_workspace_recomputes_sibling_env(
+    def test_claim_deferred_workspace_recomputes_linked_env(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from sase.axe.run_agent_phases import claim_deferred_workspace
-        from sase.sibling_repos import (
+        from sase.linked_repos import (
+            LINKED_REPOS_JSON_ENV,
             SIBLING_REPOS_JSON_ENV,
-            resolve_sibling_repos_for_project,
+            resolve_linked_repos_for_project,
         )
 
         workspace_dir = tmp_path / "ws7"
@@ -110,17 +111,17 @@ class TestDeferredWorkspacePreparation:
         sibling.mkdir()
         project_file = tmp_path / "project.sase"
         project_file.write_text(f"WORKSPACE_DIR: {primary}\nNAME: main\n")
-        resolution = resolve_sibling_repos_for_project(
+        resolution = resolve_linked_repos_for_project(
             project_file=str(project_file),
             workspace_dir=str(workspace_dir),
             workspace_num=7,
             config={
                 "workspace": {"root": "adjacent"},
-                "sibling_repos": [{"name": "core", "path": "../sase-core"}],
+                "linked_repos": [{"name": "core", "path": "../sase-core"}],
             },
             materialize=False,
         )
-        monkeypatch.setenv(SIBLING_REPOS_JSON_ENV, "stale")
+        monkeypatch.setenv(LINKED_REPOS_JSON_ENV, "stale")
 
         with (
             patch("sase.running_field.release_workspace"),
@@ -138,7 +139,7 @@ class TestDeferredWorkspacePreparation:
             ),
             patch("sase.axe.run_agent_phases.os.chdir"),
             patch(
-                "sase.sibling_repos.resolve_sibling_repos_for_project",
+                "sase.linked_repos.resolve_linked_repos_for_project",
                 return_value=resolution,
             ),
         ):
@@ -150,7 +151,10 @@ class TestDeferredWorkspacePreparation:
                 "20260316_120000",
             )
 
+        # Canonical linked env plus the deprecated sibling alias are recomputed.
+        assert os.environ["SASE_LINKED_REPO_CORE_DIR"] == str(tmp_path / "sase-core_7")
         assert os.environ["SASE_SIBLING_REPO_CORE_DIR"] == str(tmp_path / "sase-core_7")
+        assert json.loads(os.environ[LINKED_REPOS_JSON_ENV])[0]["name"] == "core"
         assert json.loads(os.environ[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"
 
     def test_claim_deferred_workspace_retries_claim_race(
