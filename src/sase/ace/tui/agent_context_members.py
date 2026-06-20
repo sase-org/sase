@@ -1,4 +1,4 @@
-"""Attribution helpers for agent-family AGENT CONTEXT events.
+"""Attribution helpers for agent-family SASE CONTEXT events.
 
 This is display attribution over the agent-family relationships already
 computed by the TUI loaders (``followup_agents``, role suffixes, artifact

@@ -37,7 +37,7 @@ LINKED_REPOS_CONFIG_KEY = "linked_repos"
 SIBLING_REPOS_CONFIG_KEY = "sibling_repos"
 
 _VALID_WORKSPACE_STRATEGIES = {"suffix", "none"}
-_OPENED_SCHEMA_VERSION = 1
+_OPENED_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -150,7 +150,13 @@ def linked_repo_metadata_from_env(
     return metadata
 
 
-def record_opened_linked_repo(name: str, workspace_dir: str) -> None:
+def record_opened_linked_repo(
+    name: str,
+    workspace_dir: str,
+    *,
+    reason: str = "",
+    opened_at: str | None = None,
+) -> None:
     """Record that the current agent run opened a configured linked repo.
 
     During the migration both the canonical ``opened_linked_workspaces.json``
@@ -164,6 +170,8 @@ def record_opened_linked_repo(name: str, workspace_dir: str) -> None:
     normalized_name = name.strip()
     if not normalized_name:
         return
+    normalized_reason = reason.strip()
+    normalized_opened_at = (opened_at or "").strip()
 
     root = Path(artifacts_dir).expanduser().resolve(strict=False)
     try:
@@ -180,6 +188,8 @@ def record_opened_linked_repo(name: str, workspace_dir: str) -> None:
         records[normalized_name] = {
             "name": normalized_name,
             "workspace_dir": _normalize_path(workspace_dir),
+            "reason": normalized_reason,
+            "opened_at": normalized_opened_at,
         }
         _write_opened_marker(marker, records, records_key)
 
@@ -212,6 +222,23 @@ def opened_linked_repo_workspace_dirs(artifact_root: Path | None) -> dict[str, s
         for name, record in _opened_records(artifact_root / filename).items():
             workspace_dirs.setdefault(name, record.get("workspace_dir", ""))
     return workspace_dirs
+
+
+def opened_linked_repo_records(artifact_root: Path | None) -> dict[str, dict[str, str]]:
+    """Return full opened linked-repo records keyed by linked repo name.
+
+    Unions both marker files; the canonical file wins when a name is recorded
+    in both. Old v1 markers that lack ``reason`` or ``opened_at`` read back with
+    empty strings for those fields.
+    """
+
+    if artifact_root is None:
+        return {}
+    records: dict[str, dict[str, str]] = {}
+    for filename in (OPENED_LINKED_FILENAME, OPENED_SIBLINGS_FILENAME):
+        for name, record in _opened_records(artifact_root / filename).items():
+            records.setdefault(name, record)
+    return records
 
 
 def _write_opened_marker(
@@ -255,10 +282,18 @@ def _opened_records(marker: Path) -> dict[str, dict[str, str]]:
             continue
         if not isinstance(workspace_dir, str):
             workspace_dir = ""
+        reason = item.get("reason")
+        if not isinstance(reason, str):
+            reason = ""
+        opened_at = item.get("opened_at")
+        if not isinstance(opened_at, str):
+            opened_at = ""
         normalized_name = name.strip()
         records[normalized_name] = {
             "name": normalized_name,
             "workspace_dir": workspace_dir,
+            "reason": reason.strip(),
+            "opened_at": opened_at.strip(),
         }
     return records
 

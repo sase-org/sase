@@ -1,4 +1,4 @@
-"""Integration tests for the prompt-panel header AGENT CONTEXT section."""
+"""Integration tests for the prompt-panel header SASE CONTEXT section."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import pytest
 from rich.text import Text
 
 from sase.ace.tui import memory_reads as memory_reads_module
+from sase.ace.tui import opened_workspaces as opened_workspaces_module
 from sase.ace.tui import skill_uses as skill_uses_module
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
@@ -29,6 +30,7 @@ from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
 )
+from sase.linked_repos import OPENED_LINKED_FILENAME
 from sase.skills.use_log import (
     SKILL_USE_LOG_SCHEMA_VERSION,
     SkillUseEvent,
@@ -45,6 +47,8 @@ def _setup(
 ) -> Path:
     memory_reads_module._memory_reads_cache.clear()
     memory_reads_module._memory_reads_context_cache.clear()
+    opened_workspaces_module._opened_workspaces_cache.clear()
+    opened_workspaces_module._opened_workspaces_context_cache.clear()
     skill_uses_module._skill_uses_cache.clear()
     skill_uses_module._skill_uses_context_cache.clear()
     sase_home = tmp_path / "sase-home"
@@ -121,6 +125,22 @@ def _write_skill_events(events: list[SkillUseEvent]) -> None:
             out.write("\n")
 
 
+def _write_opened_workspaces(
+    artifacts_dir: Path,
+    records: list[dict[str, str]],
+) -> None:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / OPENED_LINKED_FILENAME).write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "linked_repos": records,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _event(
     *,
     canonical_path: str,
@@ -191,16 +211,17 @@ def test_header_renders_workflow_variables_before_agent_context(
     header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
     plain = header.plain
 
-    assert "AGENT CONTEXT\n" in plain
+    assert "SASE CONTEXT\n" in plain
     assert "▸ MEMORY · 1 read · 1 file\n" in plain
     assert "▸ SKILLS" not in plain
+    assert "▸ WORKSPACES" not in plain
     assert "WORKFLOW VARIABLES\n" in plain
     assert "generated_skills.md" in plain
     assert "↳ needed commit hook contract for runtime parity refactor" in plain
     assert "none recorded" not in plain
-    _assert_dim_divider_before(header, "AGENT CONTEXT\n")
+    _assert_dim_divider_before(header, "SASE CONTEXT\n")
     _assert_dim_divider_before(header, "WORKFLOW VARIABLES\n")
-    assert plain.index("WORKFLOW VARIABLES\n") < plain.index("AGENT CONTEXT\n")
+    assert plain.index("WORKFLOW VARIABLES\n") < plain.index("SASE CONTEXT\n")
 
 
 def test_header_renders_skill_uses_without_memory_reads(tmp_path: Path) -> None:
@@ -224,12 +245,44 @@ def test_header_renders_skill_uses_without_memory_reads(tmp_path: Path) -> None:
     header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
     plain = header.plain
 
-    assert "AGENT CONTEXT\n" in plain
+    assert "SASE CONTEXT\n" in plain
     assert "▸ SKILLS · 1 use · 1 skill\n" in plain
     assert "sase_plan" in plain
     assert "↳ needed an implementation plan" in plain
     assert "▸ MEMORY" not in plain
     assert "none recorded" not in plain
+
+
+def test_header_renders_opened_workspaces_without_other_context(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    _write_opened_workspaces(
+        artifacts_dir,
+        [
+            {
+                "name": "sase-core",
+                "workspace_dir": "/tmp/workspaces/sase-core_13",
+                "reason": "inspect core backend boundary",
+                "opened_at": "2026-05-24T14:24:08+00:00",
+            }
+        ],
+    )
+
+    agent = _make_agent(artifacts_dir=artifacts_dir, workspace_dir=workspace_dir)
+
+    header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
+    plain = header.plain
+
+    assert "SASE CONTEXT\n" in plain
+    assert "▸ WORKSPACES · 1 open · 1 repo\n" in plain
+    assert "▣ sase-core" in plain
+    assert "→ /tmp/workspaces/sase-core_13" in plain
+    assert "↳ inspect core backend boundary" in plain
+    assert "▸ MEMORY" not in plain
+    assert "▸ SKILLS" not in plain
 
 
 def test_cheap_header_omits_agent_context(tmp_path: Path) -> None:
@@ -250,9 +303,11 @@ def test_cheap_header_omits_agent_context(tmp_path: Path) -> None:
     agent = _make_agent(artifacts_dir=artifacts_dir, workspace_dir=workspace_dir)
     header, _ = build_header_text(agent, cheap=True)
 
+    assert "SASE CONTEXT" not in header.plain
     assert "AGENT CONTEXT" not in header.plain
     assert "▸ MEMORY" not in header.plain
     assert "▸ SKILLS" not in header.plain
+    assert "▸ WORKSPACES" not in header.plain
 
 
 def test_no_events_omits_agent_context_section(tmp_path: Path) -> None:
@@ -264,6 +319,7 @@ def test_no_events_omits_agent_context_section(tmp_path: Path) -> None:
 
     header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
 
+    assert "SASE CONTEXT" not in header.plain
     assert "AGENT CONTEXT" not in header.plain
 
 
@@ -329,7 +385,7 @@ def test_family_header_renders_followup_role_attribution(tmp_path: Path) -> None
     header, _ = build_header_text(root, summary=build_detail_header_summary(root))
     plain = header.plain
 
-    assert "AGENT CONTEXT\n" in plain
+    assert "SASE CONTEXT\n" in plain
     # Memory lane: 2 reads from 2 producers, newest (coder) first.
     assert "▸ MEMORY · 2 reads · 2 files · 2 agents\n" in plain
     assert "coder  ◇ tui_perf.md" in plain

@@ -180,8 +180,10 @@ def test_record_opened_sibling_unions_by_name(
     marker = json.loads(
         (tmp_path / OPENED_SIBLINGS_FILENAME).read_text(encoding="utf-8")
     )
-    assert marker["schema_version"] == 1
+    assert marker["schema_version"] == 2
     assert [item["name"] for item in marker["siblings"]] == ["core", "nvim"]
+    assert marker["siblings"][0]["reason"] == ""
+    assert marker["siblings"][0]["opened_at"] == ""
     assert opened_sibling_names(tmp_path) == {"core", "nvim"}
     assert opened_sibling_workspace_dirs(tmp_path) == {
         "core": str(core.resolve(strict=False)),

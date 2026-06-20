@@ -7,6 +7,7 @@ import json
 import os
 import sys
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from sase.workspace_provider.registry import (
@@ -174,7 +175,7 @@ def handle_open_clean(
     resolve_checkout: _CheckoutResolver,
 ) -> int:
     try:
-        _normalize_workspace_open_reason(getattr(args, "reason", None))
+        reason = _normalize_workspace_open_reason(getattr(args, "reason", None))
     except _WorkspaceOpenReasonError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -218,7 +219,12 @@ def handle_open_clean(
     if ctx.is_sibling:
         from sase.linked_repos import record_opened_linked_repo
 
-        record_opened_linked_repo(ctx.project_name, path)
+        record_opened_linked_repo(
+            ctx.project_name,
+            path,
+            reason=reason,
+            opened_at=datetime.now(tz=UTC).isoformat(),
+        )
 
     print(path)
     return 0

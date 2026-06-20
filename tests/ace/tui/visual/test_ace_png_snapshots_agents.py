@@ -14,6 +14,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -233,6 +234,17 @@ def _context_skill_uses() -> list[SkillUseEvent]:
     ]
 
 
+def _context_opened_workspaces() -> list[OpenedWorkspaceDisplayEvent]:
+    return [
+        OpenedWorkspaceDisplayEvent(
+            name="sase-core",
+            workspace_dir="/workspace/sase-core_13",
+            reason="needed to inspect shared backend behavior",
+            opened_at="2026-06-14T14:24:08+00:00",
+        )
+    ]
+
+
 async def test_agents_file_zoom_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -269,6 +281,7 @@ async def test_agents_context_zoom_modal_png_snapshot(
         agents=[_zoom_agent(tmp_path)],
         memory_reads=_context_memory_reads(),
         skill_uses=_context_skill_uses(),
+        opened_workspaces=_context_opened_workspaces(),
     )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -283,11 +296,13 @@ async def test_agents_context_zoom_modal_png_snapshot(
         await page.pause()
         await page.pause()
 
-        _assert_page_svg_contains(page, "AGENT CONTEXT")
+        _assert_page_svg_contains(page, "SASE CONTEXT")
         _assert_page_svg_contains(page, "◇")
         _assert_page_svg_contains(page, "generated_skills.md")
         _assert_page_svg_contains(page, "◆")
         _assert_page_svg_contains(page, "sase_plan")
+        _assert_page_svg_contains(page, "▣")
+        _assert_page_svg_contains(page, "sase-core")
         ace_png_visual.assert_page_png(
             page,
             "agents_context_zoom_modal_120x40",

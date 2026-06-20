@@ -23,6 +23,7 @@ from sase.ace.tui.actions.axe_display._data import (
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.axe.state import LumberjackMetrics, LumberjackStatus
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.memory.read_log import MemoryReadEvent
@@ -293,12 +294,14 @@ def patch_startup_loaders(
     axe_data: AxeCollectedData | None = None,
     memory_reads: Sequence[MemoryReadEvent] | None = None,
     skill_uses: Sequence[SkillUseEvent] | None = None,
+    opened_workspaces: Sequence[OpenedWorkspaceDisplayEvent] | None = None,
 ) -> None:
     """Replace background startup data sources with deterministic fixtures."""
     import sase.notifications as notifications
     from sase.ace import grouping_strategy
     from sase.ace import tui_activity
     from sase.ace.tui import memory_reads as memory_reads_module
+    from sase.ace.tui import opened_workspaces as opened_workspaces_module
     from sase.ace.tui import skill_uses as skill_uses_module
     from sase.ace.tui.actions.agents import _loading
     from sase.ace.tui.models.agent_groups import GroupingMode
@@ -322,6 +325,7 @@ def patch_startup_loaders(
 
     memory_read_events = tuple(memory_reads or ())
     skill_use_events = tuple(skill_uses or ())
+    opened_workspace_events = tuple(opened_workspaces or ())
 
     def _fake_load_memory_reads_for_agent(
         *_args: Any, limit: int = len(memory_read_events), **_kwargs: Any
@@ -332,6 +336,11 @@ def patch_startup_loaders(
         *_args: Any, limit: int = len(skill_use_events), **_kwargs: Any
     ) -> tuple[SkillUseEvent, ...]:
         return skill_use_events[:limit]
+
+    def _fake_load_opened_workspaces_for_agent(
+        *_args: Any, limit: int = len(opened_workspace_events), **_kwargs: Any
+    ) -> tuple[OpenedWorkspaceDisplayEvent, ...]:
+        return opened_workspace_events[:limit]
 
     async def _fake_axe_startup(app: AceApp) -> None:
         if axe_data is not None:
@@ -385,6 +394,11 @@ def patch_startup_loaders(
         skill_uses_module,
         "_load_skill_uses_for_agent",
         _fake_load_skill_uses_for_agent,
+    )
+    monkeypatch.setattr(
+        opened_workspaces_module,
+        "_load_opened_workspaces_for_agent",
+        _fake_load_opened_workspaces_for_agent,
     )
     monkeypatch.setattr(AceApp, "_run_axe_startup_init", _fake_axe_startup)
     monkeypatch.setattr(AceApp, "_load_axe_status_async", _fake_axe_status_async)

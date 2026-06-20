@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +13,7 @@ import pytest
 
 from sase.main.workspace_handler import handle_workspace_command
 from sase.main.workspace_handler_context import ProjectContext
+from sase.linked_repos import opened_linked_repo_records
 from sase.sibling_repos import OPENED_SIBLINGS_FILENAME, opened_sibling_names
 from sase.vcs_provider import VCS_DEFAULT_REVISION
 from sase.workspace_provider.registry import record_workspace
@@ -267,6 +269,11 @@ class TestOpen:
         assert code == 0
         assert capsys.readouterr().out.strip() == checkout
         assert opened_sibling_names(artifacts_dir) == {"core"}
+        record = opened_linked_repo_records(artifacts_dir)["core"]
+        assert record["reason"] == "prepare workspace"
+        opened_at = datetime.fromisoformat(record["opened_at"])
+        assert opened_at.tzinfo is not None
+        assert opened_at.astimezone(UTC).tzinfo == UTC
 
     def test_open_does_not_record_primary_when_artifacts_dir_is_set(
         self,

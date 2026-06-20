@@ -11,6 +11,7 @@ from rich.text import Text
 from sase.agent.agent_artifacts_cache import get_global_cache
 from sase.ace.changespec.models import DeltaEntry
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
+from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
@@ -61,6 +62,7 @@ class _DetailHeaderSummary:
     artifact_paths: list[AgentArtifactPath] | None = None
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
+    opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = ()
 
 
 _PHASE_LABELS = {
@@ -122,6 +124,9 @@ def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
             bead_display = cast(str | None, cached_display)
 
     from sase.ace.tui.memory_reads import load_memory_reads_for_agent_context
+    from sase.ace.tui.opened_workspaces import (
+        load_opened_workspaces_for_agent_context,
+    )
     from sase.ace.tui.skill_uses import load_skill_uses_for_agent_context
 
     from ._agent_artifacts import agent_artifact_paths
@@ -134,6 +139,7 @@ def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
         artifact_paths=agent_artifact_paths(agent),
         memory_reads=load_memory_reads_for_agent_context(agent),
         skill_uses=load_skill_uses_for_agent_context(agent),
+        opened_workspaces=load_opened_workspaces_for_agent_context(agent),
     )
 
 
@@ -544,7 +550,7 @@ def build_header_text(
     if (
         not cheap
         and summary is not None
-        and (summary.memory_reads or summary.skill_uses)
+        and (summary.memory_reads or summary.skill_uses or summary.opened_workspaces)
     ):
         from ._agent_context import append_agent_context_section
 
@@ -552,6 +558,7 @@ def build_header_text(
             header_text,
             memory_reads=summary.memory_reads,
             skill_uses=summary.skill_uses,
+            opened_workspaces=summary.opened_workspaces,
         )
 
     # Error message (for failed agents)
