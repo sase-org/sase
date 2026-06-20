@@ -6,6 +6,11 @@ from typing import TYPE_CHECKING, Any, cast
 
 from textual.events import Key
 
+from sase.ace.tui.widgets._alt_syntax_editing import (
+    AltEdit,
+    plan_alt_auto_pair,
+    plan_alt_separator,
+)
 from sase.ace.tui.widgets._prompt_text_area_actions import prompt_bar_class
 from sase.ace.tui.widgets._vcs_mru_cycling import VcsMruCycleKey
 
@@ -42,6 +47,8 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         _vcs_mru_index: int | None
         _vim_mode: str
 
+        def _absolute_offset(self, location: tuple[int, int]) -> int: ...
+        def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
         def _accept_file_completion(self) -> bool: ...
         def _accept_or_build_soft_completion(self) -> bool: ...
         def _apply_xprompt_colon_arg_hint(self) -> bool: ...
@@ -295,6 +302,11 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self._try_advance_tabstop()
             return
 
+        if self._try_alt_syntax_edit(event):
+            event.stop()
+            event.prevent_default()
+            return
+
         if self._try_jinja_auto_pair(event):
             event.stop()
             event.prevent_default()
@@ -401,3 +413,41 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         self._clear_xprompt_arg_hint()
         self._on_prompt_completion_context_changed()
         return True
+
+    def _try_alt_syntax_edit(self, event: Key) -> bool:
+        """Auto-pair ``%{}`` and normalize ``|`` separators inside ``%{...}``.
+
+        ``{`` typed right after a directive ``%`` inserts the matching ``}``;
+        ``|`` typed inside a live ``%{...}`` span inserts a padded separator and
+        normalizes the current branch's comma spacing. Returns False (letting
+        the default insertion path run) for every other key, when there is an
+        active selection, or when the cursor is not in an applicable position.
+        """
+        if event.character not in ("{", "|"):
+            return False
+        start, end = self.selection
+        if start != end:
+            return False
+        text = self.text
+        offset = self._absolute_offset(self.cursor_location)
+        if event.character == "{":
+            plan = plan_alt_auto_pair(text, offset)
+        else:
+            plan = plan_alt_separator(text, offset)
+        if plan is None:
+            return False
+        self._apply_alt_edit(plan)
+        return True
+
+    def _apply_alt_edit(self, plan: AltEdit) -> None:
+        """Apply an :class:`AltEdit` and clear transient completion state."""
+        self._replace_via_keyboard(
+            plan.text,
+            self._location_from_absolute(plan.start),
+            self._location_from_absolute(plan.end),
+        )
+        self.cursor_location = self._location_from_absolute(plan.cursor)
+        self._clear_soft_completion(cancel_timer=True)
+        self._clear_file_completion()
+        self._clear_xprompt_arg_hint()
+        self._on_prompt_completion_context_changed()

@@ -6,6 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 from textual.screen import ModalScreen
 
+from sase.ace.tui.widgets._alt_syntax_editing import (
+    plan_alt_paired_delete_left,
+    plan_alt_paired_delete_right,
+)
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
 if TYPE_CHECKING:
@@ -44,6 +48,8 @@ class PromptTextAreaActionsMixin(_MixinBase):
         _vcs_mru_index: int | None
         _vim_mode: str
 
+        def _absolute_offset(self, location: tuple[int, int]) -> int: ...
+        def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
         def _clear_file_completion(
             self,
             *,
@@ -182,14 +188,47 @@ class PromptTextAreaActionsMixin(_MixinBase):
         self._refresh_xprompt_arg_hint_from_cursor()
 
     def action_delete_left(self) -> None:
-        """Delete left, then refresh any active completion menu."""
+        """Delete left, paired-deleting an empty ``%{}``, then refresh menus."""
+        if self._try_alt_paired_delete(forward=False):
+            return
         super().action_delete_left()
         self._refresh_completion_after_text_delete()
 
     def action_delete_right(self) -> None:
-        """Delete right, then refresh any active completion menu."""
+        """Delete right, paired-deleting an empty ``%{}``, then refresh menus."""
+        if self._try_alt_paired_delete(forward=True):
+            return
         super().action_delete_right()
         self._refresh_completion_after_text_delete()
+
+    def _try_alt_paired_delete(self, *, forward: bool) -> bool:
+        """Delete both braces of an empty ``%{}`` when its ``{`` is removed.
+
+        Mirrors auto-pair bracket deletion: backspacing the ``{`` in ``%{|}`` or
+        forward-deleting it in ``%|{}`` removes the paired ``}`` too. Returns
+        False (so the default single-character delete runs) when there is a
+        selection or the cursor is not adjacent to an empty directive pair.
+        """
+        start, end = self.selection
+        if start != end:
+            return False
+        text = self.text
+        offset = self._absolute_offset(self.cursor_location)
+        plan = (
+            plan_alt_paired_delete_right(text, offset)
+            if forward
+            else plan_alt_paired_delete_left(text, offset)
+        )
+        if plan is None:
+            return False
+        self._replace_via_keyboard(
+            plan.text,
+            self._location_from_absolute(plan.start),
+            self._location_from_absolute(plan.end),
+        )
+        self.cursor_location = self._location_from_absolute(plan.cursor)
+        self._refresh_completion_after_text_delete()
+        return True
 
     def action_delete_word_left(self) -> None:
         """Delete word-left, then refresh any active completion menu."""
