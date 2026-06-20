@@ -16,6 +16,9 @@ class FileViewingMixin(HintMixinBase):
 
     def action_view_files(self) -> None:
         """View files for the current ChangeSpec or Agent."""
+        if self._refocus_existing_hint_bar():
+            return
+
         if self.current_tab == "agents":
             self._view_agent_files()
             return
@@ -59,6 +62,9 @@ class FileViewingMixin(HintMixinBase):
 
     def _view_agent_files(self) -> None:
         """View files for the current agent (Agents tab)."""
+        if self._refocus_existing_hint_bar():
+            return
+
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             return

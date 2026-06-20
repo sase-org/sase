@@ -503,7 +503,10 @@ class PanelRefreshMixin:
                 widget.remove_class("-focused-panel")
                 widget.clear_highlight()
 
-        if focused_widget is not None:
+        hint_bar_active = getattr(self, "_hint_input_bar_active", None)
+        if focused_widget is not None and not (
+            callable(hint_bar_active) and hint_bar_active()
+        ):
             try:
                 focused_widget.focus()
             except Exception:
@@ -545,6 +548,10 @@ class PanelRefreshMixin:
         from textual.css.query import NoMatches
 
         from ...widgets import AgentList
+
+        hint_bar_active = getattr(self, "_hint_input_bar_active", None)
+        if callable(hint_bar_active) and hint_bar_active():
+            return
 
         wid = panel_widget_id(self._panel_group.focused_idx)
         try:

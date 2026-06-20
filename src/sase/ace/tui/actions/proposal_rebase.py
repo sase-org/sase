@@ -337,6 +337,9 @@ class ProposalRebaseMixin:
         """Accept a proposal for the current ChangeSpec, or answer HITL on agents tab."""
         from ..models import Agent
 
+        if self._refocus_existing_hint_bar():  # type: ignore[attr-defined]
+            return
+
         # Check if we're on agents tab
         if hasattr(self, "current_tab") and self.current_tab == "agents":  # type: ignore[attr-defined]
             agents: list[Agent] = getattr(self, "_agents", [])

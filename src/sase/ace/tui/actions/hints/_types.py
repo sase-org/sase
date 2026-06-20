@@ -1,4 +1,4 @@
-"""Shared type hints for hint action mixins."""
+"""Shared type hints and helpers for hint action mixins."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 # annotations in attribute declarations (not just in function signatures)
 from ....changespec import ChangeSpec
 from ...models.agent import Agent
+from ...widgets import HintInputBar
 
 
 class HintMixinBase:
@@ -47,3 +48,35 @@ class HintMixinBase:
     # Failed hooks state
     _failed_hooks_targets: list[str]
     _failed_hooks_file_path: str | None
+
+    def _hint_input_bar_active(self) -> bool:
+        """Return whether any transient hint input mode is active."""
+        return (
+            self._hint_mode_active
+            or self._accept_mode_active
+            or self._rewind_mode_active
+        )
+
+    def _refocus_existing_hint_bar(self) -> bool:
+        """Focus an already-mounted hint bar, if present.
+
+        Returns ``True`` when a bar exists so callers can avoid mounting a
+        duplicate ``#hint-input-bar`` while Textual still has the id registered.
+        """
+        from textual.css.query import NoMatches
+
+        query_one = getattr(self, "query_one", None)
+        if not callable(query_one):
+            return False
+
+        try:
+            hint_bar = query_one("#hint-input-bar", HintInputBar)
+        except NoMatches:
+            return False
+
+        try:
+            hint_input = hint_bar.query_one("#hint-input")
+            hint_input.focus()
+        except Exception:
+            pass
+        return True

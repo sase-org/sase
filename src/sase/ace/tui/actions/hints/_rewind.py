@@ -41,6 +41,9 @@ class RewindMixin(HintMixinBase):
 
     def action_start_rewind(self) -> None:
         """Start rewind mode - prompt user to select entry to rewind to."""
+        if self._refocus_existing_hint_bar():
+            return
+
         if not self.changespecs:
             return
 

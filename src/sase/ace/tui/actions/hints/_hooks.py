@@ -14,6 +14,9 @@ class HookEditingMixin(HintMixinBase):
 
     def action_edit_hooks(self) -> None:
         """Edit hooks for the current ChangeSpec."""
+        if self._refocus_existing_hint_bar():
+            return
+
         if getattr(self, "current_tab", None) == "agents":
             self.action_fork_agent()  # type: ignore[attr-defined]
             return
@@ -60,6 +63,9 @@ class HookEditingMixin(HintMixinBase):
 
     def action_hooks_from_failed(self) -> None:
         """Add hooks from a failed targets file (from TAP metahook)."""
+        if self._refocus_existing_hint_bar():
+            return
+
         if not self.changespecs:
             return
 

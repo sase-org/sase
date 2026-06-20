@@ -12,6 +12,9 @@ class MentorKillingMixin(HintMixinBase):
 
     def action_kill_mentors(self) -> None:
         """Show hints for managing mentors - delete entries, lines, or field."""
+        if self._refocus_existing_hint_bar():
+            return
+
         if not self.changespecs:
             return
 

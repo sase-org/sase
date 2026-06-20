@@ -13,6 +13,7 @@ from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.agents._display_panels import PanelsMixin
 from sase.ace.tui.actions.agents._panels import AgentPanelsMixin
 from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
+from sase.ace.tui.actions.hints._types import HintMixinBase
 from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
@@ -102,7 +103,7 @@ class _QueryResults:
         return self._widgets
 
 
-class _OptimizedPanelSwitchApp(AgentPanelsMixin, PanelsMixin):
+class _OptimizedPanelSwitchApp(AgentPanelsMixin, PanelsMixin, HintMixinBase):
     """Harness for the optimized panel-switch refresh path."""
 
     _agents_visible_order = AgentsMixinCore._agents_visible_order
@@ -124,6 +125,9 @@ class _OptimizedPanelSwitchApp(AgentPanelsMixin, PanelsMixin):
         self._nav_stops_cache: tuple[Any, ...] | None = None
         self._panel_keys_cache = None
         self._agent_panel_index_cache = None
+        self._hint_mode_active = False
+        self._accept_mode_active = False
+        self._rewind_mode_active = False
         self.artifact_viewer_guard_active = False
         self._widgets = {
             "agent-list-panel": _TrackingPanelWidget("agent-list-panel", highlighted=0),
@@ -524,6 +528,44 @@ def test_optimized_panel_switch_clears_old_panel_highlight() -> None:
     assert new_widget.update_highlight_calls == [(0, None, None)]
     assert "-focused-panel" in new_widget._classes
     assert new_widget.focus_calls == 1
+
+
+def test_optimized_panel_switch_does_not_steal_focus_from_hint_bar() -> None:
+    agents = [
+        _agent(tag=None, project="home", cl="home", name="untagged"),
+        _agent(tag="alpha", project="alpha", cl="a", name="alpha-agent"),
+        _agent(tag="beta", project="beta", cl="b", name="beta-agent"),
+    ]
+    app = _OptimizedPanelSwitchApp(agents, focused_key="alpha")
+    app.current_idx = 1
+    app._hint_mode_active = True
+
+    app._refresh_focused_agent_panel_impl(old_focused_idx=None)
+
+    focused_widget = app._widgets["agent-list-panel-1"]
+    assert focused_widget.highlighted == 0
+    assert focused_widget.update_highlight_calls == [(0, 42, None)]
+    assert "-focused-panel" in focused_widget._classes
+    assert focused_widget.focus_calls == 0
+
+
+@pytest.mark.parametrize(
+    "active_flag",
+    ["_hint_mode_active", "_accept_mode_active", "_rewind_mode_active"],
+)
+def test_focused_panel_widget_focus_skips_all_hint_bar_modes(
+    active_flag: str,
+) -> None:
+    agents = [
+        _agent(tag=None, project="home", cl="home", name="untagged"),
+        _agent(tag="alpha", project="alpha", cl="a", name="alpha-agent"),
+    ]
+    app = _OptimizedPanelSwitchApp(agents, focused_key="alpha")
+    setattr(app, active_flag, True)
+
+    app._focus_focused_panel_widget()
+
+    assert app._widgets["agent-list-panel-1"].focus_calls == 0
 
 
 def test_refresh_panel_highlights_clears_every_nonfocused_panel() -> None:

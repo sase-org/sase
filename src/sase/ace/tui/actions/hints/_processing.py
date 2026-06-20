@@ -182,6 +182,9 @@ class InputProcessingMixin(HintMixinBase):
                 return
 
             if result.action == HookHistoryAction.EDIT_FIRST:
+                if self._refocus_existing_hint_bar():
+                    return
+
                 # Re-mount hooks input bar pre-filled with the command
                 detail_widget = self.query_one("#detail-panel", ChangeSpecDetail)  # type: ignore[attr-defined]
                 changespec = self.changespecs[self.current_idx]
