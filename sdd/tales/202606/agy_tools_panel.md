@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-20 10:02:16
-status: wip
+status: done
 prompt: sdd/prompts/202606/agy_tools_panel.md
 ---
 # Plan: Tools Panel support for the Antigravity (`agy`) provider

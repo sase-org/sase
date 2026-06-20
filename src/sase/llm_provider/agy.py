@@ -5,9 +5,9 @@ the replacement for the retired consumer Gemini CLI. The Antigravity CLI does
 not currently document a machine-readable JSON/stream output mode, so this
 provider streams plain stdout through the shared
 :func:`stream_process_output` helper and returns ``usage=None``. Tool-call,
-usage, and thinking artifacts are intentionally unsupported until a stable
-``agy`` machine-readable contract exists (see the epic plan at
-``sdd/epics/202606/agy_provider_mvp.md``).
+usage, and thinking artifacts are intentionally unsupported from stdout. A
+guarded post-run extractor may populate tool-call rows from Antigravity's local
+trajectory DB for explicitly supported CLI versions.
 """
 
 from __future__ import annotations
@@ -23,6 +23,10 @@ from sase.output import provider_timer
 
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_process_output
+from ._subprocess_agy import (
+    append_agy_tool_call_events,
+    prepare_agy_tool_call_extraction,
+)
 from .base import LLMProvider
 from .types import InvokeResult, LLMInvocationError, ModelTier
 
@@ -244,10 +248,11 @@ class AgyProvider(LLMProvider):
             subprocess.CalledProcessError: If the ``agy`` process fails.
             FileNotFoundError: If the ``agy`` executable cannot be launched.
         """
+        agy_bin = _agy_bin()
         model = model_override if model_override else _TIER_TO_MODEL[model_tier]
 
         base_args = [
-            _agy_bin(),
+            agy_bin,
             "--print-timeout",
             _agy_print_timeout(),
             "--model",
@@ -275,6 +280,7 @@ class AgyProvider(LLMProvider):
         current_prompt = prompt
         accumulated_response = ""
         cycle = 0
+        tool_call_snapshot = prepare_agy_tool_call_extraction(agy_bin)
 
         while True:
             # The prompt is the value of `--print`, so it must stay adjacent to
@@ -321,6 +327,7 @@ class AgyProvider(LLMProvider):
             accumulated_response = (
                 accumulated_response + "\n\n" + content.strip()
             ).strip()
+            append_agy_tool_call_events(tool_call_snapshot)
             return InvokeResult(content=accumulated_response, usage=None)
 
     def _run_subprocess(

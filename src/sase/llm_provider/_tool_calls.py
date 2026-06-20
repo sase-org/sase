@@ -27,6 +27,7 @@ from ._tool_call_qwen import (
     append_qwen_tool_call_event,
     normalize_qwen_tool_call_event as _normalize_qwen_tool_call_event,
 )
+from ._subprocess_agy import append_agy_tool_call_events
 from ._tool_call_common import (
     HOOK_SCHEMA_VERSION as _HOOK_SCHEMA_VERSION,
     PREVIEW_LIMIT as _PREVIEW_LIMIT,
@@ -57,6 +58,7 @@ __all__ = [
     "_summarize_tool_input",
     "append_claude_hook_tool_call_event",
     "append_claude_tool_call_event",
+    "append_agy_tool_call_events",
     "append_codex_tool_call_event",
     "append_qwen_tool_call_event",
     "append_tool_call_collector_diagnostic",
