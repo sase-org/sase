@@ -8,7 +8,6 @@ from textual.events import Key
 
 from sase.ace.tui.widgets._alt_syntax_editing import (
     AltEdit,
-    plan_alt_auto_pair,
     plan_alt_separator,
 )
 from sase.ace.tui.widgets._prompt_text_area_actions import prompt_bar_class
@@ -415,25 +414,21 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         return True
 
     def _try_alt_syntax_edit(self, event: Key) -> bool:
-        """Auto-pair ``%{}`` and normalize ``|`` separators inside ``%{...}``.
+        """Normalize ``|`` separators inside ``%{...}``.
 
-        ``{`` typed right after a directive ``%`` inserts the matching ``}``;
         ``|`` typed inside a live ``%{...}`` span inserts a padded separator and
         normalizes the current branch's comma spacing. Returns False (letting
         the default insertion path run) for every other key, when there is an
         active selection, or when the cursor is not in an applicable position.
         """
-        if event.character not in ("{", "|"):
+        if event.character != "|":
             return False
         start, end = self.selection
         if start != end:
             return False
         text = self.text
         offset = self._absolute_offset(self.cursor_location)
-        if event.character == "{":
-            plan = plan_alt_auto_pair(text, offset)
-        else:
-            plan = plan_alt_separator(text, offset)
+        plan = plan_alt_separator(text, offset)
         if plan is None:
             return False
         self._apply_alt_edit(plan)
