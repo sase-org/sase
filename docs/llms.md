@@ -258,6 +258,11 @@ The prompt is passed as the value of `--print` (not on stdin) as a single argv e
 newlines, or shell metacharacters are never shell-interpolated. `--print-timeout` defaults to `24h` (Antigravity's own
 `5m` default is too short for long agentic runs) and is a Go duration string.
 
+Because the current Antigravity CLI does not document a stable stdin or prompt-file contract for print mode, SASE cannot
+fall back to streaming the prompt when that single argv element becomes too large for the OS. `AgyProvider` therefore
+rejects prompts above a conservative 120 KiB UTF-8 guard before spawning `agy`, with an error that names the upstream
+argv transport limitation and asks the user to reduce the prompt or use a stdin-capable provider.
+
 ### Model Mapping
 
 `agy` model display names are used verbatim — they contain spaces and parentheses (e.g. `Gemini 3.5 Flash (High)`). The

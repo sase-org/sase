@@ -24,7 +24,7 @@ from sase.output import provider_timer
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_process_output
 from .base import LLMProvider
-from .types import InvokeResult, ModelTier
+from .types import InvokeResult, LLMInvocationError, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
@@ -39,6 +39,9 @@ _AGY_PRINT_TIMEOUT_ENV = "SASE_AGY_PRINT_TIMEOUT"
 # short for long agentic SASE runs. Default to a generous, overridable window;
 # the value is a Go duration string as accepted by `agy --print-timeout`.
 _DEFAULT_PRINT_TIMEOUT = "24h"
+# Linux rejects a single argv element above 128 KiB. Keep SASE's guard below
+# that so `agy --print <prompt>` fails with an actionable error before exec.
+_AGY_PRINT_PROMPT_ARGV_BYTE_LIMIT = 120 * 1024
 
 
 def _agy_bin() -> str:
@@ -57,6 +60,24 @@ def _agy_executable_not_found_error(command: str) -> FileNotFoundError:
         "Unable to launch Antigravity CLI executable "
         f"{command!r}. Set SASE_AGY_PATH to the Antigravity (`agy`) binary or "
         "ensure 'agy' is discoverable on PATH."
+    )
+
+
+def _validate_print_prompt_argv_transport(prompt: str) -> None:
+    """Reject prompts too large for Antigravity's current argv transport."""
+    prompt_bytes = len(prompt.encode("utf-8"))
+    if prompt_bytes <= _AGY_PRINT_PROMPT_ARGV_BYTE_LIMIT:
+        return
+
+    raise LLMInvocationError(
+        "Antigravity (`agy`) prompt is too large for SASE's argv transport: "
+        f"{prompt_bytes} UTF-8 bytes exceeds the "
+        f"{_AGY_PRINT_PROMPT_ARGV_BYTE_LIMIT}-byte guard. The current "
+        "Antigravity CLI requires `agy --print` prompts to be sent as one "
+        "argv element; it does not document a stable stdin/prompt-file "
+        "contract that SASE can use as a fallback. Reduce the prompt size or "
+        "use a stdin-capable provider until upstream adds a non-argv prompt "
+        "transport."
     )
 
 
@@ -258,6 +279,7 @@ class AgyProvider(LLMProvider):
         while True:
             # The prompt is the value of `--print`, so it must stay adjacent to
             # the flag and be rebuilt each interrupt cycle.
+            _validate_print_prompt_argv_transport(current_prompt)
             command_args = [*base_args, "--print", current_prompt]
             if timer_context:
                 with timer_context:

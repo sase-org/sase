@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19
-updated_time: 2026-06-19
+updated_time: 2026-06-20
 status: research
 bead_id: sase-50.7
 ---
@@ -49,7 +49,23 @@ Ran the focused suites the plan calls out first:
 
 All 166 targeted tests passed.
 
-### 2. Real minimal SASE invocation through `invoke_agent()`
+### 2. Large-prompt `--print` argv guard (green)
+
+The Phase 2 handoff left one transport gap: `agy --print` requires the full
+prompt as one argv element, so very large SASE prompts could fail at the OS
+argument-size boundary with an opaque spawn error. Phase 7 now closes that gap
+inside `AgyProvider`:
+
+- prompts are measured as UTF-8 bytes before `subprocess.Popen`;
+- prompts above the conservative 120 KiB guard fail before spawning `agy`;
+- the diagnostic explicitly says the limitation is `agy --print` argv
+  transport and that Antigravity CLI does not yet document a stable
+  stdin/prompt-file contract SASE can use as a fallback.
+
+Unit coverage in `tests/test_llm_provider_agy.py` proves the oversized-prompt
+path does not call `subprocess.Popen`.
+
+### 3. Real minimal SASE invocation through `invoke_agent()`
 
 Drove a real `agy` call through the full provider-neutral path
 (`preprocess -> get_provider("agy") -> provider.invoke -> run_commit_finalizer
@@ -64,7 +80,7 @@ Drove a real `agy` call through the full provider-neutral path
 This satisfies the Phase 7 acceptance: *a real `agy` smoke run returns useful
 content, writes `live_reply.md`, and records provider/model metadata.*
 
-### 3. Commit-finalizer smoke (controlled workspace)
+### 4. Commit-finalizer smoke (controlled workspace)
 
 Added `tests/llm_provider/test_commit_finalizer_agy.py`: a *real* `AgyProvider`
 instance is driven through `run_commit_finalizer()` in a controlled git
@@ -78,7 +94,7 @@ finalizes Claude/Codex turns:
 - Short-circuits a clean workspace to `clean` (`passes=0`) without re-invoking
   `agy`.
 
-### 4. `just check`
+### 5. `just check`
 
 `just install` then `just check` pass (see the bead/commit for the run).
 

@@ -8,9 +8,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.llm_provider.agy import AgyProvider
+from sase.llm_provider.agy import AgyProvider, _AGY_PRINT_PROMPT_ARGV_BYTE_LIMIT
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.registry import resolve_model_provider
+from sase.llm_provider.types import LLMInvocationError
 
 
 def test_agy_provider_is_llm_provider() -> None:
@@ -194,6 +195,23 @@ def test_agy_provider_missing_executable_error_mentions_resolution_paths(
     message = str(exc_info.value)
     assert "SASE_AGY_PATH" in message
     assert "PATH" in message
+
+
+@patch("sase.llm_provider.agy.subprocess.Popen")
+def test_agy_provider_rejects_oversized_print_prompt_before_spawn(
+    mock_popen: MagicMock,
+) -> None:
+    provider = AgyProvider()
+    prompt = "x" * (_AGY_PRINT_PROMPT_ARGV_BYTE_LIMIT + 1)
+
+    with pytest.raises(LLMInvocationError) as exc_info:
+        provider.invoke(prompt, model_tier="large", suppress_output=True)
+
+    mock_popen.assert_not_called()
+    message = str(exc_info.value)
+    assert "argv transport" in message
+    assert "stdin/prompt-file" in message
+    assert "Antigravity CLI" in message
 
 
 @patch("sase.llm_provider.agy.stream_process_output")

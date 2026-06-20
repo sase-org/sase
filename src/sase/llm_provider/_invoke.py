@@ -277,7 +277,23 @@ def invoke_agent(
 
         raise LLMInvocationError(error_content) from e
 
-    except LLMInvocationError:
+    except LLMInvocationError as e:
+        elapsed = time.monotonic() - t0
+        LLM_INVOCATIONS.labels(provider=provider_label, status="error").inc()
+        LLM_INVOCATION_DURATION.labels(provider=provider_label).observe(elapsed)
+        LLM_ERRORS.labels(
+            provider=provider_label, error_type="LLMInvocationError"
+        ).inc()
+
+        error_content = str(e)
+        postprocess_error(
+            prompt=query,
+            error_content=error_content,
+            context=context,
+            model_tier=model_tier,
+            start_timestamp=start_timestamp,
+        )
+
         raise
 
     except Exception as e:
