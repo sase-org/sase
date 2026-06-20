@@ -1,0 +1,360 @@
+"""Main agent render paths for the agent prompt panel."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from rich.console import Group
+from rich.syntax import Syntax
+from rich.text import Text
+
+from ...models.agent import Agent, AgentType
+from ...util.lazy_syntax import LazySyntaxRenderCache, lazy_renderable
+from ._agent_display_attempts import (
+    AgentAttemptDisplayMixin,
+    render_merged_attempt_history,
+    should_render_merged,
+)
+from ._agent_display_parts import (
+    build_detail_header_summary,
+    build_header_text,
+    get_phase_label,
+    get_prompt_content,
+    publish_opened_workspaces_cache,
+    render_agent_reply_content,
+    render_phase_divider,
+    render_timestamp_divider,
+)
+from ._helpers import format_output
+
+
+class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
+    """Core agent render paths for AgentPromptPanel."""
+
+    # Reactive-ish field set by AgentDetail before calling update_display.
+    attempt_view_mode: str = "merged"
+    # When non-None, pin the prompt panel to the matching attempt_history
+    # record. Exclusive with the merged / current-only toggle.
+    attempt_pinned_number: int | None = None
+
+    def _markdown_render_cache(self) -> LazySyntaxRenderCache:
+        cache = getattr(self, "_agent_markdown_render_cache", None)
+        if cache is None:
+            cache = LazySyntaxRenderCache(max_entries=24)
+            self._agent_markdown_render_cache = cache
+        return cache
+
+    def _reset_markdown_render_cache_for_agent(self, agent: Agent) -> None:
+        identity = agent.identity
+        previous_identity = getattr(self, "_agent_markdown_render_cache_identity", None)
+        if previous_identity != identity:
+            cache = getattr(self, "_agent_markdown_render_cache", None)
+            if cache is not None:
+                cache.clear()
+            self._agent_markdown_render_cache_identity = identity
+
+    def _render_markdown(self, content: str) -> object:
+        return lazy_renderable(
+            content,
+            "markdown",
+            render_cache=self._markdown_render_cache(),
+        )
+
+    def _update_display_impl(self, agent: Agent) -> None:
+        # Attempt-pinned view: render the selected prior attempt's full error
+        # + prompt + captured reply; skip all other rendering paths.
+        if self.attempt_pinned_number is not None:
+            self._render_attempt_pinned(agent, self.attempt_pinned_number)
+            return
+
+        # Check if this is a top-level workflow agent that should display as workflow
+        # Workflows with appears_as_agent=True should show as regular agents
+        # Workflow children (steps) should show the normal agent view with prompt/chat
+        if (
+            agent.agent_type == AgentType.WORKFLOW
+            and not agent.is_workflow_child
+            and not agent.appears_as_agent
+        ):
+            self._update_workflow_display(agent)  # type: ignore[attr-defined]
+            return
+
+        summary = build_detail_header_summary(agent)
+        publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
+        header_text, error_tb_syntax = build_header_text(
+            agent,
+            summary=summary,
+        )
+
+        # Check if this is a bash/python workflow step - display differently
+        if agent.is_workflow_child and agent.step_type in ("bash", "python"):
+            self._update_bash_python_display(agent, header_text, error_tb_syntax)
+            return
+
+        # Check if this is a parallel workflow step - show output only, no prompt
+        if agent.is_workflow_child and agent.step_type == "parallel":
+            self._update_parallel_display(agent, header_text, error_tb_syntax)
+            return
+
+        # AGENT XPROMPT section
+        raw_xprompt = agent.get_raw_xprompt_content()
+        if raw_xprompt:
+            header_text.append("AGENT XPROMPT\n", style="bold #D7AF5F underline")
+            header_text.append("\n")
+            header_text.append(f"{raw_xprompt}\n")
+            header_text.append("\n")
+            header_text.append("\u2500" * 50 + "\n", style="dim")
+            header_text.append("\n")
+
+        # AGENT PROMPT section
+        header_text.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
+        header_text.append("\n")
+
+        # Get and display prompt content
+        prompt_content = get_prompt_content(agent)
+        if prompt_content:
+            prompt_syntax = self._render_markdown(prompt_content)
+
+            # For agents with follow-ups, show consolidated reply
+            if agent.followup_agents:
+                renderables: list[Any] = [header_text]
+                if error_tb_syntax:
+                    renderables.append(error_tb_syntax)
+                renderables.append(prompt_syntax)
+
+                reply_header = Text()
+                reply_header.append("\n")
+                reply_header.append("\u2500" * 50 + "\n", style="dim")
+                reply_header.append("\n")
+                reply_header.append("AGENT REPLY\n", style="bold #D7AF5F underline")
+                reply_header.append("\n")
+                renderables.append(reply_header)
+
+                # Main agent's phase
+                renderables.append(
+                    render_phase_divider(
+                        get_phase_label(agent),
+                        agent.run_start_time or agent.start_time,
+                    )
+                )
+                renderables.extend(
+                    render_agent_reply_content(agent, self._render_markdown)
+                )
+
+                # Follow-up phases
+                for followup in agent.followup_agents:
+                    renderables.append(
+                        render_phase_divider(
+                            get_phase_label(followup),
+                            followup.run_start_time or followup.start_time,
+                        )
+                    )
+                    renderables.extend(
+                        render_agent_reply_content(followup, self._render_markdown)
+                    )
+
+                self.update(Group(*renderables))  # type: ignore[attr-defined]
+            # For completed or failed agents/steps, also show the response
+            elif agent.status in ("DONE", "FAILED"):
+                reply_header = Text()
+                reply_header.append("\n")
+                reply_header.append("\u2500" * 50 + "\n", style="dim")
+                reply_header.append("\n")
+                reply_header.append("AGENT CHAT\n", style="bold #D7AF5F underline")
+                reply_header.append("\n")
+
+                response_content = agent.get_response_content()
+
+                # Fallback: for workflow step agents, try step_output if no response file
+                # Only use step_output when it has displayable content (_raw/_data),
+                # not when it only contains meta_* metadata fields.
+                if (
+                    response_content is None
+                    and agent.is_workflow_child
+                    and isinstance(agent.step_output, dict)
+                    and ("_raw" in agent.step_output or "_data" in agent.step_output)
+                ):
+                    response_content = format_output(agent.step_output)
+
+                renderables = [header_text]
+                if error_tb_syntax:
+                    renderables.append(error_tb_syntax)
+                renderables.append(prompt_syntax)
+
+                chunks = agent.get_timestamped_reply_chunks()
+                merge_history = should_render_merged(agent, self.attempt_view_mode)
+                if chunks:
+                    renderables.append(reply_header)
+                    if merge_history:
+                        renderables.extend(
+                            render_merged_attempt_history(
+                                agent,
+                                self._render_markdown,
+                            )
+                        )
+                    for ts, chunk_text in chunks:
+                        renderables.append(render_timestamp_divider(ts))
+                        content = chunk_text.strip()
+                        if content:
+                            renderables.append(self._render_markdown(content))
+                elif response_content:
+                    response_syntax = self._render_markdown(response_content)
+                    renderables.append(reply_header)
+                    if merge_history:
+                        renderables.extend(
+                            render_merged_attempt_history(
+                                agent,
+                                self._render_markdown,
+                            )
+                        )
+                    renderables.append(response_syntax)
+                else:
+                    reply_header.append("No response file found.\n", style="dim italic")
+                    renderables.append(reply_header)
+
+                self.update(Group(*renderables))  # type: ignore[attr-defined]
+            else:
+                renderables_other: list[Any] = [header_text]
+                if error_tb_syntax:
+                    renderables_other.append(error_tb_syntax)
+                renderables_other.append(prompt_syntax)
+
+                # AGENT REPLY section for running agents
+                reply_header = Text()
+                reply_header.append("\n")
+                reply_header.append("\u2500" * 50 + "\n", style="dim")
+                reply_header.append("\n")
+                reply_header.append("AGENT REPLY\n", style="bold #D7AF5F underline")
+                reply_header.append("\n")
+
+                live_reply = agent.get_live_reply_content()
+                chunks = agent.get_timestamped_reply_chunks()
+                merge_history = should_render_merged(agent, self.attempt_view_mode)
+                if chunks:
+                    renderables_other.append(reply_header)
+                    if merge_history:
+                        renderables_other.extend(
+                            render_merged_attempt_history(
+                                agent,
+                                self._render_markdown,
+                            )
+                        )
+                    for ts, chunk_text in chunks:
+                        renderables_other.append(render_timestamp_divider(ts))
+                        content = chunk_text.strip()
+                        if content:
+                            renderables_other.append(self._render_markdown(content))
+                elif live_reply:
+                    reply_syntax = self._render_markdown(live_reply)
+                    renderables_other.append(reply_header)
+                    if merge_history:
+                        renderables_other.extend(
+                            render_merged_attempt_history(
+                                agent,
+                                self._render_markdown,
+                            )
+                        )
+                    renderables_other.append(reply_syntax)
+                else:
+                    reply_header.append(
+                        "Waiting for agent response...\n",
+                        style="dim italic",
+                    )
+                    renderables_other.append(reply_header)
+
+                self.update(Group(*renderables_other))  # type: ignore[attr-defined]
+        else:
+            header_text.append("No prompt file found.\n", style="dim italic")
+            if error_tb_syntax:
+                self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]
+            else:
+                self.update(header_text)  # type: ignore[attr-defined]
+
+    def _update_bash_python_display(
+        self,
+        agent: Agent,
+        header_text: Text,
+        error_tb_syntax: Syntax | None = None,
+    ) -> None:
+        """Display bash command or python code with output.
+
+        Args:
+            agent: The workflow step agent to display.
+            header_text: The Text object with header content to append to.
+            error_tb_syntax: Optional traceback Syntax renderable.
+        """
+        if agent.step_type == "bash":
+            source_label = "BASH COMMAND"
+            syntax_lang = "bash"
+        else:
+            source_label = "PYTHON CODE"
+            syntax_lang = "python"
+
+        # Show source header
+        header_text.append(f"{source_label}\n", style="bold #D7AF5F underline")
+        header_text.append("\n")
+
+        source_content: object
+        if agent.step_source:
+            source_content = lazy_renderable(agent.step_source, syntax_lang)
+        else:
+            source_content = Text("No source available.\n", style="dim italic")
+
+        # Show output section
+        output_header = Text()
+        output_header.append("\n")
+        output_header.append("\u2500" * 50 + "\n", style="dim")
+        output_header.append("\n")
+        output_header.append("STEP OUTPUT\n", style="bold #D7AF5F underline")
+        output_header.append("\n")
+
+        renderables: list[Any] = [header_text]
+        if error_tb_syntax:
+            renderables.append(error_tb_syntax)
+        renderables.append(source_content)
+
+        if agent.step_output:
+            output_str = format_output(agent.step_output)
+            output_syntax = lazy_renderable(output_str, "json")
+            renderables.extend([output_header, output_syntax])
+        else:
+            output_header.append("No output available.\n", style="dim italic")
+            renderables.append(output_header)
+
+        self.update(Group(*renderables))  # type: ignore[attr-defined]
+
+    def _update_parallel_display(
+        self,
+        agent: Agent,
+        header_text: Text,
+        error_tb_syntax: Syntax | None = None,
+    ) -> None:
+        """Display output for a parallel workflow step (no prompt section).
+
+        Args:
+            agent: The workflow step agent to display.
+            header_text: The Text object with header content to append to.
+            error_tb_syntax: Optional traceback Syntax renderable.
+        """
+        header_text.append("STEP OUTPUT\n", style="bold #D7AF5F underline")
+        header_text.append("\n")
+
+        renderables: list[Any] = [header_text]
+        if error_tb_syntax:
+            renderables.append(error_tb_syntax)
+
+        if agent.step_output:
+            output_str = format_output(agent.step_output)
+            output_syntax = lazy_renderable(output_str, "json")
+            renderables.append(output_syntax)
+        else:
+            renderables.append(Text("No output available.\n", style="dim italic"))
+
+        self.update(Group(*renderables))  # type: ignore[attr-defined]
+
+    def show_empty(self) -> None:
+        """Show empty state."""
+        current_worker = getattr(self, "_agent_bead_display_worker", None)
+        if current_worker is not None and getattr(current_worker, "is_running", False):
+            current_worker.cancel()
+        text = Text("No agent selected", style="dim italic")
+        self.update(text)  # type: ignore[attr-defined]
