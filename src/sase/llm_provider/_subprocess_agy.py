@@ -34,9 +34,11 @@ class _AgyConversationSnapshot:
     cache_dir: Path
     cwd: str
     db_mtimes_ns: MappingPathMtimes
+    db_max_indices: MappingPathMaxIndices
 
 
 MappingPathMtimes = dict[Path, int]
+MappingPathMaxIndices = dict[Path, int]
 
 
 def prepare_agy_tool_call_extraction(
@@ -74,6 +76,7 @@ def _snapshot_agy_conversations(
         cache_dir=cache_dir or resolved_conversations_dir.parent / "cache",
         cwd=str(Path(cwd or os.getcwd()).resolve()),
         db_mtimes_ns=_conversation_db_mtimes(resolved_conversations_dir),
+        db_max_indices=_conversation_db_max_indices(resolved_conversations_dir),
     )
 
 
@@ -96,7 +99,10 @@ def append_agy_tool_call_events(
         db_paths = _resolve_agy_conversation_dbs(snapshot)
         written = 0
         for db_path in db_paths:
-            steps = _read_agy_trajectory_steps(db_path)
+            steps = _read_agy_trajectory_steps(
+                db_path,
+                after_idx=snapshot.db_max_indices.get(db_path),
+            )
             records = normalize_agy_trajectory_steps(
                 steps,
                 conversation_id=db_path.stem,
@@ -132,13 +138,24 @@ def _resolve_agy_conversation_dbs(snapshot: _AgyConversationSnapshot) -> list[Pa
     return sorted(touched, key=_mtime_ns)
 
 
-def _read_agy_trajectory_steps(db_path: Path) -> list[AgyTrajectoryStep]:
+def _read_agy_trajectory_steps(
+    db_path: Path,
+    *,
+    after_idx: int | None = None,
+) -> list[AgyTrajectoryStep]:
     """Read Antigravity trajectory steps from *db_path* in SQLite read-only mode."""
     uri = db_path.resolve().as_uri() + "?mode=ro"
     with sqlite3.connect(uri, uri=True) as conn:
-        rows = conn.execute(
-            "SELECT idx, step_type, status, step_payload FROM steps ORDER BY idx"
-        ).fetchall()
+        if after_idx is None:
+            rows = conn.execute(
+                "SELECT idx, step_type, status, step_payload FROM steps ORDER BY idx"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT idx, step_type, status, step_payload "
+                "FROM steps WHERE idx > ? ORDER BY idx",
+                (after_idx,),
+            ).fetchall()
 
     steps: list[AgyTrajectoryStep] = []
     for idx, step_type, status, step_payload in rows:
@@ -178,6 +195,33 @@ def _conversation_db_mtimes(conversations_dir: Path) -> MappingPathMtimes:
         except OSError:
             continue
     return mtimes
+
+
+def _conversation_db_max_indices(conversations_dir: Path) -> MappingPathMaxIndices:
+    if not conversations_dir.is_dir():
+        return {}
+    max_indices: MappingPathMaxIndices = {}
+    for path in conversations_dir.glob("*.db"):
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        max_idx = _conversation_db_max_idx(resolved)
+        if max_idx is not None:
+            max_indices[resolved] = max_idx
+    return max_indices
+
+
+def _conversation_db_max_idx(db_path: Path) -> int | None:
+    uri = db_path.resolve().as_uri() + "?mode=ro"
+    try:
+        with sqlite3.connect(uri, uri=True) as conn:
+            row = conn.execute("SELECT MAX(idx) FROM steps").fetchone()
+    except sqlite3.DatabaseError:
+        return None
+    if row is None or not isinstance(row[0], int):
+        return None
+    return row[0]
 
 
 def _touched_conversation_dbs(snapshot: _AgyConversationSnapshot) -> list[Path]:
