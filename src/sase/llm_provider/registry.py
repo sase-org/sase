@@ -15,6 +15,7 @@ callers iterate ``pm.list_name_plugin()`` to collect per-plugin values.
 import functools
 import importlib.metadata
 import os
+import re
 import shutil
 from dataclasses import asdict, is_dataclass
 from typing import Any
@@ -327,26 +328,38 @@ def get_default_provider_name() -> str:
     return get_configured_default_provider_name()
 
 
+def provider_path_env_var(provider_name: str) -> str:
+    """Return the ``SASE_<PROVIDER>_PATH`` executable-override env var name.
+
+    The provider name is upper-cased with runs of non-alphanumeric characters
+    collapsed to a single underscore (e.g. ``"agy"`` -> ``"SASE_AGY_PATH"``).
+    This is the single canonical derivation shared by the registry cache
+    policy and the ``sase doctor`` provider checks, so registering a new
+    provider never requires extending a hardcoded env-var list.
+    """
+    token = re.sub(r"[^A-Za-z0-9]+", "_", provider_name).strip("_").upper()
+    return f"SASE_{token}_PATH"
+
+
 def _llm_metadata_cache_policy() -> dict[str, Any]:
     """Return cache invalidation inputs for host-routed LLM metadata."""
 
-    env_names = (
-        "SASE_DISABLE_PLUGINS",
-        "SASE_DISABLE_PLUGIN_LLM",
-        "SASE_CLAUDE_PATH",
-        "SASE_CODEX_PATH",
-        "SASE_GEMINI_PATH",
-        "SASE_OPENCODE_PATH",
-        "SASE_QWEN_PATH",
+    entry_points = sorted(
+        importlib.metadata.entry_points(group="sase_llm"),
+        key=lambda item: item.name,
     )
+    # Derive each provider's SASE_<PROVIDER>_PATH override from the registered
+    # entry points (deduped, order-preserving) so a new provider's path env var
+    # participates in cache invalidation without editing a hardcoded list.
+    static_env_names = ("SASE_DISABLE_PLUGINS", "SASE_DISABLE_PLUGIN_LLM")
+    provider_path_envs = dict.fromkeys(
+        provider_path_env_var(ep.name) for ep in entry_points
+    )
+    env_names = (*static_env_names, *provider_path_envs)
     return {
         "version": 1,
         "plugin_entry_points": [
-            {"name": ep.name, "value": ep.value}
-            for ep in sorted(
-                importlib.metadata.entry_points(group="sase_llm"),
-                key=lambda item: item.name,
-            )
+            {"name": ep.name, "value": ep.value} for ep in entry_points
         ],
         "environment": {name: os.environ.get(name) for name in env_names},
         "config": _config_fingerprint(),

@@ -17,6 +17,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.output import gemini_timer
 
@@ -24,6 +25,9 @@ from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_process_output
 from .base import LLMProvider
 from .types import InvokeResult, ModelTier
+
+if TYPE_CHECKING:
+    from .retry_config import ProviderRetryConfig
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "Gemini 3.5 Flash (High)",
@@ -148,6 +152,37 @@ class AgyProvider(LLMProvider):
     @hookimpl
     def llm_autodetect_cli_name(self) -> str:
         return "agy"
+
+    @hookimpl
+    def llm_default_retry_config(self) -> ProviderRetryConfig:
+        from .retry_config import (
+            _RETRY_CONTINUATION_NUDGE,
+            ProviderRetryConfig,
+        )
+
+        # Antigravity does not yet document a stable error contract, so these
+        # patterns target the Google-stack transport/rate-limit/timeout failures
+        # `agy` surfaces from the Gemini backend it routes to (gRPC status names
+        # plus the CLI's own print timeout). They deliberately avoid the bare
+        # HTTP "429"/"Too Many Requests" wording that the Codex provider already
+        # owns, so the global error-based retry finder stays unambiguous. The
+        # patterns are case-insensitive substrings; users can extend them via
+        # ``llm_provider.retry.agy`` in sase.yml.
+        return ProviderRetryConfig(
+            max_retries=3,
+            error_patterns=[
+                "RESOURCE_EXHAUSTED",
+                "UNAVAILABLE",
+                "DEADLINE_EXCEEDED",
+                "deadline exceeded",
+                "rate limit",
+                "print-timeout",
+                "connection reset",
+            ],
+            wait_times=[60, 300, 1800],
+            continuation_prompt=_RETRY_CONTINUATION_NUDGE,
+            preserve_workspace=True,
+        )
 
     @hookimpl
     def llm_invoke(

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import re
 import shutil
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
@@ -42,6 +41,11 @@ _PROVIDER_SETUP_HINTS: dict[str, dict[str, str]] = {
         "tool": "Qwen Code",
         "install": "npm install -g @qwen-code/qwen-code",
         "auth": "run `qwen` and complete the login flow",
+    },
+    "agy": {
+        "tool": "Antigravity CLI",
+        "install": "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+        "auth": "run `agy` and complete the login/trust onboarding",
     },
 }
 
@@ -400,8 +404,9 @@ def _optional_str(value: Any) -> str | None:
 
 
 def _provider_path_env(provider_name: str) -> str:
-    token = re.sub(r"[^A-Za-z0-9]+", "_", provider_name).strip("_").upper()
-    return f"SASE_{token}_PATH"
+    # Single canonical derivation lives in the registry so the doctor and the
+    # metadata cache policy can never drift on the SASE_<PROVIDER>_PATH name.
+    return llm_registry.provider_path_env_var(provider_name)
 
 
 def _resolve_executable(command: str | None) -> str | None:

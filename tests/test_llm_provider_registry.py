@@ -85,3 +85,46 @@ def test_clear_llm_caches_resets_plugin_manager() -> None:
     # functools.cache rebuilds the value after cache_clear(); a fresh
     # PluginManager instance is observable proof the cache was reset.
     assert pm_second is not pm_first
+
+
+def test_provider_path_env_var_derives_from_name() -> None:
+    """The SASE_<PROVIDER>_PATH override name is derived from the provider name."""
+    assert registry.provider_path_env_var("agy") == "SASE_AGY_PATH"
+    assert registry.provider_path_env_var("claude") == "SASE_CLAUDE_PATH"
+    # Non-alphanumeric runs collapse to a single underscore.
+    assert registry.provider_path_env_var("open-code") == "SASE_OPEN_CODE_PATH"
+
+
+def test_cache_policy_env_names_are_derived_for_every_provider() -> None:
+    """Cache invalidation must track each registered provider's path env var.
+
+    The policy is derived from registered entry points rather than a hardcoded
+    list, so a newly registered provider (e.g. ``agy``) participates without a
+    one-off edit.
+    """
+    payload = registry.get_llm_metadata_payload()
+    environment = payload["cache_invalidation"]["environment"]
+
+    # Static, provider-independent invalidation inputs are always present.
+    assert "SASE_DISABLE_PLUGINS" in environment
+    assert "SASE_DISABLE_PLUGIN_LLM" in environment
+
+    # Every registered provider contributes its derived path override.
+    for provider_name in registry._provider_names():
+        assert registry.provider_path_env_var(provider_name) in environment
+
+    # agy specifically must be tracked now that it is registered.
+    assert "SASE_AGY_PATH" in environment
+
+
+def test_cache_policy_invalidates_on_provider_path_env_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Changing a provider's SASE_<PROVIDER>_PATH must change the cache policy."""
+    monkeypatch.delenv("SASE_AGY_PATH", raising=False)
+    before = registry._llm_metadata_cache_policy()["environment"]["SASE_AGY_PATH"]
+    monkeypatch.setenv("SASE_AGY_PATH", "/opt/agy/agy")
+    after = registry._llm_metadata_cache_policy()["environment"]["SASE_AGY_PATH"]
+
+    assert before is None
+    assert after == "/opt/agy/agy"

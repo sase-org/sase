@@ -45,6 +45,27 @@ def _autodetect_payload() -> dict[str, object]:
     }
 
 
+def _agy_payload() -> dict[str, object]:
+    return {
+        "providers": {
+            "agy": {
+                "known_model_names": [
+                    "Gemini 3.5 Flash (High)",
+                    "Gemini 3.5 Flash (Low)",
+                ],
+                "autodetect_cli_name": "agy",
+                "model_resolutions": {
+                    "large": "Gemini 3.5 Flash (High)",
+                    "small": "Gemini 3.5 Flash (Low)",
+                },
+            }
+        },
+        "autodetect_candidates": [
+            {"priority": 30, "provider": "agy", "cli_name": "agy"}
+        ],
+    }
+
+
 def _context(tmp_path: Path, env: dict[str, str] | None = None) -> DoctorContext:
     return DoctorContext(
         cwd=tmp_path,
@@ -165,4 +186,74 @@ def test_llm_default_accepts_configured_executable_path(monkeypatch, tmp_path) -
     assert check.data["command"] == str(exe)
     assert check.data["executable"] == str(exe)
     assert check.data["ready"] is True
+    assert check.data["auth_status"] == "not_verified"
+
+
+def test_llm_default_errors_when_agy_cli_missing(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.llm_registry.get_llm_metadata_payload",
+        _agy_payload,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.llm_registry.get_default_provider_name",
+        lambda: "agy",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.get_llm_provider_config",
+        lambda: {"provider": "agy"},
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.get_active_temporary_override",
+        lambda: None,
+    )
+    monkeypatch.setattr("sase.doctor.checks_providers.shutil.which", lambda _: None)
+
+    check = _check_llm_default(_context(tmp_path))
+
+    assert check.status == "ERROR"
+    assert "agy" in check.summary
+    assert "executable" in check.summary
+    # The path override env var is derived from the provider name.
+    assert check.data["path_env"] == "SASE_AGY_PATH"
+    assert "SASE_AGY_PATH" in check.next_steps[0]
+    assert check.data["selection_source"] == "config"
+    assert check.data["auth_status"] == "not_verified"
+    assert check.data["auth_verified"] is False
+    assert check.data["setup_hint"]["tool"] == "Antigravity CLI"
+    assert "antigravity.google" in check.data["setup_hint"]["install"]
+
+
+def test_llm_default_accepts_configured_agy_executable_path(
+    monkeypatch, tmp_path
+) -> None:
+    exe = tmp_path / "agy"
+    exe.write_text("#!/bin/sh\n", encoding="utf-8")
+    exe.chmod(exe.stat().st_mode | stat.S_IXUSR)
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.llm_registry.get_llm_metadata_payload",
+        _agy_payload,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.llm_registry.get_default_provider_name",
+        lambda: "agy",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.get_llm_provider_config",
+        lambda: {"provider": "agy"},
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.get_active_temporary_override",
+        lambda: None,
+    )
+
+    check = _check_llm_default(_context(tmp_path, {"SASE_AGY_PATH": str(exe)}))
+
+    assert check.status == "OK"
+    assert check.data["path_env"] == "SASE_AGY_PATH"
+    assert check.data["configured_command"] == str(exe)
+    assert check.data["executable"] == str(exe)
+    assert check.data["ready"] is True
+    # Model resolutions for tiers (including the space/paren display name) are
+    # reported so `sase doctor -C llm.default -v` can show them.
+    assert check.data["model_resolutions"]["large"] == "Gemini 3.5 Flash (High)"
     assert check.data["auth_status"] == "not_verified"

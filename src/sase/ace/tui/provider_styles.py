@@ -77,6 +77,13 @@ _PROVIDER_FALLBACK_STYLES: dict[str, _ProviderStyle] = {
         secondary_style="#D7AF00",
         dim_style="dim #E6D18A",
     ),
+    "agy": _ProviderStyle(
+        name_style="bold #6E5DE7",
+        delimiter_style="#5B4FD0",
+        model_style="#A99CF5",
+        secondary_style="#5B4FD0",
+        dim_style="dim #B7ACF0",
+    ),
 }
 
 _PROVIDER_EMOJI_BADGES: dict[str, str] = {
@@ -85,6 +92,7 @@ _PROVIDER_EMOJI_BADGES: dict[str, str] = {
     "codex": "🤖",
     "qwen": "🐼",
     "opencode": "🐙",
+    "agy": "🪐",
 }
 
 
