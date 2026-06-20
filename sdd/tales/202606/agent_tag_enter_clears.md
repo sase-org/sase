@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 22:19:43
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_tag_enter_clears.md
 ---
 # Plan: Pressing `N` then Enter on a tagged agent should move it to `(untagged)`

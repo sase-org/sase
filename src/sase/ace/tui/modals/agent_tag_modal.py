@@ -88,7 +88,7 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
                 "Type a tag name without the '@' prefix.",
                 id="agent-tag-hint",
             )
-            initial = self._current_tag or self._default_tag or ""
+            initial = "" if self._current_tag is not None else self._default_tag or ""
             yield _TagInput(
                 value=initial,
                 placeholder="tag-name",
