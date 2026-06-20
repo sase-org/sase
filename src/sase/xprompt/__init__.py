@@ -30,6 +30,7 @@ from ._parsing import (
     strip_vcs_workflow_tag,
     xprompt_reference_from_match,
 )
+from .alt_inspect import AltSpan
 from .directives import PromptDirectives, extract_prompt_directives
 from .jinja_inspect import (
     JinjaCompletionContext,
@@ -114,6 +115,8 @@ __all__ = [
     "XPromptValidationError",
     "create_anonymous_workflow",
     "xprompt_to_workflow",
+    # Alt inspection
+    "AltSpan",
     # Jinja inspection
     "JinjaCompletionContext",
     "JinjaDiagnostics",

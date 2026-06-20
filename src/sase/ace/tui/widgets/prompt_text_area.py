@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual.widgets import TextArea
 
+from sase.ace.tui.widgets._alt_syntax_highlight import AltSyntaxHighlightMixin
 from sase.ace.tui.widgets._file_completion import FileCompletionMixin
 from sase.ace.tui.widgets._jinja_diagnostics import JinjaDiagnosticsMixin
 from sase.ace.tui.widgets._jinja_highlight import JinjaHighlightMixin
@@ -56,6 +57,7 @@ class PromptTextArea(
     PromptTextAreaKeyHandlingMixin,
     PromptTextAreaActionsMixin,
     JinjaDiagnosticsMixin,
+    AltSyntaxHighlightMixin,
     SearchHighlightMixin,
     PromptSearchMixin,
     JinjaHighlightMixin,
