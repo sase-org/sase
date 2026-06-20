@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from textual.app import App, ComposeResult
+from textual.containers import VerticalScroll
 from textual.widgets import OptionList
 
 from sase.logs import launch_log, run_log
@@ -201,3 +202,48 @@ async def test_modal_refresh_and_scroll_and_dismiss(log_dir: Path) -> None:
         await pilot.press("escape")
         await pilot.pause()
         assert not isinstance(pilot.app.screen, LogModal)
+
+
+def _binding_action(key: str) -> str | None:
+    """Action bound to *key* in ``LogModal.BINDINGS`` (tuple or Binding)."""
+    for binding in LogModal.BINDINGS:
+        if isinstance(binding, tuple):
+            bind_key, action = binding[0], binding[1]
+        else:
+            bind_key, action = binding.key, binding.action
+        if bind_key == key:
+            return action
+    return None
+
+
+def test_log_modal_binds_g_and_shift_g_to_scroll_extremes() -> None:
+    assert _binding_action("g") == "scroll_to_top"
+    assert _binding_action("G") == "scroll_to_bottom"
+
+
+async def test_modal_g_and_shift_g_scroll_detail_extremes(log_dir: Path) -> None:
+    # Enough lines that the right detail pane is genuinely scrollable.
+    _write(log_dir / "launch_failures.log", "".join(f"line {i}\n" for i in range(200)))
+
+    async with _ModalTestApp().run_test() as pilot:
+        modal = LogModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#log-source-list", OptionList)
+        highlighted_before = option_list.highlighted
+        scroll = modal.query_one("#log-modal-detail-scroll", VerticalScroll)
+
+        # G jumps to the bottom of the detail pane.
+        await pilot.press("G")
+        await pilot.pause()
+        assert scroll.max_scroll_y > 0  # pane really is scrollable
+        assert scroll.scroll_y == scroll.max_scroll_y
+
+        # g returns to the top.
+        await pilot.press("g")
+        await pilot.pause()
+        assert scroll.scroll_y == 0
+
+        # The highlighted log source is untouched by g / G.
+        assert option_list.highlighted == highlighted_before

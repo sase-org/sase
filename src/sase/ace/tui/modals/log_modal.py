@@ -175,6 +175,8 @@ class LogModal(OptionListNavigationMixin, CopyModeForwardingMixin, ModalScreen[N
         ("right_square_bracket", "cycle_log_next", "Next Log"),
         ("ctrl+d", "scroll_detail_down", "Scroll Down"),
         ("ctrl+u", "scroll_detail_up", "Scroll Up"),
+        ("g", "scroll_to_top", "Top"),
+        ("G", "scroll_to_bottom", "Bottom"),
         ("r", "refresh_logs", "Refresh"),
     ]
 
@@ -199,7 +201,7 @@ class LogModal(OptionListNavigationMixin, CopyModeForwardingMixin, ModalScreen[N
                         yield Static("", id="log-modal-detail")
             yield Static(
                 "j/k navigate · [ ] cycle logs · ctrl+d/u scroll · "
-                "r refresh · esc close",
+                "g/G top/bottom · r refresh · esc close",
                 id="log-modal-hints",
             )
 
@@ -316,3 +318,13 @@ class LogModal(OptionListNavigationMixin, CopyModeForwardingMixin, ModalScreen[N
         scroll = self.query_one("#log-modal-detail-scroll", VerticalScroll)
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=-(height // 2), animate=False)
+
+    def action_scroll_to_top(self) -> None:
+        """Scroll the detail pane to the very top (highlight unchanged)."""
+        scroll = self.query_one("#log-modal-detail-scroll", VerticalScroll)
+        scroll.scroll_home(animate=False)
+
+    def action_scroll_to_bottom(self) -> None:
+        """Scroll the detail pane to the very bottom (highlight unchanged)."""
+        scroll = self.query_one("#log-modal-detail-scroll", VerticalScroll)
+        scroll.scroll_end(animate=False)
