@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-20 15:14:56
-status: wip
+status: done
 prompt: sdd/prompts/202606/memory_init_important_warning.md
 ---
 # Plan: Generate the SASE Plan Warning in `memory/sase.md`

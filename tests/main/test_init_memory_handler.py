@@ -327,6 +327,15 @@ def test_init_memory_project_memory_includes_workspace_section(
     assert "Ephemeral" not in home_memory
     assert _SASE_MEMORY_HEADER in home_memory
 
+    plan_warning = (
+        "IMPORTANT: Do NOT mention your workspace directory (or any sibling "
+        "workspace directory) in any plan files that you generate using your "
+        "`/sase_plan` skill. The agent(s) that implement the plan might not run "
+        "in the same workspace directory as you!"
+    )
+    assert plan_warning in _single_line(project_memory)
+    assert "/sase_plan" not in home_memory
+
 
 def test_init_memory_project_memory_uses_managed_checkout_marker_name(
     tmp_path: Path,
