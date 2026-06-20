@@ -1,0 +1,266 @@
+"""Shared helpers for agent metadata enrichment."""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
+from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
+
+from sase.core.time import get_timezone
+from sase.plan_chain import (
+    PLAN_CHAIN_PLAN_SUFFIX,
+    agent_family_phase_name,
+    agent_family_role_for_suffix,
+    canonical_plan_chain_suffix,
+)
+
+from ....agent_tags import InvalidTagError, validate_tag_name
+from ._json_cache import load_json_cached
+from ..agent import Agent, LinkedRepoMetadata
+
+if TYPE_CHECKING:
+    from sase.core.agent_scan_wire import AgentMetaWire
+
+
+ACTIVE_ENRICHMENT_STATUSES = {"STARTING", "RUNNING"}
+
+
+@lru_cache(maxsize=1)
+def _cached_timezone() -> ZoneInfo:
+    return get_timezone()
+
+
+def parse_utc_to_eastern(iso_str: str) -> datetime:
+    """Parse a UTC ISO 8601 timestamp and convert to local display time."""
+    dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+    return dt.astimezone(_cached_timezone()).replace(tzinfo=None)
+
+
+def _parse_timestamp_field(raw_value: object) -> list[datetime]:
+    values: list[str] = []
+    if isinstance(raw_value, str):
+        values = [raw_value]
+    elif isinstance(raw_value, list):
+        values = [v for v in raw_value if isinstance(v, str)]
+    return _parse_timestamp_values(values)
+
+
+def _parse_timestamp_values(values: list[str]) -> list[datetime]:
+    parsed: list[datetime] = []
+    for value in values:
+        try:
+            parsed.append(parse_utc_to_eastern(value))
+        except ValueError:
+            continue
+    return parsed
+
+
+def append_timestamp_field(
+    raw_value: object,
+    target: list[datetime],
+) -> list[datetime]:
+    parsed = _parse_timestamp_field(raw_value)
+    target.extend(parsed)
+    return parsed
+
+
+def append_timestamp_values(
+    values: list[str],
+    target: list[datetime],
+) -> list[datetime]:
+    parsed = _parse_timestamp_values(values)
+    target.extend(parsed)
+    return parsed
+
+
+def has_plan_submission_marker(raw_value: object) -> bool:
+    if isinstance(raw_value, str):
+        return bool(raw_value)
+    if isinstance(raw_value, list):
+        return any(isinstance(value, str) and value for value in raw_value)
+    return False
+
+
+def plan_enrichment_status(
+    *,
+    plan_approved: bool,
+    plan_action: str | None,
+    plan_submitted: bool,
+    auto_approved: bool,
+) -> str | None:
+    if plan_approved:
+        if plan_action == "commit":
+            return "PLAN COMMITTED"
+        if plan_action == "tale":
+            return "TALE APPROVED"
+        if plan_action == "epic":
+            return "EPIC APPROVED"
+        if plan_action == "legend":
+            return "LEGEND APPROVED"
+        return "PLAN APPROVED"
+
+    if plan_submitted and not auto_approved:
+        return "PLAN"
+
+    return None
+
+
+def pending_question_status_for_request_path(request_path: object) -> str:
+    """Map a pending-question ``request_path`` to ``QUESTION`` or ``ANSWERED``.
+
+    The pending-question marker's ``request_path`` points at the
+    ``question_request.json`` written in the user-question session directory.
+    The sibling ``question_response.json`` appears there once the user answers
+    but before the runner consumes the response and clears the marker, so its
+    presence is the transient ``ANSWERED`` signal. When no response is visible
+    yet, the agent is still blocked and the status stays ``QUESTION``.
+    """
+    if isinstance(request_path, str) and request_path:
+        response_path = Path(request_path).parent / "question_response.json"
+        try:
+            if response_path.exists():
+                return "ANSWERED"
+        except OSError:
+            pass
+    return "QUESTION"
+
+
+def pending_question_status_from_marker(marker_path: Path) -> str:
+    """Read a filesystem ``pending_question.json`` and map it to a status."""
+    try:
+        marker = load_json_cached(marker_path)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return "QUESTION"
+    request_path = marker.get("request_path") if isinstance(marker, dict) else None
+    return pending_question_status_for_request_path(request_path)
+
+
+def valid_meta_tag(raw_value: object) -> str | None:
+    if not isinstance(raw_value, str):
+        return None
+    try:
+        return validate_tag_name(raw_value)
+    except InvalidTagError:
+        return None
+
+
+def string_output_variables(raw_value: object) -> dict[str, str]:
+    if not isinstance(raw_value, dict):
+        return {}
+    return {
+        key: value
+        for key, value in raw_value.items()
+        if isinstance(key, str) and isinstance(value, str)
+    }
+
+
+def parse_linked_repos(raw_value: object) -> tuple[LinkedRepoMetadata, ...]:
+    if not isinstance(raw_value, list):
+        return ()
+
+    parsed: list[LinkedRepoMetadata] = []
+    for item in raw_value:
+        if not isinstance(item, dict):
+            continue
+        raw_name = item.get("name")
+        raw_workspace_dir = item.get("workspace_dir")
+        raw_strategy = item.get("workspace_strategy")
+        if not isinstance(raw_name, str) or not raw_name:
+            continue
+        if not isinstance(raw_workspace_dir, str) or not raw_workspace_dir:
+            continue
+        strategy = raw_strategy if isinstance(raw_strategy, str) else ""
+        parsed.append(
+            LinkedRepoMetadata(
+                name=raw_name,
+                workspace_dir=raw_workspace_dir,
+                workspace_strategy=strategy,
+            )
+        )
+    return tuple(parsed)
+
+
+def meta_has_wait_directive(data: dict[str, object]) -> bool:
+    return (
+        bool(data.get("wait_for"))
+        or data.get("wait_duration") is not None
+        or bool(data.get("wait_until"))
+    )
+
+
+def wire_meta_has_wait_directive(meta: AgentMetaWire) -> bool:
+    return (
+        bool(meta.wait_for) or meta.wait_duration is not None or bool(meta.wait_until)
+    )
+
+
+def parent_timestamp_from_meta(
+    agent: Agent,
+    raw_value: object,
+    *,
+    workflow_child: bool,
+) -> str | None:
+    if not raw_value:
+        return None
+    parent_timestamp = str(raw_value)
+    if (
+        not workflow_child
+        and agent.parent_workflow is None
+        and agent.raw_suffix is not None
+        and parent_timestamp == agent.raw_suffix
+    ):
+        return None
+    return parent_timestamp
+
+
+def _is_main_workflow_agent_step(agent: Agent) -> bool:
+    return (
+        agent.parent_workflow is not None
+        and agent.step_type == "agent"
+        and agent.parent_step_index is None
+    )
+
+
+def _root_family_name_from_meta(data: dict[str, object]) -> str | None:
+    role_suffix = canonical_plan_chain_suffix(data.get("role_suffix"))
+    is_root = (
+        data.get("plan_chain_root")
+        or data.get("agent_family_role") == "root"
+        or role_suffix == PLAN_CHAIN_PLAN_SUFFIX
+    )
+    if not is_root:
+        return None
+    family = data.get("agent_family")
+    if isinstance(family, str) and family:
+        return family
+    name = data.get("name")
+    if isinstance(name, str) and name:
+        return name
+    return None
+
+
+def _root_child_suffix_from_meta(data: dict[str, object]) -> str:
+    return (
+        canonical_plan_chain_suffix(data.get("role_suffix")) or PLAN_CHAIN_PLAN_SUFFIX
+    )
+
+
+def apply_workflow_child_identity_from_meta(
+    agent: Agent,
+    data: dict[str, object],
+) -> None:
+    """Derive concrete family identity for the main agent workflow step."""
+    if not _is_main_workflow_agent_step(agent):
+        return
+    family = _root_family_name_from_meta(data)
+    if family is None:
+        return
+    child_suffix = _root_child_suffix_from_meta(data)
+    child_name = agent_family_phase_name(family, child_suffix)
+    agent.agent_name = child_name
+    agent.agent_family = family
+    agent.agent_family_role = agent_family_role_for_suffix(child_suffix)
+    agent.role_suffix = child_suffix

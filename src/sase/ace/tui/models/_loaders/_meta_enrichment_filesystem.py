@@ -1,0 +1,260 @@
+"""Filesystem-backed agent metadata enrichment."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from ._json_cache import load_json_cached
+from ._meta_enrichment_common import (
+    ACTIVE_ENRICHMENT_STATUSES,
+    append_timestamp_field,
+    apply_workflow_child_identity_from_meta,
+    has_plan_submission_marker,
+    meta_has_wait_directive,
+    parent_timestamp_from_meta,
+    parse_utc_to_eastern,
+    parse_linked_repos,
+    pending_question_status_from_marker,
+    plan_enrichment_status,
+    string_output_variables,
+    valid_meta_tag,
+)
+from ..agent import Agent
+
+
+def enrich_agent_from_meta(
+    agent: Agent,
+    artifacts_dir: str | None,
+    *,
+    workflow_child: bool = False,
+) -> None:
+    """Read agent_meta.json and populate model/vcs_provider fields.
+
+    Args:
+        agent: The Agent to enrich (modified in place).
+        artifacts_dir: Path to the artifacts directory, or None.
+    """
+    if not artifacts_dir:
+        return
+
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    try:
+        data = load_json_cached(meta_path)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return
+
+    if not isinstance(data, dict):
+        return
+
+    if data.get("model"):
+        agent.model = data["model"]
+    if data.get("llm_provider"):
+        agent.llm_provider = data["llm_provider"]
+    if data.get("vcs_provider"):
+        agent.vcs_provider = data["vcs_provider"]
+    if data.get("workspace_dir"):
+        agent.workspace_dir = data["workspace_dir"]
+    if "linked_repos" in data:
+        agent.linked_repos = parse_linked_repos(data.get("linked_repos"))
+    commit_diff_path = data.get("commit_diff_path")
+    if not agent.diff_path and isinstance(commit_diff_path, str) and commit_diff_path:
+        agent.diff_path = commit_diff_path
+    if not workflow_child and data.get("name"):
+        agent.agent_name = data["name"]
+    meta_tag = valid_meta_tag(data.get("tag"))
+    if meta_tag:
+        agent.tag = meta_tag
+    if "output_variables" in data:
+        agent.output_variables = string_output_variables(data.get("output_variables"))
+    if data.get("wait_for"):
+        agent.waiting_for = data["wait_for"]
+    raw_auto_action = data.get("auto_approve_plan_action")
+    if isinstance(raw_auto_action, str) and raw_auto_action:
+        agent.auto_approve_plan_action = raw_auto_action
+        agent.approve = True
+    raw_plan_action = data.get("plan_action")
+    if isinstance(raw_plan_action, str) and raw_plan_action:
+        agent.plan_action = raw_plan_action
+    if data.get("approve"):
+        agent.approve = True
+    if data.get("hidden"):
+        agent.hidden = True
+    if not workflow_child and data.get("role_suffix"):
+        agent.role_suffix = data["role_suffix"]
+    if not workflow_child and data.get("agent_family"):
+        agent.agent_family = data["agent_family"]
+    if not workflow_child and data.get("agent_family_role"):
+        agent.agent_family_role = data["agent_family_role"]
+    if not workflow_child and data.get("plan_chain_root"):
+        agent.plan_chain_root = True
+    if workflow_child:
+        apply_workflow_child_identity_from_meta(agent, data)
+    if agent.parent_timestamp is None:
+        parent_timestamp = parent_timestamp_from_meta(
+            agent,
+            data.get("parent_timestamp"),
+            workflow_child=workflow_child,
+        )
+        if parent_timestamp is not None:
+            agent.parent_timestamp = parent_timestamp
+    if data.get("workspace_num") is not None and agent.workspace_num is None:
+        try:
+            agent.workspace_num = int(data["workspace_num"])
+        except (ValueError, TypeError):
+            pass
+
+    # Retry-chain lineage (spawn-on-retry)
+    if data.get("retry_of_timestamp"):
+        agent.retry_of_timestamp = data["retry_of_timestamp"]
+    raw_retry_attempt = data.get("retry_attempt")
+    if isinstance(raw_retry_attempt, int):
+        agent.retry_attempt = raw_retry_attempt
+    if data.get("retry_chain_root_timestamp"):
+        agent.retry_chain_root_timestamp = data["retry_chain_root_timestamp"]
+    if data.get("retried_as_timestamp"):
+        agent.retried_as_timestamp = data["retried_as_timestamp"]
+    if data.get("retry_terminal"):
+        agent.retry_terminal = bool(data["retry_terminal"])
+    if data.get("retry_error_category"):
+        agent.retry_error_category = data["retry_error_category"]
+
+    # Parse plan_submitted_at (when plan was submitted for review)
+    append_timestamp_field(data.get("plan_submitted_at"), agent.plan_times)
+
+    # Parse epic_started_at (when epic creation follow-up was launched)
+    epic_started_at = data.get("epic_started_at")
+    if isinstance(epic_started_at, str):
+        try:
+            agent.epic_time = parse_utc_to_eastern(epic_started_at)
+        except ValueError:
+            pass
+
+    # Parse feedback_submitted_at (when feedback was given on the plan)
+    feedback_times = append_timestamp_field(
+        data.get("feedback_submitted_at"), agent.feedback_times
+    )
+    plan_path = data.get("plan_path")
+    if isinstance(plan_path, str) and plan_path:
+        for timestamp in feedback_times:
+            agent.feedback_plan_paths[timestamp] = plan_path
+
+    # Parse questions_submitted_at (when agent submitted questions)
+    append_timestamp_field(data.get("questions_submitted_at"), agent.questions_times)
+    if isinstance(data.get("question_request_path"), str):
+        agent.question_request_path = data["question_request_path"]
+    if isinstance(data.get("question_response_path"), str):
+        agent.question_response_path = data["question_response_path"]
+    if isinstance(data.get("question_session_id"), str):
+        agent.question_session_id = data["question_session_id"]
+
+    # Parse retry_started_at (list of timestamps, one per retry/fallback)
+    retry_started_at = data.get("retry_started_at")
+    if isinstance(retry_started_at, list):
+        for ts in retry_started_at:
+            if isinstance(ts, str):
+                try:
+                    agent.retry_times.append(parse_utc_to_eastern(ts))
+                except ValueError:
+                    pass
+
+    # Parse run_started_at (actual start time after waiting period)
+    run_started_at = data.get("run_started_at")
+    wait_completed_at = data.get("wait_completed_at")
+    if isinstance(run_started_at, str):
+        try:
+            agent.run_start_time = parse_utc_to_eastern(run_started_at)
+            if agent.status == "STARTING":
+                agent.status = "RUNNING"
+        except ValueError:
+            pass
+    elif isinstance(wait_completed_at, str) and agent.status == "STARTING":
+        agent.status = "RUNNING"
+
+    # Parse stopped_at (completion time for DONE/FAILED agents)
+    stopped_at = data.get("stopped_at")
+    if isinstance(stopped_at, str):
+        try:
+            agent.stop_time = parse_utc_to_eastern(stopped_at)
+        except ValueError:
+            pass
+
+    if isinstance(wait_completed_at, str) or (
+        meta_has_wait_directive(data)
+        and (
+            agent.run_start_time is not None
+            or agent.stop_time is not None
+            or agent.status not in ACTIVE_ENRICHMENT_STATUSES
+        )
+    ):
+        agent.wait_start_time = agent.start_time
+
+    # Check for waiting.json to set WAITING status (takes precedence over PLAN
+    # since the agent can't plan until its dependencies are resolved)
+    waiting_path = Path(artifacts_dir) / "waiting.json"
+    if waiting_path.exists() and agent.status in ACTIVE_ENRICHMENT_STATUSES:
+        agent.status = "WAITING"
+        agent.wait_start_time = agent.start_time
+        # waiting.json may contain an updated waiting_for list (e.g. from the TUI
+        # "w" keymap), which takes precedence over agent_meta.json's wait_for.
+        try:
+            with open(waiting_path, encoding="utf-8") as f:
+                waiting_data = json.load(f)
+            if isinstance(waiting_data, dict):
+                if waiting_data.get("waiting_for"):
+                    agent.waiting_for = waiting_data["waiting_for"]
+                # Read wait_duration from waiting.json (preferred source)
+                raw_dur = waiting_data.get("wait_duration")
+                if raw_dur is not None:
+                    try:
+                        agent.wait_duration = float(raw_dur)
+                    except (ValueError, TypeError):
+                        pass
+                # Read wait_until from waiting.json
+                raw_until = waiting_data.get("wait_until")
+                if isinstance(raw_until, str) and raw_until:
+                    agent.wait_until = raw_until
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Fallback: read wait_duration from agent_meta.json if not set from waiting.json
+    if agent.wait_duration is None:
+        raw_dur = data.get("wait_duration")
+        if raw_dur is not None:
+            try:
+                agent.wait_duration = float(raw_dur)
+            except (ValueError, TypeError):
+                pass
+
+    # Fallback: read wait_until from agent_meta.json if not set from waiting.json
+    if agent.wait_until is None:
+        raw_until = data.get("wait_until")
+        if isinstance(raw_until, str) and raw_until:
+            agent.wait_until = raw_until
+
+    # Check for pending_question.json to set QUESTION/ANSWERED status. The
+    # marker is written by handle_questions_flow() before the response-wait
+    # poll loop and cleared on every exit path, so its presence is the
+    # authoritative signal that the agent is currently blocked on user input,
+    # independent of the notification's dismissed/read state. When the user has
+    # already written question_response.json (but the runner has not yet
+    # consumed it and cleared the marker) the transient ANSWERED status shows
+    # instead of QUESTION.
+    pending_question_path = Path(artifacts_dir) / "pending_question.json"
+    if pending_question_path.exists() and agent.status in ACTIVE_ENRICHMENT_STATUSES:
+        agent.status = pending_question_status_from_marker(pending_question_path)
+
+    # Set plan review / approval statuses for agents whose agent_meta carries
+    # plan: true (the %epic directive and submitted-plan flows). PLAN means a
+    # submitted plan is waiting on manual review; agents still drafting a plan,
+    # or using an auto-approval path, keep their current active display state
+    # until later markers take over.
+    if data.get("plan") and agent.status in ACTIVE_ENRICHMENT_STATUSES:
+        plan_status = plan_enrichment_status(
+            plan_approved=bool(data.get("plan_approved")),
+            plan_action=data.get("plan_action"),
+            plan_submitted=has_plan_submission_marker(data.get("plan_submitted_at")),
+            auto_approved=agent.approve,
+        )
+        if plan_status is not None:
+            agent.status = plan_status
