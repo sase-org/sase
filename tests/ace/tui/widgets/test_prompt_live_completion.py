@@ -90,6 +90,7 @@ def _compute_soft_now(ta: PromptTextArea) -> None:
 
 def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     assert parse_prompt_completion_settings({}) == PromptCompletionSettings()
+    assert parse_prompt_completion_settings({}).auto_directive_menu is True
     assert parse_prompt_completion_settings({"auto": False}).auto == "off"
     assert parse_prompt_completion_settings({"auto": "soft"}).auto == "soft"
     parsed = parse_prompt_completion_settings(
@@ -97,12 +98,14 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
             "debounce_ms": "-1",
             "auto_file_paths": True,
             "auto_xprompt_menu": False,
+            "auto_directive_menu": False,
             "max_auto_rows": "0",
         }
     )
     assert parsed.debounce_ms == 0
     assert parsed.auto_file_paths is True
     assert parsed.auto_xprompt_menu is False
+    assert parsed.auto_directive_menu is False
     assert parsed.max_auto_rows == 1
 
 

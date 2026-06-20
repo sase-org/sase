@@ -209,16 +209,18 @@ ace:
     debounce_ms: 90
     auto_file_paths: false
     auto_xprompt_menu: true
+    auto_directive_menu: true
     max_auto_rows: 1
 ```
 
-| Field               | Type        | Default | Description                                                                                                  |
-| ------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------ |
-| `auto`              | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.    |
-| `debounce_ms`       | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                       |
-| `auto_file_paths`   | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false. |
-| `auto_xprompt_menu` | bool        | `true`  | Automatically open the xprompt completion menu while typing matching `#name` or `#!name` tokens.             |
-| `max_auto_rows`     | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                   |
+| Field                 | Type        | Default | Description                                                                                                       |
+| --------------------- | ----------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `auto`                | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.         |
+| `debounce_ms`         | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                            |
+| `auto_file_paths`     | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.      |
+| `auto_xprompt_menu`   | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens. |
+| `auto_directive_menu` | bool        | `true`  | Automatically open the directive completion menu while typing matching `%name` tokens.                            |
+| `max_auto_rows`       | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                        |
 
 The `#+query` and first-character `+query` project/ChangeSpec picker uses the same completion panel but is triggered
 directly by the `+` token; it is not disabled by `auto_xprompt_menu`. Manual `Ctrl+T` project/ChangeSpec completion

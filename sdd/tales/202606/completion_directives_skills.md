@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-20 00:00:28
-status: wip
+status: done
 prompt: sdd/prompts/202606/completion_directives_skills.md
 ---
 # Auto Completion for Directives and XPrompt Skills

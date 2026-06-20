@@ -204,6 +204,94 @@ async def test_multi_candidate_directive_completion_accepts_ctrl_l() -> None:
     assert ta._file_completion_active is False
 
 
+async def test_percent_partial_auto_opens_directive_panel() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+
+        await pilot.press("%")
+        assert ta.text == "%"
+        assert ta._file_completion_active is False
+
+        await pilot.press("m")
+
+        # A single ``%m`` -> ``%model`` match opens the menu but never
+        # auto-accepts: the text stays ``%m`` until the user accepts explicitly.
+        assert ta.text == "%m"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "directive"
+        assert [c.insertion for c in ta._file_completion_candidates] == ["%model"]
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "directives"
+
+
+async def test_bare_percent_does_not_auto_open() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        await pilot.press("%")
+
+        assert ta.text == "%"
+        assert ta._file_completion_active is False
+
+
+async def test_unknown_directive_does_not_show_placeholder() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        await pilot.press("%")
+        await pilot.press("p")
+
+        assert ta.text == "%p"
+        assert ta._file_completion_active is False
+        assert ta._file_completion_candidates == []
+
+
+async def test_directive_invalid_context_does_not_auto_open() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("word")
+        ta.cursor_location = (0, 4)
+
+        await pilot.press("%")
+        await pilot.press("m")
+
+        assert ta.text == "word%m"
+        assert ta._file_completion_active is False
+
+
+async def test_directive_typing_narrows_deleting_widens_and_space_dismisses() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        await pilot.press("%")
+        await pilot.press("e")
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "%edit",
+            "%epic",
+        ]
+
+        await pilot.press("d")
+        assert ta.text == "%ed"
+        assert [c.insertion for c in ta._file_completion_candidates] == ["%edit"]
+
+        await pilot.press("backspace")
+        assert ta.text == "%e"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "%edit",
+            "%epic",
+        ]
+
+        await pilot.press("space")
+        assert ta.text == "%e "
+        assert ta._file_completion_active is False
+
+
 def _single_candidate(token: str):
     candidates, shared = build_directive_completion_candidates(token)
     assert len(candidates) == 1

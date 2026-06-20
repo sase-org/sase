@@ -138,7 +138,12 @@
             },
             "auto_xprompt_menu": {
               "type": "boolean",
-              "description": "Whether matching #name and #!name tokens automatically open the xprompt completion menu while typing",
+              "description": "Whether matching #name, #!name, and /skill tokens automatically open the xprompt/skill completion menu while typing",
+              "default": true
+            },
+            "auto_directive_menu": {
+              "type": "boolean",
+              "description": "Whether matching %name tokens automatically open the directive completion menu while typing",
               "default": true
             },
             "max_auto_rows": {

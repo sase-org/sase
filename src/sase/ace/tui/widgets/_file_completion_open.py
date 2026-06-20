@@ -28,11 +28,16 @@ from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.jinja_completion import JinjaCompletionResult
+    from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
     from sase.ace.tui.widgets.xprompt_arg_assist import XPromptArgCompletionContext
 
 
 class FileCompletionOpenMixin(FileCompletionRefreshMixin):
     """Mixin providing completion menu open/build behavior."""
+
+    if TYPE_CHECKING:
+
+        def _prompt_completion_settings(self) -> PromptCompletionSettings: ...
 
     def _try_vcs_project_completion(self) -> bool:
         """Open the ``#+`` project completion menu at a ``#+token``.
@@ -64,8 +69,52 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         self._update_file_completion_panel(trigger.query)
         return True
 
+    def _try_auto_prompt_reference_completion(self) -> bool:
+        """Open the directive or xprompt/skill menu while typing a reference.
+
+        Generalizes the prior ``#``-only automatic xprompt menu to also cover
+        ``%`` directives and ``/`` skills. Each branch is gated by its own
+        auto-menu setting, and the ``#+`` project trigger keeps precedence.
+        Returns ``True`` when a menu was opened.
+        """
+        bar = self._find_prompt_bar()
+        if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
+            return False
+        if self._get_vcs_project_trigger() is not None:
+            return False
+
+        settings = self._prompt_completion_settings()
+        if settings.auto_directive_menu and self._try_auto_directive_completion():
+            return True
+        if settings.auto_xprompt_menu and self._try_auto_xprompt_completion():
+            return True
+        return False
+
+    def _try_auto_directive_completion(self) -> bool:
+        """Open the directive completion menu while typing a ``%`` token."""
+        ctx = self._get_directive_token_context()
+        if ctx is None:
+            return False
+        _row, _start, _end, token = ctx
+        # Bare ``%`` stays quiet; open only once a directive character follows.
+        if len(token) < 2:
+            return False
+        if not is_directive_like_token(token):
+            return False
+
+        candidates, _shared_extension = build_directive_completion_candidates(token)
+        if not candidates:
+            return False
+
+        self._completion_kind = "directive"
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(token)
+        return True
+
     def _try_auto_xprompt_completion(self) -> bool:
-        """Open the xprompt completion menu while typing a ``#`` token."""
+        """Open the xprompt completion menu while typing a ``#`` or ``/`` token."""
         bar = self._find_prompt_bar()
         if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
             return False
@@ -76,7 +125,8 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         if ctx is None:
             return False
         _row, _start, _end, token = ctx
-        if not token.startswith("#") or len(token) < 2:
+        # Bare ``#`` / ``/`` stay quiet; open only once an identifier follows.
+        if len(token) < 2:
             return False
         if not is_xprompt_like_token(token):
             return False

@@ -217,17 +217,97 @@ async def test_embedded_hash_token_does_not_auto_open() -> None:
         assert ta._file_completion_active is False
 
 
-async def test_slash_skill_token_does_not_auto_open() -> None:
+async def test_slash_skill_token_auto_opens_skill_panel_when_warm() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
-        _seed_entries(ta, [_entry("sase_plan", is_skill=True)])
+        _seed_entries(
+            ta,
+            [
+                _entry("sase_plan", is_skill=True),
+                _entry("sase_review", is_skill=True),
+                _entry("send"),  # non-skill xprompt is filtered out of /skills
+            ],
+        )
 
         await pilot.press("/")
+        assert ta.text == "/"
+        assert ta._file_completion_active is False
+
         await pilot.press("s")
 
         assert ta.text == "/s"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "/sase_plan",
+            "/sase_review",
+        ]
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "xprompts"
+        assert "skill" in panel.render().plain
+
+
+async def test_slash_skill_cold_catalog_defers_without_sync_build() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        with (
+            patch.object(type(ta), "_warm_current_xprompt_assist_entries") as warm,
+            patch(
+                _XPROMPT_COLD_BUILD_PATH,
+                side_effect=AssertionError("cold catalog build"),
+            ),
+        ):
+            await pilot.press("/")
+            await pilot.press("s")
+
+            assert ta.text == "/s"
+            assert ta._file_completion_active is False
+            warm.assert_called_once()
+
+            _seed_entries(ta, [_entry("sase_plan", is_skill=True)])
+            await pilot.press("a")
+
+        assert ta.text == "/sa"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt"
+        assert [c.insertion for c in ta._file_completion_candidates] == ["/sase_plan"]
+
+
+async def test_auto_xprompt_menu_toggle_disables_slash_skill_auto_open() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(
+            ta,
+            [
+                _entry("sase_plan", is_skill=True),
+                _entry("split", is_skill=True),
+            ],
+        )
+
+        with patch.object(
+            type(ta),
+            "_prompt_completion_settings",
+            return_value=PromptCompletionSettings(auto_xprompt_menu=False),
+        ):
+            await pilot.press("/")
+            await pilot.press("s")
+
+        assert ta.text == "/s"
         assert ta._file_completion_active is False
+
+        await pilot.press("ctrl+t")
+
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "/sase_plan",
+            "/split",
+        ]
 
 
 async def test_cold_catalog_defers_without_sync_build_then_opens_when_warm() -> None:

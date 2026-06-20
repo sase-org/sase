@@ -1761,12 +1761,15 @@ the prompt as typed, so live suggestions cannot accidentally replace text on sen
 
 Live soft completion covers directives, xprompt names, xprompt argument names, and bool argument values. File-path soft
 completion is disabled by default because it can scan the filesystem while typing; enable it with
-`ace.prompt_completion.auto_file_paths: true`. The xprompt menu also opens automatically while typing matching `#name`
-or `#!name` tokens; disable that xprompt auto-open behavior with `ace.prompt_completion.auto_xprompt_menu: false`. The
-`#+` / offset-zero `+` project/ChangeSpec picker opens when `+` completes a valid trigger and is also available through
-manual `Ctrl+T`. Manual `Ctrl+T` completion still supports file paths, xprompt names, and project/ChangeSpec tags
-regardless of those settings. Live suggestions pause while the manual completion panel is open, while snippet tabstops
-are active, in NORMAL mode, and during feedback prompts.
+`ace.prompt_completion.auto_file_paths: true`. The xprompt/skill menu also opens automatically while typing matching
+`#name`, `#!name`, or `/skill` tokens; disable that xprompt auto-open behavior with
+`ace.prompt_completion.auto_xprompt_menu: false`. The directive menu likewise opens automatically while typing matching
+`%name` tokens; disable it with `ace.prompt_completion.auto_directive_menu: false`. Both auto-menus open only once at
+least one identifier character follows the marker (bare `#`, `/`, and `%` stay quiet) and never auto-accept a single
+match. The `#+` / offset-zero `+` project/ChangeSpec picker opens when `+` completes a valid trigger and is also
+available through manual `Ctrl+T`. Manual `Ctrl+T` completion still supports file paths, xprompt names, directives,
+skills, and project/ChangeSpec tags regardless of those settings. Live suggestions pause while the manual completion
+panel is open, while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The

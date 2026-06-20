@@ -40,6 +40,7 @@ class PromptCompletionSettings:
     debounce_ms: int = 90
     auto_file_paths: bool = False
     auto_xprompt_menu: bool = True
+    auto_directive_menu: bool = True
     max_auto_rows: int = 1
 
 
@@ -75,6 +76,12 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
             DEFAULT_PROMPT_COMPLETION_SETTINGS.auto_xprompt_menu,
         )
     )
+    auto_directive_menu = bool(
+        raw.get(
+            "auto_directive_menu",
+            DEFAULT_PROMPT_COMPLETION_SETTINGS.auto_directive_menu,
+        )
+    )
     max_auto_rows = max(
         1,
         _parse_non_negative_int(
@@ -87,6 +94,7 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         debounce_ms=debounce_ms,
         auto_file_paths=auto_file_paths,
         auto_xprompt_menu=auto_xprompt_menu,
+        auto_directive_menu=auto_directive_menu,
         max_auto_rows=max_auto_rows,
     )
 
