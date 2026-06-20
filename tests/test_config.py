@@ -296,3 +296,54 @@ def test_load_config_layers_flags_unsupported_workflows_key(tmp_path: Path) -> N
 
     overlay_layer = next(ly for ly in layers if ly.name == "overlay:sase_athena.yml")
     assert overlay_layer.unsupported_keys == ["workflows"]
+
+
+def test_load_config_layers_flags_deprecated_sibling_repos_key(
+    tmp_path: Path,
+) -> None:
+    """A legacy ``sibling_repos:`` block is parsed but flagged as deprecated."""
+    (tmp_path / "sase.yml").write_text(
+        yaml.dump(
+            {
+                "sibling_repos": [
+                    {"name": "core", "path": "../sase-core", "description": "core"}
+                ]
+            }
+        )
+    )
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "none"),
+    ):
+        layers = load_config_layers()
+
+    user_layer = next(ly for ly in layers if ly.name == "user")
+    assert user_layer.deprecated_keys == ["sibling_repos"]
+    # Deprecated keys are still real keys, not unsupported/ignored.
+    assert "sibling_repos" in user_layer.keys
+    assert user_layer.unsupported_keys == []
+
+
+def test_load_config_layers_canonical_linked_repos_not_deprecated(
+    tmp_path: Path,
+) -> None:
+    """The canonical ``linked_repos:`` key is not flagged as deprecated."""
+    (tmp_path / "sase.yml").write_text(
+        yaml.dump(
+            {
+                "linked_repos": [
+                    {"name": "core", "path": "../sase-core", "description": "core"}
+                ]
+            }
+        )
+    )
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "none"),
+    ):
+        layers = load_config_layers()
+
+    user_layer = next(ly for ly in layers if ly.name == "user")
+    assert user_layer.deprecated_keys == []

@@ -367,6 +367,12 @@ def load_merged_config() -> dict[str, Any]:
 # Surfaced via ``sase config layers`` so users see why their entries are ignored.
 UNSUPPORTED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({"workflows"})
 
+# Top-level config keys that are still parsed for backward compatibility but have
+# a canonical replacement. Mapped to the key callers should migrate to. Surfaced
+# (non-fatally) via ``sase config layers`` and ``sase doctor`` so users get a
+# nudge to migrate without breaking launched agents with repeated warnings.
+DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {"sibling_repos": "linked_repos"}
+
 
 @dataclass
 class _ConfigLayer:
@@ -379,6 +385,7 @@ class _ConfigLayer:
     keys: list[str] = field(default_factory=list)
     data: dict[str, Any] = field(default_factory=dict)
     unsupported_keys: list[str] = field(default_factory=list)
+    deprecated_keys: list[str] = field(default_factory=list)
     present: bool | None = None
     error: str | None = None
 
@@ -392,6 +399,12 @@ def _collect_unsupported_keys(data: dict[str, Any] | None) -> list[str]:
     if not data:
         return []
     return sorted(key for key in data if key in UNSUPPORTED_TOP_LEVEL_KEYS)
+
+
+def _collect_deprecated_keys(data: dict[str, Any] | None) -> list[str]:
+    if not data:
+        return []
+    return sorted(key for key in data if key in DEPRECATED_TOP_LEVEL_KEYS)
 
 
 def _load_yaml_file_with_metadata(
@@ -440,6 +453,7 @@ def load_config_layers() -> list[_ConfigLayer]:
             keys=list(default_data.keys()),
             data=default_data,
             unsupported_keys=_collect_unsupported_keys(default_data),
+            deprecated_keys=_collect_deprecated_keys(default_data),
             present=True,
         )
     )
@@ -462,6 +476,7 @@ def load_config_layers() -> list[_ConfigLayer]:
                             keys=list(data.keys()),
                             data=data,
                             unsupported_keys=_collect_unsupported_keys(data),
+                            deprecated_keys=_collect_deprecated_keys(data),
                             present=True,
                         )
                     )
@@ -489,6 +504,7 @@ def load_config_layers() -> list[_ConfigLayer]:
             keys=list(user_data.keys()) if user_data else [],
             data=user_data or {},
             unsupported_keys=_collect_unsupported_keys(user_data),
+            deprecated_keys=_collect_deprecated_keys(user_data),
             present=user_present,
             error=user_error,
         )
@@ -508,6 +524,7 @@ def load_config_layers() -> list[_ConfigLayer]:
                 keys=list(overlay_data.keys()) if overlay_data else [],
                 data=overlay_data or {},
                 unsupported_keys=_collect_unsupported_keys(overlay_data),
+                deprecated_keys=_collect_deprecated_keys(overlay_data),
                 present=overlay_present,
                 error=overlay_error,
             )
@@ -528,6 +545,7 @@ def load_config_layers() -> list[_ConfigLayer]:
                 keys=list(local_data.keys()) if local_data else [],
                 data=local_data or {},
                 unsupported_keys=_collect_unsupported_keys(local_data),
+                deprecated_keys=_collect_deprecated_keys(local_data),
                 present=local_present,
                 error=local_error,
             )

@@ -9,7 +9,7 @@ def handle_config_command(args: argparse.Namespace) -> None:
     config_sub = getattr(args, "config_subcommand", None)
 
     if config_sub == "layers":
-        from sase.config.core import load_config_layers
+        from sase.config.core import DEPRECATED_TOP_LEVEL_KEYS, load_config_layers
 
         layers = load_config_layers()
         for layer in layers:
@@ -24,6 +24,9 @@ def handle_config_command(args: argparse.Namespace) -> None:
                 print(
                     f"  unsupported keys (ignored): {', '.join(layer.unsupported_keys)}"
                 )
+            for deprecated_key in layer.deprecated_keys:
+                replacement = DEPRECATED_TOP_LEVEL_KEYS[deprecated_key]
+                print(f"  deprecated key: {deprecated_key} (rename to '{replacement}')")
             print()
         sys.exit(0)
 

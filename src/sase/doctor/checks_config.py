@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
-from sase.config.core import load_config_layers
+from sase.config.core import DEPRECATED_TOP_LEVEL_KEYS, load_config_layers
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 from sase.main.init_plan import InitPlan
 from sase.main.init_registry import iter_init_command_specs
@@ -58,6 +58,7 @@ def _check_config_layers() -> DiagnosticCheck:
             "list_strategy": layer.list_strategy,
             "keys": list(layer.keys),
             "unsupported_keys": list(layer.unsupported_keys),
+            "deprecated_keys": list(layer.deprecated_keys),
             "error": layer.error,
         }
         layer_rows.append(row)
@@ -68,6 +69,13 @@ def _check_config_layers() -> DiagnosticCheck:
             location = layer.path or layer.name
             keys = ", ".join(layer.unsupported_keys)
             problems.append(f"{location}: unsupported keys ignored: {keys}")
+        if layer.deprecated_keys:
+            location = layer.path or layer.name
+            renames = ", ".join(
+                f"{key} -> {DEPRECATED_TOP_LEVEL_KEYS[key]}"
+                for key in layer.deprecated_keys
+            )
+            problems.append(f"{location}: deprecated keys (rename): {renames}")
 
     loaded_count = sum(1 for row in layer_rows if row["loaded"])
     status: CheckStatus = "WARN" if problems else "OK"

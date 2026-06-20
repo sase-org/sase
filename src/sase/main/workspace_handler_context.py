@@ -100,7 +100,11 @@ def _materialize_sibling_project_context(
     read_project_lifecycle: LifecycleReader,
     apply_project_lifecycle: LifecycleApplier,
 ) -> ProjectContext | None:
-    """Create missing ProjectSpec metadata for a configured sibling repo."""
+    """Create missing ProjectSpec metadata for a configured linked repo.
+
+    The backing ProjectSpec lifecycle state is still named ``sibling`` (kept as
+    legacy backing state for linked-repo bookkeeping during the migration).
+    """
     if not is_valid_sase_project_name(project_name):
         return None
 
@@ -130,12 +134,12 @@ def _materialize_sibling_project_context(
     primary = sibling.primary_dir.rstrip("/") or sibling.primary_dir
     if not Path(primary).is_dir():
         raise RuntimeError(
-            f"Configured sibling repo '{project_name}' primary path does not exist: "
+            f"Configured linked repo '{project_name}' primary path does not exist: "
             f"{primary}"
         )
     if _is_git_repo(current.primary_workspace_dir) and not _is_git_repo(primary):
         raise RuntimeError(
-            f"Configured sibling repo '{project_name}' is not a Git checkout: {primary}"
+            f"Configured linked repo '{project_name}' is not a Git checkout: {primary}"
         )
 
     metadata = _sibling_project_metadata(

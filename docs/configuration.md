@@ -1216,8 +1216,8 @@ Deactivating refuses projects with live `RUNNING` claims or live artifact marker
 legacy `PROJECT_STATE: archived` / `PROJECT_STATE: closed` files are read as inactive. The system-managed `home` project
 cannot be mutated through this command. Normal launch and discovery surfaces default to active projects; use
 `list --state all` or `show` for historical or sibling inspection, then `activate` before launching normal work in a
-hidden project. The `sibling` state is intended for configured sibling repository records used by
-`sase workspace open -p <sibling> -r "<reason>" <workspace_num>`.
+hidden project. The `sibling` state (a legacy backing state name) is intended for configured linked repository records
+used by `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`.
 
 ACE exposes the same lifecycle mutations through the Project Management panel at `,p`. That panel also supports marks
 for bulk lifecycle operations, ProjectSpec editing through `$EDITOR`, and confirmed deletion of whole SASE project

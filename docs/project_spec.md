@@ -140,19 +140,19 @@ Project lifecycle state controls whether a project appears in the default lists 
 work. It is project-level metadata; it does not delete project files and is separate from a ChangeSpec whose `STATUS` is
 `Archived`.
 
-| State      | Meaning                                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------------------- |
-| `active`   | Normal work state. Missing `PROJECT_STATE` also means `active`, so existing projects need no migration. |
-| `inactive` | Dormant, historical, or finished project. Hidden from default launch pickers and discovery lists.       |
-| `sibling`  | Configured sibling repository bookkeeping. Hidden from default launch pickers and discovery lists.      |
+| State      | Meaning                                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `active`   | Normal work state. Missing `PROJECT_STATE` also means `active`, so existing projects need no migration.                       |
+| `inactive` | Dormant, historical, or finished project. Hidden from default launch pickers and discovery lists.                             |
+| `sibling`  | Configured linked-repository bookkeeping (legacy backing state name). Hidden from default launch pickers and discovery lists. |
 
 Legacy `PROJECT_STATE: archived` and `PROJECT_STATE: closed` files remain readable and are normalized to `inactive`. New
 writes use only canonical lifecycle values.
 
 Default project discovery is active-only. That includes ACE project selection, `sase changespec search`, known-project
 workspace references such as `#gh:sase`, project-local xprompt catalogs, broad mobile helper catalogs, and all-known
-bead helper reads. Sibling records are intentionally hidden from those surfaces; use
-`sase workspace open -p <sibling> -r "<reason>" <workspace_num>` for configured sibling repositories. Agent-history
+bead helper reads. These records are intentionally hidden from those surfaces; use
+`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` for configured linked repositories. Agent-history
 views that need old artifacts pass an explicit all-state scan.
 
 Use `sase project list --state all` to inspect inactive and sibling projects, `sase project show <project>` to see

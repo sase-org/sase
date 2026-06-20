@@ -430,7 +430,7 @@ rust-bench *args:
     fi
     cd {{ sase_core_dir }} && cargo run --release --example bench_parse -- {{ args }}
 
-# Combined Rust check (fmt-check + clippy + tests). No-op when sibling repo absent.
+# Combined Rust check (fmt-check + clippy + tests). No-op when linked repo absent.
 rust-check: rust-fmt-check rust-clippy rust-test
 
 # Run the Python parse_project_bytes benchmark against the Rust facade
