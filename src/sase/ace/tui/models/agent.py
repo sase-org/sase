@@ -22,6 +22,7 @@ __all__ = [
     "Agent",
     "AgentType",
     "AttemptRecord",
+    "LinkedRepoMetadata",
     "agent_source",
     "compute_row_runtime",
     "format_compact_duration",
@@ -37,6 +38,15 @@ class AgentType(Enum):
 
     RUNNING = "run"  # Manual sase run commands (RUNNING field)
     WORKFLOW = "workflow"  # Multi-step YAML workflows
+
+
+@dataclass(frozen=True)
+class LinkedRepoMetadata:
+    """Resolved linked repository metadata recorded for an agent run."""
+
+    name: str
+    workspace_dir: str
+    workspace_strategy: str
 
 
 @dataclass
@@ -164,6 +174,13 @@ class Agent:
     # Resolved directory the agent ran in. This matters for directory-mode
     # agents where workspace_num is 0 and no RUNNING-field claim exists.
     workspace_dir: str | None = None
+
+    # Linked repositories resolved at agent launch. Populated from
+    # ``agent_meta.json["linked_repos"]`` during existing metadata enrichment.
+    linked_repos: tuple[LinkedRepoMetadata, ...] = field(
+        default_factory=tuple,
+        compare=False,
+    )
 
     # Agent name assigned via %name directive or manual TUI naming
     agent_name: str | None = None

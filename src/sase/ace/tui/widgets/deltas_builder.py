@@ -1,13 +1,20 @@
 """DELTAS section builder for ChangeSpec detail display."""
 
 import os
+from collections.abc import Sequence
 
 from rich.text import Text
 
 from ...changespec import ChangeSpec
 from ...changespec.models import DeltaEntry, DeltaLineStats
 from ..models.fold_state import FoldLevel
+from .file_panel._linked_deltas import LinkedDeltaGroup
 from .hint_tracker import HintTracker
+from .prompt_panel._agent_context_common import (
+    COLOR_WORKSPACE_GLYPH,
+    COLOR_WORKSPACE_NAME,
+    WORKSPACE_GLYPH,
+)
 
 _COLOR_HEADER = "bold #87D7FF"
 _COLOR_PATH = "#87AFFF"
@@ -112,11 +119,12 @@ def _append_entry(
     entry: DeltaEntry,
     hint_counter: int | None = None,
     *,
+    indent: str = "  ",
     show_line_stats: bool = False,
 ) -> None:
     glyph = _GLYPH_BY_TYPE.get(entry.change_type, "?")
     style = _GLYPH_STYLE.get(entry.change_type, "")
-    text.append(f"  {glyph} ", style=style)
+    text.append(f"{indent}{glyph} ", style=style)
     if hint_counter is not None:
         text.append(f"[{hint_counter}] ", style="bold #FFFF00")
     _append_path(text, entry.path)
@@ -174,6 +182,7 @@ def build_delta_entries_section(
     workspace_dir: str | None = None,
     *,
     header_label: str = "DELTAS:",
+    linked_delta_groups: Sequence[LinkedDeltaGroup] | None = None,
 ) -> HintTracker:
     """Build a DELTAS section from already-computed entries."""
     tracker = hint_tracker or HintTracker(
@@ -184,25 +193,58 @@ def build_delta_entries_section(
         mentor_hint_to_info={},
     )
 
-    if not deltas:
+    primary_deltas = deltas or []
+    linked_groups = tuple(group for group in linked_delta_groups or () if group.entries)
+    if not primary_deltas and not linked_groups:
         return tracker
 
     text.append(header_label, style=_COLOR_HEADER)
     if deltas_fold == FoldLevel.COLLAPSED:
-        _append_summary(text, deltas)
+        summary_deltas = list(primary_deltas)
+        for group in linked_groups:
+            summary_deltas.extend(group.entries)
+        _append_summary(text, summary_deltas)
         return tracker
 
     text.append("\n")
     show_line_stats = deltas_fold == FoldLevel.FULLY_EXPANDED
     hint_counter = tracker.counter
     hint_mappings = dict(tracker.mappings)
-    for entry in sorted(deltas, key=lambda e: e.path):
+    for entry in sorted(primary_deltas, key=lambda e: e.path):
         if show_file_hints:
             hint_mappings[hint_counter] = _resolve_delta_path(entry.path, workspace_dir)
             _append_entry(text, entry, hint_counter, show_line_stats=show_line_stats)
             hint_counter += 1
         else:
             _append_entry(text, entry, show_line_stats=show_line_stats)
+
+    for group in linked_groups:
+        text.append("  ")
+        text.append(WORKSPACE_GLYPH, style=COLOR_WORKSPACE_GLYPH)
+        text.append(" ")
+        text.append(group.repo_name, style=COLOR_WORKSPACE_NAME)
+        text.append("\n")
+        for entry in sorted(group.entries, key=lambda e: e.path):
+            if show_file_hints:
+                hint_mappings[hint_counter] = _resolve_delta_path(
+                    entry.path,
+                    group.workspace_dir,
+                )
+                _append_entry(
+                    text,
+                    entry,
+                    hint_counter,
+                    indent="    ",
+                    show_line_stats=show_line_stats,
+                )
+                hint_counter += 1
+            else:
+                _append_entry(
+                    text,
+                    entry,
+                    indent="    ",
+                    show_line_stats=show_line_stats,
+                )
 
     return HintTracker(
         counter=hint_counter,

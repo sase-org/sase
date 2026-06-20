@@ -133,6 +133,7 @@ class AgentMetaWire:
     parent_timestamp: str | None = None
     workspace_num: int | None = None
     workspace_dir: str | None = None
+    linked_repos: list[dict[str, Any]] = field(default_factory=list)
     approve: bool = False
     auto_approve_plan_action: str | None = None
     hidden: bool = False

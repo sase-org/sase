@@ -7,6 +7,7 @@ from sase.ace.tui.models._loaders._meta_enrichment import (
     enrich_agent_from_meta,
     enrich_agent_from_meta_wire,
 )
+from sase.ace.tui.models.agent import LinkedRepoMetadata
 from sase.core.agent_scan_wire import AgentMetaWire, WaitingMarkerWire
 from tests._enrich_agent_helpers import local_time_from_iso, make_agent
 
@@ -23,6 +24,66 @@ def test_wait_duration_from_waiting_json(tmp_path: Path) -> None:
 
     assert agent.status == "WAITING"
     assert agent.wait_duration == 600.0
+
+
+def test_linked_repos_from_agent_meta(tmp_path: Path) -> None:
+    """linked_repos are parsed from agent_meta.json during enrichment."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "linked_repos": [
+                    {
+                        "name": "sase-core",
+                        "workspace_dir": "/tmp/sase-core_7",
+                        "workspace_strategy": "suffix",
+                    },
+                    {
+                        "name": "missing-workspace",
+                        "workspace_strategy": "suffix",
+                    },
+                    "invalid",
+                ],
+            }
+        )
+    )
+
+    agent = make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.linked_repos == (
+        LinkedRepoMetadata(
+            name="sase-core",
+            workspace_dir="/tmp/sase-core_7",
+            workspace_strategy="suffix",
+        ),
+    )
+
+
+def test_linked_repos_from_agent_meta_wire() -> None:
+    """Snapshot enrichment mirrors linked_repos parsing."""
+    agent = make_agent()
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(
+            linked_repos=[
+                {
+                    "name": "sase-github",
+                    "workspace_dir": "/tmp/sase-github_7",
+                    "workspace_strategy": "suffix",
+                }
+            ]
+        ),
+        None,
+        None,
+    )
+
+    assert agent.linked_repos == (
+        LinkedRepoMetadata(
+            name="sase-github",
+            workspace_dir="/tmp/sase-github_7",
+            workspace_strategy="suffix",
+        ),
+    )
 
 
 def test_waiting_json_flips_starting_to_waiting(tmp_path: Path) -> None:

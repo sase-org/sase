@@ -30,7 +30,7 @@ from sase.plan_chain import (
 
 from ....agent_tags import InvalidTagError, validate_tag_name
 from ._json_cache import load_json_cached
-from ..agent import Agent
+from ..agent import Agent, LinkedRepoMetadata
 
 
 _ACTIVE_ENRICHMENT_STATUSES = {"STARTING", "RUNNING"}
@@ -126,6 +126,32 @@ def _string_output_variables(raw_value: object) -> dict[str, str]:
         for key, value in raw_value.items()
         if isinstance(key, str) and isinstance(value, str)
     }
+
+
+def _parse_linked_repos(raw_value: object) -> tuple[LinkedRepoMetadata, ...]:
+    if not isinstance(raw_value, list):
+        return ()
+
+    parsed: list[LinkedRepoMetadata] = []
+    for item in raw_value:
+        if not isinstance(item, dict):
+            continue
+        raw_name = item.get("name")
+        raw_workspace_dir = item.get("workspace_dir")
+        raw_strategy = item.get("workspace_strategy")
+        if not isinstance(raw_name, str) or not raw_name:
+            continue
+        if not isinstance(raw_workspace_dir, str) or not raw_workspace_dir:
+            continue
+        strategy = raw_strategy if isinstance(raw_strategy, str) else ""
+        parsed.append(
+            LinkedRepoMetadata(
+                name=raw_name,
+                workspace_dir=raw_workspace_dir,
+                workspace_strategy=strategy,
+            )
+        )
+    return tuple(parsed)
 
 
 def _meta_has_wait_directive(data: dict[str, object]) -> bool:
@@ -243,6 +269,8 @@ def enrich_agent_from_meta(
         agent.vcs_provider = data["vcs_provider"]
     if data.get("workspace_dir"):
         agent.workspace_dir = data["workspace_dir"]
+    if "linked_repos" in data:
+        agent.linked_repos = _parse_linked_repos(data.get("linked_repos"))
     commit_diff_path = data.get("commit_diff_path")
     if not agent.diff_path and isinstance(commit_diff_path, str) and commit_diff_path:
         agent.diff_path = commit_diff_path
@@ -519,6 +547,7 @@ def enrich_agent_from_meta_wire(
         agent.vcs_provider = meta.vcs_provider
     if meta.workspace_dir:
         agent.workspace_dir = meta.workspace_dir
+    agent.linked_repos = _parse_linked_repos(meta.linked_repos)
     if not agent.diff_path and meta.commit_diff_path:
         agent.diff_path = meta.commit_diff_path
     if meta.name:

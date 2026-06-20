@@ -14,6 +14,7 @@ from ...models.agent import Agent
 from ...models.fold_state import FoldLevel
 from ..deltas_builder import build_delta_entries_section
 from ..file_panel._diff import get_agent_diff
+from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ..hint_tracker import HintTracker
 
 if TYPE_CHECKING:
@@ -80,7 +81,7 @@ def _finalize_diff_file(current: _DiffFile | None) -> DeltaEntry | None:
     return DeltaEntry(path=path, change_type=change_type, line_stats=stats)
 
 
-def _parse_unified_diff_deltas(diff_text: str) -> list[DeltaEntry]:
+def parse_unified_diff_deltas(diff_text: str) -> list[DeltaEntry]:
     """Parse unified diff text into per-file DELTAS entries."""
     entries: list[DeltaEntry] = []
     current: _DiffFile | None = None
@@ -141,13 +142,16 @@ def _parse_unified_diff_deltas(diff_text: str) -> list[DeltaEntry]:
     return sorted(entries, key=lambda e: e.path)
 
 
+_parse_unified_diff_deltas = parse_unified_diff_deltas
+
+
 def agent_delta_entries(agent: Agent) -> list[DeltaEntry]:
     """Return the selected agent's own DELTAS entries when available."""
     diff_text = get_agent_diff(agent)
     if not diff_text:
         return []
 
-    deltas = _parse_unified_diff_deltas(diff_text)
+    deltas = parse_unified_diff_deltas(diff_text)
     return deltas
 
 
@@ -155,11 +159,13 @@ def append_agent_deltas_section(
     text: Text,
     *,
     delta_entries: list[DeltaEntry] | None = None,
+    linked_delta_groups: tuple[LinkedDeltaGroup, ...] = (),
     hint_state: HeaderHintState | None = None,
 ) -> None:
     """Append precomputed delta entries when available."""
     deltas = delta_entries or []
-    if not deltas:
+    linked_groups = tuple(group for group in linked_delta_groups if group.entries)
+    if not deltas and not linked_groups:
         return
 
     if hint_state is None:
@@ -168,6 +174,7 @@ def append_agent_deltas_section(
             deltas,
             FoldLevel.FULLY_EXPANDED,
             header_label="Deltas:",
+            linked_delta_groups=linked_groups,
         )
         return
 
@@ -186,6 +193,7 @@ def append_agent_deltas_section(
         show_file_hints=True,
         workspace_dir=hint_state.workspace_dir,
         header_label="Deltas:",
+        linked_delta_groups=linked_groups,
     )
     hint_state.hint_counter = tracker.counter
     hint_state.hint_mappings.clear()

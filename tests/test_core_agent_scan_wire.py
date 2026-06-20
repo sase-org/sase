@@ -101,6 +101,13 @@ def test_agent_meta_output_variables_round_trip() -> None:
                     "timestamp": "20260601010101",
                     "agent_meta": {
                         "name": "producer",
+                        "linked_repos": [
+                            {
+                                "name": "sase-core",
+                                "workspace_dir": "/tmp/sase-core_7",
+                                "workspace_strategy": "suffix",
+                            }
+                        ],
                         "output_variables": {
                             "report_path": "/tmp/report.md",
                             "status": "ok",
@@ -126,7 +133,21 @@ def test_agent_meta_output_variables_round_trip() -> None:
         "report_path": "/tmp/report.md",
         "status": "ok",
     }
+    assert record.agent_meta.linked_repos == [
+        {
+            "name": "sase-core",
+            "workspace_dir": "/tmp/sase-core_7",
+            "workspace_strategy": "suffix",
+        }
+    ]
     payload = agent_scan_wire_to_json_dict(snapshot)
+    assert payload["records"][0]["agent_meta"]["linked_repos"] == [
+        {
+            "name": "sase-core",
+            "workspace_dir": "/tmp/sase-core_7",
+            "workspace_strategy": "suffix",
+        }
+    ]
     assert payload["records"][0]["agent_meta"]["output_variables"] == {
         "report_path": "/tmp/report.md",
         "status": "ok",

@@ -10,6 +10,7 @@ from rich.text import Text
 
 from sase.agent.agent_artifacts_cache import get_global_cache
 from sase.ace.changespec.models import DeltaEntry
+from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
@@ -59,6 +60,7 @@ class _DetailHeaderSummary:
     xprompts_used: list[dict[str, Any]] | None = None
     bead_display: str | None = None
     delta_entries: list[DeltaEntry] | None = None
+    linked_delta_groups: tuple[LinkedDeltaGroup, ...] = ()
     artifact_paths: list[AgentArtifactPath] | None = None
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
@@ -131,11 +133,13 @@ def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
 
     from ._agent_artifacts import agent_artifact_paths
     from ._agent_deltas import agent_delta_entries
+    from ..file_panel._linked_deltas import get_cached_linked_delta_groups
 
     return _DetailHeaderSummary(
         xprompts_used=xprompts_used,
         bead_display=bead_display,
         delta_entries=agent_delta_entries(agent),
+        linked_delta_groups=get_cached_linked_delta_groups(agent),
         artifact_paths=agent_artifact_paths(agent),
         memory_reads=load_memory_reads_for_agent_context(agent),
         skill_uses=load_skill_uses_for_agent_context(agent),
@@ -548,6 +552,7 @@ def build_header_text(
         append_agent_deltas_section(
             header_text,
             delta_entries=summary.delta_entries,
+            linked_delta_groups=summary.linked_delta_groups,
             hint_state=hint_state,
         )
         append_agent_artifacts_section(

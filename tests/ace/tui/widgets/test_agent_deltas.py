@@ -6,12 +6,13 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
-from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.ace.tui.widgets.prompt_panel._agent_deltas import (
     _parse_unified_diff_deltas,
 )
@@ -24,6 +25,15 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
 )
 from sase.ace.tui.widgets.file_panel import _diff as diff_mod
+from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
+from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
+
+
+@pytest.fixture(autouse=True)
+def _clear_linked_delta_caches() -> None:
+    linked_deltas_mod._linked_delta_cache.clear()
+    linked_deltas_mod._selected_agent_linked_delta_cache.clear()
+    linked_deltas_mod._selected_agent_cache_monotonic.clear()
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -313,3 +323,88 @@ def test_agent_hint_mode_includes_deltas_paths(tmp_path: Path) -> None:
     assert "Deltas:\n  ~ [1] src/foo.py  ~1\n" in plain
     assert "DELTAS:" not in plain
     assert mappings[1] == str(workspace_dir / "src/foo.py")
+
+
+def test_agent_deltas_render_cached_linked_groups(tmp_path: Path) -> None:
+    diff_path = tmp_path / "agent.diff"
+    diff_path.write_text(
+        """diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1 +1 @@
+-old
++new
+""",
+        encoding="utf-8",
+    )
+    linked_workspace = tmp_path / "sase-core"
+    linked_workspace.mkdir()
+    agent = _make_agent(
+        status="RUNNING",
+        diff_path=str(diff_path),
+        linked_repos=(
+            LinkedRepoMetadata(
+                name="sase-core",
+                workspace_dir=str(linked_workspace),
+                workspace_strategy="suffix",
+            ),
+        ),
+    )
+    linked_deltas_mod._selected_agent_linked_delta_cache[agent.identity] = (
+        LinkedDeltaGroup(
+            repo_name="sase-core",
+            workspace_dir=str(linked_workspace),
+            entries=(
+                DeltaEntry(
+                    path="crates/core/src/lib.rs",
+                    change_type="A",
+                    line_stats=DeltaLineStats(added=3),
+                ),
+            ),
+        ),
+    )
+
+    header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
+
+    assert "Deltas:\n" in header.plain
+    assert "  ~ src/foo.py  ~1\n" in header.plain
+    assert "  ▣ sase-core\n" in header.plain
+    assert "    + crates/core/src/lib.rs  +3\n" in header.plain
+
+
+def test_agent_deltas_render_path_uses_linked_cache_only(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    linked_workspace = tmp_path / "sase-core"
+    linked_workspace.mkdir()
+    agent = _make_agent(
+        status="RUNNING",
+        linked_repos=(
+            LinkedRepoMetadata(
+                name="sase-core",
+                workspace_dir=str(linked_workspace),
+                workspace_strategy="suffix",
+            ),
+        ),
+    )
+    linked_deltas_mod._selected_agent_linked_delta_cache[agent.identity] = (
+        LinkedDeltaGroup(
+            repo_name="sase-core",
+            workspace_dir=str(linked_workspace),
+            entries=(DeltaEntry(path="src/lib.rs", change_type="M"),),
+        ),
+    )
+
+    def fail_compute(_agent: Agent) -> tuple[LinkedDeltaGroup, ...]:
+        raise AssertionError("render path computed linked deltas")
+
+    monkeypatch.setattr(
+        linked_deltas_mod,
+        "compute_linked_delta_groups",
+        fail_compute,
+    )
+
+    header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
+
+    assert "▣ sase-core" in header.plain

@@ -10,8 +10,12 @@ from rich.text import Text
 
 from sase.ace.changespec.models import ChangeSpec, DeltaEntry, DeltaLineStats
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.widgets.deltas_builder import build_deltas_section
+from sase.ace.tui.widgets.deltas_builder import (
+    build_delta_entries_section,
+    build_deltas_section,
+)
 from sase.ace.tui.widgets.changespec_detail import ChangeSpecDetail
+from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
 from sase.ace.tui.widgets.hint_tracker import HintTracker
 
 
@@ -405,6 +409,57 @@ class TestFileHints:
         assert tracker.hook_hint_to_idx == incoming.hook_hint_to_idx
         assert tracker.hint_to_entry_id == incoming.hint_to_entry_id
         assert tracker.mentor_hint_to_info == incoming.mentor_hint_to_info
+
+    def test_linked_groups_continue_hints_under_linked_workspace(
+        self, tmp_path: Path
+    ) -> None:
+        main_workspace = tmp_path / "main"
+        linked_workspace = tmp_path / "core"
+        main_workspace.mkdir()
+        linked_workspace.mkdir()
+        text = Text()
+
+        tracker = build_delta_entries_section(
+            text,
+            [
+                DeltaEntry(
+                    path="src/main.py",
+                    change_type="M",
+                    line_stats=DeltaLineStats(modified=1),
+                )
+            ],
+            FoldLevel.FULLY_EXPANDED,
+            show_file_hints=True,
+            workspace_dir=str(main_workspace),
+            header_label="Deltas:",
+            linked_delta_groups=(
+                LinkedDeltaGroup(
+                    repo_name="sase-core",
+                    workspace_dir=str(linked_workspace),
+                    entries=(
+                        DeltaEntry(
+                            path="crates/core/src/lib.rs",
+                            change_type="A",
+                            line_stats=DeltaLineStats(added=2),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        assert "Deltas:\n" in text.plain
+        assert "  ~ [1] src/main.py  ~1\n" in text.plain
+        assert "  ▣ sase-core\n" in text.plain
+        assert "    + [2] crates/core/src/lib.rs  +2\n" in text.plain
+        assert tracker.mappings == {
+            1: str(main_workspace / "src/main.py"),
+            2: str(linked_workspace / "crates/core/src/lib.rs"),
+        }
+        assert tracker.counter == 3
+        repo_offset = text.plain.index("sase-core")
+        assert "bold #FFAFD7" in [
+            span.style for span in text.spans if span.start <= repo_offset < span.end
+        ]
 
 
 class TestChangeSpecDetailFileHints:

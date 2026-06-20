@@ -96,6 +96,11 @@ def _resolve_vcs_provider_cached(workspace_dir: str) -> VCSProvider:
         return _vcs_provider_cache.setdefault(workspace_dir, provider)
 
 
+def resolve_vcs_provider_for_live_diff(workspace_dir: str) -> VCSProvider:
+    """Return the cached VCS provider used by live diff helpers."""
+    return _resolve_vcs_provider_cached(workspace_dir)
+
+
 _ACTIVE_DIFF_SOURCE_STATUSES = frozenset(
     {
         "STARTING",
@@ -135,6 +140,11 @@ def _git_index_signature(workspace_dir: str) -> tuple[int, int] | None:
     except OSError:
         return None
     return (st.st_mtime_ns, st.st_size)
+
+
+def git_index_signature_for_live_diff(workspace_dir: str) -> tuple[int, int] | None:
+    """Return the ``.git/index`` fingerprint used by live diff caches."""
+    return _git_index_signature(workspace_dir)
 
 
 def _existing_workspace_dir(workspace_dir: str | None) -> str | None:
