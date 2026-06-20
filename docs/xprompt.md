@@ -1256,14 +1256,16 @@ agent suffix. For example, `%name:review %{sec=[[security]] | perf=[[performance
 so `%{2=[[named]] | [[first]] | [[second]]}` launches suffixes `2`, `1`, and `3`.
 
 When the same named branch id appears in more than one alt directive, those directives are correlated: values with the
-same id render into the same child prompt, and a missing id in one correlated directive renders as empty text. For
+same id render into the same child prompt, and a missing id in one correlated directive renders as empty text. Empty
+renders also collapse adjacent horizontal whitespace, so they do not leave doubled spaces or spaces before punctuation;
+only spaces and tabs are collapsed, newlines and indentation are preserved, and non-empty branches are untouched. For
 example:
 
 ```
 %name:repo %{a=Describe | b=Explain} how this repo works %{a=in detail}.
 ```
 
-This launches `repo.a` with "Describe how this repo works in detail." and `repo.b` with "Explain how this repo works .".
+This launches `repo.a` with "Describe how this repo works in detail." and `repo.b` with "Explain how this repo works.".
 
 #### Single Branch (With/Without Split)
 

@@ -51,7 +51,7 @@ def testsplit_prompt_for_alternatives_single_arg_nested_directive() -> None:
     assert result is not None
     assert len(result) == 2
     assert result[0] == "%m:opus Review this code"
-    assert result[1] == " Review this code"
+    assert result[1] == "Review this code"
 
 
 def testsplit_prompt_for_alternatives_zero_args_returns_none() -> None:
@@ -130,7 +130,19 @@ def testsplit_prompt_for_alternatives_shared_named_keys_correlate() -> None:
 
     assert result == [
         "#gh:sase Describe how this repo works in detail.",
-        "#gh:sase Explain how this repo works .",
+        "#gh:sase Explain how this repo works.",
+    ]
+
+
+def testsplit_prompt_for_alternatives_empty_branch_collapses_whitespace() -> None:
+    """Empty variants collapse adjacent horizontal whitespace conservatively."""
+    assert split_prompt_for_alternatives("works %{extra}.") == [
+        "works extra.",
+        "works.",
+    ]
+    assert split_prompt_for_alternatives("%{extra} Review") == [
+        "extra Review",
+        "Review",
     ]
 
 
@@ -185,8 +197,8 @@ def testsplit_prompt_for_alternatives_single_arg_combined() -> None:
     assert len(result) == 4
     assert result[0] == "extra c\nDo work"
     assert result[1] == "extra d\nDo work"
-    assert result[2] == " c\nDo work"
-    assert result[3] == " d\nDo work"
+    assert result[2] == "c\nDo work"
+    assert result[3] == "d\nDo work"
 
 
 # --- %{...} brace shorthand tests ---
@@ -221,7 +233,7 @@ def testsplit_prompt_for_alternatives_brace_named_text_blocks() -> None:
 def testsplit_prompt_for_alternatives_brace_single_branch_implicit_empty() -> None:
     """A single brace branch produces with/without variants."""
     result = split_prompt_for_alternatives("before %{a} after")
-    assert result == ["before a after", "before  after"]
+    assert result == ["before a after", "before after"]
 
 
 def testsplit_prompt_for_alternatives_brace_nested_pipes_do_not_split() -> None:

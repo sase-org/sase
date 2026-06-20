@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-20 18:49:37
-status: wip
+status: done
 prompt: sdd/prompts/202606/alt_empty_whitespace.md
 ---
 # Plan: Smarter whitespace handling for empty alternation renders

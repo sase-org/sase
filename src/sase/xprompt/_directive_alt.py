@@ -4,8 +4,10 @@ This module owns the logic that turns a single prompt with multiple
 ``%model`` directives or explicit ``%alt(a,b,...)`` / ``%{a | b | ...}``
 calls into a list of sub-prompts. Unrelated directives form a Cartesian
 product, while explicit branch names repeated across directives are correlated
-into the same fan-out slot. This module also owns the naming logic that
-disambiguates spawned agents per runtime.
+into the same fan-out slot. Empty branch renders collapse adjacent horizontal
+whitespace so variants do not keep doubled spaces or spaces before
+punctuation, while newlines and indentation are preserved. This module also
+owns the naming logic that disambiguates spawned agents per runtime.
 
 ``%{...}`` is the preferred shorthand for ``%alt(...)``; it uses braces
 with top-level ``|``-separated branches.  The legacy ``%(...)`` shorthand
@@ -86,6 +88,10 @@ def split_prompt_for_alternatives(prompt: str) -> list[str] | None:
     than one directive, those named branches are correlated into one slot; a
     missing key in a correlated directive renders as empty text.
 
+    Empty renders collapse adjacent spaces/tabs when that avoids doubled
+    spaces, leading/trailing spaces, or spaces before punctuation. Newlines and
+    indentation are preserved, and non-empty branches are left unchanged.
+
     Returns ``None`` if there are no ``%alt``/``%(``/``%{`` directives or all
     have zero arguments.  A single-arg ``%alt(foo)`` / ``%(foo)`` / ``%{foo}``
     is treated as having an implicit empty variant, producing two alternatives
@@ -124,7 +130,8 @@ def split_prompt_for_models(
 
     Unrelated alt/model axes form a Cartesian product. Explicit branch names
     repeated across alt directives are correlated into one slot, while unnamed
-    branches and disjoint names remain Cartesian.
+    branches and disjoint names remain Cartesian. Empty alt renders collapse
+    adjacent horizontal whitespace as in :func:`split_prompt_for_alternatives`.
 
     Multiple model directives that all resolve to the same model yield a
     single variant (no split); duplicate ``%model`` directives inside

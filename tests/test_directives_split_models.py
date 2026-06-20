@@ -561,7 +561,7 @@ def test_split_prompt_for_models_shared_named_alt_ids_get_child_names() -> None:
 
     assert result == [
         "%name:foo.a\nDescribe how this repo works in detail.",
-        "%name:foo.b\nExplain how this repo works .",
+        "%name:foo.b\nExplain how this repo works.",
     ]
 
 
