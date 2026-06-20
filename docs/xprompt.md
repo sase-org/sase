@@ -952,19 +952,19 @@ the prompt before further processing.
 
 ### Supported Directives
 
-| Directive  | Alias | Description                                                     |
-| ---------- | ----- | --------------------------------------------------------------- |
-| `%model`   | `%m`  | Override the LLM model for this prompt                          |
-| `%name`    | `%n`  | Assign, auto-generate, or force-reuse an agent name             |
-| `%wait`    | `%w`  | Wait for another agent or workflow to succeed                   |
-| `%time`    | `%t`  | Defer launch by a duration or until an absolute wall-clock time |
-| `%hide`    | `%h`  | Hide the agent from the default Agents tab display              |
-| `%approve` | `%a`  | Run the agent fully autonomously (skip approval)                |
-| `%epic`    |       | Enable plan mode and auto-approve the plan as an epic           |
-| `%edit`    | `%e`  | Return editor text to the prompt bar for review                 |
-| `%repeat`  | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)               |
-| `%group`   | `%g`  | Assign the agent's user-managed tag (e.g., `%group:review`)     |
-| `%alt`     | `%(`  | Split prompt into variants with different text                  |
+| Directive  | Alias | Description                                                      |
+| ---------- | ----- | ---------------------------------------------------------------- |
+| `%model`   | `%m`  | Override the LLM model for this prompt                           |
+| `%name`    | `%n`  | Assign, auto-generate, or force-reuse an agent name              |
+| `%wait`    | `%w`  | Wait for another agent or workflow to succeed                    |
+| `%time`    | `%t`  | Defer launch by a duration or until an absolute wall-clock time  |
+| `%hide`    | `%h`  | Hide the agent from the default Agents tab display               |
+| `%approve` | `%a`  | Run the agent fully autonomously (skip approval)                 |
+| `%epic`    |       | Enable plan mode and auto-approve the plan as an epic            |
+| `%edit`    | `%e`  | Return editor text to the prompt bar for review                  |
+| `%repeat`  | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                |
+| `%group`   | `%g`  | Assign the agent's user-managed tag (e.g., `%group:review`)      |
+| `%alt`     | `%{}` | Split prompt into variants with different text (brace shorthand) |
 
 ### Syntax
 
@@ -994,11 +994,11 @@ Directives use the same argument syntax as xprompt references:
 %wait:agent1 %time:5m        # Wait for agent1, then a 5-minute floor
 %repeat:3                    # Run the prompt 3 times
 %r:5                         # Same, using alias
-%alt(#review,#test)          # Split into two prompts: one with #review, one with #test
-%(#review,#test)             # Same, using shorthand syntax
-%alt(sec=#review,perf=#test) # Named variants become child name suffixes
-%alt(extra instructions)     # Single arg: split into with/without variants
-%(extra instructions)        # Same, using shorthand
+%{#review | #test}           # Brace shorthand: branches split on top-level `|`
+%alt(#review,#test)          # Long form: same two variants, comma-separated
+%(#review,#test)             # Legacy shorthand, still accepted (prefer `%{...}`)
+%{sec=#review | perf=#test}  # Named branches become child name suffixes
+%{extra instructions}        # Single branch: split into with/without variants
 %approve                     # Run fully autonomously
 %a                           # Same, using alias
 %edit                        # Return editor text to prompt bar
@@ -1222,50 +1222,66 @@ down one wait-check cycle after the previous one. `STOP` is conservative: `""`, 
 ### Alt Directive
 
 The `%alt` directive splits a single prompt into multiple variant prompts, each launched as a separate agent. Each
-comma-separated argument replaces the directive span in the output prompt:
+branch replaces the directive span in the output prompt.
+
+The preferred shorthand is `%{A | B | ...}`, which uses braces and splits branches on top-level `|` separators:
 
 ```
-%alt(#review,#test,#docs)
+%{#review | #test | #docs}
 Analyze the codebase.
 ```
 
 This produces three agents, each with "Analyze the codebase." but with `#review`, `#test`, or `#docs` substituted in
-place of the directive. Arguments can be arbitrary text — xprompt references, directives, plain instructions, or
-`[[text blocks]]`.
+place of the directive. Branches can be arbitrary text — xprompt references, directives, plain instructions, or
+`[[text blocks]]`. Because branches split only on a top-level `|`, a comma is ordinary branch text: `%{foo, bar | baz}`
+is two branches (`foo, bar` and `baz`), not three. Nested `()`, `[]`, `{}`, and backtick-quoted spans are not split, and
+any `|` inside them is treated literally.
 
-Arguments can also be named with `id=value`. The `value` is inserted into the spawned prompt and the `id` becomes the
-child agent suffix. For example, `%name:review %alt(sec=[[security]],perf=[[performance]])` launches `review.sec` and
-`review.perf`. Unnamed alternatives use numeric suffixes while skipping any numeric ids already provided by named
-arguments, so `%(2=[[named]], [[first]], [[second]])` launches suffixes `2`, `1`, and `3`.
-
-`%(...)` is syntactic sugar for `%alt(...)`:
+The long form `%alt(...)` and the legacy `%(...)` shorthand remain accepted; both use parentheses with comma-separated
+branches:
 
 ```
-%(#review,#test)
-Analyze the codebase.
+%alt(#review, #test, #docs)
+%(#review, #test, #docs)
 ```
 
-A single-argument `%alt` is treated as a with/without split — it produces two prompts: one with the argument text and
-one with the directive removed entirely:
+New prompts, completions, snippets, and docs should prefer `%{...}`. `%(...)` stays parse-compatible during the
+migration; it may be removed in a future release.
+
+#### Named Branches
+
+Branches can be named with `id=value`. The `value` is inserted into the spawned prompt and the `id` becomes the child
+agent suffix. For example, `%name:review %{sec=[[security]] | perf=[[performance]]}` launches `review.sec` and
+`review.perf`. Unnamed branches use numeric suffixes while skipping any numeric ids already provided by named branches,
+so `%{2=[[named]] | [[first]] | [[second]]}` launches suffixes `2`, `1`, and `3`.
+
+#### Single Branch (With/Without Split)
+
+A single-branch alt is treated as a with/without split — it produces two prompts: one with the branch text and one with
+the directive removed entirely:
 
 ```
-%(Also check for security issues.)
+%{Also check for security issues.}
 Review this module.
 ```
 
 This launches two agents: one with "Also check for security issues. Review this module." and one with just "Review this
 module."
 
-Multiple `%alt`/`%(` directives can appear in the same prompt. When they do, a **Cartesian product** of all argument
-lists is computed — one agent is launched per combination:
+#### Cartesian Product
+
+Multiple alt directives can appear in the same prompt. When they do, a **Cartesian product** of all branch lists is
+computed — one agent is launched per combination. Brace and paren forms mix freely:
 
 ```
-%(Focus on security, Focus on perf) %m(opus, sonnet)
+%{Focus on security | Focus on perf} %m(opus, sonnet)
 Review this code.
 ```
 
 This produces 2 × 2 = 4 agents (every focus area paired with every model). The multi-model directive (`%m(opus,sonnet)`)
-is internally rewritten as `%alt(%model:opus,%model:sonnet)`, so it participates in the Cartesian product naturally.
+is internally rewritten as `%alt(%model:opus,%model:sonnet)`, so it participates in the Cartesian product naturally. A
+`%model` directive used as a branch inside `%{...}` composes the same way: `%{#review | %model:opus}` fans out a
+default-model review branch and an opus branch.
 
 ### Multi-Model Directive
 

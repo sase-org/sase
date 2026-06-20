@@ -40,7 +40,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
 
 
 _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
-    "alt": "split a prompt into text/model variants",
+    "alt": "split a prompt into variants; shorthand %{A | B}",
     "approve": "run autonomously without plan approval prompts",
     "edit": "return editor text to the prompt bar before launch",
     "epic": "plan first and auto-approve the plan as an epic",

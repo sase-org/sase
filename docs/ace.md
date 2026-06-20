@@ -1791,6 +1791,34 @@ owns expansion semantics when the prompt is submitted. Detection intentionally s
 URLs, unknown xprompt names, `#name+`, and completed colon text such as `#name: value` do not keep the prompt-bar hint
 open.
 
+### Alt Brace Syntax (`%{...}`)
+
+The prompt input has dedicated highlighting and editing help for the `%{A | B}` alt fan-out shorthand (see the
+[Alt Directive reference](xprompt.md#alt-directive)). It distinguishes the alt delimiters from the branch separators so
+a fan-out is easy to read at a glance:
+
+- The `%{` opener and `}` closer are styled as **delimiters** (bold accent).
+- Top-level `|` branch **separators** use a dimmed accent so they read differently from the delimiters.
+- A branch name before a top-level `=` (e.g. `sec=` in `%{sec=... | perf=...}`) is highlighted as a **branch name**.
+- An unmatched `%{` (or stray closer) is flagged as an **error** span.
+
+The alt overlay layers on top of the existing Jinja and search highlighting rather than replacing it, and it uses the
+same size guards, so highlighting stays responsive on large prompts.
+
+Editing help mirrors the Jinja auto-pair behavior and only fires for the `%{...}` shorthand:
+
+- **Auto-pair** — typing `{` immediately after a directive-valid `%` inserts the matching `}` and leaves the cursor
+  between the braces (`%{|}`).
+- **Paired delete** — backspacing the `{` in `%{|}` also removes the auto-inserted `}`; a forward delete on `%|{}`
+  removes both braces.
+- **`|` separator normalization** — typing `|` inside a live `%{...}` span inserts a padded `|` separator, keeps the
+  cursor after the trailing space and before the closing `}`, and normalizes comma spacing in the current branch. For
+  example, typing `|` at the end of `%{foo ,bar, and baz` yields `%{foo, bar, and baz | }` with the cursor before `}`.
+
+These edits are suppressed when there is an active selection or when the cursor is not inside a directive-valid `%{...}`
+context, so ordinary `{` and `|` typing elsewhere is unaffected. The same auto-pair, paired-delete, and separator
+behavior is available in the [Neovim plugin](https://github.com/sase-org/sase-nvim) for prompt buffers.
+
 ### NORMAL Mode
 
 Press `Escape` in INSERT mode to enter vim-style NORMAL mode. The border title shows `[NORMAL]` and line numbers switch

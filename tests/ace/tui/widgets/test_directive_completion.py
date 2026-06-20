@@ -54,7 +54,9 @@ def test_directive_completion_includes_representative_descriptions() -> None:
 
     assert _metadata(model).description == "choose one or more provider/model targets"
     assert _metadata(wait).description == "defer launch until agents complete"
-    assert _metadata(alt).description == "split a prompt into text/model variants"
+    assert _metadata(alt).description == (
+        "split a prompt into variants; shorthand %{A | B}"
+    )
     assert _metadata(time_).description == (
         "defer launch until a duration or wall-clock time"
     )
