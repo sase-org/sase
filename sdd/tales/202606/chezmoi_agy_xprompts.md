@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 22:37:25
-status: wip
+status: done
 prompt: sdd/prompts/202606/chezmoi_agy_xprompts.md
 ---
 # Chezmoi Antigravity Xprompt Cleanup Plan
