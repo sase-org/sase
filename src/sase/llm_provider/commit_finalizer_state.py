@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import os
 from pathlib import Path
 
 from sase.sibling_repos import (
     SIBLING_REPOS_JSON_ENV,
     opened_sibling_names,
+    opened_sibling_workspace_dirs,
     sibling_repo_metadata_from_env,
 )
 
@@ -49,10 +51,16 @@ def collect_dirty_state(
     )
     sibling_targets = _configured_sibling_targets(project_dir)
     opened_names = opened_sibling_names(artifact_root)
+    opened_workspace_dirs = opened_sibling_workspace_dirs(artifact_root)
+    if opened_names:
+        opened_workspace_dirs = {
+            **dict.fromkeys(sorted(opened_names), ""),
+            **opened_workspace_dirs,
+        }
     sibling_repos = tuple(
         _dirty_configured_sibling_repos(
             sibling_targets,
-            opened_names=opened_names,
+            opened_workspace_dirs=opened_workspace_dirs,
         )
     )
     advisory_sibling_repos = tuple(
@@ -86,13 +94,52 @@ def _build_commit_details(project_dir: str) -> tuple[bool, list[str], str, str]:
 def _dirty_configured_sibling_repos(
     sibling_targets: list[SiblingTarget],
     *,
-    opened_names: set[str],
+    opened_workspace_dirs: Mapping[str, str] | None = None,
+    opened_names: set[str] | None = None,
 ) -> list[DirtyRepo]:
-    return _dirty_configured_sibling_repos_for_strategy(
-        sibling_targets,
-        advisory=False,
-        opened_names=opened_names,
-    )
+    if opened_workspace_dirs is None:
+        opened_workspace_dirs = dict.fromkeys(sorted(opened_names or set()), "")
+
+    targets_by_name = {target.name: target for target in sibling_targets}
+    dirty: list[DirtyRepo] = []
+    seen_names: set[str] = set()
+    seen_paths: set[str] = set()
+
+    for raw_name, recorded_workspace_dir in opened_workspace_dirs.items():
+        name = raw_name.strip()
+        if not name or name in seen_names:
+            continue
+
+        target = targets_by_name.get(name)
+        if target is not None and target.workspace_strategy == "none":
+            continue
+
+        workspace_dir = recorded_workspace_dir.strip()
+        if workspace_dir:
+            workspace_dir = finalizer_git._normalize_path(workspace_dir)
+        elif target is not None:
+            workspace_dir = target.workspace_dir
+        else:
+            continue
+
+        if workspace_dir in seen_paths:
+            continue
+
+        changed_files = git_changed_files(workspace_dir)
+        if not changed_files:
+            continue
+
+        dirty.append(
+            DirtyRepo(
+                name=name,
+                path=workspace_dir,
+                changed_files=tuple(changed_files),
+                kind="sibling",
+            )
+        )
+        seen_names.add(name)
+        seen_paths.add(workspace_dir)
+    return dirty
 
 
 def _dirty_configured_advisory_sibling_repos(

@@ -153,6 +153,15 @@ def opened_sibling_names(artifact_root: Path | None) -> set[str]:
     return set(_opened_sibling_records(artifact_root / OPENED_SIBLINGS_FILENAME))
 
 
+def opened_sibling_workspace_dirs(artifact_root: Path | None) -> dict[str, str]:
+    """Return opened sibling repo names mapped to their recorded workspace dirs."""
+
+    if artifact_root is None:
+        return {}
+    records = _opened_sibling_records(artifact_root / OPENED_SIBLINGS_FILENAME)
+    return {name: record.get("workspace_dir", "") for name, record in records.items()}
+
+
 def _opened_sibling_records(marker: Path) -> dict[str, dict[str, str]]:
     try:
         loaded = json.loads(marker.read_text(encoding="utf-8"))

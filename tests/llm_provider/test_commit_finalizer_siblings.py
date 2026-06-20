@@ -166,6 +166,44 @@ def test_dirty_configured_sibling_triggers_follow_up_turn(
     assert "/sase_git_commit" in prompts[0]
 
 
+def test_opened_dirty_sibling_uses_recorded_path_when_config_omits_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main = tmp_path / "sase_10"
+    sibling = tmp_path / "sase-core_10"
+    main.mkdir()
+    _init_git_repo(sibling)
+    dirty_file = sibling / "dirty.txt"
+    dirty_file.write_text("dirty\n", encoding="utf-8")
+    _set_agent_env(monkeypatch, main)
+    _set_clean_main(monkeypatch)
+    monkeypatch.setenv(SIBLING_REPOS_JSON_ENV, json.dumps([]))
+    artifacts_dir = tmp_path / "artifacts"
+    _mark_opened_sibling(monkeypatch, artifacts_dir, "core", sibling)
+
+    prompts: list[str] = []
+    provider = MagicMock()
+
+    def invoke(prompt: str, **_: object) -> InvokeResult:
+        prompts.append(prompt)
+        dirty_file.unlink()
+        return InvokeResult(content="finalized recorded sibling")
+
+    provider.invoke.side_effect = invoke
+
+    result = _run_finalizer(provider, artifacts_dir)
+
+    assert provider.invoke.call_count == 1
+    assert result.content == "primary response\n\nfinalized recorded sibling"
+    assert "sibling repo core" in prompts[0]
+    assert "dirty.txt" in prompts[0]
+    assert f"cd {sibling.resolve()}" in prompts[0]
+    result_json = _read_result_json(artifacts_dir)
+    assert result_json["status"] == "finalized"
+    assert result_json["reason"] == "clean_after_pass"
+
+
 def test_dirty_observed_same_repo_workspace_from_artifacts_is_ignored(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -233,9 +271,11 @@ def test_dirty_primary_sibling_checkout_is_ignored_when_workspace_is_configured(
             ]
         ),
     )
+    artifacts_dir = tmp_path / "artifacts"
+    _mark_opened_sibling(monkeypatch, artifacts_dir, "core", workspace_sibling)
     provider = MagicMock()
 
-    result = _run_finalizer(provider, tmp_path / "artifacts")
+    result = _run_finalizer(provider, artifacts_dir)
 
     provider.invoke.assert_not_called()
     assert result.content == "primary response"

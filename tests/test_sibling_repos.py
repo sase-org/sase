@@ -11,6 +11,7 @@ from sase.sibling_repos import (
     OPENED_SIBLINGS_FILENAME,
     SIBLING_REPOS_JSON_ENV,
     opened_sibling_names,
+    opened_sibling_workspace_dirs,
     record_opened_sibling,
     resolve_sibling_repos_for_project,
 )
@@ -182,6 +183,10 @@ def test_record_opened_sibling_unions_by_name(
     assert marker["schema_version"] == 1
     assert [item["name"] for item in marker["siblings"]] == ["core", "nvim"]
     assert opened_sibling_names(tmp_path) == {"core", "nvim"}
+    assert opened_sibling_workspace_dirs(tmp_path) == {
+        "core": str(core.resolve(strict=False)),
+        "nvim": str(nvim.resolve(strict=False)),
+    }
 
 
 def test_record_opened_sibling_noops_without_artifacts_env(
@@ -194,16 +199,20 @@ def test_record_opened_sibling_noops_without_artifacts_env(
 
     assert not (tmp_path / OPENED_SIBLINGS_FILENAME).exists()
     assert opened_sibling_names(tmp_path) == set()
+    assert opened_sibling_workspace_dirs(tmp_path) == {}
 
 
-def test_opened_sibling_names_handles_missing_and_malformed_files(
+def test_opened_sibling_accessors_handle_missing_and_malformed_files(
     tmp_path: Path,
 ) -> None:
     assert opened_sibling_names(tmp_path) == set()
+    assert opened_sibling_workspace_dirs(None) == {}
+    assert opened_sibling_workspace_dirs(tmp_path) == {}
 
     marker = tmp_path / OPENED_SIBLINGS_FILENAME
     marker.write_text("{", encoding="utf-8")
     assert opened_sibling_names(tmp_path) == set()
+    assert opened_sibling_workspace_dirs(tmp_path) == {}
 
     marker.write_text(
         json.dumps(
@@ -211,6 +220,7 @@ def test_opened_sibling_names_handles_missing_and_malformed_files(
                 "schema_version": 1,
                 "siblings": [
                     {"name": "core", "workspace_dir": "/tmp/core"},
+                    {"name": "fallback", "workspace_dir": 7},
                     {"name": "", "workspace_dir": "/tmp/empty"},
                     {"workspace_dir": "/tmp/missing"},
                 ],
@@ -218,4 +228,8 @@ def test_opened_sibling_names_handles_missing_and_malformed_files(
         ),
         encoding="utf-8",
     )
-    assert opened_sibling_names(tmp_path) == {"core"}
+    assert opened_sibling_names(tmp_path) == {"core", "fallback"}
+    assert opened_sibling_workspace_dirs(tmp_path) == {
+        "core": "/tmp/core",
+        "fallback": "",
+    }
