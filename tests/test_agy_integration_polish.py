@@ -11,6 +11,7 @@ parsing/splitting/styling code.
 from __future__ import annotations
 
 import json
+from argparse import Namespace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -22,6 +23,7 @@ from sase.ace.tui.modals.plan_approval_modal import _provider_badge_markup
 from sase.ace.tui.provider_styles import provider_emoji_badge
 from sase.ace.tui.widgets.prompt_panel._helpers import append_model_field
 from sase.axe.run_agent_phases import extract_directives_and_write_meta
+from sase.commit_instructions import _resolve_commit_skill_name
 from sase.llm_provider.registry import (
     model_short_alias_map,
     model_to_provider_map,
@@ -34,6 +36,9 @@ from sase.llm_provider.temporary_override import (
     resolve_worker_provider_model_for_primary,
     set_temporary_override,
 )
+from sase.main import init_skills_handler
+from sase.main.init_skills_handler import _get_target_path
+from sase.main.parser import create_parser
 
 _AGY_LARGE = "Gemini 3.5 Flash (High)"
 _AGY_SMALL = "Gemini 3.5 Flash (Low)"
@@ -194,3 +199,119 @@ def test_agy_default_retry_config_matches_transient_failures() -> None:
     assert is_retryable_error("hit the model rate limit", config)
     # A genuine logic error is not retried.
     assert not is_retryable_error("unknown model name", config)
+
+
+# --- Phase 4: skills and runtime instruction support ---
+
+
+@pytest.mark.parametrize("argv", [["skill", "init"], ["init", "skills"]])
+def test_skill_init_parser_accepts_agy_provider(argv: list[str]) -> None:
+    """``sase skill init -p agy`` (and the ``init skills`` alias) parse cleanly."""
+    parser = create_parser()
+
+    args = parser.parse_args([*argv, "-p", "agy"])
+
+    assert args.provider == "agy"
+
+
+def test_skill_init_parser_rejects_unknown_provider() -> None:
+    """An unregistered provider is still rejected by the argparse choices."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["skill", "init", "-p", "not-a-provider"])
+
+
+def test_init_skills_provider_filter_accepts_agy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--provider agy`` routes generated skills to the Antigravity subpath."""
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(
+        init_skills_handler.shutil,
+        "which",
+        lambda command: None if command == "prettier" else f"/usr/bin/{command}",
+    )
+
+    args = Namespace(
+        dry_run=True,
+        force=False,
+        no_apply=False,
+        no_commit=False,
+        no_push=False,
+        provider="agy",
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        init_skills_handler.handle_init_skills_command(args)
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    # Antigravity skills land under the documented ~/.gemini/antigravity-cli tree.
+    assert ".gemini/antigravity-cli/skills/" in captured.out
+
+
+def test_core_skills_generated_for_agy_under_antigravity_subpath(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real generation pass gives ``agy`` the core SASE skills, not hg_commit.
+
+    This is the Phase 4 smoke check: after ``sase skill init`` the Antigravity
+    runtime can see ``/sase_git_commit`` and the other provider-neutral core
+    skills under ``~/.gemini/antigravity-cli/skills/``. ``sase_hg_commit`` stays
+    Gemini-only (``skill: [gemini]``), so it must NOT be deployed for ``agy``.
+    """
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _command: None)
+
+    args = Namespace(
+        dry_run=False,
+        force=True,
+        no_apply=False,
+        no_commit=False,
+        no_push=False,
+        provider="agy",
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        init_skills_handler.handle_init_skills_command(args)
+    assert exc_info.value.code == 0
+
+    for skill_name in (
+        "sase_git_commit",
+        "sase_plan",
+        "sase_questions",
+        "sase_memory_read",
+    ):
+        target = _get_target_path("agy", skill_name, use_chezmoi=False)
+        assert target.exists(), f"{skill_name} not generated for agy: {target}"
+        assert ".gemini/antigravity-cli/skills/" in str(target)
+
+    hg_target = _get_target_path("agy", "sase_hg_commit", use_chezmoi=False)
+    assert not hg_target.exists(), "sase_hg_commit must stay Gemini-only"
+
+
+def test_commit_finalizer_skill_is_vcs_resolved_for_agy_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The commit finalizer stays provider-neutral; ``agy`` needs no stop hook.
+
+    The commit skill is resolved from the detected VCS provider, never from the
+    LLM runtime, so an Antigravity agent in a git repo is told to use
+    ``/sase_git_commit`` exactly like Claude and Codex.
+    """
+    monkeypatch.delenv("SASE_COMMIT_SKILL", raising=False)
+    monkeypatch.setenv("SASE_VCS_PROVIDER", "auto")
+    monkeypatch.setenv("SASE_LLM_PROVIDER", "agy")
+
+    with patch("sase.commit_instructions.detect_vcs", return_value="git") as detect:
+        assert _resolve_commit_skill_name(str(tmp_path)) == "/sase_git_commit"
+
+    # Resolution keys off the VCS provider, not the agy LLM runtime.
+    detect.assert_called_once_with(str(tmp_path))

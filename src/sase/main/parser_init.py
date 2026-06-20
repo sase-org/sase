@@ -41,7 +41,7 @@ def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-p",
         "--provider",
-        choices=["claude", "gemini", "codex", "opencode", "qwen"],
+        choices=["claude", "gemini", "agy", "codex", "opencode", "qwen"],
         help="Only deploy for a specific provider (default: all)",
     )
 

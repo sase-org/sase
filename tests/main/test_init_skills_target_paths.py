@@ -46,3 +46,17 @@ def test_get_target_paths_gemini_chezmoi_includes_jetski(
         Path("/c/home/dot_gemini/skills/foo/SKILL.md"),
         Path("/c/home/dot_gemini/jetski/skills/foo/SKILL.md"),
     ]
+
+
+def test_get_target_path_agy_home(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Antigravity deploys skills under ~/.gemini/antigravity-cli/skills/."""
+    monkeypatch.setattr(Path, "home", lambda: Path("/home/u"))
+    target = _get_target_path("agy", "foo", use_chezmoi=False)
+    assert target == Path("/home/u/.gemini/antigravity-cli/skills/foo/SKILL.md")
+
+
+def test_get_target_path_agy_chezmoi(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Antigravity's nested subpath only dot-prefixes the first segment."""
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", Path("/c/home"))
+    target = _get_target_path("agy", "foo", use_chezmoi=True)
+    assert target == Path("/c/home/dot_gemini/antigravity-cli/skills/foo/SKILL.md")
