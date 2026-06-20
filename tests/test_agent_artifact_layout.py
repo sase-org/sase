@@ -96,6 +96,39 @@ def test_create_artifacts_directory_uses_day_shards_for_ace_run(
     assert other_dir.is_dir()
 
 
+def test_create_artifacts_directory_canonicalizes_project_alias(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"bob": "bob-cli"},
+    )
+
+    artifacts_dir = Path(
+        create_artifacts_directory(
+            "ace-run",
+            "bob",
+            timestamp="260613_120000",
+        )
+    )
+
+    assert artifacts_dir == (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "bob-cli"
+        / "artifacts"
+        / "ace-run"
+        / "202606"
+        / "13"
+        / "20260613120000"
+    )
+    assert artifacts_dir.is_dir()
+    assert not (tmp_path / ".sase" / "projects" / "bob").exists()
+
+
 def test_artifact_path_helpers_resolve_legacy_to_existing_day_shard(
     tmp_path: Path,
 ) -> None:

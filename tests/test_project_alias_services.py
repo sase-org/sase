@@ -11,7 +11,12 @@ from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
 )
-from sase.project_aliases import allocate_project_alias, ensure_project_alias_locked
+from sase.project_aliases import (
+    allocate_project_alias,
+    canonicalize_project_aliases_in_prompt,
+    ensure_project_alias_locked,
+    load_project_alias_map,
+)
 from tests.main.project_handler_helpers import (
     _write_project,
     lifecycle_stubs,
@@ -27,19 +32,24 @@ def _record(
     aliases: list[str] | None = None,
     state: str = "active",
     system_managed: bool = False,
+    launchable: bool | None = None,
+    project_file: str | Path | None = None,
+    archive_file: str | Path | None = None,
 ) -> ProjectRecordWire:
     return ProjectRecordWire(
         schema_version=PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
         project_name=project_name,
         project_dir=f"/tmp/projects/{project_name}",
-        project_file=f"/tmp/projects/{project_name}/{project_name}.sase",
-        archive_file=None,
+        project_file=str(
+            project_file or f"/tmp/projects/{project_name}/{project_name}.sase"
+        ),
+        archive_file=str(archive_file) if archive_file is not None else None,
         workspace_dir=f"/tmp/workspaces/{project_name}",
         state=state,
         state_explicit=False,
         system_managed=system_managed,
         active_claim_count=0,
-        launchable=state == "active",
+        launchable=(state == "active" if launchable is None else launchable),
         aliases=list(aliases or []),
         warnings=[],
         parse_warnings=[],
@@ -91,6 +101,63 @@ def test_allocate_project_alias_reuses_current_project_alias() -> None:
 def test_allocate_project_alias_rejects_invalid_base() -> None:
     with pytest.raises(ValueError, match="invalid project alias"):
         allocate_project_alias(".hidden", [])
+
+
+def test_load_project_alias_map_ignores_spec_less_project_name_collision(
+    projects_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bob_cli_file = _write_project(
+        projects_root,
+        "bob-cli",
+        "PROJECT_ALIASES: bob\nWORKSPACE_DIR: /tmp/bob-cli\nNAME: b\n",
+    )
+    stray_project_file = projects_root / "bob" / "bob.sase"
+    stray_project_file.parent.mkdir()
+
+    monkeypatch.setattr(
+        "sase.project_aliases.list_project_records",
+        lambda *_args, **_kwargs: [
+            _record(
+                "bob",
+                launchable=False,
+                project_file=stray_project_file,
+                aliases=[],
+            ),
+            _record("bob-cli", aliases=["bob"], project_file=bob_cli_file),
+        ],
+    )
+    monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+
+    assert load_project_alias_map(projects_root) == {"bob": "bob-cli"}
+    assert canonicalize_project_aliases_in_prompt("#gh:bob fix") == "#gh:bob-cli fix"
+
+
+def test_load_project_alias_map_preserves_real_project_name_collision(
+    projects_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bob_file = _write_project(
+        projects_root,
+        "bob",
+        "WORKSPACE_DIR: /tmp/bob\nNAME: b\n",
+    )
+    bob_cli_file = _write_project(
+        projects_root,
+        "bob-cli",
+        "PROJECT_ALIASES: bob\nWORKSPACE_DIR: /tmp/bob-cli\nNAME: c\n",
+    )
+
+    monkeypatch.setattr(
+        "sase.project_aliases.list_project_records",
+        lambda *_args, **_kwargs: [
+            _record("bob", project_file=bob_file),
+            _record("bob-cli", aliases=["bob"], project_file=bob_cli_file),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="real project name"):
+        load_project_alias_map(projects_root)
 
 
 def test_ensure_project_alias_locked_preserves_existing_aliases_and_sorts(

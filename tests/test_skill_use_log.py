@@ -106,6 +106,20 @@ def test_skill_use_log_path_uses_project_state_under_home(
     )
 
 
+def test_skill_use_log_path_canonicalizes_project_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"bob": "bob-cli"},
+    )
+
+    assert skill_use_log_path("bob") == (
+        tmp_path / ".sase" / "projects" / "bob-cli" / "skill_uses.jsonl"
+    )
+
+
 def test_skill_use_aggregation_groups_by_skill_and_agent(tmp_path: Path) -> None:
     base = build_skill_use_event(
         "sase_plan",

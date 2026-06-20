@@ -100,17 +100,30 @@ def _non_system_project_records(
     ]
 
 
+def _project_record_has_spec(record: ProjectRecordWire) -> bool:
+    return Path(record.project_file).is_file() or record.archive_file is not None
+
+
+def _spec_backed_project_records(
+    records: Sequence[ProjectRecordWire],
+) -> list[ProjectRecordWire]:
+    return [
+        record
+        for record in _non_system_project_records(records)
+        if _project_record_has_spec(record)
+    ]
+
+
 def _project_alias_map_from_records(
     records: Sequence[ProjectRecordWire],
     *,
     overrides: Mapping[str, Sequence[str]] | None = None,
 ) -> dict[str, str]:
-    project_names = {
-        record.project_name for record in _non_system_project_records(records)
-    }
+    spec_backed_records = _spec_backed_project_records(records)
+    project_names = {record.project_name for record in spec_backed_records}
     alias_map: dict[str, str] = {}
 
-    for record in _non_system_project_records(records):
+    for record in spec_backed_records:
         aliases = (
             overrides[record.project_name]
             if overrides is not None and record.project_name in overrides
@@ -350,11 +363,14 @@ def load_project_alias_map(projects_root: Path | str | None = None) -> dict[str,
     return _project_alias_map_from_records(_filtered_project_records(projects_root))
 
 
-def resolve_project_alias_ref(ref: str) -> str:
+def resolve_project_alias_ref(
+    ref: str,
+    projects_root: Path | str | None = None,
+) -> str:
     """Return the canonical project name for an exact alias ref."""
     if "/" in ref:
         return ref
-    return load_project_alias_map().get(ref, ref)
+    return load_project_alias_map(projects_root).get(ref, ref)
 
 
 def canonicalize_project_aliases_in_prompt(prompt: str) -> str:

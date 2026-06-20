@@ -27,6 +27,7 @@ from sase.memory.proposals import (
     resolve_memory_proposal_id,
     validate_memory_proposal_target,
 )
+from sase.memory.proposals.paths import memory_proposal_ledger_path
 
 
 def _write(path: Path, content: str) -> None:
@@ -59,6 +60,20 @@ def test_validate_memory_proposal_target_accepts_slug_and_one_level_target() -> 
 def test_validate_memory_proposal_target_rejects_invalid_paths(target: str) -> None:
     with pytest.raises(MemoryProposalTargetError):
         validate_memory_proposal_target(target)
+
+
+def test_memory_proposal_ledger_path_canonicalizes_project_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"bob": "bob-cli"},
+    )
+
+    assert memory_proposal_ledger_path("bob") == (
+        tmp_path / ".sase" / "projects" / "bob-cli" / "memory_proposals.jsonl"
+    )
 
 
 def test_parse_memory_proposal_evidence_types_and_hashes_path(

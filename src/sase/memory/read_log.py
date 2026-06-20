@@ -25,6 +25,7 @@ from sase.core.paths import sase_projects_dir
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.locks import locked_file
 from sase.memory.notes import MEMORY_DIR, MemoryNote, parse_memory_note_text
+from sase.project_aliases import resolve_project_alias_ref
 
 READ_LOG_SCHEMA_VERSION = 1
 
@@ -328,7 +329,9 @@ def memory_read_log_path(
     project: str | None = None, *, cwd: Path | None = None
 ) -> Path:
     """Return the project-scoped memory-read JSONL path under ``~/.sase``."""
-    project_name = project or project_memory_name(cwd or Path.cwd())
+    project_name = resolve_project_alias_ref(
+        project or project_memory_name(cwd or Path.cwd())
+    )
     return sase_projects_dir() / project_name / "memory_reads.jsonl"
 
 

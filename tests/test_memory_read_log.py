@@ -305,6 +305,20 @@ def test_memory_read_log_path_uses_project_state_under_home(
     )
 
 
+def test_memory_read_log_path_canonicalizes_project_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"bob": "bob-cli"},
+    )
+
+    assert memory_read_log_path("bob") == (
+        tmp_path / ".sase" / "projects" / "bob-cli" / "memory_reads.jsonl"
+    )
+
+
 def test_memory_read_aggregation_groups_by_path_and_agent(tmp_path: Path) -> None:
     content = _memory_content(tmp_path, "foo.md")
     base = build_memory_read_event(

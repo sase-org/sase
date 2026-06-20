@@ -28,6 +28,15 @@ def _projects_root(projects_root: Path | str | None = None) -> Path:
     return Path(projects_root).expanduser() if projects_root else sase_projects_dir()
 
 
+def _canonical_project_name(
+    project_name: str,
+    projects_root: Path | str | None = None,
+) -> str:
+    from sase.project_aliases import resolve_project_alias_ref
+
+    return resolve_project_alias_ref(project_name, projects_root=projects_root)
+
+
 def canonical_agent_artifact_path(
     project_name: str,
     workflow_dir_name: str,
@@ -40,7 +49,7 @@ def canonical_agent_artifact_path(
     return Path(
         binding(
             str(_projects_root(projects_root)),
-            project_name,
+            _canonical_project_name(project_name, projects_root),
             workflow_dir_name,
             timestamp,
         )
@@ -69,7 +78,7 @@ def resolve_agent_artifact_timestamp_path(
     return Path(
         binding(
             str(_projects_root(projects_root)),
-            project_name,
+            _canonical_project_name(project_name, projects_root),
             workflow_dir_name,
             timestamp,
         )
@@ -109,7 +118,7 @@ def iter_agent_artifact_dirs(
     binding = require_rust_binding("iter_agent_artifact_dirs")
     for path in binding(
         str(_projects_root(projects_root)),
-        project_name,
+        _canonical_project_name(project_name, projects_root),
         workflow_dir_name,
         newest_first,
     ):

@@ -1,5 +1,6 @@
 """Tests for xprompt alias resolution."""
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -25,13 +26,17 @@ def _record(
     aliases: list[str] | None = None,
     state: str = "active",
     system_managed: bool = False,
+    project_file: str | Path | None = None,
+    archive_file: str | Path | None = None,
 ) -> ProjectRecordWire:
     return ProjectRecordWire(
         schema_version=PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
         project_name=project_name,
         project_dir=f"/tmp/projects/{project_name}",
-        project_file=f"/tmp/projects/{project_name}/{project_name}.sase",
-        archive_file=None,
+        project_file=str(
+            project_file or f"/tmp/projects/{project_name}/{project_name}.sase"
+        ),
+        archive_file=str(archive_file) if archive_file is not None else None,
         workspace_dir=f"/tmp/workspaces/{project_name}",
         state=state,
         state_explicit=False,
@@ -42,6 +47,13 @@ def _record(
         warnings=[],
         parse_warnings=[],
     )
+
+
+def _write_project_spec(projects_root: Path, project_name: str) -> Path:
+    project_file = projects_root / project_name / f"{project_name}.sase"
+    project_file.parent.mkdir(parents=True, exist_ok=True)
+    project_file.write_text(f"WORKSPACE_DIR: /tmp/{project_name}\n", encoding="utf-8")
+    return project_file
 
 
 def _metadata() -> tuple[WorkflowMetadata, ...]:
@@ -93,9 +105,23 @@ def test_project_alias_map_loads_all_non_system_non_home_states(
     def fake_list(projects_root, include_states, *, include_home):
         calls.append((projects_root, include_states, include_home))
         return [
-            _record("bob-cli", aliases=["bob"]),
-            _record("docs-cli", aliases=["docs"], state="inactive"),
-            _record("sibling-cli", aliases=["sib"], state="sibling"),
+            _record(
+                "bob-cli",
+                aliases=["bob"],
+                project_file=_write_project_spec(projects, "bob-cli"),
+            ),
+            _record(
+                "docs-cli",
+                aliases=["docs"],
+                state="inactive",
+                project_file=_write_project_spec(projects, "docs-cli"),
+            ),
+            _record(
+                "sibling-cli",
+                aliases=["sib"],
+                state="sibling",
+                project_file=_write_project_spec(projects, "sibling-cli"),
+            ),
             _record("home", aliases=["h"]),
             _record("managed", aliases=["m"], system_managed=True),
         ]
@@ -119,8 +145,12 @@ def test_project_alias_map_rejects_real_project_name_collision(
     monkeypatch.setattr(
         "sase.project_aliases.list_project_records",
         lambda *_args, **_kwargs: [
-            _record("bob-cli", aliases=["docs"]),
-            _record("docs"),
+            _record(
+                "bob-cli",
+                aliases=["docs"],
+                project_file=_write_project_spec(projects, "bob-cli"),
+            ),
+            _record("docs", project_file=_write_project_spec(projects, "docs")),
         ],
     )
 
@@ -137,8 +167,16 @@ def test_project_alias_map_rejects_duplicate_alias(
     monkeypatch.setattr(
         "sase.project_aliases.list_project_records",
         lambda *_args, **_kwargs: [
-            _record("bob-cli", aliases=["bob"]),
-            _record("docs-cli", aliases=["bob"]),
+            _record(
+                "bob-cli",
+                aliases=["bob"],
+                project_file=_write_project_spec(projects, "bob-cli"),
+            ),
+            _record(
+                "docs-cli",
+                aliases=["bob"],
+                project_file=_write_project_spec(projects, "docs-cli"),
+            ),
         ],
     )
 

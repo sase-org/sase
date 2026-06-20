@@ -15,6 +15,7 @@ from sase.agent.identity import AgentIdentity, discover_agent_runtime
 from sase.core.paths import sase_projects_dir
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.locks import locked_file
+from sase.project_aliases import resolve_project_alias_ref
 
 SKILL_USE_LOG_SCHEMA_VERSION = 1
 
@@ -123,7 +124,9 @@ def build_skill_use_event(
 
 def skill_use_log_path(project: str | None = None, *, cwd: Path | None = None) -> Path:
     """Return the project-scoped skill-use JSONL path under ``~/.sase``."""
-    project_name = project or project_memory_name(cwd or Path.cwd())
+    project_name = resolve_project_alias_ref(
+        project or project_memory_name(cwd or Path.cwd())
+    )
     return sase_projects_dir() / project_name / "skill_uses.jsonl"
 
 
