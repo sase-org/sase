@@ -1,4 +1,4 @@
-"""Prompt fan-out launch mixin (``%m(...)`` / ``%alt(...)`` directives)."""
+"""Prompt fan-out launch mixin (``%m(...)`` / ``%alt(...)`` / ``%{...}`` directives)."""
 
 from __future__ import annotations
 

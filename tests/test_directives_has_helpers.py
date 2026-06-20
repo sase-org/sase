@@ -243,19 +243,32 @@ def test_has_alt_directive_shorthand() -> None:
     assert has_alt_directive("Do something %(a,b)") is True
 
 
+def test_has_alt_directive_brace_shorthand() -> None:
+    """Detects %{ brace shorthand syntax at directive-valid positions."""
+    assert has_alt_directive("%{a | b}\nDo something") is True
+    assert has_alt_directive("Do something %{a | b}") is True
+    assert has_alt_directive("Do work\n%{a | b}") is True
+
+
+def test_has_alt_directive_brace_bare_percent_no_brace() -> None:
+    """A plain { without a leading %, or % without {, is not an alt directive."""
+    assert has_alt_directive("a {plain} block") is False
+    assert has_alt_directive("100% of {x}") is False
+
+
 def test_has_alt_directive_bare_percent_no_paren() -> None:
     """Returns False for % without ( (no regression)."""
     assert has_alt_directive("50% done") is False
     assert has_alt_directive("Use 100% of CPU") is False
 
 
-@pytest.mark.parametrize("directive", ["%alt(a,b)", "%(a,b)"])
+@pytest.mark.parametrize("directive", ["%alt(a,b)", "%(a,b)", "%{a | b}"])
 def test_has_alt_directive_ignores_fenced_blocks(directive: str) -> None:
     """Alt syntax inside fences is not a live alt directive."""
     assert has_alt_directive(f"snapshot\n```text\n{directive}\n```\nDo work") is False
 
 
-@pytest.mark.parametrize("directive", ["%alt(a,b)", "%(a,b)"])
+@pytest.mark.parametrize("directive", ["%alt(a,b)", "%(a,b)", "%{a | b}"])
 def test_has_alt_directive_ignores_disabled_regions(directive: str) -> None:
     """Alt syntax inside disabled regions is not live."""
     prompt = f"%xprompts_enabled:false\n{directive}\n%xprompts_enabled:true\nDo work"
@@ -273,6 +286,7 @@ def test_has_alt_directive_ignores_disabled_regions(directive: str) -> None:
         (has_model_directive, "%m:opus"),
         (has_alt_directive, "%alt(a,b)"),
         (has_alt_directive, "%(a,b)"),
+        (has_alt_directive, "%{a | b}"),
     ],
 )
 def test_has_directive_helpers_still_detect_top_level_directives(

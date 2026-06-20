@@ -514,7 +514,8 @@ class AgentLaunchBodyMixin:
         if owns_context:
             self._prompt_context = None
 
-        # Check for launch fan-out directives (e.g., %m(opus,sonnet) or %alt(a,b)).
+        # Check for launch fan-out directives (e.g., %m(opus,sonnet),
+        # %alt(a,b) or %{a | b}).
         from sase.xprompt.directives import plan_prompt_fanout_variants
         from sase.xprompt.processor import (
             process_xprompt_references,
@@ -526,7 +527,7 @@ class AgentLaunchBodyMixin:
             # Expand inline xprompt references (e.g., #swarm -> %m(opus,sonnet))
             # *before* planning the fan-out shape, whenever the prompt has a
             # lexical xprompt candidate — even if the raw prompt already
-            # contains %alt/%( directives. An xprompt can inject a model axis
+            # contains %alt/%(/%{ directives. An xprompt can inject a model axis
             # (e.g. #m_opus_codex -> %model(opus, #codex)) that must join the
             # same Cartesian fan-out plan as the raw alternatives. Planning the
             # raw prompt first would lock in a shape that omits the

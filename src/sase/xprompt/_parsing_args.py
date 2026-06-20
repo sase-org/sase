@@ -76,20 +76,24 @@ def _process_text_block(value: str) -> str:
     return "\n".join(processed_lines).strip()
 
 
-def find_matching_paren_for_args(text: str, start: int) -> int | None:
-    """Find the matching ) for an opening ( at position start.
+def _find_matching_delimiter_for_args(
+    text: str, start: int, open_char: str, close_char: str
+) -> int | None:
+    """Find the matching *close_char* for *open_char* at position *start*.
 
     Respects quoted strings ("..." and '...'), text blocks ([[...]]),
-    and nested parentheses.
+    and nested *open_char*/*close_char* pairs.
 
     Args:
         text: The full text to search.
-        start: Position of the opening '(' character.
+        start: Position of the opening delimiter character.
+        open_char: The opening delimiter (e.g. ``(`` or ``{``).
+        close_char: The matching closing delimiter (e.g. ``)`` or ``}``).
 
     Returns:
-        Position of the matching ')' or None if not found.
+        Position of the matching closing delimiter or None if not found.
     """
-    if start >= len(text) or text[start] != "(":
+    if start >= len(text) or text[start] != open_char:
         return None
 
     depth = 1
@@ -123,9 +127,9 @@ def find_matching_paren_for_args(text: str, start: int) -> int | None:
             in_quotes = False
             quote_char = ""
         elif not in_quotes:
-            if char == "(":
+            if char == open_char:
                 depth += 1
-            elif char == ")":
+            elif char == close_char:
                 depth -= 1
                 if depth == 0:
                     return i
@@ -133,6 +137,38 @@ def find_matching_paren_for_args(text: str, start: int) -> int | None:
         i += 1
 
     return None
+
+
+def find_matching_paren_for_args(text: str, start: int) -> int | None:
+    """Find the matching ) for an opening ( at position start.
+
+    Respects quoted strings ("..." and '...'), text blocks ([[...]]),
+    and nested parentheses.
+
+    Args:
+        text: The full text to search.
+        start: Position of the opening '(' character.
+
+    Returns:
+        Position of the matching ')' or None if not found.
+    """
+    return _find_matching_delimiter_for_args(text, start, "(", ")")
+
+
+def find_matching_brace_for_args(text: str, start: int) -> int | None:
+    """Find the matching } for an opening { at position start.
+
+    Mirrors :func:`find_matching_paren_for_args` for the ``%{...}`` alt
+    shorthand: respects quoted strings, text blocks, and nested braces.
+
+    Args:
+        text: The full text to search.
+        start: Position of the opening '{' character.
+
+    Returns:
+        Position of the matching '}' or None if not found.
+    """
+    return _find_matching_delimiter_for_args(text, start, "{", "}")
 
 
 def _parse_named_arg(token: str) -> tuple[str | None, str]:

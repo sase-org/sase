@@ -1,9 +1,13 @@
-"""``%alt(...)`` / ``%(...)`` splitting and multi-model fan-out.
+"""``%alt(...)`` / ``%(...)`` / ``%{...}`` splitting and multi-model fan-out.
 
 This module owns the logic that turns a single prompt with multiple
-``%model`` directives or explicit ``%alt(a,b,...)`` calls into a list of
-sub-prompts — one per Cartesian product entry — and the naming logic
-that disambiguates spawned agents per runtime.
+``%model`` directives or explicit ``%alt(a,b,...)`` / ``%{a | b | ...}``
+calls into a list of sub-prompts — one per Cartesian product entry — and
+the naming logic that disambiguates spawned agents per runtime.
+
+``%{...}`` is the preferred shorthand for ``%alt(...)``; it uses braces
+with top-level ``|``-separated branches.  The legacy ``%(...)`` shorthand
+(comma-separated) remains parse-compatible during the migration.
 """
 
 from __future__ import annotations
@@ -19,17 +23,23 @@ from ._disabled_regions import (
 )
 from ._exceptions import DirectiveError
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
-from ._parsing import find_matching_paren_for_args, parse_args
+from ._parsing import (
+    find_matching_brace_for_args,
+    find_matching_paren_for_args,
+    parse_args,
+)
 
 if TYPE_CHECKING:
     from sase.core.agent_launch_wire import LaunchFanoutPlanWire, LaunchFanoutSlotWire
 
     from .models import XPrompt
 
-# Pattern to match %alt( or %( at a directive-valid position.
+# Pattern to match %alt(, %( or %{ at a directive-valid position. The group
+# captures through the opening delimiter so ``match.end() - 1`` is the ``(`` or
+# ``{`` that opens the alt body. Mirrors ``alt_directive_re`` in the Rust core.
 _ALT_DIRECTIVE_RE = re.compile(
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-    r"(%(?:alt)?)\(",
+    r"(%(?:alt)?\(|%\{)",
     re.MULTILINE,
 )
 
@@ -41,7 +51,7 @@ class _NamedFanoutPrompt:
 
 
 def has_alt_directive(prompt: str) -> bool:
-    """Quick check whether a prompt contains a ``%alt(`` or ``%(`` directive.
+    """Quick check whether a prompt contains a ``%alt(``, ``%(`` or ``%{`` directive.
 
     This avoids the overhead of full splitting and is suitable for
     early detection in the CLI auto-daemon routing.
@@ -55,29 +65,30 @@ def has_alt_directive(prompt: str) -> bool:
     disabled_regions: list[str] = []
     protected = protect_disabled_regions(protected, disabled_regions)
 
-    return bool(re.search(r"(?:^|\s)%(?:alt)?\(", protected, re.MULTILINE))
+    return bool(re.search(r"(?:^|\s)(?:%(?:alt)?\(|%\{)", protected, re.MULTILINE))
 
 
 def split_prompt_for_alternatives(prompt: str) -> list[str] | None:
-    """Split a prompt containing ``%alt(...)`` or ``%(...)`` into per-alternative prompts.
+    """Split a prompt with ``%alt(...)`` / ``%(...)`` / ``%{...}`` into per-alternative prompts.
 
     Each argument becomes a separate prompt with the directive span replaced
     by that argument's text.  Arguments can be arbitrary text — directives,
     xprompt references, plain instructions, or ``[[text blocks]]``.
 
-    ``%(...)`` is syntactic sugar for ``%alt(...)``.
+    ``%{...}`` (top-level ``|``-separated branches) is the preferred shorthand
+    for ``%alt(...)``; ``%(...)`` (comma-separated) is the legacy shorthand.
 
-    When multiple ``%alt``/``%(`` directives appear, a Cartesian product of
-    all argument lists is computed — e.g. two directives with 2 and 3
+    When multiple ``%alt``/``%(``/``%{`` directives appear, a Cartesian product
+    of all argument lists is computed — e.g. two directives with 2 and 3
     arguments produce 2 × 3 = 6 prompts.
 
-    Returns ``None`` if there are no ``%alt``/``%(`` directives or all have
-    zero arguments.  A single-arg ``%alt(foo)`` / ``%(foo)`` is treated as
-    having an implicit empty variant, producing two alternatives for that
-    directive.
+    Returns ``None`` if there are no ``%alt``/``%(``/``%{`` directives or all
+    have zero arguments.  A single-arg ``%alt(foo)`` / ``%(foo)`` / ``%{foo}``
+    is treated as having an implicit empty variant, producing two alternatives
+    for that directive.
 
     Raises:
-        DirectiveError: If an opening parenthesis has no matching close.
+        DirectiveError: If an opening delimiter has no matching close.
     """
     from sase.core.agent_launch_facade import plan_agent_launch_fanout
 
@@ -95,7 +106,7 @@ def split_prompt_for_models(
     *,
     extra_xprompts: dict[str, XPrompt] | None = None,
 ) -> list[str] | None:
-    """Split a prompt with multi-model or ``%alt``/``%(`` directives into per-variant prompts.
+    """Split a prompt with multi-model or ``%alt``/``%(``/``%{`` directives into per-variant prompts.
 
     Handles three cases:
 
@@ -105,7 +116,7 @@ def split_prompt_for_models(
        ``%model:opus\\n%model:sonnet``) — collected, deduped in document
        order, and collapsed into a single ``%alt(%model:a,%model:b,...)``
        before splitting.  Mixing scalar and paren forms is supported.
-    3. Direct ``%alt(...)`` or ``%(...)`` usage — split as-is.
+    3. Direct ``%alt(...)`` / ``%(...)`` / ``%{...}`` usage — split as-is.
 
     Multiple model directives that all resolve to the same model yield a
     single variant (no split); duplicate ``%model`` directives inside
@@ -170,16 +181,19 @@ def _plan_prompt_fanout(
     disabled_regions: list[str] = []
     protected = protect_disabled_regions(protected, disabled_regions)
 
-    # Identify inner regions of %alt(...) / %(...) so %model matches
+    # Identify inner regions of %alt(...) / %(...) / %{...} so %model matches
     # nested inside them are not double-collected (they're handled by
     # split_prompt_for_alternatives).
     alt_inner_regions: list[tuple[int, int]] = []
     for alt_match in _ALT_DIRECTIVE_RE.finditer(protected):
-        paren_start = alt_match.end() - 1
-        paren_end = find_matching_paren_for_args(protected, paren_start)
-        if paren_end is None:
+        open_pos = alt_match.end() - 1
+        if protected[open_pos] == "{":
+            close_pos = find_matching_brace_for_args(protected, open_pos)
+        else:
+            close_pos = find_matching_paren_for_args(protected, open_pos)
+        if close_pos is None:
             continue
-        alt_inner_regions.append((paren_start + 1, paren_end))
+        alt_inner_regions.append((open_pos + 1, close_pos))
 
     def _is_inside_alt(pos: int) -> bool:
         return any(start <= pos < end for start, end in alt_inner_regions)
@@ -246,7 +260,7 @@ def _plan_prompt_fanout(
     if len(unique_models) <= 1:
         # Zero or one unique model — no split needed.  Any duplicate scalar
         # %model directives are tolerated by extract_prompt_directives.  A
-        # real %alt/%(...) beside the single model still fans out.
+        # real %alt/%(...)/%{...} beside the single model still fans out.
         if not has_alt_directive(prompt):
             return None
         fanout_plan = _plan_model_fanout(prompt)

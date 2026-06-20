@@ -1,5 +1,8 @@
-"""Tests for split_prompt_for_alternatives and the %(...) shorthand."""
+"""Tests for split_prompt_for_alternatives and the %(...) / %{...} shorthands."""
 
+import pytest
+
+from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import split_prompt_for_alternatives
 
 
@@ -173,3 +176,78 @@ def testsplit_prompt_for_alternatives_single_arg_combined() -> None:
     assert result[1] == "extra d\nDo work"
     assert result[2] == " c\nDo work"
     assert result[3] == " d\nDo work"
+
+
+# --- %{...} brace shorthand tests ---
+
+
+def testsplit_prompt_for_alternatives_brace_two_branches() -> None:
+    """%{a | b} splits on top-level pipes like %alt(a,b)."""
+    result = split_prompt_for_alternatives("%{a | b}\nReview")
+    assert result == ["a\nReview", "b\nReview"]
+
+
+def testsplit_prompt_for_alternatives_brace_three_branches() -> None:
+    """%{a | b | c} produces three prompts."""
+    result = split_prompt_for_alternatives("%{a | b | c}\nReview")
+    assert result == ["a\nReview", "b\nReview", "c\nReview"]
+
+
+def testsplit_prompt_for_alternatives_brace_branch_text_keeps_commas() -> None:
+    """Commas inside a brace branch are branch text, not separators."""
+    result = split_prompt_for_alternatives("%{foo, bar | baz}")
+    assert result == ["foo, bar", "baz"]
+
+
+def testsplit_prompt_for_alternatives_brace_named_text_blocks() -> None:
+    """Named brace branches insert only the [[text block]] values."""
+    result = split_prompt_for_alternatives(
+        "%{sec=[[security]] | perf=[[performance]]}\nReview"
+    )
+    assert result == ["security\nReview", "performance\nReview"]
+
+
+def testsplit_prompt_for_alternatives_brace_single_branch_implicit_empty() -> None:
+    """A single brace branch produces with/without variants."""
+    result = split_prompt_for_alternatives("before %{a} after")
+    assert result == ["before a after", "before  after"]
+
+
+def testsplit_prompt_for_alternatives_brace_nested_pipes_do_not_split() -> None:
+    """Pipes inside (), [], or backticks are not top-level separators."""
+    result = split_prompt_for_alternatives("%{a (x | y) | b [c | d] | `e | f`}")
+    assert result == ["a (x | y)", "b [c | d]", "e | f"]
+
+
+def testsplit_prompt_for_alternatives_brace_nested_directives() -> None:
+    """Nested directives inside brace branches are preserved."""
+    result = split_prompt_for_alternatives(
+        "%{%m:opus %name:reviewer | %m:sonnet %name:coder}\nDo work"
+    )
+    assert result == [
+        "%m:opus %name:reviewer\nDo work",
+        "%m:sonnet %name:coder\nDo work",
+    ]
+
+
+def testsplit_prompt_for_alternatives_brace_composes_cartesian_with_paren() -> None:
+    """%{a | b} combined with %alt(x,y) produces the Cartesian product."""
+    result = split_prompt_for_alternatives("%{a | b} %alt(x,y)")
+    assert result == ["a x", "a y", "b x", "b y"]
+
+
+def testsplit_prompt_for_alternatives_brace_zero_branches_returns_none() -> None:
+    """An empty %{} has no branches and returns None."""
+    assert split_prompt_for_alternatives("%{}\nDo work") is None
+
+
+def testsplit_prompt_for_alternatives_brace_preserves_other_directives() -> None:
+    """Other directives around a %{} brace alt are preserved."""
+    result = split_prompt_for_alternatives("%approve\n%{a | b}\nReview")
+    assert result == ["%approve\na\nReview", "%approve\nb\nReview"]
+
+
+def testsplit_prompt_for_alternatives_brace_unclosed_raises() -> None:
+    """An unclosed %{ reports a DirectiveError mentioning the missing close."""
+    with pytest.raises(DirectiveError, match=r"%\{"):
+        split_prompt_for_alternatives("%{a | b")
