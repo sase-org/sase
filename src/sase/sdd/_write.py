@@ -59,7 +59,7 @@ def write_sdd_files(
 
     plan_source = Path(plan_file)
     if plan_source.exists():
-        from sase.gemini_wrapper.file_references import format_with_prettier
+        from sase.file_references import format_with_prettier
         from sase.llm_provider._plan_utils import add_create_time_frontmatter
 
         content = plan_source.read_text(encoding="utf-8")

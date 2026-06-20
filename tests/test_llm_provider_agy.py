@@ -45,7 +45,7 @@ def test_agy_provider_metadata_hooks() -> None:
 
 @patch("sase.llm_provider.agy.stream_process_output")
 @patch("sase.llm_provider.agy.subprocess.Popen")
-@patch("sase.llm_provider.agy.gemini_timer")
+@patch("sase.llm_provider.agy.provider_timer")
 def test_agy_provider_command_construction(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -73,7 +73,7 @@ def test_agy_provider_command_construction(
 
 @patch("sase.llm_provider.agy.stream_process_output")
 @patch("sase.llm_provider.agy.subprocess.Popen")
-@patch("sase.llm_provider.agy.gemini_timer")
+@patch("sase.llm_provider.agy.provider_timer")
 def test_agy_provider_model_override_preserves_spaces(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -98,7 +98,7 @@ def test_agy_provider_model_override_preserves_spaces(
 @patch.dict(os.environ, {"SASE_AGY_PATH": "/opt/antigravity/bin/agy"})
 @patch("sase.llm_provider.agy.stream_process_output")
 @patch("sase.llm_provider.agy.subprocess.Popen")
-@patch("sase.llm_provider.agy.gemini_timer")
+@patch("sase.llm_provider.agy.provider_timer")
 def test_agy_provider_uses_sase_agy_path(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -116,7 +116,7 @@ def test_agy_provider_uses_sase_agy_path(
 @patch.dict(os.environ, {"SASE_AGY_PRINT_TIMEOUT": "45m"})
 @patch("sase.llm_provider.agy.stream_process_output")
 @patch("sase.llm_provider.agy.subprocess.Popen")
-@patch("sase.llm_provider.agy.gemini_timer")
+@patch("sase.llm_provider.agy.provider_timer")
 def test_agy_provider_print_timeout_env_override(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -135,7 +135,7 @@ def test_agy_provider_print_timeout_env_override(
 @patch.dict(os.environ, {"SASE_AGY_SMALL_ARGS": "--sandbox"})
 @patch("sase.llm_provider.agy.stream_process_output")
 @patch("sase.llm_provider.agy.subprocess.Popen")
-@patch("sase.llm_provider.agy.gemini_timer")
+@patch("sase.llm_provider.agy.provider_timer")
 def test_agy_provider_extra_args_from_env_small(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -161,7 +161,7 @@ def test_agy_provider_extra_args_from_env_small(
 )
 @patch("sase.llm_provider.agy.stream_process_output")
 @patch("sase.llm_provider.agy.subprocess.Popen")
-@patch("sase.llm_provider.agy.gemini_timer")
+@patch("sase.llm_provider.agy.provider_timer")
 def test_agy_provider_generic_env_args_precedence(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -198,7 +198,7 @@ def test_agy_provider_missing_executable_error_mentions_resolution_paths(
 
 @patch("sase.llm_provider.agy.stream_process_output")
 @patch("sase.llm_provider.agy.subprocess.Popen")
-@patch("sase.llm_provider.agy.gemini_timer")
+@patch("sase.llm_provider.agy.provider_timer")
 def test_agy_provider_raises_called_process_error_on_failure(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -217,7 +217,7 @@ def test_agy_provider_raises_called_process_error_on_failure(
 
 @patch("sase.llm_provider.agy.stream_process_output")
 @patch("sase.llm_provider.agy.subprocess.Popen")
-@patch("sase.llm_provider.agy.gemini_timer")
+@patch("sase.llm_provider.agy.provider_timer")
 def test_agy_provider_interrupt_resume_prompt_construction(
     mock_timer: MagicMock,
     mock_popen: MagicMock,

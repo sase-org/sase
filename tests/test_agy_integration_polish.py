@@ -54,14 +54,13 @@ def test_provider_metadata_aggregation_includes_agy() -> None:
     assert provider_shorts["agy"] == "agy"
     assert model_aliases[_AGY_LARGE] == "flash35h"
     assert model_aliases[_AGY_SMALL] == "flash35l"
-    # A distinct Antigravity color, deliberately not Gemini blue.
+    # A distinct Antigravity indigo, deliberately not the old Gemini-CLI blue.
     color = provider_cli_status_color_map()["agy"]
     assert color == "#6E5DE7"
-    assert color != provider_cli_status_color_map().get("gemini")
 
 
-def test_agy_autodetect_ordering_precedes_gemini() -> None:
-    """agy inherits the late Gemini fallback slot and wins the priority tie."""
+def test_agy_autodetect_occupies_late_fallback_slot() -> None:
+    """agy inherits the late fallback slot (priority 30) the Gemini CLI used."""
     from sase.llm_provider.registry import get_llm_metadata_payload
 
     candidates = get_llm_metadata_payload()["autodetect_candidates"]
@@ -70,11 +69,8 @@ def test_agy_autodetect_ordering_precedes_gemini() -> None:
     assert by_provider["agy"]["priority"] == 30
     assert by_provider["agy"]["cli_name"] == "agy"
 
-    order = [c["provider"] for c in candidates]
-    # Both agy and gemini sit at priority 30; the (priority, provider) sort
-    # keys agy ahead of gemini, so agy is the preferred fallback.
-    if "gemini" in order:
-        assert order.index("agy") < order.index("gemini")
+    # The retired Gemini CLI no longer participates in autodetect.
+    assert "gemini" not in by_provider
 
 
 def test_nested_agy_model_resolution_preserves_spaces_and_parens() -> None:

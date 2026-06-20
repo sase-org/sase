@@ -1,4 +1,4 @@
-"""Workflow for addressing Critique change request comments using Gemini AI."""
+"""Workflow for addressing Critique change request comments via the LLM provider."""
 
 import os
 import sys
@@ -212,8 +212,8 @@ class CrsWorkflow(BaseWorkflow):
         )
         os.environ["SASE_AGENT_CHAT_PATH"] = predicted_chat_path
 
-        # Call Gemini
-        print_status("Calling Gemini to address change requests...", "progress")
+        # Call the LLM provider
+        print_status("Calling the agent to address change requests...", "progress")
         try:
             response = invoke_agent(
                 expanded_prompt,

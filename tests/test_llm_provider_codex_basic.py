@@ -28,7 +28,7 @@ def test_codex_provider_resolve_model_name() -> None:
 @patch.dict(os.environ, {"SASE_CODEX_SMALL_ARGS": "--max-tokens 2000"})
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_extra_args_from_env_small(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -50,7 +50,7 @@ def test_codex_provider_extra_args_from_env_small(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_raises_on_failure(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -71,7 +71,7 @@ def test_codex_provider_raises_on_failure(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_model_override(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -96,7 +96,7 @@ def test_codex_provider_model_override(
 @patch.dict(os.environ, {"SASE_CODEX_PATH": "/opt/openai/bin/codex"})
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_uses_sase_codex_path(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -116,7 +116,7 @@ def test_codex_provider_uses_sase_codex_path(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_uses_nvm_bin_fallback(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -167,7 +167,7 @@ def test_codex_provider_missing_executable_error_mentions_resolution_paths(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_normal_mode_command_construction(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -208,7 +208,7 @@ def test_codex_provider_normal_mode_command_construction(
 )
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_generic_env_args_precedence(
     mock_timer: MagicMock,
     mock_popen: MagicMock,

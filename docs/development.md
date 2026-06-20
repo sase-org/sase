@@ -176,10 +176,10 @@ prompts. Use the catalog's `insertion` value to know whether an entry should be 
 
 Useful visible entries include:
 
-| Reference      | Purpose                                                                                                     |
-| -------------- | ----------------------------------------------------------------------------------------------------------- |
-| `#!sase/reads` | Fan out a reading-recommendation request across Gemini, Claude, and Codex, then consolidate the final list. |
-| `#sase/sync`   | Sync the primary SASE workspace and restart axe.                                                            |
+| Reference      | Purpose                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `#!sase/reads` | Fan out a reading-recommendation request across Antigravity, Claude, and Codex, then consolidate the final list. |
+| `#sase/sync`   | Sync the primary SASE workspace and restart axe.                                                                 |
 
 `#!sase/reads` accepts a required `topic` and an optional `reference_query`. By default, the workflow passes this
 Dataview query to the research agents:

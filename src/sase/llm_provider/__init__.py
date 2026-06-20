@@ -1,6 +1,6 @@
 """LLM Provider abstraction layer.
 
-Provides a pluggable interface for LLM backends (Gemini, Claude, etc.)
+Provides a pluggable interface for LLM backends (Claude, Antigravity, etc.)
 with shared preprocessing, postprocessing, and orchestration.
 """
 

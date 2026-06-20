@@ -4,7 +4,7 @@ import os
 import tempfile
 
 import pytest
-from sase.gemini_wrapper.file_references import (
+from sase.file_references import (
     _find_command_substitutions,
     _find_matching_paren,
     process_command_substitution,

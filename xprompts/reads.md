@@ -41,8 +41,8 @@ xprompts:
       surveys, papers with readable HTML, or long-form posts over short announcements.
 ---
 
-%name:reads.@.gem
-%model:gemini/gemini-3.1-pro-preview
+%name:reads.@.agy
+%model:agy/flash35h
 %g:read
 #_article_search_agent
 
@@ -63,7 +63,7 @@ xprompts:
 ---
 
 %name:reads.@.final
-%wait:reads.@.gem
+%wait:reads.@.agy
 %wait:reads.@.cld
 %wait:reads.@.cdx
 %g:read

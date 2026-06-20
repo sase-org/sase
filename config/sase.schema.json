@@ -576,7 +576,7 @@
       "properties": {
         "provider": {
           "type": "string",
-          "description": "Name of the LLM provider to use (e.g., 'agy', 'claude', 'codex', 'gemini'). Leave empty to autodetect an installed provider CLI.",
+          "description": "Name of the LLM provider to use (e.g., 'agy', 'claude', 'codex'). Leave empty to autodetect an installed provider CLI.",
           "default": ""
         },
         "worker_models": {
@@ -610,7 +610,7 @@
         },
         "retry": {
           "type": "object",
-          "description": "Per-provider retry configuration. Keys are provider names (e.g., 'agy', 'claude', 'gemini').",
+          "description": "Per-provider retry configuration. Keys are provider names (e.g., 'agy', 'claude', 'codex').",
           "additionalProperties": {
             "type": "object",
             "additionalProperties": false,

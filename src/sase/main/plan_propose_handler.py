@@ -45,7 +45,7 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         sys.exit(1)
 
     # Format plan file in-place with prettier before archiving
-    from sase.gemini_wrapper.file_references import format_with_prettier
+    from sase.file_references import format_with_prettier
 
     raw = plan_path.read_text(encoding="utf-8")
     formatted = format_with_prettier(raw)

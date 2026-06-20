@@ -314,7 +314,7 @@ def _base_stream_tool_call_record(
 ) -> dict[str, Any]:
     """Build the shared stream-backed tool-call artifact envelope.
 
-    Gemini and Qwen stream writers should emit this same required field set so
+    Codex and Qwen stream writers should emit this same required field set so
     the TUI reader can stay provider-neutral. Tool input/response summaries and
     optional duration are added by provider normalizers after this envelope is
     created.

@@ -24,27 +24,14 @@ def test_get_target_path_claude_chezmoi(monkeypatch: pytest.MonkeyPatch) -> None
     assert target == Path("/c/home/dot_claude/skills/foo/SKILL.md")
 
 
-def test_get_target_paths_gemini_home_includes_jetski(
+def test_get_target_paths_agy_single_antigravity_profile(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Gemini deploys skills to the default profile and the jetski profile."""
+    """Antigravity deploys to a single ~/.gemini/antigravity-cli profile."""
     monkeypatch.setattr(Path, "home", lambda: Path("/home/u"))
-    targets = _get_target_paths("gemini", "foo", use_chezmoi=False)
+    targets = _get_target_paths("agy", "foo", use_chezmoi=False)
     assert targets == [
-        Path("/home/u/.gemini/skills/foo/SKILL.md"),
-        Path("/home/u/.gemini/jetski/skills/foo/SKILL.md"),
-    ]
-
-
-def test_get_target_paths_gemini_chezmoi_includes_jetski(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Gemini's extra profile is transformed correctly under chezmoi."""
-    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", Path("/c/home"))
-    targets = _get_target_paths("gemini", "foo", use_chezmoi=True)
-    assert targets == [
-        Path("/c/home/dot_gemini/skills/foo/SKILL.md"),
-        Path("/c/home/dot_gemini/jetski/skills/foo/SKILL.md"),
+        Path("/home/u/.gemini/antigravity-cli/skills/foo/SKILL.md"),
     ]
 
 

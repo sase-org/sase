@@ -266,7 +266,7 @@ def _archive_plan_for_approval(
     if not notification.host_files:
         return None
     try:
-        from sase.gemini_wrapper.file_references import format_with_prettier
+        from sase.file_references import format_with_prettier
         from sase.llm_provider._plan_utils import add_create_time_frontmatter
         from sase.running_field import get_workspace_directory
         from sase.sdd.beads import get_effective_sdd_config

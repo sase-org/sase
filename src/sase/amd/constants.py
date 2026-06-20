@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 AGENTS_FILENAME = "AGENTS.md"
+# Provider context-shim files that point at the canonical ``AGENTS.md``. Each
+# entry is named for a CLI that does not read ``AGENTS.md`` directly. ``GEMINI.md``
+# is retained for the Antigravity CLI (`agy`), which still reads ``GEMINI.md`` for
+# workspace context per Google's Gemini CLI -> Antigravity migration.
 PROVIDER_SHIM_FILES = ("CLAUDE.md", "GEMINI.md", "QWEN.md", "OPENCODE.md")
 PROVIDER_SHIM_CONTENT = "@AGENTS.md\n"
 HOME_PROVIDER_SHIM_CONTENT = "@~/AGENTS.md\n"

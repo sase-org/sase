@@ -43,10 +43,10 @@ One notation note before we start:
 
 ## What SASE Is
 
-SASE is a local orchestration layer above coding-agent CLIs such as Codex, Claude Code, Gemini CLI, Qwen Code, and
-OpenCode. It gives those agents a common workflow: launch in isolated workspaces, expand reusable prompts, save prompt
-and response artifacts, track CL/PR-sized work as ChangeSpecs, coordinate dependency graphs with Beads, and supervise
-background work through AXE.
+SASE is a local orchestration layer above coding-agent CLIs such as Codex, Claude Code, Antigravity CLI (`agy`), Qwen
+Code, and OpenCode. It gives those agents a common workflow: launch in isolated workspaces, expand reusable prompts,
+save prompt and response artifacts, track CL/PR-sized work as ChangeSpecs, coordinate dependency graphs with Beads, and
+supervise background work through AXE.
 
 The repo split is intentionally boring:
 
@@ -67,7 +67,7 @@ Title: "SASE as the operating layer"
 Shape: horizontal layered architecture diagram.
 Top layer: "Human surfaces" with ACE TUI, Telegram, Neovim/XPrompt LSP, future Web UI, future Mobile app.
 Middle layer: "SASE Python host" with XPrompts, agent launcher, AXE daemon, ChangeSpecs, SDD, Beads, VCS/workspace plugins.
-Right side attached to middle: "Provider CLIs" with Codex, Claude Code, Gemini, Qwen, OpenCode. Draw them as replaceable
+Right side attached to middle: "Provider CLIs" with Codex, Claude Code, Antigravity (agy), Qwen, OpenCode. Draw them as replaceable
 execution engines rather than the center of the system.
 Bottom layer: "sase-core Rust" with state/indexing, mobile gateway, xprompt LSP core, deterministic file/query helpers.
 Persistent storage under everything: ~/.sase plus repo-local sdd/.
@@ -117,8 +117,8 @@ walkthrough: [Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minut
 ## SASE Wraps Agents, Not Models
 
 SASE deliberately wraps CLI agents rather than raw model APIs. A SASE provider plugin constructs commands for existing
-agent runtimes: Codex CLI, Claude Code, Gemini CLI, Qwen Code, OpenCode, or another provider that implements the same
-boundary. The [LLM provider docs](../../llms.md) describe that layer in detail.
+agent runtimes: Codex CLI, Claude Code, Antigravity CLI (`agy`), Qwen Code, OpenCode, or another provider that
+implements the same boundary. The [LLM provider docs](../../llms.md) describe that layer in detail.
 
 This buys a lot:
 

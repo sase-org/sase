@@ -732,10 +732,10 @@ Commit instructions here...
 
 **Values:**
 
-| Value                  | Behavior                            |
-| ---------------------- | ----------------------------------- |
-| `true`                 | Deploy to all registered providers  |
-| `["claude", "gemini"]` | Deploy only to the listed providers |
+| Value               | Behavior                            |
+| ------------------- | ----------------------------------- |
+| `true`              | Deploy to all registered providers  |
+| `["claude", "agy"]` | Deploy only to the listed providers |
 
 The `description` field provides a human-readable summary shown in `sase xprompt list` and `sase skill list` output. The
 structured catalog also marks these entries with `is_skill: true`; ACE and editor clients use that flag to offer
@@ -754,16 +754,15 @@ and applies the generated files unless passed `--no-commit`, `--no-push`, or `--
 `SKILL.md` files directly. `sase init skills` is a compatibility alias for `sase skill init`.
 
 Provider plugins declare where generated skills should be written. A source can target multiple providers, and a
-provider can have multiple filesystem targets; for example, Gemini deploys to both the normal Gemini skills directory
-and the Jetski compatibility directory. Built-in targets are:
+provider can have multiple filesystem targets. Built-in targets are:
 
-| Provider | Skill target(s)                                                                 |
-| -------- | ------------------------------------------------------------------------------- |
-| Claude   | `~/.claude/skills/<skill>/SKILL.md`                                             |
-| Codex    | `~/.codex/skills/<skill>/SKILL.md`                                              |
-| Gemini   | `~/.gemini/skills/<skill>/SKILL.md`, `~/.gemini/jetski/skills/<skill>/SKILL.md` |
-| Qwen     | `~/.qwen/skills/<skill>/SKILL.md`                                               |
-| OpenCode | `~/.config/opencode/skills/<skill>/SKILL.md`                                    |
+| Provider          | Skill target(s)                                     |
+| ----------------- | --------------------------------------------------- |
+| Claude            | `~/.claude/skills/<skill>/SKILL.md`                 |
+| Codex             | `~/.codex/skills/<skill>/SKILL.md`                  |
+| Antigravity (agy) | `~/.gemini/antigravity-cli/skills/<skill>/SKILL.md` |
+| Qwen              | `~/.qwen/skills/<skill>/SKILL.md`                   |
+| OpenCode          | `~/.config/opencode/skills/<skill>/SKILL.md`        |
 
 ### Bundled Skills
 
@@ -976,7 +975,7 @@ Directives use the same argument syntax as xprompt references:
 %model(claude-sonnet)        # Parenthesis syntax
 %model:`claude-sonnet-4`     # Backtick syntax (for values with special chars)
 %model:codex/o3              # Provider/model syntax — switches both provider and model
-%model:gemini/gemini-2.5-pro # Provider/model syntax for Gemini
+%model:agy/flash35h          # Provider/model syntax for Antigravity (agy)
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %name:reviewer               # Short-form
 %n:reviewer                  # Same, using alias
@@ -1010,7 +1009,7 @@ Directives use the same argument syntax as xprompt references:
 ```
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
-`gemini-2.5-pro`) are automatically mapped to their provider. See
+`qwen3.6-plus`) are automatically mapped to their provider. See
 [Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for the full model-to-provider mapping.
 
 The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a permanent unique name
@@ -1285,15 +1284,15 @@ parentheses (`%m(opus)`) always launch a single agent.
 When a prompt fans out to multiple models, the spawned agents share a single base name and carry a runtime suffix so
 they can be told apart at a glance. Given `%m(opus,gpt-5.5) %n:foo`, the two agents are named `foo.cld` and `foo.cdx`.
 The runtime suffix is a short alias declared by the provider plugin (via the `llm_provider_short_name` hook) — `cld`,
-`cdx`, `gem`, `qwn`, `opc` for the built-in providers — falling back to the full provider name for plugins that don't
+`cdx`, `agy`, `qwn`, `opc` for the built-in providers — falling back to the full provider name for plugins that don't
 declare one. If `%name` is omitted, a single auto-generated base is allocated and shared (e.g. `a.cld` / `a.cdx`) rather
 than each agent picking its own letter independently. Single-model prompts retain their plain `%name` value unchanged.
 When two models share a runtime (e.g. `%m(opus,sonnet)` — both `claude`), the model name disambiguates the suffix:
-`foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g. `gemini-3-flash-preview`) are replaced with a short alias
-(`flash3`) declared by the provider plugin, so a same-runtime gemini fan-out reads as `foo.gem-flash3` /
-`foo.gem-flash25` rather than echoing the full model string. Model arguments used for naming are first resolved through
+`foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g. `Gemini 3.5 Flash (High)`) are replaced with a short alias
+(`flash35h`) declared by the provider plugin, so a same-runtime agy fan-out reads as `foo.agy-flash35h` /
+`foo.agy-flash35l` rather than echoing the full model string. Model arguments used for naming are first resolved through
 xprompt shorthand expansion, while the launched prompt keeps the original `%model` value. For example,
-`%n:ag %m(#flash,#pro)` can launch agents named `ag.gem-flash3` and `ag.gem-pro31p`.
+`%n:ag %m(#flash,#pro)` can launch agents named `ag.agy-flash35h` and `ag.agy-pro31h`.
 
 ### Multi-Value Directives
 

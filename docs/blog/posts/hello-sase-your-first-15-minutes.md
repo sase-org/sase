@@ -19,10 +19,10 @@ links:
 # [01] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents
 
 SASE (pronounced "sassy" — yes, really) is a coordination layer that sits above coding-agent CLIs like Claude Code,
-Codex, or Gemini. This post is the practical on-ramp: by the end you'll have installed `sase`, checked that a provider
-CLI is ready, launched a safe read-only agent run, found the resulting agent record, and picked up the vocabulary you'll
-keep bumping into in the rest of the docs. Plan on roughly fifteen minutes at a terminal, plus however long your
-favorite model takes to think.
+Codex, or Antigravity CLI (`agy`). This post is the practical on-ramp: by the end you'll have installed `sase`, checked
+that a provider CLI is ready, launched a safe read-only agent run, found the resulting agent record, and picked up the
+vocabulary you'll keep bumping into in the rest of the docs. Plan on roughly fifteen minutes at a terminal, plus however
+long your favorite model takes to think.
 
 <!-- more -->
 
@@ -33,7 +33,7 @@ two posts can be read in either order; this one runs first and names the parts a
 ## Step 1 — Install SASE (≈90 seconds)
 
 SASE needs Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and one authenticated coding-agent CLI such as Claude Code,
-Codex, Gemini CLI, Qwen Code, or OpenCode. With Python and `uv` in place:
+Codex, Antigravity CLI (`agy`), Qwen Code, or OpenCode. With Python and `uv` in place:
 
 ```bash
 uv tool install sase --python 3.12
@@ -183,8 +183,8 @@ The names you'll keep bumping into, in one place:
 - **[XPrompts](../../xprompt.md)** — reusable prompt templates and YAML workflows with typed inputs and multi-agent
   fan-out. See also [workflow specs](../../workflow_spec.md).
 - **[SDD](../../sdd.md)** — Spec-Driven Development. Plans, epics, and legends as first-class artifacts on disk.
-- **[Plugins and providers](../../plugins.md)** — model and VCS providers behind a common boundary: Claude Code, Gemini
-  CLI, Codex, Qwen Code, OpenCode for agents; bare git and GitHub for version control.
+- **[Plugins and providers](../../plugins.md)** — model and VCS providers behind a common boundary: Claude Code,
+  Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode for agents; bare git and GitHub for version control.
 
 ## What to read next
 

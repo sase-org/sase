@@ -416,11 +416,11 @@ def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
     mock_wait.return_value = "alpha"
 
     xprompts = {
-        "_flash": XPrompt(name="_flash", content="gemini-3-flash-preview"),
+        "_flash": XPrompt(name="_flash", content="gpt-5.5"),
     }
 
     results = launch_multi_prompt_agents(
-        segments=["%n:ag\n%m(#_flash,gemini-2.5-flash)\nReview"],
+        segments=["%n:ag\n%m(#_flash,gpt-5.3-codex)\nReview"],
         local_xprompts=xprompts,
         cl_name="test",
         project_file="/test.sase",
@@ -431,8 +431,8 @@ def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
 
     assert len(results) == 2
     prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
-    assert prompts[0] == "%name:ag.gem_flash3\n%model:#_flash\nReview"
-    assert prompts[1] == "%name:ag.gem_flash25\n%model:gemini-2.5-flash\nReview"
+    assert prompts[0] == "%name:ag.cdx_gpt55\n%model:#_flash\nReview"
+    assert prompts[1] == "%name:ag.cdx_gpt53\n%model:gpt-5.3-codex\nReview"
 
     local_xprompt_files = [
         c.kwargs["local_xprompts_file"] for c in mock_spawn.call_args_list

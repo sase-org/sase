@@ -103,7 +103,7 @@ def test_create_shadow_codex_home_preserves_real_codex_override(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_uses_shadow_codex_home_by_default(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -133,7 +133,7 @@ def test_codex_provider_uses_shadow_codex_home_by_default(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_sets_project_dir_with_shadow_home(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -168,7 +168,7 @@ def test_codex_provider_sets_project_dir_with_shadow_home(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_preserves_artifacts_dir_with_shadow_home(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -201,7 +201,7 @@ def test_codex_provider_preserves_artifacts_dir_with_shadow_home(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_sets_project_dir_from_active_project_dir(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -235,7 +235,7 @@ def test_codex_provider_sets_project_dir_from_active_project_dir(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_shadow_home_copies_config_and_symlinks_state(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -290,7 +290,7 @@ def test_codex_provider_shadow_home_copies_config_and_symlinks_state(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_deleted_inherited_shadow_uses_real_home_auth(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -333,7 +333,7 @@ def test_codex_provider_deleted_inherited_shadow_uses_real_home_auth(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_cleans_shadow_home_after_failure(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -362,7 +362,7 @@ def test_codex_provider_cleans_shadow_home_after_failure(
 @patch.dict(os.environ, {"SASE_CODEX_DISABLE_SHADOW_HOME": "1"})
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_shadow_home_opt_out_preserves_inherited_env(
     mock_timer: MagicMock,
     mock_popen: MagicMock,

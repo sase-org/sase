@@ -1,4 +1,4 @@
-"""Tests for Claude/Gemini providers, backward compatibility, base provider, and registry."""
+"""Tests for Claude provider, backward compatibility, base provider, and registry."""
 
 import os
 import subprocess
@@ -17,11 +17,10 @@ from sase.llm_provider.config import (
     resolve_model_alias,
 )
 from sase.llm_provider.registry import resolve_model_provider
-from sase.llm_provider.gemini import GeminiProvider
 from sase.llm_provider.types import InvokeResult, ModelTier
 
 
-# --- gemini.py / subprocess tests ---
+# --- subprocess tests ---
 
 
 def test_stream_process_output_stderr() -> None:
@@ -38,12 +37,6 @@ def test_stream_process_output_stderr() -> None:
     assert stdout == ""
     assert "error message" in stderr
     assert return_code == 0
-
-
-def test_gemini_provider_is_llm_provider() -> None:
-    """Test that GeminiProvider is a proper LLMProvider subclass."""
-    provider = GeminiProvider()
-    assert isinstance(provider, LLMProvider)
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
@@ -116,7 +109,7 @@ def test_get_configured_worker_model_entry_uses_specificity_order(
     mock_config.return_value = {
         "worker_models": {
             "claude": "qwen/qwen3.6-plus",
-            "opus": "gemini/gemini-2.5-pro",
+            "opus": "agy/flash35h",
             "claude/opus": "codex/gpt-5.5",
         }
     }
@@ -127,7 +120,7 @@ def test_get_configured_worker_model_entry_uses_specificity_order(
     )
     assert get_configured_worker_model_entry_for_primary("opencode", "opus") == (
         "opus",
-        "gemini/gemini-2.5-pro",
+        "agy/flash35h",
     )
     assert get_configured_worker_model_entry_for_primary("claude", "sonnet") == (
         "claude",
@@ -319,27 +312,6 @@ def test_other_alias_legacy_state_falls_back_to_config(
 # --- Backward compatibility tests ---
 
 
-def test_gemini_wrapper_invoke_agent_still_importable() -> None:
-    """Test that invoke_agent can still be imported from gemini_wrapper."""
-    from sase.gemini_wrapper import invoke_agent as gw_invoke_agent
-
-    assert callable(gw_invoke_agent)
-
-
-def test_gemini_wrapper_log_prompt_still_importable() -> None:
-    """Test that _log_prompt_and_response is still importable from wrapper."""
-    from sase.gemini_wrapper.wrapper import _log_prompt_and_response as log_fn
-
-    assert callable(log_fn)
-
-
-def test_gemini_wrapper_stream_output_still_importable() -> None:
-    """Test that _stream_process_output is still importable from wrapper."""
-    from sase.gemini_wrapper.wrapper import _stream_process_output as stream_fn
-
-    assert callable(stream_fn)
-
-
 def test_llm_provider_invoke_agent_importable() -> None:
     """Test that invoke_agent can be imported from llm_provider."""
     from sase.llm_provider import invoke_agent as llm_invoke_agent
@@ -359,7 +331,7 @@ def test_claude_provider_is_llm_provider() -> None:
 @patch.dict(os.environ, {"SASE_CLAUDE_SMALL_ARGS": "--max-tokens 1000"})
 @patch("sase.llm_provider.claude.stream_and_parse_json_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
-@patch("sase.llm_provider.claude.gemini_timer")
+@patch("sase.llm_provider.claude.provider_timer")
 def test_claude_provider_extra_args_from_env_small(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -418,14 +390,6 @@ def test_claude_provider_resolve_model_name() -> None:
     assert provider.resolve_model_name("small") == "sonnet"
 
 
-def test_gemini_provider_resolve_model_name() -> None:
-    """Test that GeminiProvider.resolve_model_name() returns the default model."""
-    provider = GeminiProvider()
-    assert provider.resolve_model_name() == "gemini-3-flash-preview"
-    assert provider.resolve_model_name("large") == "gemini-3-flash-preview"
-    assert provider.resolve_model_name("small") == "gemini-3-flash-preview"
-
-
 # --- registry auto-detect tests ---
 
 
@@ -461,18 +425,18 @@ def test_registry_auto_detect_priority(
     "sase.llm_provider.registry._llm_metadata_payload",
     return_value={
         "autodetect_candidates": [
-            {"priority": 30, "provider": "gemini", "cli_name": "gemini"}
+            {"priority": 30, "provider": "agy", "cli_name": "agy"}
         ]
     },
 )
 @patch("sase.llm_provider.registry.shutil.which", return_value=None)
 @patch("sase.llm_provider.registry.get_llm_provider_config", return_value={})
-def test_registry_auto_detect_does_not_select_missing_gemini_fallback(
+def test_registry_auto_detect_does_not_select_missing_agy_fallback(
     mock_config: MagicMock,
     mock_which: MagicMock,
     mock_payload: MagicMock,
 ) -> None:
-    """Gemini is not selected unless the Gemini CLI is discoverable."""
+    """Antigravity is not selected unless the `agy` CLI is discoverable."""
     from sase.llm_provider.registry import get_default_provider_name
 
     with pytest.raises(RuntimeError, match="No LLM provider is available"):
@@ -481,7 +445,7 @@ def test_registry_auto_detect_does_not_select_missing_gemini_fallback(
 
 @patch("sase.llm_provider.claude.stream_and_parse_json_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
-@patch("sase.llm_provider.claude.gemini_timer")
+@patch("sase.llm_provider.claude.provider_timer")
 def test_claude_provider_raises_on_failure(
     mock_timer: MagicMock,
     mock_popen: MagicMock,

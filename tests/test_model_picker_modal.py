@@ -59,7 +59,7 @@ def test_build_model_options_has_known_models() -> None:
     assert "claude-fable-5" in ids
     assert "o3" in ids
     assert "gpt-5.5" in ids
-    assert "gemini-2.5-pro" in ids
+    assert "Gemini 3.5 Flash (High)" in ids
 
 
 def test_build_model_options_has_separators() -> None:
@@ -300,7 +300,7 @@ async def test_model_picker_filters_by_provider() -> None:
         assert "__header_codex__" in ids
         assert "o3" in ids
         assert "gpt-5.5" in ids
-        assert "__header_gemini__" not in ids
+        assert "__header_agy__" not in ids
 
 
 async def test_model_picker_filters_by_model_substring() -> None:
@@ -311,14 +311,14 @@ async def test_model_picker_filters_by_model_substring() -> None:
         await pilot.pause()
 
         filter_input = modal.query_one("#model-picker-filter", Input)
-        filter_input.value = "2.5-pro"
+        filter_input.value = "Flash (High)"
         await pilot.pause()
 
         option_list = modal.query_one("#model-picker-list", OptionList)
         ids = {option.id for option in option_list.options}
-        assert "__header_gemini__" in ids
-        assert "gemini-2.5-pro" in ids
-        assert "gemini-3-flash-preview" not in ids
+        assert "__header_agy__" in ids
+        assert "Gemini 3.5 Flash (High)" in ids
+        assert "Gemini 3.5 Flash (Low)" not in ids
 
 
 async def test_model_picker_filters_by_alias() -> None:
@@ -375,8 +375,8 @@ async def test_model_picker_selection_remains_valid_after_filter_change() -> Non
         assert highlighted is not None
         option = option_list.get_option_at_index(highlighted)
         assert option.id != "o3"
-        # A "gemini" filter matches both the lowercase gemini CLI models and
-        # the Antigravity (agy) "Gemini ..." display-name models.
+        # A "gemini" filter matches the Antigravity (agy) "Gemini ..."
+        # display-name models.
         assert "gemini" in str(option.id).lower()
 
 
@@ -439,7 +439,7 @@ async def test_model_picker_jump_hints_follow_filtered_visible_order() -> None:
         visible_ids = modal._visible_selectable_option_ids()
         # Providers render in entry-point order (alphabetical), so the
         # Antigravity (agy) "Gemini ..." display-name models lead the filtered
-        # list ahead of the lowercase gemini CLI models.
+        # list.
         assert visible_ids[:3] == [
             "__default__",
             "Gemini 3.5 Flash (High)",

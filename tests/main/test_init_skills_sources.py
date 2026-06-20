@@ -140,22 +140,22 @@ def test_git_commit_skill_invokes_observable_wrapper() -> None:
     assert "sase commit --resume" not in body
 
 
-def test_gemini_skill_generation_writes_default_and_jetski_targets(
+def test_agy_skill_generation_writes_antigravity_target(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Gemini skills are written to both configured deployment profiles."""
+    """A provider-scoped skill is written to that provider's deployment profile."""
     xprompt = XPrompt(
-        name="gemini_only",
-        content="Gemini profile body.\n",
-        description="Gemini profile test skill.",
-        skill=["gemini"],
+        name="agy_only",
+        content="Antigravity profile body.\n",
+        description="Antigravity profile test skill.",
+        skill=["agy"],
     )
     monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
     monkeypatch.setattr(
         init_skills_handler,
         "get_all_xprompts",
-        lambda project="": {"gemini_only": xprompt},
+        lambda project="": {"agy_only": xprompt},
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -165,9 +165,9 @@ def test_gemini_skill_generation_writes_default_and_jetski_targets(
         handle_init_skills_command(make_args())
 
     assert exc.value.code == 0
-    for target in _get_target_paths("gemini", "gemini_only", use_chezmoi=False):
+    for target in _get_target_paths("agy", "agy_only", use_chezmoi=False):
         assert target.exists(), f"missing generated skill target: {target}"
-        assert "Gemini profile body." in target.read_text(encoding="utf-8")
+        assert "Antigravity profile body." in target.read_text(encoding="utf-8")
 
 
 def test_config_defined_skill_is_generated_from_loaded_xprompts(

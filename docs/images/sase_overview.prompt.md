@@ -30,7 +30,7 @@ Exact visible labels to include, spelled exactly:
 - Input lane: Prompt / XPrompt / Workflow
 - Planning handoff: Planner agent -> plan artifact -> coder agents
 - Workspace fan-out labels: Workspace 1, Workspace 2, Workspace 3
-- Agent labels inside workspaces: Claude Code, Codex, Gemini CLI
+- Agent labels inside workspaces: Claude Code, Codex, Antigravity CLI
 - Provider boundary label: Agent, VCS, Workspace, Notification plugins
 - Durable state labels: ChangeSpecs, Beads, Comments, Commits, Artifacts
 - Outcome labels: Reviewed changes, Tracked runs, Scheduled work
@@ -46,8 +46,8 @@ Composition:
 - Below input lane, show the planning handoff explicitly: "Planner agent -> plan artifact -> coder agents". The plan
   artifact is produced by the planner and then handed to coder agents, not shown as a normal user input.
 - Center/right: show fan-out into three isolated workspace columns labeled "Workspace 1", "Workspace 2", and "Workspace
-  3". Each workspace contains one neutral terminal/chat agent pill labeled "Claude Code", "Codex", or "Gemini CLI" and a
-  small branch/file icon, implying real coding work happens in external agents inside isolated checkouts.
+  3". Each workspace contains one neutral terminal/chat agent pill labeled "Claude Code", "Codex", or "Antigravity CLI"
+  and a small branch/file icon, implying real coding work happens in external agents inside isolated checkouts.
 - Beneath the workspaces, show a durable state layer as shared repositories/records: "ChangeSpecs", "Beads", "Comments",
   "Commits", "Artifacts". Use database/document/node icons and arrows from workspaces back into state.
 - Along the lower edge, show a provider boundary strip labeled "Agent, VCS, Workspace, Notification plugins" to clarify

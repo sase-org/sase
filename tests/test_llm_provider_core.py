@@ -119,7 +119,7 @@ def test_get_default_provider_errors_without_detectable_cli(
 @patch("sase.llm_provider.registry.shutil.which", return_value="/usr/bin/claude")
 @patch(
     "sase.llm_provider.registry.get_llm_provider_config",
-    return_value={"provider": "gemini"},
+    return_value={"provider": "agy"},
 )
 def test_config_provider_overrides_auto_detection(
     mock_config: MagicMock,
@@ -128,7 +128,7 @@ def test_config_provider_overrides_auto_detection(
     """Test that explicit config overrides auto-detection."""
     provider = get_provider()
     assert isinstance(provider, LLMPluginManager)
-    assert provider.provider_name() == "gemini"
+    assert provider.provider_name() == "agy"
     mock_which.assert_not_called()
 
 
@@ -139,9 +139,9 @@ def test_resolve_model_provider_explicit_syntax() -> None:
     """Explicit provider/model syntax resolves correctly."""
     assert resolve_model_provider("codex/o3") == ("codex", "o3")
     assert resolve_model_provider("claude/opus") == ("claude", "opus")
-    assert resolve_model_provider("gemini/gemini-2.5-pro") == (
-        "gemini",
-        "gemini-2.5-pro",
+    assert resolve_model_provider("agy/Gemini 3.5 Flash (High)") == (
+        "agy",
+        "Gemini 3.5 Flash (High)",
     )
 
 
@@ -156,7 +156,10 @@ def test_resolve_model_provider_implicit_mapping() -> None:
     )
     assert resolve_model_provider("gpt-5.5") == ("codex", "gpt-5.5")
     assert resolve_model_provider("gpt-5.3-codex") == ("codex", "gpt-5.3-codex")
-    assert resolve_model_provider("gemini-2.5-pro") == ("gemini", "gemini-2.5-pro")
+    assert resolve_model_provider("Gemini 3.5 Flash (High)") == (
+        "agy",
+        "Gemini 3.5 Flash (High)",
+    )
     assert resolve_model_provider("qwen3.6-plus") == ("qwen", "qwen3.6-plus")
 
 
@@ -175,12 +178,12 @@ def test_resolve_model_provider_explicit_with_unknown_model() -> None:
 # --- model_short_alias_map tests ---
 
 
-def test_model_short_alias_map_contains_gemini_entries() -> None:
-    """The aggregated alias map carries the gemini plugin's entries."""
+def test_model_short_alias_map_contains_agy_entries() -> None:
+    """The aggregated alias map carries the agy plugin's entries."""
     aliases = model_short_alias_map()
-    assert aliases.get("gemini-3-flash-preview") == "flash3"
-    assert aliases.get("gemini-2.5-flash") == "flash25"
-    assert aliases.get("gemini-2.5-pro") == "pro25"
+    assert aliases.get("Gemini 3.5 Flash (High)") == "flash35h"
+    assert aliases.get("Gemini 3.5 Flash (Low)") == "flash35l"
+    assert aliases.get("Gemini 3.1 Pro (High)") == "pro31h"
 
 
 def test_model_short_alias_map_contains_codex_entries() -> None:

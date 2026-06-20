@@ -264,7 +264,7 @@ def _format_skill_output(output: str, *, use_prettier: bool) -> str:
     if not use_prettier:
         return output
 
-    from sase.gemini_wrapper.file_references import format_with_prettier
+    from sase.file_references import format_with_prettier
 
     return format_with_prettier(output)
 

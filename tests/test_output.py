@@ -6,7 +6,7 @@ from rich.console import Console
 
 from sase.output import (
     escape_markup,
-    gemini_timer,
+    provider_timer,
     print_artifact_created,
     print_decision_counts,
     print_prompt_and_response,
@@ -40,13 +40,13 @@ def test_print_decision_counts_empty() -> None:
     print_decision_counts({})
 
 
-def test_gemini_timer_long_duration() -> None:
-    """Test the gemini_timer formatting with hours."""
+def test_provider_timer_long_duration() -> None:
+    """Test the provider_timer formatting with hours."""
     from unittest.mock import patch
 
     # Mock time to simulate > 1 hour duration
     with patch("time.perf_counter", side_effect=[0, 3665]):  # 1 hour, 1 min, 5 sec
-        with gemini_timer("Long operation"):
+        with provider_timer("Long operation"):
             pass  # Timer will calculate elapsed time from the mocked values
 
 

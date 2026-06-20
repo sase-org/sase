@@ -27,11 +27,6 @@ _PROVIDER_SETUP_HINTS: dict[str, dict[str, str]] = {
         "install": "npm install -g @openai/codex",
         "auth": "run `codex login`",
     },
-    "gemini": {
-        "tool": "Gemini CLI",
-        "install": "npm install -g @google/gemini-cli",
-        "auth": "run `gemini` and complete the login flow",
-    },
     "opencode": {
         "tool": "OpenCode",
         "install": "install from https://opencode.ai/docs",

@@ -1,8 +1,8 @@
 # LLM Provider Integration
 
 This document describes the LLM provider abstraction layer in sase. The system supports pluggable LLM backends (Claude
-Code, Codex, Gemini CLI, Qwen Code, and OpenCode are bundled; additional providers can ship as external plugins) behind
-a shared orchestration layer that handles preprocessing, invocation, and postprocessing.
+Code, Codex, Antigravity CLI (`agy`), Qwen Code, and OpenCode are bundled; additional providers can ship as external
+plugins) behind a shared orchestration layer that handles preprocessing, invocation, and postprocessing.
 
 ## Table of Contents
 
@@ -10,7 +10,6 @@ a shared orchestration layer that handles preprocessing, invocation, and postpro
 - [Provider Architecture](#provider-architecture)
 - [Commit Finalization](#commit-finalization)
 - [Claude Code Integration](#claude-code-integration)
-- [Gemini CLI Integration](#gemini-cli-integration)
 - [Antigravity (`agy`) Integration](#antigravity-agy-integration)
 - [Codex CLI Integration](#codex-cli-integration)
 - [Qwen Code Integration](#qwen-code-integration)
@@ -56,7 +55,7 @@ Key design principles:
 | `src/sase/llm_provider/_plugin_manager.py`    | Plugin manager wrapping pluggy (`LLMPluginManager`)    |
 | `src/sase/llm_provider/claude.py`             | Claude Code provider implementation                    |
 | `src/sase/llm_provider/codex.py`              | Codex CLI provider implementation                      |
-| `src/sase/llm_provider/gemini.py`             | Gemini CLI provider implementation                     |
+| `src/sase/llm_provider/agy.py`                | Antigravity CLI (`agy`) provider implementation        |
 | `src/sase/llm_provider/qwen.py`               | Qwen Code provider implementation                      |
 | `src/sase/llm_provider/opencode.py`           | OpenCode provider implementation                       |
 | `src/sase/llm_provider/registry.py`           | Provider registration and lookup                       |
@@ -109,7 +108,7 @@ the same way as external provider plugins; their entry points live in `pyproject
 [project.entry-points."sase_llm"]
 claude = "sase.llm_provider.claude:ClaudeCodeProvider"
 codex  = "sase.llm_provider.codex:CodexProvider"
-gemini = "sase.llm_provider.gemini:GeminiProvider"
+agy = "sase.llm_provider.agy:AgyProvider"
 opencode = "sase.llm_provider.opencode:OpenCodeProvider"
 qwen   = "sase.llm_provider.qwen:QwenProvider"
 ```
@@ -132,8 +131,8 @@ provider = get_provider("claude")  # Explicit provider name
 4. Otherwise, read the `llm_provider.provider` field from `~/.config/sase/sase.yml`.
 5. If no config exists (or provider is empty), auto-detect by walking registered plugins in ascending
    `llm_autodetect_priority()` order and picking the first whose `llm_autodetect_cli_name()` is on `PATH`. Built-in
-   priorities: `claude=0`, `codex=10`, `qwen=15`, `opencode=18`, `gemini=30`. External plugins slot in by declaring
-   their own priority. Gemini returns no CLI name and is the final always-eligible fallback.
+   priorities: `claude=0`, `codex=10`, `qwen=15`, `opencode=18`, `agy=30`. External plugins slot in by declaring their
+   own priority. `agy` autodetects via the `agy` CLI name in the late-fallback slot.
 
 ## Commit Finalization
 
@@ -189,7 +188,7 @@ The generic `SASE_LLM_*_ARGS` variables take precedence. Values are split on whi
 
 ### Timer Display
 
-While waiting for a response, a `gemini_timer("Waiting for Claude")` spinner is shown (unless `suppress_output` is
+While waiting for a response, a `provider_timer("Waiting for Claude")` spinner is shown (unless `suppress_output` is
 `True`).
 
 ### Claude Tool-Call Hooks
@@ -242,53 +241,6 @@ Rust boundary.
 
 Source: `src/sase/llm_provider/claude.py`, `src/sase/llm_provider/_claude_hooks.py`,
 `src/sase/llm_provider/_tool_calls.py`, `src/sase/scripts/sase_claude_tool_hook.py`, `src/sase/ace/tui/tools/reader.py`
-
-## Gemini CLI Integration
-
-The `GeminiProvider` invokes Google's internal Gemini CLI tool.
-
-### Command Construction
-
-```
-gemini --output-format stream-json --yolo --model <model>
-```
-
-The prompt is written to stdin, and stream-json events are parsed from stdout in real-time. SASE accumulates the
-assistant reply text and per-cycle usage totals, and writes normalized tool-call records (see
-[Gemini Tool-Call Capture](#gemini-tool-call-capture)).
-
-### Default Model
-
-The Gemini provider uses `gemini-3-flash-preview` as its default model. The Gemini provider does not vary models by tier
-— both `large` and `small` resolve to this default. It can be overridden per-prompt using the `%model` directive (e.g.,
-`%model:gemini-2.5-flash`).
-
-### Environment Variables
-
-| Variable           | Description                                          |
-| ------------------ | ---------------------------------------------------- |
-| `SASE_GEMINI_PATH` | Path to the Gemini CLI binary (default: `"gemini"`). |
-
-### Gemini Tool-Call Capture
-
-SASE captures Gemini tool calls from the `gemini --output-format stream-json` event stream; it does not install Gemini
-hooks. When `SASE_ARTIFACTS_DIR` is present, the stream parser appends normalized Gemini records to
-`$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for the ACE [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel) with
-`runtime: "gemini"` and `source: "stream"`. Start/completion events collapse into one Tools-panel row that preserves
-pending state while a tool is still running and surfaces result previews, failure/interruption status, and durations
-when the stream exposes them. Malformed or unsupported tool-shaped events are skipped with a diagnostic instead of
-producing a malformed record.
-
-### Skill Deployment
-
-`sase skill init` writes Gemini skills to both `~/.gemini/skills/` and `~/.gemini/jetski/skills/`. With
-`use_chezmoi: true`, those targets are remapped to the matching chezmoi-managed paths under
-`~/.local/share/chezmoi/home/dot_gemini/`.
-
-### Timer Display
-
-While waiting for a response, a `gemini_timer("Waiting for Gemini")` spinner is shown (unless `suppress_output` is
-`True`).
 
 ## Antigravity (`agy`) Integration
 
@@ -424,7 +376,7 @@ artifact.
 
 ### Timer Display
 
-While waiting for a response, a `gemini_timer("Waiting for Codex")` spinner is shown (unless `suppress_output` is
+While waiting for a response, a `provider_timer("Waiting for Codex")` spinner is shown (unless `suppress_output` is
 `True`).
 
 ## Qwen Code Integration
@@ -485,7 +437,7 @@ need repo-local or global Qwen commit-hook configuration.
 
 ### Timer Display
 
-While waiting for a response, a `gemini_timer("Waiting for Qwen")` spinner is shown (unless `suppress_output` is
+While waiting for a response, a `provider_timer("Waiting for Qwen")` spinner is shown (unless `suppress_output` is
 `True`).
 
 ## OpenCode Integration
@@ -536,7 +488,7 @@ The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_OPENCODE_*_AR
 
 ### Timer Display
 
-While waiting for a response, a `gemini_timer("Waiting for OpenCode")` spinner is shown (unless `suppress_output` is
+While waiting for a response, a `provider_timer("Waiting for OpenCode")` spinner is shown (unless `suppress_output` is
 `True`).
 
 ## External Provider Plugins
@@ -557,7 +509,7 @@ The LLM provider reads its configuration from `~/.config/sase/sase.yml` under th
 
 ```yaml
 llm_provider:
-  provider: claude # or "qwen", "opencode", "gemini" (default: auto-detect)
+  provider: claude # or "qwen", "opencode", "agy" (default: auto-detect)
   worker_models:
     claude: codex/gpt-5.5 # worker default when primary is on Claude
     codex: claude/opus # worker default when primary is on Codex
@@ -572,7 +524,7 @@ llm_provider:
 
 | Field                               | Type   | Default     | Description                                                                                                                                                                    |
 | ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini.                                    |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                                       |
 | `llm_provider.worker_models`        | dict   | unset       | Optional worker-lane targets for plan follow-ups and epic phase agents, keyed by the effective primary lane. Values accept aliases, bare models, or explicit `provider/model`. |
 | `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                                          |
 | `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                                          |
@@ -632,7 +584,7 @@ Use `provider/model` to specify both explicitly:
 ```
 %model:codex/o3
 %model:claude/opus
-%model:gemini/gemini-2.5-pro
+%model:agy/flash35h
 %model:qwen/qwen3.6-plus
 %model:opencode/anthropic/claude-sonnet-4-5
 ```
@@ -641,13 +593,13 @@ Use `provider/model` to specify both explicitly:
 
 Known model names are automatically mapped to their provider:
 
-| Model Name                                                                                                                                                | Provider |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `opus`, `sonnet`, `haiku`, `claude-fable-5`                                                                                                               | claude   |
-| `gpt-5.5`, `gpt-5.3-codex`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                           | codex    |
-| `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.0-flash`                            | gemini   |
-| `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                             | qwen     |
-| `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus` | opencode |
+| Model Name                                                                                                                                                                                                               | Provider |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| `opus`, `sonnet`, `haiku`, `claude-fable-5`                                                                                                                                                                              | claude   |
+| `gpt-5.5`, `gpt-5.3-codex`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                                                                                          | codex    |
+| `Gemini 3.5 Flash (High)`, `Gemini 3.5 Flash (Medium)`, `Gemini 3.5 Flash (Low)`, `Gemini 3.1 Pro (High)`, `Gemini 3.1 Pro (Low)`, `Claude Sonnet 4.6 (Thinking)`, `Claude Opus 4.6 (Thinking)`, `GPT-OSS 120B (Medium)` | agy      |
+| `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                            | qwen     |
+| `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                | opencode |
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()` hook.
 
@@ -664,13 +616,13 @@ filter terms in the coder model picker. They are display-only: `%model` resoluti
 select `claude-fable-5` — it falls back to the default provider (with a warning) unless you define `fable` as a
 configured model alias yourself.
 
-| Provider | Shorthands                                                                                                                                                                                                                  |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| claude   | `claude-fable-5` → `fable`                                                                                                                                                                                                  |
-| codex    | `codex-mini-latest` → `mini`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex` → `gpt53`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                 |
-| gemini   | `gemini-3-flash-preview` → `flash3`, `gemini-3.1-pro-preview` → `pro31p`, `gemini-3.1-pro` → `pro31`, `gemini-2.5-flash` → `flash25`, `gemini-2.5-pro` → `pro25`, `gemini-2.0-flash` → `flash20`                            |
-| qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                 |
-| opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp` |
+| Provider | Shorthands                                                                                                                                                                                                                                                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| claude   | `claude-fable-5` → `fable`                                                                                                                                                                                                                                                                                                     |
+| codex    | `codex-mini-latest` → `mini`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex` → `gpt53`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                                                                                    |
+| agy      | `Gemini 3.5 Flash (High)` → `flash35h`, `Gemini 3.5 Flash (Medium)` → `flash35m`, `Gemini 3.5 Flash (Low)` → `flash35l`, `Gemini 3.1 Pro (High)` → `pro31h`, `Gemini 3.1 Pro (Low)` → `pro31l`, `Claude Sonnet 4.6 (Thinking)` → `sonnet46t`, `Claude Opus 4.6 (Thinking)` → `opus46t`, `GPT-OSS 120B (Medium)` → `gptoss120m` |
+| qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                    |
+| opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                    |
 
 Source: `llm_model_short_aliases()` in each provider module under `src/sase/llm_provider/`
 
@@ -737,11 +689,11 @@ llm_provider:
   worker_models:
     claude/opus: codex/gpt-5.5
     sonnet: codex/o3
-    claude: gemini/gemini-2.5-pro
+    claude: agy/flash35h
 ```
 
 With that config, primary `claude/opus` uses `codex/gpt-5.5`, primary `claude/sonnet` uses `codex/o3`, and other Claude
-primary models use `gemini/gemini-2.5-pro`.
+primary models use `agy/flash35h`.
 
 ### Lane Precedence
 
@@ -799,7 +751,7 @@ When no `%model` directive and no explicit `provider_name` are present, the defa
 
 1. **Active primary temporary override** at `~/.sase/llm_override.json` (if not expired).
 2. `llm_provider.provider` from the merged `sase.yml` config.
-3. Auto-detection by plugin-declared priority (built-ins: claude, codex, qwen, opencode, then gemini).
+3. Auto-detection by plugin-declared priority (built-ins: claude, codex, qwen, opencode, then agy).
 
 A concrete temporary override sets both the default provider and a concrete `model_override` for the next launch — so
 the agent metadata (running marker, plan review badge, agent rows) reflects the actual model that will run, not just the
@@ -912,11 +864,14 @@ Complete reference of environment variables used by the LLM provider layer.
 | `SASE_QWEN_LARGE_ARGS` | Qwen-specific extra args for `large` tier |
 | `SASE_QWEN_SMALL_ARGS` | Qwen-specific extra args for `small` tier |
 
-### Gemini-Specific
+### Antigravity (`agy`)-Specific
 
-| Variable           | Description                                          |
-| ------------------ | ---------------------------------------------------- |
-| `SASE_GEMINI_PATH` | Path to the Gemini CLI binary (default: `"gemini"`). |
+| Variable                 | Description                                                        |
+| ------------------------ | ------------------------------------------------------------------ |
+| `SASE_AGY_PATH`          | Path to the Antigravity CLI binary (default: `"agy"`).             |
+| `SASE_AGY_PRINT_TIMEOUT` | Override the `agy --print-timeout` Go duration (default: `"24h"`). |
+| `SASE_AGY_LARGE_ARGS`    | Antigravity-specific extra args for `large` tier                   |
+| `SASE_AGY_SMALL_ARGS`    | Antigravity-specific extra args for `small` tier                   |
 
 ### OpenCode-Specific
 
@@ -965,12 +920,12 @@ Retry behavior is configured per provider under `llm_provider.retry` in `sase.ym
 ```yaml
 llm_provider:
   retry:
-    gemini:
+    claude:
       max_retries: 3
       error_patterns:
-        - "An unexpected critical error occurred:"
+        - "API Error: 500"
       wait_times: [60, 300, 1800]
-      fallback_model: "gemini-3-flash-preview"
+      fallback_model: "sonnet"
 ```
 
 ### Config Fields
@@ -989,14 +944,7 @@ llm_provider:
 
 Retry defaults can come from two places: configured policy under `llm_provider.retry` and provider-supplied defaults
 from the `llm_default_retry_config()` hook. The bundled `default_config.yml` already provides configured policy for
-Gemini, Claude, and Codex; user config can replace or extend it through the normal config merge.
-
-**Gemini:**
-
-- **max_retries**: 3
-- **error_patterns**: `["An unexpected critical error occurred:"]`
-- **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
-- **fallback_model**: `"gemini-3-flash-preview"`
+Claude and Codex; user config can replace or extend it through the normal config merge.
 
 **Claude:**
 
@@ -1192,8 +1140,8 @@ The preprocessing steps delegate to functions from two libraries:
 
 - **`xprompt`**: `process_xprompt_references()`, `extract_prompt_directives()`, `is_jinja2_template()`,
   `render_toplevel_jinja2()`
-- **`gemini_wrapper.file_references`**: `process_command_substitution()`, `process_file_references()`,
-  `validate_file_references()`, `format_with_prettier()`, `strip_html_comments()`
+- **`file_references`**: `process_command_substitution()`, `process_file_references()`, `validate_file_references()`,
+  `format_with_prettier()`, `strip_html_comments()`
 
 ## Subprocess Streaming
 

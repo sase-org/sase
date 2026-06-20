@@ -25,11 +25,11 @@ def test_badge_markup_codex_uses_lime_theme() -> None:
     assert "#10A37F" in markup
 
 
-def test_badge_markup_gemini_uses_google_blue() -> None:
-    markup = _provider_badge_markup("gemini", "gemini-3-flash-preview")
-    assert "GEMINI" in markup
-    assert "gemini-3-flash-preview" in markup
-    assert "#4285F4" in markup
+def test_badge_markup_agy_uses_antigravity_indigo() -> None:
+    markup = _provider_badge_markup("agy", "Gemini 3.5 Flash (High)")
+    assert "AGY" in markup
+    assert "Gemini 3.5 Flash (High)" in markup
+    assert "#6E5DE7" in markup
 
 
 def test_badge_markup_unknown_provider_falls_back_to_plain_label() -> None:
@@ -55,7 +55,7 @@ def test_title_markup_without_badge_matches_legacy_form() -> None:
     assert "20260422_143012_my_feature.md" in title
     assert "CLAUDE" not in title
     assert "CODEX" not in title
-    assert "GEMINI" not in title
+    assert "AGY" not in title
 
 
 def test_title_markup_with_badge_includes_provider_and_filename() -> None:
@@ -72,10 +72,10 @@ def test_title_markup_with_badge_includes_provider_and_filename() -> None:
 
 def test_modal_constructor_accepts_keyword_only_provider_and_model() -> None:
     modal = PlanApprovalModal(
-        "/tmp/plan.md", llm_provider="gemini", model="gemini-3-flash-preview"
+        "/tmp/plan.md", llm_provider="agy", model="Gemini 3.5 Flash (High)"
     )
-    assert modal._llm_provider == "gemini"
-    assert modal._model == "gemini-3-flash-preview"
+    assert modal._llm_provider == "agy"
+    assert modal._model == "Gemini 3.5 Flash (High)"
 
 
 def test_modal_constructor_defaults_provider_and_model_to_none() -> None:

@@ -179,7 +179,7 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         shutil.copy2(plan_path, dest)
         # Format the copied plan with prettier (safety net for
         # archives created before the plan_command_handler format step)
-        from sase.gemini_wrapper.file_references import format_with_prettier
+        from sase.file_references import format_with_prettier
 
         raw = open(dest, encoding="utf-8").read()
         formatted = format_with_prettier(raw)

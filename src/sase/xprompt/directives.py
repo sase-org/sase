@@ -6,7 +6,7 @@ Directive arguments use the same syntax as xprompts (colon, paren, backtick, plu
 
 Example::
 
-    %model:#gemini_small_model
+    %model:agy/flash35l
     Review this code...
 
 The ``%model`` directive overrides the LLM model used for that prompt.

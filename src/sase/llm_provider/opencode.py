@@ -7,7 +7,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from sase.output import gemini_timer
+from sase.output import provider_timer
 
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_opencode_json_output
@@ -173,7 +173,7 @@ class OpenCodeProvider(LLMProvider):
                 base_args.append(arg)
 
         timer_context = (
-            gemini_timer("Waiting for OpenCode") if not suppress_output else None
+            provider_timer("Waiting for OpenCode") if not suppress_output else None
         )
 
         current_prompt = prompt

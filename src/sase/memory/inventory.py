@@ -23,6 +23,7 @@ MemoryContextRootKind = Literal["project", "home"]
 
 INSTRUCTION_ROOT_FILENAMES = (
     "CLAUDE.md",
+    # Antigravity CLI (`agy`) reads GEMINI.md for workspace context.
     "GEMINI.md",
     "QWEN.md",
     "OPENCODE.md",

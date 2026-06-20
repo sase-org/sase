@@ -253,12 +253,15 @@ def test_worker_directive_metadata_prefers_worker_override(
     )
     set_temporary_override("codex/o3", 3600.0, source="test")
     set_temporary_override(
-        "gemini/gemini-2.5-pro", 3600.0, source="test", role="worker"
+        "agy/Gemini 3.5 Flash (High)", 3600.0, source="test", role="worker"
     )
 
     meta = _extract_worker_model_meta(tmp_path)
 
-    assert (meta["llm_provider"], meta["model"]) == ("gemini", "gemini-2.5-pro")
+    assert (meta["llm_provider"], meta["model"]) == (
+        "agy",
+        "Gemini 3.5 Flash (High)",
+    )
 
 
 def test_worker_directive_metadata_uses_configured_worker_model(

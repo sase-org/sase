@@ -1,8 +1,7 @@
 """Main invoke_agent() orchestrator for the LLM provider abstraction layer.
 
-This replaces the old ``gemini_wrapper.invoke_agent()`` and
-``GeminiCommandWrapper.invoke()`` with a provider-agnostic orchestration
-layer that delegates the actual LLM call to a pluggable provider.
+This is the provider-agnostic orchestration layer that delegates the actual
+LLM call to a pluggable provider.
 """
 
 import logging

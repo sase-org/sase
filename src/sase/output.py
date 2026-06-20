@@ -155,13 +155,15 @@ def print_decision_counts(decision_counts: dict) -> None:
 
 
 @contextmanager
-def gemini_timer(message: str = "Waiting for Gemini") -> Generator[None, None, None]:
+def provider_timer(
+    message: str = "Waiting for provider",
+) -> Generator[None, None, None]:
     """
-    Display a live updating timer showing elapsed time while waiting for Gemini.
+    Display a live updating timer showing elapsed time while waiting on an agent.
 
     This context manager displays a timer that updates every second, showing
-    how long the Gemini API call has been running. The timer appears directly
-    below the pretty-printed prompt.
+    how long the provider invocation has been running. The timer appears
+    directly below the pretty-printed prompt.
 
     Args:
         message: The message to display alongside the timer
@@ -170,8 +172,8 @@ def gemini_timer(message: str = "Waiting for Gemini") -> Generator[None, None, N
         None
 
     Example:
-        >>> with gemini_timer("Waiting for Gemini"):
-        ...     result = subprocess.run(["gemini", "--yolo"], ...)
+        >>> with provider_timer("Waiting for Antigravity"):
+        ...     result = subprocess.run(["agy", "--print", prompt], ...)
     """
     start_time = time.time()
 

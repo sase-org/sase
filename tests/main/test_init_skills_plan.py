@@ -288,7 +288,7 @@ def test_packaged_skills_respect_log_skill_use_flag() -> None:
 def test_batch_formatter_failure_falls_back_per_unique_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.gemini_wrapper import file_references
+    from sase import file_references
 
     def fail_batch(outputs: list[str]) -> list[str]:
         raise subprocess.CalledProcessError(1, ["prettier"])
@@ -319,7 +319,7 @@ def test_batch_formatter_timeout_falls_back_per_unique_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A hung prettier must degrade like a failed one, not hang the caller."""
-    from sase.gemini_wrapper import file_references
+    from sase import file_references
 
     def hang_batch(outputs: list[str]) -> list[str]:
         raise subprocess.TimeoutExpired(["prettier"], 10.0)

@@ -5,7 +5,7 @@ behavior that SASE relies on:
 
 - construction with ``content=...``
 - ``.content`` access
-- ``isinstance(msg, HumanMessage)`` routing in the deprecated Gemini wrapper
+- ``isinstance(msg, HumanMessage)`` routing in the provider invoke path
 - list content compatibility with :func:`sase.content.ensure_str_content`
 
 SASE no longer depends on ``langchain-core``; do not reintroduce LangChain

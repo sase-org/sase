@@ -559,13 +559,13 @@ date-prefix used for dismissal.
 Each agent row also carries a per-provider emoji badge before the display name so the LLM provider behind a row is
 readable at a glance without scanning the right-hand model suffix:
 
-| Badge | Provider |
-| ----- | -------- |
-| 🎭    | Claude   |
-| ♊    | Gemini   |
-| 🤖    | Codex    |
-| 🐼    | Qwen     |
-| 🐙    | OpenCode |
+| Badge | Provider          |
+| ----- | ----------------- |
+| 🎭    | Claude            |
+| 🪐    | Antigravity (agy) |
+| 🤖    | Codex             |
+| 🐼    | Qwen              |
+| 🐙    | OpenCode          |
 
 The same provider palette also colors the `<PROVIDER>(<model>)` suffix on the right edge of the row — the provider name,
 the parentheses, and the model name each render in a distinct shade from that provider's palette so multi-model fan-outs
@@ -1177,10 +1177,10 @@ for it to finish and then loads its conversation history.
 When the same base name is shared by multiple co-launched agents (e.g. multi-model fan-out via the `%model:` directive),
 the rendered display name carries a short `.<provider>` or `.<provider>(<model>)` suffix so each row is distinguishable.
 Provider suffixes are supplied by the LLM provider plugins via the `llm_provider_short_name` hook (built-in defaults:
-`cld` for Claude, `cdx` for Codex, `gem` for Gemini). Additional provider plugins can contribute their own short names.
-Model-name shorthands come from the `llm_model_short_aliases` hook (e.g. `fable` for `claude-fable-5`, `gpt55` for
-`gpt-5.5`; see [Model Short Aliases](llms.md#model-short-aliases)) and are resolved against the configured model so the
-suffix stays compact regardless of how the model was spelled in the prompt or config. Single-runtime spawns omit the
+`cld` for Claude, `cdx` for Codex, `agy` for Antigravity). Additional provider plugins can contribute their own short
+names. Model-name shorthands come from the `llm_model_short_aliases` hook (e.g. `fable` for `claude-fable-5`, `gpt55`
+for `gpt-5.5`; see [Model Short Aliases](llms.md#model-short-aliases)) and are resolved against the configured model so
+the suffix stays compact regardless of how the model was spelled in the prompt or config. Single-runtime spawns omit the
 suffix.
 
 An explicit `%name:<name>` launch fails before spawning if `<name>` is already reserved. The prompt is saved as a
@@ -1402,12 +1402,12 @@ Records are produced by writers that share one normalized on-disk format. Claude
 as the preferred source and keeps its stream-derived parser as a fallback when hooks are unavailable. Codex writes
 equivalent rows from its `codex exec --json` stream with `runtime: "codex"` and `source: "stream"`; current Codex
 start/completion events can show pending rows, result previews, failures, interruptions, and durations, while older
-completed-only `function_call` rows remain readable with more limited detail. Gemini and Qwen both write stream-derived
-rows from their respective `--output-format stream-json` outputs with `runtime: "gemini"` / `runtime: "qwen"` and
-`source: "stream"`; start/completion (and Qwen's `tool_use` / `tool_result`) pairs collapse into single rows the same
-way Codex pairs do. See [LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks),
-[LLM Providers — Codex tool-call capture](llms.md#codex-tool-call-capture),
-[LLM Providers — Gemini tool-call capture](llms.md#gemini-tool-call-capture), and
+completed-only `function_call` rows remain readable with more limited detail. Qwen writes stream-derived rows from its
+`--output-format stream-json` output with `runtime: "qwen"` and `source: "stream"`; start/completion (and Qwen's
+`tool_use` / `tool_result`) pairs collapse into single rows the same way Codex pairs do. Antigravity (`agy`) runs in
+plain-stdout mode and exposes no machine-readable tool-call contract, so they contribute no tool rows and the panel
+simply shows nothing for `agy` runs. See [LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks),
+[LLM Providers — Codex tool-call capture](llms.md#codex-tool-call-capture), and
 [LLM Providers — Qwen tool-call capture](llms.md#qwen-tool-call-capture) for provider integration details.
 
 ## Plan Workflows
@@ -1437,8 +1437,8 @@ the root's latest plan timestamp is newer than its latest feedback timestamp the
 matching follow-up status) instead.
 
 The Plan Review modal title shows a provider-themed `PROVIDER(model)` badge between the "Plan Review" label and the plan
-filename — orange for Claude, lime for Codex, Google blue for Gemini, neutral muted for other providers. The badge is
-omitted when provider/model metadata is absent, leaving the legacy title shape unchanged.
+filename — orange for Claude, lime for Codex, Antigravity indigo (`#6E5DE7`) for agy, neutral muted for other providers.
+The badge is omitted when provider/model metadata is absent, leaving the legacy title shape unchanged.
 
 The same pending approvals are available from the CLI. Run `sase plan` to see pending proposals, recent approvals, and
 inferred rejected archived plans; run `sase plan approve <id-prefix> --kind approve|commit|epic|legend|tale` to write
@@ -1498,7 +1498,7 @@ The dialog keeps the custom coder prompt and follow-up model controls:
   Legend generate their follow-up prompts from the bead xprompts.
 - **Coder model** — Select an LLM model for the next follow-up agent instead of using the worker-lane default. For
   Approve and Tale that agent is the coder; for Epic and Legend it is the bead follow-up. Shows all registered models
-  grouped by provider (Claude, Codex, Gemini, Qwen, OpenCode) with a "Custom..." option for freeform input. Type to
+  grouped by provider (Claude, Codex, Antigravity, Qwen, OpenCode) with a "Custom..." option for freeform input. Type to
   filter by provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to
   clear the filter or cancel, and `'` for jump hints over the visible selectable rows. The displayed default is the
   worker lane resolved from the **planner's** concrete provider/model — an active worker override, a matching

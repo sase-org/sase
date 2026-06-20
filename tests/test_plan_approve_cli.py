@@ -274,7 +274,7 @@ def test_plan_approve_archives_sdd_path_and_refreshes_index(
         patch("sase.sdd.files.get_yyyymm", return_value="202606"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
         patch(
-            "sase.gemini_wrapper.file_references.format_with_prettier",
+            "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
         patch(

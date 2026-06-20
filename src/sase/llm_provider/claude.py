@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.output import gemini_timer
+from sase.output import provider_timer
 
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_json_output
@@ -161,7 +161,7 @@ class ClaudeCodeProvider(LLMProvider):
             )
 
         timer_context = (
-            gemini_timer("Waiting for Claude") if not suppress_output else None
+            provider_timer("Waiting for Claude") if not suppress_output else None
         )
 
         current_prompt = prompt

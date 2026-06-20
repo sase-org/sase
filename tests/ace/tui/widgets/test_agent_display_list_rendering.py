@@ -316,9 +316,9 @@ class TestAgentListProviderEmojiBadges:
             llm_provider=None,
             start_time=datetime(2024, 1, 1, 14, 0, 0),
         )
-        gemini = make_agent(
-            cl_name="gemini",
-            llm_provider="gemini",
+        agy = make_agent(
+            cl_name="agy",
+            llm_provider="agy",
             start_time=datetime(2024, 1, 1, 14, 6, 0),
         )
         codex = make_agent(
@@ -331,11 +331,11 @@ class TestAgentListProviderEmojiBadges:
             llm_provider="claude",
             start_time=datetime(2024, 1, 1, 14, 1, 0),
         )
-        root.runtime_children.extend([gemini, codex, claude])
+        root.runtime_children.extend([agy, codex, claude])
 
         left, _, _ = format_agent_option(root, 0, is_selected=False)
 
-        assert "🎭 🤖 ♊ root-agent (RUNNING)" in left.plain
+        assert "🎭 🤖 🪐 root-agent (RUNNING)" in left.plain
 
     def test_root_row_deduplicates_provider_emojis(self) -> None:
         root = make_agent(
@@ -373,7 +373,7 @@ class TestAgentListProviderEmojiBadges:
         )
         grandchild = make_agent(
             cl_name="grandchild",
-            llm_provider="gemini",
+            llm_provider="agy",
             start_time=datetime(2024, 1, 1, 14, 2, 0),
         )
         child.runtime_children.append(grandchild)
@@ -381,7 +381,7 @@ class TestAgentListProviderEmojiBadges:
 
         left, _, _ = format_agent_option(root, 0, is_selected=False)
 
-        assert "🎭 ♊ root-agent (RUNNING)" in left.plain
+        assert "🎭 🪐 root-agent (RUNNING)" in left.plain
 
     def test_root_row_renders_opencode_provider_emoji_before_name(self) -> None:
         agent = make_agent(cl_name="root-agent", llm_provider="opencode")
@@ -455,7 +455,7 @@ class TestAgentListProviderEmojiBadges:
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert left.plain == "[agent] plain-agent (RUNNING)"
-        assert not any(emoji in left.plain for emoji in ("🎭", "♊", "🤖", "🐼", "🐙"))
+        assert not any(emoji in left.plain for emoji in ("🎭", "🪐", "🤖", "🐼", "🐙"))
 
 
 # -- _render_phase_divider ----------------------------------------------------

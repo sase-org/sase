@@ -27,12 +27,12 @@ points resolve to a module whose package resources are read by Sase.
 
 ## Available Plugin Packages
 
-| Package         | Description                                                                             | Entry Points                                                                                            |
-| --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `sase` (core)   | Bare-git VCS, bare-git and `#cd` workspaces, and built-in LLM providers                 | `sase_vcs: bare_git`, `sase_workspace: bare_git, cd`, `sase_llm: claude, codex, gemini, opencode, qwen` |
-| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`  |
-| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                   |
-| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                                |
+| Package         | Description                                                                             | Entry Points                                                                                           |
+| --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `sase` (core)   | Bare-git VCS, bare-git and `#cd` workspaces, and built-in LLM providers                 | `sase_vcs: bare_git`, `sase_workspace: bare_git, cd`, `sase_llm: agy, claude, codex, opencode, qwen`   |
+| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github` |
+| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                  |
+| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                               |
 
 ## Installation
 
@@ -109,8 +109,8 @@ LLM provider plugins use pluggy's hook system. The hook specification is defined
 `llm_autodetect_priority`, `llm_autodetect_cli_name`, `llm_default_retry_config`) are invoked per-plugin by the registry
 so each provider contributes its own metadata. All hook method names are prefixed with `llm_`.
 
-Core Sase ships Claude, Codex, Gemini, Qwen, and OpenCode providers as built-in entry points. Additional providers
-belong in external plugin packages that declare `sase_llm` entry points and provide their own metadata hooks.
+Core Sase ships Claude, Codex, Antigravity (`agy`), Qwen, and OpenCode providers as built-in entry points. Additional
+providers belong in external plugin packages that declare `sase_llm` entry points and provide their own metadata hooks.
 
 See [docs/llms.md](llms.md) for the full LLM provider reference, including authoring new providers with `@hookimpl`.
 

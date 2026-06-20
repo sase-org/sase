@@ -286,7 +286,7 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
             shutil.copy2(expanded_path, dest_path)
             replacements[original_path] = dest_path
             basename = os.path.basename(expanded_path)
-            print_file_operation(f"Copied for Gemini: {basename}", dest_path, True)
+            print_file_operation(f"Copied for agent: {basename}", dest_path, True)
         except Exception as e:
             print_status(f"Failed to copy {expanded_path} to {dest_path}: {e}", "error")
 

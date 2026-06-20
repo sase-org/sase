@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
-from sase.output import gemini_timer
+from sase.output import provider_timer
 
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_codex_json_output
@@ -347,7 +347,7 @@ class CodexProvider(LLMProvider):
                 base_args.append(arg)
 
         timer_context = (
-            gemini_timer("Waiting for Codex") if not suppress_output else None
+            provider_timer("Waiting for Codex") if not suppress_output else None
         )
 
         current_prompt = prompt

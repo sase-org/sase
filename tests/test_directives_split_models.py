@@ -377,14 +377,14 @@ def test_split_prompt_for_models_unknown_model_uses_default_provider() -> None:
         assert result[1] == "%name:foo.cld\n%model:opus\nReview"
 
 
-def test_split_prompt_for_models_gemini_collision_uses_short_alias() -> None:
-    """Same-runtime gemini collision substitutes short aliases for model names."""
-    prompt = "%n:o\n%m(gemini-3-flash-preview,gemini-2.5-flash)\nReview"
+def test_split_prompt_for_models_codex_collision_uses_short_alias() -> None:
+    """Same-runtime codex collision substitutes short aliases for model names."""
+    prompt = "%n:o\n%m(gpt-5.5,gpt-5.3-codex)\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == ("%name:o.gem_flash3\n%model:gemini-3-flash-preview\nReview")
-    assert result[1] == ("%name:o.gem_flash25\n%model:gemini-2.5-flash\nReview")
+    assert result[0] == ("%name:o.cdx_gpt55\n%model:gpt-5.5\nReview")
+    assert result[1] == ("%name:o.cdx_gpt53\n%model:gpt-5.3-codex\nReview")
 
 
 def test_split_prompt_for_models_opencode_nested_models_use_short_aliases() -> None:
@@ -436,68 +436,62 @@ def test_split_prompt_for_models_unknown_model_falls_through() -> None:
     """Unknown model in a same-runtime collision keeps its raw name."""
     from sase.llm_provider.registry import get_default_provider_name
 
-    if get_default_provider_name() != "gemini":
-        # Test relies on unknown_xyz routing to gemini (the fallback default).
+    if get_default_provider_name() != "codex":
+        # Test relies on unknown_xyz routing to codex (the fallback default).
         # If a different default is configured, skip the assertion path.
         return
-    prompt = "%n:o\n%m(gemini-3-flash-preview,unknown_xyz)\nReview"
+    prompt = "%n:o\n%m(gpt-5.5,unknown_xyz)\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == ("%name:o.gem_flash3\n%model:gemini-3-flash-preview\nReview")
-    assert result[1] == "%name:o.gem_unknown_xyz\n%model:unknown_xyz\nReview"
+    assert result[0] == ("%name:o.cdx_gpt55\n%model:gpt-5.5\nReview")
+    assert result[1] == "%name:o.cdx_unknown_xyz\n%model:unknown_xyz\nReview"
 
 
 def test_split_prompt_for_models_alias_collision_falls_back_to_raw() -> None:
     """Two models that alias to the same short form fall back to raw names."""
     fake_aliases = {
-        "gemini-3-flash-preview": "fl",
-        "gemini-2.5-flash": "fl",
+        "gpt-5.5": "gp",
+        "gpt-5.3-codex": "gp",
     }
     with patch(
         "sase.llm_provider.registry.model_short_alias_map",
         return_value=fake_aliases,
     ):
-        result = split_prompt_for_models(
-            "%n:o\n%m(gemini-3-flash-preview,gemini-2.5-flash)\nReview"
-        )
+        result = split_prompt_for_models("%n:o\n%m(gpt-5.5,gpt-5.3-codex)\nReview")
     assert result is not None
     assert len(result) == 2
-    assert result[0] == (
-        "%name:o.gem_gemini_3_flash_preview\n%model:gemini-3-flash-preview\nReview"
-    )
-    assert result[1] == (
-        "%name:o.gem_gemini_2.5_flash\n%model:gemini-2.5-flash\nReview"
-    )
+    assert result[0] == ("%name:o.cdx_gpt_5.5\n%model:gpt-5.5\nReview")
+    assert result[1] == ("%name:o.cdx_gpt_5.3_codex\n%model:gpt-5.3-codex\nReview")
 
 
 def test_split_prompt_for_models_global_shorthand_name_uses_resolved_alias() -> None:
     """A model shorthand keeps its raw directive but names with the resolved alias."""
     xprompts = {
-        "flash": XPrompt(name="flash", content="gemini-3-flash-preview"),
+        "flash": XPrompt(name="flash", content="gpt-5.5"),
     }
     with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
-        result = split_prompt_for_models("%n:o\n%m(#flash,gemini-2.5-flash)\nReview")
+        result = split_prompt_for_models("%n:o\n%m(#flash,gpt-5.3-codex)\nReview")
 
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:o.gem_flash3\n%model:#flash\nReview"
-    assert result[1] == "%name:o.gem_flash25\n%model:gemini-2.5-flash\nReview"
+    assert result[0] == "%name:o.cdx_gpt55\n%model:#flash\nReview"
+    assert result[1] == "%name:o.cdx_gpt53\n%model:gpt-5.3-codex\nReview"
 
 
 def test_split_prompt_for_models_same_runtime_shorthands_use_resolved_aliases() -> None:
     """Same-runtime shorthand variants disambiguate with resolved model aliases."""
     xprompts = {
-        "flash": XPrompt(name="flash", content="gemini-3-flash-preview"),
-        "pro": XPrompt(name="pro", content="gemini-3.1-pro-preview"),
+        "flash": XPrompt(name="flash", content="gpt-5.5"),
+        "pro": XPrompt(name="pro", content="gpt-4.1"),
     }
     with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
         result = split_prompt_for_models("%n:ag\n%m(#flash,#pro)\nReview")
 
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:ag.gem_flash3\n%model:#flash\nReview"
-    assert result[1] == "%name:ag.gem_pro31p\n%model:#pro\nReview"
+    assert result[0] == "%name:ag.cdx_gpt55\n%model:#flash\nReview"
+    assert result[1] == "%name:ag.cdx_gpt41\n%model:#pro\nReview"
 
 
 def test_split_prompt_for_models_dedupes_raw_and_shorthand_same_model() -> None:
@@ -515,18 +509,18 @@ def test_split_prompt_for_models_unknown_shorthand_name_strips_hash_fallback() -
     """Unknown shorthand remains raw in %model but drops # from the name suffix."""
     with patch(
         "sase.xprompt._directive_alt._runtime_label_for_model",
-        return_value="gem",
+        return_value="cdx",
     ):
         result = split_prompt_for_models(
-            "%n:o\n%m(#unknown_model_alias,gemini-3-flash-preview)\nReview"
+            "%n:o\n%m(#unknown_model_alias,gpt-5.5)\nReview"
         )
 
     assert result is not None
     assert len(result) == 2
     assert result[0] == (
-        "%name:o.gem_unknown_model_alias\n%model:#unknown_model_alias\nReview"
+        "%name:o.cdx_unknown_model_alias\n%model:#unknown_model_alias\nReview"
     )
-    assert result[1] == "%name:o.gem_flash3\n%model:gemini-3-flash-preview\nReview"
+    assert result[1] == "%name:o.cdx_gpt55\n%model:gpt-5.5\nReview"
 
 
 def test_split_prompt_for_models_pure_alt_gets_planned_names() -> None:

@@ -35,12 +35,12 @@ _STATUS_ICONS: dict[SkillTargetStatus, str] = {
 }
 _PROVIDER_COLORS: dict[str, str] = {
     "claude": "#cc785c",
-    "gemini": "#4285f4",
+    "agy": "#6e5de7",
     "codex": "#10a37f",
     "amp": "magenta",
     "cursor": "cyan",
 }
-_PROVIDER_ORDER: tuple[str, ...] = ("claude", "gemini", "codex", "amp", "cursor")
+_PROVIDER_ORDER: tuple[str, ...] = ("claude", "agy", "codex", "amp", "cursor")
 _DRIFT_LIMIT = 12
 
 

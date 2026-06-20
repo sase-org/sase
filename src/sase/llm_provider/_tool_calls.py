@@ -1,6 +1,6 @@
 """Runtime-neutral tool-call artifact writers.
 
-Claude, Codex, Gemini, Qwen, and OpenCode write the same normalized artifact
+Claude, Codex, Qwen, and OpenCode write the same normalized artifact
 shape from their provider stream parsers. Claude schema-v3 hook payload support
 is retained as a legacy compatibility surface for old artifacts/tests; new
 Claude provider runs use assistant/user ``stream-json`` events and do not
@@ -22,10 +22,6 @@ from ._tool_call_claude import (
 from ._tool_call_codex import (
     append_codex_tool_call_event,
     normalize_codex_tool_call_event as _normalize_codex_tool_call_event,
-)
-from ._tool_call_gemini import (
-    append_gemini_tool_call_event,
-    normalize_gemini_tool_call_event as _normalize_gemini_tool_call_event,
 )
 from ._tool_call_qwen import (
     append_qwen_tool_call_event,
@@ -57,13 +53,11 @@ __all__ = [
     "_normalize_claude_hook_payload",
     "_normalize_claude_stream_event",
     "_normalize_codex_tool_call_event",
-    "_normalize_gemini_tool_call_event",
     "_normalize_qwen_tool_call_event",
     "_summarize_tool_input",
     "append_claude_hook_tool_call_event",
     "append_claude_tool_call_event",
     "append_codex_tool_call_event",
-    "append_gemini_tool_call_event",
     "append_qwen_tool_call_event",
     "append_tool_call_collector_diagnostic",
 ]

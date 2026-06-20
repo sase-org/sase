@@ -240,7 +240,7 @@ full LLM provider architecture, preprocessing pipeline, and invocation lifecycle
 
 ```yaml
 llm_provider:
-  provider: claude # or "qwen", "opencode", "gemini" (default: auto-detect)
+  provider: claude # or "qwen", "opencode", "agy" (default: auto-detect)
   worker_models:
     claude: codex/gpt-5.5 # worker default when primary is on Claude
     codex: claude/opus # worker default when primary is on Codex
@@ -253,7 +253,7 @@ llm_provider:
 
 | Field                               | Type   | Default     | Description                                                                                                                                                  |
 | ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini.                  |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                     |
 | `llm_provider.worker_models`        | dict   | unset       | Optional worker-lane targets keyed by the effective primary lane. Values accept bare known models, aliases, or explicit `provider/model`.                    |
 | `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                                       |
 | `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                                       |
@@ -292,27 +292,27 @@ and TUI display.
 ```yaml
 llm_provider:
   retry:
-    gemini:
+    claude:
       max_retries: 3
       error_patterns:
-        - "An unexpected critical error occurred:"
+        - "API Error: 500"
       wait_times: [60, 300, 1800]
-      fallback_model: "gemini-3-flash-preview"
+      fallback_model: "sonnet"
       continuation_prompt: "Please continue from the last preserved work."
       preserve_workspace: true
       spawn_new_agent: false
 ```
 
-| Field                                               | Type | Default | Description                                                               |
-| --------------------------------------------------- | ---- | ------- | ------------------------------------------------------------------------- |
-| `llm_provider.retry.<provider>`                     | dict | -       | Retry config for a specific provider (e.g., `gemini`, `claude`, `codex`). |
-| `llm_provider.retry.<provider>.max_retries`         | int  | `0`     | Maximum retry attempts. `0` disables retrying.                            |
-| `llm_provider.retry.<provider>.error_patterns`      | list | `[]`    | Case-insensitive substring patterns matched against error output.         |
-| `llm_provider.retry.<provider>.wait_times`          | list | `[30]`  | Per-retry wait times in seconds. Last value reused if list is shorter.    |
-| `llm_provider.retry.<provider>.fallback_model`      | str  | `null`  | Alternate model to use after exhausting all retries.                      |
-| `llm_provider.retry.<provider>.continuation_prompt` | str  | `null`  | Prompt text prepended when continuing after a retryable failure.          |
-| `llm_provider.retry.<provider>.preserve_workspace`  | bool | `false` | Preserve on-disk edits across legacy in-process retry attempts.           |
-| `llm_provider.retry.<provider>.spawn_new_agent`     | bool | `false` | Retry by launching a fresh detached agent that inherits the workspace.    |
+| Field                                               | Type | Default | Description                                                            |
+| --------------------------------------------------- | ---- | ------- | ---------------------------------------------------------------------- |
+| `llm_provider.retry.<provider>`                     | dict | -       | Retry config for a specific provider (e.g., `agy`, `claude`, `codex`). |
+| `llm_provider.retry.<provider>.max_retries`         | int  | `0`     | Maximum retry attempts. `0` disables retrying.                         |
+| `llm_provider.retry.<provider>.error_patterns`      | list | `[]`    | Case-insensitive substring patterns matched against error output.      |
+| `llm_provider.retry.<provider>.wait_times`          | list | `[30]`  | Per-retry wait times in seconds. Last value reused if list is shorter. |
+| `llm_provider.retry.<provider>.fallback_model`      | str  | `null`  | Alternate model to use after exhausting all retries.                   |
+| `llm_provider.retry.<provider>.continuation_prompt` | str  | `null`  | Prompt text prepended when continuing after a retryable failure.       |
+| `llm_provider.retry.<provider>.preserve_workspace`  | bool | `false` | Preserve on-disk edits across legacy in-process retry attempts.        |
+| `llm_provider.retry.<provider>.spawn_new_agent`     | bool | `false` | Retry by launching a fresh detached agent that inherits the workspace. |
 
 Configured retry policy is merged with provider-supplied retry defaults when a provider declares them. For list fields
 such as `error_patterns`, built-in patterns are kept and configured patterns are appended with duplicates removed.
@@ -971,25 +971,28 @@ Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 
 ### LLM Provider
 
-| Variable                         | Description                                                                |
-| -------------------------------- | -------------------------------------------------------------------------- |
-| `SASE_MODEL_TIER_OVERRIDE`       | Force all LLM invocations to a specific tier (`large` or `small`).         |
-| `SASE_MODEL_SIZE_OVERRIDE`       | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).           |
-| `SASE_LLM_LARGE_ARGS`            | Extra CLI args appended for `large` tier invocations (any provider).       |
-| `SASE_LLM_SMALL_ARGS`            | Extra CLI args appended for `small` tier invocations (any provider).       |
-| `SASE_CLAUDE_LARGE_ARGS`         | Claude-specific extra args for `large` tier (fallback if generic unset).   |
-| `SASE_CLAUDE_SMALL_ARGS`         | Claude-specific extra args for `small` tier (fallback if generic unset).   |
-| `SASE_CODEX_PATH`                | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex).   |
-| `SASE_CODEX_LARGE_ARGS`          | Codex-specific extra args for `large` tier (fallback if generic unset).    |
-| `SASE_CODEX_SMALL_ARGS`          | Codex-specific extra args for `small` tier (fallback if generic unset).    |
-| `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to launch Codex with the inherited `CODEX_HOME`.                |
-| `SASE_QWEN_PATH`                 | Path to the Qwen Code CLI binary (default: `qwen`).                        |
-| `SASE_QWEN_LARGE_ARGS`           | Qwen-specific extra args for `large` tier (fallback if generic unset).     |
-| `SASE_QWEN_SMALL_ARGS`           | Qwen-specific extra args for `small` tier (fallback if generic unset).     |
-| `SASE_OPENCODE_PATH`             | Path to the OpenCode CLI binary (default: `opencode`).                     |
-| `SASE_OPENCODE_LARGE_ARGS`       | OpenCode-specific extra args for `large` tier (fallback if generic unset). |
-| `SASE_OPENCODE_SMALL_ARGS`       | OpenCode-specific extra args for `small` tier (fallback if generic unset). |
-| `SASE_GEMINI_PATH`               | Path to the Gemini CLI binary (default: `gemini`).                         |
+| Variable                         | Description                                                                   |
+| -------------------------------- | ----------------------------------------------------------------------------- |
+| `SASE_MODEL_TIER_OVERRIDE`       | Force all LLM invocations to a specific tier (`large` or `small`).            |
+| `SASE_MODEL_SIZE_OVERRIDE`       | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).              |
+| `SASE_LLM_LARGE_ARGS`            | Extra CLI args appended for `large` tier invocations (any provider).          |
+| `SASE_LLM_SMALL_ARGS`            | Extra CLI args appended for `small` tier invocations (any provider).          |
+| `SASE_CLAUDE_LARGE_ARGS`         | Claude-specific extra args for `large` tier (fallback if generic unset).      |
+| `SASE_CLAUDE_SMALL_ARGS`         | Claude-specific extra args for `small` tier (fallback if generic unset).      |
+| `SASE_CODEX_PATH`                | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex).      |
+| `SASE_CODEX_LARGE_ARGS`          | Codex-specific extra args for `large` tier (fallback if generic unset).       |
+| `SASE_CODEX_SMALL_ARGS`          | Codex-specific extra args for `small` tier (fallback if generic unset).       |
+| `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to launch Codex with the inherited `CODEX_HOME`.                   |
+| `SASE_QWEN_PATH`                 | Path to the Qwen Code CLI binary (default: `qwen`).                           |
+| `SASE_QWEN_LARGE_ARGS`           | Qwen-specific extra args for `large` tier (fallback if generic unset).        |
+| `SASE_QWEN_SMALL_ARGS`           | Qwen-specific extra args for `small` tier (fallback if generic unset).        |
+| `SASE_OPENCODE_PATH`             | Path to the OpenCode CLI binary (default: `opencode`).                        |
+| `SASE_OPENCODE_LARGE_ARGS`       | OpenCode-specific extra args for `large` tier (fallback if generic unset).    |
+| `SASE_OPENCODE_SMALL_ARGS`       | OpenCode-specific extra args for `small` tier (fallback if generic unset).    |
+| `SASE_AGY_PATH`                  | Path to the Antigravity CLI binary (default: `agy`).                          |
+| `SASE_AGY_PRINT_TIMEOUT`         | Override the `agy --print-timeout` Go duration (default: `24h`).              |
+| `SASE_AGY_LARGE_ARGS`            | Antigravity-specific extra args for `large` tier (fallback if generic unset). |
+| `SASE_AGY_SMALL_ARGS`            | Antigravity-specific extra args for `small` tier (fallback if generic unset). |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If unset, the provider-specific
 variable is used as a fallback. Values are split on whitespace and appended to the CLI command.
@@ -1390,7 +1393,7 @@ before overwriting. `sase init skills` is a compatibility alias for `sase skill 
 | `sase skill list`  | -                                                                       | Inspect generated skill sources, provider targets, and deployed-file drift.                 |
 | `sase skill init`  | `-f, --force`                                                           | Overwrite existing deployed skill files without confirmation.                               |
 | `sase skill init`  | `-n, --dry-run`                                                         | Show what would be written without writing files.                                           |
-| `sase skill init`  | `-p, --provider {claude,gemini,codex,opencode,qwen}`                    | Deploy only for one provider.                                                               |
+| `sase skill init`  | `-p, --provider {claude,agy,codex,opencode,qwen}`                       | Deploy only for one provider.                                                               |
 | `sase skill init`  | `-A, --no-apply`                                                        | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.    |
 | `sase skill init`  | `-C, --no-commit`                                                       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                   |
 | `sase skill init`  | `-P, --no-push`                                                         | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`. |

@@ -30,7 +30,6 @@ from .config import get_llm_provider_config, resolve_model_alias
 _PROVIDER_FAMILY_COLORS: dict[str, str] = {
     "claude": "#D97757",
     "anthropic": "#D97757",
-    "gemini": "#4285F4",
     "codex": "#10A37F",
     "openai": "#10A37F",
 }

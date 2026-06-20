@@ -56,13 +56,6 @@ _PROVIDER_FALLBACK_STYLES: dict[str, _ProviderStyle] = {
         secondary_style="#0E8F70",
         dim_style="dim #8FE6CF",
     ),
-    "gemini": _ProviderStyle(
-        name_style="bold #4285F4",
-        delimiter_style="#5F87D7",
-        model_style="#87AFFF",
-        secondary_style="#5F87D7",
-        dim_style="dim #AFCBFF",
-    ),
     "qwen": _ProviderStyle(
         name_style="bold #D75FFF",
         delimiter_style="#AF5FD7",
@@ -88,7 +81,6 @@ _PROVIDER_FALLBACK_STYLES: dict[str, _ProviderStyle] = {
 
 _PROVIDER_EMOJI_BADGES: dict[str, str] = {
     "claude": "🎭",
-    "gemini": "♊",
     "codex": "🤖",
     "qwen": "🐼",
     "opencode": "🐙",

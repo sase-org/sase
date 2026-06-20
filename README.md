@@ -19,7 +19,7 @@ Prerequisites:
 
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/)
-- One authenticated coding-agent CLI: Claude Code, Codex, Gemini CLI, Qwen Code, or OpenCode
+- One authenticated coding-agent CLI: Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code, or OpenCode
 
 SASE orchestrates an existing provider CLI; it does not replace that provider's install or authentication flow. Install
 SASE from PyPI, then run `sase doctor` as the readiness gate before launching your first agent:
@@ -61,7 +61,7 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 | Agent                                                         | Status        |
 | ------------------------------------------------------------- | ------------- |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | **Supported** |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli)     | **Supported** |
+| [Antigravity CLI (`agy`)](https://antigravity.google/)        | **Supported** |
 | [Codex](https://github.com/openai/codex)                      | **Supported** |
 | [Qwen Code](https://github.com/QwenLM/qwen-code)              | **Supported** |
 | [OpenCode](https://opencode.ai/)                              | **Supported** |

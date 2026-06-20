@@ -29,7 +29,7 @@ def test_opencode_provider_resolve_model_name() -> None:
 
 @patch("sase.llm_provider.opencode.stream_and_parse_opencode_json_output")
 @patch("sase.llm_provider.opencode.subprocess.Popen")
-@patch("sase.llm_provider.opencode.gemini_timer")
+@patch("sase.llm_provider.opencode.provider_timer")
 def test_opencode_provider_command_construction(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -57,7 +57,7 @@ def test_opencode_provider_command_construction(
 
 @patch("sase.llm_provider.opencode.stream_and_parse_opencode_json_output")
 @patch("sase.llm_provider.opencode.subprocess.Popen")
-@patch("sase.llm_provider.opencode.gemini_timer")
+@patch("sase.llm_provider.opencode.provider_timer")
 def test_opencode_provider_model_override(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -83,7 +83,7 @@ def test_opencode_provider_model_override(
 @patch.dict(os.environ, {"SASE_OPENCODE_PATH": "/opt/opencode/bin/opencode"})
 @patch("sase.llm_provider.opencode.stream_and_parse_opencode_json_output")
 @patch("sase.llm_provider.opencode.subprocess.Popen")
-@patch("sase.llm_provider.opencode.gemini_timer")
+@patch("sase.llm_provider.opencode.provider_timer")
 def test_opencode_provider_uses_sase_opencode_path(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -102,7 +102,7 @@ def test_opencode_provider_uses_sase_opencode_path(
 @patch.dict(os.environ, {"SASE_OPENCODE_SMALL_ARGS": "--agent build"})
 @patch("sase.llm_provider.opencode.stream_and_parse_opencode_json_output")
 @patch("sase.llm_provider.opencode.subprocess.Popen")
-@patch("sase.llm_provider.opencode.gemini_timer")
+@patch("sase.llm_provider.opencode.provider_timer")
 def test_opencode_provider_extra_args_from_env_small(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -129,7 +129,7 @@ def test_opencode_provider_extra_args_from_env_small(
 )
 @patch("sase.llm_provider.opencode.stream_and_parse_opencode_json_output")
 @patch("sase.llm_provider.opencode.subprocess.Popen")
-@patch("sase.llm_provider.opencode.gemini_timer")
+@patch("sase.llm_provider.opencode.provider_timer")
 def test_opencode_provider_generic_env_args_precedence(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -167,7 +167,7 @@ def test_opencode_provider_missing_executable_error_mentions_resolution_paths(
 
 @patch("sase.llm_provider.opencode.stream_and_parse_opencode_json_output")
 @patch("sase.llm_provider.opencode.subprocess.Popen")
-@patch("sase.llm_provider.opencode.gemini_timer")
+@patch("sase.llm_provider.opencode.provider_timer")
 def test_opencode_provider_raises_called_process_error_on_failure(
     mock_timer: MagicMock,
     mock_popen: MagicMock,

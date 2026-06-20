@@ -213,9 +213,8 @@ def _resolve_command_substitution_in_args(
     if not has_cmd_sub:
         return positional_args, named_args
 
-    # Lazy import to avoid circular import:
-    # processor -> gemini_wrapper.__init__ -> xprompt -> processor
-    from sase.gemini_wrapper.file_references import process_command_substitution
+    # Lazy import keeps the file-reference helper out of the import-time graph.
+    from sase.file_references import process_command_substitution
 
     resolved_positional = [
         process_command_substitution(arg) if "$(" in arg else arg

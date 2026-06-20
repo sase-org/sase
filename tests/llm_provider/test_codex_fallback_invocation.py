@@ -12,7 +12,7 @@ from sase.llm_provider.types import LLMInvocationError
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_finalizer_runs_from_invoke_agent_when_dirty(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -69,7 +69,7 @@ def test_codex_finalizer_runs_from_invoke_agent_when_dirty(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_provider_invoke_no_longer_runs_private_fallback(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -90,7 +90,7 @@ def test_codex_provider_invoke_no_longer_runs_private_fallback(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_finalizer_includes_bead_close_when_bead_id_set(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -146,7 +146,7 @@ def test_codex_finalizer_includes_bead_close_when_bead_id_set(
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
-@patch("sase.llm_provider.codex.gemini_timer")
+@patch("sase.llm_provider.codex.provider_timer")
 def test_codex_finalizer_fails_when_max_passes_stay_dirty(
     mock_timer: MagicMock,
     mock_popen: MagicMock,

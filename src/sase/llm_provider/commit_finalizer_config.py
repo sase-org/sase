@@ -23,6 +23,8 @@ _PROVIDER_PROJECT_ENV_VARS: tuple[str, ...] = (
     SASE_ACTIVE_PROJECT_DIR_ENV,
     "CLAUDE_PROJECT_DIR",
     "QWEN_PROJECT_DIR",
+    # Antigravity CLI (`agy`) runs in the `.gemini` namespace it inherited from
+    # the Gemini CLI and exports GEMINI_PROJECT_DIR for its workspace root.
     "GEMINI_PROJECT_DIR",
     "OPENCODE_PROJECT_DIR",
 )

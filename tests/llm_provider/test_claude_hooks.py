@@ -41,7 +41,7 @@ def _invoke_with_fake_stream(
             "sase.llm_provider.claude.stream_and_parse_json_output",
             return_value=stream_result,
         ),
-        patch("sase.llm_provider.claude.gemini_timer"),
+        patch("sase.llm_provider.claude.provider_timer"),
     ):
         ClaudeCodeProvider().invoke("hi", model_tier="small", suppress_output=True)
 
@@ -173,7 +173,7 @@ def test_simulated_claude_provider_run_writes_stream_records(
             "sase.llm_provider.claude.stream_and_parse_json_output",
             side_effect=fake_stream,
         ),
-        patch("sase.llm_provider.claude.gemini_timer"),
+        patch("sase.llm_provider.claude.provider_timer"),
     ):
         ClaudeCodeProvider().invoke("hi", model_tier="small", suppress_output=True)
 

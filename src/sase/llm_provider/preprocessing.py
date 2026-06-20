@@ -1,8 +1,8 @@
 """Prompt preprocessing pipeline.
 
-Extracts the preprocessing steps from the old GeminiCommandWrapper.invoke()
-into a standalone function. The preprocessing functions themselves remain in
-their original modules (xprompt, gemini_wrapper.file_references).
+A standalone pipeline that runs the shared preprocessing steps. The
+preprocessing functions themselves remain in their original modules
+(xprompt, file_references).
 
 The pipeline is split into early and late phases so callers (xprompt CLI,
 invoke_agent, workflow executor) can insert logic between the two phases
@@ -133,7 +133,7 @@ def preprocess_prompt_late(
     Returns:
         The fully preprocessed prompt text.
     """
-    from sase.gemini_wrapper.file_references import (
+    from sase.file_references import (
         format_with_prettier,
         process_command_substitution,
         process_file_references,

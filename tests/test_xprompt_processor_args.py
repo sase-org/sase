@@ -78,7 +78,7 @@ def test_process_xprompt_colon_arg_decodes_plus_space_substitution() -> None:
 # --- Command substitution resolution tests ---
 
 
-_CMD_SUB_PATCH = "sase.gemini_wrapper.file_references.process_command_substitution"
+_CMD_SUB_PATCH = "sase.file_references.process_command_substitution"
 
 
 @patch(_CMD_SUB_PATCH)

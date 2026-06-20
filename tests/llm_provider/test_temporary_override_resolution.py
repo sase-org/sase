@@ -236,13 +236,16 @@ def test_resolve_effective_worker_responds_to_primary_override(
         {
             "provider": "claude",
             "worker_models": {
-                "claude": "gemini/gemini-2.5-pro",
+                "claude": "agy/Gemini 3.5 Flash (High)",
                 "codex": "claude/sonnet",
             },
         },
     )
-    # No override -> matches the configured-default primary (claude) -> gemini.
-    assert resolve_effective_worker_provider_model() == ("gemini", "gemini-2.5-pro")
+    # No override -> matches the configured-default primary (claude) -> agy.
+    assert resolve_effective_worker_provider_model() == (
+        "agy",
+        "Gemini 3.5 Flash (High)",
+    )
 
     # Primary override to codex/o3 -> worker mapping now keys off codex -> sonnet.
     set_temporary_override("codex/o3", 3600.0, source="ace")

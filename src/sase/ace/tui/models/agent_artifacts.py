@@ -203,7 +203,7 @@ def get_chat_response_content(agent: Agent) -> str | None:
     """Get response content from agent_meta.json chat_path.
 
     Fallback for agents where the live reply and response path are empty
-    (e.g., Gemini thinking models killed during the plan phase).
+    (e.g., agents killed during the plan phase before any reply was written).
 
     Returns:
         Chat response content string, or None if not available.

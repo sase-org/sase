@@ -45,7 +45,7 @@ def test_qwen_provider_resolve_model_name() -> None:
 
 @patch("sase.llm_provider.qwen.stream_and_parse_qwen_json_output")
 @patch("sase.llm_provider.qwen.subprocess.Popen")
-@patch("sase.llm_provider.qwen.gemini_timer")
+@patch("sase.llm_provider.qwen.provider_timer")
 def test_qwen_provider_command_construction(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -74,7 +74,7 @@ def test_qwen_provider_command_construction(
 
 @patch("sase.llm_provider.qwen.stream_and_parse_qwen_json_output")
 @patch("sase.llm_provider.qwen.subprocess.Popen")
-@patch("sase.llm_provider.qwen.gemini_timer")
+@patch("sase.llm_provider.qwen.provider_timer")
 def test_qwen_provider_model_override(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -97,7 +97,7 @@ def test_qwen_provider_model_override(
 @patch.dict(os.environ, {"SASE_QWEN_PATH": "/opt/qwen/bin/qwen"})
 @patch("sase.llm_provider.qwen.stream_and_parse_qwen_json_output")
 @patch("sase.llm_provider.qwen.subprocess.Popen")
-@patch("sase.llm_provider.qwen.gemini_timer")
+@patch("sase.llm_provider.qwen.provider_timer")
 def test_qwen_provider_uses_sase_qwen_path(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -116,7 +116,7 @@ def test_qwen_provider_uses_sase_qwen_path(
 @patch.dict(os.environ, {"SASE_QWEN_SMALL_ARGS": "--approval-mode never"})
 @patch("sase.llm_provider.qwen.stream_and_parse_qwen_json_output")
 @patch("sase.llm_provider.qwen.subprocess.Popen")
-@patch("sase.llm_provider.qwen.gemini_timer")
+@patch("sase.llm_provider.qwen.provider_timer")
 def test_qwen_provider_extra_args_from_env_small(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -143,7 +143,7 @@ def test_qwen_provider_extra_args_from_env_small(
 )
 @patch("sase.llm_provider.qwen.stream_and_parse_qwen_json_output")
 @patch("sase.llm_provider.qwen.subprocess.Popen")
-@patch("sase.llm_provider.qwen.gemini_timer")
+@patch("sase.llm_provider.qwen.provider_timer")
 def test_qwen_provider_generic_env_args_precedence(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
@@ -181,7 +181,7 @@ def test_qwen_provider_missing_executable_error_mentions_resolution_paths(
 
 @patch("sase.llm_provider.qwen.stream_and_parse_qwen_json_output")
 @patch("sase.llm_provider.qwen.subprocess.Popen")
-@patch("sase.llm_provider.qwen.gemini_timer")
+@patch("sase.llm_provider.qwen.provider_timer")
 def test_qwen_provider_raises_called_process_error_on_failure(
     mock_timer: MagicMock,
     mock_popen: MagicMock,

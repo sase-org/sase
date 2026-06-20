@@ -168,8 +168,8 @@ def write_agent_meta(
 
     Args:
         artifacts_dir: Path to the artifacts directory.
-        model: Model name (e.g., "gemini-3.1-pro-preview").
-        llm_provider: LLM provider name (e.g., "gemini").
+        model: Model name (e.g., "Gemini 3.5 Flash (High)").
+        llm_provider: LLM provider name (e.g., "agy").
         vcs_provider: VCS provider display name (e.g., "Mercurial").
         tag: Optional Agents-tab grouping tag.
     """

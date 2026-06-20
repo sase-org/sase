@@ -127,20 +127,20 @@ class TestPreprocessPromptLateDisabledRegions:
     """Integration: preprocess_prompt_late strips markers and protects content."""
 
     @patch(
-        "sase.gemini_wrapper.file_references.process_command_substitution",
+        "sase.file_references.process_command_substitution",
         side_effect=lambda x: x,
     )
     @patch(
-        "sase.gemini_wrapper.file_references.format_with_prettier",
+        "sase.file_references.format_with_prettier",
         side_effect=lambda x: x,
     )
     @patch(
-        "sase.gemini_wrapper.file_references.strip_html_comments",
+        "sase.file_references.strip_html_comments",
         side_effect=lambda x: x,
     )
     @patch("sase.xprompt.is_jinja2_template", return_value=False)
     @patch(
-        "sase.gemini_wrapper.file_references.validate_file_references",
+        "sase.file_references.validate_file_references",
     )
     def test_validate_mode_ignores_at_refs_in_disabled_region_inline_close(
         self,
@@ -171,15 +171,15 @@ class TestPreprocessPromptLateDisabledRegions:
         assert "@i18n" not in validated_text
 
     @patch(
-        "sase.gemini_wrapper.file_references.process_command_substitution",
+        "sase.file_references.process_command_substitution",
         side_effect=lambda x: x,
     )
     @patch(
-        "sase.gemini_wrapper.file_references.format_with_prettier",
+        "sase.file_references.format_with_prettier",
         side_effect=lambda x: x,
     )
     @patch(
-        "sase.gemini_wrapper.file_references.strip_html_comments",
+        "sase.file_references.strip_html_comments",
         side_effect=lambda x: x,
     )
     @patch("sase.xprompt.is_jinja2_template", return_value=False)
@@ -214,13 +214,13 @@ class TestPreprocessPromptLateDisabledRegions:
         assert "# Previous Conversation" in result
         assert "# New Query" in result
 
-    @patch("sase.gemini_wrapper.file_references.process_command_substitution")
+    @patch("sase.file_references.process_command_substitution")
     @patch(
-        "sase.gemini_wrapper.file_references.format_with_prettier",
+        "sase.file_references.format_with_prettier",
         side_effect=lambda x: x,
     )
     @patch(
-        "sase.gemini_wrapper.file_references.strip_html_comments",
+        "sase.file_references.strip_html_comments",
         side_effect=lambda x: x,
     )
     @patch("sase.xprompt.is_jinja2_template", return_value=False)
@@ -250,15 +250,15 @@ class TestPreprocessPromptLateDisabledRegions:
             assert "$(dangerous command)" not in inp
 
     @patch(
-        "sase.gemini_wrapper.file_references.process_command_substitution",
+        "sase.file_references.process_command_substitution",
         side_effect=lambda x: x,
     )
     @patch(
-        "sase.gemini_wrapper.file_references.format_with_prettier",
+        "sase.file_references.format_with_prettier",
         side_effect=lambda x: x,
     )
     @patch(
-        "sase.gemini_wrapper.file_references.strip_html_comments",
+        "sase.file_references.strip_html_comments",
         side_effect=lambda x: x,
     )
     @patch("sase.xprompt.is_jinja2_template", return_value=False)

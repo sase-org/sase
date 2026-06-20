@@ -146,8 +146,8 @@ def append_model_field(
 
     Args:
         header_text: Rich Text object to append to.
-        model: Model name string (e.g., "opus", "gemini-3-flash-preview").
-        llm_provider: Provider name (e.g., "claude", "gemini"), or None.
+        model: Model name string (e.g., "opus", "Gemini 3.5 Flash (High)").
+        llm_provider: Provider name (e.g., "claude", "agy"), or None.
     """
     if not model:
         return
@@ -184,12 +184,6 @@ def append_model_field(
         header_text.append("(", style="#5FAF00")
         header_text.append(model, style="#AFFF5F")
         header_text.append(")\n", style="#5FAF00")
-    elif provider == "gemini":
-        # Google theme: Google blue for name, lighter blue for model
-        header_text.append("GEMINI", style="bold #4285F4")
-        header_text.append("(", style="#5F87D7")
-        header_text.append(model, style="#87AFFF")
-        header_text.append(")\n", style="#5F87D7")
     elif provider:
         color = provider_cli_status_color_map().get(provider, "#AF87D7")
         header_text.append(provider.upper(), style=f"bold {color}")

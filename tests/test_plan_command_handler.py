@@ -75,7 +75,7 @@ def test_plan_command_writes_refresh_pulse(
             "sase.main.plan_propose_handler.kill_agent_runner_group",
         ) as kill_mock,
         patch(
-            "sase.gemini_wrapper.file_references.format_with_prettier",
+            "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
     ):
@@ -109,7 +109,7 @@ def test_plan_command_pulse_mtime_advances(
             "sase.main.plan_propose_handler.kill_agent_runner_group",
         ) as kill_mock,
         patch(
-            "sase.gemini_wrapper.file_references.format_with_prettier",
+            "sase.file_references.format_with_prettier",
             side_effect=lambda raw: raw,
         ),
     ):

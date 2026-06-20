@@ -1,6 +1,6 @@
 """Tests for the strip_html_comments function."""
 
-from sase.gemini_wrapper.file_references import strip_html_comments
+from sase.file_references import strip_html_comments
 
 
 def test_no_comments_unchanged() -> None:
