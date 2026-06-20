@@ -134,15 +134,21 @@ def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
     """Classify an xprompt into a source bucket."""
     source = xp.source_path or ""
 
-    if source.startswith("plugin:"):
+    if not source:
+        return CatalogEntry(xp, bucket="config", project=None)
+
+    if source.startswith(("plugin:", "plugin_config:")):
         return CatalogEntry(xp, bucket="plugin", project=None)
 
     if source == "config" or source.startswith("config:"):
         return CatalogEntry(xp, bucket="config", project=None)
 
-    source_path = Path(source) if source else None
+    if project is not None:
+        return CatalogEntry(xp, bucket="project", project=project)
 
-    if source_path is not None:
+    source_path = Path(source)
+
+    if source_path.is_absolute():
         for package_dir in package_xprompt_dirs():
             try:
                 source_path.resolve().relative_to(package_dir.resolve())
@@ -150,11 +156,7 @@ def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
             except (ValueError, OSError):
                 pass
 
-    if project is not None:
-        return CatalogEntry(xp, bucket="project", project=project)
-
-    workspaces = get_known_project_workspaces()
-    if source_path is not None:
+        workspaces = get_known_project_workspaces()
         for project_name, ws in workspaces.items():
             try:
                 source_path.resolve().relative_to(ws.resolve())
@@ -162,8 +164,7 @@ def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
             except (ValueError, OSError):
                 continue
 
-    config_dir = Path.home() / ".config" / "sase"
-    if source_path is not None:
+        config_dir = Path.home() / ".config" / "sase"
         try:
             source_path.resolve().relative_to(config_dir.resolve())
             return CatalogEntry(xp, bucket="config", project=None)

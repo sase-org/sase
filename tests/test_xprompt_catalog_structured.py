@@ -125,6 +125,45 @@ def test_structured_catalog_source_filter_keeps_global_entries(
     assert projection.entries[0].source_bucket == "config"
 
 
+def test_structured_catalog_keeps_default_config_xprompts_for_other_projects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sase_ws = tmp_path / "sase"
+    bob_ws = tmp_path / "bob-cli"
+    sase_ws.mkdir()
+    bob_ws.mkdir()
+    monkeypatch.chdir(sase_ws)
+    plan_xp = make_xprompt("plan", source_path="default_config")
+
+    with (
+        patch(
+            "sase.xprompt.catalog.get_all_xprompts",
+            return_value={"plan": plan_xp},
+        ),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch(
+            "sase.xprompt.catalog.get_known_project_workspaces",
+            return_value={"sase": sase_ws, "bob-cli": bob_ws},
+        ),
+        patch("sase.xprompt.catalog.load_project_local_xprompts", return_value={}),
+        patch(
+            "sase.xprompt.catalog.get_sase_package_xprompts_dir",
+            return_value=tmp_path / "pkg",
+        ),
+        patch(
+            "sase.xprompt.catalog.get_sase_package_default_xprompts_dir",
+            return_value=tmp_path / "default_xprompts",
+        ),
+    ):
+        bob_projection = build_structured_xprompts_catalog(project="bob-cli")
+        sase_projection = build_structured_xprompts_catalog(project="sase")
+
+    assert [entry.name for entry in bob_projection.entries] == ["plan"]
+    assert bob_projection.entries[0].project is None
+    assert [entry.name for entry in sase_projection.entries] == ["plan"]
+    assert sase_projection.entries[0].project is None
+
+
 def test_structured_catalog_preserves_workflow_description() -> None:
     workflow = Workflow(
         name="ship",

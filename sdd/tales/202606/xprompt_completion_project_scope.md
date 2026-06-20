@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-19 21:29:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/xprompt_completion_project_scope.md
 ---
 # Fix: built-in `#plan` (and peers) only complete under `#gh:sase`, not other projects
