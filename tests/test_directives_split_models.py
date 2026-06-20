@@ -554,6 +554,17 @@ def test_split_prompt_for_models_named_shorthand_alt_ids() -> None:
     assert result[1] == "%name:foo.1\nslow pass\nDo work"
 
 
+def test_split_prompt_for_models_shared_named_alt_ids_get_child_names() -> None:
+    """Repeated named keys across alt directives use the shared key suffix."""
+    prompt = "%n:foo\n%{a=Describe | b=Explain} how this repo works %{a=in detail}."
+    result = split_prompt_for_models(prompt)
+
+    assert result == [
+        "%name:foo.a\nDescribe how this repo works in detail.",
+        "%name:foo.b\nExplain how this repo works .",
+    ]
+
+
 def test_split_prompt_for_models_pure_alt_auto_generated_base() -> None:
     """Pure alt fan-out without %name injects grouped auto-name templates."""
     result = split_prompt_for_models("%alt(x,y)\nDo work")

@@ -2,8 +2,10 @@
 
 This module owns the logic that turns a single prompt with multiple
 ``%model`` directives or explicit ``%alt(a,b,...)`` / ``%{a | b | ...}``
-calls into a list of sub-prompts — one per Cartesian product entry — and
-the naming logic that disambiguates spawned agents per runtime.
+calls into a list of sub-prompts. Unrelated directives form a Cartesian
+product, while explicit branch names repeated across directives are correlated
+into the same fan-out slot. This module also owns the naming logic that
+disambiguates spawned agents per runtime.
 
 ``%{...}`` is the preferred shorthand for ``%alt(...)``; it uses braces
 with top-level ``|``-separated branches.  The legacy ``%(...)`` shorthand
@@ -78,9 +80,11 @@ def split_prompt_for_alternatives(prompt: str) -> list[str] | None:
     ``%{...}`` (top-level ``|``-separated branches) is the preferred shorthand
     for ``%alt(...)``; ``%(...)`` (comma-separated) is the legacy shorthand.
 
-    When multiple ``%alt``/``%(``/``%{`` directives appear, a Cartesian product
-    of all argument lists is computed — e.g. two directives with 2 and 3
-    arguments produce 2 × 3 = 6 prompts.
+    When multiple ``%alt``/``%(``/``%{`` directives appear, unrelated branch
+    lists form a Cartesian product — e.g. two directives with 2 and 3 arguments
+    produce 2 × 3 = 6 prompts. If the same explicit branch name appears in more
+    than one directive, those named branches are correlated into one slot; a
+    missing key in a correlated directive renders as empty text.
 
     Returns ``None`` if there are no ``%alt``/``%(``/``%{`` directives or all
     have zero arguments.  A single-arg ``%alt(foo)`` / ``%(foo)`` / ``%{foo}``
@@ -118,15 +122,19 @@ def split_prompt_for_models(
        before splitting.  Mixing scalar and paren forms is supported.
     3. Direct ``%alt(...)`` / ``%(...)`` / ``%{...}`` usage — split as-is.
 
+    Unrelated alt/model axes form a Cartesian product. Explicit branch names
+    repeated across alt directives are correlated into one slot, while unnamed
+    branches and disjoint names remain Cartesian.
+
     Multiple model directives that all resolve to the same model yield a
     single variant (no split); duplicate ``%model`` directives inside
     fenced code blocks or ``%xprompts_enabled:false`` regions are ignored.
 
-    Returns ``None`` if there is nothing to split (single unique model,
-    single alt argument, or no splitting directive at all).  When only one
-    unique model remains but multiple ``%model`` directives exist, the
-    duplicates are tolerated downstream by :func:`extract_prompt_directives`
-    (last-wins).
+    Returns ``None`` if there is no splitting directive at all, or if model
+    collection finds only one unique model and no alt directives produce slots.
+    When only one unique model remains but multiple ``%model`` directives
+    exist, the duplicates are tolerated downstream by
+    :func:`extract_prompt_directives` (last-wins).
     """
     plan = plan_prompt_fanout_variants(prompt, extra_xprompts=extra_xprompts)
     if plan is None:

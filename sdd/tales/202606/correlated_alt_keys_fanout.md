@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-20 18:17:09
-status: wip
+status: done
 prompt: sdd/prompts/202606/correlated_alt_keys_fanout.md
 ---
 # Plan: Correlate repeated alternation keys across `%{...}` directives

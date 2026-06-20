@@ -1255,6 +1255,16 @@ agent suffix. For example, `%name:review %{sec=[[security]] | perf=[[performance
 `review.perf`. Unnamed branches use numeric suffixes while skipping any numeric ids already provided by named branches,
 so `%{2=[[named]] | [[first]] | [[second]]}` launches suffixes `2`, `1`, and `3`.
 
+When the same named branch id appears in more than one alt directive, those directives are correlated: values with the
+same id render into the same child prompt, and a missing id in one correlated directive renders as empty text. For
+example:
+
+```
+%name:repo %{a=Describe | b=Explain} how this repo works %{a=in detail}.
+```
+
+This launches `repo.a` with "Describe how this repo works in detail." and `repo.b` with "Explain how this repo works .".
+
 #### Single Branch (With/Without Split)
 
 A single-branch alt is treated as a with/without split — it produces two prompts: one with the branch text and one with
@@ -1270,8 +1280,8 @@ module."
 
 #### Cartesian Product
 
-Multiple alt directives can appear in the same prompt. When they do, a **Cartesian product** of all branch lists is
-computed — one agent is launched per combination. Brace and paren forms mix freely:
+Multiple alt directives can appear in the same prompt. Branch lists with no repeated named ids form a **Cartesian
+product**: one agent is launched per combination. Brace and paren forms mix freely:
 
 ```
 %{Focus on security | Focus on perf} %m(opus, sonnet)
@@ -1282,6 +1292,9 @@ This produces 2 × 2 = 4 agents (every focus area paired with every model). The 
 is internally rewritten as `%alt(%model:opus,%model:sonnet)`, so it participates in the Cartesian product naturally. A
 `%model` directive used as a branch inside `%{...}` composes the same way: `%{#review | %model:opus}` fans out a
 default-model review branch and an opus branch.
+
+Repeated named ids are the exception to the Cartesian rule. Disjoint named ids and unnamed branches remain Cartesian;
+only the same explicit id repeated across directives is zipped together.
 
 ### Multi-Model Directive
 

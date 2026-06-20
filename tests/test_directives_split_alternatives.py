@@ -123,6 +123,17 @@ def testsplit_prompt_for_alternatives_multiple_alt_cartesian() -> None:
     assert result[3] == "b d\nDo work"
 
 
+def testsplit_prompt_for_alternatives_shared_named_keys_correlate() -> None:
+    """Repeated named keys across alt directives zip into shared slots."""
+    prompt = "#gh:sase %{a=Describe | b=Explain} how this repo works %{a=in detail}."
+    result = split_prompt_for_alternatives(prompt)
+
+    assert result == [
+        "#gh:sase Describe how this repo works in detail.",
+        "#gh:sase Explain how this repo works .",
+    ]
+
+
 # --- %(...) shorthand tests ---
 
 

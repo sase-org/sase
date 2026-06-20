@@ -408,6 +408,21 @@ def test_plan_agent_launch_fanout_rust_exposes_alt_ids() -> None:
     ]
 
 
+def test_plan_agent_launch_fanout_rust_correlates_shared_alt_ids() -> None:
+    pytest.importorskip("sase_core_rs")
+
+    plan = plan_agent_launch_fanout(
+        "#gh:sase %{a=Describe | b=Explain} how this repo works %{a=in detail}.",
+        launch_kind="alternatives",
+    )
+
+    assert [slot.alt_id for slot in plan.slots] == ["a", "b"]
+    assert [slot.prompt for slot in plan.slots] == [
+        "#gh:sase Describe how this repo works in detail.",
+        "#gh:sase Explain how this repo works .",
+    ]
+
+
 def test_plan_agent_launch_fanout_rust_allocates_named_and_numeric_alt_ids() -> None:
     pytest.importorskip("sase_core_rs")
 
