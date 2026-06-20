@@ -29,6 +29,7 @@ class LifecycleMixin:
 
     def on_unmount(self) -> None:
         """Clean up resources when Textual tears the app down."""
+        self._stop_tui_stall_watchdog()
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)
         if stop_watcher is not None:
             stop_watcher()
@@ -200,6 +201,7 @@ class LifecycleMixin:
     def _do_quit(self) -> None:
         """Run the quit cleanup sequence and exit."""
         self._save_current_selection()
+        self._stop_tui_stall_watchdog()
         # Stop the inotify watcher before exit so its worker thread releases
         # the fd cleanly and Textual's call_from_thread doesn't fire after
         # the event loop is gone.
@@ -246,6 +248,17 @@ class LifecycleMixin:
             remove_last_keypress()
             remove_tui_pid()
         self.exit()  # type: ignore[attr-defined]
+
+    def _stop_tui_stall_watchdog(self) -> None:
+        """Stop the event-loop stall watchdog if it was started."""
+        watchdog = getattr(self, "_stall_watchdog", None)
+        if watchdog is None:
+            return
+        self._stall_watchdog = None
+        try:
+            watchdog.stop()
+        except Exception:
+            pass
 
     def action_mark_inactive(self) -> None:
         """Toggle manual idle mode.

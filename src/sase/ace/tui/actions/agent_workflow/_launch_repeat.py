@@ -96,6 +96,7 @@ class RepeatLaunchMixin:
                     "project_name": ctx.project_name,
                     "home_mode": ctx.is_home_mode,
                 },
+                durable=True,
             )
             repeat_count, _, _ = extract_repeat_and_name(prompt)
             timestamps = (

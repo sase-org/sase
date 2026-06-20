@@ -77,6 +77,7 @@ class BulkLaunchMixin:
             timer = LaunchTimingRecorder(
                 "tui_agent_launch_fanout",
                 {"fanout_kind": "bulk", "slot_count": len(changespecs)},
+                durable=True,
             )
             launched_count = 0
             failed_count = 0

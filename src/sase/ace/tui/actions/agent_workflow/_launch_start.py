@@ -165,6 +165,13 @@ class AgentLaunchStartMixin:
         # snapshot rather than reading (and clearing) the shared base.
         if not keep_bar:
             self._unmount_prompt_bar_after_submit()  # type: ignore[attr-defined]
+        from ...util.trace import set_trace_context
+
+        set_trace_context(
+            last_action="launch",
+            last_action_display_name=ctx.display_name,
+            last_action_ts=ctx.timestamp,
+        )
         self.notify(  # type: ignore[attr-defined]
             f"Launching agent for {_launch_toast_label(prompt, ctx.display_name)}..."
         )

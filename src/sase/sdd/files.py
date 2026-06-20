@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.sdd._commit import (
+    SddGitCommandTimeout,
     changed_sdd_files as _changed_sdd_files,
     commit_bare_git_sdd_init_paths as _commit_bare_git_sdd_init_paths,
     commit_sdd_files,
@@ -159,6 +160,7 @@ __all__ = [
     "SDD_README_CONTENT",
     "SddExpectedBytesFile",
     "SddExpectedTextFile",
+    "SddGitCommandTimeout",
     "SddInitAction",
     "SddInitOperation",
     "commit_sdd_files",

@@ -169,6 +169,7 @@ class AgentLaunchBodyMixin:
                 "project_name": ctx.project_name,
                 "home_mode": ctx.is_home_mode,
             },
+            durable=True,
         )
 
         # Check if this is a bulk run

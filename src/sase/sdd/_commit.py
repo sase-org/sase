@@ -1,13 +1,180 @@
 """SDD git commit helpers."""
 
 import logging
+import os
 import subprocess
+import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
+from typing import Any
 
 from sase.sdd._init_files import ensure_sdd_initialized
 
 _logger = logging.getLogger(__name__)
+
+ENV_LOCAL_TIMEOUT = "SASE_SDD_GIT_LOCAL_TIMEOUT"
+ENV_NETWORK_TIMEOUT = "SASE_SDD_GIT_NETWORK_TIMEOUT"
+ENV_SLOW_MS = "SASE_SDD_GIT_SLOW_MS"
+
+DEFAULT_LOCAL_GIT_TIMEOUT_SECONDS = 30.0
+DEFAULT_NETWORK_GIT_TIMEOUT_SECONDS = 120.0
+DEFAULT_SLOW_GIT_MS = 1_000.0
+
+
+class SddGitCommandTimeout(RuntimeError):
+    """Raised when a bounded SDD git command exceeds its timeout."""
+
+
+def _run_git(
+    args: list[str],
+    *,
+    cwd: Path,
+    op: str,
+    timeout: float | None = None,
+    check: bool,
+    capture_output: bool,
+    text: bool = False,
+) -> subprocess.CompletedProcess[Any]:
+    """Run git with a finite timeout and structured timing telemetry."""
+    timeout_seconds = timeout if timeout is not None else _local_git_timeout()
+    cmd = ["git", *args]
+    start = time.perf_counter()
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=cwd,
+            check=check,
+            capture_output=capture_output,
+            text=text,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        duration_ms = (time.perf_counter() - start) * 1000.0
+        _log_git_operation(
+            op=op,
+            cmd=cmd,
+            cwd=cwd,
+            status="timeout",
+            duration_ms=duration_ms,
+            timeout_seconds=timeout_seconds,
+            returncode=None,
+            stdout=exc.stdout,
+            stderr=exc.stderr,
+        )
+        raise SddGitCommandTimeout(
+            f"git operation {op!r} timed out after {timeout_seconds:.1f}s in {cwd}"
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        duration_ms = (time.perf_counter() - start) * 1000.0
+        _log_git_operation(
+            op=op,
+            cmd=cmd,
+            cwd=cwd,
+            status="error",
+            duration_ms=duration_ms,
+            timeout_seconds=timeout_seconds,
+            returncode=exc.returncode,
+            stdout=exc.stdout,
+            stderr=exc.stderr,
+        )
+        raise
+
+    duration_ms = (time.perf_counter() - start) * 1000.0
+    if _should_log_git_operation(args, duration_ms, result.returncode):
+        _log_git_operation(
+            op=op,
+            cmd=cmd,
+            cwd=cwd,
+            status="ok" if result.returncode == 0 else "nonzero",
+            duration_ms=duration_ms,
+            timeout_seconds=timeout_seconds,
+            returncode=result.returncode,
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
+    return result
+
+
+def _should_log_git_operation(
+    args: list[str],
+    duration_ms: float,
+    returncode: int,
+) -> bool:
+    if returncode != 0:
+        return True
+    if any(arg in {"push", "fetch"} for arg in args):
+        return True
+    return duration_ms >= _slow_git_ms()
+
+
+def _log_git_operation(
+    *,
+    op: str,
+    cmd: list[str],
+    cwd: Path,
+    status: str,
+    duration_ms: float,
+    timeout_seconds: float,
+    returncode: int | None,
+    stdout: str | bytes | None,
+    stderr: str | bytes | None,
+) -> None:
+    try:
+        from sase.logs import log_tui_git_operation
+
+        log_tui_git_operation(
+            {
+                "ts": time.time(),
+                "event": "sdd_git_operation",
+                "operation": op,
+                "status": status,
+                "duration_ms": round(duration_ms, 3),
+                "timeout_seconds": timeout_seconds,
+                "returncode": returncode,
+                "cwd": str(cwd),
+                "cmd": cmd,
+                "stdout_preview": _preview_stream(stdout),
+                "stderr_preview": _preview_stream(stderr),
+            }
+        )
+    except Exception:
+        _logger.debug("failed to write SDD git operation telemetry", exc_info=True)
+
+
+def _preview_stream(value: str | bytes | None, limit: int = 500) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        text = value.decode("utf-8", errors="replace")
+    else:
+        text = value
+    text = text.strip()
+    if not text:
+        return None
+    return text[:limit]
+
+
+def _local_git_timeout() -> float:
+    return _float_env(ENV_LOCAL_TIMEOUT, DEFAULT_LOCAL_GIT_TIMEOUT_SECONDS)
+
+
+def _network_git_timeout() -> float:
+    return _float_env(ENV_NETWORK_TIMEOUT, DEFAULT_NETWORK_GIT_TIMEOUT_SECONDS)
+
+
+def _slow_git_ms() -> float:
+    return _float_env(ENV_SLOW_MS, DEFAULT_SLOW_GIT_MS)
+
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
 
 
 def commit_sdd_files(
@@ -29,17 +196,20 @@ def commit_sdd_files(
     if not changed_files:
         return
 
-    subprocess.run(
-        ["git", "add", "--"] + changed_files,
+    _run_git(
+        ["add", "--"] + changed_files,
         cwd=sdd_dir,
         check=True,
         capture_output=True,
+        op="sdd.add",
     )
 
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--quiet", "--"] + changed_files,
+    result = _run_git(
+        ["diff", "--cached", "--quiet", "--"] + changed_files,
         cwd=sdd_dir,
         capture_output=True,
+        check=False,
+        op="sdd.diff_cached",
     )
     if result.returncode != 0:
         from sase.workflows.commit.runtime_tags import (
@@ -47,11 +217,12 @@ def commit_sdd_files(
         )
 
         message = apply_auto_commit_tags_with_runtime(message, auto_commit_type)
-        subprocess.run(
-            ["git", "commit", "-m", message, "--"] + changed_files,
+        _run_git(
+            ["commit", "-m", message, "--"] + changed_files,
             cwd=sdd_dir,
             check=True,
             capture_output=True,
+            op="sdd.commit",
         )
 
 
@@ -105,13 +276,17 @@ def is_local_bare_git_workspace(workspace: Path) -> bool:
     except Exception:
         return False
 
-    result = subprocess.run(
-        ["git", "config", "--get", "remote.origin.url"],
-        cwd=workspace,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = _run_git(
+            ["config", "--get", "remote.origin.url"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+            op="bare_git.remote_url",
+        )
+    except SddGitCommandTimeout:
+        return False
     if result.returncode != 0:
         return False
     url = result.stdout.strip()
@@ -121,13 +296,17 @@ def is_local_bare_git_workspace(workspace: Path) -> bool:
 
 
 def git_toplevel(workspace: Path) -> Path | None:
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        cwd=workspace,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = _run_git(
+            ["rev-parse", "--show-toplevel"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+            op="bare_git.toplevel",
+        )
+    except SddGitCommandTimeout:
+        return None
     if result.returncode != 0:
         return None
     root = result.stdout.strip()
@@ -146,20 +325,22 @@ def commit_bare_git_sdd_init_paths(
     if not rel_paths:
         return
 
-    subprocess.run(
-        ["git", "add", "--", *rel_paths],
+    _run_git(
+        ["add", "--", *rel_paths],
         cwd=git_root,
         check=True,
         capture_output=True,
         text=True,
+        op="bare_git_sdd_init.add",
     )
 
-    diff = subprocess.run(
-        ["git", "diff", "--cached", "--quiet", "--", *rel_paths],
+    diff = _run_git(
+        ["diff", "--cached", "--quiet", "--", *rel_paths],
         cwd=git_root,
         capture_output=True,
         text=True,
         check=False,
+        op="bare_git_sdd_init.diff_cached",
     )
     if diff.returncode == 0:
         return
@@ -169,9 +350,8 @@ def commit_bare_git_sdd_init_paths(
     from sase.workflows.commit.runtime_tags import apply_auto_commit_tags_with_runtime
 
     message = apply_auto_commit_tags_with_runtime("Initialize SDD", "init")
-    subprocess.run(
+    _run_git(
         [
-            "git",
             "-c",
             "user.email=sase@localhost",
             "-c",
@@ -186,15 +366,18 @@ def commit_bare_git_sdd_init_paths(
         check=True,
         capture_output=True,
         text=True,
+        op="bare_git_sdd_init.commit",
     )
 
     if push:
-        subprocess.run(
-            ["git", "push", "origin", "HEAD"],
+        _run_git(
+            ["push", "origin", "HEAD"],
             cwd=git_root,
             check=True,
             capture_output=True,
             text=True,
+            timeout=_network_git_timeout(),
+            op="bare_git_sdd_init.push",
         )
 
 
@@ -235,9 +418,8 @@ def normalize_sdd_commit_pathspecs(
 
 def changed_sdd_files(sdd_dir: Path, pathspecs: list[str]) -> list[str]:
     """Return concrete changed files under ``pathspecs`` in the SDD git repo."""
-    result = subprocess.run(
+    result = _run_git(
         [
-            "git",
             "ls-files",
             "--modified",
             "--others",
@@ -250,6 +432,7 @@ def changed_sdd_files(sdd_dir: Path, pathspecs: list[str]) -> list[str]:
         cwd=sdd_dir,
         check=True,
         capture_output=True,
+        op="sdd.changed_files",
     )
     stdout = result.stdout or b""
     if isinstance(stdout, str):

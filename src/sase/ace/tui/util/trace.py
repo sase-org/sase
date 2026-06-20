@@ -73,6 +73,20 @@ def set_trace_context(**fields: Any) -> None:
             _context[key] = value
 
 
+def get_trace_context() -> dict[str, Any]:
+    """Return a shallow snapshot of the current trace context.
+
+    The stall watchdog calls this from a daemon thread while the event loop may
+    be blocked. Keep this read side-effect free and avoid any UI access here.
+    """
+    try:
+        return dict(_context)
+    except RuntimeError:
+        # Extremely defensive: if another thread mutates during copy, still
+        # emit the stall record rather than losing the diagnostic.
+        return {}
+
+
 def _write(record: dict[str, Any]) -> None:
     path = _trace_log_path()
     try:

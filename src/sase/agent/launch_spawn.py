@@ -155,6 +155,7 @@ def spawn_agent_subprocess(
             "home_mode": is_home_mode,
             "deferred_workspace": deferred_workspace,
         },
+        durable=True,
     )
 
     # Resolve runner script path without importing the module (its top-level

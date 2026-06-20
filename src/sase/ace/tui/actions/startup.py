@@ -57,6 +57,7 @@ class StartupMixin(StateInitMixin):
     _jump_all_last_position: JumpAllResult | None
     _nav_gate: NavigationGate
     _fs_watcher: ArtifactWatcher | None
+    _stall_watchdog: Any
     _w_changespec_list: Any
     _w_changespec_detail: Any
     _w_ancestors_children: Any
@@ -221,6 +222,12 @@ class StartupMixin(StateInitMixin):
             from ..activity_log import ActivityEventType
 
             write_tui_pid()
+            from ..util.stall_watchdog import start_event_loop_stall_watchdog
+
+            self._stall_watchdog = start_event_loop_stall_watchdog(
+                asyncio.get_running_loop(),
+                context_provider=self._tui_stall_context,
+            )
             self._activity_log.record(ActivityEventType.SESSION_START)
             if read_pinned_idle():
                 self._pinned_idle = True
@@ -398,6 +405,25 @@ class StartupMixin(StateInitMixin):
             watcher.stop()
         except Exception:
             log.exception("Failed to stop artifact watcher cleanly")
+
+    def _tui_stall_context(self) -> dict[str, Any]:
+        """Return side-effect-free context for the stall watchdog thread."""
+        now_mono = time.monotonic()
+        last_keypress_age_s: float | None = None
+        if hasattr(self, "_last_activity_time"):
+            last_keypress_age_s = max(0.0, now_mono - self._last_activity_time)
+        current_state = self._activity_log.current_state()
+        return {
+            "current_tab": self.current_tab,  # type: ignore[attr-defined]
+            "current_idx": self.current_idx,  # type: ignore[attr-defined]
+            "current_attempt_number": self._current_attempt_number,
+            "last_keypress_age_s": (
+                None if last_keypress_age_s is None else round(last_keypress_age_s, 3)
+            ),
+            "activity_state": None
+            if current_state is None
+            else current_state.event.value,
+        }
 
     def _maybe_end_startup_stopwatch(self) -> None:
         """End startup stopwatch once both async startup surfaces are loaded."""

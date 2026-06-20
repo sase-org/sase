@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-20 14:36:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/tui_freeze_telemetry_1.md
 ---
 # Plan: Always-On Telemetry to Diagnose `sase ace` TUI Freezes

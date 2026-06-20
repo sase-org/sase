@@ -36,8 +36,10 @@ class LaunchTimingRecorder:
     operation: str
     fields: dict[str, Any] = field(default_factory=dict)
     info_env_vars: tuple[str, ...] = (_DEFAULT_TIMING_ENV,)
+    durable: bool = False
 
     def __post_init__(self) -> None:
+        self._start_wall = time.time()
         self._start = time.perf_counter()
         self._stages: list[dict[str, Any]] = []
         self._info_enabled = _timing_info_enabled(self.info_env_vars)
@@ -77,9 +79,27 @@ class LaunchTimingRecorder:
             **fields,
         }
         self._log("summary", record)
+        if self.durable:
+            self._write_durable_summary(record)
 
     def _log(self, event: str, record: dict[str, Any]) -> None:
         payload = {"operation": self.operation, "event": event, **record}
         log.debug("agent_launch_timing %s", payload)
         if self._info_enabled:
             log.info("agent_launch_timing %s", payload)
+
+    def _write_durable_summary(self, record: dict[str, Any]) -> None:
+        try:
+            from sase.logs import log_tui_launch_timing
+
+            log_tui_launch_timing(
+                {
+                    "ts": self._start_wall,
+                    "event": "launch_timing",
+                    "operation": self.operation,
+                    **record,
+                    "stages": self._stages,
+                }
+            )
+        except Exception:
+            log.debug("agent launch timing JSONL write failed", exc_info=True)

@@ -17,6 +17,14 @@ from sase.logs.project_creation_log import (
     project_creation_log_path,
 )
 from sase.logs.run_log import events_log_path, runs_log_path
+from sase.logs.tui_telemetry import (
+    log_tui_git_operation,
+    log_tui_launch_timing,
+    log_tui_stall,
+    tui_git_ops_jsonl_path,
+    tui_launch_timing_jsonl_path,
+    tui_stalls_jsonl_path,
+)
 
 __all__ = [
     "events_log_path",
@@ -27,5 +35,11 @@ __all__ = [
     "project_creation_jsonl_path",
     "project_creation_log_path",
     "runs_log_path",
+    "log_tui_git_operation",
+    "log_tui_launch_timing",
+    "log_tui_stall",
+    "tui_git_ops_jsonl_path",
+    "tui_launch_timing_jsonl_path",
+    "tui_stalls_jsonl_path",
     "tui_log_path",
 ]

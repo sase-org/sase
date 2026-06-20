@@ -21,7 +21,10 @@ from sase.logs import (
     events_log_path,
     launch_failures_log_path,
     runs_log_path,
+    tui_git_ops_jsonl_path,
+    tui_launch_timing_jsonl_path,
     tui_log_path,
+    tui_stalls_jsonl_path,
 )
 
 RenderMode = Literal["text", "jsonl"]
@@ -101,6 +104,27 @@ def log_sources() -> list[LogSource]:
             description="Catch-all warnings and errors from the ace TUI",
             path=tui_log_path(),
             render="text",
+        ),
+        LogSource(
+            id="tui_stalls",
+            title="TUI Stalls",
+            description="Event-loop stall stack captures",
+            path=tui_stalls_jsonl_path(),
+            render="jsonl",
+        ),
+        LogSource(
+            id="tui_git_ops",
+            title="TUI Git Operations",
+            description="Slow, failed, and push/fetch git timing records",
+            path=tui_git_ops_jsonl_path(),
+            render="jsonl",
+        ),
+        LogSource(
+            id="tui_launch_timing",
+            title="Launch Timing",
+            description="Agent launch timing summaries with per-stage durations",
+            path=tui_launch_timing_jsonl_path(),
+            render="jsonl",
         ),
         LogSource(
             id="runs",

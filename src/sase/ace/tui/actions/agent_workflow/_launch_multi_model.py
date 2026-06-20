@@ -99,6 +99,7 @@ class MultiModelLaunchMixin:
                 "project_name": ctx.project_name,
                 "home_mode": ctx.is_home_mode,
             },
+            durable=True,
         )
         from sase.agent.multi_prompt_launcher import (
             MultiPromptPartialLaunchError,

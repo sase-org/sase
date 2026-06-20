@@ -1,5 +1,6 @@
 """Tests for SDD file writing and frontmatter utilities."""
 
+import json
 import shutil
 import subprocess
 import tempfile
@@ -9,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.sdd.files import (
+    SddGitCommandTimeout,
     ensure_bare_git_sdd_initialized,
     ensure_sdd_initialized,
     expected_sdd_generated_paths,
@@ -19,6 +21,8 @@ from sase.sdd.files import (
     write_sdd_readme,
     write_sdd_files,
 )
+from sase.sdd._commit import commit_bare_git_sdd_init_paths
+from sase.logs import tui_git_ops_jsonl_path
 from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
 
 _GIT_AVAILABLE = shutil.which("git") is not None
@@ -109,6 +113,51 @@ def test_ensure_bare_git_sdd_initialized_commits_only_generated_paths(
     ).stdout.splitlines()
     assert "sdd/README.md" in remote_tree
     assert "notes.txt" not in remote_tree
+
+
+def test_commit_bare_git_sdd_init_paths_times_out_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_SDD_GIT_LOCAL_TIMEOUT", "3")
+    monkeypatch.setenv("SASE_SDD_GIT_NETWORK_TIMEOUT", "7")
+    generated = tmp_path / "sdd" / "README.md"
+    generated.parent.mkdir()
+    generated.write_text("guide\n", encoding="utf-8")
+    calls: list[tuple[list[str], float | None]] = []
+
+    def fake_run(
+        cmd: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append((cmd, kwargs.get("timeout")))  # type: ignore[arg-type]
+        if cmd[:2] == ["git", "diff"]:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
+        if cmd[:2] == ["git", "push"]:
+            raise subprocess.TimeoutExpired(
+                cmd=cmd,
+                timeout=kwargs.get("timeout"),
+                output="",
+                stderr="still running",
+            )
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    with patch("sase.sdd._commit.subprocess.run", side_effect=fake_run):
+        with pytest.raises(SddGitCommandTimeout, match="timed out"):
+            commit_bare_git_sdd_init_paths(tmp_path, [generated], push=True)
+
+    assert calls[0][1] == 3.0
+    assert calls[-1][0][:2] == ["git", "push"]
+    assert calls[-1][1] == 7.0
+    records = [
+        json.loads(line)
+        for line in tui_git_ops_jsonl_path().read_text(encoding="utf-8").splitlines()
+    ]
+    push_timeout = [
+        record for record in records if record["operation"] == "bare_git_sdd_init.push"
+    ]
+    assert push_timeout[-1]["status"] == "timeout"
+    assert push_timeout[-1]["timeout_seconds"] == 7.0
 
 
 def test_write_sdd_files() -> None:
