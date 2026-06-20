@@ -313,8 +313,8 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `Enter` / `L`       | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                      |
 | `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                |
 | `E`                 | Edit panel content in editor                                                                                  |
-| `t`                 | Open the focused agent's tmux target; agents with opened linked workspaces show a workspace chooser           |
-| `T`                 | Open tmux window in the agent's primary (workspace 1) directory                                               |
+| `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser    |
+| `T`                 | Open tmux window in the agent's primary project workspace                                                     |
 | `N`                 | Open the agent tag/untag modal (input is pre-seeded with `pinned` for untagged agents; submit empty to clear) |
 | `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                     |
 | `p`                 | Toggle file / prompt layout                                                                                   |
@@ -347,19 +347,23 @@ place after the editor exits.
 
 ### Linked Workspace Context
 
-Configured `linked_repos` are recorded in agent metadata at launch time. For active agents, ACE can include dirty
-suffix-strategy linked repos in the agent detail `DELTAS` section. The folded summary counts primary and linked-repo
-changes together; the unfolded view groups linked entries under the workspace glyph and linked-repo name, and file hints
-resolve paths relative to the linked workspace directory. Static linked repos (`workspace.strategy: none`) remain
-advisory and are not part of this live linked-delta display.
+Configured `linked_repos` are recorded in agent metadata at launch time. For non-terminal agents, ACE can include dirty,
+existing suffix-strategy linked repo workspaces in the agent detail `DELTAS` section. The folded summary counts primary
+and linked-repo changes together; the unfolded view groups linked entries under the workspace glyph and linked-repo
+name, and file hints resolve paths relative to the linked workspace directory. Static linked repos
+(`workspace.strategy: none`), missing workspace directories, clean repos, and completed/failed agents are not part of
+this live linked-delta display.
 
-When an agent opens a configured linked repo with `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`,
-the run records an opened-workspace marker. ACE shows those markers in the prompt/detail `SASE CONTEXT` section as a
-`WORKSPACES` lane with the repo name, resolved path, open time, and reason. If the selected agent has any opened linked
-workspaces, pressing `t` opens a keyboard-first tmux chooser with `CURRENT` first and one `LINKED` target per unique
-opened repository workspace. Selecting `CURRENT` uses the normal agent-workspace tmux path; selecting a `LINKED` row
-opens or switches to a tmux window named after the linked workspace directory. `T` always opens the primary project
-workspace.
+When a SASE-launched agent opens a configured linked repo with
+`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`, the run records an opened-workspace marker. Here
+`-p/--project` is the workspace CLI's project selector; configured linked repos are backed by hidden
+`PROJECT_STATE: sibling` project records so their names can be used there. ACE shows recorded markers in the
+prompt/detail `SASE CONTEXT` section as a `WORKSPACES` lane with the repo name, resolved path, open time, and reason. If
+the selected agent has cached opened-linked-workspace context, pressing `t` opens a keyboard-first tmux chooser with
+`CURRENT` first and one `LINKED` target per unique opened repository workspace. Selecting `CURRENT` uses the normal
+agent-workspace tmux path; selecting a `LINKED` row opens or switches to a tmux window named after the linked workspace
+directory. If no opened-workspace context is cached, `t` opens the normal agent tmux target directly. `T` always opens
+the primary project workspace.
 
 ### Wait Modal
 

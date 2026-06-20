@@ -178,7 +178,8 @@ projects; a registered project with `PROJECT_STATE: inactive` or `PROJECT_STATE:
 and broad known-project lookup. Legacy `archived` and `closed` values are read as inactive. If a prompt explicitly names
 an inactive known project, launch resolution fails with an activation hint instead of silently allocating work. Use
 `sase project list --state all` to inspect hidden projects and `sase project activate <project>` before launching normal
-work there. Configured linked-repository records are intended for
+work there. Configured linked repositories use hidden `PROJECT_STATE: sibling` records instead of normal launch
+discovery. To prepare one, pass its linked-repo name as the workspace CLI's project override:
 `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`. In a SASE-launched agent session, that command
 records the linked-repo name in the run artifacts; ACE uses that record for opened-workspace context, and the commit
 finalizer uses it to enforce only configured numbered linked-repo workspaces the agent explicitly opened.
@@ -337,6 +338,8 @@ first makes sure the primary checkout has generated SDD guide files. `list` and 
 SDD initialization. `--clean` is accepted as a compatibility flag for this default behavior. Use a claim-range number
 such as `10` when handing a numbered checkout to an external shell, editor, or debugging tool. `#0` is the primary
 checkout, and `#1` through `#9` are reserved compatibility numbers rather than good choices for new manual checkouts.
+For linked-repo work, `-p/--project` is still the project selector: pass the configured linked repo name there, then the
+workspace number as the positional argument.
 
 `cleanup` and `repair` skip workspace `#0` and any workspace number with an active claim. `cleanup --include-shares`
 opts workflow-share checkouts into the same cleanup pass.

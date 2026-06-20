@@ -146,9 +146,10 @@ SASE keeps durable state outside any one chat session:
   workspace-matched directories via the `linked_repos` key (the legacy `sibling_repos` key still works as a deprecated
   alias). SASE records those paths in environment variables and agent metadata so cross-repo work uses the same numbered
   workspace as the main checkout, while singleton repos such as chezmoi can opt out with `workspace.strategy: none`. ACE
-  uses that metadata for live context: dirty suffix-strategy linked repos can appear in an active agent's `DELTAS`
-  section, and linked workspaces opened by the agent with `sase workspace open -p ...` appear in the `WORKSPACES` lane
-  and tmux chooser.
+  uses that metadata for live context: dirty suffix-strategy linked repos can appear in a non-terminal agent's `DELTAS`
+  section, and linked workspaces opened inside the agent with
+  `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` appear in the `SASE CONTEXT` `WORKSPACES` lane
+  and the `t` tmux chooser. In that command, `-p/--project` names the configured linked repo's backing project record.
 - **Named-agent handoffs** - `%name` gives a producer a stable identity, and `%wait` starts consumers only after
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them

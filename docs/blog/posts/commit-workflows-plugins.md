@@ -51,14 +51,15 @@ VCS-specific `create_commit` / `create_proposal` / `create_pull_request` hook. P
 Agents do not run `git commit` directly. They make changes; after a successful provider invocation inside a
 SASE-launched agent session, the shared commit finalizer checks the main workspace and configured Git linked repos for
 uncommitted state at their resolved workspace directories. Numbered linked-repo workspaces become enforced only when the
-agent opened them with `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` during the run. If enforced
-work is dirty, the finalizer sends bounded follow-up prompts to the same provider with a structured instruction to
-invoke the matching commit skill (for example `/sase_git_commit` for git-based projects, `/sase_hg_commit` for
-Mercurial). Static linked repos are advisory: the agent can see them in a follow-up prompt when they are dirty, but
-leaving them dirty does not fail the run. The generated skill normally runs a wrapper such as `sase_git_commit`, which
-records skill invocation evidence and then delegates to `sase commit`. A narrow SDD closeout, where the only enforced
-diff is one tracked SDD markdown file whose leading front matter changes from `status: wip` to `status: done`, is
-committed directly by the finalizer with a `TYPE=sdd` tag.
+agent opened them with `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` during the run, where
+`-p/--project` names the configured linked repo's backing project record. If enforced work is dirty, the finalizer sends
+bounded follow-up prompts to the same provider with a structured instruction to invoke the matching commit skill (for
+example `/sase_git_commit` for git-based projects, `/sase_hg_commit` for Mercurial). Static linked repos are advisory:
+the agent can see them in a follow-up prompt when they are dirty, but leaving them dirty does not fail the run. The
+generated skill normally runs a wrapper such as `sase_git_commit`, which records skill invocation evidence and then
+delegates to `sase commit`. A narrow SDD closeout, where the only enforced diff is one tracked SDD markdown file whose
+leading front matter changes from `status: wip` to `status: done`, is committed directly by the finalizer with a
+`TYPE=sdd` tag.
 
 That finalizer is runtime-uniform because it lives in the LLM provider orchestration layer, not in a provider-native
 hook. Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, and plugin providers all follow the same control flow: changes

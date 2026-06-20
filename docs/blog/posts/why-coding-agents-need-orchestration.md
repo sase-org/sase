@@ -525,24 +525,24 @@ models, comparing the overlap, and letting ACE keep the results from turning int
 
 These are the commands I reach for most:
 
-| Command                                                  | Why you use it                                                           |
-| -------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `sase doctor`                                            | Read-only install, config, provider, project, and state diagnostics.     |
-| `sase version`                                           | Exact SASE, Rust core, and plugin package inventory.                     |
-| `sase ace`                                               | Open the TUI cockpit.                                                    |
-| `sase run "..."`                                         | Launch an agent, xprompt, or workflow.                                   |
-| `sase agent list`                                        | See active and recent agent runs from the terminal.                      |
-| `sase xprompt list`                                      | See available xprompts and workflows.                                    |
-| `sase xprompt explain "#foo"`                            | Inspect how a prompt reference resolves.                                 |
-| `sase xprompt graph "#!workflow"`                        | Visualize workflow structure.                                            |
-| `sase plan`                                              | Review, approve, and manage submitted plans.                             |
-| `sase sdd list` / `sase sdd validate`                    | Inspect and validate SDD artifacts.                                      |
-| `sase bead ready` / `sase bead work`                     | Find unblocked bead work or execute an epic.                             |
-| `sase axe lumberjack status`                             | Check scheduled background automation.                                   |
-| `sase plugin doctor`                                     | Verify plugin entry points and chop scripts.                             |
-| `sase workspace open -p <linked_repo> -r "<reason>" <n>` | Open the matching numbered workspace for a configured linked repository. |
-| `sase lsp`                                               | Start the XPrompt language server for editor integrations.               |
-| `sase mobile gateway start`                              | Start the workstation-hosted mobile gateway.                             |
+| Command                                                  | Why you use it                                                       |
+| -------------------------------------------------------- | -------------------------------------------------------------------- |
+| `sase doctor`                                            | Read-only install, config, provider, project, and state diagnostics. |
+| `sase version`                                           | Exact SASE, Rust core, and plugin package inventory.                 |
+| `sase ace`                                               | Open the TUI cockpit.                                                |
+| `sase run "..."`                                         | Launch an agent, xprompt, or workflow.                               |
+| `sase agent list`                                        | See active and recent agent runs from the terminal.                  |
+| `sase xprompt list`                                      | See available xprompts and workflows.                                |
+| `sase xprompt explain "#foo"`                            | Inspect how a prompt reference resolves.                             |
+| `sase xprompt graph "#!workflow"`                        | Visualize workflow structure.                                        |
+| `sase plan`                                              | Review, approve, and manage submitted plans.                         |
+| `sase sdd list` / `sase sdd validate`                    | Inspect and validate SDD artifacts.                                  |
+| `sase bead ready` / `sase bead work`                     | Find unblocked bead work or execute an epic.                         |
+| `sase axe lumberjack status`                             | Check scheduled background automation.                               |
+| `sase plugin doctor`                                     | Verify plugin entry points and chop scripts.                         |
+| `sase workspace open -p <linked_repo> -r "<reason>" <n>` | Open a configured linked repo's matching numbered workspace.         |
+| `sase lsp`                                               | Start the XPrompt language server for editor integrations.           |
+| `sase mobile gateway start`                              | Start the workstation-hosted mobile gateway.                         |
 
 The [CLI reference](../../cli.md) is the full inventory.
 
