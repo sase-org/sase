@@ -311,6 +311,55 @@ def test_agy_provider_invokes_fake_cli_and_writes_artifacts(
     assert (artifacts / "live_reply.md").read_text().strip() == "agy fake ok"
 
 
+def test_agy_provider_writes_live_reply_but_no_structured_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Phase 5 parity gate: plain stdout is the supported MVP artifact path.
+
+    ``agy`` exposes no stable machine-readable contract, so the provider must
+    write ``live_reply.md`` like every other provider while emitting NO
+    structured artifacts. It must never fabricate ``tool_calls.jsonl``,
+    ``usage.json``, or thinking rows from human display text — doing so would
+    make the provider lie about tool calls and usage.
+    """
+    fake_agy = tmp_path / "agy"
+    # A reply whose prose looks tool-shaped (glyphs, "Running"/"tool" words)
+    # must NOT be scraped into a structured tool-call artifact.
+    fake_agy.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env python3
+            print("● Running tool: Bash(echo hi)", flush=True)
+            print("final agy answer", flush=True)
+            """
+        )
+    )
+    fake_agy.chmod(0o755)
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_AGY_PATH", str(fake_agy))
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+
+    result = AgyProvider().invoke("do work", model_tier="large", suppress_output=True)
+
+    # The plain-stdout reply is captured verbatim, including tool-shaped prose.
+    assert "final agy answer" in result.content
+    assert "Running tool" in result.content
+    # No stable token accounting in plain-stdout mode: do not lie about usage.
+    assert result.usage is None
+
+    # live_reply.md is the supported MVP artifact and is written.
+    live_reply = artifacts / "live_reply.md"
+    assert live_reply.is_file()
+    assert "final agy answer" in live_reply.read_text(encoding="utf-8")
+
+    # No malformed / fabricated structured artifacts are created.
+    assert not (artifacts / "tool_calls.jsonl").exists()
+    assert not (artifacts / "usage.json").exists()
+    assert not (artifacts / "codex_thinking.jsonl").exists()
+
+
 def test_agy_provider_fake_cli_no_shell_interpolation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

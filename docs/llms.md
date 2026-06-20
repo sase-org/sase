@@ -11,6 +11,7 @@ a shared orchestration layer that handles preprocessing, invocation, and postpro
 - [Commit Finalization](#commit-finalization)
 - [Claude Code Integration](#claude-code-integration)
 - [Gemini CLI Integration](#gemini-cli-integration)
+- [Antigravity (`agy`) Integration](#antigravity-agy-integration)
 - [Codex CLI Integration](#codex-cli-integration)
 - [Qwen Code Integration](#qwen-code-integration)
 - [OpenCode Integration](#opencode-integration)
@@ -288,6 +289,71 @@ producing a malformed record.
 
 While waiting for a response, a `gemini_timer("Waiting for Gemini")` spinner is shown (unless `suppress_output` is
 `True`).
+
+## Antigravity (`agy`) Integration
+
+The `AgyProvider` invokes Google's Antigravity CLI (`agy`), the replacement for the retired consumer Gemini CLI. It is a
+plain-stdout provider: Antigravity CLI 1.0.10 does not document a machine-readable JSON/stream output mode, so SASE
+streams plain stdout instead of parsing a structured event stream.
+
+### Command Construction
+
+```
+agy --print-timeout <duration> --model <model> --dangerously-skip-permissions --print <prompt>
+```
+
+The prompt is passed as the value of `--print` (not on stdin) as a single argv element, so prompts containing quotes,
+newlines, or shell metacharacters are never shell-interpolated. `--print-timeout` defaults to `24h` (Antigravity's own
+`5m` default is too short for long agentic runs) and is a Go duration string.
+
+### Model Mapping
+
+`agy` model display names are used verbatim — they contain spaces and parentheses (e.g. `Gemini 3.5 Flash (High)`). The
+tier defaults are:
+
+| Tier    | Model                     | Short alias |
+| ------- | ------------------------- | ----------- |
+| `large` | `Gemini 3.5 Flash (High)` | `flash35h`  |
+| `small` | `Gemini 3.5 Flash (Low)`  | `flash35l`  |
+
+All other `agy models` names remain reachable through `%model:agy/<exact name>`, the model picker, and configured
+aliases.
+
+### Environment Variables
+
+| Variable                 | Description                                                        |
+| ------------------------ | ------------------------------------------------------------------ |
+| `SASE_AGY_PATH`          | Path to the Antigravity CLI binary (default: `"agy"`).             |
+| `SASE_AGY_PRINT_TIMEOUT` | Override the `agy --print-timeout` Go duration (default: `"24h"`). |
+| `SASE_AGY_LARGE_ARGS`    | Extra args for the `large` tier (after `SASE_LLM_LARGE_ARGS`).     |
+| `SASE_AGY_SMALL_ARGS`    | Extra args for the `small` tier (after `SASE_LLM_SMALL_ARGS`).     |
+
+### Skill Deployment
+
+`sase skill init -p agy` writes generated SASE skills to `~/.gemini/antigravity-cli/skills/`, the documented Antigravity
+global skill path. The leading `.gemini` here is an Antigravity-owned path, not a Gemini CLI path.
+
+### Structured Artifacts Parity Gap
+
+Antigravity CLI 1.0.10 exposes no stable machine-readable contract: there is no documented
+`--output-format stream-json`, JSON event mode, or stable log/conversation schema. Because SASE will not scrape
+Antigravity's human TUI rendering to synthesize artifacts, the `agy` provider intentionally does **not** support the
+following until a stable upstream contract exists:
+
+- **Tool-call timeline** — no `tool_calls.jsonl` rows are written, so the ACE
+  [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel) simply shows nothing for `agy` runs rather than inventing rows
+  from display glyphs or prose.
+- **Usage accounting** — `InvokeResult.usage` is `None` and no `usage.json` is written; `agy` print mode exposes no
+  stable token counters.
+- **Thinking extraction** — no thinking artifact is produced.
+
+The plain-stdout path still writes `live_reply.md` (and `live_reply_timestamps.jsonl`) like every other provider, so the
+final reply, chat history, and resume support work normally. These structured features are fast-follow work gated on a
+future Antigravity machine-readable output/log/conversation contract.
+
+### Timer Display
+
+While waiting for a response, a `Waiting for Antigravity` spinner is shown (unless `suppress_output` is `True`).
 
 ## Codex CLI Integration
 
