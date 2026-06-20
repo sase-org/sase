@@ -11,6 +11,10 @@ SASE runs agents (like you) from ephemeral workspace directories, which are full
 directories are named `sase_<N>` where `<N>` is some integer. You need to be mindful not to run commands outside of
 these workspace directories, since they have their own isolated virtual environments.
 
+IMPORTANT: Do NOT mention your workspace directory (or any sibling workspace directory) in any plan files that you
+generate using your `/sase_plan` skill. The agent(s) that implement the plan might not run in the same workspace
+directory as you!
+
 ## Sibling Repositories
 
 Configured sibling repositories for this context:
