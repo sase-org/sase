@@ -2,6 +2,8 @@
 create_time: 2026-06-20 14:25:04
 status: wip
 prompt: sdd/prompts/202606/alt_brace_syntax.md
+bead_id: sase-52
+tier: epic
 ---
 # Plan: migrate alt shorthand from `%(...)` to `%{...}`
 
