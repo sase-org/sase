@@ -80,7 +80,7 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 - **SDD and Beads** - Spec-driven planning artifacts plus git-portable issue tracking for epics, phases, and
   dependencies.
 - **Commit finalizer** - A provider-neutral post-invocation check that asks SASE-launched agents to commit dirty
-  enforced workspaces, treats static singleton siblings as advisory, and auto-commits exact SDD status closeouts.
+  enforced workspaces, treats static singleton linked repos as advisory, and auto-commits exact SDD status closeouts.
 - **Plugins** - Provider boundaries for agents, VCS operations, workspaces, notifications, and external integrations.
 - **Editor integration** - An xprompt LSP and JSON helper bridge for completions, snippets, hover, diagnostics, and
   jump-to-definition in companion editors.
@@ -142,10 +142,10 @@ SASE keeps durable state outside any one chat session:
   retries, and fall back to another model when configured. Claude adds built-in matching for context-limit,
   socket-close, and Claude CLI API-error output; per-provider retry counts, waits, and fallback policy live under
   `llm_provider.retry`.
-- **Configured sibling repos** - Project and user config can expose related repositories to launched agents as
-  workspace-matched directories. SASE records those paths in environment variables and agent metadata so cross-repo work
-  uses the same numbered workspace as the main checkout, while singleton repos such as chezmoi can opt out with
-  `workspace.strategy: none`.
+- **Configured linked repos** - Project and user config can expose related repositories to launched agents as
+  workspace-matched directories via the `linked_repos` key (the legacy `sibling_repos` key still works as a deprecated
+  alias). SASE records those paths in environment variables and agent metadata so cross-repo work uses the same numbered
+  workspace as the main checkout, while singleton repos such as chezmoi can opt out with `workspace.strategy: none`.
 - **Named-agent handoffs** - `%name` gives a producer a stable identity, and `%wait` starts consumers only after
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them
@@ -155,11 +155,11 @@ SASE keeps durable state outside any one chat session:
   protocol as the TUI. Approval kinds decide whether the runner starts a coder without committing an SDD plan, commits
   the plan as a tale/epic/legend before the follow-up, or records the approved plan in SDD and stops there.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
-  provider-neutral finalizer checks the main workspace and enforces only configured numbered Git sibling workspaces
-  opened during the run with `sase workspace open -p ...`. Static siblings (`workspace.strategy: none`) are reported as
-  advisory work that the agent may commit when it made those changes, but they do not fail the run if they remain dirty.
-  If the only enforced change is one tracked SDD markdown file under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or
-  `sdd/myths/` whose leading front matter changes exactly from `status: wip` to `status: done`, SASE commits that
+  provider-neutral finalizer checks the main workspace and enforces only configured numbered Git linked-repo workspaces
+  opened during the run with `sase workspace open -p ...`. Static linked repos (`workspace.strategy: none`) are reported
+  as advisory work that the agent may commit when it made those changes, but they do not fail the run if they remain
+  dirty. If the only enforced change is one tracked SDD markdown file under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`,
+  or `sdd/myths/` whose leading front matter changes exactly from `status: wip` to `status: done`, SASE commits that
   closeout directly. Other dirty enforced workspaces trigger bounded follow-up invocations that tell the same agent to
   use the configured commit skill; if enforced workspaces are still dirty after the configured pass limit, the agent run
   fails with a clear artifact trail.

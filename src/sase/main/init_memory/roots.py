@@ -23,7 +23,7 @@ from .models import (
     MemoryFileChange,
     MemoryRootPlan,
     MemoryRootResult,
-    SiblingMemoryEntry,
+    LinkedRepoMemoryEntry,
     MemoryChangeOperation,
 )
 
@@ -46,40 +46,40 @@ def _extend_workspace_section(lines: list[str], project_name: str) -> None:
     )
 
 
-def _static_sibling_display_path(entry: SiblingMemoryEntry) -> str:
+def _static_linked_repo_display_path(entry: LinkedRepoMemoryEntry) -> str:
     display_path = entry.path
     if not display_path.endswith("/"):
         display_path = f"{display_path}/"
     return display_path
 
 
-def _sibling_list_item(entry: SiblingMemoryEntry) -> str:
+def _linked_repo_list_item(entry: LinkedRepoMemoryEntry) -> str:
     text = f"- `{entry.name}`: {entry.description}"
     if entry.workspace_strategy == "none":
         text += (
             " This repo is defined in the "
-            f"`{_static_sibling_display_path(entry)}` directory."
+            f"`{_static_linked_repo_display_path(entry)}` directory."
         )
     return text
 
 
-def _extend_sibling_repository_section(
-    lines: list[str], entries: Iterable[SiblingMemoryEntry]
+def _extend_linked_repository_section(
+    lines: list[str], entries: Iterable[LinkedRepoMemoryEntry]
 ) -> None:
     lines.extend(
         [
-            "## Sibling Repositories",
+            "## Linked Repositories",
             "",
         ]
     )
     entries = tuple(entries)
     if entries:
-        lines.append("Configured sibling repositories for this context:")
+        lines.append("Configured linked repositories for this context:")
         lines.append("")
         for entry in entries:
-            lines.append(_sibling_list_item(entry))
+            lines.append(_linked_repo_list_item(entry))
     else:
-        lines.append("No sibling repositories are configured for this context.")
+        lines.append("No linked repositories are configured for this context.")
         lines.append("")
         return
 
@@ -91,15 +91,15 @@ def _extend_sibling_repository_section(
         lines.extend(
             [
                 "",
-                "When you need to make changes to files in a numbered-workspace sibling repository or need to review numbered-workspace sibling repository code, agents MUST run:",
+                "When you need to make changes to files in a numbered-workspace linked repository or need to review numbered-workspace linked repository code, agents MUST run:",
                 "",
                 "```bash",
-                'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>',
+                'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>',
                 "```",
                 "",
                 "`<workspace_num>` must be the workspace number assigned to the primary repo "
                 "(check what directory you were started in to figure this out). Use the path printed by",
-                "`sase workspace open` as the only repository path for numbered-workspace sibling reads/writes.",
+                "`sase workspace open` as the only repository path for numbered-workspace linked reads/writes.",
                 "",
             ]
         )
@@ -108,13 +108,13 @@ def _extend_sibling_repository_section(
 
 
 def _render_sase_memory(
-    entries: Iterable[SiblingMemoryEntry], *, project_name: str | None = None
+    entries: Iterable[LinkedRepoMemoryEntry], *, project_name: str | None = None
 ) -> str:
     lines = ["# SASE = Structured Agentic Software Engineering", ""]
     if project_name is not None:
         _extend_workspace_section(lines, project_name)
 
-    _extend_sibling_repository_section(lines, entries)
+    _extend_linked_repository_section(lines, entries)
     return "\n".join(lines)
 
 
@@ -123,7 +123,7 @@ def _generated_sase_memory_relative_path() -> Path:
 
 
 def _render_generated_sase_memory(
-    entries: Iterable[SiblingMemoryEntry],
+    entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
 ) -> str:
@@ -160,7 +160,7 @@ def _minimal_agents_content() -> str:
 
 def _render_expected_memory_files(
     root: Path,
-    sibling_entries: Iterable[SiblingMemoryEntry],
+    linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
     amd_sync: AmdMemorySyncPlan | None = None,
@@ -169,7 +169,7 @@ def _render_expected_memory_files(
         MemoryExpectedFile(
             path=root / _generated_sase_memory_relative_path(),
             content=_render_generated_sase_memory(
-                sibling_entries,
+                linked_entries,
                 project_name=project_name,
             ),
             detail="generated SASE memory",
@@ -363,7 +363,7 @@ def _validation_overlay_for_expected_files(
 
 def plan_memory_root(
     root: Path,
-    sibling_entries: Iterable[SiblingMemoryEntry],
+    linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
     enable_amd: bool = False,
@@ -373,7 +373,7 @@ def plan_memory_root(
     amd_sync = _amd_sync_plan(root, enable_amd=enable_amd)
     expected_files = _render_expected_memory_files(
         root,
-        sibling_entries,
+        linked_entries,
         project_name=project_name,
         amd_sync=amd_sync,
     )
@@ -396,7 +396,7 @@ def plan_memory_root(
 
 def initialize_memory_root(
     root: Path,
-    sibling_entries: Iterable[SiblingMemoryEntry],
+    linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
     enable_amd: bool = False,
@@ -406,7 +406,7 @@ def initialize_memory_root(
     amd_sync = _amd_sync_plan(root, enable_amd=enable_amd)
     expected_files = _render_expected_memory_files(
         root,
-        sibling_entries,
+        linked_entries,
         project_name=project_name,
         amd_sync=amd_sync,
     )

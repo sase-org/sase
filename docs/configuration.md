@@ -12,7 +12,7 @@ and CLI flags.
   - [ace](#ace)
   - [llm_provider](#llm_provider)
   - [commit](#commit)
-  - [sibling_repos](#sibling_repos)
+  - [linked_repos](#linked_repos)
   - [vcs_provider](#vcs_provider)
   - [axe](#axe)
   - [mentor_profiles](#mentor_profiles)
@@ -342,33 +342,37 @@ commit:
 | `commit.finalizer.enabled`    | bool | `true`  | Run the post-invocation commit finalizer for SASE-launched agent sessions.           |
 | `commit.finalizer.max_passes` | int  | `2`     | Maximum follow-up invocations before a still-dirty enforced workspace fails the run. |
 
-When enabled, the finalizer checks the main workspace through the active VCS provider. For configured `sibling_repos`
-Git worktrees using the numbered-workspace strategy, it checks only sibling names recorded in the run's
-`opened_siblings.json` artifact, normally written by `sase workspace open -p <sibling> -r "<reason>" <workspace_num>`
-during the agent run. Dirty enforced workspaces trigger a follow-up invocation that instructs the same provider to use
-the appropriate commit skill. Dirty static siblings (`workspace.strategy: none`) are reported to that follow-up as
-advisory work and do not fail the finalizer if they remain dirty. Advisory-only static sibling changes still get one
-follow-up prompt so the agent can commit them when it made those changes. When the only enforced change is one tracked
-markdown file under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or `sdd/myths/`, and that file's only diff is leading
-front matter changing exactly from `status: wip` to `status: done`, the finalizer creates a direct
-`chore: Mark SDD plan done` commit instead of invoking the provider again. When `$SASE_ARTIFACTS_DIR` is set, each pass
-writes prompt/response artifacts there, and the final outcome is recorded in `commit_finalizer_result.json`.
+When enabled, the finalizer checks the main workspace through the active VCS provider. For configured `linked_repos` Git
+worktrees using the numbered-workspace strategy, it checks only linked-repo names recorded in the run's
+`opened_linked_workspaces.json` artifact, normally written by
+`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` during the agent run. Dirty enforced workspaces
+trigger a follow-up invocation that instructs the same provider to use the appropriate commit skill. Dirty static linked
+repos (`workspace.strategy: none`) are reported to that follow-up as advisory work and do not fail the finalizer if they
+remain dirty. Advisory-only static linked-repo changes still get one follow-up prompt so the agent can commit them when
+it made those changes. When the only enforced change is one tracked markdown file under `sdd/tales/`, `sdd/epics/`,
+`sdd/legends/`, or `sdd/myths/`, and that file's only diff is leading front matter changing exactly from `status: wip`
+to `status: done`, the finalizer creates a direct `chore: Mark SDD plan done` commit instead of invoking the provider
+again. When `$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and the final outcome is
+recorded in `commit_finalizer_result.json`.
 
 Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable name is historical; it now disables
 the provider-neutral finalizer.
 
 Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructions.py`
 
-### sibling_repos
+### linked_repos
 
-Declares related repositories that should be visible to launched agents. Git sibling worktrees using numbered workspace
-resolution are also eligible for commit-finalizer checks at their resolved `workspace_dir`, but only after the agent run
-opens that sibling workspace with `sase workspace open -p <sibling> -r "<reason>" <workspace_num>` and records the
-sibling in its artifacts. Entries can live in user config or a project-local `sase.yml`; local entries are resolved
-relative to the project's primary workspace directory.
+Declares related repositories that should be visible to launched agents. Git linked-repo worktrees using numbered
+workspace resolution are also eligible for commit-finalizer checks at their resolved `workspace_dir`, but only after the
+agent run opens that linked workspace with `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` and
+records the linked repo in its artifacts. Entries can live in user config or a project-local `sase.yml`; local entries
+are resolved relative to the project's primary workspace directory.
+
+The deprecated `sibling_repos` key is still accepted as an alias during the compatibility window. Prefer `linked_repos`
+in new config.
 
 ```yaml
-sibling_repos:
+linked_repos:
   - name: core
     path: ../sase-core
     description: Shared backend/domain behavior used by SASE frontends.
@@ -382,30 +386,33 @@ sibling_repos:
       strategy: none
 ```
 
-| Field                                | Type   | Default    | Description                                                                                                  |
-| ------------------------------------ | ------ | ---------- | ------------------------------------------------------------------------------------------------------------ |
-| `sibling_repos[].name`               | string | required   | Stable alias used in generated environment variable names and memory summaries.                              |
-| `sibling_repos[].path`               | string | required   | Primary checkout path. Relative paths resolve from the project's primary workspace.                          |
-| `sibling_repos[].description`        | string | required   | Human-readable purpose used when generating agent memory for the sibling repository.                         |
-| `sibling_repos[].workspace.strategy` | string | `"suffix"` | `suffix` exposes a workspace-matched checkout for workspace `N`; `none` always exposes the primary checkout. |
+| Field                               | Type   | Default    | Description                                                                                                  |
+| ----------------------------------- | ------ | ---------- | ------------------------------------------------------------------------------------------------------------ |
+| `linked_repos[].name`               | string | required   | Stable alias used in generated environment variable names and memory summaries.                              |
+| `linked_repos[].path`               | string | required   | Primary checkout path. Relative paths resolve from the project's primary workspace.                          |
+| `linked_repos[].description`        | string | required   | Human-readable purpose used when generating agent memory for the linked repository.                          |
+| `linked_repos[].workspace.strategy` | string | `"suffix"` | `suffix` exposes a workspace-matched checkout for workspace `N`; `none` always exposes the primary checkout. |
 
-For `suffix` siblings, workspace numbers `0` and `1` use the primary checkout. Higher workspace numbers use
-workspace-matched sibling checkouts, materializing the checkout through the same `workspace.root` policy when the
-workspace provider can do so. With explicit `workspace.root: adjacent` that path is a legacy sibling such as
-`sase-core_10`; with the default `xdg-state` it lives under the managed state root. Siblings with
+For `suffix` linked repos, workspace numbers `0` and `1` use the primary checkout. Higher workspace numbers use
+workspace-matched linked-repo checkouts, materializing the checkout through the same `workspace.root` policy when the
+workspace provider can do so. With explicit `workspace.root: adjacent` that path is a legacy adjacent checkout such as
+`sase-core_10`; with the default `xdg-state` it lives under the managed state root. Linked repos with
 `workspace.strategy: none` are exposed to agents and can appear as advisory dirty targets in commit finalizer prompts,
 but they are not commit-finalizer enforcement targets. SASE passes the resolved paths into environment variables and
 agent metadata:
 
-| Variable                                   | Description                                       |
-| ------------------------------------------ | ------------------------------------------------- |
-| `SASE_SIBLING_REPOS_JSON`                  | JSON metadata for all resolved sibling repos.     |
-| `SASE_SIBLING_REPO_<ENV_NAME>_DIR`         | Workspace-matched directory for a sibling repo.   |
-| `SASE_SIBLING_REPO_<ENV_NAME>_PRIMARY_DIR` | Primary checkout directory for that sibling repo. |
+| Variable                                  | Description                                      |
+| ----------------------------------------- | ------------------------------------------------ |
+| `SASE_LINKED_REPOS_JSON`                  | JSON metadata for all resolved linked repos.     |
+| `SASE_LINKED_REPO_<ENV_NAME>_DIR`         | Workspace-matched directory for a linked repo.   |
+| `SASE_LINKED_REPO_<ENV_NAME>_PRIMARY_DIR` | Primary checkout directory for that linked repo. |
+
+The legacy `SASE_SIBLING_REPOS_JSON` and `SASE_SIBLING_REPO_<ENV_NAME>_*` variables are still emitted alongside the
+canonical ones during the compatibility window.
 
 `<ENV_NAME>` is the uppercased, sanitized repo `name`; duplicates are uniquified with a numeric suffix.
 
-Source: `src/sase/sibling_repos.py`, `src/sase/agent/launch_spawn.py`
+Source: `src/sase/linked_repos.py`, `src/sase/agent/launch_spawn.py`
 
 ### vcs_provider
 
@@ -1016,15 +1023,15 @@ a provider prefix; use `opencode models` to list models in your configured envir
 
 ### VCS Provider
 
-| Variable                           | Description                                                                                                                                               |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_VCS_PROVIDER`                | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                 |
-| `SASE_WORKSPACE_ROOT`              | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts. |
-| `SASE_BUG_ID`                      | Bug ID for PR workflows. When set and non-zero, injects `BUG=<id>` into PR tags and ChangeSpec.                                                           |
-| `SASE_BEAD_ID`                     | Bead ID for commit workflows. When set, `sase commit` automatically tags the commit message.                                                              |
-| `SASE_DISABLE_COMMIT_STOP_HOOK`    | Disable commit finalization for this process.                                                                                                             |
-| `SASE_SIBLING_REPOS_JSON`          | Resolved sibling-repo metadata passed to launched agents.                                                                                                 |
-| `SASE_SIBLING_REPO_<ENV_NAME>_DIR` | Workspace-matched directory for one configured sibling repo.                                                                                              |
+| Variable                          | Description                                                                                                                                               |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_VCS_PROVIDER`               | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                 |
+| `SASE_WORKSPACE_ROOT`             | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts. |
+| `SASE_BUG_ID`                     | Bug ID for PR workflows. When set and non-zero, injects `BUG=<id>` into PR tags and ChangeSpec.                                                           |
+| `SASE_BEAD_ID`                    | Bead ID for commit workflows. When set, `sase commit` automatically tags the commit message.                                                              |
+| `SASE_DISABLE_COMMIT_STOP_HOOK`   | Disable commit finalization for this process.                                                                                                             |
+| `SASE_LINKED_REPOS_JSON`          | Resolved linked-repo metadata passed to launched agents.                                                                                                  |
+| `SASE_LINKED_REPO_<ENV_NAME>_DIR` | Workspace-matched directory for one configured linked repo.                                                                                               |
 
 ### Plugin System
 
@@ -1358,9 +1365,9 @@ provider instruction shims for compatibility. Direct home shims use absolute `@/
 `use_chezmoi` is enabled, home shim sources are written as `*.md.tmpl` files. When the project-local `./sase.yml` sets
 `amd_h1_title`, memory init synchronizes that project's AMD-managed short/long memory blocks and inserts missing
 long-memory `description` frontmatter. By default it also tries to commit, rebase-pull, and push generated project-side
-files. `sase init memory` is a compatibility alias for this command. Generated sibling-repository memory lists direct
-paths for `workspace.strategy: none` siblings and only includes `sase workspace open` guidance when a configured sibling
-uses numbered workspace resolution.
+files. `sase init memory` is a compatibility alias for this command. Generated linked-repository memory lists direct
+paths for `workspace.strategy: none` linked repos and only includes `sase workspace open` guidance when a configured
+linked repo uses numbered workspace resolution.
 
 | Flag              | Values | Default | Description                                                                                             |
 | ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

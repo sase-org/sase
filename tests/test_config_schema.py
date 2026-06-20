@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError
@@ -132,10 +133,13 @@ def test_config_schema_rejects_legacy_worker_model_field() -> None:
     )
 
 
-def test_config_schema_requires_sibling_repo_descriptions() -> None:
+@pytest.mark.parametrize("repos_key", ["linked_repos", "sibling_repos"])
+def test_config_schema_requires_linked_repo_descriptions(repos_key: str) -> None:
+    # Both the canonical ``linked_repos`` key and the deprecated ``sibling_repos``
+    # alias share the same item schema, so each enforces the required fields.
     schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
     config = {
-        "sibling_repos": [
+        repos_key: [
             {
                 "name": "core",
                 "path": "../sase-core",
@@ -149,7 +153,7 @@ def test_config_schema_requires_sibling_repo_descriptions() -> None:
     )
 
     assert any(
-        list(error.absolute_path) == ["sibling_repos", 0]
+        list(error.absolute_path) == [repos_key, 0]
         and "'description' is a required property" in error.message
         for error in errors
     )

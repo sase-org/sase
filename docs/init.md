@@ -150,15 +150,15 @@ inside `AGENTS.md`, adds missing canonical frontmatter to memory files, and rend
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The command can then commit those home
 changes and run `chezmoi apply --force`; `--no-commit` does not disable that home deployment path.
 
-The generated `memory/sase.md` summarizes workspace naming and sibling repositories. Project memory reads sibling repo
+The generated `memory/sase.md` summarizes workspace naming and linked repositories. Project memory reads linked-repo
 descriptions from the project-local `./sase.yml`; home memory reads them from the global config
 `~/.config/sase/sase.yml`, or from the chezmoi-managed config path when `use_chezmoi: true`. Generated memory
-distinguishes static-path siblings (`workspace.strategy: none`) from numbered-workspace siblings, lists the direct path
-for static siblings, and includes `sase workspace open` instructions only when at least one configured sibling uses
-numbered workspace resolution.
+distinguishes static-path linked repos (`workspace.strategy: none`) from numbered-workspace linked repos, lists the
+direct path for static linked repos, and includes `sase workspace open` instructions only when at least one configured
+linked repo uses numbered workspace resolution.
 
-Every configured `sibling_repos` entry must have a non-empty `description`. Initialization fails instead of generating
-ambiguous memory when a description is missing.
+Every configured `linked_repos` entry (or its deprecated `sibling_repos` alias) must have a non-empty `description`.
+Initialization fails instead of generating ambiguous memory when a description is missing.
 
 By default, project memory initialization runs the configured precommit command, stages generated project files, commits
 them with the standard memory-init commit message, pulls with rebase, and pushes. Use `sase memory init --check` for a

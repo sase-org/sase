@@ -11,7 +11,7 @@ vcs_provider:
     - "just test"
     # keep-sorted end
 
-sibling_repos:
+linked_repos:
   - name: sase-core
     path: ../sase-core
     description: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.

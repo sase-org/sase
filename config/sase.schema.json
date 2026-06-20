@@ -5,6 +5,41 @@
   "type": "object",
   "additionalProperties": false,
   "definitions": {
+    "linkedRepo": {
+      "type": "object",
+      "required": ["name", "path", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Stable alias used in prompts, metadata, and SASE_LINKED_REPO_<NAME>_DIR env vars.",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "description": "Primary checkout path. Relative paths are resolved from the project's primary WORKSPACE_DIR.",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable purpose used when generating agent memory for this linked repository.",
+          "minLength": 1
+        },
+        "workspace": {
+          "type": "object",
+          "description": "Linked repository workspace materialization policy.",
+          "additionalProperties": false,
+          "properties": {
+            "strategy": {
+              "type": "string",
+              "description": "Use 'suffix' for primary_<workspace_num> git clones, or 'none' to expose the primary path directly.",
+              "enum": ["suffix", "none"],
+              "default": "suffix"
+            }
+          }
+        }
+      }
+    },
     "xpromptInputDefinitions": {
       "description": "Input argument definitions (array or object shorthand)",
       "oneOf": [
@@ -108,19 +143,7 @@
                 { "type": "boolean" },
                 {
                   "type": "string",
-                  "enum": [
-                    "soft",
-                    "on",
-                    "off",
-                    "true",
-                    "false",
-                    "yes",
-                    "no",
-                    "1",
-                    "0",
-                    "none",
-                    "disabled"
-                  ]
+                  "enum": ["soft", "on", "off", "true", "false", "yes", "no", "1", "0", "none", "disabled"]
                 }
               ],
               "default": "soft"
@@ -726,43 +749,19 @@
         }
       ]
     },
+    "linked_repos": {
+      "type": "array",
+      "description": "Related repositories to expose to launched agents as workspace-matched directories. Each entry is published through the SASE_LINKED_REPOS_JSON and SASE_LINKED_REPO_<NAME>_DIR env vars.",
+      "items": {
+        "$ref": "#/definitions/linkedRepo"
+      },
+      "default": []
+    },
     "sibling_repos": {
       "type": "array",
-      "description": "Related repositories to expose to launched agents as workspace-matched directories.",
+      "description": "Deprecated alias for 'linked_repos'. Still parsed during the compatibility window; prefer 'linked_repos' in new config.",
       "items": {
-        "type": "object",
-        "required": ["name", "path", "description"],
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Stable alias used in prompts, metadata, and SASE_SIBLING_REPO_<NAME> env vars.",
-            "minLength": 1
-          },
-          "path": {
-            "type": "string",
-            "description": "Primary checkout path. Relative paths are resolved from the project's primary WORKSPACE_DIR.",
-            "minLength": 1
-          },
-          "description": {
-            "type": "string",
-            "description": "Human-readable purpose used when generating agent memory for this sibling repository.",
-            "minLength": 1
-          },
-          "workspace": {
-            "type": "object",
-            "description": "Sibling workspace materialization policy.",
-            "additionalProperties": false,
-            "properties": {
-              "strategy": {
-                "type": "string",
-                "description": "Use 'suffix' for primary_<workspace_num> git clones, or 'none' to expose the primary path directly.",
-                "enum": ["suffix", "none"],
-                "default": "suffix"
-              }
-            }
-          }
-        }
+        "$ref": "#/definitions/linkedRepo"
       },
       "default": []
     },
@@ -866,10 +865,7 @@
                 ]
               },
               "snippet": {
-                "oneOf": [
-                  { "type": "boolean" },
-                  { "type": "string" }
-                ],
+                "oneOf": [{ "type": "boolean" }, { "type": "string" }],
                 "description": "Opt-in snippet expansion: true for auto trigger word, or a custom trigger string"
               },
               "description": {

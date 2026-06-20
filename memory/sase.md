@@ -15,22 +15,22 @@ IMPORTANT: Do NOT mention your workspace directory (or any sibling workspace dir
 generate using your `/sase_plan` skill. The agent(s) that implement the plan might not run in the same workspace
 directory as you!
 
-## Sibling Repositories
+## Linked Repositories
 
-Configured sibling repositories for this context:
+Configured linked repositories for this context:
 
 - `sase-core`: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
 - `sase-github`: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.
 - `sase-telegram`: Telegram integration plugin for chat-driven SASE workflows and notifications.
 - `sase-nvim`: Neovim integration plugin for SASE syntax, completion, and editor support.
 
-When you need to make changes to files in a numbered-workspace sibling repository or need to review numbered-workspace
-sibling repository code, agents MUST run:
+When you need to make changes to files in a numbered-workspace linked repository or need to review numbered-workspace
+linked repository code, agents MUST run:
 
 ```bash
-sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>
+sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>
 ```
 
 `<workspace_num>` must be the workspace number assigned to the primary repo (check what directory you were started in to
 figure this out). Use the path printed by `sase workspace open` as the only repository path for numbered-workspace
-sibling reads/writes.
+linked reads/writes.

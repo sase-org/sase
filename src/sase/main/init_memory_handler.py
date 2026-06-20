@@ -22,14 +22,14 @@ from .init_memory.config import (
     primary_workspace_root_for_memory as _primary_workspace_root_for_memory,
     project_config_path as _project_config_path,
     project_memory_name as _project_memory_name,
-    sibling_entries_from_config as _sibling_entries_from_config,
+    linked_entries_from_config as _linked_entries_from_config,
 )
 from .init_memory.constants import COMMAND_LABEL, PROJECT_COMMIT_MESSAGE
 from .init_memory.inventory import print_validation_errors as _print_validation_errors
 from .init_memory.models import (
     MemoryRootPlan as _MemoryRootPlan,
     MemoryRootResult as _MemoryRootResult,
-    SiblingMemoryEntry as _SiblingMemoryEntry,
+    LinkedRepoMemoryEntry as _LinkedRepoMemoryEntry,
 )
 from .init_memory.roots import initialize_memory_root as _initialize_memory_root
 from .init_memory.roots import plan_memory_root as _plan_memory_root
@@ -43,8 +43,8 @@ class _MemoryInitInputs:
     project_root: Path
     home_root: Path
     project_name: str | None
-    project_entries: tuple[_SiblingMemoryEntry, ...]
-    home_entries: tuple[_SiblingMemoryEntry, ...]
+    project_entries: tuple[_LinkedRepoMemoryEntry, ...]
+    home_entries: tuple[_LinkedRepoMemoryEntry, ...]
     config_errors: tuple[str, ...]
 
 
@@ -96,10 +96,10 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     project_config = _project_config_path()
     global_config = _global_config_path(use_chezmoi)
 
-    project_entries, project_errors = _sibling_entries_from_config(
+    project_entries, project_errors = _linked_entries_from_config(
         project_config, label="project", primary_root=primary_root
     )
-    home_entries, home_errors = _sibling_entries_from_config(
+    home_entries, home_errors = _linked_entries_from_config(
         global_config, label="home", primary_root=primary_root
     )
     config_errors = (*project_errors, *home_errors)

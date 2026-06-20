@@ -12,7 +12,7 @@ WorkspaceStrategy = Literal["suffix", "none"]
 
 
 @dataclass(frozen=True)
-class SiblingMemoryEntry:
+class LinkedRepoMemoryEntry:
     name: str
     description: str
     path: str

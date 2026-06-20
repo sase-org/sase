@@ -73,7 +73,7 @@ sibling_repos:
     chezmoi_memory = (chezmoi_home / "memory" / "sase.md").read_text()
     assert "`telegram`: Telegram workflow plugin." in chezmoi_memory
     assert "/global/telegram" not in chezmoi_memory
-    assert "Static-path sibling repositories (`workspace.strategy: none`)" not in (
+    assert "Static-path linked repositories (`workspace.strategy: none`)" not in (
         chezmoi_memory
     )
     assert (

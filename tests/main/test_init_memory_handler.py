@@ -64,7 +64,7 @@ def home_provider_shim_content(root: Path) -> str:
     return f"@{root.resolve(strict=False).as_posix()}/AGENTS.md\n"
 
 
-def test_init_memory_uses_local_siblings_for_project_and_global_for_home(
+def test_init_memory_uses_local_linked_repos_for_project_and_global_for_home(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -81,10 +81,13 @@ def test_init_memory_uses_local_siblings_for_project_and_global_for_home(
         config_dir=config_dir,
     )
 
+    # The project config uses the canonical ``linked_repos`` key while the
+    # global config keeps the deprecated ``sibling_repos`` alias, proving both
+    # the canonical key and the legacy fallback drive memory generation.
     write(
         project_root / "sase.yml",
         """
-sibling_repos:
+linked_repos:
   - name: core
     path: ../local-core
     description: Local Rust core.
@@ -115,16 +118,16 @@ sibling_repos:
     assert _SASE_MEMORY_HEADER in project_memory
     assert _SASE_MEMORY_HEADER in home_memory
 
-    sibling_trigger = (
-        "When you need to make changes to files in a numbered-workspace sibling "
-        "repository or need to review numbered-workspace sibling repository code, "
+    linked_trigger = (
+        "When you need to make changes to files in a numbered-workspace linked "
+        "repository or need to review numbered-workspace linked repository code, "
         "agents MUST run:"
     )
     for memory in (project_memory, home_memory):
-        assert sibling_trigger in _single_line(memory)
-        assert "sibling reads/writes" in memory
-        assert "When a sibling repository needs changes, agents MUST run:" not in memory
-        assert "sibling edits" not in memory
+        assert linked_trigger in _single_line(memory)
+        assert "linked reads/writes" in memory
+        assert "When a linked repository needs changes, agents MUST run:" not in memory
+        assert "linked edits" not in memory
 
     for root, shim_content in (
         (project_root, PROVIDER_SHIM_CONTENT),
@@ -142,7 +145,7 @@ sibling_repos:
             assert (root / filename).read_text() == shim_content
 
 
-def test_init_memory_static_siblings_use_paths_without_workspace_open(
+def test_init_memory_static_linked_repos_use_paths_without_workspace_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -162,7 +165,7 @@ def test_init_memory_static_siblings_use_paths_without_workspace_open(
     write(
         project_root / "sase.yml",
         """
-sibling_repos:
+linked_repos:
   - name: dotfiles
     path: $STATIC_ONE
     description: User dotfiles source.
@@ -180,7 +183,7 @@ sibling_repos:
 
     project_memory = (project_root / "memory" / "sase.md").read_text()
     single_line = _single_line(project_memory)
-    assert "Static-path sibling repositories (`workspace.strategy: none`)" not in (
+    assert "Static-path linked repositories (`workspace.strategy: none`)" not in (
         project_memory
     )
     assert (
@@ -192,12 +195,12 @@ sibling_repos:
         "`../static-two/` directory."
     ) in single_line
     assert (
-        'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>'
+        'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
         not in project_memory
     )
 
 
-def test_init_memory_mixed_siblings_render_static_location_and_workspace_open(
+def test_init_memory_mixed_linked_repos_render_static_location_and_workspace_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -215,7 +218,7 @@ def test_init_memory_mixed_siblings_render_static_location_and_workspace_open(
     write(
         project_root / "sase.yml",
         """
-sibling_repos:
+linked_repos:
   - name: core
     path: ../sase-core
     description: Numbered Rust core checkout.
@@ -231,19 +234,19 @@ sibling_repos:
 
     project_memory = (project_root / "memory" / "sase.md").read_text()
     single_line = _single_line(project_memory)
-    assert "Static-path sibling repositories (`workspace.strategy: none`)" not in (
+    assert "Static-path linked repositories (`workspace.strategy: none`)" not in (
         project_memory
     )
     assert (
         "- `dotfiles`: Static dotfiles source. This repo is defined in the "
         "`../dotfiles/` directory."
     ) in single_line
-    assert "numbered-workspace sibling repository" in project_memory
+    assert "numbered-workspace linked repository" in project_memory
     assert (
-        'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>'
+        'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
         in project_memory
     )
-    assert "numbered-workspace sibling reads/writes" in single_line
+    assert "numbered-workspace linked reads/writes" in single_line
 
 
 def test_init_memory_static_relative_paths_use_configured_display_path(
@@ -280,7 +283,7 @@ def test_init_memory_static_relative_paths_use_configured_display_path(
     write(
         project_root / "sase.yml",
         """
-sibling_repos:
+linked_repos:
   - name: shared
     path: ../shared
     description: Static shared checkout.
@@ -301,7 +304,7 @@ sibling_repos:
     )
     assert str(numbered_relative_path.resolve(strict=False)) not in project_memory
     assert (
-        'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>'
+        'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
         not in project_memory
     )
 
@@ -331,11 +334,11 @@ def test_init_memory_project_memory_includes_workspace_section(
     assert "full clones of the project repo" in project_memory
     assert "directories are named `project_<N>`" in project_memory
     assert (
-        'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>'
+        'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
         not in project_memory
     )
     assert (
-        'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>'
+        'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
         not in home_memory
     )
     assert "{{ project }}" not in project_memory
@@ -389,7 +392,7 @@ def test_init_memory_project_memory_uses_managed_checkout_marker_name(
     assert "project_10_<N>" not in project_memory
 
 
-def test_init_memory_reports_missing_sibling_descriptions(
+def test_init_memory_reports_missing_linked_repo_descriptions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -408,7 +411,7 @@ def test_init_memory_reports_missing_sibling_descriptions(
     write(
         project_root / "sase.yml",
         """
-sibling_repos:
+linked_repos:
   - name: core
     path: ../sase-core
 """,
@@ -597,7 +600,7 @@ def test_init_memory_plan_empty_after_prettier_formats_generated_files(
     write(
         project_root / "sase.yml",
         """
-sibling_repos:
+linked_repos:
   - name: core
     path: ../sase-core
     description: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.

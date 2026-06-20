@@ -206,7 +206,7 @@ def test_memory_plan_preserves_existing_user_agents_file(
     )
 
 
-def test_memory_plan_invalid_sibling_config_returns_blocker_without_writing(
+def test_memory_plan_invalid_linked_repo_config_returns_blocker_without_writing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -224,7 +224,7 @@ def test_memory_plan_invalid_sibling_config_returns_blocker_without_writing(
     write(
         project_root / "sase.yml",
         """
-sibling_repos:
+linked_repos:
   - name: core
     path: ../sase-core
 """,
@@ -256,7 +256,7 @@ def test_memory_check_blockers_render_through_shared_output(
     write(
         project_root / "sase.yml",
         """
-sibling_repos:
+linked_repos:
   - name: core
     path: ../sase-core
 """,

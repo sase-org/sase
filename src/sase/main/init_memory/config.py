@@ -11,8 +11,10 @@ from typing import Any, cast
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.linked_repos import LINKED_REPOS_CONFIG_KEY, SIBLING_REPOS_CONFIG_KEY
+
 from .constants import COMMAND_LABEL
-from .models import SiblingMemoryEntry, WorkspaceStrategy
+from .models import LinkedRepoMemoryEntry, WorkspaceStrategy
 
 _WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
 _VALID_WORKSPACE_STRATEGIES = {"suffix", "none"}
@@ -174,20 +176,35 @@ def _resolve_memory_static_path(path: str, *, relative_to: Path) -> str:
     return str(candidate.resolve(strict=False))
 
 
-def sibling_entries_from_config(
+def _linked_repos_raw(config: Mapping[str, Any]) -> tuple[Any, str]:
+    """Return the configured related-repo list plus the source config key.
+
+    Prefers the canonical ``linked_repos`` key and falls back to the deprecated
+    ``sibling_repos`` alias so legacy configs still drive memory generation
+    during the compatibility window.
+    """
+
+    if LINKED_REPOS_CONFIG_KEY in config:
+        return config.get(LINKED_REPOS_CONFIG_KEY, []), LINKED_REPOS_CONFIG_KEY
+    if SIBLING_REPOS_CONFIG_KEY in config:
+        return config.get(SIBLING_REPOS_CONFIG_KEY, []), SIBLING_REPOS_CONFIG_KEY
+    return [], LINKED_REPOS_CONFIG_KEY
+
+
+def linked_entries_from_config(
     config_path: Path, *, label: str, primary_root: Path | None = None
-) -> tuple[tuple[SiblingMemoryEntry, ...], tuple[str, ...]]:
+) -> tuple[tuple[LinkedRepoMemoryEntry, ...], tuple[str, ...]]:
     config, load_error = _load_yaml_mapping(config_path)
     if load_error is not None:
         return (), (load_error,)
 
-    raw = config.get("sibling_repos", [])
+    raw, source_key = _linked_repos_raw(config)
     if raw is None:
         return (), ()
     if not isinstance(raw, list):
-        return (), (f"{config_path}: sibling_repos must be a list",)
+        return (), (f"{config_path}: {source_key} must be a list",)
 
-    entries: list[SiblingMemoryEntry] = []
+    entries: list[LinkedRepoMemoryEntry] = []
     errors: list[str] = []
     relative_root = (
         primary_workspace_root_for_memory(Path.cwd())
@@ -195,7 +212,7 @@ def sibling_entries_from_config(
         else primary_root.resolve(strict=False)
     )
     for index, item in enumerate(raw):
-        prefix = f"{config_path}: sibling_repos[{index}]"
+        prefix = f"{config_path}: {source_key}[{index}]"
         if not isinstance(item, Mapping):
             errors.append(f"{prefix} must be a mapping")
             continue
@@ -235,7 +252,7 @@ def sibling_entries_from_config(
         )
 
         entries.append(
-            SiblingMemoryEntry(
+            LinkedRepoMemoryEntry(
                 name=name.strip(),
                 description=" ".join(description.strip().split()),
                 path=path,
@@ -248,6 +265,6 @@ def sibling_entries_from_config(
         errors.insert(
             0,
             f"{COMMAND_LABEL}: cannot generate {label} memory until "
-            "sibling repo configuration is complete",
+            "linked repo configuration is complete",
         )
     return tuple(entries), tuple(errors)
