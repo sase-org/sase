@@ -135,7 +135,7 @@ _lint-mypy: _setup
 
 # Validate scripts/tools directory structure (private, extracted for per-stage wrapping)
 _lint-pyscripts: _setup
-    {{ venv_bin }}/python tools/pyscripts-260314
+    {{ venv_bin }}/python tools/pyscripts-260619
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
