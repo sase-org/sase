@@ -245,6 +245,63 @@ def test_append_agy_tool_call_events_reads_created_db(
     assert records[1]["tool_response_summary"]["stdout_preview"] == "ok\n"
 
 
+def test_append_agy_tool_call_events_reads_only_new_existing_db_steps(
+    tmp_path: Path,
+) -> None:
+    conversations_dir = tmp_path / "conversations"
+    cache_dir = tmp_path / "cache"
+    artifacts_dir = tmp_path / "artifacts"
+    cwd = tmp_path / "workspace"
+    conversations_dir.mkdir()
+    cache_dir.mkdir()
+    artifacts_dir.mkdir()
+    cwd.mkdir()
+    db_path = conversations_dir / "conv-existing.db"
+    _write_trajectory_db(
+        db_path,
+        [
+            (1, 15, 3, _payload("run_command", {"command": "echo old"})),
+            (2, 21, 3, _payload({"stdout": "old\n", "exit_code": 0})),
+        ],
+    )
+    base_ns = 1_000_000_000
+    os.utime(db_path, ns=(base_ns, base_ns))
+    snapshot = _snapshot_agy_conversations(
+        conversations_dir=conversations_dir,
+        cache_dir=cache_dir,
+        cwd=str(cwd),
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO steps (idx, step_type, status, step_payload) "
+            "VALUES (?, ?, ?, ?)",
+            [
+                (3, 15, 3, _payload("run_command", {"command": "echo new"})),
+                (4, 21, 3, _payload({"stdout": "new\n", "exit_code": 0})),
+            ],
+        )
+    os.utime(db_path, ns=(base_ns + 10, base_ns + 10))
+    (cache_dir / "last_conversations.json").write_text(
+        json.dumps({str(cwd.resolve()): "conv-existing"}),
+        encoding="utf-8",
+    )
+
+    written = append_agy_tool_call_events(
+        snapshot,
+        artifacts_dir=str(artifacts_dir),
+    )
+
+    records = [
+        json.loads(line)
+        for line in (artifacts_dir / "tool_calls.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert written == 2
+    assert records[0]["tool_input_summary"] == {"command": "echo new"}
+    assert records[1]["tool_response_summary"]["stdout_preview"] == "new\n"
+
+
 def test_append_agy_tool_call_events_diagnoses_corrupt_db(
     tmp_path: Path,
 ) -> None:
