@@ -65,7 +65,7 @@ def has_alt_directive(prompt: str) -> bool:
     disabled_regions: list[str] = []
     protected = protect_disabled_regions(protected, disabled_regions)
 
-    return bool(re.search(r"(?:^|\s)(?:%(?:alt)?\(|%\{)", protected, re.MULTILINE))
+    return _ALT_DIRECTIVE_RE.search(protected) is not None
 
 
 def split_prompt_for_alternatives(prompt: str) -> list[str] | None:

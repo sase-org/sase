@@ -250,6 +250,17 @@ def test_has_alt_directive_brace_shorthand() -> None:
     assert has_alt_directive("Do work\n%{a | b}") is True
 
 
+@pytest.mark.parametrize("prefix", ["(", "[", "{", '"', "'"])
+def test_has_alt_directive_brace_shorthand_after_openers(prefix: str) -> None:
+    """Detects %{ brace shorthand after bracket and quote opener contexts."""
+    assert has_alt_directive(f"{prefix}%{{a | b}}") is True
+
+
+def test_has_alt_directive_brace_shorthand_word_adjacent() -> None:
+    """Does not detect %{ brace shorthand when glued to a word."""
+    assert has_alt_directive("x%{a | b}") is False
+
+
 def test_has_alt_directive_brace_bare_percent_no_brace() -> None:
     """A plain { without a leading %, or % without {, is not an alt directive."""
     assert has_alt_directive("a {plain} block") is False
