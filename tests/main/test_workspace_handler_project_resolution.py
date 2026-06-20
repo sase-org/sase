@@ -142,6 +142,7 @@ class TestWorkspaceProjectResolution:
         args = make_args(
             workspace_subcommand="open",
             project="core",
+            reason="prepare workspace",
             workspace_num=10,
             print_path=False,
             clean=True,
@@ -190,6 +191,7 @@ class TestWorkspaceProjectResolution:
         args = make_args(
             workspace_subcommand="open",
             project="core",
+            reason="prepare workspace",
             workspace_num=10,
             print_path=False,
             clean=True,

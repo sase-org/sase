@@ -115,3 +115,13 @@ def test_skills_help_documents_log_command() -> None:
     assert "-s SKILL_NAME" in skills_log_help
     assert "sase skill log --id <use-id>" in skills_log_help
     assert "--reason REASON" in skills_use_help
+
+
+def test_workspace_open_help_requires_reason() -> None:
+    """``sase workspace open --help`` advertises the required reason flag."""
+    open_help = flat_help(parser_for(("sase", "workspace", "open")).format_help())
+
+    # The required option appears without brackets in the usage line.
+    assert "-r REASON" in open_help
+    assert "--reason REASON" in open_help
+    assert "Non-empty reason for opening and preparing the workspace" in open_help

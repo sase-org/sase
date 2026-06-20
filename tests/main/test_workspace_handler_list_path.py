@@ -203,6 +203,7 @@ class TestOpen:
         args = make_args(
             workspace_subcommand="open",
             project=project_name,
+            reason="prepare workspace",
             workspace_num=42,
             print_path=False,
             clean=clean,
@@ -255,6 +256,7 @@ class TestOpen:
         args = make_args(
             workspace_subcommand="open",
             project="core",
+            reason="prepare workspace",
             workspace_num=10,
             print_path=False,
             clean=True,
@@ -286,6 +288,7 @@ class TestOpen:
         args = make_args(
             workspace_subcommand="open",
             project=project_name,
+            reason="prepare workspace",
             workspace_num=10,
             print_path=False,
             clean=True,
@@ -318,6 +321,7 @@ class TestOpen:
         args = make_args(
             workspace_subcommand="open",
             project="core",
+            reason="prepare workspace",
             workspace_num=10,
             print_path=False,
             clean=True,
@@ -338,6 +342,7 @@ class TestOpen:
         args = make_args(
             workspace_subcommand="open",
             project=project_name,
+            reason="prepare workspace",
             workspace_num=42,
             print_path=False,
             clean=True,
@@ -369,6 +374,7 @@ class TestOpen:
         args = make_args(
             workspace_subcommand="open",
             project=project_name,
+            reason="prepare workspace",
             workspace_num=42,
             print_path=False,
             clean=True,
@@ -397,6 +403,7 @@ class TestOpen:
         args = make_args(
             workspace_subcommand="open",
             project=project_name,
+            reason="prepare workspace",
             workspace_num=42,
             print_path=False,
             clean=True,
@@ -421,3 +428,42 @@ class TestOpen:
             raise_on_error=True,
         )
         assert capsys.readouterr().out.strip() == checkout
+
+    @pytest.mark.parametrize("reason", ["", "   "])
+    def test_open_blank_reason_returns_2_without_side_effects(
+        self,
+        project_layout: tuple[str, str, Path],
+        capsys: pytest.CaptureFixture[str],
+        reason: str,
+    ) -> None:
+        project_name, _, _ = project_layout
+        args = make_args(
+            workspace_subcommand="open",
+            project=project_name,
+            reason=reason,
+            workspace_num=42,
+            print_path=False,
+            clean=True,
+        )
+
+        with (
+            patch(
+                "sase.main.workspace_handler._resolve_project_context"
+            ) as resolve_ctx,
+            patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
+            patch(
+                "sase.main.workspace_handler._resolve_checkout_path"
+            ) as resolve_checkout_path,
+            patch("sase.axe.runner_utils.prepare_workspace") as prepare_workspace,
+            pytest.raises(SystemExit) as exc,
+        ):
+            handle_workspace_command(args)
+
+        captured = capsys.readouterr()
+        assert exc.value.code == 2
+        assert captured.out == ""
+        assert "reason" in captured.err
+        resolve_ctx.assert_not_called()
+        ensure_sdd.assert_not_called()
+        resolve_checkout_path.assert_not_called()
+        prepare_workspace.assert_not_called()

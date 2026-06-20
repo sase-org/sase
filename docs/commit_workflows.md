@@ -41,10 +41,10 @@ When a provider invocation succeeds inside a SASE-launched agent session, the pr
 in the shared LLM invocation layer before normal success postprocessing. In practice this means the process has
 `SASE_AGENT_TIMESTAMP` set. The finalizer checks the main workspace for uncommitted changes through the active VCS
 provider. It enforces configured numbered sibling repositories only after the agent opens that sibling workspace with
-`sase workspace open -p <sibling> <workspace_num>`, which records the sibling name in the run's artifacts. Static
-siblings are still checked only as advisory work, as described below. It does not scan arbitrary same-remote numbered
-workspaces just because their paths appear in run artifacts. If everything is clean, the agent response is postprocessed
-normally.
+`sase workspace open -p <sibling> -r "<reason>" <workspace_num>`, which records the sibling name in the run's artifacts.
+Static siblings are still checked only as advisory work, as described below. It does not scan arbitrary same-remote
+numbered workspaces just because their paths appear in run artifacts. If everything is clean, the agent response is
+postprocessed normally.
 
 There are two special cases before the normal enforced-work follow-up path:
 

@@ -65,6 +65,12 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Project to query (default: infer from current directory)",
     )
     open_parser.add_argument(
+        "-r",
+        "--reason",
+        required=True,
+        help="Non-empty reason for opening and preparing the workspace",
+    )
+    open_parser.add_argument(
         "-P",
         "--print",
         action="store_true",

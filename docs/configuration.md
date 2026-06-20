@@ -344,15 +344,15 @@ commit:
 
 When enabled, the finalizer checks the main workspace through the active VCS provider. For configured `sibling_repos`
 Git worktrees using the numbered-workspace strategy, it checks only sibling names recorded in the run's
-`opened_siblings.json` artifact, normally written by `sase workspace open -p <sibling> <workspace_num>` during the agent
-run. Dirty enforced workspaces trigger a follow-up invocation that instructs the same provider to use the appropriate
-commit skill. Dirty static siblings (`workspace.strategy: none`) are reported to that follow-up as advisory work and do
-not fail the finalizer if they remain dirty. Advisory-only static sibling changes still get one follow-up prompt so the
-agent can commit them when it made those changes. When the only enforced change is one tracked markdown file under
-`sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or `sdd/myths/`, and that file's only diff is leading front matter changing
-exactly from `status: wip` to `status: done`, the finalizer creates a direct `chore: Mark SDD plan done` commit instead
-of invoking the provider again. When `$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and
-the final outcome is recorded in `commit_finalizer_result.json`.
+`opened_siblings.json` artifact, normally written by `sase workspace open -p <sibling> -r "<reason>" <workspace_num>`
+during the agent run. Dirty enforced workspaces trigger a follow-up invocation that instructs the same provider to use
+the appropriate commit skill. Dirty static siblings (`workspace.strategy: none`) are reported to that follow-up as
+advisory work and do not fail the finalizer if they remain dirty. Advisory-only static sibling changes still get one
+follow-up prompt so the agent can commit them when it made those changes. When the only enforced change is one tracked
+markdown file under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or `sdd/myths/`, and that file's only diff is leading
+front matter changing exactly from `status: wip` to `status: done`, the finalizer creates a direct
+`chore: Mark SDD plan done` commit instead of invoking the provider again. When `$SASE_ARTIFACTS_DIR` is set, each pass
+writes prompt/response artifacts there, and the final outcome is recorded in `commit_finalizer_result.json`.
 
 Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable name is historical; it now disables
 the provider-neutral finalizer.
@@ -363,9 +363,9 @@ Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructio
 
 Declares related repositories that should be visible to launched agents. Git sibling worktrees using numbered workspace
 resolution are also eligible for commit-finalizer checks at their resolved `workspace_dir`, but only after the agent run
-opens that sibling workspace with `sase workspace open -p <sibling> <workspace_num>` and records the sibling in its
-artifacts. Entries can live in user config or a project-local `sase.yml`; local entries are resolved relative to the
-project's primary workspace directory.
+opens that sibling workspace with `sase workspace open -p <sibling> -r "<reason>" <workspace_num>` and records the
+sibling in its artifacts. Entries can live in user config or a project-local `sase.yml`; local entries are resolved
+relative to the project's primary workspace directory.
 
 ```yaml
 sibling_repos:
@@ -927,11 +927,11 @@ Existing adjacent checkouts are not moved automatically by the default. Run `sas
 carry legacy `<primary>_<num>/` directories into the managed root, or set `workspace.root: adjacent` explicitly to keep
 the old sibling layout.
 
-`sase workspace open NUM` is an explicit preparation command for a checkout you plan to use outside a normal `sase run`
-launch. It uses the same root policy when it materializes the checkout, backs up uncommitted local changes through the
-active VCS provider, cleans the checkout, checks out and syncs the provider default parent revision, and prints the
-resulting path. For manual scratch work, choose a claim-range number such as `10`; `#0` is the primary checkout and `#1`
-through `#9` are reserved compatibility numbers.
+`sase workspace open NUM -r "<reason>"` is an explicit preparation command for a checkout you plan to use outside a
+normal `sase run` launch. It uses the same root policy when it materializes the checkout, backs up uncommitted local
+changes through the active VCS provider, cleans the checkout, checks out and syncs the provider default parent revision,
+and prints the resulting path. For manual scratch work, choose a claim-range number such as `10`; `#0` is the primary
+checkout and `#1` through `#9` are reserved compatibility numbers.
 
 Source: `src/sase/default_config.yml`, `src/sase/workspace_provider/store.py`
 
@@ -1210,7 +1210,7 @@ legacy `PROJECT_STATE: archived` / `PROJECT_STATE: closed` files are read as ina
 cannot be mutated through this command. Normal launch and discovery surfaces default to active projects; use
 `list --state all` or `show` for historical or sibling inspection, then `activate` before launching normal work in a
 hidden project. The `sibling` state is intended for configured sibling repository records used by
-`sase workspace open -p <sibling> <workspace_num>`.
+`sase workspace open -p <sibling> -r "<reason>" <workspace_num>`.
 
 ACE exposes the same lifecycle mutations through the Project Management panel at `,p`. That panel also supports marks
 for bulk lifecycle operations, ProjectSpec editing through `$EDITOR`, and confirmed deletion of whole SASE project
@@ -1417,6 +1417,7 @@ by `-p/--project`. With no subcommand, `sase workspace` defaults to `sase worksp
 | `sase workspace path`    | `-p, --project`            | project name | Query a project other than the inferred one.                                                        |
 | `sase workspace open`    | `workspace_num`            | integer      | Workspace number to materialize, prepare, and print.                                                |
 | `sase workspace open`    | `-p, --project`            | project name | Query a project other than the inferred one.                                                        |
+| `sase workspace open`    | `-r, --reason`             | text         | Required non-empty reason for opening and preparing the workspace.                                  |
 | `sase workspace open`    | `-P, --print`              | flag         | Explicitly print the prepared path; this is also the current default behavior.                      |
 | `sase workspace open`    | `-c, --clean`              | flag         | Compatibility flag for the default prepare/clean/sync behavior.                                     |
 | `sase workspace cleanup` | `-p, --project`            | project name | Clean a project other than the inferred one.                                                        |

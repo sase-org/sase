@@ -191,7 +191,10 @@ sibling_repos:
         "- `notes`: Static notes checkout. This repo is defined in the "
         "`../static-two/` directory."
     ) in single_line
-    assert "sase workspace open -p <sibling_repo> <workspace_num>" not in project_memory
+    assert (
+        'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>'
+        not in project_memory
+    )
 
 
 def test_init_memory_mixed_siblings_render_static_location_and_workspace_open(
@@ -236,7 +239,10 @@ sibling_repos:
         "`../dotfiles/` directory."
     ) in single_line
     assert "numbered-workspace sibling repository" in project_memory
-    assert "sase workspace open -p <sibling_repo> <workspace_num>" in project_memory
+    assert (
+        'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>'
+        in project_memory
+    )
     assert "numbered-workspace sibling reads/writes" in single_line
 
 
@@ -294,7 +300,10 @@ sibling_repos:
         project_memory
     )
     assert str(numbered_relative_path.resolve(strict=False)) not in project_memory
-    assert "sase workspace open -p <sibling_repo> <workspace_num>" not in project_memory
+    assert (
+        'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>'
+        not in project_memory
+    )
 
 
 def test_init_memory_project_memory_includes_workspace_section(
@@ -321,8 +330,14 @@ def test_init_memory_project_memory_includes_workspace_section(
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
     assert "full clones of the project repo" in project_memory
     assert "directories are named `project_<N>`" in project_memory
-    assert "sase workspace open -p <sibling_repo> <workspace_num>" not in project_memory
-    assert "sase workspace open -p <sibling_repo> <workspace_num>" not in home_memory
+    assert (
+        'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>'
+        not in project_memory
+    )
+    assert (
+        'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>'
+        not in home_memory
+    )
     assert "{{ project }}" not in project_memory
     assert "Ephemeral" not in home_memory
     assert _SASE_MEMORY_HEADER in home_memory

@@ -94,7 +94,7 @@ def _extend_sibling_repository_section(
                 "When you need to make changes to files in a numbered-workspace sibling repository or need to review numbered-workspace sibling repository code, agents MUST run:",
                 "",
                 "```bash",
-                "sase workspace open -p <sibling_repo> <workspace_num>",
+                'sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>',
                 "```",
                 "",
                 "`<workspace_num>` must be the workspace number assigned to the primary repo "

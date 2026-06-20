@@ -28,7 +28,7 @@ When you need to make changes to files in a numbered-workspace sibling repositor
 sibling repository code, agents MUST run:
 
 ```bash
-sase workspace open -p <sibling_repo> <workspace_num>
+sase workspace open -p <sibling_repo> -r "<reason>" <workspace_num>
 ```
 
 `<workspace_num>` must be the workspace number assigned to the primary repo (check what directory you were started in to

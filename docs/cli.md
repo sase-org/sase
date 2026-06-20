@@ -113,8 +113,8 @@ canonical project records. Use the same `sase project alias` commands to inspect
 
 Active-only project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
 catalogs, broad mobile helper catalogs, and all-known bead helper reads. Sibling records are hidden from those surfaces
-and are intended for `sase workspace open -p <sibling> <workspace_num>`. Agent-history views that need older artifacts
-opt into all project states explicitly.
+and are intended for `sase workspace open -p <sibling> -r "<reason>" <workspace_num>`. Agent-history views that need
+older artifacts opt into all project states explicitly.
 
 `sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and Rejected sections. Proposed rows
 include an `id_prefix`, agent, project, provider/model, plan path, and response directory; pass that prefix to

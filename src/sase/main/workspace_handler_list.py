@@ -21,6 +21,24 @@ from .workspace_handler_context import ConfigLoader, ProjectContext
 ProjectResolver = Callable[[str | None], ProjectContext]
 
 
+class _WorkspaceOpenReasonError(ValueError):
+    """Raised when a ``sase workspace open`` reason is missing or empty."""
+
+
+def _normalize_workspace_open_reason(reason: str | None) -> str:
+    """Normalize and validate a ``sase workspace open`` reason.
+
+    Trims surrounding whitespace and rejects empty values, mirroring the
+    ``sase memory read`` reason contract.
+    """
+    normalized = (reason or "").strip()
+    if not normalized:
+        raise _WorkspaceOpenReasonError(
+            "sase workspace open requires a non-empty --reason"
+        )
+    return normalized
+
+
 class _CheckoutResolver(Protocol):
     def __call__(
         self,
@@ -155,6 +173,12 @@ def handle_open_clean(
     resolve_project_context: ProjectResolver,
     resolve_checkout: _CheckoutResolver,
 ) -> int:
+    try:
+        _normalize_workspace_open_reason(getattr(args, "reason", None))
+    except _WorkspaceOpenReasonError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
     ctx = resolve_project_context(args.project)
     workspace_num = int(args.workspace_num)
     if workspace_num < 0:

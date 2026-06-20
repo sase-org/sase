@@ -123,8 +123,9 @@ SASE keeps durable state outside any one chat session:
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed
   managed root. Set `workspace.root: adjacent` to keep the legacy `<primary>_<num>/` sibling layout, or use an absolute
   path for a custom managed-root base; `sase workspace list`, `path`, `repair`, `cleanup`, and `migrate` inspect and
-  maintain that view. Normal `sase run` launches prepare their own workspaces; use `sase workspace open 10` when you
-  want to prepare a specific checkout for an external shell, editor, or debugging session.
+  maintain that view. Normal `sase run` launches prepare their own workspaces; use
+  `sase workspace open -r "<reason>" 10` when you want to prepare a specific checkout for an external shell, editor, or
+  debugging session.
 - **Prompt authoring surface** - ACE's prompt input combines prompt history, snippets, `Ctrl+T` completion for
   directives, xprompts, slash skills, paths, and recent file references, plus a `Ctrl+R` recursive fuzzy file finder.
   Relative path lookup is prompt-aware: a resolvable `#cd` reference wins. When no `#cd` reference is present,

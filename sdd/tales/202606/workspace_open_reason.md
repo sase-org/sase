@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-20 15:31:06
-status: wip
+status: done
 prompt: sdd/prompts/202606/workspace_open_reason.md
 ---
 # Require a Reason for `sase workspace open`

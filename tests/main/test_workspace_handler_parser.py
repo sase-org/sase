@@ -23,16 +23,34 @@ class TestWorkspaceParser:
 
     @pytest.mark.parametrize("flag", ["-c", "--clean"])
     def test_open_clean_flag(self, flag: str) -> None:
-        ns = create_parser().parse_args(["workspace", "open", flag, "12"])
+        ns = create_parser().parse_args(
+            ["workspace", "open", flag, "-r", "prep checkout", "12"]
+        )
         assert ns.workspace_subcommand == "open"
         assert ns.workspace_num == 12
         assert ns.clean is True
+        assert ns.reason == "prep checkout"
 
     def test_open_print_flag_is_accepted_for_compatibility(self) -> None:
-        ns = create_parser().parse_args(["workspace", "open", "--print", "12"])
+        ns = create_parser().parse_args(
+            ["workspace", "open", "--print", "-r", "prep checkout", "12"]
+        )
         assert ns.workspace_subcommand == "open"
         assert ns.workspace_num == 12
         assert ns.print_path is True
+
+    @pytest.mark.parametrize("flag", ["-r", "--reason"])
+    def test_open_reason_flag_parses(self, flag: str) -> None:
+        ns = create_parser().parse_args(
+            ["workspace", "open", flag, "debugging a sibling", "12"]
+        )
+        assert ns.workspace_subcommand == "open"
+        assert ns.workspace_num == 12
+        assert ns.reason == "debugging a sibling"
+
+    def test_open_requires_reason(self) -> None:
+        with pytest.raises(SystemExit):
+            create_parser().parse_args(["workspace", "open", "12"])
 
     def test_cleanup_options(self) -> None:
         ns = create_parser().parse_args(
