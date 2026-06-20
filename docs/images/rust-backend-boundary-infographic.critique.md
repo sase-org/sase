@@ -112,8 +112,8 @@ enumerates.
    pill is acceptable shorthand, but at minimum the diagram should signal multiplicity (e.g., a stack of cards or "10+
    wire schemas"); the current single-pill rendering implies one record type.
 8. **Contract loop names the wrong artifacts.** The bottom-right panel reads "fixtures, tests, releases" with a loop.
-   The doc's contract surface is concrete: `sase core health` exit code, golden corpus (`tests/core_golden/myproj.gp`,
-   `myproj-archive.gp`, `inline_snapshot` JSON), Rust parity tests in `../sase-core/.../tests/`, and the
+   The doc's contract surface is concrete: `sase core health` exit code, golden corpus (`tests/core_golden/myproj.sase`,
+   `myproj-archive.sase`, `inline_snapshot` JSON), Rust parity tests in `../sase-core/.../tests/`, and the
    publish-workflow `install-smoke` job. "Releases" in particular is misleading — the contract is _not_ tied to release
    cadence; it is a per-PR golden-corpus + parity-test gate enforced on every change.
 9. **"`sase.core` facade" middle layer omits `health.py`.** Among the listed facade modules in the doc table is

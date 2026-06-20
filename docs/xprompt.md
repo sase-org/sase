@@ -877,8 +877,8 @@ pushes. If lint or test failed, it launches separate draft-PR repair agents thro
 
 The scheduled documentation refresh workflow lives in this repo as `xprompts/refresh_docs.yml` and is invoked as
 `#!sase/refresh_docs`. It accepts `project`, `gh_ref`, and `threshold`, defaulting to the main `sase` repo behavior
-(`project=sase`, `gh_ref=sase`, `threshold=50`). For scheduled checks in sibling repos, pass repo-specific values such
-as `#!sase/refresh_docs(project=sase-core, gh_ref=sase-org/sase-core, threshold=25)`. The `project` input selects the
+(`project=sase`, `gh_ref=sase`, `threshold=50`). For scheduled checks in linked repos, pass repo-specific values such as
+`#!sase/refresh_docs(project=sase-core, gh_ref=sase-org/sase-core, threshold=25)`. The `project` input selects the
 marker path under `~/.sase/projects/<project>/refresh_docs_marker`; `gh_ref` is forwarded to the nested docs agent as
 `#gh:<gh_ref>`. Scheduled lumberjack agents in `sase_athena.yml` reach these workflows by embedding `#gh:sase-org/sase`
 in their prompts so the `sase` project workspace is selected before resolution.

@@ -178,10 +178,10 @@ projects; a registered project with `PROJECT_STATE: inactive` or `PROJECT_STATE:
 and broad known-project lookup. Legacy `archived` and `closed` values are read as inactive. If a prompt explicitly names
 an inactive known project, launch resolution fails with an activation hint instead of silently allocating work. Use
 `sase project list --state all` to inspect hidden projects and `sase project activate <project>` before launching normal
-work there. Configured sibling records are intended for
-`sase workspace open -p <sibling> -r "<reason>" <workspace_num>`. In a SASE-launched agent session, that command records
-the sibling name in the run artifacts; the commit finalizer uses that record to enforce only configured numbered sibling
-workspaces the agent explicitly opened.
+work there. Configured linked-repository records are intended for
+`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`. In a SASE-launched agent session, that command
+records the linked-repo name in the run artifacts; ACE uses that record for opened-workspace context, and the commit
+finalizer uses it to enforce only configured numbered linked-repo workspaces the agent explicitly opened.
 
 Non-wait launches allocate the next available numbered workspace for the project and set the VCS update target to the
 provider default revision. When registered workspace metadata provides an env prefix, SASE passes the matching
@@ -317,15 +317,15 @@ inferred from the current directory via the nearest managed-checkout marker, the
 scan of `~/.sase/projects/`. With no subcommand, `sase workspace` defaults to `sase workspace list` with default
 options. Use `sase workspace list -p NAME` or `sase workspace list --json` when passing list flags.
 
-| Command                                                                | Description                                                                                                                                                                                                                |
-| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase workspace list [-j/--json]`                                      | List the registry view for the project, root policy, project key, root path, and primary `#0`.                                                                                                                             |
-| `sase workspace path NUM`                                              | Print the configured checkout path for `NUM` without cloning or preparing it.                                                                                                                                              |
-| `sase workspace open NUM -r/--reason REASON [-c/--clean]`              | Materialize the checkout if needed, stash or otherwise back up local changes through the VCS provider, clean it, sync it to the provider default parent revision, then print the path. Requires a non-empty `-r/--reason`. |
-| `sase workspace cleanup -s/--stale`                                    | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                                                                                                       |
-| `sase workspace repair [-n]`                                           | Drop registry entries whose checkout is gone; re-materialize missing registered checkouts that still have live RUNNING claims.                                                                                             |
-| `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]` | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals.                                                                               |
-| `sase workspace migrate --finalize`                                    | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                                                                                                             |
+| Command                                                                          | Description                                                                                                                                                                                                                |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase workspace list [-j/--json]`                                                | List the registry view for the project, root policy, project key, root path, and primary `#0`.                                                                                                                             |
+| `sase workspace path NUM`                                                        | Print the configured checkout path for `NUM` without cloning or preparing it.                                                                                                                                              |
+| `sase workspace open NUM -r/--reason REASON [-p/--project PROJECT] [-c/--clean]` | Materialize the checkout if needed, stash or otherwise back up local changes through the VCS provider, clean it, sync it to the provider default parent revision, then print the path. Requires a non-empty `-r/--reason`. |
+| `sase workspace cleanup -s/--stale`                                              | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                                                                                                       |
+| `sase workspace repair [-n]`                                                     | Drop registry entries whose checkout is gone; re-materialize missing registered checkouts that still have live RUNNING claims.                                                                                             |
+| `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]`           | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals.                                                                               |
+| `sase workspace migrate --finalize`                                              | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                                                                                                             |
 
 `path` always resolves `#0` to the primary checkout. For other numbers, it prints the configured path without cloning.
 Use this command when you only need to inspect the path.

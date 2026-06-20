@@ -16,6 +16,7 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase agent kill`               | Terminate a running agent.                                                                                           | [ACE TUI](ace.md)                                     |
 | `sase agent tag`                | Set, clear, or list user-defined agent tags used for grouping.                                                       | [ACE TUI](ace.md)                                     |
 | `sase agent archive`            | Maintain dismissed-agent bundle summary indexes (`rebuild-index`, `verify`).                                         | [ACE TUI](ace.md#agent-revival)                       |
+| `sase agent artifacts`          | Inspect and migrate physical agent artifact storage layout.                                                          | [Configuration](configuration.md#directory-sharding)  |
 | `sase agent index`              | Manage the persistent agent artifact SQLite index (`status`, `rebuild`, `verify`, `gc`).                             | [ACE TUI](ace.md)                                     |
 | `sase agent names migrate-auto` | Backfill the permanent agent-name registry from legacy auto-generated names; pass `--force` to rerun.                | [ACE TUI](ace.md)                                     |
 | `sase chat list`                | List recent chat transcripts.                                                                                        | [XPrompts](xprompt.md)                                |
@@ -113,8 +114,9 @@ canonical project records. Use the same `sase project alias` commands to inspect
 
 Active-only project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
 catalogs, broad mobile helper catalogs, and all-known bead helper reads. Sibling records are hidden from those surfaces
-and are intended for `sase workspace open -p <sibling> -r "<reason>" <workspace_num>`. Agent-history views that need
-older artifacts opt into all project states explicitly.
+and are intended for configured linked repositories opened with
+`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`. Agent-history views that need older artifacts opt
+into all project states explicitly.
 
 `sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and Rejected sections. Proposed rows
 include an `id_prefix`, agent, project, provider/model, plan path, and response directory; pass that prefix to
