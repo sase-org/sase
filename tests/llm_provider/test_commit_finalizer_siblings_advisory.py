@@ -13,6 +13,7 @@ from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
 
 from ._commit_finalizer_sibling_helpers import (
     init_git_repo,
+    isolate_user_config,
     mark_opened_sibling,
     read_result_json,
     run_finalizer,
@@ -98,6 +99,7 @@ def test_config_fallback_reports_none_strategy_absolute_sibling_as_advisory(
     monkeypatch.chdir(tmp_path)
     set_agent_env(monkeypatch, workspace)
     set_clean_main(monkeypatch)
+    isolate_user_config(monkeypatch, tmp_path / "user-config")
     monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", str(project_file))
     monkeypatch.delenv(SIBLING_REPOS_JSON_ENV, raising=False)
     artifacts_dir = tmp_path / "artifacts"
@@ -155,6 +157,7 @@ def test_config_fallback_checks_managed_root_sibling(
     )
     set_agent_env(monkeypatch, workspace)
     set_clean_main(monkeypatch)
+    isolate_user_config(monkeypatch, tmp_path / "user-config")
     monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", str(project_file))
     monkeypatch.delenv(SIBLING_REPOS_JSON_ENV, raising=False)
     artifacts_dir = tmp_path / "artifacts"

@@ -113,17 +113,22 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     """Clear ambient SASE agent env vars before each test.
 
     Prevents launcher state from leaking into tests and causing side effects
-    like bogus COMMITS entries in real ChangeSpec files or extra sibling-repo
-    dirty checks from the live agent workspace.
+    like bogus COMMITS entries in real ChangeSpec files or extra linked-repo
+    dirty checks from the live agent workspace.  Both the canonical
+    ``SASE_LINKED_REPO*`` vars and the deprecated ``SASE_SIBLING_REPO*`` aliases
+    are scrubbed so finalizer tests don't inherit the developer's real linked
+    repositories (e.g. a dirty chezmoi checkout) from the surrounding agent.
     """
     for key in list(os.environ):
         if (
             key.startswith("SASE_AGENT_")
+            or key.startswith("SASE_LINKED_REPO_")
             or key.startswith("SASE_SIBLING_REPO_")
             or key
             in {
                 "SASE_ARTIFACTS_DIR",
                 "SASE_BEAD_ID",
+                "SASE_LINKED_REPOS_JSON",
                 "SASE_SIBLING_REPOS_JSON",
             }
         ):

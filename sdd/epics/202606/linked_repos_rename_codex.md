@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-20 13:49:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/linked_repos_rename_codex.md
 bead_id: sase-51
 tier: epic

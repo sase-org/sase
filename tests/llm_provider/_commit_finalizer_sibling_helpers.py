@@ -52,6 +52,25 @@ def set_clean_main(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     return build
 
 
+def isolate_user_config(monkeypatch: pytest.MonkeyPatch, config_dir: Path) -> None:
+    """Isolate merged-config loading from the developer's real ``~/.config/sase``.
+
+    The finalizer's config fallback resolves linked repos via
+    ``load_merged_config()``, which otherwise folds in the real user
+    ``~/.config/sase/sase.yml`` (plus ``sase_*.yml`` overlays) and any
+    CWD-local ``sase.yml``.  After the ``linked_repos`` migration the real user
+    config carries live ``linked_repos`` entries, so without isolation these
+    fallback tests resolve the developer's actual linked repos instead of the
+    project-local ``sibling_repos`` they write themselves.  Point ``CONFIG_DIR``
+    at an empty directory and disable CWD-local config so the only configured
+    entries come from the test's own project ``sase.yml`` (read directly via
+    ``_read_project_local_config``).
+    """
+    config_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("sase.config.core.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("sase.config.core._include_local_config", False)
+
+
 def run_finalizer(provider: MagicMock, artifacts_dir: Path) -> InvokeResult:
     return run_commit_finalizer(
         provider=provider,
