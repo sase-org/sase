@@ -68,6 +68,17 @@ def test_agents_help_lists_sibling_navigation() -> None:
     assert ("< / > / ~", "Navigate to ancestor / child / sibling") in cls_pairs
 
 
+def test_agents_help_describes_tmux_workspace_chooser() -> None:
+    reg = load_keymap_registry({})
+    labels = {
+        label for _section, bindings in agents_bindings(reg) for _key, label in bindings
+    }
+
+    assert "Tmux workspace chooser" in labels
+    assert "Tmux in agent workspace" not in labels
+    assert "Tmux in primary workspace" in labels
+
+
 def test_agents_help_lists_save_dismiss_marked_agents() -> None:
     reg = load_keymap_registry({})
     agent_pairs = {

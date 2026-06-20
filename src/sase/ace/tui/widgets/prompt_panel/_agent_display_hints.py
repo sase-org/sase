@@ -9,6 +9,7 @@ from ._agent_display_parts import (
     build_header_text,
     get_phase_label,
     get_prompt_content,
+    publish_opened_workspaces_cache,
     render_phase_divider,
     render_timestamp_divider,
 )
@@ -111,10 +112,12 @@ class AgentHintsDisplayMixin:
             hint_mappings=hint_mappings,
             workspace_dir=workspace_dir,
         )
+        summary = build_detail_header_summary(agent)
+        publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
         header_text, _ = build_header_text(
             agent,
             hint_state=header_hint_state,
-            summary=build_detail_header_summary(agent),
+            summary=summary,
         )
         hint_counter = header_hint_state.hint_counter
 

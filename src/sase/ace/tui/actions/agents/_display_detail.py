@@ -172,6 +172,7 @@ class DetailMixin:
                 has_agent_artifacts=has_agent_artifacts,
                 artifact_viewer_active=artifact_viewer_active,
                 sibling_count=self._selected_agent_sibling_count(current_agent),
+                tmux_choice_count=self._selected_agent_tmux_choice_count(current_agent),
             )
 
     def _refresh_agent_footer_bindings_only(self) -> None:
@@ -271,6 +272,17 @@ class DetailMixin:
         if not callable(index_getter):
             return 0
         return int(index_getter().sibling_count(self.current_idx))
+
+    def _selected_agent_tmux_choice_count(self, current_agent: Agent | None) -> int:
+        """Return the cached tmux chooser target count for the focused agent.
+
+        Reads only the in-memory opened-workspace cache (no marker I/O); a
+        return value of ``0`` keeps the footer's plain ``tmux`` label.
+        """
+        getter = getattr(self, "cached_agent_tmux_choice_count", None)
+        if not callable(getter):
+            return 0
+        return int(getter(current_agent))
 
     def _update_agents_info_panel_impl(self) -> None:
         from textual.css.query import NoMatches

@@ -3,6 +3,11 @@
 from .add_property_modal import AddableProperty, AddPropertyModal
 from .agent_name_modal import AgentNameModal
 from .agent_sibling_modal import AgentSiblingChoice, AgentSiblingModal
+from .agent_workspace_tmux_modal import (
+    AgentWorkspaceTmuxChoice,
+    AgentWorkspaceTmuxModal,
+    build_agent_workspace_tmux_choices,
+)
 from .agent_artifacts_modal import (
     AgentArtifactSelectionModal,
     AgentArtifactSelectionResult,
@@ -132,6 +137,9 @@ __all__ = [
     "AgentNameModal",
     "AgentSiblingChoice",
     "AgentSiblingModal",
+    "AgentWorkspaceTmuxChoice",
+    "AgentWorkspaceTmuxModal",
+    "build_agent_workspace_tmux_choices",
     "AgentArtifactSelectionModal",
     "AgentArtifactSelectionResult",
     "AgentCleanupAction",

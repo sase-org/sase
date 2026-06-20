@@ -143,6 +143,27 @@ def build_detail_header_summary(agent: Agent) -> _DetailHeaderSummary:
     )
 
 
+def publish_opened_workspaces_cache(
+    widget: object,
+    agent: Agent,
+    events: tuple[OpenedWorkspaceDisplayEvent, ...],
+) -> None:
+    """Hand off ``agent``'s opened-workspace events to the app (no I/O).
+
+    The ``t`` keymap reads this in-memory cache to decide whether to open the
+    tmux workspace chooser, so it never re-reads marker files on keypress.
+    Resolving ``widget.app`` defensively keeps headless render stubs (which
+    have no mounted app) working.
+    """
+    try:
+        app = widget.app  # type: ignore[attr-defined]
+    except (AttributeError, LookupError):
+        return
+    publisher = getattr(app, "publish_selected_agent_opened_workspaces", None)
+    if callable(publisher):
+        publisher(agent, events)
+
+
 def render_timestamp_divider(iso_timestamp: str) -> Text:
     """Create a styled timestamp divider: ``--- HH:MM:SS ---...---``."""
     try:

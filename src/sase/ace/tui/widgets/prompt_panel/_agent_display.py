@@ -19,6 +19,7 @@ from ._agent_display_parts import (
     build_header_text,
     get_phase_label,
     get_prompt_content,
+    publish_opened_workspaces_cache,
     render_agent_reply_content,
     render_attempt_divider,
     render_phase_divider,
@@ -293,9 +294,11 @@ class AgentDisplayMixin:
             self._update_workflow_display(agent)  # type: ignore[attr-defined]
             return
 
+        summary = build_detail_header_summary(agent)
+        publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
         header_text, error_tb_syntax = build_header_text(
             agent,
-            summary=build_detail_header_summary(agent),
+            summary=summary,
         )
 
         # Check if this is a bash/python workflow step - display differently

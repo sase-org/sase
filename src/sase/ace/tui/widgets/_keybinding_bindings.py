@@ -94,6 +94,7 @@ class KeybindingBindingsMixin:
         has_agent_artifacts: bool = False,
         artifact_viewer_active: bool = False,
         sibling_count: int = 0,
+        tmux_choice_count: int = 0,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -196,9 +197,20 @@ class KeybindingBindingsMixin:
         # Add/remove agent tag (always available on a focused agent)
         bindings.append((self._kd("add_agent_tag"), "tag/untag"))
 
-        # Open tmux window (only if agent has a workspace)
+        # Open tmux window (only if agent has a workspace). When opened-workspace
+        # context is cached for the selection, ``t`` opens a chooser instead of
+        # the agent workspace directly, so the label advertises the target count
+        # (which includes CURRENT).
         if agent.workspace_num is not None and agent.workspace_num > 0:
-            bindings.append((self._kd("start_tmux_mode"), "tmux"))
+            if tmux_choice_count > 0:
+                bindings.append(
+                    (
+                        self._kd("start_tmux_mode"),
+                        f"tmux choices ({tmux_choice_count})",
+                    )
+                )
+            else:
+                bindings.append((self._kd("start_tmux_mode"), "tmux"))
             bindings.append((self._kd("open_tmux"), "tmux (primary)"))
 
         # Jump to PR (only when resolution logic found a valid ChangeSpec)

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-20 17:03:12
-status: wip
+status: done
 prompt: sdd/prompts/202606/workspace_tmux_chooser.md
 ---
 # Tmux Workspace Chooser for Agents with Opened Workspaces

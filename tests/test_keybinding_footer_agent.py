@@ -197,6 +197,42 @@ def test_keybinding_footer_agent_sibling_binding_hidden_without_siblings() -> No
     assert not any(label.startswith("siblings") for _key, label in bindings)
 
 
+def _workspace_agent() -> Agent:
+    """Agent with a managed workspace so the tmux bindings are emitted."""
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test_feature",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workspace_num=2,
+    )
+
+
+def test_keybinding_footer_tmux_label_plain_without_cached_choices() -> None:
+    footer = KeybindingFooter()
+    agent = _workspace_agent()
+
+    bindings = footer._compute_agent_bindings(agent, tmux_choice_count=0)
+
+    labels = [label for _key, label in bindings]
+    assert "tmux" in labels
+    assert not any(label.startswith("tmux choices") for label in labels)
+    assert "tmux (primary)" in labels
+
+
+def test_keybinding_footer_tmux_choices_label_with_cached_choices() -> None:
+    footer = KeybindingFooter()
+    agent = _workspace_agent()
+
+    bindings = footer._compute_agent_bindings(agent, tmux_choice_count=4)
+
+    labels = [label for _key, label in bindings]
+    assert "tmux choices (4)" in labels
+    assert "tmux" not in labels
+    assert "tmux (primary)" in labels
+
+
 def test_keybinding_footer_agent_artifact_viewer_active_advertises_focus_key() -> None:
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")

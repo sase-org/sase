@@ -539,6 +539,43 @@ AgentSiblingModal {
 }
 
 
+/* Agent Workspace Tmux Modal styling (echoes the WORKSPACES lane accent) */
+AgentWorkspaceTmuxModal {
+    align: center middle;
+}
+
+#agent-workspace-tmux-container {
+    width: 90;
+    max-width: 94%;
+    height: auto;
+    max-height: 24;
+    border: double #FF87D7;
+    background: $surface;
+    padding: 1 2;
+}
+
+#agent-workspace-tmux-title {
+    text-align: center;
+    text-style: bold;
+    color: #FF87D7;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#agent-workspace-tmux-list {
+    height: auto;
+    max-height: 16;
+}
+
+#agent-workspace-tmux-hints {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid #AF87D7;
+    padding-top: 1;
+}
+
+
 /* Temporary LLM Override Modal styling */
 TemporaryLLMOverrideModal {
     align: center middle;

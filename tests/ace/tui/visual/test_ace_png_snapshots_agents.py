@@ -469,3 +469,71 @@ async def test_agent_sibling_modal_narrow_png_snapshot(
             title="ACE agent sibling modal narrow",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
+
+
+def _workspace_tmux_choices() -> list:
+    from sase.ace.tui.modals.agent_workspace_tmux_modal import (
+        AgentWorkspaceTmuxChoice,
+    )
+
+    return [
+        AgentWorkspaceTmuxChoice(
+            kind="current",
+            label="workspaces_lane",
+            window_name="",
+            project_name="sase",
+            workspace_dir="~/.sase/sase_12",
+        ),
+        AgentWorkspaceTmuxChoice(
+            kind="linked",
+            label="sase-core",
+            window_name="sase-core_12",
+            workspace_dir="/w/sase-core_12",
+            reason="Need Rust backend context",
+            agent_label="code",
+        ),
+        AgentWorkspaceTmuxChoice(
+            kind="linked",
+            label="bob",
+            window_name="bob_12",
+            workspace_dir="/w/bob_12",
+            reason="Compare Obsidian workflow",
+        ),
+    ]
+
+
+async def test_agent_workspace_tmux_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(100, 28)
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+
+        from sase.ace.tui.modals.agent_workspace_tmux_modal import (
+            AgentWorkspaceTmuxModal,
+        )
+
+        page.app.push_screen(AgentWorkspaceTmuxModal(_workspace_tmux_choices()))
+        await page.expect_modal("AgentWorkspaceTmuxModal")
+        await wait_for_visual_idle(page)
+
+        _assert_page_svg_contains(page, "Tmux Workspace")
+        _assert_page_svg_contains(page, "CURRENT")
+        _assert_page_svg_contains(page, "LINKED")
+        _assert_page_svg_contains(page, "sase-core")
+        _assert_page_svg_contains(page, "Rust backend")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agent_workspace_tmux_modal_100x28",
+            title="ACE agent workspace tmux modal",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
