@@ -42,6 +42,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         _file_completion_active: bool
         _count_prefix: str
         _insert_g_prefix_pending: bool
+        _normal_g_prefix_pending: bool
         _pending_keys: str
         _pending_operator: str
         _vcs_mru_index: int | None
@@ -55,6 +56,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         def _apply_xprompt_named_arg_hint(self) -> bool: ...
         def _can_apply_xprompt_arg_action(self) -> bool: ...
         def _clear_insert_g_prefix(self) -> None: ...
+        def _clear_normal_g_prefix(self) -> None: ...
         def _clear_file_completion(
             self,
             *,
@@ -89,6 +91,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             end: tuple[int, int],
         ) -> None: ...
         def _show_insert_g_prefix_hints(self) -> None: ...
+        def _show_normal_g_prefix_hints(self) -> None: ...
         def _try_advance_tabstop(self) -> bool: ...
         def _try_expand_snippet(self) -> bool: ...
         def _try_auto_prompt_reference_completion(self) -> bool: ...
@@ -104,12 +107,18 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         """Intercept keys before TextArea's default handler inserts characters."""
         if self._is_prompt_search_active():
             self._clear_insert_g_prefix()
+            self._clear_normal_g_prefix()
             if self._handle_prompt_search_key(event):
                 event.stop()
                 event.prevent_default()
                 return
 
         if self._handle_insert_g_prefix_key(event):
+            event.stop()
+            event.prevent_default()
+            return
+
+        if self._handle_normal_g_prefix_key(event):
             event.stop()
             event.prevent_default()
             return
@@ -203,10 +212,10 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             return
 
         if self._vim_mode == "normal":
+            # Bare and continuation ``Ctrl+G`` are already consumed above by
+            # ``_handle_normal_g_prefix_key`` (the prompt-local ``^G`` prefix), so
+            # this branch only handles the remaining vim normal-mode keys.
             if self._handle_normal_mode_key(event):
-                event.stop()
-                event.prevent_default()
-            elif event.key == "ctrl+g":
                 event.stop()
                 event.prevent_default()
             return
@@ -388,6 +397,47 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         )
         if callable(dispatch):
             dispatch(key, target_mode="insert")
+        return True
+
+    def _handle_normal_g_prefix_key(self, event: Key) -> bool:
+        """Handle the NORMAL-mode ``Ctrl+G`` prompt-local prefix.
+
+        Mirrors :meth:`_handle_insert_g_prefix_key` so NORMAL-mode ``Ctrl+G``
+        opens the same prompt-local ``^G`` prefix (hint panel, editor entry, and
+        prompt-specific continuations) that INSERT-mode ``Ctrl+G`` does, while
+        still shadowing the app-level ``Ctrl+G`` binding. The only behavioral
+        difference is that continuations dispatch with ``target_mode="normal"``
+        so pane focus / reorder land in NORMAL mode, matching the vim ``g``
+        prefix. The vim ``g`` pending path is untouched; this is its own state.
+        """
+        if self._vim_mode != "normal":
+            self._clear_normal_g_prefix()
+            return False
+
+        if not self._normal_g_prefix_pending:
+            if event.key != "ctrl+g":
+                return False
+            self._normal_g_prefix_pending = True
+            self._show_normal_g_prefix_hints()
+            return True
+
+        if event.key == "escape":
+            self._clear_normal_g_prefix()
+            return True
+
+        key = event.key if event.key == "enter" else event.character or event.key
+        if key == "g" or event.key == "ctrl+g":
+            self._clear_normal_g_prefix()
+            self.action_open_editor()
+            return True
+
+        self._clear_normal_g_prefix()
+        bar = self._find_prompt_bar()
+        dispatch = (
+            getattr(bar, "dispatch_g_prefix_key", None) if bar is not None else None
+        )
+        if callable(dispatch):
+            dispatch(key, target_mode="normal")
         return True
 
     def _try_jinja_auto_pair(self, event: Key) -> bool:

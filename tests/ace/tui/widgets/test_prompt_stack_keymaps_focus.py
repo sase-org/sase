@@ -39,6 +39,28 @@ async def test_gk_focuses_previous_pane_from_normal() -> None:
         assert bar.active_text_area()._vim_mode == "normal"
 
 
+async def test_ctrl_gk_focuses_previous_pane_from_normal_and_keeps_normal() -> None:
+    """NORMAL-mode ``Ctrl+G k`` mirrors ``gk``: focus the pane above, stay NORMAL."""
+    app = PromptStackKeymapApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        assert bar._stack.selected_index == 2
+
+        await pilot.press("escape")  # active (bottom) pane -> normal mode
+        await pilot.press("ctrl+g", "k")  # focus the pane above via the ^G prefix
+        await pilot.pause()
+
+        assert bar._stack.selected_index == 1
+        assert bar.active_text() == "second"
+        assert app.focused is bar.active_text_area()
+        # NORMAL-mode ``Ctrl+G`` nav keeps the target pane in normal mode, unlike
+        # the INSERT-mode ``Ctrl+G`` prefix which keeps it in insert mode.
+        assert bar.active_text_area()._vim_mode == "normal"
+
+
 async def test_ctrl_gk_focuses_previous_pane_from_insert_and_keeps_insert() -> None:
     app = PromptStackKeymapApp("first\n---\nsecond\n---\nthird")
 

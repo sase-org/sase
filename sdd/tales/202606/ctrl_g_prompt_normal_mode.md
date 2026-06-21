@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 10:15:51
-status: wip
+status: done
 prompt: sdd/prompts/202606/ctrl_g_prompt_normal_mode.md
 ---
 # Plan: Enable Ctrl+G Prompt Prefix in Normal Mode

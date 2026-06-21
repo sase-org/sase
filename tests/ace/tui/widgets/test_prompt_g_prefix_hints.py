@@ -188,6 +188,103 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^Gs   stash this draft" in plain
 
 
+async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None:
+    app = _GPrefixHintApp("solo draft")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = _hint_panel(bar)
+
+        assert panel.has_class("hidden")
+        await pilot.press("escape")  # enter NORMAL mode
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+
+        # NORMAL-mode ``Ctrl+G`` shares the INSERT-mode ``^G`` hint surface,
+        # including the editor continuation and the prompt-specific entries.
+        assert not panel.has_class("hidden")
+        assert panel.border_title == " ^G "
+        assert panel.border_subtitle == "\\[esc] cancel"
+        plain = panel.render().plain
+        assert "^Gg / ^G^G   edit in editor" in plain
+        assert "^G<enter>   submit this draft" in plain
+        assert "^G-   add pane" in plain
+        assert "^G=   toggle frontmatter" in plain
+        assert "^Gs   stash this draft" in plain
+        assert bar.active_text_area()._vim_mode == "normal"
+        assert bar.active_text_area()._normal_g_prefix_pending is True
+
+
+async def test_normal_ctrl_g_continuation_dispatches_in_normal_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _GPrefixHintApp("solo draft")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = _hint_panel(bar)
+
+        calls: list[str] = []
+        monkeypatch.setattr(bar, "toggle_frontmatter_panel", lambda: calls.append("="))
+
+        await pilot.press("escape", "ctrl+g", "=")
+        await pilot.pause()
+
+        # The non-editor continuation dispatched through the prompt bar and the
+        # hint panel closed afterward, leaving the pane in NORMAL mode.
+        assert calls == ["="]
+        assert panel.has_class("hidden")
+        assert bar._g_prefix_hints_visible is False
+        assert bar.active_text_area()._normal_g_prefix_pending is False
+        assert bar.active_text_area()._vim_mode == "normal"
+
+
+async def test_normal_ctrl_g_escape_cancels_prefix_and_stays_normal_mode() -> None:
+    app = _GPrefixHintApp("solo draft")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = _hint_panel(bar)
+
+        await pilot.press("escape", "ctrl+g")
+        await pilot.pause()
+        assert not panel.has_class("hidden")
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert panel.has_class("hidden")
+        assert bar._g_prefix_hints_visible is False
+        assert bar.active_text_area()._normal_g_prefix_pending is False
+        assert bar.active_text_area()._vim_mode == "normal"
+
+
+async def test_normal_unknown_ctrl_g_key_hides_hints_without_side_effects() -> None:
+    app = _GPrefixHintApp("solo draft", stash_exists=True)
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = _hint_panel(bar)
+
+        await pilot.press("escape", "ctrl+g")
+        await pilot.pause()
+        assert not panel.has_class("hidden")
+
+        # ``^Gz`` is neither a prompt continuation nor an editor key.
+        await pilot.press("z")
+        await pilot.pause()
+
+        assert panel.has_class("hidden")
+        assert bar.active_text() == "solo draft"
+        assert bar.active_text_area()._vim_mode == "normal"
+        assert app.stashed == []
+        assert app.restore_requests == []
+
+
 async def test_second_g_prefix_key_hides_hints_after_dispatch() -> None:
     app = _GPrefixHintApp("solo draft")
 

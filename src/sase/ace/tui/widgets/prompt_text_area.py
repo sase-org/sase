@@ -92,6 +92,7 @@ class PromptTextArea(
         self._vim_mode: str = "insert"
         self._pending_keys: str = ""
         self._insert_g_prefix_pending: bool = False
+        self._normal_g_prefix_pending: bool = False
         self._count_prefix: str = ""
         self._pending_count: int | None = None
         self._pending_operator: str = ""

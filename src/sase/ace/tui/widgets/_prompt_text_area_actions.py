@@ -49,6 +49,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         )
         _snippet_tabstops: list[int]
         _insert_g_prefix_pending: bool
+        _normal_g_prefix_pending: bool
         _vcs_mru_index: int | None
         _vim_mode: str
 
@@ -109,6 +110,32 @@ class PromptTextAreaActionsMixin(_MixinBase):
         if not self._insert_g_prefix_pending:
             return
         self._insert_g_prefix_pending = False
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return
+        hide = getattr(bar, "hide_g_prefix_hints", None)
+        if callable(hide):
+            hide()
+
+    def _show_normal_g_prefix_hints(self) -> None:
+        """Reveal prompt-local ``Ctrl+G`` continuation hints for NORMAL mode.
+
+        NORMAL-mode ``Ctrl+G`` shares the INSERT-mode ``Ctrl+G`` hint surface
+        (the ``^G`` prefix label and the editor continuation), only differing in
+        the vim mode it lives in and the ``target_mode`` it later dispatches.
+        """
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return
+        show = getattr(bar, "show_g_prefix_hints", None)
+        if callable(show):
+            show(prefix_label="^G", include_editor=True)
+
+    def _clear_normal_g_prefix(self) -> None:
+        """Clear any pending NORMAL-mode ``Ctrl+G`` prefix and hide its hints."""
+        if not self._normal_g_prefix_pending:
+            return
+        self._normal_g_prefix_pending = False
         bar = self._find_prompt_bar()
         if bar is None:
             return
@@ -362,6 +389,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
         self._clear_insert_g_prefix()
+        self._clear_normal_g_prefix()
         self._clear_prompt_search(clear_highlights=True)
         self._clear_visual_state()
         self._clear_file_completion()
@@ -385,6 +413,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
     def _enter_insert_mode(self) -> None:
         """Switch to vim INSERT mode."""
         self._clear_insert_g_prefix()
+        self._clear_normal_g_prefix()
         self._clear_prompt_search(clear_highlights=True)
         self._clear_visual_state()
         self._vim_mode = "insert"
@@ -411,6 +440,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
     def on_blur(self) -> None:
         """Schedule a deferred refocus when the text area loses focus."""
         self._clear_insert_g_prefix()
+        self._clear_normal_g_prefix()
         self._clear_prompt_search(clear_highlights=True)
         self.call_later(self._refocus_if_needed)
 

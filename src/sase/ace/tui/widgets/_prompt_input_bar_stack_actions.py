@@ -473,6 +473,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             text_area = None
         if text_area is not None:
             text_area._clear_insert_g_prefix()
+            text_area._clear_normal_g_prefix()
             text_area._clear_file_completion()
             text_area._clear_soft_completion(cancel_timer=True)
             text_area._clear_xprompt_arg_hint()
