@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 09:14:10
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_restore_jump_hints.md
 ---
 # Agent Restore Jump Hints Plan

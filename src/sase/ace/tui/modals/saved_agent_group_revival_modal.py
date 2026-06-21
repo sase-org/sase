@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
@@ -14,6 +15,10 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.actions.navigation.jump_hints import (
+    build_jump_hint_maps,
+    normalize_jump_key,
+)
 from sase.core.agent_group_archive_wire import (
     SavedAgentGroupPageWire,
     SavedAgentGroupSummaryWire,
@@ -22,6 +27,7 @@ from sase.core.agent_group_archive_wire import (
 
 from .base import OptionListNavigationMixin
 from .saved_agent_group_revival_rendering import (
+    apply_jump_hint_prefix,
     build_empty_groups_preview,
     build_load_more_preview,
     build_saved_group_preview,
@@ -60,6 +66,7 @@ class SavedAgentGroupRevivalModal(
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         Binding("pagedown", "load_more", "Load More", priority=True),
+        Binding("apostrophe", "jump_to_entry", "Jump"),
     ]
 
     def __init__(
@@ -81,6 +88,10 @@ class SavedAgentGroupRevivalModal(
         self._group_loader = group_loader
         self._recent_group_loader = recent_group_loader
         self._loaded_groups: dict[str, SavedAgentGroupWire | None] = {}
+        self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_option_id: dict[str, str] = {}
+        self._entry_jump_option_id_to_hint: dict[str, str] = {}
+        self._entry_jump_last_option_id: str | None = None
 
     @property
     def groups(self) -> tuple[SavedAgentGroupSummaryWire, ...]:
@@ -179,9 +190,7 @@ class SavedAgentGroupRevivalModal(
             self.notify("No saved-group page loader is available", severity="warning")
             return
 
-        old_highlighted = self.query_one(
-            "#saved-agent-group-list", OptionList
-        ).highlighted
+        old_highlighted_id = self._current_highlighted_option_id()
         try:
             page = self._page_loader(self._next_cursor)
         except Exception as exc:
@@ -193,10 +202,25 @@ class SavedAgentGroupRevivalModal(
             group for group in page.groups if group.group_id not in seen
         )
         self._next_cursor = page.next_cursor
-        self._rebuild_options(highlighted=old_highlighted)
+        # Pagination changes the option set; drop any jump hints so the rebuilt
+        # list never renders stale markers.
+        self._clear_entry_jump_hints()
+        self._rebuild_options(highlighted_option_id=old_highlighted_id)
         self._update_hints()
 
-    def _create_options(self) -> list[Option]:
+    def _create_options(
+        self, *, jump_hints: dict[str, str] | None = None
+    ) -> list[Option]:
+        hints = jump_hints or {}
+
+        def labeled(label: Text, option_id: str) -> Text:
+            """Apply a jump hint marker to a selectable row when present."""
+
+            hint = hints.get(option_id)
+            if hint is None:
+                return label
+            return apply_jump_hint_prefix(label, hint)
+
         options: list[Option] = []
         options.append(
             Option(
@@ -207,10 +231,11 @@ class SavedAgentGroupRevivalModal(
         )
         if self._groups:
             for group in self._groups:
+                option_id = f"{_GROUP_PREFIX}{group.group_id}"
                 options.append(
                     Option(
-                        format_saved_group_row(group),
-                        id=f"{_GROUP_PREFIX}{group.group_id}",
+                        labeled(format_saved_group_row(group), option_id),
+                        id=option_id,
                     )
                 )
         else:
@@ -225,7 +250,10 @@ class SavedAgentGroupRevivalModal(
         if self._next_cursor is not None:
             options.append(
                 Option(
-                    Text("Load more saved groups...", style="bold #00D7AF"),
+                    labeled(
+                        Text("Load more saved groups...", style="bold #00D7AF"),
+                        _LOAD_MORE_ID,
+                    ),
                     id=_LOAD_MORE_ID,
                 )
             )
@@ -244,10 +272,11 @@ class SavedAgentGroupRevivalModal(
         )
         if self._recent_groups:
             for group in self._recent_groups:
+                option_id = f"{_RECENT_PREFIX}{group.group_id}"
                 options.append(
                     Option(
-                        format_saved_group_row(group),
-                        id=f"{_RECENT_PREFIX}{group.group_id}",
+                        labeled(format_saved_group_row(group), option_id),
+                        id=option_id,
                     )
                 )
         else:
@@ -263,33 +292,47 @@ class SavedAgentGroupRevivalModal(
 
         options.append(
             Option(
-                Text("Custom revival search...", style="bold #D7AFFF"),
+                labeled(
+                    Text("Custom revival search...", style="bold #D7AFFF"),
+                    _CUSTOM_SEARCH_ID,
+                ),
                 id=_CUSTOM_SEARCH_ID,
             )
         )
         return options
 
-    def _rebuild_options(self, *, highlighted: int | None = None) -> None:
+    def _rebuild_options(
+        self,
+        *,
+        highlighted_option_id: str | None = None,
+        show_jump_hints: bool = False,
+    ) -> None:
         option_list = self.query_one("#saved-agent-group-list", OptionList)
         option_list.clear_options()
-        for option in self._create_options():
+        jump_hints = self._entry_jump_option_id_to_hint if show_jump_hints else None
+        for option in self._create_options(jump_hints=jump_hints):
             option_list.add_option(option)
 
-        if highlighted is not None:
-            option_count = len(option_list.options)
-            if option_count:
-                option_list.highlighted = min(highlighted, option_count - 1)
+        if highlighted_option_id is not None:
+            row = self._row_for_option_id(option_list, highlighted_option_id)
+            if row is not None:
+                option_list.highlighted = row
 
     def _update_hints(self) -> None:
-        self.query_one("#saved-agent-group-hints", Static).update(self._hints_text())
+        static = self.query_one("#saved-agent-group-hints", Static)
+        if self._entry_jump_mode_active:
+            action = "back" if self._entry_jump_last_option_id is not None else "first"
+            static.update(f"JUMP ' {action}  <esc> cancel")
+        else:
+            static.update(self._hints_text())
 
     def _hints_text(self) -> str:
         recent_count = len(self._recent_groups)
         group_count = len(self._groups)
         load_more = " | PgDn/load row: more" if self._next_cursor is not None else ""
         return (
-            f"j/k: navigate | Enter: revive/open | {group_count} saved loaded | "
-            f"{recent_count} recent"
+            f"j/k: navigate | ': jump | Enter: revive/open | "
+            f"{group_count} saved loaded | {recent_count} recent"
             f"{load_more} | Esc/q: cancel"
         )
 
@@ -299,6 +342,127 @@ class SavedAgentGroupRevivalModal(
         if self._recent_groups:
             return f"{_RECENT_PREFIX}{self._recent_groups[0].group_id}"
         return _CUSTOM_SEARCH_ID
+
+    def _current_highlighted_option_id(self) -> str | None:
+        """Return the option id of the currently highlighted row, if any."""
+
+        try:
+            option_list = self.query_one("#saved-agent-group-list", OptionList)
+        except Exception:
+            return None
+        highlighted = option_list.highlighted
+        if highlighted is None:
+            return None
+        try:
+            return option_list.get_option_at_index(highlighted).id
+        except Exception:
+            return None
+
+    def _row_for_option_id(self, option_list: OptionList, option_id: str) -> int | None:
+        """Return the option-list row position for an option id."""
+
+        for row in range(option_list.option_count):
+            if option_list.get_option_at_index(row).id == option_id:
+                return row
+        return None
+
+    def _selectable_option_ids(self) -> list[str]:
+        """Return selectable option ids in current visual order.
+
+        Skips disabled headings, separators, and empty-state rows so jump
+        hints only land on rows the user can actually activate.
+        """
+
+        ids: list[str] = []
+        for option in self._create_options():
+            if option.disabled or option.id is None:
+                continue
+            ids.append(option.id)
+        return ids
+
+    def action_jump_to_entry(self) -> None:
+        """Enter one-key jump mode for the modal's selectable rows."""
+
+        option_ids = self._selectable_option_ids()
+        if not option_ids:
+            return
+        self._entry_jump_hint_to_option_id, self._entry_jump_option_id_to_hint = (
+            build_jump_hint_maps(option_ids)
+        )
+        if not self._entry_jump_hint_to_option_id:
+            return
+
+        highlighted_id = self._current_highlighted_option_id()
+        self._entry_jump_mode_active = True
+        self._update_hints()
+        self._rebuild_options(
+            highlighted_option_id=highlighted_id,
+            show_jump_hints=True,
+        )
+
+    def _clear_entry_jump_hints(self) -> None:
+        """Clear transient jump-mode hint maps and deactivate jump mode."""
+
+        self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_option_id = {}
+        self._entry_jump_option_id_to_hint = {}
+
+    def _exit_entry_jump_mode(self) -> None:
+        """Cancel jump mode, remove hints, and keep the current highlight."""
+
+        highlighted_id = self._current_highlighted_option_id()
+        self._clear_entry_jump_hints()
+        self._update_hints()
+        self._rebuild_options(highlighted_option_id=highlighted_id)
+
+    def _handle_entry_jump_key(self, key: str) -> bool:
+        """Handle one keypress while jump mode is active."""
+
+        if not self._entry_jump_mode_active:
+            return False
+        if key == "escape":
+            self._exit_entry_jump_mode()
+            return True
+
+        if key == "apostrophe":
+            if self._entry_jump_last_option_id is not None:
+                last_target = self._entry_jump_last_option_id
+                current = self._current_highlighted_option_id()
+                if current is not None:
+                    self._entry_jump_last_option_id = current
+                return self._jump_to_option_id(last_target)
+            # No previous row: fall through to the first hinted row.
+            key = "1"
+
+        target_option_id = self._entry_jump_hint_to_option_id.get(key)
+        if target_option_id is None:
+            self._exit_entry_jump_mode()
+            return True
+
+        current = self._current_highlighted_option_id()
+        if current is not None:
+            self._entry_jump_last_option_id = current
+        return self._jump_to_option_id(target_option_id)
+
+    def _jump_to_option_id(self, option_id: str) -> bool:
+        """Highlight the given option id without activating it."""
+
+        self._clear_entry_jump_hints()
+        self._update_hints()
+        # Setting ``highlighted`` for the target row emits ``OptionHighlighted``,
+        # which drives the preview through the normal highlight-update path.
+        self._rebuild_options(highlighted_option_id=option_id)
+        return True
+
+    def on_key(self, event: events.Key) -> None:
+        """Intercept jump-mode keypresses before modal bindings run."""
+
+        if not self._entry_jump_mode_active:
+            return
+        key = normalize_jump_key(event.key, event.character)
+        if self._handle_entry_jump_key(key):
+            event.prevent_default()
+            event.stop()
 
     def _update_preview_for_option_id(self, option_id: str | None) -> None:
         try:

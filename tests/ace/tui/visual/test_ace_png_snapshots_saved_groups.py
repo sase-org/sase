@@ -105,6 +105,63 @@ async def test_saved_agent_group_modal_normal_png_snapshot(
         )
 
 
+async def test_saved_agent_group_modal_jump_mode_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    recent_groups = (
+        _recent_group_summary(
+            0,
+            created_at="12m",
+            title="2 agents from @visual",
+            agent_count=2,
+            top_level_agent_count=2,
+            status_counts={"DONE": 2},
+        ),
+    )
+    groups = (
+        _saved_group_summary(
+            0,
+            created_at="3h",
+            name="Backend batch",
+            title="3 agents from backend",
+            agent_count=3,
+            top_level_agent_count=2,
+            status_counts={"DONE": 2, "FAILED": 1},
+        ),
+        _saved_group_summary(
+            1,
+            created_at="12m",
+            title="3 agents from @visual",
+            agent_count=2,
+            top_level_agent_count=2,
+            status_counts={"DONE": 2},
+        ),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        modal = await _push_saved_group_modal(
+            page,
+            SavedAgentGroupPageWire(groups=groups, next_cursor=None),
+            {},
+            recent_page=SavedAgentGroupPageWire(
+                groups=recent_groups,
+                next_cursor=None,
+            ),
+        )
+        modal.action_jump_to_entry()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "saved_agent_group_revival_jump_mode_120x40",
+            title="ACE saved agent group modal jump mode",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
 async def test_saved_agent_group_modal_empty_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

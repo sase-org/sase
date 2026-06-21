@@ -58,6 +58,22 @@ def _saved_group_time_label(created_at: str, *, now: datetime | None = None) -> 
     return f"{relative} | {parsed.strftime('%Y-%m-%d %H:%M')}"
 
 
+def apply_jump_hint_prefix(label: Text, hint: str) -> Text:
+    """Prefix a selectable row label with a one-key jump hint marker.
+
+    Builds a fresh ``Text`` so the original styled label, its ``no_wrap``
+    flag, and its overflow behavior are preserved while a ``[N] `` hint
+    marker is rendered ahead of it.
+    """
+
+    decorated = Text(no_wrap=label.no_wrap, overflow=label.overflow)
+    decorated.append("[", style="dim")
+    decorated.append(hint, style="bold #FFFF00")
+    decorated.append("] ", style="dim")
+    decorated.append_text(label)
+    return decorated
+
+
 def format_saved_group_row(
     summary: SavedAgentGroupSummaryWire,
     *,
