@@ -60,6 +60,30 @@ async def test_agent_list_png_snapshot(
         )
 
 
+async def test_agent_reverted_indicator_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = agents()
+    rows[0].reverted = True
+    patch_startup_loaders(monkeypatch, agents=rows)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+
+        _assert_page_svg_contains(page, "↺")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_reverted_indicator_120x40",
+            title="ACE agents reverted indicator",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
 async def test_agent_stopped_status_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

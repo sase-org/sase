@@ -39,6 +39,8 @@ from ._agent_list_styling import (
     _FILE_CHANGE_GLYPH,
     _FILE_CHANGE_GLYPH_STYLE,
     _HIDDEN_ICON,
+    _REVERTED_GLYPH,
+    _REVERTED_GLYPH_STYLE,
     _STEP_TYPE_COLORS,
     _STEP_TYPE_GLYPHS,
     _TYPE_GLYPHS,
@@ -51,6 +53,10 @@ def _should_render_provider_badge(agent: Agent) -> bool:
 
 def _has_file_change_hint(agent: Agent) -> bool:
     return agent_file_change_hint(agent)
+
+
+def _should_render_reverted_badge(agent: Agent) -> bool:
+    return agent.reverted and not agent.is_workflow_child
 
 
 def format_agent_option(
@@ -165,8 +171,16 @@ def format_agent_option(
         text.append(_FILE_CHANGE_GLYPH, style=_FILE_CHANGE_GLYPH_STYLE)
         text.append(" ")
 
+    is_reverted_root = _should_render_reverted_badge(agent)
+    if is_reverted_root:
+        text.append(_REVERTED_GLYPH, style=_REVERTED_GLYPH_STYLE)
+        text.append(" ")
+
     # Agent display name (workflow name for top-level workflows, CL name otherwise)
-    name_style = "bold #00D7AF" if is_selected else "#00D7AF"
+    if is_reverted_root:
+        name_style = "bold strike #00D7AF" if is_selected else "strike #00D7AF"
+    else:
+        name_style = "bold #00D7AF" if is_selected else "#00D7AF"
     text.append(agent.display_name, style=name_style)
     if tag_label:
         text.append(f" #{tag_label}", style="bold #FFD75F")

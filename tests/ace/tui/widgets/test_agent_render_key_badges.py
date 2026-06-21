@@ -136,6 +136,47 @@ def test_render_key_changes_when_live_file_change_hint_changes() -> None:
     assert k1 == k3
 
 
+def test_render_key_changes_when_reverted_flips() -> None:
+    a = _agent()
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    a.reverted = True
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    a.reverted = False
+    k3 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    assert k1 != k2
+    assert k1 == k3
+
+
 def test_render_key_changes_across_seconds_for_ticking_parent_status() -> None:
     a = _agent(status="PLAN APPROVED")
     child = _agent(

@@ -141,6 +141,7 @@ def agent_render_key(
         agent.tag,
         agent.agent_name,
         agent_file_change_hint(agent),
+        agent.reverted,
         agent_has_confirmed_bead(agent),
         ordered_row_providers(agent),
         agent.hidden,

@@ -206,6 +206,10 @@ class Agent:
     # Whether this agent should be hidden by default (shown with '.' toggle)
     hidden: bool = False
 
+    # Whether this agent's commits were reverted via the Agents-tab `,r` action
+    # (detected from revert_result.json in the agent's artifacts dir at load time).
+    reverted: bool = False
+
     # Retry/fallback state (populated from retry_state.json)
     retry_count: int = 0
     max_retries: int = 0

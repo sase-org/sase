@@ -19,6 +19,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
 )
 from sase.core.paths import sase_projects_dir
+from sase.ace.revert_agent import agent_is_reverted
 
 from ._json_cache import load_json_cached
 from ._meta_enrichment import (
@@ -42,6 +43,10 @@ _DONE_AGENT_WORKFLOW_DIRS = [
 _DONE_AGENT_WORKFLOW_PREFIXES = [
     "mentor-",
 ]
+
+
+def _enrich_agent_revert_state(agent: Agent, artifact_dir: str | Path | None) -> None:
+    agent.reverted = agent_is_reverted(str(artifact_dir) if artifact_dir else None)
 
 
 def _done_extra_files(
@@ -185,6 +190,7 @@ def _load_done_agent_for_dir(
         # about when writing done.json).
         enrich_agent_from_meta(agent, str(artifact_dir))
         enrich_agent_from_prompt_markers(agent, str(artifact_dir))
+        _enrich_agent_revert_state(agent, artifact_dir)
 
         return agent
     except Exception:
@@ -347,6 +353,7 @@ def _build_done_agent_from_record(
         agent, record.agent_meta, record.waiting, record.pending_question
     )
     enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
+    _enrich_agent_revert_state(agent, record.artifact_dir)
     return agent
 
 

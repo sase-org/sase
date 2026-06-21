@@ -229,6 +229,53 @@ class TestAgentListFileChangePencil:
         assert "[pinned]" not in left.plain
 
 
+class TestAgentListRevertedIndicator:
+    def test_root_row_renders_reverted_badge_and_struck_name(self) -> None:
+        agent = make_agent(status="DONE", reverted=True, llm_provider=None)
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=True)
+
+        assert "↺ test_cl (DONE)" in left.plain
+        name_start = left.plain.index("test_cl")
+        name_end = name_start + len("test_cl")
+        assert any(
+            span.start <= name_start
+            and span.end >= name_end
+            and "strike" in str(span.style).lower()
+            and "bold" in str(span.style).lower()
+            and "#00d7af" in str(span.style).lower()
+            for span in left.spans
+        )
+
+    def test_workflow_child_omits_reverted_indicator(self) -> None:
+        agent = make_agent(
+            status="DONE",
+            reverted=True,
+            parent_workflow="parent",
+            step_type="agent",
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "↺" not in left.plain
+        name_start = left.plain.index("test_cl")
+        name_end = name_start + len("test_cl")
+        assert not any(
+            span.start <= name_start
+            and span.end >= name_end
+            and "strike" in str(span.style).lower()
+            for span in left.spans
+        )
+
+    def test_normal_row_omits_reverted_indicator(self) -> None:
+        agent = make_agent(status="DONE", llm_provider=None)
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "↺" not in left.plain
+
+
 class TestAwareWaitUntilRendering:
     def test_agent_row_renders_aware_wait_until_countdown(self) -> None:
         wait_until = (datetime.now(UTC) + timedelta(hours=1)).isoformat()

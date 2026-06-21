@@ -53,6 +53,8 @@ from sase.ace.revert_agent_resolution import (
     resolve_revert_workspace_dir,
 )
 
+_REVERT_RESULT_FILENAME = "revert_result.json"
+
 
 @dataclass(frozen=True)
 class _PushOutcome:
@@ -67,6 +69,16 @@ class _PushOutcome:
     pushed: bool
     skipped_reason: str | None = None
     error: str | None = None
+
+
+def agent_is_reverted(artifacts_dir: str | None) -> bool:
+    """Return True when an agent artifacts dir carries a persisted revert marker."""
+    if not artifacts_dir:
+        return False
+    try:
+        return (Path(artifacts_dir) / _REVERT_RESULT_FILENAME).is_file()
+    except OSError:
+        return False
 
 
 def preview_agent_revert(
@@ -446,7 +458,7 @@ def _write_revert_result(
             payload["push_error"] = push.error
         if push.skipped_reason is not None:
             payload["push_skipped_reason"] = push.skipped_reason
-        path = Path(artifacts_dir) / "revert_result.json"
+        path = Path(artifacts_dir) / _REVERT_RESULT_FILENAME
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     except OSError:
         pass
@@ -459,6 +471,7 @@ __all__ = [
     "RevertPreview",
     "RevertResult",
     "RevertTarget",
+    "agent_is_reverted",
     "execute_agent_revert",
     "execute_agents_revert",
     "preview_agent_revert",
