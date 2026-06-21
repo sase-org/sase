@@ -4,7 +4,12 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from sase.ace.tui.models.agent import Agent, AgentType, AttemptRecord
+from sase.ace.tui.models.agent import (
+    Agent,
+    AgentType,
+    AttemptRecord,
+    LinkedRepoMetadata,
+)
 
 
 def test_bundle_round_trip_basic() -> None:
@@ -48,6 +53,146 @@ def test_bundle_round_trip_preserves_agent_tag() -> None:
 
     assert bundle["tag"] == "backend"
     assert restored.tag == "backend"
+
+
+def test_bundle_round_trip_linked_repos() -> None:
+    """Linked repo metadata is stored as JSON-native dicts and restored."""
+    linked_repos = (
+        LinkedRepoMetadata(
+            name="sase-core",
+            workspace_dir="/tmp/sase-core_12",
+            workspace_strategy="suffix",
+        ),
+        LinkedRepoMetadata(
+            name="sase-nvim",
+            workspace_dir="/tmp/sase-nvim",
+            workspace_strategy="none",
+        ),
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 30, 0),
+        raw_suffix="20250615103000",
+        linked_repos=linked_repos,
+    )
+
+    bundle = agent.to_bundle_dict()
+
+    assert bundle["linked_repos"] == [
+        {
+            "name": "sase-core",
+            "workspace_dir": "/tmp/sase-core_12",
+            "workspace_strategy": "suffix",
+        },
+        {
+            "name": "sase-nvim",
+            "workspace_dir": "/tmp/sase-nvim",
+            "workspace_strategy": "none",
+        },
+    ]
+    json.dumps(bundle)
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.linked_repos == linked_repos
+
+
+def test_bundle_round_trip_empty_linked_repos() -> None:
+    """The default linked repo value remains an empty tuple after loading."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 30, 0),
+        raw_suffix="20250615103000",
+    )
+
+    bundle = agent.to_bundle_dict()
+    restored = Agent.from_bundle_dict(bundle)
+
+    assert bundle["linked_repos"] == []
+    assert restored.linked_repos == ()
+
+
+def test_bundle_skips_retry_chain_siblings() -> None:
+    """Retry-chain sibling relationships are load-time only."""
+    parent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="FAILED",
+        start_time=datetime(2025, 6, 15, 10, 30, 0),
+        raw_suffix="20250615103000",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature_retry",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 45, 0),
+        raw_suffix="20250615104500",
+    )
+    parent.retry_chain_siblings.append(child)
+
+    bundle = parent.to_bundle_dict()
+
+    assert "retry_chain_siblings" not in bundle
+    json.dumps(bundle)
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.retry_chain_siblings == []
+
+
+def test_bundle_dict_is_json_serializable_for_populated_agent() -> None:
+    """Guard against future bundle fields leaking non-JSON-native values."""
+    feedback_time = datetime(2025, 6, 15, 10, 6, 0)
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 30, 0),
+        run_start_time=datetime(2025, 6, 15, 10, 31, 0),
+        wait_start_time=datetime(2025, 6, 15, 10, 29, 0),
+        stop_time=datetime(2025, 6, 15, 11, 0, 0),
+        workspace_num=12,
+        raw_suffix="20250615103000",
+        response_path="/tmp/response.md",
+        extra_files=["/tmp/plan.md"],
+        step_output={"ok": True, "count": 2},
+        pdf_status={"path": "/tmp/report.pdf", "done": True},
+        linked_repos=(
+            LinkedRepoMetadata(
+                name="sase-core",
+                workspace_dir="/tmp/sase-core_12",
+                workspace_strategy="suffix",
+            ),
+        ),
+        waiting_for=["agent-a"],
+        tag="backend",
+        output_variables={"report": "/tmp/report.md"},
+        plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
+        code_time=datetime(2025, 6, 15, 10, 10, 0),
+        feedback_times=[feedback_time],
+        feedback_plan_paths={feedback_time: "/tmp/rejected-plan.md"},
+        questions_times=[datetime(2025, 6, 15, 10, 7, 0)],
+        retry_times=[datetime(2025, 6, 15, 10, 8, 0)],
+        retry_count=1,
+    )
+    agent.followup_agents.append(
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="child",
+            project_file="/tmp/test.sase",
+            status="DONE",
+            start_time=datetime(2025, 6, 15, 10, 40, 0),
+        )
+    )
+    agent.runtime_children.append(agent.followup_agents[0])
+    agent.retry_chain_siblings.append(agent.followup_agents[0])
+
+    json.dumps(agent.to_bundle_dict())
 
 
 def test_bundle_serialization_keeps_agent_state_without_artifact_text(

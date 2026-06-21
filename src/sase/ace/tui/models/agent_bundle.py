@@ -6,7 +6,7 @@ import dataclasses
 from datetime import datetime
 from typing import Any
 
-from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 
 
 def to_bundle_dict(agent: Agent) -> dict[str, Any]:
@@ -19,6 +19,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
         if f.name in (
             "followup_agents",
             "runtime_children",
+            "retry_chain_siblings",
             "attempt_history",
             "diff_has_real_edits",
             "live_file_change_hint",
@@ -31,6 +32,14 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             value = value.value
         elif isinstance(value, datetime):
             value = value.isoformat()
+        elif (
+            isinstance(value, tuple)
+            and value
+            and isinstance(value[0], LinkedRepoMetadata)
+        ):
+            value = [dataclasses.asdict(v) for v in value]
+        elif f.name == "linked_repos" and value == ():
+            value = []
         elif isinstance(value, list) and value and isinstance(value[0], datetime):
             value = [v.isoformat() for v in value]
         elif isinstance(value, dict) and value:
@@ -107,6 +116,12 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
             value = [
                 datetime.fromisoformat(v) if isinstance(v, str) else v for v in value
             ]
+        elif f.name == "linked_repos":
+            from sase.ace.tui.models._loaders._meta_enrichment_common import (
+                parse_linked_repos,
+            )
+
+            value = parse_linked_repos(value)
         elif f.name == "feedback_plan_paths" and isinstance(value, dict):
             parsed_paths: dict[datetime, str] = {}
             for k, v in value.items():

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 11:10:45
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_linked_repo_bundle_serialization.md
 ---
 # Fix: `LinkedRepoMetadata is not JSON serializable` on agent kill

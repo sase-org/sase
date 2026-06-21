@@ -13,7 +13,7 @@ from sase.ace.dismissed_agents import (
     load_dismissed_bundles,
     save_dismissed_bundle,
 )
-from sase.ace.tui.models.agent import AgentType
+from sase.ace.tui.models.agent import AgentType, LinkedRepoMetadata
 from tests._dismissed_agents_helpers import make_agent
 
 
@@ -34,6 +34,37 @@ def test_bundle_save_load_round_trip(tmp_path: Path) -> None:
         assert loaded[0].cl_name == "test_cl"
         assert loaded[0].tag == "backend"
         assert loaded[0].start_time == datetime(2025, 6, 15, 10, 30, 0)
+
+
+def test_bundle_save_load_round_trip_with_linked_repos(tmp_path: Path) -> None:
+    """Linked repo metadata survives the actual dismissed-bundle file path."""
+    bundles_dir = tmp_path / "bundles"
+    linked_repo = LinkedRepoMetadata(
+        name="sase-core",
+        workspace_dir="/tmp/sase-core_12",
+        workspace_strategy="suffix",
+    )
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = make_agent()
+        agent.linked_repos = (linked_repo,)
+
+        assert save_dismissed_bundle(agent)
+
+        bundle_path = bundles_dir / "202506" / "20250615103000.json"
+        bundle = json.loads(bundle_path.read_text())
+        assert bundle["linked_repos"] == [
+            {
+                "name": "sase-core",
+                "workspace_dir": "/tmp/sase-core_12",
+                "workspace_strategy": "suffix",
+            }
+        ]
+        loaded = load_dismissed_bundles({"20250615103000"})
+        assert len(loaded) == 1
+        assert loaded[0].linked_repos == (linked_repo,)
 
 
 def test_bundle_load_empty_when_no_dir(tmp_path: Path) -> None:
