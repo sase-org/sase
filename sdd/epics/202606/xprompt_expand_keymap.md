@@ -116,10 +116,12 @@ Implementation work:
 
 - Add a small helper module near the TUI/xprompt boundary, for example
   `src/sase/ace/tui/widgets/xprompt_inline_expansion.py` or `src/sase/ace/tui/util/xprompt_inline_expansion.py`.
-- Define a typed result such as:
+  The public entry point is `expand_inline_xprompt(name, workflow, *, local_xprompts, project)`, consumed by the
+  Phase 3 modal callback in `_prompt_bar_requests.py`.
+- Define a typed result such as `InlineExpansionResult` with:
   - `expanded_text: str | None`
   - `error: str | None`
-  - optional `reason_code` for tests.
+  - optional `reason_code` for tests (an `InlineExpansionReason` enum).
 - Input should include:
   - selected name,
   - selected `Workflow`,
