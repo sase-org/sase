@@ -20,6 +20,25 @@ AGENT_STATUS_BUCKET_GLYPHS: dict[str, str] = {
     "Done": "✓",
 }
 
+PLAN_APPROVED_STATUS = "PLAN APPROVED"
+TALE_APPROVED_STATUS = "TALE APPROVED"
+WORKING_PLAN_STATUS = "WORKING PLAN"
+WORKING_TALE_STATUS = "WORKING TALE"
+
+APPROVED_PLAN_STATUSES: frozenset[str] = frozenset(
+    {PLAN_APPROVED_STATUS, TALE_APPROVED_STATUS}
+)
+WORKING_PLAN_STATUSES: frozenset[str] = frozenset(
+    {WORKING_PLAN_STATUS, WORKING_TALE_STATUS}
+)
+ACTIVE_PLAN_HANDOFF_STATUSES: frozenset[str] = (
+    APPROVED_PLAN_STATUSES | WORKING_PLAN_STATUSES
+)
+WORKING_PLAN_STATUS_TO_APPROVED: dict[str, str] = {
+    WORKING_PLAN_STATUS: PLAN_APPROVED_STATUS,
+    WORKING_TALE_STATUS: TALE_APPROVED_STATUS,
+}
+
 #: Statuses where an agent is paused for explicit human input.  This is
 #: intentionally narrower than ``needs:input`` query matching, which also
 #: includes execution states such as ``PLAN APPROVED``.
@@ -39,8 +58,10 @@ AGENT_ASKING_STATUSES: frozenset[str] = frozenset({"PLAN", "QUESTION", "WAITING 
 #
 # ``PLAN DONE``, ``TALE DONE``, ``PLAN REJECTED``, and ``EPIC CREATED`` are
 # post-plan handoff states: the planning work is finished and any code work
-# has been spun off, so they read as **Done**.  ``PLAN APPROVED`` is an
-# actively executing state and reads as **Running**.
+# has been spun off, so they read as **Done**.  ``PLAN APPROVED`` /
+# ``TALE APPROVED`` and the coder-specific ``WORKING PLAN`` /
+# ``WORKING TALE`` statuses are actively executing states and read as
+# **Running**.
 #
 # ``STOPPED`` is a terminal, non-error state for a repeat-chain slot a
 # predecessor's ``STOP`` skipped.  It reads as **Done** (finished, not failed,
@@ -60,7 +81,7 @@ _TERMINAL_STATUSES: frozenset[str] = frozenset(
 # sdd/tales/202604/agents_tab_query_filters.md — covers the statuses where the
 # agent is paused awaiting user input rather than running or terminal.
 _NEEDS_INPUT_STATUSES: frozenset[str] = frozenset(
-    {"QUESTION", "WAITING INPUT", "PLAN APPROVED", "TALE APPROVED"}
+    {"QUESTION", "WAITING INPUT"} | ACTIVE_PLAN_HANDOFF_STATUSES
 )
 
 
@@ -89,7 +110,7 @@ def status_bucket_for_values(
     # ``ANSWERED`` is the transient post-answer state: the user replied and the
     # agent is expected to resume, so it buckets with the actively-running rows
     # rather than the input-needed ``Stopped`` group.
-    if status_text in {"PLAN APPROVED", "TALE APPROVED", "ANSWERED"}:
+    if status_text in ACTIVE_PLAN_HANDOFF_STATUSES or status_text == "ANSWERED":
         return "Running"
     if status_text == "WAITING":
         return "Waiting"

@@ -340,7 +340,7 @@ def test_apply_status_overrides_parent_with_active_code_after_question_is_plan_a
     _apply_status_overrides(agents)
 
     assert parent.status == "PLAN APPROVED"
-    assert code_child.status == "PLAN APPROVED"
+    assert code_child.status == "WORKING PLAN"
 
 
 def test_apply_status_overrides_questioning_code_with_tale_plan_action_still_becomes_question() -> (

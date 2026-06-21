@@ -4,6 +4,13 @@ from rich.console import Group, RenderableType
 from rich.syntax import Syntax
 from rich.text import Text
 
+from sase.agent.status_buckets import (
+    PLAN_APPROVED_STATUS,
+    TALE_APPROVED_STATUS,
+    WORKING_PLAN_STATUS,
+    WORKING_TALE_STATUS,
+)
+
 from ...models.agent import Agent
 from ...util.lazy_syntax import lazy_renderable
 from ._helpers import WORKFLOW_VARIABLES_SECTION_LABEL, append_model_field
@@ -69,8 +76,10 @@ def build_workflow_detail_renderable(
         "DONE": "#5FD75F",
         "FAILED": "#FF5F5F",
         "PLAN": "#FF87AF",
-        "PLAN APPROVED": "#00D7AF",
-        "TALE APPROVED": "#00D7AF",
+        PLAN_APPROVED_STATUS: "#00D7AF",
+        TALE_APPROVED_STATUS: "#00D7D7",
+        WORKING_PLAN_STATUS: "#00AF87",
+        WORKING_TALE_STATUS: "#00AFAF",
         "PLAN REJECTED": "#D7AF5F",
         "EPIC CREATED": "#5FD7AF",
         "QUESTION": "#FFAF00",

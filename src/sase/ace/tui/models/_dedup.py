@@ -317,7 +317,8 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
                         matched.step_output[k] = v
             if matched.agent_name is None and agent.agent_name is not None:
                 matched.agent_name = agent.agent_name
-            # Merge status: prefer non-RUNNING status (e.g. PLAN, PLAN APPROVED)
+            # Merge status: prefer semantic non-RUNNING statuses (e.g. PLAN,
+            # PLAN APPROVED, WORKING PLAN) over the raw live-process row.
             if matched.status == "RUNNING" and agent.status != "RUNNING":
                 matched.status = agent.status
             continue  # Drop the RUNNING entry

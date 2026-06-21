@@ -33,6 +33,12 @@ def test_status_bucket_plan_approved_is_running() -> None:
     assert _status_bucket_for(_agent(status="PLAN APPROVED")) == "Running"
 
 
+def test_status_bucket_working_plan_statuses_are_running() -> None:
+    """Coder handoff working states are actively executing → Running."""
+    assert _status_bucket_for(_agent(status="WORKING PLAN")) == "Running"
+    assert _status_bucket_for(_agent(status="WORKING TALE")) == "Running"
+
+
 def test_status_bucket_answered_is_running() -> None:
     """ANSWERED is transient post-answer progress → Running, not Stopped."""
     assert _status_bucket_for(_agent(status="ANSWERED")) == "Running"

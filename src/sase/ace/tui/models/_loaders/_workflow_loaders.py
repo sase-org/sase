@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
 from sase.core.paths import sase_projects_dir
 
 from ....hooks.processes import is_process_running
@@ -21,8 +22,7 @@ ACTIVE_STATUSES = frozenset(
         "RUNNING",
         "WAITING INPUT",
         "PLAN",
-        "PLAN APPROVED",
-        "TALE APPROVED",
+        *ACTIVE_PLAN_HANDOFF_STATUSES,
         "QUESTION",
         "ANSWERED",
     }

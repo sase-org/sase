@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 from rich.cells import cell_len
 from rich.text import Text
 
+from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+
 from ...changespec import ChangeSpec
 from ...hooks import get_failed_hooks_file_path
 from ...operations import get_available_workflows
@@ -177,8 +179,7 @@ class KeybindingBindingsMixin:
                 "STARTING",
                 "RUNNING",
                 "PLAN",
-                "PLAN APPROVED",
-                "TALE APPROVED",
+                *ACTIVE_PLAN_HANDOFF_STATUSES,
                 "WAITING",
                 "QUESTION",
             }

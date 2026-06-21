@@ -21,6 +21,8 @@ from tests._agent_revive_helpers import make_agent
         ("FAILED", "failed"),
         ("WAITING INPUT", "waiting_hitl"),
         ("RUNNING", "running"),
+        ("WORKING PLAN", "running"),
+        ("WORKING TALE", "running"),
     ],
 )
 def test_build_workflow_state_data_canonicalizes_statuses(
@@ -42,6 +44,8 @@ def test_build_workflow_state_data_canonicalizes_statuses(
         ("FAILED", "failed"),
         ("WAITING INPUT", "waiting_hitl"),
         ("RUNNING", "in_progress"),
+        ("WORKING PLAN", "in_progress"),
+        ("WORKING TALE", "in_progress"),
     ],
 )
 def test_build_step_marker_data_canonicalizes_statuses(

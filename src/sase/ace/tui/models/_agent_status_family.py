@@ -2,6 +2,11 @@
 
 from datetime import datetime
 
+from sase.agent.status_buckets import (
+    TALE_APPROVED_STATUS,
+    WORKING_PLAN_STATUS,
+    WORKING_TALE_STATUS,
+)
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_base,
@@ -108,7 +113,7 @@ def done_handoff_status(parent: Agent, child: Agent) -> str:
     if (
         parent.plan_action == "tale"
         or child.plan_action == "tale"
-        or parent.status in {"TALE APPROVED", "TALE DONE"}
+        or parent.status in {TALE_APPROVED_STATUS, "TALE DONE"}
     ):
         return "TALE DONE"
     return "PLAN DONE"
@@ -123,10 +128,10 @@ def active_approved_plan_handoff_status(parent: Agent, child: Agent) -> str | No
     if (
         parent.plan_action == "tale"
         or child.plan_action == "tale"
-        or parent.status in {"TALE APPROVED", "TALE DONE"}
+        or parent.status in {TALE_APPROVED_STATUS, "TALE DONE"}
     ):
-        return "TALE APPROVED"
-    return "PLAN APPROVED"
+        return WORKING_TALE_STATUS
+    return WORKING_PLAN_STATUS
 
 
 def is_completed_plan_handoff_child(agent: Agent) -> bool:

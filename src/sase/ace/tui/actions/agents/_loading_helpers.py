@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
+from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
     from ...models import Agent
@@ -26,8 +28,7 @@ TabName = Literal["changespecs", "agents", "axe"]
 _QUESTION_OVERRIDE_PROGRESS_STATUSES = frozenset(
     {
         "RUNNING",
-        "PLAN APPROVED",
-        "TALE APPROVED",
+        *ACTIVE_PLAN_HANDOFF_STATUSES,
         "EPIC APPROVED",
         "LEGEND APPROVED",
         "PLAN COMMITTED",

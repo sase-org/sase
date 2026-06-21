@@ -173,8 +173,12 @@ def test_needs_input_matches_waiting_input() -> None:
     assert _eval("needs:input", agent)
 
 
-def test_needs_input_matches_plan_approved() -> None:
-    agent = _make_agent(status="PLAN APPROVED")
+@pytest.mark.parametrize(
+    "status",
+    ["PLAN APPROVED", "TALE APPROVED", "WORKING PLAN", "WORKING TALE"],
+)
+def test_needs_input_matches_plan_handoff_statuses(status: str) -> None:
+    agent = _make_agent(status=status)
     assert _eval("needs:input", agent)
 
 

@@ -12,6 +12,11 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.agent.status_buckets import (
+    ACTIVE_PLAN_HANDOFF_STATUSES,
+    TALE_APPROVED_STATUS,
+    WORKING_TALE_STATUS,
+)
 from sase.core.agent_artifact_paths import (
     canonical_agent_artifact_path,
     resolve_agent_artifact_path,
@@ -21,6 +26,34 @@ from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
 
 if TYPE_CHECKING:
     from ...models import Agent
+
+_PLAN_LIKE_STATUSES = (
+    frozenset(
+        {
+            "PLAN",
+            "PLAN COMMITTED",
+            "PLAN DONE",
+            "TALE DONE",
+            "PLAN REJECTED",
+            "EPIC APPROVED",
+            "EPIC CREATED",
+            "LEGEND APPROVED",
+            "QUESTION",
+        }
+    )
+    | ACTIVE_PLAN_HANDOFF_STATUSES
+)
+
+_PLAN_APPROVAL_STATUSES = (
+    frozenset(
+        {
+            "PLAN COMMITTED",
+            "EPIC APPROVED",
+            "LEGEND APPROVED",
+        }
+    )
+    | ACTIVE_PLAN_HANDOFF_STATUSES
+)
 
 
 class ArtifactRestorationMixin:
@@ -176,8 +209,7 @@ class ArtifactRestorationMixin:
         if status in {
             "RUNNING",
             "PLAN",
-            "PLAN APPROVED",
-            "TALE APPROVED",
+            *ACTIVE_PLAN_HANDOFF_STATUSES,
             "QUESTION",
             "ANSWERED",
         }:
@@ -206,8 +238,7 @@ class ArtifactRestorationMixin:
         if status in {
             "RUNNING",
             "PLAN",
-            "PLAN APPROVED",
-            "TALE APPROVED",
+            *ACTIVE_PLAN_HANDOFF_STATUSES,
             "QUESTION",
             "ANSWERED",
         }:
@@ -427,33 +458,15 @@ class ArtifactRestorationMixin:
         if agent.retry_times:
             data["retry_started_at"] = [ts.isoformat() for ts in agent.retry_times]
 
-        is_plan_like_status = agent.status in {
-            "PLAN",
-            "PLAN APPROVED",
-            "TALE APPROVED",
-            "PLAN COMMITTED",
-            "PLAN DONE",
-            "TALE DONE",
-            "PLAN REJECTED",
-            "EPIC APPROVED",
-            "EPIC CREATED",
-            "LEGEND APPROVED",
-            "QUESTION",
-        }
+        is_plan_like_status = agent.status in _PLAN_LIKE_STATUSES
         if (
             canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
             or is_plan_like_status
         ):
             data["plan"] = True
-        if agent.status in {
-            "PLAN APPROVED",
-            "TALE APPROVED",
-            "PLAN COMMITTED",
-            "EPIC APPROVED",
-            "LEGEND APPROVED",
-        }:
+        if agent.status in _PLAN_APPROVAL_STATUSES:
             data["plan_approved"] = True
-            if agent.status == "TALE APPROVED":
+            if agent.status in {TALE_APPROVED_STATUS, WORKING_TALE_STATUS}:
                 data["plan_action"] = "tale"
             elif agent.status == "PLAN COMMITTED":
                 data["plan_action"] = "commit"

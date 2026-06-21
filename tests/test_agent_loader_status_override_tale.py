@@ -24,7 +24,7 @@ def _write_git_diff(path: Path, changed_path: str) -> None:
 def test_apply_status_overrides_active_code_child_with_tale_plan_action_is_tale_approved() -> (
     None
 ):
-    """A DONE plan parent with plan_action=tale and an active .code child becomes TALE APPROVED."""
+    """A tale-approved root keeps TALE APPROVED while active .code works tale."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -48,13 +48,13 @@ def test_apply_status_overrides_active_code_child_with_tale_plan_action_is_tale_
     _apply_status_overrides(agents)
 
     assert parent.status == "TALE APPROVED"
-    assert code_child.status == "TALE APPROVED"
+    assert code_child.status == "WORKING TALE"
 
 
 def test_apply_status_overrides_active_code_child_without_plan_action_is_plan_approved() -> (
     None
 ):
-    """Regression guard: a generic-approve parent (no plan_action) stays PLAN APPROVED."""
+    """Regression guard: a generic-approve parent stays PLAN APPROVED."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -78,13 +78,13 @@ def test_apply_status_overrides_active_code_child_without_plan_action_is_plan_ap
     _apply_status_overrides(agents)
 
     assert parent.status == "PLAN APPROVED"
-    assert code_child.status == "PLAN APPROVED"
+    assert code_child.status == "WORKING PLAN"
 
 
 def test_apply_status_overrides_active_code_child_with_tale_child_action_is_tale_approved() -> (
     None
 ):
-    """A RUNNING .code child with plan_action=tale becomes TALE APPROVED."""
+    """A RUNNING .code child with plan_action=tale becomes WORKING TALE."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -108,7 +108,7 @@ def test_apply_status_overrides_active_code_child_with_tale_child_action_is_tale
     _apply_status_overrides(agents)
 
     assert parent.status == "TALE APPROVED"
-    assert code_child.status == "TALE APPROVED"
+    assert code_child.status == "WORKING TALE"
 
 
 def test_apply_status_overrides_active_code_child_with_parent_status_tale_approved() -> (
@@ -137,7 +137,7 @@ def test_apply_status_overrides_active_code_child_with_parent_status_tale_approv
     _apply_status_overrides(agents)
 
     assert parent.status == "TALE APPROVED"
-    assert code_child.status == "TALE APPROVED"
+    assert code_child.status == "WORKING TALE"
 
 
 def test_apply_status_overrides_done_with_tale_plan_action_yields_tale_done() -> None:

@@ -32,7 +32,10 @@ from sase.vcs_provider import (
     VCSProviderNotFoundError,
     get_vcs_provider,
 )
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import (
+    ACTIVE_PLAN_HANDOFF_STATUSES,
+    status_bucket_for_values,
+)
 from sase.workspace_provider.store import WorkspaceStore
 from sase.workspace_provider.utils import parse_workspace_dir
 
@@ -106,8 +109,7 @@ _ACTIVE_DIFF_SOURCE_STATUSES = frozenset(
         "STARTING",
         "WAITING",
         "RUNNING",
-        "PLAN APPROVED",
-        "TALE APPROVED",
+        *ACTIVE_PLAN_HANDOFF_STATUSES,
     }
 )
 

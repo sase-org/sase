@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_role_for_suffix,
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
 
 _PLAN_RUNTIME_TERMINAL_STATUSES = {"DONE", "PLAN DONE", "TALE DONE"}
 _ACTIVE_LEAF_STATUSES = {"RUNNING", "RETRYING", "ANSWERED"}
-_SEGMENTED_FOLLOWUP_RUNTIME_STATUSES = {"PLAN APPROVED", "TALE APPROVED"}
+_SEGMENTED_FOLLOWUP_RUNTIME_STATUSES = ACTIVE_PLAN_HANDOFF_STATUSES
 _WORKFLOW_PLAN_STEP_NAMES = {"plan"}
 _PLANNER_PHASE_ENDED_STATUSES = {
     "PLAN DONE",

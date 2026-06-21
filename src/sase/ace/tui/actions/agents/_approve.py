@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
+from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -87,8 +88,7 @@ class AgentApproveMixin:
             "STARTING",
             "RUNNING",
             "PLAN",
-            "PLAN APPROVED",
-            "TALE APPROVED",
+            *ACTIVE_PLAN_HANDOFF_STATUSES,
             "WAITING",
             "QUESTION",
         }

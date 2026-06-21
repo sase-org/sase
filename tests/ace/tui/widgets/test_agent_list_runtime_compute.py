@@ -125,8 +125,11 @@ def test_compute_row_runtime_linked_followup_workflow_returns_elapsed() -> None:
     assert elapsed == "2m05s"
 
 
-@pytest.mark.parametrize("status", ["PLAN APPROVED", "TALE APPROVED"])
-def test_compute_row_runtime_approved_linked_coder_child_returns_elapsed(
+@pytest.mark.parametrize(
+    "status",
+    ["PLAN APPROVED", "TALE APPROVED", "WORKING PLAN", "WORKING TALE"],
+)
+def test_compute_row_runtime_plan_handoff_linked_coder_child_returns_elapsed(
     status: str,
 ) -> None:
     start = datetime(2026, 5, 22, 18, 38, 12)

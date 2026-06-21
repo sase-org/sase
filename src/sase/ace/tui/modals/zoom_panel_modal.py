@@ -19,6 +19,13 @@ from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import Label, Static
 
+from sase.agent.status_buckets import (
+    ACTIVE_PLAN_HANDOFF_STATUSES,
+    PLAN_APPROVED_STATUS,
+    TALE_APPROVED_STATUS,
+    WORKING_PLAN_STATUS,
+    WORKING_TALE_STATUS,
+)
 from sase.core.paths import get_sase_tmpdir
 
 from ..actions.clipboard import copy_to_system_clipboard
@@ -537,8 +544,10 @@ def _status_text(status: str) -> Text:
         "QUESTION": "bold yellow",
         "ANSWERED": "bold #5FD7FF",
         "PLAN": "bold #FFD787",
-        "PLAN APPROVED": "bold #FFD787",
-        "TALE APPROVED": "bold #FFD787",
+        PLAN_APPROVED_STATUS: "bold #FFD787",
+        TALE_APPROVED_STATUS: "bold #FFD7AF",
+        WORKING_PLAN_STATUS: "bold #FFAF87",
+        WORKING_TALE_STATUS: "bold #FFAFAF",
         "DONE": "bold cyan",
         "FAILED": "bold red",
         "MISSING": "dim",
@@ -566,8 +575,7 @@ _ACTIVE_STATUSES = frozenset(
         "WAITING",
         "WAITING INPUT",
         "PLAN",
-        "PLAN APPROVED",
-        "TALE APPROVED",
+        *ACTIVE_PLAN_HANDOFF_STATUSES,
         "QUESTION",
         "ANSWERED",
         "RETRYING",

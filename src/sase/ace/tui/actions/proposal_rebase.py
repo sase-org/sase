@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+
 from ...hooks.history import get_last_accepted_history_entry_id
 from ..widgets import HintInputBar
 
@@ -352,8 +354,7 @@ class ProposalRebaseMixin:
                     "STARTING",
                     "RUNNING",
                     "PLAN",
-                    "PLAN APPROVED",
-                    "TALE APPROVED",
+                    *ACTIVE_PLAN_HANDOFF_STATUSES,
                     "WAITING",
                     "QUESTION",
                 }

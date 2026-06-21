@@ -106,6 +106,75 @@ async def test_agent_stopped_status_png_snapshot(
         )
 
 
+def _plan_handoff_status_agents() -> list[Agent]:
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-plan-approved",
+            project_file="/workspace/sase/visual_project.sase",
+            status="PLAN APPROVED",
+            start_time=datetime(2026, 5, 9, 10, 0, 0),
+            raw_suffix="20260509-100000-plan-approved",
+            agent_name="plan.approved",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-tale-approved",
+            project_file="/workspace/sase/visual_project.sase",
+            status="TALE APPROVED",
+            start_time=datetime(2026, 5, 9, 10, 1, 0),
+            raw_suffix="20260509-100100-tale-approved",
+            agent_name="tale.approved",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-working-plan",
+            project_file="/workspace/sase/visual_project.sase",
+            status="WORKING PLAN",
+            start_time=datetime(2026, 5, 9, 10, 2, 0),
+            raw_suffix="20260509-100200-working-plan",
+            agent_name="working.plan",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-working-tale",
+            project_file="/workspace/sase/visual_project.sase",
+            status="WORKING TALE",
+            start_time=datetime(2026, 5, 9, 10, 3, 0),
+            raw_suffix="20260509-100300-working-tale",
+            agent_name="working.tale",
+        ),
+    ]
+
+
+async def test_agent_plan_handoff_status_colors_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=_plan_handoff_status_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 4)
+        await wait_for_visual_idle(page)
+
+        for status in (
+            "PLAN APPROVED",
+            "TALE APPROVED",
+            "WORKING PLAN",
+            "WORKING TALE",
+        ):
+            _assert_page_svg_contains(page, status)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_plan_handoff_status_colors_120x40",
+            title="ACE agents plan handoff status colors",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
 async def test_agents_selected_row_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

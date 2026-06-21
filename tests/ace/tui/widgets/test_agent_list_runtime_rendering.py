@@ -229,9 +229,9 @@ def test_format_agent_option_answered_status_uses_explicit_style() -> None:
     assert answered_styles == ["bold #5FD7FF"]
 
 
-def test_format_agent_option_approved_linked_coder_child_has_running_marker() -> None:
+def test_format_agent_option_working_linked_coder_child_has_running_marker() -> None:
     row_agent = agent(
-        status="TALE APPROVED",
+        status="WORKING TALE",
         start=datetime(2026, 5, 22, 18, 38, 12),
         run_start=datetime(2026, 5, 22, 18, 38, 39),
         role_suffix="-code",
@@ -249,6 +249,32 @@ def test_format_agent_option_approved_linked_coder_child_has_running_marker() ->
 
     assert suffix.plain == "🏃‍♂️ 2m26s"
     assert "✋" not in suffix.plain
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_style"),
+    [
+        ("PLAN APPROVED", "bold #00D7AF"),
+        ("TALE APPROVED", "bold #00D7D7"),
+        ("WORKING PLAN", "bold #00AF87"),
+        ("WORKING TALE", "bold #00AFAF"),
+    ],
+)
+def test_format_agent_option_plan_handoff_status_colors(
+    status: str, expected_style: str
+) -> None:
+    left, _, _ = format_agent_option(
+        agent(status=status, start=datetime(2026, 5, 6, 14, 0, 0)),
+        0,
+        is_selected=False,
+        now=datetime(2026, 5, 6, 14, 5, 0),
+    )
+
+    assert status in left.plain
+    styles = [
+        span.style for span in left.spans if left.plain[span.start : span.end] == status
+    ]
+    assert styles == [expected_style]
 
 
 def test_format_agent_option_unread_terminal_suffix_uses_completed_marker() -> None:

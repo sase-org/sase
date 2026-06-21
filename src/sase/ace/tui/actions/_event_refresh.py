@@ -8,6 +8,7 @@ from inspect import Parameter, signature
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
 from sase.core.paths import sase_projects_dir, sase_subdir
 
 from ._debug_leaks import debug_leaks_enabled, log_leak_snapshot
@@ -52,8 +53,7 @@ _LIVE_FILE_REFRESH_STATUSES = frozenset(
         "WAITING",
         "WAITING INPUT",
         "PLAN",
-        "PLAN APPROVED",
-        "TALE APPROVED",
+        *ACTIVE_PLAN_HANDOFF_STATUSES,
         "QUESTION",
         "ANSWERED",
         "RETRYING",

@@ -122,12 +122,13 @@ def test_same_project_workflow_dedup_still_merges() -> None:
 
 
 def test_family_resolution_survives_cross_project_collision() -> None:
-    """Full scenario: live TALE coder keeps TALE APPROVED despite a collision.
+    """Full scenario: live TALE coder keeps WORKING TALE despite a collision.
 
     A plan-chain root with plan_action="tale", its running coder, and an
     unrelated completed WORKFLOW agent in a *different* project that shares the
     coder's raw_suffix. After dedup + status overrides the coder and root must
-    resolve to TALE APPROVED (not TALE DONE) and the unrelated agent stays DONE.
+    resolve to WORKING TALE / TALE APPROVED (not TALE DONE) and the unrelated
+    agent stays DONE.
     """
     project = "/home/u/.sase/projects/bob-cli/bob-cli.sase"
     other_project = "/home/u/.sase/projects/sase/sase.sase"
@@ -173,7 +174,7 @@ def test_family_resolution_survives_cross_project_collision() -> None:
 
     _apply_status_overrides(agents)
 
-    assert coder.status == "TALE APPROVED"
+    assert coder.status == "WORKING TALE"
     assert root.status == "TALE APPROVED"
     assert unrelated.status == "DONE"
 

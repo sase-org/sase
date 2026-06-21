@@ -7,6 +7,12 @@ from datetime import datetime
 
 from rich.text import Text
 
+from sase.agent.status_buckets import (
+    PLAN_APPROVED_STATUS,
+    TALE_APPROVED_STATUS,
+    WORKING_PLAN_STATUS,
+    WORKING_TALE_STATUS,
+)
 from sase.xprompt.workflow_output import get_substep_suffix
 
 from ..provider_styles import provider_emoji_badge
@@ -213,10 +219,14 @@ def format_agent_option(
         text.append(" (RETRIED)", style="dim #FF5F5F")
     elif agent.status == "PLAN":
         text.append(agent.status, style="bold #FF87AF")  # Pink
-    elif agent.status == "PLAN APPROVED":
+    elif agent.status == PLAN_APPROVED_STATUS:
         text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
-    elif agent.status == "TALE APPROVED":
-        text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
+    elif agent.status == TALE_APPROVED_STATUS:
+        text.append(agent.status, style="bold #00D7D7")  # Turquoise
+    elif agent.status == WORKING_PLAN_STATUS:
+        text.append(agent.status, style="bold #00AF87")  # Deep teal
+    elif agent.status == WORKING_TALE_STATUS:
+        text.append(agent.status, style="bold #00AFAF")  # Deep turquoise
     elif agent.status == "PLAN COMMITTED":
         text.append(agent.status, style="bold #5FD75F")  # Green
     elif agent.status == "EPIC APPROVED":

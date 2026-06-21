@@ -85,6 +85,40 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
     assert data["plan_action"] == "commit"
 
 
+def test_restore_agent_meta_working_plan_statuses_restore_plan_markers(
+    tmp_path: Path,
+) -> None:
+    tale_dir = tmp_path / "tale"
+    tale_dir.mkdir()
+    tale_agent = make_agent(
+        status="WORKING TALE",
+        role_suffix=".code",
+        parent_timestamp="20240101120000",
+    )
+
+    AgentRevivalMixin._restore_agent_meta(tale_agent, tale_dir)
+    data = json.loads((tale_dir / "agent_meta.json").read_text())
+
+    assert data["plan"] is True
+    assert data["plan_approved"] is True
+    assert data["plan_action"] == "tale"
+
+    plan_dir = tmp_path / "plan"
+    plan_dir.mkdir()
+    plan_agent = make_agent(
+        status="WORKING PLAN",
+        role_suffix=".code",
+        parent_timestamp="20240101120000",
+    )
+
+    AgentRevivalMixin._restore_agent_meta(plan_agent, plan_dir)
+    data = json.loads((plan_dir / "agent_meta.json").read_text())
+
+    assert data["plan"] is True
+    assert data["plan_approved"] is True
+    assert "plan_action" not in data
+
+
 def test_restore_agent_meta_merges_existing_metadata(tmp_path: Path) -> None:
     agent = make_agent(
         agent_type=AgentType.RUNNING,
