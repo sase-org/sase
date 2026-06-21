@@ -205,6 +205,31 @@ def test_run_agent_launch_body_no_ref_defaults_home_mode_to_git_home(
     ws_dir.assert_called_once_with(101, "home")
 
 
+def test_record_resolved_default_git_home_ref_is_not_persisted_as_mru(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bare prompt normalized to the implicit ``#git:home`` default must not
+    leave a cyclable VCS MRU entry behind on launch."""
+    from tests.conftest import redirect_sase_home
+    from sase.ace.tui.actions.agent_workflow._launch_history import (
+        record_resolved_vcs_xprompt_usage,
+    )
+    from sase.history.vcs_xprompt_mru import _load_vcs_xprompt_mru
+
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    mru_file = sase_home / "vcs_xprompt_mru.json"
+
+    with patch(
+        "sase.ace.tui.modals.project_discovery.is_launchable_project",
+        return_value=True,
+    ):
+        record_resolved_vcs_xprompt_usage(("git", "home"), "home")
+
+    assert not mru_file.exists()
+    assert _load_vcs_xprompt_mru() == []
+
+
 def test_run_agent_launch_body_known_project_ref_without_provider_targets_project(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

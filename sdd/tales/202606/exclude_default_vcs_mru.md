@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 09:00:16
-status: wip
+status: done
 prompt: sdd/prompts/202606/exclude_default_vcs_mru.md
 ---
 # Exclude Default VCS XPrompt From Prompt Cycling

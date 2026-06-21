@@ -41,10 +41,12 @@ def load_launchable_vcs_xprompt_mru(
 ) -> list[str]:
     """Load MRU prefixes, dropping entries that would no longer launch.
 
-    Two classes of stale entry are pruned so ``<ctrl+p>`` only ever cycles to
-    refs that will actually launch (and so the unresolved-ref launch guard is
-    never reachable through normal cycling):
+    Three classes of non-cyclable entry are pruned so ``<ctrl+p>`` only ever
+    cycles to explicit refs that will actually launch (and so the
+    unresolved-ref launch guard is never reachable through normal cycling):
 
+    - the implicit default prefix (:func:`_is_default_vcs_prefix`), which is
+      normalized data rather than a user MRU choice,
     - prefixes for a known but non-launchable project
       (:func:`_is_stale_known_project_prefix`), and
     - prefixes whose ref no longer resolves to any launch target at all
@@ -62,7 +64,8 @@ def load_launchable_vcs_xprompt_mru(
     filtered = [
         entry
         for entry in entries
-        if not _is_stale_known_project_prefix(entry, projects_dir)
+        if not _is_default_vcs_prefix(entry)
+        and not _is_stale_known_project_prefix(entry, projects_dir)
         and not _vcs_prefix_ref_is_gone(entry, resolvable_refs)
     ]
     if prune and filtered != entries:
@@ -73,10 +76,20 @@ def load_launchable_vcs_xprompt_mru(
 def record_vcs_xprompt_usage(prefix: str) -> None:
     """Move/add prefix to the front of the MRU list, cap at 100, save to disk.
 
+    The implicit default prefix (e.g. ``#git:home``) is never recorded as a
+    cyclable choice: launching a bare prompt normalizes to it, but it is the
+    implicit fallback rather than an explicit selection. If a default entry is
+    already present it is removed instead of re-added.
+
     Args:
         prefix: VCS workflow prefix string (e.g. ``"#gh:sase"``).
     """
     entries = _load_vcs_xprompt_mru()
+    if _is_default_vcs_prefix(prefix):
+        filtered = [e for e in entries if not _is_default_vcs_prefix(e)]
+        if filtered != entries:
+            _save_vcs_xprompt_mru(filtered)
+        return
     if _is_stale_known_project_prefix(prefix):
         filtered = [e for e in entries if e != prefix]
         if filtered != entries:
@@ -97,6 +110,24 @@ def _save_vcs_xprompt_mru(entries: list[str]) -> None:
             json.dump({"entries": entries}, f, indent=2)
     except OSError:
         pass
+
+
+def _is_default_vcs_prefix(prefix: str) -> bool:
+    """Return whether *prefix* is the implicit default workflow prefix.
+
+    The bare-prompt default (``#git:home``) is normalized data, not a user MRU
+    choice, so it must never appear as a cyclable candidate even when an
+    earlier launch persisted it. Underscore refs are normalized on both sides
+    so legacy spellings (e.g. ``#git_home``) compare equal to the default.
+    """
+    from sase.xprompt._parsing import (
+        DEFAULT_VCS_WORKFLOW_PREFIX,
+        normalize_vcs_underscore_refs,
+    )
+
+    return normalize_vcs_underscore_refs(
+        prefix.strip()
+    ) == normalize_vcs_underscore_refs(DEFAULT_VCS_WORKFLOW_PREFIX)
 
 
 def _is_stale_known_project_prefix(

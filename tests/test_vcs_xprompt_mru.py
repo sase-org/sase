@@ -250,6 +250,49 @@ def test_record_prunes_known_stale_project_prefix(
     assert json.loads(fake.read_text()) == {"entries": ["#gh:valid"]}
 
 
+def test_load_launchable_prunes_default_git_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The implicit default ``#git:home`` is never a cyclable candidate and is
+    pruned out of the persisted MRU on load."""
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file.write_text(json.dumps({"entries": ["#git:foo", "#git:home", "#git:bar"]}))
+
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda *a, **k: {"foo": workspace, "bar": workspace},
+    )
+    monkeypatch.setattr(
+        "sase.ace.changespec.cache.find_all_changespecs_cached",
+        lambda *a, **k: [],
+    )
+
+    result = load_launchable_vcs_xprompt_mru()
+
+    assert result == ["#git:foo", "#git:bar"]
+    assert json.loads(mru_file.read_text()) == {"entries": ["#git:foo", "#git:bar"]}
+
+
+def test_record_does_not_persist_default_git_home(tmp_path: Path) -> None:
+    """Recording the implicit default does not add it to the MRU; an existing
+    default entry is dropped instead."""
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    fake.write_text(json.dumps({"entries": ["#gh:sase", "#git:home"]}))
+    with patch.object(
+        __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+        "_MRU_FILE",
+        fake,
+    ):
+        record_vcs_xprompt_usage("#git:home")
+        result = _load_vcs_xprompt_mru()
+
+    assert result == ["#gh:sase"]
+    assert json.loads(fake.read_text()) == {"entries": ["#gh:sase"]}
+
+
 class _FakeChangeSpec:
     def __init__(self, name: str) -> None:
         self.name = name
