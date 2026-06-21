@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 09:13:50
-status: wip
+status: done
 prompt: sdd/prompts/202606/jinja_variable_delete_pairs.md
 ---
 # Plan: Jinja Variable Paired Deletion

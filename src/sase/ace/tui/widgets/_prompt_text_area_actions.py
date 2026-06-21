@@ -6,6 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 from textual.screen import ModalScreen
 
+from sase.ace.tui.widgets._jinja_pair_editing import (
+    plan_jinja_delete_left,
+    plan_jinja_delete_right,
+)
 from sase.ace.tui.widgets._paired_text_editing import (
     plan_pair_delete_left,
     plan_pair_delete_right,
@@ -204,11 +208,15 @@ class PromptTextAreaActionsMixin(_MixinBase):
     def _try_paired_delete(self, *, forward: bool) -> bool:
         """Delete both sides of an empty auto-pair when its opener is removed.
 
-        Backspacing the opener of ``(|)``, ``[|]``, ``{|}``, ``'|'`` (and the
-        other supported quote/bracket pairs) or forward-deleting it in ``|()``
-        removes the matching closer too. Returns False (so the default
-        single-character delete runs) when there is a selection or the cursor is
-        not adjacent to an empty pair.
+        First tries the Jinja-variable planners so deleting a ``{{ ... }}``
+        delimiter brace removes its mirror ``}}`` brace and deleting a boundary
+        padding space removes the other boundary space (collapsing ``{{  }}`` to
+        ``{{}}``). Falling back to the generic planners, backspacing the opener
+        of ``(|)``, ``[|]``, ``{|}``, ``'|'`` (and the other supported
+        quote/bracket pairs) or forward-deleting it in ``|()`` removes the
+        matching closer too. Returns False (so the default single-character
+        delete runs) when there is a selection or the cursor is not adjacent to a
+        paired delimiter.
         """
         start, end = self.selection
         if start != end:
@@ -216,10 +224,16 @@ class PromptTextAreaActionsMixin(_MixinBase):
         text = self.text
         offset = self._absolute_offset(self.cursor_location)
         plan = (
-            plan_pair_delete_right(text, offset)
+            plan_jinja_delete_right(text, offset)
             if forward
-            else plan_pair_delete_left(text, offset)
+            else plan_jinja_delete_left(text, offset)
         )
+        if plan is None:
+            plan = (
+                plan_pair_delete_right(text, offset)
+                if forward
+                else plan_pair_delete_left(text, offset)
+            )
         if plan is None:
             return False
         self._replace_via_keyboard(
