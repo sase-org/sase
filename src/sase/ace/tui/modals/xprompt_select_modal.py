@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import os
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from rich.syntax import Syntax
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
@@ -31,6 +33,12 @@ from ..widgets.xprompt_arg_assist import (
     xprompt_assist_entry_from_workflow,
 )
 
+# ``Ctrl+I`` inline-expansion handler supplied by the prompt-bar request layer.
+# Called with the selected ``(name, workflow)``; returns ``None`` on success
+# (the caller has rendered/applied the expansion) or a user-facing error
+# message to surface while keeping the selector open.
+InlineExpandCallback = Callable[[str, "Workflow"], str | None]
+
 
 @dataclass(frozen=True, slots=True)
 class XPromptSelection:
@@ -49,6 +57,7 @@ class _XPromptFilterInput(Input):
         ("ctrl+d", "scroll_preview_down", "Scroll Down"),
         ("ctrl+u", "scroll_preview_up_or_clear", "Scroll Up/Clear"),
         ("ctrl+e", "forward('open_selected_in_editor')", "Open Definition"),
+        ("ctrl+i", "forward('expand_selected')", "Expand"),
     ]
 
     def action_forward(self, action_name: str) -> None:
@@ -85,12 +94,14 @@ class XPromptSelectModal(
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("ctrl+e", "open_selected_in_editor", "Open Definition"),
+        ("ctrl+i", "expand_selected", "Expand"),
     ]
 
     def __init__(
         self,
         project: str | None = None,
         extra_prompts: dict[str, Workflow] | None = None,
+        expand_callback: InlineExpandCallback | None = None,
     ) -> None:
         """Initialize the xprompt modal.
 
@@ -98,10 +109,17 @@ class XPromptSelectModal(
             project: Optional project name to include project-specific xprompts.
             extra_prompts: Additional prompts to merge (e.g. project-local
                 xprompts detected from a VCS tag in the prompt text).
+            expand_callback: Optional ``Ctrl+I`` handler invoked with the
+                selected ``(name, workflow)``. It renders/applies the inline
+                expansion and returns ``None`` on success or a user-facing
+                error message to show while keeping the selector open. When
+                ``None``, inline expansion is disabled and ``Ctrl+I`` is a
+                no-op.
         """
         super().__init__()
         self._project = project
         self._extra_prompts = extra_prompts or {}
+        self._expand_callback = expand_callback
         self._prompts: dict[str, Workflow] = {}
         self._all_items: dict[str, tuple[str, str]] = {}
         self._filtered_names: list[str] = []
@@ -216,7 +234,7 @@ class XPromptSelectModal(
                         with VerticalScroll(id="xprompt-preview-scroll"):
                             yield Static("", id="xprompt-preview")
                 yield Static(
-                    "j/k ↑/↓: navigate • ^d/^u: scroll preview • ^e: open definition • Enter: select • Esc/q: cancel",
+                    "j/k ↑/↓: navigate • ^d/^u: scroll preview • ^e: open definition • ^i: expand • Enter: select • Esc/q: cancel",
                     id="xprompt-hints",
                 )
 
@@ -291,6 +309,22 @@ class XPromptSelectModal(
         else:
             self._clear_preview()
 
+    def on_key(self, event: events.Key) -> None:
+        """Route ``Ctrl+I`` to inline expansion across every focus state.
+
+        Terminals deliver ``Ctrl+I`` as the Tab byte, and Textual's focus
+        cycling claims a bare Tab before the declared ``ctrl+i`` binding can
+        fire (the same collision handled in :class:`PromptHistoryModal`).
+        Intercepting ``tab`` here makes the expansion keymap work whether the
+        filter input or the option list holds focus; a genuine ``ctrl+i`` event
+        (enhanced keyboard protocol or the test harness) still routes through
+        the declared bindings and is left untouched here.
+        """
+        if event.key == "tab":
+            event.prevent_default()
+            event.stop()
+            self.action_expand_selected()
+
     def on_input_submitted(self, _event: Input.Submitted) -> None:
         """Handle Enter key in input - select highlighted item."""
         if not self._filtered_names:
@@ -359,6 +393,43 @@ class XPromptSelectModal(
             return
 
         self._reload_prompts(selected_name=selected_name)
+
+    def action_expand_selected(self) -> None:
+        """Inline-expand the highlighted xprompt into the originating pane (``Ctrl+I``).
+
+        Unlike ``Enter`` -- which inserts a ``#name`` reference -- this hands the
+        selected ``(name, workflow)`` to the caller-supplied expansion callback,
+        which renders the xprompt body and splices it into the pane that opened
+        the ``#@`` selector. The callback returns ``None`` on success or a
+        user-facing error message:
+
+        - success: dismiss with no payload so the normal insertion callback is a
+          no-op and no ``#name`` reference is inserted as well.
+        - error: notify and stay open, leaving the current filter and highlight
+          untouched so the user can pick another entry or fall back to ``Enter``.
+        """
+        if self._expand_callback is None:
+            return
+
+        selected_name = self._selected_name()
+        if selected_name is None:
+            self.notify("No xprompt selected", severity="warning")
+            return
+
+        workflow = self._prompts.get(selected_name)
+        if workflow is None:
+            self.notify("Could not find selected xprompt", severity="warning")
+            return
+
+        error = self._expand_callback(selected_name, workflow)
+        if error:
+            self.notify(error, severity="error")
+            return
+
+        # Success: the callback already rendered/applied the expansion. Dismiss
+        # with no payload so the push-screen insertion callback returns early
+        # and does not also insert a ``#name`` reference.
+        self.dismiss(None)
 
     def _reload_prompts(self, *, selected_name: str | None = None) -> None:
         """Reload prompt definitions and preserve filter and selection state."""

@@ -63,7 +63,6 @@ class InlineExpansionResult:
         return self.reason is InlineExpansionReason.EXPANDED
 
 
-# pyvision: sdd/epics/202606/xprompt_expand_keymap.md
 def expand_inline_xprompt(
     name: str,
     workflow: Workflow,

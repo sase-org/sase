@@ -281,8 +281,37 @@ class PromptBarRequestsMixin:
         except Exception:
             pass
 
+        def on_xprompt_expand(name: str, workflow: object) -> str | None:
+            """Inline-expand *name* into the originating pane (modal ``Ctrl+I``).
+
+            Decides whether the selected entry can be rendered as plain text and
+            returns ``None`` on success or a user-facing error message. The modal
+            notifies and stays open on error, and dismisses on success.
+            """
+            from sase.ace.tui.widgets.xprompt_inline_expansion import (
+                expand_inline_xprompt,
+            )
+            from sase.xprompt.workflow_models import Workflow
+
+            if origin_bar is None or not origin_bar.is_mounted:
+                return "Prompt pane is no longer available - selection discarded"
+            if not isinstance(workflow, Workflow):
+                return f"Could not inline-expand #{name}."
+
+            result = expand_inline_xprompt(name, workflow, project=project)
+            if result.error is not None:
+                return result.error
+            # Phase 4 applies ``result.expanded_text`` to the originating pane
+            # here as one undoable edit (PromptInputBar.expand_xprompt_at_target);
+            # until then a successful expansion just closes the selector.
+            return None
+
         self.push_screen(  # type: ignore[attr-defined]
-            XPromptSelectModal(project=project, extra_prompts=extra_prompts),
+            XPromptSelectModal(
+                project=project,
+                extra_prompts=extra_prompts,
+                expand_callback=on_xprompt_expand,
+            ),
             on_xprompt_select,
         )
 

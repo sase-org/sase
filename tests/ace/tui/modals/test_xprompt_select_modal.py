@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from textual.app import App
-from textual.widgets import OptionList
+from textual.widgets import Input, OptionList
 
 from sase.ace.tui.modals.xprompt_select_modal import XPromptSelectModal
 from sase.xprompt.models import InputArg, InputType
@@ -253,3 +253,160 @@ async def test_xprompt_select_ctrl_e_warns_for_missing_source_path() -> None:
             ]
 
     mock_run.assert_not_called()
+
+
+def _modal_with_expand(
+    prompts: dict[str, Workflow],
+    expand: object,
+) -> XPromptSelectModal:
+    with patch(
+        "sase.ace.tui.modals.xprompt_select_modal.get_all_prompts",
+        return_value=prompts,
+    ):
+        return XPromptSelectModal(expand_callback=expand)  # type: ignore[arg-type]
+
+
+async def test_xprompt_select_ctrl_i_expands_and_dismisses_without_insertion() -> None:
+    prompts = {"commit": _simple_workflow("commit")}
+    calls: list[tuple[str, Workflow]] = []
+
+    def expand(name: str, workflow: Workflow) -> str | None:
+        calls.append((name, workflow))
+        return None  # success
+
+    modal = _modal_with_expand(prompts, expand)
+    dismissed: list[object | None] = []
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal, callback=dismissed.append)
+        await pilot.pause()
+
+        await pilot.press("ctrl+i")
+        await pilot.pause()
+
+        # Callback ran with the highlighted entry, the modal dismissed, and the
+        # dismiss payload is ``None`` so the normal insertion callback is a no-op.
+        assert calls == [("commit", prompts["commit"])]
+        assert pilot.app.screen is not modal
+        assert dismissed == [None]
+
+
+async def test_xprompt_select_ctrl_i_error_notifies_and_keeps_modal_open() -> None:
+    prompts = {
+        "alpha": _simple_workflow("alpha"),
+        "beta": _simple_workflow("beta"),
+    }
+    error = "Cannot inline-expand #beta because it has workflow steps."
+
+    def expand(_name: str, _workflow: Workflow) -> str | None:
+        return error
+
+    modal = _modal_with_expand(prompts, expand)
+    dismissed: list[object | None] = []
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal, callback=dismissed.append)
+        await pilot.pause()
+
+        option_list = modal.query_one("#xprompt-list", OptionList)
+        option_list.highlighted = 1
+
+        await pilot.press("ctrl+i")
+        await pilot.pause()
+
+        # Error keeps the modal open, surfaces an error notification, and leaves
+        # the filter/highlight state untouched for another attempt.
+        assert pilot.app.screen is modal
+        assert dismissed == []
+        assert pilot.app.notifications == [(error, "error")]
+        assert option_list.highlighted == 1
+        assert modal._filtered_names == ["alpha", "beta"]
+        assert modal._selected_name() == "beta"
+
+
+async def test_xprompt_select_ctrl_i_from_option_list_focus() -> None:
+    prompts = {"commit": _simple_workflow("commit")}
+    calls: list[str] = []
+
+    def expand(name: str, _workflow: Workflow) -> str | None:
+        calls.append(name)
+        return None
+
+    modal = _modal_with_expand(prompts, expand)
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        modal.query_one("#xprompt-list", OptionList).focus()
+        await pilot.pause()
+
+        await pilot.press("ctrl+i")
+        await pilot.pause()
+
+        assert calls == ["commit"]
+
+
+async def test_xprompt_select_tab_routes_to_expand_exactly_once() -> None:
+    # ``Ctrl+I`` arrives as a Tab byte in real terminals; the modal must route
+    # Tab to expansion without double-firing alongside the ``ctrl+i`` binding.
+    prompts = {"commit": _simple_workflow("commit")}
+    calls: list[str] = []
+
+    def expand(name: str, _workflow: Workflow) -> str | None:
+        calls.append(name)
+        return None
+
+    modal = _modal_with_expand(prompts, expand)
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("tab")
+        await pilot.pause()
+
+        assert calls == ["commit"]
+
+
+async def test_xprompt_select_ctrl_i_with_no_matches_warns() -> None:
+    prompts = {"commit": _simple_workflow("commit")}
+    calls: list[str] = []
+
+    def expand(name: str, _workflow: Workflow) -> str | None:
+        calls.append(name)
+        return None
+
+    modal = _modal_with_expand(prompts, expand)
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        filter_input = modal.query_one("#xprompt-filter-input", Input)
+        filter_input.value = "no-such-xprompt"
+        await pilot.pause()
+
+        await pilot.press("ctrl+i")
+        await pilot.pause()
+
+        # No selectable entry: warn, keep the modal open, never call the callback.
+        assert calls == []
+        assert pilot.app.screen is modal
+        assert pilot.app.notifications == [("No xprompt selected", "warning")]
+
+
+async def test_xprompt_select_ctrl_i_without_callback_is_noop() -> None:
+    prompts = {"commit": _simple_workflow("commit")}
+    with patch(
+        "sase.ace.tui.modals.xprompt_select_modal.get_all_prompts",
+        return_value=prompts,
+    ):
+        modal = XPromptSelectModal()  # no expand_callback wired
+
+    dismissed: list[object | None] = []
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal, callback=dismissed.append)
+        await pilot.pause()
+
+        await pilot.press("ctrl+i")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert dismissed == []
+        assert pilot.app.notifications == []
