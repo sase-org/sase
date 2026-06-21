@@ -6,14 +6,11 @@ from textual.app import App, ComposeResult
 from textual.widgets.text_area import Selection
 
 from sase.ace.tui.widgets._alt_syntax_editing import (
-    AltEdit,
     _find_enclosing_alt_span,
     _is_directive_valid_brace_opening,
-    plan_alt_auto_pair,
-    plan_alt_paired_delete_left,
-    plan_alt_paired_delete_right,
     plan_alt_separator,
 )
+from sase.ace.tui.widgets._paired_text_editing import TextEdit
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
@@ -41,53 +38,6 @@ def test_is_directive_valid_brace_opening_contexts() -> None:
     assert _is_directive_valid_brace_opening("x", 0) is False
 
 
-def test_plan_alt_auto_pair_after_directive_percent() -> None:
-    assert plan_alt_auto_pair("%", 1) == AltEdit(start=1, end=1, text="{}", cursor=2)
-    assert plan_alt_auto_pair("run %", 5) == AltEdit(
-        start=5, end=5, text="{}", cursor=6
-    )
-
-
-def test_plan_alt_auto_pair_requires_directive_context() -> None:
-    # ``%`` not at a directive-valid position.
-    assert plan_alt_auto_pair("a%", 2) is None
-    # Cursor not directly after a ``%``.
-    assert plan_alt_auto_pair("ab", 2) is None
-
-
-def test_plan_alt_auto_pair_rejects_when_text_follows() -> None:
-    # The inserted ``}`` would run into following non-whitespace text.
-    assert plan_alt_auto_pair("%foo", 1) is None
-    # Trailing whitespace is fine.
-    assert plan_alt_auto_pair("% foo", 1) == AltEdit(
-        start=1, end=1, text="{}", cursor=2
-    )
-
-
-def test_plan_alt_paired_delete_left_empty_pair() -> None:
-    assert plan_alt_paired_delete_left("%{}", 2) == AltEdit(
-        start=1, end=3, text="", cursor=1
-    )
-
-
-def test_plan_alt_paired_delete_left_rejects_nonempty_or_nondirective() -> None:
-    # Brace pair is not empty.
-    assert plan_alt_paired_delete_left("%{x}", 2) is None
-    # ``{`` is not a directive opening.
-    assert plan_alt_paired_delete_left("a{}", 2) is None
-
-
-def test_plan_alt_paired_delete_right_empty_pair() -> None:
-    assert plan_alt_paired_delete_right("%{}", 1) == AltEdit(
-        start=1, end=3, text="", cursor=1
-    )
-
-
-def test_plan_alt_paired_delete_right_rejects_nonempty_or_nondirective() -> None:
-    assert plan_alt_paired_delete_right("%{x}", 1) is None
-    assert plan_alt_paired_delete_right("a{}", 1) is None
-
-
 def test_find_enclosing_alt_span() -> None:
     text = "%{foo}"
     assert _find_enclosing_alt_span(text, 2) == (2, 5)
@@ -107,7 +57,7 @@ def test_find_enclosing_alt_span_ignores_non_directive_brace() -> None:
 
 def test_plan_alt_separator_simple_branch() -> None:
     # ``%{foo}`` with the cursor before ``}``.
-    assert plan_alt_separator("%{foo}", 5) == AltEdit(
+    assert plan_alt_separator("%{foo}", 5) == TextEdit(
         start=2, end=5, text="foo | ", cursor=8
     )
 
@@ -115,7 +65,7 @@ def test_plan_alt_separator_simple_branch() -> None:
 def test_plan_alt_separator_acceptance_example() -> None:
     text = "%{foo ,bar, and baz}"
     # Cursor before the closing ``}``.
-    assert plan_alt_separator(text, 19) == AltEdit(
+    assert plan_alt_separator(text, 19) == TextEdit(
         start=2, end=19, text="foo, bar, and baz | ", cursor=22
     )
 
@@ -147,15 +97,17 @@ async def test_alt_auto_pair_inserts_braces() -> None:
         assert ta.cursor_location == (0, 2)
 
 
-async def test_alt_auto_pair_only_after_directive_percent() -> None:
+async def test_alt_auto_pair_works_without_directive_percent() -> None:
     app = AltEditTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("word")
         ta.cursor_location = (0, 4)
         await pilot.press("{")
-        # No directive ``%`` precedes the brace, so no pair is inserted.
-        assert ta.text == "word{"
+        # Generic brace pairing now applies at a safe position regardless of any
+        # preceding directive ``%``.
+        assert ta.text == "word{}"
+        assert ta.cursor_location == (0, 5)
 
 
 async def test_alt_paired_backspace_removes_both_braces() -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 08:37:46
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_autopairs.md
 ---
 # Prompt Autopairs Plan

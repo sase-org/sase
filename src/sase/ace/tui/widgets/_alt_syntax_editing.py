@@ -1,38 +1,27 @@
 """Pure helpers for ``%{...}`` alt-shorthand editing in the prompt input.
 
 These functions plan in-memory text edits for the ``%{ ... | ... }`` alt
-shorthand so the Textual ``PromptTextArea`` can auto-pair braces, paired-delete
-an empty ``%{}``, and normalize ``|`` separators while keeping all logic off the
-event loop (no I/O, bounded string scanning only).
+shorthand so the Textual ``PromptTextArea`` can normalize ``|`` separators while
+keeping all logic off the event loop (no I/O, bounded string scanning only).
+Auto-pairing and paired deletion of the ``%{}`` braces are handled by the
+generic helpers in :mod:`sase.ace.tui.widgets._paired_text_editing`; only the
+alternation-specific ``|`` separator logic lives here.
 
 Every planner takes the *current* document ``text`` plus an absolute cursor
-``offset`` and returns an :class:`AltEdit` describing the replacement to apply,
+``offset`` and returns a :class:`TextEdit` describing the replacement to apply,
 or ``None`` when the edit does not apply. Callers translate the offsets back to
 ``(row, col)`` document locations before mutating the widget.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from sase.ace.tui.widgets._paired_text_editing import TextEdit
 
 # A ``%`` may open a ``%{`` directive at the start of the document or directly
 # after whitespace or one of these opening characters -- mirrors the
 # directive-valid contexts used by ``_ALT_DIRECTIVE_RE`` and the directive
 # completion engine.
 _DIRECTIVE_OPENING_CONTEXTS = frozenset("([{\"'")
-
-
-@dataclass(frozen=True, slots=True)
-class AltEdit:
-    """A planned text edit: replace ``[start, end)`` with ``text``.
-
-    ``cursor`` is the absolute offset the cursor should occupy after the edit.
-    """
-
-    start: int
-    end: int
-    text: str
-    cursor: int
 
 
 def _is_directive_valid_brace_opening(text: str, percent_index: int) -> bool:
@@ -47,53 +36,7 @@ def _is_directive_valid_brace_opening(text: str, percent_index: int) -> bool:
     return previous.isspace() or previous in _DIRECTIVE_OPENING_CONTEXTS
 
 
-def plan_alt_auto_pair(text: str, offset: int) -> AltEdit | None:
-    """Plan inserting ``{}`` when ``{`` is typed right after a directive ``%``.
-
-    The cursor must sit directly after a directive-valid ``%`` and the next
-    character (if any) must be whitespace, so the auto-inserted ``}`` does not
-    run into following text. The planned cursor lands between the braces.
-    """
-    if offset <= 0 or offset > len(text):
-        return None
-    if not _is_directive_valid_brace_opening(text, offset - 1):
-        return None
-    if offset < len(text) and not text[offset].isspace():
-        return None
-    return AltEdit(start=offset, end=offset, text="{}", cursor=offset + 1)
-
-
-def plan_alt_paired_delete_left(text: str, offset: int) -> AltEdit | None:
-    """Plan deleting both braces when backspacing the ``{`` of an empty ``%{}``.
-
-    Applies only when the character left of the cursor is the ``{`` of a
-    directive ``%{`` and the character at the cursor is its paired ``}``.
-    """
-    if offset <= 1 or offset >= len(text):
-        return None
-    if text[offset - 1] != "{" or text[offset] != "}":
-        return None
-    if not _is_directive_valid_brace_opening(text, offset - 2):
-        return None
-    return AltEdit(start=offset - 1, end=offset + 1, text="", cursor=offset - 1)
-
-
-def plan_alt_paired_delete_right(text: str, offset: int) -> AltEdit | None:
-    """Plan deleting both braces when delete-right removes the ``{`` of ``%{}``.
-
-    Applies only when the character at the cursor is the ``{`` of a directive
-    ``%{`` and is immediately followed by its paired ``}``.
-    """
-    if offset < 1 or offset + 1 >= len(text):
-        return None
-    if text[offset] != "{" or text[offset + 1] != "}":
-        return None
-    if not _is_directive_valid_brace_opening(text, offset - 1):
-        return None
-    return AltEdit(start=offset, end=offset + 2, text="", cursor=offset)
-
-
-def plan_alt_separator(text: str, offset: int) -> AltEdit | None:
+def plan_alt_separator(text: str, offset: int) -> TextEdit | None:
     """Plan a normalized ``|`` separator insertion inside a live ``%{...}``.
 
     Returns ``None`` when the cursor is not inside an active ``%{...}`` span.
@@ -109,7 +52,7 @@ def plan_alt_separator(text: str, offset: int) -> AltEdit | None:
     branch_start = _current_branch_start(text, content_start, offset)
     before = text[branch_start:offset]
     replacement = _normalize_branch_text(before) + " | "
-    return AltEdit(
+    return TextEdit(
         start=branch_start,
         end=offset,
         text=replacement,

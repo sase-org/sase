@@ -6,10 +6,11 @@ from typing import TYPE_CHECKING, Any, cast
 
 from textual.events import Key
 
-from sase.ace.tui.widgets._alt_syntax_editing import (
-    AltEdit,
-    plan_alt_auto_pair,
-    plan_alt_separator,
+from sase.ace.tui.widgets._alt_syntax_editing import plan_alt_separator
+from sase.ace.tui.widgets._paired_text_editing import (
+    TextEdit,
+    plan_pair_close_skip,
+    plan_pair_insert,
 )
 from sase.ace.tui.widgets._prompt_text_area_actions import prompt_bar_class
 from sase.ace.tui.widgets._vcs_mru_cycling import VcsMruCycleKey
@@ -302,12 +303,12 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self._try_advance_tabstop()
             return
 
-        if self._try_alt_syntax_edit(event):
+        if self._try_jinja_auto_pair(event):
             event.stop()
             event.prevent_default()
             return
 
-        if self._try_jinja_auto_pair(event):
+        if self._try_prompt_text_pair_edit(event):
             event.stop()
             event.prevent_default()
             return
@@ -385,7 +386,14 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         return True
 
     def _try_jinja_auto_pair(self, event: Key) -> bool:
-        """Auto-pair Jinja delimiters after the second opener character."""
+        """Auto-pair Jinja delimiters after the second opener character.
+
+        Generic ``{`` pairing already turned the first brace into ``{|}``, so
+        the common path consumes that auto-inserted ``}`` and rebuilds it as the
+        full Jinja pair. A literal first ``{`` followed by whitespace/EOF (a
+        manually-authored buffer or undo/redo state) is still handled so the
+        behavior matches whatever brace context the user is sitting in.
+        """
         if event.character not in ("{", "%", "#"):
             return False
         start, end = self.selection
@@ -397,9 +405,23 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         line = self.document.get_line(row)
         if line[col - 1] != "{":
             return False
+
+        # ``{|}``: generic pairing inserted the closing brace; consume it and
+        # rebuild the whole delimiter so the final cursor sits mid-pair.
+        if col < len(line) and line[col] == "}":
+            bodies = {"{": "{{  }}", "%": "{%  %}", "#": "{#  #}"}
+            body = bodies[event.character]
+            self._replace_via_keyboard(body, (row, col - 1), (row, col + 1))
+            self.cursor_location = (row, col - 1 + 3)
+            self._clear_soft_completion(cancel_timer=True)
+            self._clear_file_completion()
+            self._clear_xprompt_arg_hint()
+            self._on_prompt_completion_context_changed()
+            return True
+
+        # Literal first ``{`` with nothing (or whitespace) following it.
         if col < len(line) and not line[col].isspace():
             return False
-
         pairs = {
             "{": ("{  }}", 2),
             "%": ("%  %}", 2),
@@ -414,33 +436,38 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         self._on_prompt_completion_context_changed()
         return True
 
-    def _try_alt_syntax_edit(self, event: Key) -> bool:
-        """Auto-pair ``%{}`` and normalize ``|`` separators inside ``%{...}``.
+    def _try_prompt_text_pair_edit(self, event: Key) -> bool:
+        """Auto-pair brackets/quotes and normalize ``|`` separators.
 
-        ``{`` typed right after a directive ``%`` inserts the matching ``}``;
-        ``|`` typed inside a live ``%{...}`` span inserts a padded separator and
-        normalizes the current branch's comma spacing. Returns False (letting
-        the default insertion path run) for every other key, when there is an
-        active selection, or when the cursor is not in an applicable position.
+        Dispatch order for the typed character: ``|`` runs alternation separator
+        normalization inside a live ``%{...}`` span; a closer that already sits
+        under the cursor moves over instead of duplicating (close-skip); an
+        opener inserts its matching closer at a safe position. Returns False
+        (letting the default insertion path run) for every other key, when there
+        is an active selection, or when the cursor is not in an applicable
+        position.
         """
-        if event.character not in ("{", "|"):
+        char = event.character
+        if not char or len(char) != 1:
             return False
         start, end = self.selection
         if start != end:
             return False
         text = self.text
         offset = self._absolute_offset(self.cursor_location)
-        if event.character == "{":
-            plan = plan_alt_auto_pair(text, offset)
-        else:
+        if char == "|":
             plan = plan_alt_separator(text, offset)
+        else:
+            plan = plan_pair_close_skip(text, offset, char) or plan_pair_insert(
+                text, offset, char
+            )
         if plan is None:
             return False
-        self._apply_alt_edit(plan)
+        self._apply_planned_text_edit(plan)
         return True
 
-    def _apply_alt_edit(self, plan: AltEdit) -> None:
-        """Apply an :class:`AltEdit` and clear transient completion state."""
+    def _apply_planned_text_edit(self, plan: TextEdit) -> None:
+        """Apply a :class:`TextEdit` and clear transient completion state."""
         self._replace_via_keyboard(
             plan.text,
             self._location_from_absolute(plan.start),

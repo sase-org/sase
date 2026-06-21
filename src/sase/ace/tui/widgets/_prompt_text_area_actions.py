@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Any
 
 from textual.screen import ModalScreen
 
-from sase.ace.tui.widgets._alt_syntax_editing import (
-    plan_alt_paired_delete_left,
-    plan_alt_paired_delete_right,
+from sase.ace.tui.widgets._paired_text_editing import (
+    plan_pair_delete_left,
+    plan_pair_delete_right,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
@@ -188,26 +188,27 @@ class PromptTextAreaActionsMixin(_MixinBase):
         self._refresh_xprompt_arg_hint_from_cursor()
 
     def action_delete_left(self) -> None:
-        """Delete left, paired-deleting an empty ``%{}``, then refresh menus."""
-        if self._try_alt_paired_delete(forward=False):
+        """Delete left, paired-deleting an empty auto-pair, then refresh menus."""
+        if self._try_paired_delete(forward=False):
             return
         super().action_delete_left()
         self._refresh_completion_after_text_delete()
 
     def action_delete_right(self) -> None:
-        """Delete right, paired-deleting an empty ``%{}``, then refresh menus."""
-        if self._try_alt_paired_delete(forward=True):
+        """Delete right, paired-deleting an empty auto-pair, then refresh menus."""
+        if self._try_paired_delete(forward=True):
             return
         super().action_delete_right()
         self._refresh_completion_after_text_delete()
 
-    def _try_alt_paired_delete(self, *, forward: bool) -> bool:
-        """Delete both braces of an empty ``%{}`` when its ``{`` is removed.
+    def _try_paired_delete(self, *, forward: bool) -> bool:
+        """Delete both sides of an empty auto-pair when its opener is removed.
 
-        Mirrors auto-pair bracket deletion: backspacing the ``{`` in ``%{|}`` or
-        forward-deleting it in ``%|{}`` removes the paired ``}`` too. Returns
-        False (so the default single-character delete runs) when there is a
-        selection or the cursor is not adjacent to an empty directive pair.
+        Backspacing the opener of ``(|)``, ``[|]``, ``{|}``, ``'|'`` (and the
+        other supported quote/bracket pairs) or forward-deleting it in ``|()``
+        removes the matching closer too. Returns False (so the default
+        single-character delete runs) when there is a selection or the cursor is
+        not adjacent to an empty pair.
         """
         start, end = self.selection
         if start != end:
@@ -215,9 +216,9 @@ class PromptTextAreaActionsMixin(_MixinBase):
         text = self.text
         offset = self._absolute_offset(self.cursor_location)
         plan = (
-            plan_alt_paired_delete_right(text, offset)
+            plan_pair_delete_right(text, offset)
             if forward
-            else plan_alt_paired_delete_left(text, offset)
+            else plan_pair_delete_left(text, offset)
         )
         if plan is None:
             return False
