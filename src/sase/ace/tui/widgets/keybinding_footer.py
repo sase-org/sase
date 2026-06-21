@@ -33,12 +33,21 @@ from ._keybinding_bindings import KeybindingBindingsMixin
 from ._keybinding_layout import _MODE_BADGE_STYLE, KeybindingLayoutMixin
 from ._keybinding_modes import KeybindingModesMixin
 from ._keybinding_status import (
-    _STARTUP_STOPWATCH_SLOW_THRESHOLD_SECS,
     _STARTUP_STOPWATCH_TIMEOUT_SECS,
+    _STOPWATCH_BG_FLASH_OFF,
+    _STOPWATCH_BG_FLASH_ON,
     _STOPWATCH_BG_NORMAL,
-    _STOPWATCH_BG_SLOW,
-    _STOPWATCH_FG,
+    _STOPWATCH_BG_ORANGE,
+    _STOPWATCH_BG_RED,
+    _STOPWATCH_BG_YELLOW,
+    _STOPWATCH_FG_DARK,
+    _STOPWATCH_FG_LIGHT,
+    _STOPWATCH_FLASH_PERIOD_TICKS,
     _STOPWATCH_GLYPH_FRAMES,
+    _STOPWATCH_TIER_FLASH_SECS,
+    _STOPWATCH_TIER_ORANGE_SECS,
+    _STOPWATCH_TIER_RED_SECS,
+    _STOPWATCH_TIER_YELLOW_SECS,
     KeybindingStatusMixin,
 )
 

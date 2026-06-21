@@ -13,11 +13,35 @@ if TYPE_CHECKING:
 
 
 _STARTUP_STOPWATCH_TIMEOUT_SECS = 30.0
-_STARTUP_STOPWATCH_SLOW_THRESHOLD_SECS = 10.0
 _STOPWATCH_GLYPH_FRAMES = ("◴", "◷", "◶", "◵")
+_STOPWATCH_TIER_YELLOW_SECS = 3.0
+_STOPWATCH_TIER_ORANGE_SECS = 5.0
+_STOPWATCH_TIER_RED_SECS = 8.0
+_STOPWATCH_TIER_FLASH_SECS = 13.0
+_STOPWATCH_FLASH_PERIOD_TICKS = 5
 _STOPWATCH_BG_NORMAL = "rgb(155,89,182)"
-_STOPWATCH_BG_SLOW = "rgb(214,51,132)"
-_STOPWATCH_FG = "bold white"
+_STOPWATCH_BG_YELLOW = "rgb(250,204,21)"
+_STOPWATCH_BG_ORANGE = "rgb(249,115,22)"
+_STOPWATCH_BG_RED = "rgb(220,38,38)"
+_STOPWATCH_BG_FLASH_ON = "rgb(255,40,40)"
+_STOPWATCH_BG_FLASH_OFF = "rgb(120,0,0)"
+_STOPWATCH_FG_LIGHT = "white"
+_STOPWATCH_FG_DARK = "black"
+
+
+def _stopwatch_palette(elapsed: float, frame: int) -> tuple[str, str, bool]:
+    """Return ``(background, foreground, emphasized)`` for a startup badge."""
+    if elapsed >= _STOPWATCH_TIER_FLASH_SECS:
+        flash_on = (frame // _STOPWATCH_FLASH_PERIOD_TICKS) % 2 == 0
+        bg = _STOPWATCH_BG_FLASH_ON if flash_on else _STOPWATCH_BG_FLASH_OFF
+        return bg, _STOPWATCH_FG_LIGHT, True
+    if elapsed >= _STOPWATCH_TIER_RED_SECS:
+        return _STOPWATCH_BG_RED, _STOPWATCH_FG_LIGHT, False
+    if elapsed >= _STOPWATCH_TIER_ORANGE_SECS:
+        return _STOPWATCH_BG_ORANGE, _STOPWATCH_FG_DARK, False
+    if elapsed >= _STOPWATCH_TIER_YELLOW_SECS:
+        return _STOPWATCH_BG_YELLOW, _STOPWATCH_FG_DARK, False
+    return _STOPWATCH_BG_NORMAL, _STOPWATCH_FG_LIGHT, False
 
 
 class KeybindingStatusMixin:
@@ -114,10 +138,12 @@ class KeybindingStatusMixin:
     def _status_signature(self) -> tuple[Any, ...]:
         """Compact signature of every input that drives status rendering."""
         if self._startup_stopwatch_active:
+            bg, _, _ = _stopwatch_palette(self._startup_elapsed, self._stopwatch_frame)
             return (
                 "startup",
                 round(self._startup_elapsed, 1),
                 self._stopwatch_frame % len(_STOPWATCH_GLYPH_FRAMES),
+                bg,
             )
         return (
             "axe",
@@ -148,18 +174,18 @@ class KeybindingStatusMixin:
         """
         text = Text()
         if self._startup_stopwatch_active:
-            if self._startup_elapsed >= _STARTUP_STOPWATCH_SLOW_THRESHOLD_SECS:
-                bg = _STOPWATCH_BG_SLOW
-            else:
-                bg = _STOPWATCH_BG_NORMAL
+            bg, fg, emphasized = _stopwatch_palette(
+                self._startup_elapsed, self._stopwatch_frame
+            )
             glyph = _STOPWATCH_GLYPH_FRAMES[
                 self._stopwatch_frame % len(_STOPWATCH_GLYPH_FRAMES)
             ]
-            text.append(f"  {glyph} ", style=f"{_STOPWATCH_FG} on {bg}")
-            text.append("starting ", style=f"white on {bg}")
+            label_weight = "bold " if emphasized else ""
+            text.append(f"  {glyph} ", style=f"bold {fg} on {bg}")
+            text.append("starting ", style=f"{label_weight}{fg} on {bg}")
             text.append(
                 f"{self._startup_elapsed:.1f}s  ",
-                style=f"{_STOPWATCH_FG} on {bg}",
+                style=f"bold {fg} on {bg}",
             )
         elif self._axe_restarting:
             text.append(" RESTARTING ", style="bold black on rgb(0,191,255)")
