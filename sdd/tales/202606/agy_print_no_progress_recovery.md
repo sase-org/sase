@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 11:53:02
-status: wip
+status: done
 prompt: sdd/prompts/202606/agy_print_no_progress_recovery.md
 ---
 # Plan: Fix the Antigravity (`agy`) "planning-only / waiting-for-approval" false-success

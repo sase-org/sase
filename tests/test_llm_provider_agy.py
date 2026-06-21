@@ -10,7 +10,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.llm_provider.agy import AgyProvider, _AGY_PRINT_PROMPT_ARGV_BYTE_LIMIT
+from sase.llm_provider._subprocess_agy import (
+    _snapshot_agy_conversations,
+    analyze_agy_turn_progress,
+)
+from sase.llm_provider.agy import (
+    AgyProvider,
+    _AGY_PRINT_PROMPT_ARGV_BYTE_LIMIT,
+    _looks_like_no_progress,
+    _wrap_agy_print_prompt,
+)
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.registry import resolve_model_provider
 from sase.llm_provider.types import LLMInvocationError
@@ -67,10 +76,16 @@ def test_agy_provider_command_construction(
     assert "--model" in cmd
     assert cmd[cmd.index("--model") + 1] == "Gemini 3.5 Flash (High)"
     assert "--dangerously-skip-permissions" in cmd
+    assert "--add-dir" in cmd
+    assert cmd[cmd.index("--add-dir") + 1] == str(Path.cwd().resolve())
     # The prompt is the value of --print and must be the final pair.
     assert cmd[-2] == "--print"
-    assert cmd[-1] == "test prompt"
+    assert "SASE Antigravity print-mode instructions" in cmd[-1]
+    assert "Run commands synchronously" in cmd[-1]
+    assert "never ask the user to approve" in cmd[-1]
+    assert "--- User Prompt ---\ntest prompt" in cmd[-1]
     assert mock_popen.call_args.kwargs["text"] is True
+    assert mock_popen.call_args.kwargs["cwd"] == str(Path.cwd().resolve())
     assert "stdin" not in mock_popen.call_args.kwargs
 
 
@@ -114,6 +129,31 @@ def test_agy_provider_uses_sase_agy_path(
     provider.invoke("test", model_tier="large", suppress_output=True)
 
     assert mock_popen.call_args.args[0][0] == "/opt/antigravity/bin/agy"
+
+
+@patch("sase.llm_provider.agy.stream_process_output")
+@patch("sase.llm_provider.agy.subprocess.Popen")
+@patch("sase.llm_provider.agy.provider_timer")
+def test_agy_provider_pins_workspace_cwd_and_add_dir(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.delenv("CODEX_PROJECT_DIR", raising=False)
+    monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(workspace))
+    mock_popen.return_value = MagicMock()
+    mock_stream.return_value = ("response", "", 0)
+
+    AgyProvider().invoke("test", model_tier="large", suppress_output=True)
+
+    expected = str(workspace.resolve())
+    cmd = mock_popen.call_args.args[0]
+    assert cmd[cmd.index("--add-dir") + 1] == expected
+    assert mock_popen.call_args.kwargs["cwd"] == expected
 
 
 @patch.dict(os.environ, {"SASE_AGY_PRINT_TIMEOUT": "45m"})
@@ -216,6 +256,21 @@ def test_agy_provider_rejects_oversized_print_prompt_before_spawn(
     assert "Antigravity CLI" in message
 
 
+@patch("sase.llm_provider.agy.subprocess.Popen")
+def test_agy_provider_rejects_prompt_when_wrapped_prompt_is_oversized(
+    mock_popen: MagicMock,
+) -> None:
+    provider = AgyProvider()
+    wrapper_bytes = len(_wrap_agy_print_prompt("").encode("utf-8"))
+    prompt = "x" * (_AGY_PRINT_PROMPT_ARGV_BYTE_LIMIT - wrapper_bytes + 1)
+
+    with pytest.raises(LLMInvocationError) as exc_info:
+        provider.invoke(prompt, model_tier="large", suppress_output=True)
+
+    mock_popen.assert_not_called()
+    assert "argv transport" in str(exc_info.value)
+
+
 @patch("sase.llm_provider.agy.stream_process_output")
 @patch("sase.llm_provider.agy.subprocess.Popen")
 @patch("sase.llm_provider.agy.provider_timer")
@@ -272,6 +327,140 @@ def test_agy_provider_interrupt_resume_prompt_construction(
     assert result.usage is None
 
 
+def test_agy_no_progress_text_detection_positive_fixtures() -> None:
+    agy_022_stub = textwrap.dedent(
+        """\
+        I will inspect the first plan file.
+        I will inspect the second plan file.
+        I will compare the implementation risks.
+        I will pause to wait for the command output to complete.
+        """
+    )
+    agy_03b_stub = textwrap.dedent(
+        """\
+        I will list chats matching `038.cdx`.
+        I will open the matching transcript.
+        I will stop calling tools for a moment and wait for the background
+        search command to finish and notify me with its output.
+        """
+    )
+
+    assert _looks_like_no_progress(agy_022_stub) is True
+    assert _looks_like_no_progress(agy_03b_stub) is True
+    assert _looks_like_no_progress("  \n\t") is True
+
+
+def test_agy_no_progress_text_detection_negative_fixtures() -> None:
+    completed_recommendation = textwrap.dedent(
+        """\
+        Recommendation: choose `036.cdx`.
+
+        It covers the provider-local recovery loop, documents the print-mode
+        background-task hazard, and keeps the runner/finalizer unchanged.
+        """
+    )
+    completed_implementation = textwrap.dedent(
+        """\
+        Implemented the provider-local guard in `agy.py`.
+
+        Tests: passed for the focused provider suite. The final behavior now
+        returns a direct answer instead of a waiting stub.
+        """
+    )
+
+    assert _looks_like_no_progress(completed_recommendation) is False
+    assert _looks_like_no_progress(completed_implementation) is False
+
+
+@patch("sase.llm_provider.agy.stream_process_output")
+@patch("sase.llm_provider.agy.subprocess.Popen")
+@patch("sase.llm_provider.agy.provider_timer")
+def test_agy_provider_continues_once_after_planning_only_reply(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+) -> None:
+    mock_popen.return_value = MagicMock()
+    calls = {"n": 0}
+
+    def _stream_side_effect(
+        process: object, suppress_output: bool = False, clean_ansi: bool = False
+    ) -> tuple[str, str, int]:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return (
+                "I will inspect the plans.\n"
+                "I will pause to wait for the command output to complete.\n",
+                "",
+                0,
+            )
+        return ("Recommendation: use plan B.", "", 0)
+
+    mock_stream.side_effect = _stream_side_effect
+
+    result = AgyProvider().invoke(
+        "review two plans", model_tier="large", suppress_output=True
+    )
+
+    assert calls["n"] == 2
+    second_prompt = mock_popen.call_args_list[1].args[0][-1]
+    assert "review two plans" in second_prompt
+    assert "--- Work So Far ---" in second_prompt
+    assert "I will inspect the plans." in second_prompt
+    assert "--- Required Continuation ---" in second_prompt
+    assert "Run your tools synchronously now" in second_prompt
+    assert result.content == "Recommendation: use plan B."
+
+
+@patch("sase.llm_provider.agy.stream_process_output")
+@patch("sase.llm_provider.agy.subprocess.Popen")
+@patch("sase.llm_provider.agy.provider_timer")
+def test_agy_provider_clean_answer_does_not_continue(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+) -> None:
+    mock_popen.return_value = MagicMock()
+    mock_stream.return_value = ("Recommendation: use plan A.", "", 0)
+
+    result = AgyProvider().invoke(
+        "review two plans", model_tier="large", suppress_output=True
+    )
+
+    assert mock_stream.call_count == 1
+    assert mock_popen.call_count == 1
+    assert result.content == "Recommendation: use plan A."
+
+
+@patch.dict(os.environ, {"SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS": "1"})
+@patch("sase.llm_provider.agy.stream_process_output")
+@patch("sase.llm_provider.agy.subprocess.Popen")
+@patch("sase.llm_provider.agy.provider_timer")
+def test_agy_provider_no_progress_cap_exhaustion_raises(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+) -> None:
+    mock_popen.return_value = MagicMock()
+    mock_stream.return_value = (
+        "I will inspect the plans.\n"
+        "I will wait for the background command to notify me.\n",
+        "",
+        0,
+    )
+
+    with pytest.raises(LLMInvocationError) as exc_info:
+        AgyProvider().invoke(
+            "review two plans", model_tier="large", suppress_output=True
+        )
+
+    assert mock_stream.call_count == 2
+    assert mock_popen.call_count == 2
+    message = str(exc_info.value)
+    assert "no-progress print-mode reply" in message
+    assert "planning_only_text" in message
+
+
 def test_agy_model_resolution_preserves_nested_provider_model() -> None:
     # Explicit provider/model syntax keeps the full model name (with spaces)
     # after the first slash.
@@ -307,7 +496,13 @@ def test_agy_provider_invokes_fake_cli_and_writes_artifacts(
             if argv[-2] != "--print":
                 sys.stderr.write(f"prompt not behind --print: {argv!r}\\n")
                 sys.exit(64)
-            if argv[-1] != "fake agy prompt":
+            if "SASE Antigravity print-mode instructions" not in argv[-1]:
+                sys.stderr.write("missing print-mode directive\\n")
+                sys.exit(64)
+            if "Run commands synchronously" not in argv[-1]:
+                sys.stderr.write("missing sync-command directive\\n")
+                sys.exit(64)
+            if "--- User Prompt ---\\nfake agy prompt" not in argv[-1]:
                 sys.stderr.write(f"unexpected prompt argv: {argv[-1]!r}\\n")
                 sys.exit(64)
 
@@ -335,13 +530,12 @@ def test_agy_provider_writes_live_reply_but_no_structured_artifacts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Phase 5 parity gate: plain stdout is the supported MVP artifact path.
+    """Plain stdout must never be scraped into fake structured artifacts.
 
-    ``agy`` exposes no stable machine-readable contract, so the provider must
-    write ``live_reply.md`` like every other provider while emitting NO
-    structured artifacts. It must never fabricate ``tool_calls.jsonl``,
-    ``usage.json``, or thinking rows from human display text — doing so would
-    make the provider lie about tool calls and usage.
+    ``agy`` writes ``live_reply.md`` like every other provider, and the guarded
+    trajectory extractor may write tool rows for supported versions. Human
+    stdout display text must still never be fabricated into ``tool_calls.jsonl``,
+    ``usage.json``, or thinking rows.
     """
     fake_agy = tmp_path / "agy"
     # A reply whose prose looks tool-shaped (glyphs, "Running"/"tool" words)
@@ -450,6 +644,81 @@ def test_agy_provider_extracts_tool_calls_from_trajectory_db(
     assert records[1]["tool_response_summary"]["stdout_preview"] == "provider\n"
 
 
+def test_agy_trajectory_progress_detects_zero_tool_steps(tmp_path: Path) -> None:
+    conversations_dir = tmp_path / "conversations"
+    cache_dir = tmp_path / "cache"
+    conversations_dir.mkdir()
+    cache_dir.mkdir()
+    snapshot = _snapshot_agy_conversations(
+        conversations_dir=conversations_dir,
+        cache_dir=cache_dir,
+        cwd=str(tmp_path),
+    )
+
+    progress = analyze_agy_turn_progress(snapshot)
+
+    assert progress is not None
+    assert progress.no_progress is True
+    assert progress.reason == "trajectory_no_tool_steps"
+    assert progress.tool_use_count == 0
+
+
+def test_agy_trajectory_progress_detects_pending_run_command(
+    tmp_path: Path,
+) -> None:
+    conversations_dir = tmp_path / "conversations"
+    cache_dir = tmp_path / "cache"
+    conversations_dir.mkdir()
+    cache_dir.mkdir()
+    snapshot = _snapshot_agy_conversations(
+        conversations_dir=conversations_dir,
+        cache_dir=cache_dir,
+        cwd=str(tmp_path),
+    )
+    _write_agy_trajectory_db(
+        conversations_dir / "pending.db",
+        [
+            (1, 15, 3, _agy_payload("run_command", {"command": "sleep 30"})),
+            (2, 21, 1, _agy_payload({"stdout": "", "exit_code": None})),
+        ],
+    )
+
+    progress = analyze_agy_turn_progress(snapshot)
+
+    assert progress is not None
+    assert progress.no_progress is True
+    assert progress.reason == "trajectory_pending_run_command"
+    assert progress.tool_use_count == 1
+
+
+def test_agy_trajectory_progress_accepts_completed_tool_turn(
+    tmp_path: Path,
+) -> None:
+    conversations_dir = tmp_path / "conversations"
+    cache_dir = tmp_path / "cache"
+    conversations_dir.mkdir()
+    cache_dir.mkdir()
+    snapshot = _snapshot_agy_conversations(
+        conversations_dir=conversations_dir,
+        cache_dir=cache_dir,
+        cwd=str(tmp_path),
+    )
+    _write_agy_trajectory_db(
+        conversations_dir / "complete.db",
+        [
+            (1, 15, 3, _agy_payload("run_command", {"command": "echo ok"})),
+            (2, 21, 3, _agy_payload({"stdout": "ok\n", "exit_code": 0})),
+        ],
+    )
+
+    progress = analyze_agy_turn_progress(snapshot)
+
+    assert progress is not None
+    assert progress.no_progress is False
+    assert progress.reason == "trajectory_progress"
+    assert progress.tool_use_count == 1
+
+
 def test_agy_provider_trajectory_failure_is_best_effort(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -526,8 +795,11 @@ def test_agy_provider_fake_cli_no_shell_interpolation(
             import sys
 
             expected = open(os.environ["EXPECTED_PROMPT_FILE"], encoding="utf-8").read()
-            if sys.argv[-1] != expected:
+            if expected not in sys.argv[-1]:
                 sys.stderr.write(f"prompt was mangled: {sys.argv[-1]!r}\\n")
+                sys.exit(65)
+            if "SASE Antigravity print-mode instructions" not in sys.argv[-1]:
+                sys.stderr.write("prompt directive missing\\n")
                 sys.exit(65)
             print("no interpolation", flush=True)
             """

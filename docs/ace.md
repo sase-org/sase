@@ -1425,10 +1425,12 @@ start/completion events can show pending rows, result previews, failures, interr
 completed-only `function_call` rows remain readable with more limited detail. Qwen writes stream-derived rows from its
 `--output-format stream-json` output with `runtime: "qwen"` and `source: "stream"`; start/completion (and Qwen's
 `tool_use` / `tool_result`) pairs collapse into single rows the same way Codex pairs do. Antigravity (`agy`) runs in
-plain-stdout mode and exposes no machine-readable tool-call contract, so they contribute no tool rows and the panel
-simply shows nothing for `agy` runs. See [LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks),
-[LLM Providers — Codex tool-call capture](llms.md#codex-tool-call-capture), and
-[LLM Providers — Qwen tool-call capture](llms.md#qwen-tool-call-capture) for provider integration details.
+plain-stdout mode; SASE never scrapes display prose, but supported Antigravity versions may contribute guarded
+`source: "trajectory"` rows from the local trajectory DB. When that extractor is unavailable, the panel simply shows
+nothing for `agy` runs. See [LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks),
+[LLM Providers — Codex tool-call capture](llms.md#codex-tool-call-capture),
+[LLM Providers — Qwen tool-call capture](llms.md#qwen-tool-call-capture), and
+[LLM Providers — Antigravity (`agy`) Integration](llms.md#antigravity-agy-integration) for provider integration details.
 
 ## Plan Workflows
 

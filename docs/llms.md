@@ -251,17 +251,41 @@ streams plain stdout instead of parsing a structured event stream.
 ### Command Construction
 
 ```
-agy --print-timeout <duration> --model <model> --dangerously-skip-permissions --print <prompt>
+agy --print-timeout <duration> --model <model> --dangerously-skip-permissions --add-dir <workspace> --print <prompt>
 ```
 
 The prompt is passed as the value of `--print` (not on stdin) as a single argv element, so prompts containing quotes,
 newlines, or shell metacharacters are never shell-interpolated. `--print-timeout` defaults to `24h` (Antigravity's own
 `5m` default is too short for long agentic runs) and is a Go duration string.
 
+SASE pins Antigravity to the agent workspace in two ways: it launches the subprocess with `cwd=<workspace>` and passes
+`--add-dir <workspace>` to the CLI. The workspace is resolved from `SASE_ACTIVE_PROJECT_DIR`, then provider project and
+workspace env vars, and finally the current working directory.
+
 Because the current Antigravity CLI does not document a stable stdin or prompt-file contract for print mode, SASE cannot
 fall back to streaming the prompt when that single argv element becomes too large for the OS. `AgyProvider` therefore
 rejects prompts above a conservative 120 KiB UTF-8 guard before spawning `agy`, with an error that names the upstream
 argv transport limitation and asks the user to reduce the prompt or use a stdin-capable provider.
+
+Before invoking `agy --print`, SASE wraps the user prompt with a compact print-mode directive. It tells the model that
+tool approval has already been granted by `--dangerously-skip-permissions`, commands must run synchronously, background
+tasks should not be used because print mode has no event loop for later notifications, and the final answer must be
+written directly to stdout.
+
+### Print-Mode No-Progress Recovery
+
+Antigravity's `run_command` tool can dispatch long-running commands as background tasks. In an interactive Antigravity
+session, the UI can deliver the later completion notification and the model can continue. In `agy --print`, SASE starts
+a single non-interactive process and reads stdout; there is no follow-up event loop. Some models therefore end the print
+turn with prose such as "I will wait to be notified" or "please approve the command" even though the subprocess exits
+`0`.
+
+`AgyProvider` treats those replies as no-progress, not success. When the supported trajectory extractor is available,
+SASE first checks the structural diff: zero tool-use steps or a final pending/backgrounded `run_command` step triggers
+recovery. When trajectory data is unavailable, a conservative text heuristic catches planning-only/waiting replies. SASE
+then restarts `agy --print` with accumulated context and a provider-local continuation nudge that asks the model to run
+tools synchronously and output the final answer. If the reply still makes no progress after the bounded continuation
+budget, `invoke()` raises `LLMInvocationError` so the run fails loudly instead of writing a false-success answer.
 
 ### Model Mapping
 
@@ -278,12 +302,13 @@ aliases.
 
 ### Environment Variables
 
-| Variable                 | Description                                                        |
-| ------------------------ | ------------------------------------------------------------------ |
-| `SASE_AGY_PATH`          | Path to the Antigravity CLI binary (default: `"agy"`).             |
-| `SASE_AGY_PRINT_TIMEOUT` | Override the `agy --print-timeout` Go duration (default: `"24h"`). |
-| `SASE_AGY_LARGE_ARGS`    | Extra args for the `large` tier (after `SASE_LLM_LARGE_ARGS`).     |
-| `SASE_AGY_SMALL_ARGS`    | Extra args for the `small` tier (after `SASE_LLM_SMALL_ARGS`).     |
+| Variable                                 | Description                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| `SASE_AGY_PATH`                          | Path to the Antigravity CLI binary (default: `"agy"`).             |
+| `SASE_AGY_PRINT_TIMEOUT`                 | Override the `agy --print-timeout` Go duration (default: `"24h"`). |
+| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS` | Override the no-progress continuation cap (default: `2`).          |
+| `SASE_AGY_LARGE_ARGS`                    | Extra args for the `large` tier (after `SASE_LLM_LARGE_ARGS`).     |
+| `SASE_AGY_SMALL_ARGS`                    | Extra args for the `small` tier (after `SASE_LLM_SMALL_ARGS`).     |
 
 ### Skill Deployment
 
@@ -292,14 +317,14 @@ global skill path. The leading `.gemini` here is an Antigravity-owned path, not 
 
 ### Structured Artifacts Parity Gap
 
-Antigravity CLI 1.0.10 exposes no stable machine-readable contract: there is no documented
-`--output-format stream-json`, JSON event mode, or stable log/conversation schema. Because SASE will not scrape
-Antigravity's human TUI rendering to synthesize artifacts, the `agy` provider intentionally does **not** support the
-following until a stable upstream contract exists:
+Antigravity CLI 1.0.10 exposes no stable machine-readable stdout contract: there is no documented
+`--output-format stream-json` or JSON event mode. Because SASE will not scrape Antigravity's human TUI rendering to
+synthesize artifacts, the `agy` provider preserves these invariants:
 
-- **Tool-call timeline** — no `tool_calls.jsonl` rows are written, so the ACE
-  [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel) simply shows nothing for `agy` runs rather than inventing rows
-  from display glyphs or prose.
+- **Tool-call timeline** — SASE never invents rows from stdout display glyphs or prose. For explicitly supported
+  Antigravity versions, a guarded best-effort extractor may decode new rows from Antigravity's local trajectory DB and
+  append `source="trajectory"` records to `tool_calls.jsonl`; otherwise the ACE
+  [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel) shows nothing for `agy` runs.
 - **Usage accounting** — `InvokeResult.usage` is `None` and no `usage.json` is written; `agy` print mode exposes no
   stable token counters.
 - **Thinking extraction** — no thinking artifact is produced.

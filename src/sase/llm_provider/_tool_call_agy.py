@@ -120,6 +120,24 @@ def normalize_agy_trajectory_steps(
     return records
 
 
+def agy_trajectory_step_tool_name(step: AgyTrajectoryStep) -> str | None:
+    """Return the raw Antigravity tool name for a tool-use step."""
+    if step.step_type != _TOOL_USE_STEP_TYPE:
+        return None
+    tool_use = _decode_tool_use_step(step, conversation_id="progress")
+    return tool_use.raw_tool_name if tool_use else None
+
+
+def agy_trajectory_step_is_tool_result(step: AgyTrajectoryStep) -> bool:
+    """Return True when *step* is an Antigravity tool-result step."""
+    return step.step_type in _TOOL_RESULT_STEP_TYPES
+
+
+def agy_trajectory_status_is_pending(status: int | None) -> bool:
+    """Return True when an Antigravity status means pending/running."""
+    return status in _PENDING_STATUSES
+
+
 def _decode_tool_use_step(
     step: AgyTrajectoryStep,
     *,
@@ -630,5 +648,8 @@ def _dedupe_strings(strings: Sequence[str]) -> list[str]:
 
 __all__ = [
     "AgyTrajectoryStep",
+    "agy_trajectory_status_is_pending",
+    "agy_trajectory_step_is_tool_result",
+    "agy_trajectory_step_tool_name",
     "normalize_agy_trajectory_steps",
 ]

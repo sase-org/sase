@@ -12,7 +12,13 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from ._tool_call_agy import AgyTrajectoryStep, normalize_agy_trajectory_steps
+from ._tool_call_agy import (
+    AgyTrajectoryStep,
+    agy_trajectory_status_is_pending,
+    agy_trajectory_step_is_tool_result,
+    agy_trajectory_step_tool_name,
+    normalize_agy_trajectory_steps,
+)
 from ._tool_call_io import append_jsonl, append_tool_call_collector_diagnostic
 
 _SUPPORTED_AGY_TRAJECTORY_VERSIONS = frozenset({"1.0.10"})
@@ -35,6 +41,15 @@ class _AgyConversationSnapshot:
     cwd: str
     db_mtimes_ns: MappingPathMtimes
     db_max_indices: MappingPathMaxIndices
+
+
+@dataclass(frozen=True)
+class AgyTurnProgress:
+    """Structural progress signal decoded from an Antigravity trajectory diff."""
+
+    no_progress: bool
+    reason: str
+    tool_use_count: int
 
 
 MappingPathMtimes = dict[Path, int]
@@ -119,6 +134,83 @@ def append_agy_tool_call_events(
             raw_preview=str(exc),
         )
         return 0
+
+
+def analyze_agy_turn_progress(
+    snapshot: _AgyConversationSnapshot | None,
+) -> AgyTurnProgress | None:
+    """Return a structural no-progress signal for one ``agy --print`` turn.
+
+    The helper is best-effort like artifact extraction. When the private
+    trajectory data cannot be decoded confidently, callers should fall back to
+    text classification rather than fail the provider invocation.
+    """
+    if snapshot is None:
+        return None
+
+    try:
+        db_paths = _resolve_agy_conversation_dbs(snapshot)
+        if not db_paths:
+            return AgyTurnProgress(
+                no_progress=True,
+                reason="trajectory_no_tool_steps",
+                tool_use_count=0,
+            )
+
+        steps: list[AgyTrajectoryStep] = []
+        for db_path in db_paths:
+            steps.extend(
+                _read_agy_trajectory_steps(
+                    db_path,
+                    after_idx=snapshot.db_max_indices.get(db_path),
+                )
+            )
+        return _analyze_agy_trajectory_steps_progress(steps)
+    except Exception:
+        return None
+
+
+def _analyze_agy_trajectory_steps_progress(
+    steps: list[AgyTrajectoryStep],
+) -> AgyTurnProgress:
+    tool_use_count = 0
+    current_tool_name: str | None = None
+    last_tool_pending_run_command = False
+
+    for step in sorted(steps, key=lambda item: item.idx):
+        tool_name = agy_trajectory_step_tool_name(step)
+        if tool_name:
+            tool_use_count += 1
+            current_tool_name = tool_name
+            last_tool_pending_run_command = tool_name == "run_command"
+            continue
+
+        if current_tool_name is not None and agy_trajectory_step_is_tool_result(step):
+            last_tool_pending_run_command = (
+                current_tool_name == "run_command"
+                and agy_trajectory_status_is_pending(step.status)
+            )
+            current_tool_name = None
+
+    if tool_use_count == 0:
+        return AgyTurnProgress(
+            no_progress=True,
+            reason="trajectory_no_tool_steps",
+            tool_use_count=0,
+        )
+
+    if last_tool_pending_run_command:
+        return AgyTurnProgress(
+            no_progress=True,
+            reason="trajectory_pending_run_command",
+            tool_use_count=tool_use_count,
+        )
+
+    return AgyTurnProgress(
+        no_progress=False,
+        reason="trajectory_progress",
+        tool_use_count=tool_use_count,
+    )
 
 
 def _resolve_agy_conversation_dbs(snapshot: _AgyConversationSnapshot) -> list[Path]:
@@ -355,6 +447,8 @@ def _agy_version(agy_bin: str) -> str | None:
 
 
 __all__ = [
+    "AgyTurnProgress",
+    "analyze_agy_turn_progress",
     "append_agy_tool_call_events",
     "prepare_agy_tool_call_extraction",
 ]

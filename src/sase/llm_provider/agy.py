@@ -14,16 +14,20 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
 from sase.output import provider_timer
 
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_process_output
 from ._subprocess_agy import (
+    AgyTurnProgress,
+    analyze_agy_turn_progress,
     append_agy_tool_call_events,
     prepare_agy_tool_call_extraction,
 )
@@ -39,13 +43,58 @@ _TIER_TO_MODEL: dict[ModelTier, str] = {
 }
 _AGY_PATH_ENV = "SASE_AGY_PATH"
 _AGY_PRINT_TIMEOUT_ENV = "SASE_AGY_PRINT_TIMEOUT"
+_AGY_MAX_NO_PROGRESS_CONTINUATIONS_ENV = "SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS"
 # Antigravity's built-in `--print-timeout` default is 5m, which is far too
 # short for long agentic SASE runs. Default to a generous, overridable window;
 # the value is a Go duration string as accepted by `agy --print-timeout`.
 _DEFAULT_PRINT_TIMEOUT = "24h"
+_DEFAULT_MAX_NO_PROGRESS_CONTINUATIONS = 2
 # Linux rejects a single argv element above 128 KiB. Keep SASE's guard below
 # that so `agy --print <prompt>` fails with an actionable error before exec.
 _AGY_PRINT_PROMPT_ARGV_BYTE_LIMIT = 120 * 1024
+_AGY_WORKSPACE_ENV_VARS = (
+    "CODEX_PROJECT_DIR",
+    SASE_ACTIVE_PROJECT_DIR_ENV,
+    "CLAUDE_PROJECT_DIR",
+    "QWEN_PROJECT_DIR",
+    "GEMINI_PROJECT_DIR",
+    "OPENCODE_PROJECT_DIR",
+    "SASE_GIT_WORKSPACE_DIR",
+    "SASE_CD_WORKSPACE_DIR",
+)
+_AGY_PRINT_MODE_DIRECTIVE = """SASE Antigravity print-mode instructions:
+- You are running non-interactively with --dangerously-skip-permissions; never ask the user to approve commands or tool calls.
+- Run commands synchronously and wait for their output. Do not start background or async tasks; print mode has no follow-up event loop to receive notifications.
+- Do not end with only a plan, "I will", "waiting", "pausing", or "will be notified" message. Use your tools now and complete the task.
+- Put the final user-facing answer directly in stdout."""
+_NO_PROGRESS_CONTINUATION_NUDGE = (
+    "You described a plan or a wait state but did not carry the task through. "
+    "Do not restate the plan. Run your tools synchronously now to execute each "
+    "step, then output the final answer directly."
+)
+_NO_PROGRESS_INTENTION_LINE_RE = re.compile(
+    r"^\s*(?:[-*]\s*)?"
+    r"(?:next,\s*)?"
+    r"(?:i will|i'll|i am going to|i'm going to|let me|i need to|i plan to)\b",
+    re.IGNORECASE,
+)
+_NO_PROGRESS_FUTURE_RE = re.compile(
+    r"\b(?:i will|i'll|i am going to|i'm going to|let me|i need to|i plan to)\b",
+    re.IGNORECASE,
+)
+_NO_PROGRESS_WAIT_RE = re.compile(
+    r"\b(?:wait(?:ing)?|paus(?:e|ing)|please approve|approve the command|"
+    r"will be notified|notify me|background(?:ed)?|async task|"
+    r"command execution to complete|stop calling tools)\b",
+    re.IGNORECASE,
+)
+_NO_PROGRESS_COMPLETION_RE = re.compile(
+    r"\b(?:implemented|fixed|updated|created|wrote|verified|completed|done)\b"
+    r"|(?:^|\n)\s*(?:summary|recommendation|findings|result)s?:"
+    r"|\bi recommend\b"
+    r"|\btests?:\s*(?:pass|passed|not run)",
+    re.IGNORECASE,
+)
 
 
 def _agy_bin() -> str:
@@ -56,6 +105,26 @@ def _agy_bin() -> str:
 def _agy_print_timeout() -> str:
     """Return the `agy --print-timeout` duration (Go duration string)."""
     return os.environ.get(_AGY_PRINT_TIMEOUT_ENV, _DEFAULT_PRINT_TIMEOUT)
+
+
+def _agy_max_no_progress_continuations() -> int:
+    """Return the bounded no-progress continuation budget."""
+    raw_value = os.environ.get(_AGY_MAX_NO_PROGRESS_CONTINUATIONS_ENV)
+    if raw_value is None:
+        return _DEFAULT_MAX_NO_PROGRESS_CONTINUATIONS
+    try:
+        return max(0, int(raw_value))
+    except ValueError:
+        return _DEFAULT_MAX_NO_PROGRESS_CONTINUATIONS
+
+
+def _resolve_agy_workspace_dir() -> str:
+    """Resolve the workspace Antigravity should be pinned to."""
+    for env_name in _AGY_WORKSPACE_ENV_VARS:
+        value = os.environ.get(env_name)
+        if value:
+            return str(Path(value).expanduser().resolve(strict=False))
+    return str(Path.cwd().resolve())
 
 
 def _agy_executable_not_found_error(command: str) -> FileNotFoundError:
@@ -83,6 +152,75 @@ def _validate_print_prompt_argv_transport(prompt: str) -> None:
         "use a stdin-capable provider until upstream adds a non-argv prompt "
         "transport."
     )
+
+
+def _wrap_agy_print_prompt(prompt: str) -> str:
+    """Wrap the user prompt with Antigravity print-mode safety guidance."""
+    return f"{_AGY_PRINT_MODE_DIRECTIVE}\n\n--- User Prompt ---\n{prompt}"
+
+
+def _build_no_progress_continuation_prompt(
+    original_prompt: str,
+    work_so_far: str,
+) -> str:
+    """Build the accumulated-context restart prompt for no-progress recovery."""
+    previous = work_so_far.strip() or "(none)"
+    return (
+        f"{original_prompt}\n\n"
+        f"--- Work So Far ---\n{previous}\n\n"
+        f"--- Required Continuation ---\n{_NO_PROGRESS_CONTINUATION_NUDGE}"
+    )
+
+
+def _join_response_parts(left: str, right: str) -> str:
+    """Join non-empty response fragments using SASE's provider convention."""
+    return (left + "\n\n" + right.strip()).strip()
+
+
+def _classify_agy_no_progress(
+    content: str,
+    structural_progress: AgyTurnProgress | None,
+) -> tuple[bool, str]:
+    """Classify whether one ``agy --print`` turn should be accepted."""
+    if not content.strip():
+        return True, "empty_stdout"
+
+    if structural_progress is not None:
+        if structural_progress.no_progress:
+            return True, structural_progress.reason
+        return False, structural_progress.reason
+
+    if _looks_like_no_progress(content):
+        return True, "planning_only_text"
+    return False, "text_progress"
+
+
+def _looks_like_no_progress(content: str) -> bool:
+    """Conservative text fallback for planning-only/waiting ``agy`` replies."""
+    stripped = content.strip()
+    if not stripped:
+        return True
+
+    tail = stripped[-700:]
+    has_wait_signal = bool(_NO_PROGRESS_WAIT_RE.search(tail))
+    if _NO_PROGRESS_COMPLETION_RE.search(stripped) and not has_wait_signal:
+        return False
+
+    lines = [line for line in stripped.splitlines() if line.strip()]
+    if not lines:
+        return True
+
+    intention_lines = sum(
+        1 for line in lines if _NO_PROGRESS_INTENTION_LINE_RE.search(line)
+    )
+    future_mentions = len(_NO_PROGRESS_FUTURE_RE.findall(stripped))
+    word_count = len(re.findall(r"\w+", stripped))
+    dominated_by_intentions = (
+        future_mentions >= 2 or intention_lines / max(1, len(lines)) >= 0.5
+    )
+    low_substance = word_count < 70
+
+    return dominated_by_intentions and (has_wait_signal or low_substance)
 
 
 def _log_interrupt(message: str | None, cycle: int) -> None:
@@ -250,6 +388,7 @@ class AgyProvider(LLMProvider):
         """
         agy_bin = _agy_bin()
         model = model_override if model_override else _TIER_TO_MODEL[model_tier]
+        workspace_dir = _resolve_agy_workspace_dir()
 
         base_args = [
             agy_bin,
@@ -258,6 +397,8 @@ class AgyProvider(LLMProvider):
             "--model",
             model,
             "--dangerously-skip-permissions",
+            "--add-dir",
+            workspace_dir,
         ]
 
         if model_tier == "large":
@@ -280,22 +421,28 @@ class AgyProvider(LLMProvider):
         current_prompt = prompt
         accumulated_response = ""
         cycle = 0
-        tool_call_snapshot = prepare_agy_tool_call_extraction(agy_bin)
+        no_progress_continuations = 0
+        max_no_progress_continuations = _agy_max_no_progress_continuations()
 
         while True:
             # The prompt is the value of `--print`, so it must stay adjacent to
             # the flag and be rebuilt each interrupt cycle.
-            _validate_print_prompt_argv_transport(current_prompt)
-            command_args = [*base_args, "--print", current_prompt]
+            tool_call_snapshot = prepare_agy_tool_call_extraction(
+                agy_bin,
+                cwd=workspace_dir,
+            )
+            print_prompt = _wrap_agy_print_prompt(current_prompt)
+            _validate_print_prompt_argv_transport(print_prompt)
+            command_args = [*base_args, "--print", print_prompt]
             if timer_context:
                 with timer_context:
                     content, stderr_content, return_code = self._run_subprocess(
-                        command_args, suppress_output
+                        command_args, suppress_output, cwd=workspace_dir
                     )
                     print()
             else:
                 content, stderr_content, return_code = self._run_subprocess(
-                    command_args, suppress_output
+                    command_args, suppress_output, cwd=workspace_dir
                 )
 
             if self._pending_interrupt_message is not None:
@@ -303,9 +450,10 @@ class AgyProvider(LLMProvider):
                 self._pending_interrupt_message = None
                 cycle += 1
                 _log_interrupt(user_msg, cycle)
-                accumulated_response = (
-                    accumulated_response + "\n\n" + content.strip()
-                ).strip()
+                accumulated_response = _join_response_parts(
+                    accumulated_response,
+                    content,
+                )
                 # `agy --print` has no reliable print-mode session persistence,
                 # so reconstruct context like the Qwen/OpenCode providers.
                 current_prompt = (
@@ -324,16 +472,47 @@ class AgyProvider(LLMProvider):
                     stderr=stderr_content,
                 )
 
-            accumulated_response = (
-                accumulated_response + "\n\n" + content.strip()
-            ).strip()
+            structural_progress = analyze_agy_turn_progress(tool_call_snapshot)
             append_agy_tool_call_events(tool_call_snapshot)
+            is_no_progress, no_progress_reason = _classify_agy_no_progress(
+                content,
+                structural_progress,
+            )
+            if is_no_progress:
+                no_progress_context = _join_response_parts(
+                    accumulated_response,
+                    content,
+                )
+                if no_progress_continuations >= max_no_progress_continuations:
+                    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+                    artifact_hint = (
+                        f" Artifacts: {artifacts_dir}." if artifacts_dir else ""
+                    )
+                    raise LLMInvocationError(
+                        "Antigravity (`agy`) produced a no-progress print-mode "
+                        "reply after "
+                        f"{no_progress_continuations} continuation(s); refusing "
+                        "to report it as success. Last reason: "
+                        f"{no_progress_reason}. This usually means the model is "
+                        "waiting on a background task that `agy --print` cannot "
+                        f"resume.{artifact_hint}"
+                    )
+                no_progress_continuations += 1
+                current_prompt = _build_no_progress_continuation_prompt(
+                    prompt,
+                    no_progress_context,
+                )
+                continue
+
+            accumulated_response = _join_response_parts(accumulated_response, content)
             return InvokeResult(content=accumulated_response, usage=None)
 
     def _run_subprocess(
         self,
         args: list[str],
         suppress_output: bool,
+        *,
+        cwd: str,
     ) -> tuple[str, str, int]:
         """Run the Antigravity CLI subprocess in plain-stdout streaming mode."""
         env = os.environ.copy()
@@ -347,6 +526,7 @@ class AgyProvider(LLMProvider):
                 stderr=subprocess.PIPE,
                 text=True,
                 env=env,
+                cwd=cwd,
             )
         except FileNotFoundError as exc:
             raise _agy_executable_not_found_error(args[0]) from exc

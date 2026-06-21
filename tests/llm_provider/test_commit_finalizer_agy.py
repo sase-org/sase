@@ -60,6 +60,7 @@ def _create_clean_repo(repo: Path) -> None:
 def _set_agent_env(monkeypatch: pytest.MonkeyPatch, project_dir: Path) -> None:
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260619_230000")
     monkeypatch.setenv("CODEX_PROJECT_DIR", str(project_dir))
+    monkeypatch.setenv("SASE_AGY_PATH", str(project_dir / "missing-agy"))
     monkeypatch.delenv("SASE_DISABLE_COMMIT_STOP_HOOK", raising=False)
     monkeypatch.delenv(SIBLING_REPOS_JSON_ENV, raising=False)
 
@@ -111,10 +112,14 @@ def test_agy_provider_finalizes_dirty_workspace(
     seen_prompts: list[str] = []
 
     def _fake_run_subprocess(
-        args: list[str], suppress_output: bool
+        args: list[str],
+        suppress_output: bool,
+        *,
+        cwd: str,
     ) -> tuple[str, str, int]:
         # The prompt is the value of `agy --print` (final argv element). The
         # follow-up turn "commits" the leftover work like a real agy agent.
+        assert cwd == str(repo.resolve())
         seen_prompts.append(args[-1])
         _commit_all(repo, "feat: finalize agy leftover work")
         return ("Committed the outstanding changes.", "", 0)
@@ -134,7 +139,7 @@ def test_agy_provider_finalizes_dirty_workspace(
 
     # The real AgyProvider.invoke() was driven by the finalizer (one pass).
     assert len(seen_prompts) == 1
-    # The follow-up prompt is the shared finalizer prompt, not agy-specific.
+    # The wrapped print prompt still contains the shared finalizer prompt.
     assert "implement the feature" in seen_prompts[0]
 
     # The workspace is clean and the leftover work is committed.
