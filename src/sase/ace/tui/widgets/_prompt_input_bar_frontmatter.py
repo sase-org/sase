@@ -34,6 +34,8 @@ from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
+
+    from sase.xprompt.models import XPrompt
 else:
     _MixinBase = object
 
@@ -87,6 +89,32 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             ]
         self._local_xprompt_cache = (frontmatter, entries)
         return entries
+
+    def local_xprompts(self) -> dict[str, XPrompt]:
+        """Local xprompts from the live frontmatter, as real ``XPrompt`` objects.
+
+        Parses the stack's current ``frontmatter`` string with
+        :meth:`PromptFrontmatter.parse` and returns its ``xprompts:`` helpers
+        keyed by ``_``-prefixed name.  Unlike
+        :meth:`local_xprompt_assist_entries` (display-only completion entries),
+        this yields the underlying :class:`~sase.xprompt.models.XPrompt`
+        objects so the ``#@`` selector can both project them into the catalog
+        (via ``xprompt_to_workflow``) and hand them to the ``Ctrl+I``
+        inline-expansion helper for recursive resolution.
+
+        Returns ``{}`` when there is no frontmatter or it declares no local
+        xprompts; an invalid / mid-edit block (e.g. a non-underscore name)
+        contributes nothing rather than raising, so the selector simply omits
+        local entries it cannot parse.
+        """
+        frontmatter = self._stack.frontmatter
+        if not frontmatter:
+            return {}
+        try:
+            model = PromptFrontmatter.parse(frontmatter)
+        except Exception:
+            return {}
+        return dict(model.xprompts)
 
     # -- lookup ---------------------------------------------------------------
 

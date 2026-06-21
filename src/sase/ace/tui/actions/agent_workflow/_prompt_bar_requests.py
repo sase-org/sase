@@ -9,6 +9,8 @@ from ._types import PromptContext
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets import PromptInputBar
+    from sase.xprompt.models import XPrompt
+    from sase.xprompt.workflow_models import Workflow
 
 
 class PromptBarRequestsMixin:
@@ -243,11 +245,23 @@ class PromptBarRequestsMixin:
         else:
             project = None
 
-        # Detect VCS tag in current prompt text to load that project's
-        # local xprompts (e.g. #gh:sase → load sase's sase.yml xprompts).
-        # Read from the captured origin pane so the detection follows the same
-        # pane the user triggered ``#@`` in.
-        extra_prompts = None
+        # Phase 5: build the selector's extra catalog entries from two local
+        # sources, merged lowest-priority-first so the more specific source wins
+        # a name collision:
+        #   1. project-local xprompts from the leading VCS tag, then
+        #   2. live frontmatter ``xprompts:`` the user authored on this prompt.
+        # The frontmatter locals are also kept as real ``XPrompt`` objects
+        # (``local_xprompts``) so the ``Ctrl+I`` expansion helper can resolve a
+        # selected local helper -- or a global xprompt that references one --
+        # the same way the launch path would.
+        from sase.xprompt.models import xprompt_to_workflow
+
+        extra_prompts: dict[str, Workflow] = {}
+        local_xprompts: dict[str, XPrompt] = {}
+
+        # 1. Project-local xprompts from a VCS tag in the originating pane's
+        #    text (e.g. #gh:sase → load sase's sase.yml xprompts). Read from the
+        #    captured origin pane so detection follows the pane that opened #@.
         try:
             prompt_text = ""
             if origin_text_area is not None:
@@ -263,7 +277,6 @@ class PromptBarRequestsMixin:
                     get_known_project_workspaces,
                     load_project_local_xprompts,
                 )
-                from sase.xprompt.models import xprompt_to_workflow
 
                 vcs_tag = extract_vcs_workflow_tag(prompt_text)
                 if vcs_tag:
@@ -273,13 +286,22 @@ class PromptBarRequestsMixin:
                         ws_dir = workspaces.get(vcs_project)
                         if ws_dir:
                             xprompts = load_project_local_xprompts(ws_dir, vcs_project)
-                            if xprompts:
-                                extra_prompts = {
-                                    name: xprompt_to_workflow(xp)
-                                    for name, xp in xprompts.items()
-                                }
+                            for name, xp in xprompts.items():
+                                extra_prompts[name] = xprompt_to_workflow(xp)
         except Exception:
             pass
+
+        # 2. Live frontmatter locals authored on this prompt. These take
+        #    precedence over project-local entries and feed the expansion
+        #    helper. An invalid / mid-edit block yields ``{}`` (locals omitted)
+        #    rather than crashing the selector.
+        if origin_bar is not None:
+            try:
+                local_xprompts = origin_bar.local_xprompts()
+                for name, xp in local_xprompts.items():
+                    extra_prompts[name] = xprompt_to_workflow(xp)
+            except Exception:
+                local_xprompts = {}
 
         def on_xprompt_expand(name: str, workflow: object) -> str | None:
             """Inline-expand *name* into the originating pane (modal ``Ctrl+I``).
@@ -298,7 +320,12 @@ class PromptBarRequestsMixin:
             if not isinstance(workflow, Workflow):
                 return f"Could not inline-expand #{name}."
 
-            result = expand_inline_xprompt(name, workflow, project=project)
+            # Pass the live frontmatter locals so a selected local helper (or a
+            # global xprompt that references one) resolves recursively the same
+            # way it would at launch (Phase 5 catalog parity).
+            result = expand_inline_xprompt(
+                name, workflow, local_xprompts=local_xprompts, project=project
+            )
             if result.error is not None:
                 return result.error
             # Apply the rendered body to the originating pane as one undoable

@@ -302,3 +302,121 @@ def test_ctrl_i_expand_stale_target_reports_recoverable_error() -> None:
     # error (the modal keeps the selector open), leaving every prompt unchanged.
     assert error == "Prompt pane is no longer available - selection discarded"
     assert len(origin_bar.expand_calls) == 1
+
+
+# -- Phase 5: local frontmatter xprompts + project-catalog parity ------------
+
+# A prompt that declares one local helper ``_rules`` through the property panel.
+_RULES_FRONTMATTER = "---\nxprompts:\n  _rules: Be concise.\n---"
+
+
+def test_frontmatter_local_appears_in_selector_catalog() -> None:
+    harness = _SelectorHarness()
+    origin_bar = _OriginBar()
+    origin_bar._stack.frontmatter = _RULES_FRONTMATTER
+
+    harness.on_prompt_input_bar_snippet_requested(
+        _event(origin_bar, _StubTextArea(text="#"))
+    )
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, XPromptSelectModal)
+    # The live frontmatter helper is merged into the selector catalog, so ``#@``
+    # surfaces it as a selectable entry alongside global/project xprompts.
+    assert "_rules" in modal._extra_prompts
+    assert "_rules" in modal._prompts
+
+
+def test_ctrl_i_expands_frontmatter_local_content() -> None:
+    harness = _SelectorHarness()
+    origin_bar = _ExpandOriginBar(applied=True)
+    origin_bar._stack.frontmatter = _RULES_FRONTMATTER
+    origin_ta = _StubTextArea(text="#")
+
+    harness.on_prompt_input_bar_snippet_requested(_event(origin_bar, origin_ta))
+
+    # Expand the local helper exactly as the modal would: with the projected
+    # ``Workflow`` it merged into its catalog from the frontmatter.
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, XPromptSelectModal)
+    error = _expand_callback(harness, "_rules", modal._prompts["_rules"])
+
+    assert error is None
+    assert origin_bar.expand_calls
+    assert origin_bar.expand_calls[0][3] == "Be concise."
+
+
+def test_ctrl_i_global_reference_expands_recursively_from_frontmatter() -> None:
+    harness = _SelectorHarness()
+    origin_bar = _ExpandOriginBar(applied=True)
+    origin_bar._stack.frontmatter = _RULES_FRONTMATTER
+    origin_ta = _StubTextArea(text="#")
+
+    harness.on_prompt_input_bar_snippet_requested(_event(origin_bar, origin_ta))
+
+    # A global-style entry whose body references the frontmatter local ``#_rules``
+    # resolves recursively against the live locals, matching launch behavior.
+    workflow = Workflow(
+        name="team",
+        steps=[WorkflowStep(name="prompt", prompt_part="Team note:\n#_rules")],
+    )
+    error = _expand_callback(harness, "team", workflow)
+
+    assert error is None
+    assert origin_bar.expand_calls
+    assert "Be concise." in origin_bar.expand_calls[0][3]
+
+
+def test_ctrl_i_passes_frontmatter_locals_as_real_xprompts() -> None:
+    harness = _SelectorHarness()
+    origin_bar = _ExpandOriginBar(applied=True)
+    origin_bar._stack.frontmatter = _RULES_FRONTMATTER
+    origin_ta = _StubTextArea(text="#")
+
+    harness.on_prompt_input_bar_snippet_requested(_event(origin_bar, origin_ta))
+
+    captured: dict[str, object] = {}
+    success = InlineExpansionResult(
+        expanded_text="BODY", error=None, reason=InlineExpansionReason.EXPANDED
+    )
+
+    def _fake_expand(
+        name: str,
+        workflow: Workflow,
+        *,
+        local_xprompts: object = None,
+        project: object = None,
+    ) -> InlineExpansionResult:
+        captured["local_xprompts"] = local_xprompts
+        return success
+
+    with patch(
+        "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
+        _fake_expand,
+    ):
+        error = _expand_callback(harness, "team", _simple_workflow("team"))
+
+    assert error is None
+    # The helper receives the frontmatter locals as real ``XPrompt`` objects,
+    # not display-only ``Workflow`` projections.
+    locals_passed = captured["local_xprompts"]
+    assert isinstance(locals_passed, dict)
+    assert set(locals_passed) == {"_rules"}
+    assert locals_passed["_rules"].content == "Be concise."
+
+
+def test_invalid_frontmatter_locals_are_omitted_without_crashing() -> None:
+    harness = _SelectorHarness()
+    origin_bar = _OriginBar()
+    # A non-underscore local name violates the scoping rule; parsing raises and
+    # the selector must omit the invalid local rather than tear down.
+    origin_bar._stack.frontmatter = "---\nxprompts:\n  rules: Be concise.\n---"
+
+    harness.on_prompt_input_bar_snippet_requested(
+        _event(origin_bar, _StubTextArea(text="#"))
+    )
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, XPromptSelectModal)
+    assert "rules" not in modal._extra_prompts
+    assert harness.notifications == []
