@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
 
@@ -13,7 +13,6 @@ from sase.ace.tui.widgets._paired_text_editing import (
     plan_pair_insert,
 )
 from sase.ace.tui.widgets._prompt_text_area_actions import prompt_bar_class
-from sase.ace.tui.widgets._vcs_mru_cycling import VcsMruCycleKey
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -45,7 +44,6 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         _insert_g_prefix_pending: bool
         _pending_keys: str
         _pending_operator: str
-        _vcs_mru_index: int | None
         _vim_mode: str
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
@@ -72,7 +70,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         def _find_prompt_bar(self) -> Any: ...
         def _handle_normal_mode_key(self, event: Key) -> bool: ...
         def _handle_prompt_search_key(self, event: Key) -> bool: ...
-        def _handle_vcs_mru_cycle_key(self, key: VcsMruCycleKey) -> bool: ...
+        def _handle_vcs_xprompt_delete_key(self) -> bool: ...
         def _handle_visual_mode_key(self, event: Key) -> bool: ...
         def _is_prompt_search_active(self) -> bool: ...
         def _move_file_completion(self, delta: int) -> bool: ...
@@ -277,9 +275,18 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             event.prevent_default()
             return
 
-        if event.key in ("ctrl+n", "ctrl+p") and self._handle_vcs_mru_cycle_key(
-            cast(VcsMruCycleKey, event.key)
-        ):
+        # Prompt-local ``Ctrl+N`` deletes the first VCS xprompt workflow tag
+        # (e.g. ``#git:foo``); ``Ctrl+P`` is a prompt-local no-op. Both are
+        # consumed whether or not they change the text so a no-op never bubbles
+        # to the app-level ``Ctrl+N`` / ``Ctrl+P`` file navigation while the
+        # prompt owns focus. (Active file completion already claimed these keys
+        # above, so its menu navigation keeps precedence.)
+        if event.key == "ctrl+n":
+            event.stop()
+            event.prevent_default()
+            self._handle_vcs_xprompt_delete_key()
+            return
+        if event.key == "ctrl+p":
             event.stop()
             event.prevent_default()
             return
@@ -327,10 +334,6 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
                         event.prevent_default()
                         return
         await super()._on_key(event)
-
-        # Reset VCS MRU cycling on any non-cycling keypress.
-        if self._vcs_mru_index is not None:
-            self._vcs_mru_index = None
 
         self._refresh_file_completion_from_cursor()
         # Auto-open the ``#+`` project completion menu when the ``+`` completes

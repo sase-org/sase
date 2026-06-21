@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 09:14:29
-status: wip
+status: done
 prompt: sdd/prompts/202606/delete_prompt_vcs_xprompt.md
 ---
 # Delete Prompt VCS XPrompt Keymap Plan

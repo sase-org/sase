@@ -98,9 +98,7 @@ async def test_open_prompt_history_action_clears_completion_state() -> None:
         text_area = app.query_one(PromptTextArea)
         text_area._file_completion_active = True
         text_area._completion_kind = "file"
-        text_area._vcs_mru_index = 0
 
         text_area.action_open_prompt_history()
 
         assert text_area._file_completion_active is False
-        assert text_area._vcs_mru_index is None

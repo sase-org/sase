@@ -210,7 +210,7 @@ def test_record_resolved_default_git_home_ref_is_not_persisted_as_mru(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A bare prompt normalized to the implicit ``#git:home`` default must not
-    leave a cyclable VCS MRU entry behind on launch."""
+    leave a launchable VCS MRU entry behind on launch."""
     from tests.conftest import redirect_sase_home
     from sase.ace.tui.actions.agent_workflow._launch_history import (
         record_resolved_vcs_xprompt_usage,
@@ -477,12 +477,13 @@ def test_run_agent_launch_body_saves_launchable_resolved_vcs_ref() -> None:
     record_mru.assert_called_once_with("#gh:fix_branch")
 
 
-def test_finish_agent_launch_toast_uses_cycled_vcs_ref_not_baked_name() -> None:
+def test_finish_agent_launch_toast_uses_submitted_vcs_ref_not_baked_name() -> None:
     """Defect A: the launch toast names the submitted ref, not the baked ctx.
 
     When the bar is opened for one ref (``ctx.display_name`` baked from the
-    last selection) and ``<ctrl+p>`` cycles to another before submitting, the
-    immediate "Launching agent for ..." toast must reflect the cycled-to ref.
+    last selection) and the user edits the tag to another ref before
+    submitting, the immediate "Launching agent for ..." toast must reflect the
+    submitted ref.
     """
     app = _FakeApp()
     app._prompt_context = _fake_context()
@@ -507,7 +508,7 @@ def test_finish_agent_launch_toast_falls_back_to_display_name_without_tag() -> N
 
 
 def test_run_agent_launch_body_aborts_unresolvable_home_mode_vcs_tag() -> None:
-    """Defect B: a cycled-to VCS tag that resolves to nothing aborts loudly.
+    """Defect B: a submitted VCS tag that resolves to nothing aborts loudly.
 
     It must NOT fall through to a home-mode launch under the baked identity
     (wrong workspace) nor silently skip the replay/MRU updates.
@@ -520,7 +521,7 @@ def test_run_agent_launch_body_aborts_unresolvable_home_mode_vcs_tag() -> None:
     previous_selection = object()
     app._last_custom_agent_selection = previous_selection  # type: ignore[assignment]
 
-    # Resolution fails for the cycled ref.
+    # Resolution fails for the submitted ref.
     app._resolve_vcs_from_prompt = (  # type: ignore[method-assign]
         lambda prompt, wf_name, skip_workspace=False: None
     )
@@ -571,7 +572,7 @@ def test_run_agent_launch_body_aborts_unresolvable_home_mode_vcs_tag() -> None:
 
     record_failed.assert_called_once_with("#git:stale do work")
 
-    # The error outcome names the cycled ref, not the baked project.
+    # The error outcome names the submitted ref, not the baked project.
     assert outcome.message == "Cannot resolve #git:stale; not launching"
     assert outcome.severity == "error"
 
