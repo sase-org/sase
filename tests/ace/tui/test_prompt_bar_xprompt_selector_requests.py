@@ -9,6 +9,8 @@ trigger range, and the handler routes insertion through
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from sase.ace.tui.actions.agent_workflow._prompt_bar_requests import (
     PromptBarRequestsMixin,
 )
@@ -16,6 +18,11 @@ from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.modals import XPromptSelectModal
 from sase.ace.tui.modals.xprompt_select_modal import XPromptSelection
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.xprompt_inline_expansion import (
+    InlineExpansionReason,
+    InlineExpansionResult,
+)
+from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 
 def _ctx() -> PromptContext:
@@ -177,3 +184,121 @@ def test_cancel_does_not_insert_or_notify() -> None:
 
     assert origin_bar.insert_calls == []
     assert harness.notifications == []
+
+
+# -- Phase 4: ``Ctrl+I`` inline expansion is applied to the captured origin --
+
+
+def _simple_workflow(name: str) -> Workflow:
+    return Workflow(name=name, steps=[WorkflowStep(name="prompt", prompt_part="body")])
+
+
+class _ExpandOriginBar(PromptInputBar):
+    """Origin bar that records ``expand_xprompt_at_target`` calls.
+
+    Overrides ``is_mounted`` so the handler's freshness guard passes without a
+    running app, and records the captured target / pane id / trigger range /
+    rendered body the handler threads through on a ``Ctrl+I`` expansion.
+    """
+
+    def __init__(self, *, applied: bool = True) -> None:
+        super().__init__()
+        self._applied = applied
+        self.expand_calls: list[tuple[object, str, object, str]] = []
+
+    @property
+    def is_mounted(self) -> bool:  # type: ignore[override]
+        return True
+
+    def expand_xprompt_at_target(  # type: ignore[override]
+        self,
+        target_text_area: object,
+        pane_id: str,
+        trigger_range: object,
+        expanded_text: str,
+    ) -> bool:
+        self.expand_calls.append(
+            (target_text_area, pane_id, trigger_range, expanded_text)
+        )
+        return self._applied
+
+
+def _expand_callback(
+    harness: _SelectorHarness, name: str, workflow: Workflow
+) -> str | None:
+    """Invoke the ``Ctrl+I`` expand callback wired into the pushed modal."""
+    modal, _select_callback = harness.pushed[0]
+    assert isinstance(modal, XPromptSelectModal)
+    return modal._expand_callback(name, workflow)  # type: ignore[misc]
+
+
+def test_ctrl_i_expand_applies_rendered_body_to_origin_pane() -> None:
+    harness = _SelectorHarness()
+    origin_bar = _ExpandOriginBar(applied=True)
+    origin_ta = _StubTextArea(text="before #")
+
+    harness.on_prompt_input_bar_snippet_requested(
+        _event(origin_bar, origin_ta, trigger_range=((0, 7), (0, 8)))
+    )
+
+    success = InlineExpansionResult(
+        expanded_text="BODY", error=None, reason=InlineExpansionReason.EXPANDED
+    )
+    with patch(
+        "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
+        return_value=success,
+    ):
+        error = _expand_callback(harness, "commit", _simple_workflow("commit"))
+
+    # Success: the rendered body is applied to the captured origin pane (with
+    # the captured pane id + trigger range), and the callback reports success.
+    assert error is None
+    assert origin_bar.expand_calls == [
+        (origin_ta, "prompt-input-g0-p0", ((0, 7), (0, 8)), "BODY")
+    ]
+
+
+def test_ctrl_i_expand_error_does_not_touch_origin_pane() -> None:
+    harness = _SelectorHarness()
+    origin_bar = _ExpandOriginBar()
+    origin_ta = _StubTextArea(text="#")
+
+    harness.on_prompt_input_bar_snippet_requested(_event(origin_bar, origin_ta))
+
+    failure = InlineExpansionResult(
+        expanded_text=None,
+        error="Cannot inline-expand #!sync because it is a workflow.",
+        reason=InlineExpansionReason.STANDALONE_WORKFLOW,
+    )
+    with patch(
+        "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
+        return_value=failure,
+    ):
+        error = _expand_callback(harness, "sync", _simple_workflow("sync"))
+
+    # The helper's error is surfaced verbatim and nothing is applied, so the
+    # user can fall back to inserting the ``#name`` reference with Enter.
+    assert error == failure.error
+    assert origin_bar.expand_calls == []
+
+
+def test_ctrl_i_expand_stale_target_reports_recoverable_error() -> None:
+    harness = _SelectorHarness()
+    origin_bar = _ExpandOriginBar(applied=False)  # target went stale
+    origin_ta = _StubTextArea(text="#")
+
+    harness.on_prompt_input_bar_snippet_requested(_event(origin_bar, origin_ta))
+
+    success = InlineExpansionResult(
+        expanded_text="BODY", error=None, reason=InlineExpansionReason.EXPANDED
+    )
+    with patch(
+        "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
+        return_value=success,
+    ):
+        error = _expand_callback(harness, "commit", _simple_workflow("commit"))
+
+    # A stale target is attempted exactly once and reported as a recoverable
+    # error (the modal keeps the selector open), leaving every prompt unchanged.
+    assert error == "Prompt pane is no longer available - selection discarded"
+    assert len(origin_bar.expand_calls) == 1

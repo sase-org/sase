@@ -18,6 +18,22 @@ else:
     _MixinBase = object
 
 
+def _end_location_after_insert(
+    start: tuple[int, int],
+    inserted: str,
+) -> tuple[int, int]:
+    """Return the document location at the end of *inserted* placed at *start*.
+
+    Mirrors ``EditResult.end_location`` for an insertion that begins at *start*,
+    so the cursor can be positioned at the end of an inline expansion without
+    relying on the keyboard-replace return value.
+    """
+    lines = inserted.split("\n")
+    if len(lines) == 1:
+        return (start[0], start[1] + len(lines[0]))
+    return (start[0] + len(lines) - 1, len(lines[-1]))
+
+
 class PromptInputBarActionsMixin(_MixinBase):
     """Prompt submit/cancel actions and snippet insertion helpers."""
 
@@ -160,6 +176,59 @@ class PromptInputBarActionsMixin(_MixinBase):
             # '#' so only that suffix is replaced and the '#' itself is kept.
             text_area.cursor_location = trigger_range[1]
         self._insert_snippet_into(text_area, snippet_name, entry)
+        return True
+
+    def expand_xprompt_at_target(
+        self,
+        target_text_area: object,
+        pane_id: str,
+        trigger_range: tuple[tuple[int, int], tuple[int, int]] | None,
+        expanded_text: str,
+    ) -> bool:
+        """Inline-expand a selected xprompt into the pane that opened ``#@``.
+
+        Unlike :meth:`insert_snippet_at_target` -- which keeps the trigger ``#``
+        and inserts a ``#name`` reference after it -- this *consumes* the ``#``,
+        replacing the whole captured *trigger_range* with the already-rendered
+        *expanded_text*. The replacement goes through the captured pane's
+        ``_replace_via_keyboard()`` so it is recorded as one undoable
+        ``TextArea`` edit: a multi-character range replace lands in its own
+        isolated undo batch, so a single prompt NORMAL-mode ``u`` restores the
+        exact pre-expansion text, including the literal ``#`` trigger.
+
+        Targets the captured origin pane rather than whichever pane is active
+        when the modal closes (matching ``insert_snippet_at_target``), and
+        returns ``False`` without mutating anything when that target is stale --
+        the originating pane or bar was unmounted/rebuilt while the modal was
+        open -- so the caller can notify and leave every prompt unchanged.
+        """
+        text_area = self._resolve_snippet_target(target_text_area, pane_id)
+        if text_area is None:
+            return False
+        if text_area.read_only:
+            # ``_replace_via_keyboard`` is a no-op in read-only (NORMAL) mode.
+            # ``#@`` only fires from INSERT mode, so this is defensive; never
+            # report success on a no-op edit (the caller would dismiss the
+            # selector for nothing).
+            return False
+
+        # Drop transient completion / soft-completion / xprompt-arg-hint state on
+        # the captured target before the edit: the ``#`` is about to disappear, so
+        # any menu or hint anchored to it would otherwise linger over the spliced
+        # body.
+        text_area._clear_insert_g_prefix()
+        text_area._clear_file_completion()
+        text_area._clear_soft_completion(cancel_timer=True)
+        text_area._clear_xprompt_arg_hint()
+
+        start, end = trigger_range if trigger_range is not None else text_area.selection
+        text_area._replace_via_keyboard(expanded_text, start, end)
+        # The replacement inserts ``expanded_text`` starting at ``start``; place
+        # the cursor at its end. (Mirrors ``EditResult.end_location`` without
+        # relying on the keyboard-replace return value, matching the snippet
+        # insertion path.)
+        text_area.cursor_location = _end_location_after_insert(start, expanded_text)
+        text_area.focus()
         return True
 
     def _resolve_snippet_target(

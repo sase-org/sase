@@ -301,9 +301,19 @@ class PromptBarRequestsMixin:
             result = expand_inline_xprompt(name, workflow, project=project)
             if result.error is not None:
                 return result.error
-            # Phase 4 applies ``result.expanded_text`` to the originating pane
-            # here as one undoable edit (PromptInputBar.expand_xprompt_at_target);
-            # until then a successful expansion just closes the selector.
+            # Apply the rendered body to the originating pane as one undoable
+            # edit: it replaces the literal ``#`` trigger, so prompt NORMAL-mode
+            # ``u`` restores the exact pre-expansion text. A stale target (the
+            # pane was unmounted/rebuilt while the modal was open) leaves every
+            # prompt untouched and surfaces a recoverable error.
+            applied = origin_bar.expand_xprompt_at_target(
+                origin_text_area,
+                origin_pane_id,
+                trigger_range,
+                result.expanded_text or "",
+            )
+            if not applied:
+                return "Prompt pane is no longer available - selection discarded"
             return None
 
         self.push_screen(  # type: ignore[attr-defined]
