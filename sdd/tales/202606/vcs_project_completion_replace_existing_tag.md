@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 10:19:57
-status: wip
+status: done
 prompt: sdd/prompts/202606/vcs_project_completion_replace_existing_tag.md
 ---
 # Fix `#+` Project Completion After Existing VCS Tag

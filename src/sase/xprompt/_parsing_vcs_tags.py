@@ -281,8 +281,13 @@ def _get_vcs_replace_pattern() -> re.Pattern[str]:
         from sase.workspace_provider import get_workflow_names
 
         names = "|".join(re.escape(n) for n in sorted(get_workflow_names()))
+        # The boundary after a tag is whitespace OR end-of-input. ``\s`` is tried
+        # first, so any actual whitespace (including a newline) is consumed and
+        # replaced exactly as before; ``$`` only wins at true EOF, letting a
+        # line-start tag with no trailing whitespace (e.g. ``#gh:sase`` alone)
+        # still be replaced rather than treated as absent.
         _VCS_REPLACE_PATTERN = re.compile(
-            rf"^((?:%\S+[\s]+)*)#(?:{names})(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s",
+            rf"^((?:%\S+[\s]+)*)#(?:{names})(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?:\s|$)",
             re.MULTILINE,
         )
     return _VCS_REPLACE_PATTERN

@@ -287,6 +287,10 @@ def _select(ta: PromptTextArea, name: str) -> None:
         ("#+sa", "#gh:sase "),  # golden #3
         ("Describe this repo. #+", "#gh:sase Describe this repo."),  # golden #1
         ("#git:foo Fix bug #+", "#gh:sase Fix bug"),  # golden #4 (replace)
+        # Existing leading tag at end-of-input must be replaced, not doubled
+        # (the `#gh:sase #+` regression; uses `#git:foo` here since only `git`
+        # is a registered workflow name in the test environment).
+        ("#git:foo #+", "#gh:sase "),
         ("Line one\n#+", "#gh:sase Line one\n"),  # golden #7 (multi-line)
         ("%model:opus Body #+", "%model:opus #gh:sase Body"),  # golden #9
     ],

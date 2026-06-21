@@ -7,7 +7,7 @@ from sase.xprompt._parsing import inherit_vcs_workflow_tag, replace_vcs_workflow
 
 
 _TEST_VCS_REPLACE_PATTERN = re.compile(
-    r"^((?:%\S+[\s]+)*)#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s",
+    r"^((?:%\S+[\s]+)*)#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?:\s|$)",
     re.MULTILINE,
 )
 
@@ -70,6 +70,25 @@ def test_replace_vcs_tags_no_existing_tag() -> None:
     with _patch_vcs_replace_pattern():
         result = replace_vcs_workflow_tags("Fix the bug", "#gh:sase")
         assert result == "#gh:sase Fix the bug"
+
+
+def test_replace_vcs_tags_tag_only_at_eof() -> None:
+    """Replace a VCS tag that sits at end-of-input with no trailing space.
+
+    A prompt consisting solely of a VCS tag (the state left behind after the
+    ``#+`` project-completion trigger is stripped from ``#gh:sase #+``) must be
+    replaced, not prepended -- otherwise the selected tag is doubled.
+    """
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("#git:foo", "#gh:sase")
+        assert result == "#gh:sase "
+
+
+def test_replace_vcs_tags_tag_only_at_eof_same_prefix() -> None:
+    """A bare tag at EOF is replaced even when the new prefix matches it."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("#gh:sase", "#gh:sase")
+        assert result == "#gh:sase "
 
 
 def test_replace_vcs_tags_hitl_modifier() -> None:

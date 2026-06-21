@@ -32,7 +32,7 @@ from sase.xprompt.vcs_project_completion import (
 # A replace pattern covering gh/git/hg regardless of which workspace-provider
 # plugins happen to be installed in the test environment.
 _TEST_VCS_REPLACE_PATTERN = re.compile(
-    r"^((?:%\S+[\s]+)*)#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s",
+    r"^((?:%\S+[\s]+)*)#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?:\s|$)",
     re.MULTILINE,
 )
 
@@ -93,6 +93,12 @@ _GOLDEN_VECTORS = [
     ("#+s‸\nmore text", "#gh:sase \nmore text"),
     ("#git:foo Fix bug #+‸", "#gh:sase Fix bug"),
     ("#gh!!:foo do X #+‸", "#gh:sase do X"),
+    # Existing leading VCS tag at end-of-input (no trailing text): the trigger
+    # strip leaves the bare tag at EOF, which must still be replaced -- not
+    # doubled. Covers the `#gh:sase #+` regression.
+    ("#gh:sase #+‸", "#gh:sase "),
+    ("#gh:sase #+foo‸", "#gh:sase "),
+    ("#git:foo #+‸", "#gh:sase "),
     ("Fix #+bug‸ here", "#gh:sase Fix here"),
     ("Line one\n#+‸", "#gh:sase Line one\n"),
     ("---\nname: x\n---\nBody #+‸", "---\nname: x\n---\n#gh:sase Body"),
