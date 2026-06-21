@@ -76,6 +76,22 @@ class ActiveXPromptArgHint:
 
 
 @dataclass(frozen=True, slots=True)
+class PendingOptionalSpacer:
+    """A trailing spacer left by an optional-only xprompt completion.
+
+    Optional-only xprompts complete to ``#name `` with a deliberate trailing
+    space.  This records the inserted spacer so the next typed ``:`` can replace
+    it in place (``#name `` -> ``#name:``).  The recorded identity lets the edit
+    layer confirm the cursor still sits immediately after the spacer and the
+    reference text is unchanged before consuming the colon.
+    """
+
+    spacer_offset: int
+    reference_start: int
+    reference_text: str
+
+
+@dataclass(frozen=True, slots=True)
 class XPromptArgCompletionContext:
     """Completion target resolved inside an xprompt argument list."""
 
@@ -192,6 +208,17 @@ def visible_inputs(entry: XPromptAssistEntry) -> tuple[XPromptInputHint, ...]:
 def required_inputs(entry: XPromptAssistEntry) -> tuple[XPromptInputHint, ...]:
     """Return required user-facing inputs for an assist entry."""
     return tuple(inp for inp in entry.inputs if inp.required)
+
+
+def has_only_optional_inputs(entry: XPromptAssistEntry) -> bool:
+    """Return True when an entry has inputs and all of them are optional.
+
+    Optional-only xprompts complete to ``#name `` (a trailing spacer) exactly
+    like no-input xprompts, but only optional-only ones should let a following
+    ``:`` replace that spacer -- a no-input xprompt has no arguments to
+    introduce, so its trailing space must be left untouched.
+    """
+    return bool(entry.inputs) and not any(inp.required for inp in entry.inputs)
 
 
 def named_args_skeleton(entry: XPromptAssistEntry) -> str:

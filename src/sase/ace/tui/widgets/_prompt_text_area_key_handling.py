@@ -19,7 +19,10 @@ if TYPE_CHECKING:
 
     from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-    from sase.ace.tui.widgets.xprompt_arg_assist import ActiveXPromptArgHint
+    from sase.ace.tui.widgets.xprompt_arg_assist import (
+        ActiveXPromptArgHint,
+        PendingOptionalSpacer,
+    )
 else:
     _MixinBase = object
 
@@ -39,6 +42,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
+        _pending_optional_spacer: PendingOptionalSpacer | None
         _completion_kind: str
         _file_completion_active: bool
         _count_prefix: str
@@ -69,6 +73,10 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             cancel_timer: bool = False,
         ) -> None: ...
         def _clear_xprompt_arg_hint(self) -> None: ...
+        def _consume_optional_spacer_colon(
+            self,
+            pending: PendingOptionalSpacer,
+        ) -> bool: ...
         def _delete_selected_file_completion(self) -> bool: ...
         def _enter_normal_mode(self) -> None: ...
         def _find_prompt_bar(self) -> Any: ...
@@ -106,6 +114,21 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
 
     async def _on_key(self, event: Key) -> None:
         """Intercept keys before TextArea's default handler inserts characters."""
+        # A just-accepted optional-only xprompt left a trailing spacer
+        # (``#name ``); the next typed ``:`` replaces it in place so the common
+        # ``#name:`` colon-argument flow needs no manual backspace. The spacer is
+        # a one-shot convenience: any other key (or a cursor that has moved off
+        # it) drops the pending state and lets the colon insert normally.
+        pending_spacer = self._pending_optional_spacer
+        if pending_spacer is not None:
+            self._pending_optional_spacer = None
+            if event.character == ":" and self._consume_optional_spacer_colon(
+                pending_spacer
+            ):
+                event.stop()
+                event.prevent_default()
+                return
+
         if self._is_prompt_search_active():
             self._clear_insert_g_prefix()
             self._clear_normal_g_prefix()

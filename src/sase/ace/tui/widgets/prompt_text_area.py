@@ -33,6 +33,7 @@ from sase.ace.tui.widgets.file_completion import (
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
+    PendingOptionalSpacer,
     XPromptAssistEntry,
     build_xprompt_assist_entries,
 )
@@ -124,6 +125,7 @@ class PromptTextArea(
         self._completion_kind: str = "file"
         self._vcs_project_catalog_warmed: bool = False
         self._active_xprompt_arg_hint: ActiveXPromptArgHint | None = None
+        self._pending_optional_spacer: PendingOptionalSpacer | None = None
         self._xprompt_arg_assist_entries_by_project: dict[
             str | None, list[XPromptAssistEntry]
         ] = {}

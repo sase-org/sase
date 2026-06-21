@@ -58,11 +58,14 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         if not selected.insertion.startswith("#"):
             return False
 
-        return self._expand_snippet_template_at_range(
+        expanded = self._expand_snippet_template_at_range(
             xprompt_completion_skeleton(selected.metadata),
             (row, start),
             (row, end),
         )
+        if expanded:
+            self._note_optional_xprompt_spacer(selected.metadata)
+        return expanded
 
     def _refresh_xprompt_completion_skeleton_hint(
         self,

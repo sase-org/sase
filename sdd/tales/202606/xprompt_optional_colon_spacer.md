@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 18:56:45
-status: wip
+status: done
 prompt: sdd/prompts/202606/xprompt_optional_colon_spacer.md
 ---
 # Auto-delete Optional XPrompt Spacer Before Colon

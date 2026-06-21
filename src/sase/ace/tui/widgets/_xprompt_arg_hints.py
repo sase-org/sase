@@ -8,9 +8,11 @@ from textual.worker import WorkerState
 
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
+    PendingOptionalSpacer,
     XPromptAssistEntry,
     accepted_xprompt_arg_hint,
     detect_xprompt_arg_hint_at_cursor,
+    has_only_optional_inputs,
     merge_local_xprompt_entries,
     named_args_skeleton,
 )
@@ -42,6 +44,7 @@ class XPromptArgHintMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
+        _pending_optional_spacer: PendingOptionalSpacer | None
         _file_completion_active: bool
         _snippet_tabstops: list[int]
         _xprompt_arg_assist_entries_by_project: dict[
@@ -59,6 +62,12 @@ class XPromptArgHintMixin(_MixinBase):
             insert: str,
             start: tuple[int, int],
             end: tuple[int, int],
+        ) -> None: ...
+        def _replace_absolute_range(
+            self,
+            start_offset: int,
+            end_offset: int,
+            replacement: str,
         ) -> None: ...
         def _expand_snippet_template_at_range(
             self,
@@ -292,3 +301,56 @@ class XPromptArgHintMixin(_MixinBase):
             start,
             end,
         )
+
+    def _note_optional_xprompt_spacer(self, entry: XPromptAssistEntry) -> None:
+        """Record the trailing spacer left by an optional-only xprompt accept.
+
+        Optional-only xprompts complete to ``#name `` with a deliberate trailing
+        space; remembering it lets the next typed ``:`` replace the spacer so the
+        common ``#name:`` colon-argument flow needs no manual backspace.
+        No-input and required-input xprompts never record a spacer, so their
+        spacing is left untouched.  Must be called immediately after the skeleton
+        expansion, while the cursor still sits right after the inserted space.
+        """
+        self._pending_optional_spacer = None
+        if not has_only_optional_inputs(entry):
+            return
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        spacer_offset = cursor_offset - 1
+        reference_start = spacer_offset - len(entry.insertion)
+        if reference_start < 0 or not (0 <= spacer_offset < len(self.text)):
+            return
+        if self.text[spacer_offset] != " ":
+            return
+        if self.text[reference_start:spacer_offset] != entry.insertion:
+            return
+        self._pending_optional_spacer = PendingOptionalSpacer(
+            spacer_offset=spacer_offset,
+            reference_start=reference_start,
+            reference_text=entry.insertion,
+        )
+
+    def _consume_optional_spacer_colon(self, pending: PendingOptionalSpacer) -> bool:
+        """Replace a pending optional spacer with ``:`` when still valid.
+
+        Returns True when the spacer was rewritten so the caller can swallow the
+        typed ``:``.  Returns False -- leaving the colon to insert normally --
+        when the cursor moved off the spacer or the reference text changed since
+        the completion was accepted.
+        """
+        text = self.text
+        spacer_end = pending.spacer_offset + 1
+        if spacer_end > len(text):
+            return False
+        if self._absolute_offset(self.cursor_location) != spacer_end:
+            return False
+        if text[pending.spacer_offset] != " ":
+            return False
+        if (
+            text[pending.reference_start : pending.spacer_offset]
+            != pending.reference_text
+        ):
+            return False
+        self._replace_absolute_range(pending.spacer_offset, spacer_end, ":")
+        self._refresh_xprompt_arg_hint_from_cursor()
+        return True

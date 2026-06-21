@@ -1,0 +1,211 @@
+"""Tests for the optional-only xprompt trailing-spacer ``:`` rewrite.
+
+When an optional-only xprompt completes to ``#name `` (a deliberate trailing
+spacer), typing ``:`` immediately afterward should replace the spacer so the
+prompt becomes ``#name:`` without a manual ``<backspace>``.  No-input xprompts
+and any intervening keystroke must leave the spacer untouched.
+"""
+
+from __future__ import annotations
+
+from unittest.mock import patch
+
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    XPromptInputHint,
+    has_only_optional_inputs,
+)
+
+from ._completion_helpers import CompletionTestApp
+
+_ENTRY_PATCH = "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries"
+
+
+def _input(
+    name: str,
+    type_: str,
+    *,
+    required: bool,
+    position: int = 0,
+) -> XPromptInputHint:
+    return XPromptInputHint(
+        name=name,
+        type=type_,
+        required=required,
+        default_display=None,
+        position=position,
+    )
+
+
+def _entry(
+    name: str,
+    *,
+    prefix: str = "#",
+    inputs: tuple[XPromptInputHint, ...] = (),
+) -> XPromptAssistEntry:
+    return XPromptAssistEntry(
+        name=name,
+        insertion=f"{prefix}{name}",
+        reference_prefix=prefix,
+        kind="xprompt",
+        input_signature=None,
+        inputs=inputs,
+        content_preview=None,
+    )
+
+
+def _optional_entry(name: str = "optional") -> XPromptAssistEntry:
+    """An xprompt whose single input is optional (optional-only)."""
+    return _entry(name, inputs=(_input("topic", "word", required=False),))
+
+
+def _seed_entries(
+    ta: PromptTextArea,
+    entries: list[XPromptAssistEntry],
+    project: str | None = None,
+) -> None:
+    ta._xprompt_arg_assist_entries_by_project[project] = entries
+
+
+def _compute_soft_now(ta: PromptTextArea) -> None:
+    ta._clear_soft_completion(cancel_timer=True)
+    ta._prompt_completion_generation += 1
+    ta._fire_prompt_completion_timer(
+        ta._prompt_completion_generation,
+        ta.text,
+        ta._absolute_offset(ta.cursor_location),
+    )
+
+
+def test_has_only_optional_inputs_predicate() -> None:
+    assert has_only_optional_inputs(_optional_entry()) is True
+    # No inputs -> not optional-only (no argument to introduce).
+    assert has_only_optional_inputs(_entry("plain")) is False
+    # A required input present -> not optional-only.
+    assert (
+        has_only_optional_inputs(
+            _entry("mixed", inputs=(_input("path", "path", required=True),))
+        )
+        is False
+    )
+
+
+async def test_optional_only_ctrl_t_single_candidate_then_colon() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        with patch(_ENTRY_PATCH, return_value=[_optional_entry()]):
+            await pilot.press("ctrl+t")
+
+        assert ta.text == "#optional "
+        assert ta._pending_optional_spacer is not None
+
+        await pilot.press(":")
+
+    assert ta.text == "#optional:"
+    assert ta._pending_optional_spacer is None
+
+
+async def test_optional_only_panel_accept_then_colon() -> None:
+    entries = [_optional_entry(), _entry("ship")]
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+        with patch(_ENTRY_PATCH, return_value=entries):
+            # Two candidates -> the panel opens; ``enter`` accepts the first.
+            await pilot.press("ctrl+t")
+            await pilot.press("enter")
+
+        assert ta.text == "#optional "
+        assert ta._pending_optional_spacer is not None
+
+        await pilot.press(":")
+
+    assert ta.text == "#optional:"
+
+
+async def test_optional_only_soft_completion_then_colon() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [_optional_entry()])
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        _compute_soft_now(ta)
+
+        await pilot.press("ctrl+l")
+        assert ta.text == "#optional "
+        assert ta._pending_optional_spacer is not None
+
+        await pilot.press(":")
+
+    assert ta.text == "#optional:"
+
+
+async def test_optional_only_selector_smart_insertion_then_colon() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+
+        # The '#' from the '#@' trigger is already present ('@' was prevented).
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+
+        inserted = bar.insert_snippet_at_target(
+            ta, ta.id or "", ((0, 0), (0, 1)), "optional", entry=_optional_entry()
+        )
+        await pilot.pause()
+
+        assert inserted is True
+        assert ta.text == "#optional "
+        assert ta._pending_optional_spacer is not None
+
+        await pilot.press(":")
+
+    assert ta.text == "#optional:"
+
+
+async def test_no_input_xprompt_colon_is_not_rewritten() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#p")
+        ta.cursor_location = (0, 2)
+        with patch(_ENTRY_PATCH, return_value=[_entry("plain")]):
+            await pilot.press("ctrl+t")
+
+        assert ta.text == "#plain "
+        assert ta._pending_optional_spacer is None
+
+        await pilot.press(":")
+
+    # The trailing space survives; the colon simply inserts after it.
+    assert ta.text == "#plain :"
+
+
+async def test_intervening_keystroke_clears_pending_spacer() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        with patch(_ENTRY_PATCH, return_value=[_optional_entry()]):
+            await pilot.press("ctrl+t")
+
+        assert ta.text == "#optional "
+        assert ta._pending_optional_spacer is not None
+
+        # Any other character cancels the one-shot spacer rewrite.
+        await pilot.press("x")
+        assert ta._pending_optional_spacer is None
+
+        await pilot.press(":")
+
+    assert ta.text == "#optional x:"
