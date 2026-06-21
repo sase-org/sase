@@ -203,17 +203,36 @@ class PromptBarRequestsMixin:
         from ...modals import XPromptSelectModal
         from ...modals.xprompt_select_modal import XPromptSelection
 
+        # The trigger pane captured its own origin (Phase 1), so target it
+        # directly instead of re-querying the generic ``#prompt-input-bar`` after
+        # the modal closes — that lookup could land on a different active pane in
+        # a multi-pane stack.
+        origin_bar = (
+            event.origin_bar if isinstance(event.origin_bar, PromptInputBar) else None
+        )
+        origin_text_area = event.origin_text_area
+        origin_pane_id = event.origin_pane_id
+        trigger_range = event.trigger_range
+
         def on_xprompt_select(result: XPromptSelection | str | None) -> None:
-            if result:
-                # Insert xprompt name into the input bar
-                try:
-                    bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-                    if isinstance(result, XPromptSelection):
-                        bar.insert_snippet(result.suffix, result.entry)
-                    else:
-                        bar.insert_snippet(result)
-                except Exception:
-                    pass
+            if not result or origin_bar is None:
+                return
+            suffix = result.suffix if isinstance(result, XPromptSelection) else result
+            entry = result.entry if isinstance(result, XPromptSelection) else None
+            inserted = origin_bar.insert_snippet_at_target(
+                origin_text_area,
+                origin_pane_id,
+                trigger_range,
+                suffix,
+                entry,
+            )
+            if not inserted:
+                # Target-staleness guard: the originating pane/bar was unmounted
+                # before the user chose, so leave every prompt unchanged.
+                self.notify(  # type: ignore[attr-defined]
+                    "Prompt pane is no longer available - selection discarded",
+                    severity="warning",
+                )
 
         # Get project from prompt context if available.
         # In home mode, let auto-detection resolve the actual project name
@@ -226,10 +245,15 @@ class PromptBarRequestsMixin:
 
         # Detect VCS tag in current prompt text to load that project's
         # local xprompts (e.g. #gh:sase → load sase's sase.yml xprompts).
+        # Read from the captured origin pane so the detection follows the same
+        # pane the user triggered ``#@`` in.
         extra_prompts = None
         try:
-            bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-            prompt_text = bar.active_text()
+            prompt_text = ""
+            if origin_text_area is not None:
+                prompt_text = getattr(origin_text_area, "text", "") or ""
+            elif origin_bar is not None:
+                prompt_text = origin_bar.active_text()
             if prompt_text:
                 from sase.xprompt._parsing import (
                     extract_project_from_vcs_tag,

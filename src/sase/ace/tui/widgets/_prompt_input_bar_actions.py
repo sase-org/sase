@@ -116,7 +116,11 @@ class PromptInputBarActionsMixin(_MixinBase):
         snippet_name: str,
         entry: XPromptAssistEntry | None = None,
     ) -> None:
-        """Insert a snippet reference at the cursor position.
+        """Insert a snippet reference at the active pane's cursor.
+
+        Legacy entry point that targets whichever pane is active *now*. The
+        ``#@`` selector path routes through :meth:`insert_snippet_at_target`
+        instead so it can act on the exact pane that opened the modal.
 
         The '#' from the '#@' trigger is already in the input
         ('@' was prevented), so we just append the snippet name.
@@ -125,7 +129,69 @@ class PromptInputBarActionsMixin(_MixinBase):
             snippet_name: The snippet name to insert (without #)
             entry: Optional selected xprompt metadata for smart argument insertion.
         """
-        text_area = self.active_text_area()
+        self._insert_snippet_into(self.active_text_area(), snippet_name, entry)
+
+    def insert_snippet_at_target(
+        self,
+        target_text_area: object,
+        pane_id: str,
+        trigger_range: tuple[tuple[int, int], tuple[int, int]] | None,
+        snippet_name: str,
+        entry: XPromptAssistEntry | None = None,
+    ) -> bool:
+        """Insert a snippet into the pane that opened the ``#@`` selector.
+
+        Targets the captured origin pane rather than the currently active one,
+        so a multi-pane stack inserts into the upper pane the trigger was typed
+        in even if focus moved while the modal was open.
+
+        Returns ``False`` without mutating any pane when the captured target is
+        stale -- the originating pane or bar was unmounted/rebuilt while the
+        modal was open -- so the caller can notify and leave every prompt
+        unchanged. Insertion lands on the empty suffix range right after the
+        literal ``#`` of *trigger_range*, preserving the ``Enter`` contract of
+        inserting ``#name`` after the trigger ``#``.
+        """
+        text_area = self._resolve_snippet_target(target_text_area, pane_id)
+        if text_area is None:
+            return False
+        if trigger_range is not None:
+            # Collapse the selection onto the empty range just after the trigger
+            # '#' so only that suffix is replaced and the '#' itself is kept.
+            text_area.cursor_location = trigger_range[1]
+        self._insert_snippet_into(text_area, snippet_name, entry)
+        return True
+
+    def _resolve_snippet_target(
+        self,
+        target_text_area: object,
+        pane_id: str,
+    ) -> PromptTextArea | None:
+        """Return the captured origin pane if still live in this bar, else ``None``.
+
+        A prompt-stack rebuild remounts panes under a fresh generation-scoped id
+        (see :meth:`_pane_id`), so a captured *pane_id* that still resolves to
+        the very same widget instance is proof the trigger pane survived;
+        a missing id, a mismatched instance, or an unmounted bar means the
+        target is stale and insertion must be skipped.
+        """
+        if not self.is_mounted or not isinstance(target_text_area, PromptTextArea):
+            return None
+        if pane_id:
+            try:
+                found = self.query_one(f"#{pane_id}", PromptTextArea)
+            except Exception:
+                return None
+            return found if found is target_text_area else None
+        return target_text_area if target_text_area.is_mounted else None
+
+    def _insert_snippet_into(
+        self,
+        text_area: PromptTextArea,
+        snippet_name: str,
+        entry: XPromptAssistEntry | None,
+    ) -> None:
+        """Insert *snippet_name* (and optional smart args) into *text_area*."""
         start, end = text_area.selection
         if entry is not None and self._insert_xprompt_smart_snippet(
             text_area,

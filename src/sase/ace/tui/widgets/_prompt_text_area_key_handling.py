@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from textual.events import Key
 
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 
     from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
+    from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
     from sase.ace.tui.widgets.xprompt_arg_assist import ActiveXPromptArgHint
 else:
     _MixinBase = object
@@ -336,7 +337,19 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
                     line = self.document.get_line(row)
                     if line[col - 1] == "#":
                         PromptInputBar = prompt_bar_class()
-                        bar.post_message(PromptInputBar.SnippetRequested())
+                        # Capture the exact origin so the selector targets this
+                        # pane even if focus or the active pane changes while the
+                        # modal is open. The trigger range covers the literal
+                        # '#' (the '@' was prevented), so insertion can replace
+                        # only the suffix after it.
+                        bar.post_message(
+                            PromptInputBar.SnippetRequested(
+                                origin_bar=bar,
+                                origin_text_area=cast("PromptTextArea", self),
+                                origin_pane_id=self.id or "",
+                                trigger_range=((row, col - 1), (row, col)),
+                            )
+                        )
                         event.stop()
                         event.prevent_default()
                         return

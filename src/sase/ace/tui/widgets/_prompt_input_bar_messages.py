@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from textual.message import Message
 
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import StashedPromptPane
+
+if TYPE_CHECKING:
+    from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+    from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 
 class Submitted(Message, namespace="prompt_input_bar"):
@@ -146,7 +152,43 @@ class HistoryRequested(Message, namespace="prompt_input_bar"):
 
 
 class SnippetRequested(Message, namespace="prompt_input_bar"):
-    """Message sent when user requests snippet modal ('#@')."""
+    """Message sent when user requests the snippet selector (``#@``).
+
+    Carries the explicit origin of the ``#@`` trigger so the selector can act
+    on the exact pane that opened it, even if focus moves or the active pane
+    changes while the modal is open. Before this, the request handler re-queried
+    the generic ``#prompt-input-bar`` after the modal closed and inserted into
+    whatever pane happened to be active, which could miss the originating pane
+    in a multi-pane stack.
+
+    Fields:
+
+    - ``origin_bar``: the :class:`PromptInputBar` that owns the trigger pane.
+    - ``origin_text_area``: the :class:`PromptTextArea` the ``#@`` was typed
+      into.
+    - ``origin_pane_id``: that text area's stable, generation-scoped widget id,
+      used as a staleness check -- a prompt-stack rebuild remounts panes under a
+      fresh id, so a captured id that no longer resolves means the trigger pane
+      is gone.
+    - ``trigger_range``: the ``(start, end)`` document range covering the
+      literal ``#`` that opened ``#@``. Insertion replaces only the suffix after
+      the ``#`` (preserving the existing ``Enter`` behavior); a later phase can
+      replace the ``#`` itself to inline-expand.
+    """
+
+    def __init__(
+        self,
+        *,
+        origin_bar: PromptInputBar | None = None,
+        origin_text_area: PromptTextArea | None = None,
+        origin_pane_id: str = "",
+        trigger_range: tuple[tuple[int, int], tuple[int, int]] | None = None,
+    ) -> None:
+        super().__init__()
+        self.origin_bar = origin_bar
+        self.origin_text_area = origin_text_area
+        self.origin_pane_id = origin_pane_id
+        self.trigger_range = trigger_range
 
 
 class WorkflowEditorRequested(Message, namespace="prompt_input_bar"):
