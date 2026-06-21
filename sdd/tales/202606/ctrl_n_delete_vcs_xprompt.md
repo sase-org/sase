@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 09:53:20
-status: wip
+status: done
 prompt: sdd/prompts/202606/ctrl_n_delete_vcs_xprompt.md
 ---
 # Prompt `Ctrl+N` Deletes VCS XPrompt; `Ctrl+P` Cycles Through an Empty State

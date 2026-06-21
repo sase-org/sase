@@ -4,15 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from sase.xprompt._parsing import (
     find_vcs_workflow_tag_prepend_offset,
     find_vcs_workflow_tag_span,
     normalize_vcs_underscore_refs,
 )
-
-VcsMruCycleKey = Literal["ctrl+n", "ctrl+p"]
 
 
 @dataclass(frozen=True)
@@ -27,8 +25,57 @@ class _VcsMruCycleEdit:
     replacement: str
 
 
-def _cycle_direction(key: VcsMruCycleKey) -> int:
-    return -1 if key == "ctrl+n" else 1
+@dataclass(frozen=True)
+class _VcsXPromptDeleteEdit:
+    """Text edit that removes a VCS workflow tag from a prompt."""
+
+    text: str
+    cursor_offset: int
+    start_offset: int
+    end_offset: int
+
+
+def _delete_vcs_xprompt_text(
+    text: str,
+    cursor_offset: int,
+) -> _VcsXPromptDeleteEdit | None:
+    """Return the edit deleting the first VCS workflow tag, or ``None``.
+
+    One adjacent separator is consumed with the tag so deletion does not leave
+    dangling whitespace.
+    """
+    if not text.strip():
+        return None
+    span = find_vcs_workflow_tag_span(text)
+    if span is None:
+        return None
+
+    start, end = span
+    new_start, new_end = start, end
+    trailing = text[end] if end < len(text) else None
+    if trailing == " ":
+        new_end = end + 1
+    elif trailing == "\n" and (start == 0 or text[start - 1] == "\n"):
+        new_end = end + 1
+    elif start > 0 and text[start - 1] == " ":
+        new_start = start - 1
+
+    new_text = text[:new_start] + text[new_end:]
+    removed = new_end - new_start
+    if cursor_offset <= new_start:
+        new_cursor = cursor_offset
+    elif cursor_offset < new_end:
+        new_cursor = new_start
+    else:
+        new_cursor = cursor_offset - removed
+    new_cursor = min(new_cursor, len(new_text))
+
+    return _VcsXPromptDeleteEdit(
+        text=new_text,
+        cursor_offset=new_cursor,
+        start_offset=new_start,
+        end_offset=new_end,
+    )
 
 
 def _normalize_mru_lookup_key(tag: str) -> str:
@@ -38,26 +85,28 @@ def _normalize_mru_lookup_key(tag: str) -> str:
 def _next_vcs_mru_index(
     *,
     mru: Sequence[str],
-    key: VcsMruCycleKey,
     current_index: int | None,
     current_tag: str | None,
 ) -> int | None:
-    """Return the next MRU index for a cycle keypress."""
+    """Return the next MRU index for a forward cycle keypress.
+
+    The cycle includes one terminal empty position at ``len(mru)``.
+    """
     if not mru:
         return None
 
-    direction = _cycle_direction(key)
+    ring_len = len(mru) + 1
     if current_index is not None:
-        return (current_index + direction) % len(mru)
+        return (current_index + 1) % ring_len
 
     if current_tag is not None:
         normalized_current = _normalize_mru_lookup_key(current_tag)
         normalized_mru = [_normalize_mru_lookup_key(entry) for entry in mru]
         if normalized_current in normalized_mru:
             base = normalized_mru.index(normalized_current)
-            return (base + direction) % len(mru)
+            return (base + 1) % ring_len
 
-    return 0 if direction == 1 else len(mru) - 1
+    return 0
 
 
 def _cursor_after_replacement(
@@ -80,7 +129,6 @@ def _cycle_vcs_mru_text(
     text: str,
     cursor_offset: int,
     mru: Sequence[str],
-    key: VcsMruCycleKey,
     current_index: int | None,
 ) -> _VcsMruCycleEdit | None:
     """Return the text edit for applying a VCS MRU cycle keypress."""
@@ -88,12 +136,24 @@ def _cycle_vcs_mru_text(
     current_tag = None if span is None else text[span[0] : span[1]]
     new_index = _next_vcs_mru_index(
         mru=mru,
-        key=key,
         current_index=current_index,
         current_tag=current_tag,
     )
     if new_index is None:
         return None
+
+    if new_index == len(mru):
+        delete_edit = _delete_vcs_xprompt_text(text, cursor_offset)
+        if delete_edit is None:
+            return None
+        return _VcsMruCycleEdit(
+            text=delete_edit.text,
+            cursor_offset=delete_edit.cursor_offset,
+            mru_index=new_index,
+            start_offset=delete_edit.start_offset,
+            end_offset=delete_edit.end_offset,
+            replacement="",
+        )
 
     entry = mru[new_index]
     if not entry.strip():
@@ -184,11 +244,16 @@ class VcsMruCyclingMixin(_MixinBase):
         ) -> None: ...
 
         def _clear_soft_completion(self, *, cancel_timer: bool = False) -> None: ...
+        def _clear_file_completion(
+            self,
+            *,
+            clear_xprompt_arg_hint: bool = True,
+        ) -> None: ...
         def _clear_xprompt_arg_hint(self) -> None: ...
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
         def _on_prompt_completion_context_changed(self) -> None: ...
 
-    def _handle_vcs_mru_cycle_key(self, key: VcsMruCycleKey) -> bool:
+    def _handle_vcs_mru_cycle_key(self) -> bool:
         """Apply a VCS MRU cycle keypress if one is available."""
         bar = self._find_prompt_bar()
         if bar is not None and bar._mode == "feedback":
@@ -200,7 +265,6 @@ class VcsMruCyclingMixin(_MixinBase):
             text=self.text,
             cursor_offset=self._absolute_offset(self.cursor_location),
             mru=load_launchable_vcs_xprompt_mru(),
-            key=key,
             current_index=self._vcs_mru_index,
         )
         if edit is None:
@@ -219,8 +283,34 @@ class VcsMruCyclingMixin(_MixinBase):
         self._on_prompt_completion_context_changed()
         return True
 
+    def _handle_vcs_xprompt_delete_key(self) -> bool:
+        """Delete the first VCS workflow tag from the prompt, if present."""
+        self._vcs_mru_index = None
+        bar = self._find_prompt_bar()
+        if bar is not None and bar._mode == "feedback":
+            return False
+
+        edit = _delete_vcs_xprompt_text(
+            self.text,
+            self._absolute_offset(self.cursor_location),
+        )
+        if edit is None:
+            return False
+
+        start = self._location_from_absolute(edit.start_offset)
+        end = self._location_from_absolute(edit.end_offset)
+        if self._replace_via_keyboard("", start, end) is None:
+            return False
+
+        self.move_cursor(self._location_from_absolute(edit.cursor_offset))
+        self._clear_soft_completion(cancel_timer=True)
+        self._clear_file_completion()
+        self._clear_xprompt_arg_hint()
+        self._refresh_xprompt_arg_hint_from_cursor()
+        self._on_prompt_completion_context_changed()
+        return True
+
 
 __all__ = [
-    "VcsMruCycleKey",
     "VcsMruCyclingMixin",
 ]

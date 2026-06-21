@@ -1655,6 +1655,8 @@ The detailed multi-agent parsing rules live in the [XPrompt reference](xprompt.m
 | `Ctrl+G p/P`   | Load / restore stashed prompt drafts                                                          |
 | `Ctrl+Y`       | Open the workflow YAML editor                                                                 |
 | `Ctrl+K`       | Open prompt history, filtered by the current single-line prompt                               |
+| `Ctrl+P`       | Cycle forward through workspace MRU prefixes, including a no-prefix stop before wrapping      |
+| `Ctrl+N`       | Remove the first workspace prefix from the prompt                                             |
 | `Ctrl+T`       | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
 | `Ctrl+R`       | Recursive fuzzy file finder using the same prompt-aware path root as file completion          |
 | `Tab`          | Snippet expansion (see below)                                                                 |
@@ -1969,9 +1971,10 @@ writing to history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter th
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit workspace reference appears with the
 default `#git:home` prefix. Use `#cd:~` for direct home-directory runs with no VCS workspace management. Explicit
-workspace prefixes, including `#cd:<path>`, also feed the `Ctrl+N` / `Ctrl+P` MRU cycle. In the prompt input, `Ctrl+P` /
-`Ctrl+N` replaces the first workspace prefix in the text; when no prefix is present, it prepends the selected MRU prefix
-before the prompt body.
+workspace prefixes, including `#cd:<path>`, also feed the prompt-input MRU controls. In the prompt input, `Ctrl+P`
+cycles forward through launchable workspace MRU prefixes; after the oldest entry it removes the shown prefix for a
+no-prefix stop, then wraps to the most recent entry. `Ctrl+N` removes the first workspace prefix from the prompt and is
+a no-op when none is present.
 
 ### Keybindings
 
