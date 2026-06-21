@@ -37,8 +37,53 @@ async def test_saved_agent_group_modal_normal_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    recent_groups = tuple(_recent_group_summary(idx) for idx in range(2))
-    groups = tuple(_saved_group_summary(idx) for idx in range(3))
+    recent_groups = (
+        _recent_group_summary(
+            0,
+            created_at="12m",
+            title="2 agents from @visual",
+            agent_count=2,
+            top_level_agent_count=2,
+            status_counts={"DONE": 2},
+        ),
+        _recent_group_summary(
+            1,
+            created_at="1d",
+            title="Big refactor sweep",
+            agent_count=6,
+            top_level_agent_count=4,
+            status_counts={"DONE": 3, "FAILED": 1, "RUNNING": 2},
+        ),
+    )
+    groups = (
+        _saved_group_summary(
+            0,
+            created_at="3h",
+            name="Backend batch",
+            title="3 agents from backend",
+            agent_count=3,
+            top_level_agent_count=2,
+            status_counts={"DONE": 2, "FAILED": 1},
+        ),
+        _saved_group_summary(
+            1,
+            created_at="12m",
+            title="3 agents from @visual",
+            agent_count=2,
+            top_level_agent_count=2,
+            status_counts={"DONE": 2},
+            revived_at="2026-05-27T13:00:00Z",
+            times_revived=1,
+        ),
+        _saved_group_summary(
+            2,
+            created_at="1d",
+            title="Big refactor sweep",
+            agent_count=6,
+            top_level_agent_count=4,
+            status_counts={"DONE": 3, "FAILED": 1, "RUNNING": 2},
+        ),
+    )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
@@ -97,7 +142,11 @@ async def test_saved_agent_group_modal_load_more_png_snapshot(
             {},
         )
         option_list = modal.query_one("#saved-agent-group-list", OptionList)
-        option_list.highlighted = len(option_list.options) - 2
+        option_list.highlighted = next(
+            idx
+            for idx, option in enumerate(option_list.options)
+            if option.id == "load-more"
+        )
         modal._update_preview_for_option_id("load-more")
         await wait_for_visual_idle(page)
 
@@ -162,35 +211,58 @@ async def _push_saved_group_modal(
 def _saved_group_summary(
     idx: int,
     *,
+    created_at: str | None = None,
     title: str = "3 agents from @visual",
+    name: str | None = None,
     agent_count: int = 3,
     top_level_agent_count: int = 2,
     status_counts: dict[str, int] | None = None,
     project_names: tuple[str, ...] = ("sase",),
     cl_names: tuple[str, ...] = ("visual-polish",),
+    revived_at: str | None = None,
+    times_revived: int = 0,
 ) -> SavedAgentGroupSummaryWire:
+    ages = ("3h", "12m", "1d", "10d", "now")
+    statuses = (
+        {"DONE": 2, "FAILED": 1},
+        {"DONE": 2},
+        {"DONE": 3, "FAILED": 1, "RUNNING": 2},
+        {"RUNNING": 1},
+    )
     return SavedAgentGroupSummaryWire(
         group_id=f"visual-group-{idx:02}",
-        created_at=f"May 27 12:{idx:02}",
+        created_at=created_at or ages[idx % len(ages)],
         source="marked_agents",
         title=title,
+        name=name,
         agent_count=agent_count,
         top_level_agent_count=top_level_agent_count,
-        status_counts=status_counts or {"DONE": 2, "FAILED": 1},
+        status_counts=status_counts or statuses[idx % len(statuses)],
         project_names=project_names,
         cl_names=cl_names,
+        revived_at=revived_at,
+        times_revived=times_revived,
     )
 
 
-def _recent_group_summary(idx: int) -> SavedAgentGroupSummaryWire:
+def _recent_group_summary(
+    idx: int,
+    *,
+    created_at: str | None = None,
+    title: str = "2 agents from @visual",
+    agent_count: int = 2,
+    top_level_agent_count: int = 2,
+    status_counts: dict[str, int] | None = None,
+) -> SavedAgentGroupSummaryWire:
+    ages = ("12m", "1d", "10d")
     return SavedAgentGroupSummaryWire(
         group_id=f"recent-visual-group-{idx:02}",
-        created_at=f"May 27 12:{idx + 30:02}",
+        created_at=created_at or ages[idx % len(ages)],
         source="recent_dismissal",
-        title="2 agents from @visual",
-        agent_count=2,
-        top_level_agent_count=2,
-        status_counts={"DONE": 2},
+        title=title,
+        agent_count=agent_count,
+        top_level_agent_count=top_level_agent_count,
+        status_counts=status_counts or {"DONE": 2},
         project_names=("sase",),
         cl_names=("visual-polish",),
     )
@@ -221,8 +293,11 @@ def _saved_group_from_summary(
         title=summary.title,
         agent_count=summary.agent_count,
         top_level_agent_count=summary.top_level_agent_count,
+        name=summary.name,
         status_counts=summary.status_counts,
         project_names=summary.project_names,
         cl_names=summary.cl_names,
         agent_refs=refs,
+        revived_at=summary.revived_at,
+        times_revived=summary.times_revived,
     )

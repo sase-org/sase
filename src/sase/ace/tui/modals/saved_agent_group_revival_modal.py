@@ -35,6 +35,8 @@ _RECENT_HEADING_ID = "heading:recent"
 _SAVED_HEADING_ID = "heading:saved"
 _RECENT_EMPTY_ID = "empty:recent"
 _SAVED_EMPTY_ID = "empty:saved"
+_SAVED_RECENT_SEPARATOR_ID = "sep:1"
+_RECENT_ACTIONS_SEPARATOR_ID = "sep:2"
 _RECENT_PREFIX = "recent:"
 _GROUP_PREFIX = "group:"
 
@@ -198,40 +200,16 @@ class SavedAgentGroupRevivalModal(
         options: list[Option] = []
         options.append(
             Option(
-                Text("Recent dismissals", style="bold #87D7FF"),
-                id=_RECENT_HEADING_ID,
-                disabled=True,
-            )
-        )
-        if self._recent_groups:
-            for idx, group in enumerate(self._recent_groups):
-                options.append(
-                    Option(
-                        format_saved_group_row(group, idx, source_label="recent"),
-                        id=f"{_RECENT_PREFIX}{group.group_id}",
-                    )
-                )
-        else:
-            options.append(
-                Option(
-                    Text("No recent dismissals", style="dim"),
-                    id=_RECENT_EMPTY_ID,
-                    disabled=True,
-                )
-            )
-
-        options.append(
-            Option(
-                Text("Saved groups", style="bold #87D7FF"),
+                Text(f"Saved groups ({len(self._groups)})", style="bold #87D7FF"),
                 id=_SAVED_HEADING_ID,
                 disabled=True,
             )
         )
         if self._groups:
-            for idx, group in enumerate(self._groups):
+            for group in self._groups:
                 options.append(
                     Option(
-                        format_saved_group_row(group, idx),
+                        format_saved_group_row(group),
                         id=f"{_GROUP_PREFIX}{group.group_id}",
                     )
                 )
@@ -251,6 +229,37 @@ class SavedAgentGroupRevivalModal(
                     id=_LOAD_MORE_ID,
                 )
             )
+
+        options.append(Option(Text(""), id=_SAVED_RECENT_SEPARATOR_ID, disabled=True))
+
+        options.append(
+            Option(
+                Text(
+                    f"Recent dismissals ({len(self._recent_groups)})",
+                    style="bold #87D7FF",
+                ),
+                id=_RECENT_HEADING_ID,
+                disabled=True,
+            )
+        )
+        if self._recent_groups:
+            for group in self._recent_groups:
+                options.append(
+                    Option(
+                        format_saved_group_row(group),
+                        id=f"{_RECENT_PREFIX}{group.group_id}",
+                    )
+                )
+        else:
+            options.append(
+                Option(
+                    Text("No recent dismissals", style="dim"),
+                    id=_RECENT_EMPTY_ID,
+                    disabled=True,
+                )
+            )
+
+        options.append(Option(Text(""), id=_RECENT_ACTIONS_SEPARATOR_ID, disabled=True))
 
         options.append(
             Option(
@@ -279,16 +288,16 @@ class SavedAgentGroupRevivalModal(
         group_count = len(self._groups)
         load_more = " | PgDn/load row: more" if self._next_cursor is not None else ""
         return (
-            f"j/k: navigate | Enter: revive/open | {recent_count} recent | "
-            f"{group_count} saved loaded"
+            f"j/k: navigate | Enter: revive/open | {group_count} saved loaded | "
+            f"{recent_count} recent"
             f"{load_more} | Esc/q: cancel"
         )
 
     def _first_option_id(self) -> str:
-        if self._recent_groups:
-            return f"{_RECENT_PREFIX}{self._recent_groups[0].group_id}"
         if self._groups:
             return f"{_GROUP_PREFIX}{self._groups[0].group_id}"
+        if self._recent_groups:
+            return f"{_RECENT_PREFIX}{self._recent_groups[0].group_id}"
         return _CUSTOM_SEARCH_ID
 
     def _update_preview_for_option_id(self, option_id: str | None) -> None:
@@ -303,7 +312,12 @@ class SavedAgentGroupRevivalModal(
         if option_id == _LOAD_MORE_ID:
             preview.update(build_load_more_preview(self._next_cursor))
             return
-        if option_id in {_RECENT_HEADING_ID, _SAVED_HEADING_ID}:
+        if option_id in {
+            _RECENT_HEADING_ID,
+            _SAVED_HEADING_ID,
+            _SAVED_RECENT_SEPARATOR_ID,
+            _RECENT_ACTIONS_SEPARATOR_ID,
+        }:
             return
         if option_id == _CUSTOM_SEARCH_ID or option_id is None:
             preview.update(build_saved_group_preview(None))

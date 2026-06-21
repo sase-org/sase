@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 08:53:04
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_restore_panel_polish.md
 ---
 # Polish the Agent Restore panel's left-pane group list

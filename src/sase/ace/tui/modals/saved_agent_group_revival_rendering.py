@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from rich.cells import cell_len
 from rich.text import Text
 
 from sase.core.agent_group_archive_wire import (
@@ -20,6 +21,17 @@ _STATUS_COLORS: dict[str, str] = {
     STOPPED_STATUS: STOPPED_COLOR,
     "WAITING INPUT": "#FF87D7",
     "RUNNING": "#87AFFF",
+}
+_ROW_AGE_WIDTH = 4
+_ROW_AGENT_COUNT_WIDTH = 4
+_STATUS_BADGE_WIDTH = 7
+_STATUS_BADGE_PRIORITY = ("FAILED", "RUNNING", "DONE")
+_STATUS_GLYPHS: dict[str, str] = {
+    "FAILED": "x",
+    "RUNNING": "●",
+    "DONE": "✓",
+    STOPPED_STATUS: "Ø",
+    "WAITING INPUT": "!",
 }
 
 
@@ -46,64 +58,22 @@ def _saved_group_time_label(created_at: str, *, now: datetime | None = None) -> 
     return f"{relative} | {parsed.strftime('%Y-%m-%d %H:%M')}"
 
 
-def _saved_group_row_time_label(
-    created_at: str,
-    *,
-    now: datetime | None = None,
-) -> str:
-    """Return a short saved-time label for list rows."""
-
-    parsed = _parse_timestamp(created_at)
-    if parsed is None:
-        return created_at
-
-    reference = now or datetime.now(UTC)
-    if reference.tzinfo is None:
-        reference = reference.replace(tzinfo=UTC)
-
-    delta_seconds = max(0, int((reference - parsed).total_seconds()))
-    if delta_seconds < 60:
-        relative = "now"
-    elif delta_seconds < 3600:
-        relative = f"{delta_seconds // 60}m"
-    elif delta_seconds < 86400:
-        relative = f"{delta_seconds // 3600}h"
-    else:
-        relative = f"{delta_seconds // 86400}d"
-    return f"{relative} | {parsed.strftime('%m-%d %H:%M')}"
-
-
 def format_saved_group_row(
     summary: SavedAgentGroupSummaryWire,
-    index: int,
     *,
     now: datetime | None = None,
-    source_label: str | None = None,
 ) -> Text:
     """Build one saved-group list row."""
 
-    text = Text()
-    text.append(f"{index + 1:>2}. ", style="dim")
-    if summary.revived_at:
-        text.append("revived ", style="dim italic")
+    text = Text(no_wrap=True, overflow="ellipsis")
+    text.append("* " if summary.revived_at else "  ", style="dim")
+    text.append(_row_age_label(summary.created_at, now=now), style="dim")
+    text.append("  ")
+    agent_count = f"×{summary.agent_count}"
+    text.append(f"{agent_count:<{_ROW_AGENT_COUNT_WIDTH}}", style="#87D7FF")
+    _append_compact_status_badge(text, summary.status_counts)
+    text.append(" ")
     text.append(_saved_group_display_title(summary), style="bold")
-    if summary.name and summary.name != summary.title:
-        text.append("  ")
-        text.append(summary.title, style="dim")
-    text.append("  ")
-    text.append(_saved_group_row_time_label(summary.created_at, now=now), style="dim")
-    if source_label:
-        text.append("  ")
-        text.append(source_label, style="dim italic")
-    text.append("  ")
-    text.append(f"{summary.agent_count} agents", style="#87D7FF")
-    text.append("  ")
-    _append_status_counts(text, summary.status_counts)
-
-    hints = _compact_hints(summary)
-    if hints:
-        text.append("  ")
-        text.append(hints, style="dim")
     return text
 
 
@@ -257,15 +227,71 @@ def _append_status_counts(text: Text, status_counts: dict[str, int]) -> None:
         text.append("no status", style="dim")
 
 
-def _compact_hints(summary: SavedAgentGroupSummaryWire) -> str:
-    hints: list[str] = []
-    if summary.cl_names:
-        hints.append(_join_limited(summary.cl_names, limit=2))
-    elif summary.project_names:
-        hints.append(_join_limited(summary.project_names, limit=2))
-    if summary.times_revived:
-        hints.append(f"revived x{summary.times_revived}")
-    return " | ".join(hints)
+def _row_age_label(created_at: str, *, now: datetime | None = None) -> str:
+    parsed = _parse_timestamp(created_at)
+    if parsed is None:
+        return created_at.rjust(_ROW_AGE_WIDTH)
+
+    reference = now or datetime.now(UTC)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=UTC)
+
+    delta_seconds = max(0, int((reference - parsed).total_seconds()))
+    if delta_seconds < 60:
+        relative = "now"
+    elif delta_seconds < 3600:
+        relative = f"{delta_seconds // 60}m"
+    elif delta_seconds < 86400:
+        relative = f"{delta_seconds // 3600}h"
+    else:
+        relative = f"{delta_seconds // 86400}d"
+    return relative.rjust(_ROW_AGE_WIDTH)
+
+
+def _append_compact_status_badge(
+    text: Text,
+    status_counts: dict[str, int],
+) -> None:
+    used_width = 0
+    appended = False
+    for status, count in _status_badge_counts(status_counts):
+        token = f"{_status_glyph(status)}{count}"
+        separator_width = 1 if appended else 0
+        token_width = cell_len(token)
+        if used_width + separator_width + token_width > _STATUS_BADGE_WIDTH:
+            continue
+        if appended:
+            text.append(" ")
+            used_width += 1
+        text.append(token, style=_status_style(status))
+        used_width += token_width
+        appended = True
+
+    if not appended:
+        text.append("—", style="dim")
+        used_width = 1
+
+    padding = _STATUS_BADGE_WIDTH - used_width
+    if padding > 0:
+        text.append(" " * padding, style="dim")
+
+
+def _status_badge_counts(
+    status_counts: dict[str, int],
+) -> tuple[tuple[str, int], ...]:
+    ordered: list[tuple[str, int]] = []
+    for status in _STATUS_BADGE_PRIORITY:
+        count = status_counts.get(status, 0)
+        if count > 0:
+            ordered.append((status, count))
+    for status, count in sorted(status_counts.items()):
+        if status not in _STATUS_BADGE_PRIORITY and count > 0:
+            ordered.append((status, count))
+    return tuple(ordered)
+
+
+def _status_glyph(status: str) -> str:
+    return _STATUS_GLYPHS.get(status, (status[:1] or "?").upper())
 
 
 def _join_limited(values: tuple[str, ...], *, limit: int = 3) -> str:
