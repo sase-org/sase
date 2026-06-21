@@ -1,14 +1,16 @@
-"""Widget tests: prompt ``<ctrl+n>`` deletes the first VCS xprompt tag.
+"""Regression: ``<ctrl+p>``/``<ctrl+n>`` cycle the bar text through the VCS MRU.
 
-``<ctrl+n>`` removes the first real VCS workflow tag (e.g. ``#git:foo``) from
-the prompt body and is otherwise a prompt-local no-op; ``<ctrl+p>`` is always a
-prompt-local no-op. Neither key loads MRU history. These tests pin that text
-plumbing and confirm file-completion navigation keeps precedence over both keys.
+The launch-side identity is derived from the *submitted text*, so the cycled-to
+ref must be exactly what the bar holds after cycling. These tests pin that text
+plumbing so a future change can't reintroduce the stale-context desync that the
+launch-side guards defend against.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -17,6 +19,7 @@ from textual.app import App, ComposeResult
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from tests.conftest import redirect_sase_home
 
 
 @pytest.fixture(autouse=True)
@@ -25,8 +28,8 @@ def _reset_vcs_tag_pattern_cache() -> object:
 
     Other tests in the suite patch workflow metadata to a reduced set; if the
     global VCS tag pattern was built during that window it would drop ``#git``
-    and tag detection would never fire. Reset it before/after each test so the
-    delete path sees the actually-registered providers.
+    and ``is_vcs_only`` detection would never fire. Reset it before/after each
+    test so cycling sees the actually-registered providers.
     """
     import sase.xprompt._parsing as parsing
     import sase.xprompt._parsing_vcs_tags as vcs_tags
@@ -42,9 +45,9 @@ def _reset_vcs_tag_pattern_cache() -> object:
     vcs_tags._VCS_TAG_EMBEDDED_PATTERN = None
 
 
-class _PromptApp(App):
+class _CycleApp(App):
     # The real AceApp disables Textual's ctrl+p command palette so the prompt
-    # bar owns ctrl+p; mirror that here.
+    # bar can use ctrl+p for VCS MRU cycling; mirror that here.
     ENABLE_COMMAND_PALETTE = False
 
     def __init__(self, *, mode: str | None = None) -> None:
@@ -58,14 +61,47 @@ class _PromptApp(App):
             yield PromptInputBar(mode=self._mode)
 
 
-async def _press(
+async def _cycle(
     start_text: str,
     keys: str | Sequence[str],
+    mru: list[str],
     *,
     cursor_offset: int | None = None,
     mode: str | None = None,
 ) -> tuple[str, int]:
-    app = _PromptApp(mode=mode)
+    app = _CycleApp(mode=mode)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text(start_text)
+        ta.move_cursor(
+            ta._location_from_absolute(
+                len(start_text) if cursor_offset is None else cursor_offset
+            )
+        )
+        ta.focus()
+        with patch(
+            "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
+            return_value=mru,
+        ):
+            presses = (keys,) if isinstance(keys, str) else keys
+            for key in presses:
+                await pilot.press(key)
+        return ta.text, ta._absolute_offset(ta.cursor_location)
+
+
+async def _cycle_with_real_loader(
+    start_text: str,
+    keys: str | Sequence[str],
+    *,
+    cursor_offset: int | None = None,
+) -> tuple[str, int]:
+    """Cycle through the *real* launchable MRU loader (no loader patch).
+
+    Used to assert that on-disk MRU entries excluded by
+    ``load_launchable_vcs_xprompt_mru`` (e.g. the implicit ``#git:home``
+    default) never surface as cyclable candidates in the widget.
+    """
+    app = _CycleApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text(start_text)
@@ -81,68 +117,152 @@ async def _press(
         return ta.text, ta._absolute_offset(ta.cursor_location)
 
 
-async def test_ctrl_n_deletes_first_vcs_tag() -> None:
-    text, cursor = await _press("#git:foo fix the bug", "ctrl+n")
-    assert text == "fix the bug"
-    assert cursor == len("fix the bug")
+async def test_cycling_skips_persisted_default_git_home_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A persisted ``#git:home`` is filtered out, so cycling moves between the
+    two surrounding non-default entries instead of landing on it."""
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file.write_text(json.dumps({"entries": ["#git:foo", "#git:home", "#git:bar"]}))
+
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda *a, **k: {"foo": workspace, "bar": workspace},
+    )
+    monkeypatch.setattr(
+        "sase.ace.changespec.cache.find_all_changespecs_cached",
+        lambda *a, **k: [],
+    )
+
+    text, cursor = await _cycle_with_real_loader("#git:foo", "ctrl+p")
+
+    assert text == "#git:bar "
+    assert cursor == len("#git:bar ")
 
 
-async def test_ctrl_n_deletes_tag_only_prompt_to_empty() -> None:
-    text, cursor = await _press("#git:foo", "ctrl+n")
+async def test_cycling_noops_when_only_mru_entry_is_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the only persisted entry is the default, the filtered MRU is empty
+    and the cycle key is a no-op."""
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file.write_text(json.dumps({"entries": ["#git:home"]}))
+
+    text, cursor = await _cycle_with_real_loader("", "ctrl+p")
+
     assert text == ""
     assert cursor == 0
 
 
-async def test_ctrl_n_preserves_directives_when_deleting_tag() -> None:
-    text, _cursor = await _press("%n:a #git:foo fix", "ctrl+n")
-    assert text == "%n:a fix"
+async def test_ctrl_p_cycles_vcs_only_prompt_to_next_mru_entry() -> None:
+    text, cursor = await _cycle(
+        "#git:foo",
+        "ctrl+p",
+        ["#git:foo", "#git:bar", "#git:baz"],
+    )
+    assert text == "#git:bar "
+    assert cursor == len("#git:bar ")
 
 
-async def test_ctrl_n_noop_when_prompt_has_no_vcs_tag() -> None:
-    text, _cursor = await _press("fix the bug", "ctrl+n")
-    assert text == "fix the bug"
+async def test_ctrl_n_cycles_vcs_only_prompt_to_previous_mru_entry() -> None:
+    text, cursor = await _cycle(
+        "#git:bar",
+        "ctrl+n",
+        ["#git:foo", "#git:bar", "#git:baz"],
+    )
+    assert text == "#git:foo "
+    assert cursor == len("#git:foo ")
 
 
-async def test_ctrl_n_noop_when_only_fenced_block_tag_exists() -> None:
-    """A tag quoted inside a fenced block is not a workflow ref, so it stays."""
-    start = "Fix the launcher:\n```\nsase run #git:quoted do thing\n```\n"
-    text, _cursor = await _press(start, "ctrl+n")
-    assert text == start
+async def test_ctrl_p_cycles_empty_prompt_to_most_recent_entry() -> None:
+    text, cursor = await _cycle("", "ctrl+p", ["#git:foo", "#git:bar"])
+    assert text == "#git:foo "
+    assert cursor == len("#git:foo ")
 
 
-async def test_ctrl_p_is_prompt_local_noop() -> None:
-    text, cursor = await _press("#git:foo fix the bug", "ctrl+p")
+async def test_ctrl_p_replaces_tag_in_prompt_body() -> None:
+    text, cursor = await _cycle(
+        "#git:foo fix the bug",
+        "ctrl+p",
+        ["#git:foo", "#git:bar"],
+    )
+    assert text == "#git:bar fix the bug"
+    assert cursor == len("#git:bar fix the bug")
+
+
+async def test_ctrl_p_replacement_keeps_cursor_at_logical_body_position() -> None:
+    text, cursor = await _cycle(
+        "#git:foo fix",
+        "ctrl+p",
+        ["#git:foo", "#git:longer"],
+    )
+    assert text == "#git:longer fix"
+    assert cursor == len("#git:longer fix")
+
+
+async def test_ctrl_p_prepends_tag_when_prompt_has_no_vcs_tag() -> None:
+    text, cursor = await _cycle("fix the bug", "ctrl+p", ["#git:foo", "#git:bar"])
     assert text == "#git:foo fix the bug"
     assert cursor == len("#git:foo fix the bug")
 
 
-async def test_ctrl_n_and_ctrl_p_do_not_load_mru() -> None:
-    with patch(
-        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
-        side_effect=AssertionError("prompt delete must not load MRU"),
-    ):
-        text, _cursor = await _press("#git:foo fix", ["ctrl+p", "ctrl+n"])
-    # ctrl+p is a no-op; ctrl+n then deletes the tag -- neither loaded MRU.
-    assert text == "fix"
+async def test_second_prepend_cycle_replaces_prepended_tag() -> None:
+    text, cursor = await _cycle(
+        "fix the bug",
+        ["ctrl+p", "ctrl+p"],
+        ["#git:foo", "#git:bar"],
+    )
+    assert text == "#git:bar fix the bug"
+    assert cursor == len("#git:bar fix the bug")
 
 
-async def test_feedback_mode_ctrl_n_does_not_delete_or_load_mru() -> None:
-    app = _PromptApp(mode="feedback")
+async def test_ctrl_p_preserves_directives_when_replacing_tag() -> None:
+    text, _cursor = await _cycle(
+        "%n:a #git:foo fix",
+        "ctrl+p",
+        ["#git:foo", "#git:bar"],
+    )
+    assert text == "%n:a #git:bar fix"
+
+
+async def test_ctrl_p_replaces_later_line_first_tag_only() -> None:
+    text, _cursor = await _cycle(
+        "intro\n#git:foo first\n---\n#git:baz second",
+        "ctrl+p",
+        ["#git:foo", "#git:bar", "#git:baz"],
+    )
+    assert text == "intro\n#git:bar first\n---\n#git:baz second"
+
+
+async def test_ctrl_p_preserves_newline_after_tag() -> None:
+    text, _cursor = await _cycle(
+        "#git:foo\nfix",
+        "ctrl+p",
+        ["#git:foo", "#git:bar"],
+    )
+    assert text == "#git:bar\nfix"
+
+
+async def test_feedback_mode_does_not_cycle_or_load_mru() -> None:
+    app = _CycleApp(mode="feedback")
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        ta.load_text("#git:foo fix")
+        ta.load_text("")
         ta.focus()
         with patch(
             "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
             side_effect=AssertionError("feedback should not load MRU"),
         ):
-            await pilot.press("ctrl+n")
             await pilot.press("ctrl+p")
-        assert ta.text == "#git:foo fix"
+        assert ta.text == ""
 
 
 async def test_file_completion_keeps_ctrl_n_precedence() -> None:
-    app = _PromptApp()
+    app = _CycleApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("fix")
@@ -153,23 +273,10 @@ async def test_file_completion_keeps_ctrl_n_precedence() -> None:
             CompletionCandidate("b", "b", False, "b"),
         ]
         ta._file_completion_index = 0
-        await pilot.press("ctrl+n")
+        with patch(
+            "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
+            side_effect=AssertionError("file completion should own ctrl+n"),
+        ):
+            await pilot.press("ctrl+n")
         assert ta.text == "fix"
         assert ta._file_completion_index == 1
-
-
-async def test_file_completion_keeps_ctrl_p_precedence() -> None:
-    app = _PromptApp()
-    async with app.run_test() as pilot:
-        ta = app.query_one(PromptTextArea)
-        ta.load_text("fix")
-        ta.focus()
-        ta._file_completion_active = True
-        ta._file_completion_candidates = [
-            CompletionCandidate("a", "a", False, "a"),
-            CompletionCandidate("b", "b", False, "b"),
-        ]
-        ta._file_completion_index = 1
-        await pilot.press("ctrl+p")
-        assert ta.text == "fix"
-        assert ta._file_completion_index == 0

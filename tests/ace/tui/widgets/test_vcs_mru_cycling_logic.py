@@ -1,10 +1,4 @@
-"""Pure-function tests for prompt VCS xprompt tag deletion.
-
-Prompt ``Ctrl+N`` deletes the first real VCS workflow tag from the prompt body.
-These tests pin the deletion edit produced by ``_delete_vcs_xprompt_text`` --
-tag detection, separator cleanup, and cursor placement -- without involving MRU
-history (prompt cycling no longer exists).
-"""
+"""Pure-function tests for prompt VCS MRU cycling."""
 
 from __future__ import annotations
 
@@ -13,9 +7,10 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from unittest.mock import patch
 
-from sase.ace.tui.widgets._vcs_xprompt_delete import (
-    _VcsXPromptDeleteEdit,
-    _delete_vcs_xprompt_text,
+from sase.ace.tui.widgets._vcs_mru_cycling import (
+    _VcsMruCycleEdit,
+    VcsMruCycleKey,
+    _cycle_vcs_mru_text,
 )
 
 _TEST_EMBEDDED_VCS_PATTERN = re.compile(
@@ -45,111 +40,124 @@ def _patched_vcs_parsing() -> Iterator[None]:
     vcs_refs._VCS_UNDERSCORE_NORMALIZER = None
 
 
-def _delete(
+def _cycle(
     text: str,
     *,
+    key: VcsMruCycleKey = "ctrl+p",
     cursor_offset: int | None = None,
-) -> _VcsXPromptDeleteEdit:
+    current_index: int | None = None,
+    mru: list[str] | None = None,
+) -> _VcsMruCycleEdit:
     with _patched_vcs_parsing():
-        edit = _delete_vcs_xprompt_text(
-            text,
-            len(text) if cursor_offset is None else cursor_offset,
+        edit = _cycle_vcs_mru_text(
+            text=text,
+            cursor_offset=len(text) if cursor_offset is None else cursor_offset,
+            mru=mru or ["#git:foo", "#git:bar", "#git:baz"],
+            key=key,
+            current_index=current_index,
         )
     assert edit is not None
     return edit
 
 
-def _delete_or_none(
-    text: str,
-    *,
-    cursor_offset: int | None = None,
-) -> _VcsXPromptDeleteEdit | None:
-    with _patched_vcs_parsing():
-        return _delete_vcs_xprompt_text(
-            text,
-            len(text) if cursor_offset is None else cursor_offset,
-        )
+def test_empty_prompt_cycles_to_directional_default() -> None:
+    edit = _cycle("", key="ctrl+n")
+    assert edit.text == "#git:baz "
+    assert edit.cursor_offset == len("#git:baz ")
+    assert edit.mru_index == 2
 
 
-def test_deletes_tag_at_start_and_trailing_space() -> None:
-    edit = _delete("#git:foo fix")
-    assert edit.text == "fix"
-    assert edit.cursor_offset == len("fix")
+def test_replaces_first_existing_tag_and_preserves_body() -> None:
+    edit = _cycle("#git:foo fix the bug")
+    assert edit.text == "#git:bar fix the bug"
+    assert edit.cursor_offset == len("#git:bar fix the bug")
+    assert edit.mru_index == 1
 
 
-def test_deletes_tag_after_directive_prefix() -> None:
-    edit = _delete("%n:a #git:foo fix")
-    assert edit.text == "%n:a fix"
+def test_current_tag_lookup_honors_ctrl_n_direction() -> None:
+    edit = _cycle("#git:bar fix the bug", key="ctrl+n")
+    assert edit.text == "#git:foo fix the bug"
+    assert edit.mru_index == 0
 
 
-def test_deletes_trailing_tag_with_leading_space() -> None:
-    edit = _delete("fix #git:foo")
-    assert edit.text == "fix"
-    assert edit.cursor_offset == len("fix")
+def test_current_tag_lookup_normalizes_underscore_refs() -> None:
+    edit = _cycle("#gh_sase fix", mru=["#gh:sase", "#gh:other"])
+    assert edit.text == "#gh:other fix"
+    assert edit.mru_index == 1
 
 
-def test_deletes_tag_in_the_middle_collapses_one_separator() -> None:
-    edit = _delete("fix #git:foo more")
-    assert edit.text == "fix more"
+def test_replaces_only_first_tag() -> None:
+    edit = _cycle("#git:foo first\n---\n#git:baz second")
+    assert edit.text == "#git:bar first\n---\n#git:baz second"
 
 
-def test_tag_alone_on_first_line_consumes_trailing_newline() -> None:
-    edit = _delete("#git:foo\nfix")
-    assert edit.text == "fix"
+def test_tag_followed_by_newline_preserves_newline() -> None:
+    edit = _cycle("#git:foo\nfix")
+    assert edit.text == "#git:bar\nfix"
 
 
-def test_tag_after_inline_text_keeps_newline_and_drops_leading_space() -> None:
-    edit = _delete("intro #git:foo\nfix")
-    assert edit.text == "intro\nfix"
+def test_tag_at_end_gets_trailing_space() -> None:
+    edit = _cycle("#git:foo")
+    assert edit.text == "#git:bar "
+    assert edit.cursor_offset == len("#git:bar ")
 
 
-def test_deletes_only_first_tag() -> None:
-    edit = _delete("#git:foo first\n---\n#git:baz second")
-    assert edit.text == "first\n---\n#git:baz second"
+def test_prepends_when_prompt_has_no_tag() -> None:
+    edit = _cycle("fix the bug")
+    assert edit.text == "#git:foo fix the bug"
+    assert edit.cursor_offset == len("#git:foo fix the bug")
+    assert edit.mru_index == 0
 
 
-def test_deletes_tag_after_frontmatter_and_directives() -> None:
-    text = "---\nxprompts: {}\n---\n  %n:a %wait #git:foo Fix it"
-    edit = _delete(text)
-    assert edit.text == "---\nxprompts: {}\n---\n  %n:a %wait Fix it"
-
-
-def test_tag_only_prompt_deletes_to_empty() -> None:
-    edit = _delete("#git:foo")
-    assert edit.text == ""
-    assert edit.cursor_offset == 0
-
-
-def test_no_tag_returns_none() -> None:
-    assert _delete_or_none("fix the bug") is None
-
-
-def test_blank_prompt_returns_none() -> None:
-    assert _delete_or_none("   \n  ") is None
-
-
-def test_tag_inside_fenced_block_returns_none() -> None:
-    """Quoted tags in code blocks are not workflow refs, so deletion is a no-op."""
+def test_tag_inside_fenced_block_is_not_replaced() -> None:
+    """Quoted tags in code blocks must be preserved; cycling prepends instead."""
     text = "Fix the launcher:\n```\nsase run #git:quoted do thing\n```\n"
-    assert _delete_or_none(text) is None
+    edit = _cycle(text)
+    assert edit.text.startswith("#git:foo ")
+    assert "#git:quoted" in edit.text
 
 
-def test_cursor_before_deleted_span_is_unchanged() -> None:
+def test_second_prepend_press_continues_from_previous_index() -> None:
+    first = _cycle("fix the bug", mru=["#git:foo", "#git:bar"])
+    second = _cycle(
+        first.text,
+        current_index=first.mru_index,
+        mru=["#git:foo", "#git:bar"],
+    )
+    assert second.text == "#git:bar fix the bug"
+    assert second.mru_index == 1
+
+
+def test_prepend_inserts_after_frontmatter_whitespace_and_directives() -> None:
+    text = "---\nxprompts: {}\n---\n  %n:a %wait Fix it"
+    edit = _cycle(text)
+    assert edit.text == "---\nxprompts: {}\n---\n  %n:a %wait #git:foo Fix it"
+    assert edit.start_offset == len("---\nxprompts: {}\n---\n  %n:a %wait ")
+
+
+def test_cursor_before_replaced_span_is_unchanged() -> None:
     text = "intro #git:foo fix"
-    edit = _delete(text, cursor_offset=2)
-    assert edit.text == "intro fix"
+    edit = _cycle(text, cursor_offset=2)
+    assert edit.text == "intro #git:bar fix"
     assert edit.cursor_offset == 2
 
 
-def test_cursor_inside_deleted_span_snaps_to_start() -> None:
+def test_cursor_inside_replaced_span_snaps_after_new_tag() -> None:
     text = "intro #git:foo fix"
     tag_start = text.index("#git:foo")
-    edit = _delete(text, cursor_offset=tag_start + 3)
-    assert edit.cursor_offset == tag_start
+    edit = _cycle(text, cursor_offset=tag_start + 3)
+    assert edit.cursor_offset == tag_start + len("#git:bar")
 
 
-def test_cursor_after_deleted_span_shifts_by_removed_length() -> None:
-    text = "#git:foo fix the bug"
-    edit = _delete(text, cursor_offset=len(text))
-    assert edit.text == "fix the bug"
-    assert edit.cursor_offset == len("fix the bug")
+def test_cursor_after_replaced_span_shifts_by_length_delta() -> None:
+    text = "#git:foo fix"
+    edit = _cycle(text, mru=["#git:foo", "#git:longer"])
+    assert edit.text == "#git:longer fix"
+    assert edit.cursor_offset == len("#git:longer fix")
+
+
+def test_cursor_before_prepend_point_is_unchanged() -> None:
+    text = "---\nxprompts: {}\n---\nFix it"
+    edit = _cycle(text, cursor_offset=4)
+    assert edit.text == "---\nxprompts: {}\n---\n#git:foo Fix it"
+    assert edit.cursor_offset == 4

@@ -23,8 +23,8 @@ from sase.ace.tui.widgets._search_highlight import SearchHighlightMixin
 from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
 from sase.ace.tui.widgets._vim_registers import VimRegister
-from sase.ace.tui.widgets._vcs_xprompt_delete import (
-    VcsXPromptDeleteMixin,
+from sase.ace.tui.widgets._vcs_mru_cycling import (
+    VcsMruCyclingMixin,
 )
 from sase.ace.tui.widgets._xprompt_arg_hints import XPromptArgHintMixin
 from sase.ace.tui.widgets.file_completion import (
@@ -66,7 +66,7 @@ class PromptTextArea(
     PromptSoftCompletionMixin,
     XPromptArgHintMixin,
     SnippetExpansionMixin,
-    VcsXPromptDeleteMixin,
+    VcsMruCyclingMixin,
     LineRenderingMixin,
     TextArea,
 ):
@@ -128,6 +128,7 @@ class PromptTextArea(
         ] = {}
         self._xprompt_arg_assist_warming_projects: set[str | None] = set()
         self._xprompt_arg_assist_worker_projects: dict[str, str | None] = {}
+        self._vcs_mru_index: int | None = None
         self._prompt_completion_generation: int = 0
         self._prompt_completion_timer: Any | None = None
         self._soft_completion: PromptSoftCompletion | None = None

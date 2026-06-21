@@ -49,6 +49,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         )
         _snippet_tabstops: list[int]
         _insert_g_prefix_pending: bool
+        _vcs_mru_index: int | None
         _vim_mode: str
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
@@ -122,6 +123,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
+        self._vcs_mru_index = None
         bar = self._find_prompt_bar()
         if bar:
             bar._handle_text_submission(self.text)
@@ -133,6 +135,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
+        self._vcs_mru_index = None
         bar = self._find_prompt_bar()
         if bar:
             bar._handle_whole_stack_submission()
@@ -150,6 +153,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
+        self._vcs_mru_index = None
 
         PromptInputBar = prompt_bar_class()
         bar.post_message(
@@ -362,6 +366,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         self._clear_visual_state()
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
+        self._vcs_mru_index = None
         self._vim_mode = "normal"
         self._clear_soft_completion(cancel_timer=True)
         self._pending_operator = ""

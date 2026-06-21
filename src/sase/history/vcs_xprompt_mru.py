@@ -41,10 +41,9 @@ def load_launchable_vcs_xprompt_mru(
 ) -> list[str]:
     """Load MRU prefixes, dropping entries that would no longer launch.
 
-    Three classes of non-launchable entry are pruned so the launchable MRU
-    (read by the ``Ctrl+G`` editor launch of the most recent VCS xprompt) only
-    ever surfaces explicit refs that will actually launch (and so the
-    unresolved-ref launch guard is never reachable through it):
+    Three classes of non-cyclable entry are pruned so ``<ctrl+p>`` only ever
+    cycles to explicit refs that will actually launch (and so the
+    unresolved-ref launch guard is never reachable through normal cycling):
 
     - the implicit default prefix (:func:`_is_default_vcs_prefix`), which is
       normalized data rather than a user MRU choice,

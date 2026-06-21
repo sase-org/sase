@@ -253,7 +253,7 @@ def test_record_prunes_known_stale_project_prefix(
 def test_load_launchable_prunes_default_git_home(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The implicit default ``#git:home`` is never a launchable candidate and is
+    """The implicit default ``#git:home`` is never a cyclable candidate and is
     pruned out of the persisted MRU on load."""
     sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
     workspace = tmp_path / "ws"
