@@ -306,3 +306,81 @@ async def test_c_comma_changes_in_reverse() -> None:
         # c, reverses f) -> F), deletes from col 1 through col 4 (inclusive)
         assert page.mode == "insert"
         assert page.text == "a c) d"
+
+
+# =============================================================================
+# Literal ``/`` and ``?`` char targets vs. bare prompt search
+#
+# NORMAL-mode ``/`` / ``?`` open the incremental prompt search command line, but
+# they must remain literal target characters for a pending f/F/t/T motion so
+# ``dt/`` deletes up to the next ``/`` instead of activating search.
+# =============================================================================
+
+
+async def test_t_moves_before_slash() -> None:
+    """t/ moves cursor to one before the next '/'."""
+    async with PromptPage("foo/bar") as page:
+        await page.press("t", "/")
+        assert page.cursor == (0, 2)
+        assert not page.ta._is_prompt_search_active()
+
+
+async def test_f_moves_onto_slash() -> None:
+    """f/ moves cursor onto the next '/'."""
+    async with PromptPage("foo/bar") as page:
+        await page.press("f", "/")
+        assert page.cursor == (0, 3)
+        assert not page.ta._is_prompt_search_active()
+
+
+async def test_dt_deletes_up_to_slash() -> None:
+    """dt/ deletes from cursor up to but not including '/'."""
+    async with PromptPage("foo/bar") as page:
+        await page.press("d", "t", "/")
+        assert page.text == "/bar"
+        assert page.cursor == (0, 0)
+        assert not page.ta._is_prompt_search_active()
+
+
+async def test_df_deletes_through_slash() -> None:
+    """df/ deletes from cursor through '/' inclusive."""
+    async with PromptPage("foo/bar") as page:
+        await page.press("d", "f", "/")
+        assert page.text == "bar"
+        assert page.cursor == (0, 0)
+        assert not page.ta._is_prompt_search_active()
+
+
+async def test_t_moves_before_question_mark() -> None:
+    """t? moves cursor to one before the next '?'."""
+    async with PromptPage("foo?bar") as page:
+        await page.press("t", "?")
+        assert page.cursor == (0, 2)
+        assert not page.ta._is_prompt_search_active()
+
+
+async def test_dt_deletes_up_to_question_mark() -> None:
+    """dt? deletes from cursor up to but not including '?'."""
+    async with PromptPage("foo?bar") as page:
+        await page.press("d", "t", "?")
+        assert page.text == "?bar"
+        assert page.cursor == (0, 0)
+        assert not page.ta._is_prompt_search_active()
+
+
+async def test_bare_slash_activates_prompt_search() -> None:
+    """Bare / still opens the incremental prompt search command line."""
+    async with PromptPage("foo/bar") as page:
+        await page.press("/")
+        assert page.ta._is_prompt_search_active()
+        assert page.ta._search_direction == "forward"
+        assert page.text == "foo/bar"
+
+
+async def test_bare_question_mark_activates_reverse_prompt_search() -> None:
+    """Bare ? still opens reverse incremental prompt search."""
+    async with PromptPage("foo?bar", cursor=(0, 7)) as page:
+        await page.press("?")
+        assert page.ta._is_prompt_search_active()
+        assert page.ta._search_direction == "reverse"
+        assert page.text == "foo?bar"

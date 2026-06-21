@@ -21,11 +21,30 @@ class VimNormalModeMixin(VimNormalEditingMixin):
         def _clear_search_highlights(self, *, refresh: bool = True) -> None: ...
         def _start_prompt_search(self, direction: SearchDirection) -> None: ...
 
+    def _can_start_prompt_search_from_normal_key(self) -> bool:
+        """Return whether ``/`` / ``?`` may open prompt search right now.
+
+        Bare ``/`` and ``?`` open the incremental search command line, but only
+        as top-level NORMAL commands. While a multi-key Vim sequence is still
+        waiting for its next key, the slash/question mark must instead reach the
+        pending handler so literal char-target motions keep working:
+
+        - ``_pending_keys`` holds a motion prefix (``f``/``F``/``t``/``T``), a
+          surround/replace prefix, etc. that consumes the next key as data, so
+          ``dt/`` deletes up to the literal ``/`` rather than opening search.
+        - ``_pending_operator`` is mid-composition (``d``/``c``/``y``/...); the
+          next key belongs to that operator, not to a fresh search.
+        - ``_count_prefix`` is buffering a count that still awaits its command.
+        """
+        return not (self._pending_keys or self._pending_operator or self._count_prefix)
+
     def _handle_normal_mode_key(self, event: Key) -> bool:
         """Handle a key event in NORMAL mode. Returns True if handled."""
         key = event.character or event.key
 
-        if key in {"/", "?"} or event.key in {"slash", "question_mark"}:
+        if (
+            key in {"/", "?"} or event.key in {"slash", "question_mark"}
+        ) and self._can_start_prompt_search_from_normal_key():
             direction: SearchDirection = (
                 "reverse" if key == "?" or event.key == "question_mark" else "forward"
             )
