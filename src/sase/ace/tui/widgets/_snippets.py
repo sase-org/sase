@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -91,17 +90,16 @@ class SnippetExpansionMixin(_MixinBase):
         cleaned_offset = 0
         seen: set[int] = set()
 
-        for match in re.finditer(r"\$(\d+)", template):
-            num = int(match.group(1))
-            before = template[last_end : match.start()]
+        for marker_start, marker_end, num in _iter_template_tabstops(template):
+            before = _unescape_literal_dollars(template[last_end:marker_start])
             cleaned_parts.append(before)
             cleaned_offset += len(before)
             if num not in seen:
                 markers.append((num, cleaned_offset))
                 seen.add(num)
-            last_end = match.end()
+            last_end = marker_end
 
-        cleaned_parts.append(template[last_end:])
+        cleaned_parts.append(_unescape_literal_dollars(template[last_end:]))
         expanded = "".join(cleaned_parts)
 
         # Indent continuation lines to match line indentation
@@ -191,3 +189,35 @@ class SnippetExpansionMixin(_MixinBase):
         last_row = self.document.line_count - 1
         self.cursor_location = (last_row, len(self.document.get_line(last_row)))
         return True
+
+
+def _iter_template_tabstops(template: str) -> list[tuple[int, int, int]]:
+    tabstops: list[tuple[int, int, int]] = []
+    cursor = 0
+    while cursor < len(template):
+        if template[cursor] != "$" or _is_escaped(template, cursor):
+            cursor += 1
+            continue
+        digit_start = cursor + 1
+        digit_end = digit_start
+        while digit_end < len(template) and template[digit_end].isdigit():
+            digit_end += 1
+        if digit_end == digit_start:
+            cursor += 1
+            continue
+        tabstops.append((cursor, digit_end, int(template[digit_start:digit_end])))
+        cursor = digit_end
+    return tabstops
+
+
+def _unescape_literal_dollars(text: str) -> str:
+    return text.replace(r"\$", "$")
+
+
+def _is_escaped(text: str, index: int) -> bool:
+    backslashes = 0
+    cursor = index - 1
+    while cursor >= 0 and text[cursor] == "\\":
+        backslashes += 1
+        cursor -= 1
+    return backslashes % 2 == 1

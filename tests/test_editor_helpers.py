@@ -263,3 +263,50 @@ def test_editor_helper_bridge_snippet_catalog_composes_nested_xprompts(
             "source_path_display": None,
         }
     ]
+
+
+def test_editor_helper_bridge_snippet_catalog_resolves_snippet_references(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    xprompts = {
+        "helper": XPrompt(
+            name="helper",
+            content="Help {{ topic }}",
+            inputs=[InputArg(name="topic", default=UNSET)],
+            snippet=True,
+        ),
+        "outer": XPrompt(
+            name="outer",
+            content="#[user_snip] {{ topic }}",
+            inputs=[InputArg(name="topic", default=UNSET)],
+            snippet=True,
+        ),
+    }
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_all_xprompts",
+        lambda project=None: xprompts,
+    )
+    monkeypatch.setattr(
+        "sase.integrations._editor_helper_snippets.load_merged_config",
+        lambda: {
+            "ace": {
+                "snippets": {"user_snip": "User $1$0", "wrap": "#[helper(World)] $1$0"}
+            }
+        },
+    )
+
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    code = handle_editor_helper_bridge(
+        argparse.Namespace(editor_helper_bridge_subcommand="snippet-catalog"),
+        stdin=io.StringIO(json.dumps({"schema_version": 1})),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    data = json.loads(stdout.getvalue())
+    entries = {entry["trigger"]: entry for entry in data["entries"]}
+    assert code == 0
+    assert stderr.getvalue() == ""
+    assert entries["outer"]["template"] == "User $1 $2$0"
+    assert entries["wrap"]["template"] == "Help World $1$0"

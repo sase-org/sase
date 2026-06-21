@@ -249,6 +249,17 @@ class TestTabstopExpansion:
         assert ta.text == "the  file"
         assert ta.cursor_location == (0, 4)
 
+    async def test_escaped_dollar_is_literal_text(self) -> None:
+        """Escaped dollars are not treated as tabstop markers."""
+        ta, expanded = await _setup(
+            snippets={"cash": r"Cost \$1 then $1$0"},
+            text="cash",
+            cursor=(0, 4),
+        )
+        assert expanded is True
+        assert ta.text == "Cost $1 then "
+        assert ta.cursor_location == (0, 13)
+
     async def test_advance_to_implicit_end(self) -> None:
         """Tab advances to end of expansion when no $0 present."""
         app = _SnippetTestApp({"fi": "the $1 file"})

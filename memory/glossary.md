@@ -43,6 +43,10 @@ golden-vector table.
 Triggered with `#foo` in agent prompts. Defined in an xprompts/ directory (.md or .yml file) or in
 ~/.config/sase/sase.yml (`xprompts` field).
 
+**snippet reference** `#[trigger]` inside an ACE/editor snippet template splices another snippet from the merged snippet
+registry. Positional arguments such as `#[trigger(value)]` or `#[trigger:value]` fill the referenced snippet's `$1`,
+`$2`, ... tabstops.
+
 **xprompt Part**  
 .md file → single `prompt_part` step with the file's content.
 

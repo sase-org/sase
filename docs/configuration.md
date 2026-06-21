@@ -190,7 +190,8 @@ ace:
 ```
 
 Templates can contain `$0` to mark where the cursor should be placed after expansion. If no `$0` is present, the cursor
-moves to the end of the expanded text.
+moves to the end of the expanded text. Templates can also splice another merged snippet with `#[trigger]`; use
+`#[trigger(value)]` or `#[trigger:value]` to fill referenced `$1`, `$2`, ... tabstops before splicing.
 
 See [docs/ace.md — Snippets](ace.md#snippets) for usage details.
 

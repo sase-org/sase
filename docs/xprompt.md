@@ -699,6 +699,19 @@ Review this {{ language }} code for correctness and style.
 - XPrompts with complex Jinja2 control flow (`{% %}` or `{# #}`) are skipped
 - User-defined snippets in `ace.snippets` take precedence over xprompt-derived snippets on name collision
 
+Snippet templates can reuse other snippets with `#[trigger]` after the xprompt snippets and `ace.snippets` entries are
+merged. The referenced snippet's `$1`, `$2`, ... tabstops are spliced into the caller and renumbered in document order:
+
+```yaml
+ace:
+  snippets:
+    greet: "Hello $1!$0"
+    welcome: "#[greet] Welcome to $1.$0"
+```
+
+`welcome` expands as `Hello $1! Welcome to $2.$0`. Positional arguments fill the referenced tabstops before the splice:
+`#[greet(World)]` or `#[greet:World]` expands as `Hello World!`.
+
 Editor clients receive the same templates through `sase lsp` when they support LSP snippets. To troubleshoot the raw
 registry, run:
 

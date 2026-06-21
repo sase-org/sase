@@ -2,10 +2,14 @@
 
 from unittest.mock import patch
 
+import pytest
+
+from sase.xprompt._parsing_args import find_matching_bracket_for_args
 from sase.xprompt.models import UNSET, InputArg, XPrompt
 from sase.xprompt.snippet_bridge import (
     _xprompt_to_snippet_template,
     get_xprompt_snippets,
+    resolve_snippet_references,
 )
 
 
@@ -137,6 +141,113 @@ def test_tabstop_numbering_skips_defaulted() -> None:
         ],
     )
     assert _xprompt_to_snippet_template(xp) == "$1 mid $2$0"
+
+
+# --- #[snippet] reference resolution ---
+
+
+_SNIPPET_REFERENCE_GOLDEN_VECTORS = [
+    (
+        {"greet": "Hello $1!$0", "welcome": "#[greet] Welcome to $1.$0"},
+        "welcome",
+        "Hello $1! Welcome to $2.$0",
+    ),
+    (
+        {"pair": "$1 and $2$0", "outer": "#[pair(a, b)] done$0"},
+        "outer",
+        "a and b done$0",
+    ),
+    (
+        {"pair": "$1 and $2$0", "outer": "#[pair(a)] $1$0"},
+        "outer",
+        "a and $1 $2$0",
+    ),
+    (
+        {"say": "$1 says hi, $1$0", "outer": "#[say] $1$0"},
+        "outer",
+        "$1 says hi, $1 $2$0",
+    ),
+    (
+        {"a": "A $1$0", "b": "B $1$0", "outer": "#[a] #[b] $1$0"},
+        "outer",
+        "A $1 B $2 $3$0",
+    ),
+    (
+        {
+            "leaf": "Leaf $1$0",
+            "mid": "M #[leaf] $1$0",
+            "outer": "O #[mid] $1$0",
+        },
+        "outer",
+        "O M Leaf $1 $2 $3$0",
+    ),
+    (
+        {"outer": "#[missing] $1$0"},
+        "outer",
+        "#[missing] $1$0",
+    ),
+    (
+        {"outer": "#[outer] $1$0"},
+        "outer",
+        "#[outer] $1$0",
+    ),
+    (
+        {"a": "#[b]$0", "b": "#[a]$0"},
+        "a",
+        "#[a]$0",
+    ),
+    (
+        {"greet": "Hello $1$0", "outer": "#[greet:World]$0"},
+        "outer",
+        "Hello World$0",
+    ),
+    (
+        {"wrap": "<$1>$0", "outer": "#[wrap([[multi, line]])] $1$0"},
+        "outer",
+        "<multi, line> $1$0",
+    ),
+    (
+        {"user": "User $1$0", "xp": "#[user] xp $1$0"},
+        "xp",
+        "User $1 xp $2$0",
+    ),
+    (
+        {"xp": "XP $1$0", "user": "User #[xp] $1$0"},
+        "user",
+        "User XP $1 $2$0",
+    ),
+    (
+        {"bar": "BAR$0", "outer": "foo#[bar] #[bar]$0"},
+        "outer",
+        "foo#[bar] BAR$0",
+    ),
+    (
+        {"price": "Cost $1$0", "outer": "#[price($5)] $1$0"},
+        "outer",
+        r"Cost \$5 $1$0",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("catalog", "trigger", "expected"),
+    _SNIPPET_REFERENCE_GOLDEN_VECTORS,
+)
+def test_resolve_snippet_reference_golden_vectors(
+    catalog: dict[str, str],
+    trigger: str,
+    expected: str,
+) -> None:
+    assert resolve_snippet_references(catalog)[trigger] == expected
+
+
+def test_find_matching_bracket_for_args_skips_text_blocks() -> None:
+    text = "#[wrap([[multi, ] text]], suffix)] tail"
+    assert find_matching_bracket_for_args(text, 1) == text.index("] tail")
+
+
+def test_find_matching_bracket_for_args_unmatched() -> None:
+    assert find_matching_bracket_for_args("#[wrap([[text]])", 1) is None
 
 
 # --- get_xprompt_snippets composition ---

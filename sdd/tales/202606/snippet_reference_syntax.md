@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-21 10:22:06
-status: wip
+status: done
 prompt: sdd/prompts/202606/snippet_reference_syntax.md
 ---
 # Plan: `#[<snippet>]` snippet-reuse syntax

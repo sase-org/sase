@@ -75,6 +75,7 @@ file.
 - XPrompt-derived snippets from markdown files with `snippet` front matter.
 - User snippets from `ace.snippets` in merged SASE config.
 - Valid trigger words only; user snippets override xprompt snippets on collision.
+- `#[trigger]` snippet references resolved after the xprompt/user merge.
 
 Both helper operations read one JSON object from stdin and write one compact JSON object to stdout. They are fixed
 catalog operations, not a general shell or filesystem bridge.
@@ -105,6 +106,9 @@ Review {{ path }} for correctness, tests, and maintainability.
 
 Required xprompt inputs become snippet tabstops. Optional inputs are pre-filled from defaults. XPrompts with complex
 Jinja control flow are skipped by snippet conversion so the generated editor template stays predictable.
+
+Snippet templates can reuse other snippets by trigger with `#[trigger]`. Positional forms such as `#[trigger(value)]`
+and `#[trigger:value]` fill the referenced snippet's tabstops before the composed template is renumbered.
 
 ## Troubleshooting
 

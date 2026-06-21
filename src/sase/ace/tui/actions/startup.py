@@ -89,10 +89,14 @@ class StartupMixin(StateInitMixin):
         cached = getattr(self, "_snippets_cache", None)
         if cached is not None:
             return cached
-        from sase.xprompt.snippet_bridge import get_xprompt_snippets
+        from sase.xprompt.snippet_bridge import (
+            get_xprompt_snippets,
+            resolve_snippet_references,
+        )
 
         merged = get_xprompt_snippets()
         merged.update(self._user_snippets)
+        merged = resolve_snippet_references(merged)
         self._snippets_cache = merged
         return merged
 

@@ -2059,8 +2059,10 @@ inherit the leading whitespace of the trigger line. Tabstop positions are adjust
 Trigger words are matched against the alphanumeric/underscore word immediately before the cursor. If no snippet matches,
 `Tab` advances to the next tabstop (if any are remaining from a previous expansion), or behaves normally.
 
-XPrompt-derived snippets compose normal xprompt references before they enter the snippet registry. Entries configured
-directly in `ace.snippets` remain literal snippet templates.
+XPrompt-derived snippets compose normal xprompt references before they enter the snippet registry. After xprompt-derived
+snippets and `ace.snippets` are merged, any snippet can splice another snippet by trigger with `#[trigger]`.
+`#[trigger(value)]` and `#[trigger:value]` fill the referenced snippet's `$1`, `$2`, ... tabstops before splicing. The
+final template is renumbered so tabstops from the caller and referenced snippets do not collide.
 
 Editors using `sase lsp` can receive the same registry as LSP snippet completions after bare trigger words when the
 client advertises `completionItem.snippetSupport`. The server uses the editor helper operation

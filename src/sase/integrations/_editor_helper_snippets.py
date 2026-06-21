@@ -9,6 +9,7 @@ from sase.xprompt.snippet_bridge import (
     XPromptSnippetEntry,
     get_xprompt_snippet_entries,
     is_valid_snippet_trigger,
+    resolve_snippet_references,
 )
 
 from ._mobile_helper_common import (
@@ -34,6 +35,15 @@ def snippet_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
             "description": None,
             "source_path_display": "ace.snippets",
         }
+
+    resolved_templates = resolve_snippet_references(
+        {
+            trigger: entry["template"] or ""
+            for trigger, entry in entries_by_trigger.items()
+        }
+    )
+    for trigger, template in resolved_templates.items():
+        entries_by_trigger[trigger]["template"] = template
 
     entries = list(entries_by_trigger.values())
     return {
