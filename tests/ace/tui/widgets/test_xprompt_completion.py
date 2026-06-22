@@ -382,7 +382,9 @@ async def test_single_candidate_xprompt_required_path_inserts_colon() -> None:
     assert ta._active_xprompt_arg_hint is not None
 
 
-async def test_single_candidate_xprompt_required_text_inserts_double_colon() -> None:
+async def test_single_candidate_xprompt_required_text_inserts_double_colon_space() -> (
+    None
+):
     entries = [_entry("write", inputs=(_input("body", "text"),))]
     app = CompletionTestApp()
     async with app.run_test():
@@ -402,9 +404,12 @@ async def test_single_candidate_xprompt_required_text_inserts_double_colon() -> 
         ):
             assert ta._try_file_completion_tab() is True
 
-    assert ta.text == "#write::"
-    assert ta.cursor_location == (0, len("#write::"))
-    assert ta._active_xprompt_arg_hint is not None
+    # End-of-line acceptance widens the ``::`` skeleton to the free-form ``:: ``
+    # shorthand and parks the cursor after the delimiter space, which ends
+    # structured argument hinting.
+    assert ta.text == "#write:: "
+    assert ta.cursor_location == (0, len("#write:: "))
+    assert ta._active_xprompt_arg_hint is None
 
 
 async def test_single_candidate_xprompt_many_inputs_places_cursor_in_parens() -> None:
@@ -460,6 +465,24 @@ async def test_panel_acceptance_uses_xprompt_completion_skeleton() -> None:
 
     assert ta.text == "#many()"
     assert ta.cursor_location == (0, len("#many("))
+
+
+async def test_ctrl_t_required_text_before_existing_text_keeps_single_space() -> None:
+    entries = [_entry("ask", inputs=(_input("body", "text"),))]
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#a here")
+        ta.cursor_location = (0, 2)
+        with patch(
+            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+            return_value=entries,
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    # Mid-line acceptance keeps ``::`` so the existing following space is the
+    # single delimiter rather than a doubled space.
+    assert ta.text == "#ask:: here"
 
 
 async def test_slash_skill_single_candidate_inserts_slash_reference() -> None:

@@ -232,6 +232,52 @@ def test_completion_skeletons_match_required_input_shapes() -> None:
     )
 
 
+def test_completion_skeleton_appends_text_arg_space_only_for_single_required_text() -> (
+    None
+):
+    text_entry = _entry("text", _input_hint("body", "text"))
+    # The context-free default is unchanged: a bare ``::``.
+    assert xprompt_completion_skeleton(text_entry) == "#text::"
+    # An end-of-line accept widens the single required-text skeleton to ``:: ``
+    # (the free-form double-colon shorthand is ``:: `` followed by text).
+    assert (
+        xprompt_completion_skeleton(text_entry, append_text_arg_space=True)
+        == "#text:: "
+    )
+    # The flag is a no-op for every other input shape.
+    assert (
+        xprompt_completion_skeleton(_entry("none"), append_text_arg_space=True)
+        == "#none "
+    )
+    assert (
+        xprompt_completion_skeleton(
+            _entry("optional", _optional_input_hint("count")),
+            append_text_arg_space=True,
+        )
+        == "#optional "
+    )
+    assert (
+        xprompt_completion_skeleton(
+            _entry("path", _input_hint("path", "path")), append_text_arg_space=True
+        )
+        == "#path:"
+    )
+    assert (
+        xprompt_completion_skeleton(
+            _entry("many", _input_hint("path", "path"), _input_hint("body", "text")),
+            append_text_arg_space=True,
+        )
+        == "#many($0)"
+    )
+    assert (
+        xprompt_completion_skeleton(
+            _entry("run", _input_hint("target"), prefix="#!"),
+            append_text_arg_space=True,
+        )
+        == "#!run:"
+    )
+
+
 def test_completion_suffix_skeleton_strips_existing_hash_trigger() -> None:
     assert xprompt_completion_suffix_skeleton(_entry("none")) == "none "
     assert (
@@ -239,6 +285,12 @@ def test_completion_suffix_skeleton_strips_existing_hash_trigger() -> None:
             _entry("run", _input_hint("target"), prefix="#!")
         )
         == "!run:"
+    )
+    text_entry = _entry("text", _input_hint("body", "text"))
+    assert xprompt_completion_suffix_skeleton(text_entry) == "text::"
+    assert (
+        xprompt_completion_suffix_skeleton(text_entry, append_text_arg_space=True)
+        == "text:: "
     )
 
 

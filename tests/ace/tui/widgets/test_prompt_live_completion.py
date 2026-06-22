@@ -158,6 +158,23 @@ async def test_soft_xprompt_suggestion_accepts_with_ctrl_l_not_enter() -> None:
     assert ta._active_xprompt_arg_hint is not None
 
 
+async def test_soft_xprompt_required_text_accept_adds_double_colon_space() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [_entry("ask", inputs=(_input("body", "text"),))])
+
+        ta.load_text("#a")
+        ta.cursor_location = (0, 2)
+        _compute_soft_now(ta)
+        await pilot.press("ctrl+l")
+
+    # Soft-accepting a single required-text xprompt at end-of-line widens the
+    # ``::`` skeleton to the free-form ``:: `` shorthand.
+    assert ta.text == "#ask:: "
+    assert ta.cursor_location == (0, len("#ask:: "))
+
+
 async def test_ctrl_l_accepts_warm_xprompt_suggestion_before_debounce() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:

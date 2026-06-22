@@ -283,7 +283,9 @@ async def test_snippet_modal_smart_insertion_adds_path_colon_hint() -> None:
         assert ta._active_xprompt_arg_hint.trigger_mode == "colon"
 
 
-async def test_snippet_modal_smart_insertion_adds_text_double_colon_hint() -> None:
+async def test_snippet_modal_smart_insertion_text_at_line_end_adds_double_colon_space() -> (
+    None
+):
     entry = _entry("ask", inputs=(_input("body", "text"),))
     app = CompletionTestApp()
     async with app.run_test():
@@ -294,9 +296,32 @@ async def test_snippet_modal_smart_insertion_adds_text_double_colon_hint() -> No
 
         bar.insert_snippet("ask", entry)
 
-        assert ta.text == "#ask::"
-        assert ta._active_xprompt_arg_hint is not None
-        assert ta._active_xprompt_arg_hint.trigger_mode == "colon"
+        # End-of-line required-text insertion lands the free-form ``:: ``
+        # shorthand with the cursor parked just after the delimiter space.
+        assert ta.text == "#ask:: "
+        assert ta.cursor_location == (0, len("#ask:: "))
+        # The committed trailing space ends structured arg hinting.
+        assert ta._active_xprompt_arg_hint is None
+
+
+async def test_snippet_modal_smart_insertion_text_before_text_keeps_single_space() -> (
+    None
+):
+    entry = _entry("ask", inputs=(_input("body", "text"),))
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("# after")
+        ta.cursor_location = (0, 1)
+
+        bar.insert_snippet("ask", entry)
+
+        # Inserting before existing text keeps the bare ``::`` so the existing
+        # following space is the single delimiter -- not a doubled space.
+        assert ta.text == "#ask:: after"
+        assert ta.cursor_location == (0, len("#ask::"))
+        assert ta._active_xprompt_arg_hint is None
 
 
 async def test_snippet_modal_smart_insertion_adds_multi_input_skeleton() -> None:

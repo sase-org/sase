@@ -290,8 +290,14 @@ class PromptSoftCompletionMixin(_MixinBase):
             and isinstance(selected.metadata, XPromptAssistEntry)
             and selected.insertion.startswith("#")
         ):
+            # ``:: `` only when the replacement ends its line; an accept before
+            # existing text keeps ``::`` so that text provides the delimiter.
+            append_text_arg_space = end[1] == len(self.document.get_line(end[0]))
             used_xprompt_skeleton = self._expand_snippet_template_at_range(
-                xprompt_completion_skeleton(selected.metadata),
+                xprompt_completion_skeleton(
+                    selected.metadata,
+                    append_text_arg_space=append_text_arg_space,
+                ),
                 start,
                 end,
             )

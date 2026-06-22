@@ -285,7 +285,12 @@ class PromptInputBarActionsMixin(_MixinBase):
         end: tuple[int, int],
     ) -> bool:
         """Insert a selected xprompt using the Ctrl+T completion skeleton."""
-        skeleton = xprompt_completion_suffix_skeleton(entry)
+        # End-of-line required-text insertions get the ``:: `` shorthand; inline
+        # ones keep ``::`` so existing following text is the single delimiter.
+        append_text_arg_space = end[1] == len(text_area.document.get_line(end[0]))
+        skeleton = xprompt_completion_suffix_skeleton(
+            entry, append_text_arg_space=append_text_arg_space
+        )
         if not text_area._expand_snippet_template_at_range(skeleton, start, end):
             return False
 
