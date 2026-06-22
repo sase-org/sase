@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-22 09:32:16
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_angle_auto_pair.md
 ---
 # Plan: Add Prompt Auto-Pair Support for Angle Brackets
