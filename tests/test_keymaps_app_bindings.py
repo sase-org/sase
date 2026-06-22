@@ -5,9 +5,9 @@ from tests._keymaps_helpers import default_app_keymaps
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 86 configurable + 10 digit = 96 bindings."""
+    """build_app_bindings produces 87 configurable + 10 digit = 97 bindings."""
     bindings = build_app_bindings(default_app_keymaps())
-    assert len(bindings) == 96
+    assert len(bindings) == 97
 
 
 def test_build_app_bindings_priority() -> None:
@@ -38,6 +38,16 @@ def test_build_app_bindings_uses_plus_custom_agent_binding() -> None:
     assert by_action["start_custom_agent"].key == "plus"
     assert by_key.get("plus") == "start_custom_agent"
     assert not any(b.action == "start_custom_agent" and b.key == "at" for b in bindings)
+
+
+def test_build_app_bindings_binds_at_to_restore_prompt_stash() -> None:
+    """Bare ``@`` (Textual ``at``) is the global prompt-stash restore binding."""
+    bindings = build_app_bindings(default_app_keymaps())
+    by_action = {b.action: b for b in bindings}
+    by_key = {b.key: b.action for b in bindings}
+
+    assert by_action["restore_prompt_stash"].key == "at"
+    assert by_key.get("at") == "restore_prompt_stash"
 
 
 def test_build_app_bindings_uses_ctrl_space_agent_binding() -> None:

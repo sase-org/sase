@@ -100,6 +100,22 @@ def test_start_custom_agent_command_uses_plus() -> None:
     assert "@" not in spec.aliases
 
 
+def test_restore_prompt_stash_command_is_all_tab_at_keymap() -> None:
+    """The global prompt-stash restore command exposes ``@`` on every tab."""
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.restore_prompt_stash"]
+
+    assert spec.label == "Restore stashed prompt"
+    assert spec.category == "Agents"
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.key_sequence == ("at",)
+    assert spec.key_display == "@"
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "restore_prompt_stash"
+    assert "stash" in spec.aliases
+    assert "gP" in spec.aliases
+
+
 def test_start_agent_from_changespec_command_uses_ctrl_space() -> None:
     """The repeat-last agent command exposes Ctrl+Space, not bare Space."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}

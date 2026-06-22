@@ -60,6 +60,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.start_custom_agent), "Run custom agent"),
                 (d(a.start_agent_home), "Run agent (home)"),
                 (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS xprompt"),
+                (d(a.restore_prompt_stash), "Restore stashed prompt"),
                 (d(a.run_workflow), "Retry: edit prompt & relaunch"),
                 (d(a.accept_proposal), "Toggle auto-approve / answer HITL"),
                 (d(a.rename_cl), "Name agent"),

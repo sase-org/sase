@@ -142,6 +142,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Repeat last +/Ctrl+Space selection",
                 ),
                 (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS xprompt"),
+                (d(a.restore_prompt_stash), "Restore stashed prompt"),
             ],
         ),
         (

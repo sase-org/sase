@@ -123,6 +123,17 @@ class PromptBarStashMixin:
             bar_mode=event.mode, destructive=event.destructive
         )
 
+    async def action_restore_prompt_stash(self) -> None:
+        """Global ``@`` keymap: destructive pop-and-restore from any main tab.
+
+        Reuses the same flow as the prompt-local ``gP`` restore. No ``bar_mode``
+        is forced: ``_open_prompt_stash_restore`` inspects the mounted bar (so a
+        feedback / approve-prompt bar still no-ops) and defaults to ``prompt``
+        mode when no bar is mounted, mounting the home prompt bar with the
+        restored drafts.
+        """
+        await self._open_prompt_stash_restore(destructive=True)
+
     async def _open_prompt_stash_restore(
         self, bar_mode: str | None = None, *, destructive: bool = True
     ) -> None:

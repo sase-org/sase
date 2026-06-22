@@ -74,6 +74,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("start_agent_home", "Run Agent (Home)", False),
     ("start_agent_from_changespec", "Run Agent (PR)", False),
     ("start_last_vcs_xprompt_in_editor", "Edit Last VCS XPrompt", False),
+    ("restore_prompt_stash", "Restore Prompt Stash", False),
     ("start_bang_mode", "Bang Mode", False),
     ("toggle_mark", "Mark", False),
     ("rename_cl", "Rename", False),
@@ -308,6 +309,7 @@ class AppKeymaps:
     start_agent_home: str
     start_agent_from_changespec: str
     start_last_vcs_xprompt_in_editor: str
+    restore_prompt_stash: str
     jump_to_agent_changespec: str
     edit_panel: str
     show_agent_run_log: str

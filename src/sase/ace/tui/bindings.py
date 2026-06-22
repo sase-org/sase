@@ -70,6 +70,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
         "Edit Last VCS XPrompt",
         show=False,
     ),
+    # Global prompt-stash restore (pop-and-load), reachable from every tab.
+    Binding("at", "restore_prompt_stash", "Restore Prompt Stash", show=False),
     # Bang mode prefix (all tabs) - !x = toggle axe, !! = run bgcmd
     Binding("exclamation_mark", "start_bang_mode", "Bang Mode", show=False),
     # Marking (PRs tab only)

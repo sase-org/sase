@@ -195,6 +195,13 @@ _APP_COMMAND_META: tuple[
         ("ctrl+g", "last vcs", "editor"),
     ),
     (
+        "restore_prompt_stash",
+        "Restore stashed prompt",
+        "Agents",
+        _ALL_TABS,
+        ("stash", "restore", "gP"),
+    ),
+    (
         "jump_to_agent_changespec",
         "Jump to agent's PR",
         "Agents",

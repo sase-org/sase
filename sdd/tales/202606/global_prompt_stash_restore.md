@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-22 09:38:37
-status: wip
+status: done
 prompt: sdd/prompts/202606/global_prompt_stash_restore.md
 ---
 # Global Prompt Stash Restore Keymap

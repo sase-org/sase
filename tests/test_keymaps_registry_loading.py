@@ -40,11 +40,25 @@ def test_custom_agent_launcher_defaults_to_plus() -> None:
     assert reg.app.start_agent_from_changespec == "ctrl+@"
 
 
-def test_custom_agent_launcher_at_override_is_honored() -> None:
-    """Existing configs binding the launcher to ``at`` keep working as overrides."""
+def test_restore_prompt_stash_defaults_to_at() -> None:
+    """The global prompt-stash restore keymap defaults to ``at`` (``@``)."""
+    reg = load_keymap_registry({})
+
+    assert reg.app.restore_prompt_stash == "at"
+
+
+def test_custom_agent_launcher_at_override_reverts_to_plus() -> None:
+    """``at`` now belongs to restore-stash, so a launcher ``at`` override reverts.
+
+    Existing configs that bound the launcher to ``at`` now collide with the new
+    default ``restore_prompt_stash`` binding. The duplicate-key guard reverts the
+    user-overridden launcher to its ``plus`` default and leaves ``@`` reserved
+    for restore.
+    """
     reg = load_keymap_registry({"keymaps": {"app": {"start_custom_agent": "at"}}})
 
-    assert reg.app.start_custom_agent == "at"
+    assert reg.app.start_custom_agent == "plus"
+    assert reg.app.restore_prompt_stash == "at"
 
 
 def test_agent_launch_defaults_use_distinct_space_keys() -> None:

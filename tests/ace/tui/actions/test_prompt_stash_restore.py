@@ -185,6 +185,46 @@ async def test_open_non_destructive_pushes_load_modal(
     assert modal._destructive is False
 
 
+async def test_action_restore_prompt_stash_opens_destructive_modal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The global ``@`` action opens a destructive picker over the stash entries."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+        ],
+    )
+    harness = _RestoreHarness()
+
+    await harness.action_restore_prompt_stash()
+
+    assert len(harness.pushed) == 1
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, StashedPromptsModal)
+    assert modal._destructive is True
+    assert [e.id for e in modal._entries] == ["b", "a"]
+
+
+async def test_action_restore_prompt_stash_empty_store_toasts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The global ``@`` action toasts instead of opening an empty picker."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    harness = _RestoreHarness()
+
+    await harness.action_restore_prompt_stash()
+
+    assert harness.pushed == []
+    assert harness.notifications == [("No stashed prompts to restore", None)]
+
+
 async def test_restore_requested_event_routes_through_mode(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

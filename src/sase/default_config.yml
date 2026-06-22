@@ -95,6 +95,7 @@ ace:
       start_agent_home: "space"
       start_agent_from_changespec: "ctrl+@"
       start_last_vcs_xprompt_in_editor: "ctrl+g"
+      restore_prompt_stash: "at"
       jump_to_agent_changespec: "enter"
       edit_panel: "E"
       show_agent_run_log: "V"

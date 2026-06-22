@@ -49,6 +49,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.start_custom_agent), "Run agent"),
                 (d(a.start_agent_home), "Run agent (home)"),
                 (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS xprompt"),
+                (d(a.restore_prompt_stash), "Restore stashed prompt"),
                 (d(a.show_agent_run_log), "Agent run log"),
                 (d(a.open_agent_cleanup_panel), "Clear output"),
                 (d(a.run_workflow), "Run chop, or re-run done bgcmd"),

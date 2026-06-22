@@ -120,6 +120,16 @@ def test_help_modal_lists_frontmatter_panel_toggle() -> None:
         assert ("gp / gP", "Load / restore stashed prompt") in pairs
 
 
+def test_help_modal_lists_global_restore_prompt_stash() -> None:
+    """Every main tab advertises ``@`` as the global prompt-stash restore key."""
+    reg = load_keymap_registry({})
+    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+        pairs = {
+            (key, label) for _section, bindings in sections for key, label in bindings
+        }
+        assert ("@", "Restore stashed prompt") in pairs
+
+
 def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:
     """Guard ``A`` as the Agents-tab artifact binding."""
     reg = load_keymap_registry({})
