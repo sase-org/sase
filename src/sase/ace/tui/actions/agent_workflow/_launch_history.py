@@ -61,11 +61,23 @@ def save_replayable_vcs_selection(
     ctx: PromptContext,
     vcs_ref: tuple[str, str],
 ) -> None:
-    """Persist the repeat-last selection only for launchable project owners."""
+    """Persist the repeat-last selection only for launchable project owners.
+
+    The implicit default ``#git:home`` (used to normalize bare home-mode
+    launches) is never persisted: it is normalized data, not a user-selected
+    VCS workflow, so it must not become the target of ``Ctrl+Space``. This
+    covers both a bare prompt that was normalized and an explicit ``#git:home``
+    prompt, which both resolve to ``("git", "home")``.
+    """
+    from sase.history.vcs_xprompt_mru import is_default_vcs_xprompt_prefix
+
+    workflow_type, _ref = vcs_ref
+    if is_default_vcs_xprompt_prefix(f"#{workflow_type}:{_ref}"):
+        return
+
     from ...modals import SelectionItem
     from sase.ace.last_agent_selection import save_last_agent_selection_if_launchable
 
-    _ref = vcs_ref[1]
     if _ref == ctx.project_name:
         sel = SelectionItem(
             display_name=f"[P] {ctx.project_name}",

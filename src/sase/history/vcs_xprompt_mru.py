@@ -45,8 +45,8 @@ def load_launchable_vcs_xprompt_mru(
     cycles to explicit refs that will actually launch (and so the
     unresolved-ref launch guard is never reachable through normal cycling):
 
-    - the implicit default prefix (:func:`_is_default_vcs_prefix`), which is
-      normalized data rather than a user MRU choice,
+    - the implicit default prefix (:func:`is_default_vcs_xprompt_prefix`),
+      which is normalized data rather than a user MRU choice,
     - prefixes for a known but non-launchable project
       (:func:`_is_stale_known_project_prefix`), and
     - prefixes whose ref no longer resolves to any launch target at all
@@ -64,7 +64,7 @@ def load_launchable_vcs_xprompt_mru(
     filtered = [
         entry
         for entry in entries
-        if not _is_default_vcs_prefix(entry)
+        if not is_default_vcs_xprompt_prefix(entry)
         and not _is_stale_known_project_prefix(entry, projects_dir)
         and not _vcs_prefix_ref_is_gone(entry, resolvable_refs)
     ]
@@ -85,8 +85,8 @@ def record_vcs_xprompt_usage(prefix: str) -> None:
         prefix: VCS workflow prefix string (e.g. ``"#gh:sase"``).
     """
     entries = _load_vcs_xprompt_mru()
-    if _is_default_vcs_prefix(prefix):
-        filtered = [e for e in entries if not _is_default_vcs_prefix(e)]
+    if is_default_vcs_xprompt_prefix(prefix):
+        filtered = [e for e in entries if not is_default_vcs_xprompt_prefix(e)]
         if filtered != entries:
             _save_vcs_xprompt_mru(filtered)
         return
@@ -112,13 +112,14 @@ def _save_vcs_xprompt_mru(entries: list[str]) -> None:
         pass
 
 
-def _is_default_vcs_prefix(prefix: str) -> bool:
+def is_default_vcs_xprompt_prefix(prefix: str) -> bool:
     """Return whether *prefix* is the implicit default workflow prefix.
 
-    The bare-prompt default (``#git:home``) is normalized data, not a user MRU
-    choice, so it must never appear as a cyclable candidate even when an
-    earlier launch persisted it. Underscore refs are normalized on both sides
-    so legacy spellings (e.g. ``#git_home``) compare equal to the default.
+    The bare-prompt default (``#git:home``) is normalized data, not a user
+    selection, so it must never appear as a cyclable MRU candidate, a recorded
+    MRU entry, or a saved ``Ctrl+Space`` replay target even when an earlier
+    launch persisted it. Underscore refs are normalized on both sides so legacy
+    spellings (e.g. ``#git_home``) compare equal to the default.
     """
     from sase.xprompt._parsing import (
         DEFAULT_VCS_WORKFLOW_PREFIX,

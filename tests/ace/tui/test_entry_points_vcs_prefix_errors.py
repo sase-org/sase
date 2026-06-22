@@ -295,6 +295,87 @@ def test_repeat_last_selection_clears_stale_missing_project_without_launching(
     assert clear_calls == [True]
 
 
+def test_repeat_last_selection_clears_stale_default_home_without_launching(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale project-``home`` selection (persisted by an older save path)
+    resolves to the implicit ``#git:home`` default; Ctrl+Space must clear it
+    instead of mounting a prompt prefilled with ``#git:home ``."""
+    clear_calls: list[bool] = []
+    persisted_selection = SelectionItem(
+        display_name="[P] home",
+        item_type="project",
+        project_name="home",
+        cl_name=None,
+    )
+
+    monkeypatch.setattr(
+        "sase.ace.last_agent_selection.load_last_agent_selection",
+        lambda: persisted_selection,
+    )
+    monkeypatch.setattr(
+        "sase.ace.last_agent_selection.clear_last_agent_selection",
+        lambda: clear_calls.append(True) or True,
+    )
+    # ``home`` is a launchable project, so the stale-launchability guard does
+    # not fire; the default-prefix guard must.
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#git:{name} "
+    )
+
+    app = _App()
+
+    app.action_start_agent_from_changespec()
+
+    assert app.notifications == [
+        (
+            "Saved +/Ctrl+Space selection was the implicit #git:home default; "
+            "cleared it (use the home keymap to start a home-mode agent)",
+            "warning",
+        )
+    ]
+    assert app.prompt_launches == []
+    assert app.editor_launches == []
+    assert app._last_custom_agent_selection is None
+    assert clear_calls == [True]
+
+
+def test_repeat_last_selection_replays_non_default_launchable_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The default-prefix guard must not over-fire: a launchable project whose
+    computed prefix is not ``#git:home`` is still replayed normally."""
+    monkeypatch.setattr(
+        "sase.ace.last_agent_selection.load_last_agent_selection",
+        lambda: SelectionItem(
+            display_name="[P] sase",
+            item_type="project",
+            project_name="sase",
+            cl_name=None,
+        ),
+    )
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
+    )
+
+    app = _App()
+
+    app.action_start_agent_from_changespec()
+
+    assert app.prompt_launches == [
+        {
+            "initial_text": "#gh:sase ",
+            "display_name": "sase",
+            "history_sort_key": "sase",
+        }
+    ]
+    assert app.notifications == []
+    assert app.editor_launches == []
+    assert app._last_custom_agent_selection is not None
+
+
 def test_quick_current_changespec_reports_vcs_detection_error_without_saving(
     missing_workspace_plugin: None,
     monkeypatch: pytest.MonkeyPatch,

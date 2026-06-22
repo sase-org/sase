@@ -230,6 +230,37 @@ def test_record_resolved_default_git_home_ref_is_not_persisted_as_mru(
     assert _load_vcs_xprompt_mru() == []
 
 
+def test_save_replayable_vcs_selection_skips_default_git_home(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The implicit ``#git:home`` default must not be saved as a Ctrl+Space
+    replay target, even though git is a workspace (non-home-mode) workflow.
+
+    This covers both a bare prompt normalized to ``#git:home`` and an explicit
+    ``#git:home`` prompt, which both resolve to ``("git", "home")``.
+    """
+    from tests.conftest import redirect_sase_home
+    from sase.ace.tui.actions.agent_workflow._launch_history import (
+        save_replayable_vcs_selection,
+    )
+
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    selection_file = sase_home / "last_agent_selection.json"
+
+    class _ReplayApp:
+        _last_custom_agent_selection = "sentinel"
+
+    app = _ReplayApp()
+    ctx = _fake_context()
+    ctx.project_name = "home"
+
+    save_replayable_vcs_selection(app, ctx, ("git", "home"))  # type: ignore[arg-type]
+
+    assert not selection_file.exists()
+    assert app._last_custom_agent_selection == "sentinel"
+
+
 def test_run_agent_launch_body_known_project_ref_without_provider_targets_project(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

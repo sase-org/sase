@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-22 09:57:36
-status: wip
+status: done
 prompt: sdd/prompts/202606/vcs_home_replay_filter.md
 ---
 # Plan: Exclude `#git:home` From VCS Replay History
