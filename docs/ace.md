@@ -171,7 +171,7 @@ zero-count entries display `0 lines`. The section is omitted entirely when the C
 | Key     | Action                                                  |
 | ------- | ------------------------------------------------------- |
 | `r`     | Run workflow on current PR                              |
-| `@`     | Run a custom agent (opens project/ChangeSpec selection) |
+| `+`     | Run a custom agent (opens project/ChangeSpec selection) |
 | `Space` | Run agent from current PR                               |
 
 If ACE cannot detect a workspace provider for the selected ChangeSpec or agent, the quick-launch actions show an error
@@ -294,7 +294,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | ------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `R`                 | Revive a previously dismissed agent                                                                           |
 | `A`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                |
-| `@`                 | Run custom agent                                                                                              |
+| `+`                 | Run custom agent                                                                                              |
 | `a`                 | Cycle auto-approve state / answer HITL                                                                        |
 | `f`                 | Fork agent (by name if running, by chat file if completed)                                                    |
 | `n`                 | Name agent                                                                                                    |
@@ -789,7 +789,7 @@ numerical identity.
 
 | Key | Action                                                                                    |
 | --- | ----------------------------------------------------------------------------------------- |
-| `@` | Run agent                                                                                 |
+| `+` | Run agent                                                                                 |
 | `r` | Run selected chop manually, or re-run the focused completed background command (`!!`) row |
 | `x` | Start / stop axe (or kill the focused background command)                                 |
 | `X` | Clear output                                                                              |

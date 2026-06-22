@@ -66,7 +66,7 @@ class _EntryPointsBaseMixin:
     _prompt_context: PromptContext | None = None
     # State for bulk agent runs
     _bulk_changespecs: list[ChangeSpec] | None = None
-    # State for repeat-last-@/Ctrl+Space selection
+    # State for repeat-last-+/Ctrl+Space selection
     _last_custom_agent_selection: SelectionItem | None = None
 
     def _vcs_prompt_prefix_or_notify(self, project_file: str, name: str) -> str | None:
@@ -100,7 +100,7 @@ class _EntryPointsBaseMixin:
         self._last_custom_agent_selection = None
         clear_last_agent_selection()
         self.notify(  # type: ignore[attr-defined]
-            "Saved @/Ctrl+Space selection is stale: "
+            "Saved +/Ctrl+Space selection is stale: "
             f"project {project_name!r} is not launchable; cleared saved selection",
             severity="warning",
         )

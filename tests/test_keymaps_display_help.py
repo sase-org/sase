@@ -162,6 +162,14 @@ def test_key_display_special_keys() -> None:
     assert key_display_name("slash") == "/"
     assert key_display_name("minus") == "-"
     assert key_display_name("equals_sign") == "="
+    assert key_display_name("plus") == "+"
+
+
+def test_key_display_plus_friendly_spellings() -> None:
+    """Raw ``+`` and the Unicode name render as ``+`` after canonicalization."""
+    assert key_display_name("+") == "+"
+    assert key_display_name("plus_sign") == "+"
+    assert footer_key_display("plus") == "+"
 
 
 def test_key_display_ctrl_keys() -> None:
@@ -223,7 +231,7 @@ def test_help_modal_displays_ctrl_space_agent_shortcuts() -> None:
     }
 
     for pairs in (cls_pairs, agent_pairs, axe_pairs):
-        assert ("Ctrl+Space", "Repeat last @/Ctrl+Space selection") in pairs
+        assert ("Ctrl+Space", "Repeat last +/Ctrl+Space selection") in pairs
         assert not any("@/Space" in label for _key, label in pairs)
 
     assert (", Space", "Run agent from current PR") in cls_pairs

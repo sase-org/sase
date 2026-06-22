@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-22 09:22:59
-status: wip
+status: done
 prompt: sdd/prompts/202606/at_keymap_to_plus.md
 ---
 # Change ACE `@` Agent Launcher Keymap To `+`

@@ -31,6 +31,22 @@ def test_leader_repeat_last_default_binding() -> None:
     assert reg.leader_mode.keys["repeat_last"] == "comma"
 
 
+def test_custom_agent_launcher_defaults_to_plus() -> None:
+    """The app-level custom-agent launcher defaults to ``plus`` (``+``)."""
+    reg = load_keymap_registry({})
+
+    assert reg.app.start_custom_agent == "plus"
+    assert reg.app.start_agent_home == "space"
+    assert reg.app.start_agent_from_changespec == "ctrl+@"
+
+
+def test_custom_agent_launcher_at_override_is_honored() -> None:
+    """Existing configs binding the launcher to ``at`` keep working as overrides."""
+    reg = load_keymap_registry({"keymaps": {"app": {"start_custom_agent": "at"}}})
+
+    assert reg.app.start_custom_agent == "at"
+
+
 def test_agent_launch_defaults_use_distinct_space_keys() -> None:
     """Agent launch defaults keep bare Space and Ctrl+Space distinct."""
     reg = load_keymap_registry({})

@@ -29,6 +29,17 @@ def test_build_app_bindings_uses_config_keys() -> None:
     assert by_action["quit"].key == "Q"
 
 
+def test_build_app_bindings_uses_plus_custom_agent_binding() -> None:
+    """The custom-agent launcher builds a ``plus`` binding, not ``at``."""
+    bindings = build_app_bindings(default_app_keymaps())
+    by_action = {b.action: b for b in bindings}
+    by_key = {b.key: b.action for b in bindings}
+
+    assert by_action["start_custom_agent"].key == "plus"
+    assert by_key.get("plus") == "start_custom_agent"
+    assert not any(b.action == "start_custom_agent" and b.key == "at" for b in bindings)
+
+
 def test_build_app_bindings_uses_ctrl_space_agent_binding() -> None:
     """Agent home uses Space while repeat-last keeps Ctrl+Space."""
     bindings = build_app_bindings(default_app_keymaps())

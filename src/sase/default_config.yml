@@ -91,7 +91,7 @@ ace:
       kill_agent: "x"
       open_agent_cleanup_panel: "X"
       stop_axe_and_quit: "Q"
-      start_custom_agent: "at"
+      start_custom_agent: "plus"
       start_agent_home: "space"
       start_agent_from_changespec: "ctrl+@"
       start_last_vcs_xprompt_in_editor: "ctrl+g"

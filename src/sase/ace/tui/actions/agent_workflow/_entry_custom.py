@@ -33,11 +33,11 @@ class EntryCustomMixin:
         ) -> str | None: ...
 
     def action_start_agent_from_changespec(self) -> None:
-        """Repeat last @/Ctrl+Space agent selection."""
+        """Repeat last +/Ctrl+Space agent selection."""
         last, stale_cleared = self._load_last_custom_agent_selection()
         if last is None:
             if not stale_cleared:
-                self.notify("No previous @/Ctrl+Space selection", severity="warning")  # type: ignore[attr-defined]
+                self.notify("No previous +/Ctrl+Space selection", severity="warning")  # type: ignore[attr-defined]
             return
         self._start_custom_agent_from_selection(last)
 

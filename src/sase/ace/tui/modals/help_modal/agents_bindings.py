@@ -290,7 +290,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.mark_inactive_pinned), "Toggle pinned idle (sticky)"),
                 (
                     d(a.start_agent_from_changespec),
-                    "Repeat last @/Ctrl+Space selection",
+                    "Repeat last +/Ctrl+Space selection",
                 ),
                 (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
                 (d(a.browse_xprompts), "Browse xprompts"),

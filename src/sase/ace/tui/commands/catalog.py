@@ -172,7 +172,7 @@ _APP_COMMAND_META: tuple[
         ("cleanup", "dismiss all", "clear output"),
     ),
     ("stop_axe_and_quit", "Stop AXE and quit", "Axe", _ALL_TABS, ()),
-    ("start_custom_agent", "Run custom agent", "Agents", _ALL_TABS, ("@",)),
+    ("start_custom_agent", "Run custom agent", "Agents", _ALL_TABS, ("+",)),
     (
         "start_agent_home",
         "Run agent (home mode)",

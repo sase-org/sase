@@ -34,6 +34,20 @@ def test_valid_named_keys_accepted() -> None:
     assert is_valid_key("f12")
 
 
+def test_plus_key_spellings_accepted() -> None:
+    """The ``+`` launcher key is valid by name, raw glyph, and Unicode name."""
+    assert is_valid_key("plus")
+    assert is_valid_key("+")
+    assert is_valid_key("plus_sign")
+
+
+def test_plus_aliases_canonicalize_to_plus() -> None:
+    """Friendly ``+`` spellings normalize to Textual's ``plus`` key name."""
+    assert canonicalize_key_binding("+") == "plus"
+    assert canonicalize_key_binding("plus_sign") == "plus"
+    assert canonicalize_key_binding("plus") == "plus"
+
+
 def test_compound_key_alternatives_accepted() -> None:
     """Comma-separated Textual binding alternatives are valid."""
     assert is_valid_key("colon,semicolon")

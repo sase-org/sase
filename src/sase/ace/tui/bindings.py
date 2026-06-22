@@ -60,7 +60,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("X", "open_agent_cleanup_panel", "Agent Cleanup", show=False),
     Binding("Q", "stop_axe_and_quit", "Stop & Quit", show=False),
     # Agent workflow (all tabs) - shows project/PR selection modals
-    Binding("at", "start_custom_agent", "Run Agent", show=False),
+    Binding("plus", "start_custom_agent", "Run Agent", show=False),
     Binding("space", "start_agent_home", "Run Agent (Home)", show=False),
     # Run agent from ChangeSpec (PRs tab only)
     Binding("ctrl+@", "start_agent_from_changespec", "Run Agent (PR)", show=False),

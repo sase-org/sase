@@ -148,6 +148,7 @@ _KEY_DISPLAY: dict[str, str] = {
     "grave_accent": "`",
     "slash": "/",
     "at": "@",
+    "plus": "+",
     "space": "Space",
     "tab": "Tab",
     "shift+tab": "Shift+Tab",
@@ -161,6 +162,10 @@ _CTRL_SPACE_KEY = "ctrl+@"
 _KEY_ALIASES: dict[str, str] = {
     "ctrl+space": _CTRL_SPACE_KEY,
     "ctrl+at": _CTRL_SPACE_KEY,
+    # Textual normalizes the printable ``+`` key to the name ``plus``; accept
+    # the raw glyph and the Unicode name as friendly config spellings for it.
+    "+": "plus",
+    "plus_sign": "plus",
 }
 
 

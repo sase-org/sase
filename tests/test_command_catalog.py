@@ -88,6 +88,18 @@ def test_last_vcs_xprompt_editor_command_is_all_tab_agent_command() -> None:
     assert spec.key_display == "Ctrl+G"
 
 
+def test_start_custom_agent_command_uses_plus() -> None:
+    """The custom-agent launcher command exposes ``+`` and a ``+`` alias."""
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.start_custom_agent"]
+
+    assert spec.label == "Run custom agent"
+    assert spec.key_sequence == ("plus",)
+    assert spec.key_display == "+"
+    assert "+" in spec.aliases
+    assert "@" not in spec.aliases
+
+
 def test_start_agent_from_changespec_command_uses_ctrl_space() -> None:
     """The repeat-last agent command exposes Ctrl+Space, not bare Space."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}

@@ -284,7 +284,7 @@ def test_repeat_last_selection_clears_stale_missing_project_without_launching(
 
     assert app.notifications == [
         (
-            "Saved @/Ctrl+Space selection is stale: "
+            "Saved +/Ctrl+Space selection is stale: "
             "project 'project' is not launchable; cleared saved selection",
             "warning",
         )
