@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from sase.agent.status_buckets import (
+    PLAN_APPROVED_STATUS,
     TALE_APPROVED_STATUS,
     WORKING_PLAN_STATUS,
     WORKING_TALE_STATUS,
@@ -20,6 +21,7 @@ from .agent import Agent, AgentType
 
 
 APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "legend", "commit"})
+APPROVED_PLANNER_ACTIONS = frozenset({"approve", "tale"})
 
 
 def append_unique_timestamps(target: list[datetime], source: list[datetime]) -> None:
@@ -232,6 +234,46 @@ def has_family_followup_child(
     )
 
 
+def _family_followup_children(
+    parent: Agent,
+    all_agents: list[Agent] | None = None,
+    children_by_parent: dict[str, list[Agent]] | None = None,
+) -> list[Agent]:
+    if not parent.raw_suffix:
+        return []
+    children = (
+        children_by_parent.get(parent.raw_suffix, [])
+        if children_by_parent is not None
+        else all_agents or []
+    )
+    return [
+        child
+        for child in children
+        if child is not parent
+        and child.parent_timestamp == parent.raw_suffix
+        and not child.parent_workflow
+    ]
+
+
+def _approved_planner_status(
+    parent: Agent,
+    all_agents: list[Agent] | None = None,
+    children_by_parent: dict[str, list[Agent]] | None = None,
+) -> str | None:
+    """Return the sticky approved status for a logical planner child."""
+    children = _family_followup_children(parent, all_agents, children_by_parent)
+    code_children = [child for child in children if agent_family_role(child) == "code"]
+    if parent.plan_action not in APPROVED_PLANNER_ACTIONS and not code_children:
+        return None
+    if (
+        parent.plan_action == "tale"
+        or parent.status in {TALE_APPROVED_STATUS, "TALE DONE"}
+        or any(child.plan_action == "tale" for child in code_children)
+    ):
+        return TALE_APPROVED_STATUS
+    return PLAN_APPROVED_STATUS
+
+
 def feedback_child_progressed_past_review(
     agent: Agent,
     all_agents: list[Agent],
@@ -274,6 +316,9 @@ def planner_child_status(
         return parent.status
     if parent.status in {"QUESTION", "ANSWERED"}:
         return parent.status
+    approved_status = _approved_planner_status(parent, all_agents, children_by_parent)
+    if approved_status is not None:
+        return approved_status
     if all_agents is not None and has_family_followup_child(
         parent, all_agents, children_by_parent
     ):

@@ -127,7 +127,7 @@ def test_family_resolution_survives_cross_project_collision() -> None:
     A plan-chain root with plan_action="tale", its running coder, and an
     unrelated completed WORKFLOW agent in a *different* project that shares the
     coder's raw_suffix. After dedup + status overrides the coder and root must
-    resolve to WORKING TALE / TALE APPROVED (not TALE DONE) and the unrelated
+    resolve to WORKING TALE / WORKING TALE (not TALE DONE) and the unrelated
     agent stays DONE.
     """
     project = "/home/u/.sase/projects/bob-cli/bob-cli.sase"
@@ -175,7 +175,7 @@ def test_family_resolution_survives_cross_project_collision() -> None:
     _apply_status_overrides(agents)
 
     assert coder.status == "WORKING TALE"
-    assert root.status == "TALE APPROVED"
+    assert root.status == "WORKING TALE"
     assert unrelated.status == "DONE"
 
 

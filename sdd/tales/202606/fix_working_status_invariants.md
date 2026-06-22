@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-22 08:35:48
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_working_status_invariants.md
 ---
 # Plan: Restore plan-child / root status invariants after `WORKING PLAN` / `WORKING TALE`

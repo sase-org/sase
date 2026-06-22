@@ -21,10 +21,10 @@ def _write_git_diff(path: Path, changed_path: str) -> None:
     )
 
 
-def test_apply_status_overrides_active_code_child_with_tale_plan_action_is_tale_approved() -> (
+def test_apply_status_overrides_active_code_child_with_tale_plan_action_is_working_tale() -> (
     None
 ):
-    """A tale-approved root keeps TALE APPROVED while active .code works tale."""
+    """A tale-approved root mirrors WORKING TALE while active .code works tale."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -47,14 +47,14 @@ def test_apply_status_overrides_active_code_child_with_tale_plan_action_is_tale_
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "TALE APPROVED"
+    assert parent.status == "WORKING TALE"
     assert code_child.status == "WORKING TALE"
 
 
-def test_apply_status_overrides_active_code_child_without_plan_action_is_plan_approved() -> (
+def test_apply_status_overrides_active_code_child_without_plan_action_is_working_plan() -> (
     None
 ):
-    """Regression guard: a generic-approve parent stays PLAN APPROVED."""
+    """Regression guard: a generic-approve parent mirrors WORKING PLAN."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -77,11 +77,11 @@ def test_apply_status_overrides_active_code_child_without_plan_action_is_plan_ap
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "WORKING PLAN"
     assert code_child.status == "WORKING PLAN"
 
 
-def test_apply_status_overrides_active_code_child_with_tale_child_action_is_tale_approved() -> (
+def test_apply_status_overrides_active_code_child_with_tale_child_action_is_working_tale() -> (
     None
 ):
     """A RUNNING .code child with plan_action=tale becomes WORKING TALE."""
@@ -107,7 +107,7 @@ def test_apply_status_overrides_active_code_child_with_tale_child_action_is_tale
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "TALE APPROVED"
+    assert parent.status == "WORKING TALE"
     assert code_child.status == "WORKING TALE"
 
 
@@ -136,8 +136,112 @@ def test_apply_status_overrides_active_code_child_with_parent_status_tale_approv
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "TALE APPROVED"
+    assert parent.status == "WORKING TALE"
     assert code_child.status == "WORKING TALE"
+
+
+def test_apply_status_overrides_active_code_keeps_planner_child_tale_approved() -> None:
+    """The concrete planner child stays TALE APPROVED while code is active."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="a5n",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 23, 11, 43, 3),
+        raw_suffix="20260523114303",
+        role_suffix="-plan",
+        workflow="ace-run",
+        agent_name="a5n",
+        agent_family="a5n",
+        agent_family_role="root",
+        plan_chain_root=True,
+        plan_action="tale",
+    )
+    planner_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="a5n-plan",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 23, 11, 43, 3),
+        parent_workflow="ace-run",
+        parent_timestamp="20260523114303",
+        step_type="agent",
+        role_suffix="-plan",
+        agent_name="a5n-plan",
+        agent_family="a5n",
+        agent_family_role="plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="a5n-code",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 23, 11, 46, 30),
+        parent_timestamp="20260523114303",
+        role_suffix="-code",
+        agent_name="a5n-code",
+        agent_family="a5n",
+        agent_family_role="code",
+    )
+
+    _apply_status_overrides([parent, planner_child, code_child])
+
+    assert planner_child.status == "TALE APPROVED"
+    assert code_child.status == "WORKING TALE"
+    assert parent.status == "WORKING TALE"
+
+
+def test_apply_status_overrides_completed_code_keeps_planner_child_tale_approved() -> (
+    None
+):
+    """The concrete planner child stays TALE APPROVED after code completes."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="a5n",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 23, 11, 43, 3),
+        raw_suffix="20260523114303",
+        role_suffix="-plan",
+        workflow="ace-run",
+        agent_name="a5n",
+        agent_family="a5n",
+        agent_family_role="root",
+        plan_chain_root=True,
+        plan_action="tale",
+    )
+    planner_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="a5n-plan",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 23, 11, 43, 3),
+        parent_workflow="ace-run",
+        parent_timestamp="20260523114303",
+        step_type="agent",
+        role_suffix="-plan",
+        agent_name="a5n-plan",
+        agent_family="a5n",
+        agent_family_role="plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="a5n-code",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 23, 11, 46, 30),
+        parent_timestamp="20260523114303",
+        role_suffix="-code",
+        agent_name="a5n-code",
+        agent_family="a5n",
+        agent_family_role="code",
+    )
+
+    _apply_status_overrides([parent, planner_child, code_child])
+
+    assert planner_child.status == "TALE APPROVED"
+    assert code_child.status == "TALE DONE"
+    assert parent.status == "TALE DONE"
 
 
 def test_apply_status_overrides_done_with_tale_plan_action_yields_tale_done() -> None:
@@ -270,7 +374,7 @@ def test_apply_status_overrides_active_tale_code_child_backfills_root_badge_meta
 
     _apply_status_overrides(agents)
 
-    assert parent.status == "TALE APPROVED"
+    assert parent.status == "WORKING TALE"
     assert parent.model == "gpt-5.5"
     assert parent.llm_provider == "codex"
     assert parent.vcs_provider == "GitHub"
@@ -278,13 +382,13 @@ def test_apply_status_overrides_active_tale_code_child_backfills_root_badge_meta
     assert parent.workspace_dir == "/tmp/sase_13"
 
     left, _, _ = format_agent_option(parent, 0, is_selected=False)
-    assert "🤖 a5n (TALE APPROVED)" in left.plain
+    assert "🤖 a5n (WORKING TALE)" in left.plain
 
 
-def test_apply_status_overrides_suppresses_sdd_only_diff_badge_for_tale_root(
+def test_apply_status_overrides_suppresses_sdd_only_diff_badge_for_working_tale_root(
     tmp_path: Path,
 ) -> None:
-    """TALE APPROVED roots do not show a pencil for plan/prompt-only diffs."""
+    """WORKING TALE roots do not show a pencil for plan/prompt-only diffs."""
     diff_path = tmp_path / "commit_diff.diff"
     _write_git_diff(diff_path, "sdd/tales/202606/change.md")
     parent = Agent(
@@ -314,7 +418,7 @@ def test_apply_status_overrides_suppresses_sdd_only_diff_badge_for_tale_root(
 
     _apply_status_overrides([parent, code_child])
 
-    assert parent.status == "TALE APPROVED"
+    assert parent.status == "WORKING TALE"
     assert parent.diff_has_real_edits is False
     left, _, _ = format_agent_option(parent, 0, is_selected=False)
     assert "✏️" not in left.plain
@@ -356,11 +460,11 @@ def test_apply_status_overrides_shows_badge_after_coder_real_diff_propagates(
 
     _apply_status_overrides([parent, code_child])
 
-    assert parent.status == "TALE APPROVED"
+    assert parent.status == "WORKING TALE"
     assert parent.diff_path == str(code_diff)
     assert parent.diff_has_real_edits is True
     left, _, _ = format_agent_option(parent, 0, is_selected=False)
-    assert "✏️ a5n (TALE APPROVED)" in left.plain
+    assert "✏️ a5n (WORKING TALE)" in left.plain
 
 
 def test_apply_status_overrides_child_metadata_does_not_overwrite_root_metadata() -> (
@@ -402,7 +506,7 @@ def test_apply_status_overrides_child_metadata_does_not_overwrite_root_metadata(
 
     _apply_status_overrides([parent, code_child])
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "WORKING PLAN"
     assert parent.model == "root-model"
     assert parent.llm_provider == "claude"
     assert parent.vcs_provider == "Mercurial"

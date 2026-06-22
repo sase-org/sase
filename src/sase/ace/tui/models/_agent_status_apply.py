@@ -3,7 +3,6 @@
 from collections.abc import Callable
 from datetime import datetime
 
-from sase.agent.status_buckets import WORKING_PLAN_STATUS_TO_APPROVED
 from sase.plan_chain import canonical_plan_chain_suffix
 
 from ._agent_status_diff import classify_diff_badges as classify_persisted_diff_badges
@@ -214,8 +213,7 @@ def apply_status_overrides(
 
     # Active family code handoff rows display the coder-specific working state
     # while the implementation agent runs. Normalize before root mirroring so
-    # the family root can translate back to PLAN APPROVED / TALE APPROVED
-    # instead of raw RUNNING.
+    # the family root mirrors WORKING PLAN / WORKING TALE instead of raw RUNNING.
     for agent in all_agents:
         if not (agent.parent_timestamp and not agent.parent_workflow):
             continue
@@ -251,9 +249,8 @@ def apply_status_overrides(
         if agent.followup_agents:
             agent.followup_agents.sort(key=lambda a: a.start_time or datetime.min)
 
-    # Agent-family roots mirror the newest logical child. Active coder children
-    # keep WORKING PLAN / WORKING TALE on their own row while the root keeps the
-    # sticky approved status users saw when they approved the plan.
+    # Agent-family roots mirror the newest logical child verbatim. The sticky
+    # approved status lives on the planner child row.
     for parent in parent_by_suffix.values():
         if not is_root_plan_workflow(parent):
             continue
@@ -265,9 +262,7 @@ def apply_status_overrides(
         if not children:
             continue
         newest = max(children, key=child_launch_time)
-        parent.status = WORKING_PLAN_STATUS_TO_APPROVED.get(
-            newest.status, newest.status
-        )
+        parent.status = newest.status
         copy_missing_display_metadata(parent, newest)
 
     # Spawn-on-retry: build the retry-chain linkage. Each retry child has a

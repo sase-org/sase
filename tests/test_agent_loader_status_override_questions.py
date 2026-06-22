@@ -312,10 +312,10 @@ def test_apply_status_overrides_parent_with_answered_question_stays_plan_done() 
     assert code_child.status == "PLAN DONE"
 
 
-def test_apply_status_overrides_parent_with_active_code_after_question_is_plan_approved() -> (
+def test_apply_status_overrides_parent_with_active_code_after_question_is_working_plan() -> (
     None
 ):
-    """An active .code child (answer in flight) keeps the parent at PLAN APPROVED."""
+    """An active .code child (answer in flight) makes the parent WORKING PLAN."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -339,7 +339,7 @@ def test_apply_status_overrides_parent_with_active_code_after_question_is_plan_a
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "WORKING PLAN"
     assert code_child.status == "WORKING PLAN"
 
 

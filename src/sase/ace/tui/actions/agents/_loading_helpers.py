@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+from sase.agent.status_buckets import (
+    ACTIVE_PLAN_HANDOFF_STATUSES,
+    APPROVED_PLAN_STATUSES,
+    WORKING_PLAN_STATUSES,
+)
 
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
@@ -144,6 +148,8 @@ def should_clear_loaded_agent_status_override(
     ``QUESTION`` on a historical artifact) would otherwise keep it.
     """
     if agent.status in DISMISSABLE_STATUSES:
+        return True
+    if override in APPROVED_PLAN_STATUSES and agent.status in WORKING_PLAN_STATUSES:
         return True
     if override in ("QUESTION", "ANSWERED"):
         if agent.status in _QUESTION_OVERRIDE_PROGRESS_STATUSES:

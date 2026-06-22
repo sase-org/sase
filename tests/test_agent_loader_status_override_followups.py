@@ -63,7 +63,7 @@ def test_apply_status_overrides_root_question_synthesizes_zero_child() -> None:
 
 
 def test_apply_status_overrides_ap5_workflow_children_after_code_handoff() -> None:
-    """Planner and embedded workflow children stay terminal after family handoff."""
+    """The planner step is sticky-approved; embedded workflow children stay terminal."""
     plan_time = datetime(2026, 5, 17, 9, 0, 0)
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -128,7 +128,7 @@ def test_apply_status_overrides_ap5_workflow_children_after_code_handoff() -> No
 
     _apply_status_overrides(agents, workflow_steps)
 
-    assert planner_step.status == "DONE"
+    assert planner_step.status == "PLAN APPROVED"
     assert bash_step.status == "DONE"
     assert code_child.status == "PLAN DONE"
     assert parent.status == "PLAN DONE"
@@ -289,7 +289,7 @@ def test_apply_status_overrides_feedback_child_after_code_handoff_stays_done() -
 
     assert feedback_child.status == "DONE"
     assert code_child.status == "WORKING TALE"
-    assert parent.status == "TALE APPROVED"
+    assert parent.status == "WORKING TALE"
 
 
 def test_apply_status_overrides_plan_rejected_stays_terminal() -> None:
@@ -318,10 +318,10 @@ def test_apply_status_overrides_plan_rejected_stays_terminal() -> None:
     assert parent.status == "DONE"
 
 
-def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_approved() -> (
+def test_apply_status_overrides_done_with_active_code_followup_becomes_working_plan() -> (
     None
 ):
-    """A DONE .plan parent with a completed feedback child + active .code child is PLAN APPROVED."""
+    """A DONE .plan parent with a completed feedback child + active .code child is WORKING PLAN."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -352,7 +352,7 @@ def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_appr
     agents = [parent, feedback_child, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "WORKING PLAN"
     assert code_child.status == "WORKING PLAN"
 
 
@@ -389,7 +389,7 @@ def test_apply_status_overrides_completed_followup_plan_child_stays_done() -> No
     agents = [parent, followup_planner, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "WORKING PLAN"
     assert followup_planner.status == "DONE"
     assert code_child.status == "WORKING PLAN"
 
@@ -446,8 +446,8 @@ def test_apply_status_overrides_active_commit_child_sets_plan_committed() -> Non
     assert parent.status == "RUNNING"
 
 
-def test_apply_status_overrides_active_code_child_stays_plan_approved() -> None:
-    """A DONE plan parent with an active .code follow-up stays PLAN APPROVED."""
+def test_apply_status_overrides_active_code_child_sets_working_plan() -> None:
+    """A DONE plan parent with an active .code follow-up mirrors WORKING PLAN."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -469,13 +469,11 @@ def test_apply_status_overrides_active_code_child_stays_plan_approved() -> None:
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "WORKING PLAN"
     assert code_child.status == "WORKING PLAN"
 
 
-def test_apply_status_overrides_active_code_question_child_stays_plan_approved() -> (
-    None
-):
+def test_apply_status_overrides_active_code_question_child_sets_working_plan() -> None:
     """An active '--code-0' continuation is still a code handoff row."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -499,7 +497,7 @@ def test_apply_status_overrides_active_code_question_child_stays_plan_approved()
     agents = [parent, code_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "PLAN APPROVED"
+    assert parent.status == "WORKING PLAN"
     assert code_child.status == "WORKING PLAN"
 
 
