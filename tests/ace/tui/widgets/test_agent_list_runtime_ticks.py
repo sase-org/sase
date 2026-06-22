@@ -21,13 +21,13 @@ def test_runtime_suffix_ticks_parent_status_alone_is_stable(status: str) -> None
     assert runtime_suffix_ticks(result) is False
 
 
-def test_runtime_suffix_ticks_plan_approved_with_segmented_parent_times() -> None:
+def test_runtime_suffix_ticks_plan_approved_with_plan_times_is_frozen() -> None:
     result = agent(
         status="PLAN APPROVED",
         plan_times=[datetime(2026, 5, 6, 13, 14, 53)],
         code_time=datetime(2026, 5, 6, 13, 15, 10),
     )
-    assert runtime_suffix_ticks(result) is True
+    assert runtime_suffix_ticks(result) is False
 
 
 def test_runtime_suffix_ticks_parent_with_active_runtime_child() -> None:

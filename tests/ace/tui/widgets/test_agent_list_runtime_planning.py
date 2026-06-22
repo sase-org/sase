@@ -132,7 +132,7 @@ def test_compute_row_runtime_aggregates_completed_and_active_children() -> None:
     assert elapsed == "6m01s"
 
 
-def test_compute_row_runtime_plan_approved_uses_segmented_parent_times() -> None:
+def test_compute_row_runtime_plan_approved_with_plan_times_is_frozen() -> None:
     start = datetime(2026, 5, 6, 13, 9, 0)
     run_start = datetime(2026, 5, 6, 13, 10, 7)
     plan = datetime(2026, 5, 6, 13, 14, 53)
@@ -155,11 +155,11 @@ def test_compute_row_runtime_plan_approved_uses_segmented_parent_times() -> None
         now=now,
     )
 
-    assert ts is None
-    assert elapsed == "5m51s"
+    assert ts == ("", "13:16:00")
+    assert elapsed == "5m53s"
 
 
-def test_plan_approved_plan_suffix_runtime_is_segmented() -> None:
+def test_plan_approved_plan_suffix_runtime_is_frozen() -> None:
     start = datetime(2026, 5, 6, 13, 9, 0)
     run_start = datetime(2026, 5, 6, 13, 10, 7)
     plan = datetime(2026, 5, 6, 13, 14, 53)
@@ -178,9 +178,9 @@ def test_plan_approved_plan_suffix_runtime_is_segmented() -> None:
 
     ts, elapsed = compute_row_runtime(result, now=now)
 
-    assert ts is None
-    assert elapsed == "5m51s"
-    assert runtime_suffix_ticks(result) is True
+    assert ts == ("", "13:14:53")
+    assert elapsed == "4m46s"
+    assert runtime_suffix_ticks(result) is False
 
 
 def test_compute_row_runtime_planning_parent_with_completed_child_is_stable() -> None:
@@ -323,6 +323,31 @@ def test_workflow_coder_child_with_tale_approved_ticks_from_run_start() -> None:
     assert runtime_suffix_ticks(child) is True
 
 
+def test_sticky_approved_plan_workflow_child_freezes_at_plan_time() -> None:
+    plan_start = datetime(2026, 5, 21, 14, 49, 20)
+    plan_submit = datetime(2026, 5, 21, 14, 52, 0)
+    now1 = datetime(2026, 5, 21, 14, 56, 50)
+    now2 = datetime(2026, 5, 21, 14, 56, 51)
+    child = workflow_child(
+        step_type="agent",
+        status="TALE APPROVED",
+        start=plan_start,
+        run_start=plan_start,
+        plan_times=[plan_submit],
+        cl_name="plan",
+        role_suffix=".plan",
+    )
+
+    ts1, elapsed1 = compute_row_runtime(child, now=now1)
+    ts2, elapsed2 = compute_row_runtime(child, now=now2)
+
+    assert ts1 == ("", "14:52:00")
+    assert elapsed1 == "2m40s"
+    assert ts2 == ("", "14:52:00")
+    assert elapsed2 == "2m40s"
+    assert runtime_suffix_ticks(child) is False
+
+
 def test_workflow_root_aggregate_ticks_at_1s_per_1s_with_done_plan_child() -> None:
     """Regression: a DONE plan child + RUNNING epic child must tick 1s/1s.
 
@@ -370,6 +395,46 @@ def test_workflow_root_aggregate_ticks_at_1s_per_1s_with_done_plan_child() -> No
     # planner is frozen at plan_submit (2m40s) -> contributes a constant
     # value. epic ticks live (1m -> 1m01s). The root therefore advances
     # by exactly one second between now1 and now2 — not two.
+    assert elapsed1 == "3m40s"
+    assert elapsed2 == "3m41s"
+    assert runtime_suffix_ticks(parent) is True
+
+
+def test_workflow_root_aggregate_ticks_at_1s_per_1s_with_approved_plan_child() -> None:
+    plan_start = datetime(2026, 5, 21, 14, 49, 20)
+    plan_submit = datetime(2026, 5, 21, 14, 52, 0)
+    code_start = datetime(2026, 5, 21, 15, 6, 0)
+
+    parent = agent(
+        agent_type=AgentType.WORKFLOW,
+        status="WORKING TALE",
+        start=plan_start,
+        run_start=plan_start,
+    )
+    planner = workflow_child(
+        step_type="agent",
+        status="TALE APPROVED",
+        start=plan_start,
+        run_start=plan_start,
+        plan_times=[plan_submit],
+        cl_name="plan",
+        role_suffix=".plan",
+    )
+    coder = workflow_child(
+        step_type="agent",
+        status="WORKING TALE",
+        start=code_start,
+        run_start=code_start,
+        raw_suffix="20260521150600",
+        cl_name="code",
+    )
+    parent.runtime_children.extend([planner, coder])
+
+    now1 = datetime(2026, 5, 21, 15, 7, 0)
+    now2 = datetime(2026, 5, 21, 15, 7, 1)
+    _, elapsed1 = compute_row_runtime(parent, now=now1)
+    _, elapsed2 = compute_row_runtime(parent, now=now2)
+
     assert elapsed1 == "3m40s"
     assert elapsed2 == "3m41s"
     assert runtime_suffix_ticks(parent) is True

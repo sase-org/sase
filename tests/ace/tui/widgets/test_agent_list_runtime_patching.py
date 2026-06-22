@@ -92,7 +92,7 @@ async def test_patch_active_runtime_rows_advances_plan_approved_parent() -> None
 
 
 @pytest.mark.asyncio
-async def test_patch_active_runtime_rows_advances_plan_approved_parent_times() -> None:
+async def test_patch_active_runtime_rows_skips_frozen_approved_plan() -> None:
     app = AgentListHarness()
     async with app.run_test() as pilot:
         widget = app.query_one(AgentList)
@@ -116,16 +116,16 @@ async def test_patch_active_runtime_rows_advances_plan_approved_parent_times() -
         before_count = widget.option_count
         before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
         assert "[✓]" in before
-        assert before.rstrip().endswith("🏃‍♂️ 44s")
+        assert before.rstrip().endswith("14:00:30 · 30s")
 
         patched = widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 1, 0))
         await pilot.pause()
 
         after = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
-        assert patched == 1
+        assert patched == 0
         assert widget.option_count == before_count
         assert "[✓]" in after
-        assert after.rstrip().endswith("🏃‍♂️ 45s")
+        assert after == before
 
 
 @pytest.mark.asyncio

@@ -175,7 +175,7 @@ def test_format_agent_option_waiting_input_has_user_paused_marker() -> None:
     assert suffix.plain == "✋"
 
 
-def test_format_agent_option_plan_approved_active_suffix_has_running_marker() -> None:
+def test_format_agent_option_approved_plan_suffix_is_frozen() -> None:
     _, suffix, _ = format_agent_option(
         agent(
             agent_type=AgentType.WORKFLOW,
@@ -190,7 +190,8 @@ def test_format_agent_option_plan_approved_active_suffix_has_running_marker() ->
         now=datetime(2026, 5, 6, 13, 16, 15),
     )
 
-    assert suffix.plain == "🏃‍♂️ 5m51s"
+    assert suffix.plain == "13:14:53 · 4m46s"
+    assert "🏃‍♂️" not in suffix.plain
     assert "✋" not in suffix.plain
 
 

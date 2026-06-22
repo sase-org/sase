@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-22 10:29:41
-status: wip
+status: done
 prompt: sdd/prompts/202606/freeze_approved_plan_runtime.md
 ---
 # Plan: Freeze runtime for `PLAN APPROVED` / `TALE APPROVED` rows
