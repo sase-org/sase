@@ -341,6 +341,8 @@ class PromptBarRequestsMixin:
             )
             if not applied:
                 return "Prompt pane is no longer available - selection discarded"
+            if result.inputs:
+                origin_bar.merge_frontmatter_inputs(result.inputs)
             return None
 
         self.push_screen(  # type: ignore[attr-defined]

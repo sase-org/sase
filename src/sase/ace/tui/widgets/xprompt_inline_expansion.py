@@ -7,19 +7,21 @@ user-facing error explaining why the entry cannot be expanded inline.
 
 Inline expansion is a no-argument expansion: the user picks an entry and the
 selector splices its rendered body into the originating prompt pane. Entries
-that need arguments or carry runtime side effects (standalone/embeddable
-workflows, environment, required inputs) cannot be rendered as plain text and
-are rejected so the caller can fall back to inserting the ``#name`` reference.
+that carry runtime side effects (standalone/embeddable workflows, environment)
+cannot be rendered as plain text and are rejected so the caller can fall back
+to inserting the ``#name`` reference. Simple xprompts with declared inputs are
+expanded with placeholders preserved and returned to the caller for staging in
+prompt frontmatter.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from enum import Enum
 
 from sase.xprompt._exceptions import XPromptError
 from sase.xprompt.loader import get_all_xprompts
-from sase.xprompt.models import UNSET, XPrompt, XPromptValidationError
+from sase.xprompt.models import InputArg, XPrompt, XPromptValidationError
 from sase.xprompt.processor import (
     expand_single_xprompt,
     process_xprompt_references_with_catalog,
@@ -38,7 +40,6 @@ class InlineExpansionReason(Enum):
     EXPANDED = "expanded"
     STANDALONE_WORKFLOW = "standalone_workflow"
     WORKFLOW_STEPS = "workflow_steps"
-    REQUIRED_INPUT = "required_input"
     EXPANSION_ERROR = "expansion_error"
 
 
@@ -56,6 +57,7 @@ class InlineExpansionResult:
     expanded_text: str | None
     error: str | None
     reason: InlineExpansionReason
+    inputs: list[InputArg] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -112,24 +114,25 @@ def expand_inline_xprompt(
             f"Cannot inline-expand #{name} because it has workflow steps.",
         )
 
-    # 2. An inline expansion passes no arguments, so a required input (one with
-    #    no default) can never be satisfied. Report the first such input.
-    required = _first_required_input(workflow)
-    if required is not None:
-        return _error(
-            InlineExpansionReason.REQUIRED_INPUT,
-            f"Cannot inline-expand #{name} because input '{required}' is required.",
-        )
-
-    # 3. Render the body by reusing the launch-time expansion primitives so the
+    # 2. Render the body by reusing the launch-time expansion primitives so the
     #    inline result matches what the same reference would produce at launch.
     xprompt = _workflow_to_xprompt(name, workflow)
+    inputs = list(xprompt.inputs)
+    identity_scope = _identity_input_scope(inputs)
+    render_xprompt = replace(xprompt, inputs=[]) if inputs else xprompt
     try:
         rendered = expand_single_xprompt(
-            xprompt, [], {}, preserve_segment_separators=True
+            render_xprompt,
+            [],
+            identity_scope,
+            scope=identity_scope or None,
+            preserve_segment_separators=True,
         )
         rendered = _expand_nested_references(
-            rendered, local_xprompts=local_xprompts, project=project
+            rendered,
+            local_xprompts=local_xprompts,
+            project=project,
+            scope=identity_scope or None,
         )
     except (XPromptError, XPromptValidationError, WorkflowValidationError) as exc:
         return _error(
@@ -151,26 +154,13 @@ def expand_inline_xprompt(
         expanded_text=rendered,
         error=None,
         reason=InlineExpansionReason.EXPANDED,
+        inputs=inputs,
     )
 
 
 def _error(reason: InlineExpansionReason, message: str) -> InlineExpansionResult:
     """Build a failed :class:`InlineExpansionResult`."""
     return InlineExpansionResult(expanded_text=None, error=message, reason=reason)
-
-
-def _first_required_input(workflow: Workflow) -> str | None:
-    """Return the name of the first required (no-default) input, if any.
-
-    Implicit step inputs are ignored: they come from workflow step outputs and
-    never apply to the simple prompt-part entries that reach this point.
-    """
-    for inp in workflow.inputs:
-        if inp.is_step_input:
-            continue
-        if inp.default is UNSET:
-            return inp.name
-    return None
 
 
 def _workflow_to_xprompt(name: str, workflow: Workflow) -> XPrompt:
@@ -191,11 +181,24 @@ def _workflow_to_xprompt(name: str, workflow: Workflow) -> XPrompt:
     )
 
 
+def _identity_input_scope(inputs: list[InputArg]) -> dict[str, str]:
+    """Return values that render declared inputs back to ``{{ name }}``.
+
+    Rendering through an inputs-cleared copy bypasses type conversion, so typed
+    placeholders like ``int`` / ``bool`` can still round-trip as literal Jinja.
+    The same identity values are passed as scope so local helpers and nested
+    references that use a top-level input surface it into the final body for
+    launch-time substitution.
+    """
+    return {inp.name: "{{ " + inp.name + " }}" for inp in inputs}
+
+
 def _expand_nested_references(
     rendered: str,
     *,
     local_xprompts: dict[str, XPrompt],
     project: str | None,
+    scope: dict[str, str] | None,
 ) -> str:
     """Recursively expand global/frontmatter references left in *rendered*.
 
@@ -214,6 +217,7 @@ def _expand_nested_references(
         rendered,
         catalog,
         extra_xprompts=local_xprompts or None,
+        scope=scope,
         aliases_resolved=True,
         preserve_segment_separators=True,
     )

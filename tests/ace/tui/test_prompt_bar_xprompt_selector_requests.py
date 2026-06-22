@@ -22,6 +22,7 @@ from sase.ace.tui.widgets.xprompt_inline_expansion import (
     InlineExpansionReason,
     InlineExpansionResult,
 )
+from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 
@@ -205,6 +206,7 @@ class _ExpandOriginBar(PromptInputBar):
         super().__init__()
         self._applied = applied
         self.expand_calls: list[tuple[object, str, object, str]] = []
+        self.merge_calls: list[list[InputArg]] = []
 
     @property
     def is_mounted(self) -> bool:  # type: ignore[override]
@@ -221,6 +223,9 @@ class _ExpandOriginBar(PromptInputBar):
             (target_text_area, pane_id, trigger_range, expanded_text)
         )
         return self._applied
+
+    def merge_frontmatter_inputs(self, inputs: list[InputArg]) -> None:  # type: ignore[override]
+        self.merge_calls.append(inputs)
 
 
 def _expand_callback(
@@ -256,6 +261,41 @@ def test_ctrl_i_expand_applies_rendered_body_to_origin_pane() -> None:
     assert origin_bar.expand_calls == [
         (origin_ta, "prompt-input-g0-p0", ((0, 7), (0, 8)), "BODY")
     ]
+    assert origin_bar.merge_calls == []
+
+
+def test_ctrl_i_expand_stages_returned_inputs_after_body_splice() -> None:
+    harness = _SelectorHarness()
+    origin_bar = _ExpandOriginBar(applied=True)
+    origin_ta = _StubTextArea(text="before #")
+    topic = InputArg(name="topic", type=InputType.LINE)
+
+    harness.on_prompt_input_bar_snippet_requested(
+        _event(origin_bar, origin_ta, trigger_range=((0, 7), (0, 8)))
+    )
+
+    success = InlineExpansionResult(
+        expanded_text="Read about {{ topic }}.",
+        error=None,
+        reason=InlineExpansionReason.EXPANDED,
+        inputs=[topic],
+    )
+    with patch(
+        "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
+        return_value=success,
+    ):
+        error = _expand_callback(harness, "reads", _simple_workflow("reads"))
+
+    assert error is None
+    assert origin_bar.expand_calls == [
+        (
+            origin_ta,
+            "prompt-input-g0-p0",
+            ((0, 7), (0, 8)),
+            "Read about {{ topic }}.",
+        )
+    ]
+    assert origin_bar.merge_calls == [[topic]]
 
 
 def test_ctrl_i_expand_error_does_not_touch_origin_pane() -> None:
@@ -302,6 +342,7 @@ def test_ctrl_i_expand_stale_target_reports_recoverable_error() -> None:
     # error (the modal keeps the selector open), leaving every prompt unchanged.
     assert error == "Prompt pane is no longer available - selection discarded"
     assert len(origin_bar.expand_calls) == 1
+    assert origin_bar.merge_calls == []
 
 
 # -- Phase 5: local frontmatter xprompts + project-catalog parity ------------

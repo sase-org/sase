@@ -77,6 +77,59 @@ async def test_action_open_editor_in_feedback_mode_requests_single_pane() -> Non
         assert app.all_editor_requests == []
 
 
+# --- staged xprompt inputs --------------------------------------------------
+
+
+async def test_merge_frontmatter_inputs_shows_panel_without_stealing_focus() -> None:
+    app = _PromptBarApp("body")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+        text_area.focus()
+        await pilot.pause()
+
+        topic = InputArg(name="topic", type=InputType.LINE)
+        bar.merge_frontmatter_inputs([topic])
+        await pilot.pause()
+
+        panel = app.query_one(FrontmatterPanel)
+        assert not panel.has_class("hidden")
+        assert panel.model.inputs == [topic]
+        assert bar._stack.frontmatter == "---\ninput:\n  topic: line\n---"
+        assert app.focused is text_area
+
+
+def test_merge_frontmatter_inputs_keeps_existing_declaration_on_collision() -> None:
+    bar = PromptInputBar()
+    existing = InputArg(
+        name="topic",
+        type=InputType.WORD,
+        description="existing prompt declaration",
+    )
+    incoming = InputArg(name="topic", type=InputType.INT)
+    target = InputArg(name="target", type=InputType.PATH)
+    frontmatter = PromptFrontmatter(inputs=[existing])
+    bar._stack.set_frontmatter_model(frontmatter)
+
+    bar.merge_frontmatter_inputs([incoming, target])
+
+    model = PromptFrontmatter.parse(bar._stack.frontmatter)
+    assert model.inputs == [existing, target]
+
+
+def test_merge_frontmatter_inputs_leaves_invalid_frontmatter_unchanged() -> None:
+    bar = PromptInputBar()
+    original = "---\nxprompts:\n  rules: missing underscore\n---"
+    bar._stack.frontmatter = original
+
+    bar.merge_frontmatter_inputs([InputArg(name="topic", type=InputType.LINE)])
+
+    assert bar._stack.frontmatter == original
+
+
 async def test_focused_pane_ctrl_g_starts_prefix_and_shadows_global_binding() -> None:
     app = _RecordingPromptBarApp("solo prompt")
 

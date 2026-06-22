@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-22 07:56:26
-status: wip
+status: done
 prompt: sdd/prompts/202606/expand_xprompt_with_inputs.md
 ---
 # Plan: Expand XPrompts With Inputs via `Ctrl+I` (Stage Inputs in the Property Panel)

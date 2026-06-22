@@ -30,6 +30,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     xprompt_assist_entry_from_local_xprompt,
 )
+from sase.xprompt.models import InputArg
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 if TYPE_CHECKING:
@@ -239,6 +240,33 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         else:
             panel.add_class("hidden")
             self._schedule_height_update()
+
+    def merge_frontmatter_inputs(self, inputs: list[InputArg]) -> None:
+        """Stage undeclared xprompt inputs in prompt-level frontmatter.
+
+        Existing prompt declarations win on name collisions so inline expansion
+        cannot clobber user-authored input types, defaults, or descriptions.
+        The body splice remains a TextArea undo edit; this frontmatter merge is
+        prompt-level shared state and intentionally stays visible after body
+        undo so the user can remove staged inputs in the panel if needed.
+        """
+        if self._mode != "prompt" or not inputs:
+            return
+        try:
+            model = PromptFrontmatter.parse(self._stack.frontmatter)
+        except Exception:
+            return
+
+        changed = False
+        for arg in inputs:
+            if arg.is_step_input or model.get_input(arg.name) is not None:
+                continue
+            model.set_input(arg)
+            changed = True
+
+        if changed:
+            self._stack.set_frontmatter_model(model)
+        self.refresh_frontmatter_panel_from_stack()
 
     # -- panel messages -------------------------------------------------------
 
