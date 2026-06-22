@@ -17,6 +17,7 @@ from sase.ace.tui.widgets._prompt_text_area_actions import prompt_bar_class
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 
+    from sase.ace.tui.widgets._vcs_mru_cycling import VcsMruCycleKey
     from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
     from sase.ace.tui.widgets.xprompt_arg_assist import (
@@ -82,8 +83,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         def _find_prompt_bar(self) -> Any: ...
         def _handle_normal_mode_key(self, event: Key) -> bool: ...
         def _handle_prompt_search_key(self, event: Key) -> bool: ...
-        def _handle_vcs_mru_cycle_key(self) -> bool: ...
-        def _handle_vcs_xprompt_delete_key(self) -> bool: ...
+        def _handle_vcs_mru_cycle_key(self, key: VcsMruCycleKey) -> bool: ...
         def _handle_visual_mode_key(self, event: Key) -> bool: ...
         def _is_prompt_search_active(self) -> bool: ...
         def _move_file_completion(self, delta: int) -> bool: ...
@@ -313,13 +313,13 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         if event.key == "ctrl+n":
             event.stop()
             event.prevent_default()
-            self._handle_vcs_xprompt_delete_key()
+            self._handle_vcs_mru_cycle_key("ctrl+n")
             return
 
         if event.key == "ctrl+p":
             event.stop()
             event.prevent_default()
-            self._handle_vcs_mru_cycle_key()
+            self._handle_vcs_mru_cycle_key("ctrl+p")
             return
 
         # Ctrl+T in INSERT mode: trigger file path completion.

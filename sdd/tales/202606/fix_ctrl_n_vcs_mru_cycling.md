@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-22 08:11:57
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_ctrl_n_vcs_mru_cycling.md
 ---
 # Fix Ctrl+N VCS MRU Cycling

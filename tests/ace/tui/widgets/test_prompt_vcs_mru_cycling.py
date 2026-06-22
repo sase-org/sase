@@ -1,8 +1,9 @@
-"""Widget tests for prompt VCS xprompt tag deletion and MRU cycling.
+"""Widget tests for prompt VCS xprompt MRU cycling.
 
 The launch-side identity is derived from the *submitted text*, so the prompt
 text must reflect the active workspace tag after prompt-local key handling.
-These tests pin ``Ctrl+P`` cycling, ``Ctrl+N`` deletion, and completion-menu
+These tests pin ``Ctrl+P`` forward cycling, ``Ctrl+N`` backward cycling (which
+clears the tag only at the reverse-cycle boundary), and completion-menu
 precedence.
 """
 
@@ -189,42 +190,80 @@ async def test_ctrl_p_empty_stop_removes_tag_before_body() -> None:
     assert cursor == len("fix the bug")
 
 
-async def test_ctrl_n_deletes_tag_only_prompt_to_empty() -> None:
-    text, cursor = await _press("#git:foo", "ctrl+n")
+async def test_ctrl_n_at_most_recent_entry_deletes_tag_only_prompt() -> None:
+    """Reverse-cycling off the most recent entry hits the empty stop, which
+    clears a tag-only prompt."""
+    text, cursor = await _press(
+        "#git:foo",
+        "ctrl+n",
+        mru=["#git:foo", "#git:bar"],
+    )
     assert text == ""
     assert cursor == 0
 
 
-async def test_ctrl_n_deletes_first_vcs_tag() -> None:
-    text, cursor = await _press("#git:foo fix the bug", "ctrl+n")
+async def test_ctrl_n_at_most_recent_entry_deletes_first_vcs_tag() -> None:
+    text, cursor = await _press(
+        "#git:foo fix the bug",
+        "ctrl+n",
+        mru=["#git:foo", "#git:bar"],
+    )
     assert text == "fix the bug"
     assert cursor == len("fix the bug")
 
 
 async def test_ctrl_n_preserves_directives_when_deleting_tag() -> None:
-    text, _cursor = await _press("%n:a #git:foo fix", "ctrl+n")
+    text, _cursor = await _press(
+        "%n:a #git:foo fix",
+        "ctrl+n",
+        mru=["#git:foo", "#git:bar"],
+    )
     assert text == "%n:a fix"
 
 
-async def test_ctrl_n_noop_when_prompt_has_no_vcs_tag() -> None:
-    text, _cursor = await _press("fix the bug", "ctrl+n")
-    assert text == "fix the bug"
+async def test_ctrl_n_cycles_backward_to_newer_entry() -> None:
+    text, cursor = await _press(
+        "#git:bar",
+        "ctrl+n",
+        mru=["#git:foo", "#git:bar", "#git:baz"],
+    )
+    assert text == "#git:foo "
+    assert cursor == len("#git:foo ")
 
 
-async def test_ctrl_n_noop_when_only_fenced_block_tag_exists() -> None:
-    """A tag quoted inside a fenced block is not a workflow ref, so it stays."""
+async def test_ctrl_n_from_no_vcs_tag_selects_oldest_entry() -> None:
+    text, cursor = await _press(
+        "fix the bug",
+        "ctrl+n",
+        mru=["#git:foo", "#git:bar"],
+    )
+    assert text == "#git:bar fix the bug"
+    assert cursor == len("#git:bar fix the bug")
+
+
+async def test_ctrl_n_empty_prompt_selects_oldest_entry() -> None:
+    text, cursor = await _press("", "ctrl+n", mru=["#git:foo", "#git:bar"])
+    assert text == "#git:bar "
+    assert cursor == len("#git:bar ")
+
+
+async def test_ctrl_n_only_fenced_block_tag_prepends_and_keeps_quote() -> None:
+    """A tag quoted inside a fenced block is not a workflow ref, so cycling
+    prepends an MRU entry instead of touching the quoted tag."""
     start = "Fix the launcher:\n```\nsase run #git:quoted do thing\n```\n"
-    text, _cursor = await _press(start, "ctrl+n")
-    assert text == start
+    text, _cursor = await _press(start, "ctrl+n", mru=["#git:foo", "#git:bar"])
+    assert text.startswith("#git:bar ")
+    assert "#git:quoted" in text
 
 
-async def test_ctrl_n_does_not_load_mru() -> None:
-    with patch(
-        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
-        side_effect=AssertionError("ctrl+n must not load MRU"),
-    ):
-        text, _cursor = await _press("#git:foo fix", "ctrl+n")
-    assert text == "fix"
+async def test_ctrl_p_ctrl_n_round_trip_returns_to_starting_tag() -> None:
+    text, cursor = await _press(
+        "#git:foo",
+        ["ctrl+p", "ctrl+p", "ctrl+n", "ctrl+n"],
+        mru=["#git:foo", "#git:bar", "#git:baz"],
+    )
+    assert text == "#git:foo "
+    assert cursor == len("#git:foo ")
 
 
 async def test_ctrl_p_cycles_empty_prompt_to_most_recent_entry() -> None:

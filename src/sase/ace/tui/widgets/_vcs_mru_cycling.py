@@ -4,13 +4,23 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.xprompt._parsing import (
     find_vcs_workflow_tag_prepend_offset,
     find_vcs_workflow_tag_span,
     normalize_vcs_underscore_refs,
 )
+
+#: The two prompt keys that drive VCS xprompt MRU cycling. ``ctrl+p`` cycles
+#: forward (toward older entries) and ``ctrl+n`` cycles backward (toward newer
+#: entries); both share one ring whose terminal stop clears the VCS tag.
+VcsMruCycleKey = Literal["ctrl+n", "ctrl+p"]
+
+_VCS_MRU_CYCLE_DIRECTION: dict[VcsMruCycleKey, int] = {
+    "ctrl+p": 1,
+    "ctrl+n": -1,
+}
 
 
 @dataclass(frozen=True)
@@ -87,26 +97,31 @@ def _next_vcs_mru_index(
     mru: Sequence[str],
     current_index: int | None,
     current_tag: str | None,
+    direction: int,
 ) -> int | None:
-    """Return the next MRU index for a forward cycle keypress.
+    """Return the next MRU index for a directional cycle keypress.
 
-    The cycle includes one terminal empty position at ``len(mru)``.
+    ``direction`` is ``+1`` for a forward (``ctrl+p``) cycle and ``-1`` for a
+    backward (``ctrl+n``) cycle. The ring includes one terminal empty position
+    at ``len(mru)``; moving onto it clears the VCS tag. When the prompt has no
+    VCS tag, a forward cycle starts at the most recent entry (index ``0``) and a
+    backward cycle starts at the oldest entry (index ``len(mru) - 1``).
     """
     if not mru:
         return None
 
     ring_len = len(mru) + 1
     if current_index is not None:
-        return (current_index + 1) % ring_len
+        return (current_index + direction) % ring_len
 
     if current_tag is not None:
         normalized_current = _normalize_mru_lookup_key(current_tag)
         normalized_mru = [_normalize_mru_lookup_key(entry) for entry in mru]
         if normalized_current in normalized_mru:
             base = normalized_mru.index(normalized_current)
-            return (base + 1) % ring_len
+            return (base + direction) % ring_len
 
-    return 0
+    return 0 if direction > 0 else len(mru) - 1
 
 
 def _cursor_after_replacement(
@@ -130,14 +145,16 @@ def _cycle_vcs_mru_text(
     cursor_offset: int,
     mru: Sequence[str],
     current_index: int | None,
+    key: VcsMruCycleKey = "ctrl+p",
 ) -> _VcsMruCycleEdit | None:
-    """Return the text edit for applying a VCS MRU cycle keypress."""
+    """Return the text edit for applying a directional VCS MRU cycle keypress."""
     span = None if not text.strip() else find_vcs_workflow_tag_span(text)
     current_tag = None if span is None else text[span[0] : span[1]]
     new_index = _next_vcs_mru_index(
         mru=mru,
         current_index=current_index,
         current_tag=current_tag,
+        direction=_VCS_MRU_CYCLE_DIRECTION[key],
     )
     if new_index is None:
         return None
@@ -244,17 +261,16 @@ class VcsMruCyclingMixin(_MixinBase):
         ) -> None: ...
 
         def _clear_soft_completion(self, *, cancel_timer: bool = False) -> None: ...
-        def _clear_file_completion(
-            self,
-            *,
-            clear_xprompt_arg_hint: bool = True,
-        ) -> None: ...
         def _clear_xprompt_arg_hint(self) -> None: ...
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
         def _on_prompt_completion_context_changed(self) -> None: ...
 
-    def _handle_vcs_mru_cycle_key(self) -> bool:
-        """Apply a VCS MRU cycle keypress if one is available."""
+    def _handle_vcs_mru_cycle_key(self, key: VcsMruCycleKey) -> bool:
+        """Apply a directional VCS MRU cycle keypress if one is available.
+
+        ``ctrl+p`` cycles forward and ``ctrl+n`` cycles backward through the
+        shared ring; reaching the ring's empty stop clears the VCS tag.
+        """
         bar = self._find_prompt_bar()
         if bar is not None and bar._mode == "feedback":
             return False
@@ -266,6 +282,7 @@ class VcsMruCyclingMixin(_MixinBase):
             cursor_offset=self._absolute_offset(self.cursor_location),
             mru=load_launchable_vcs_xprompt_mru(),
             current_index=self._vcs_mru_index,
+            key=key,
         )
         if edit is None:
             return False
@@ -283,34 +300,8 @@ class VcsMruCyclingMixin(_MixinBase):
         self._on_prompt_completion_context_changed()
         return True
 
-    def _handle_vcs_xprompt_delete_key(self) -> bool:
-        """Delete the first VCS workflow tag from the prompt, if present."""
-        self._vcs_mru_index = None
-        bar = self._find_prompt_bar()
-        if bar is not None and bar._mode == "feedback":
-            return False
-
-        edit = _delete_vcs_xprompt_text(
-            self.text,
-            self._absolute_offset(self.cursor_location),
-        )
-        if edit is None:
-            return False
-
-        start = self._location_from_absolute(edit.start_offset)
-        end = self._location_from_absolute(edit.end_offset)
-        if self._replace_via_keyboard("", start, end) is None:
-            return False
-
-        self.move_cursor(self._location_from_absolute(edit.cursor_offset))
-        self._clear_soft_completion(cancel_timer=True)
-        self._clear_file_completion()
-        self._clear_xprompt_arg_hint()
-        self._refresh_xprompt_arg_hint_from_cursor()
-        self._on_prompt_completion_context_changed()
-        return True
-
 
 __all__ = [
+    "VcsMruCycleKey",
     "VcsMruCyclingMixin",
 ]
