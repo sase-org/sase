@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-22 08:28:26
-status: wip
+status: done
 prompt: sdd/prompts/202606/undo_xprompt_staged_inputs.md
 ---
 # Plan: Make XPrompt-Staged Inputs Follow Prompt Undo

@@ -15,6 +15,12 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
     if TYPE_CHECKING:
 
         def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None: ...
+        def _notify_prompt_bar_text_undo(
+            self, before_text: str, after_text: str
+        ) -> None: ...
+        def _notify_prompt_bar_text_redo(
+            self, before_text: str, after_text: str
+        ) -> None: ...
 
     def _handle_normal_edit_key(
         self,
@@ -29,12 +35,25 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
         if key == "u":
             was_readonly = self.read_only
             self.read_only = False
+            before = self.text
             self.undo()
+            after = self.text
             self.read_only = was_readonly
             self._clear_prompt_search(clear_highlights=True)
+            # An undo that reverses a ``Ctrl+I`` inline-expansion splice also
+            # unstages the inputs that expansion auto-staged; any other undo is
+            # untouched by this notification.
+            if after != before:
+                self._notify_prompt_bar_text_undo(before, after)
             return True
         if event.key == "ctrl+r":
+            before = self.text
             self._redo()
+            after = self.text
+            # The mirror of ``u``: redoing an inline-expansion splice restages
+            # its auto-staged inputs.
+            if after != before:
+                self._notify_prompt_bar_text_redo(before, after)
             return True
 
         if key == "v":

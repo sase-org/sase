@@ -333,6 +333,12 @@ class PromptBarRequestsMixin:
             # ``u`` restores the exact pre-expansion text. A stale target (the
             # pane was unmounted/rebuilt while the modal was open) leaves every
             # prompt untouched and surfaces a recoverable error.
+            #
+            # Capture the pane text before the splice so a successful expansion
+            # that also stages inputs can register a transaction coupling those
+            # auto-staged inputs to this body edit -- undoing the splice then
+            # unstages them, and redo restages them (Phase: undo-staged-inputs).
+            before_text = getattr(origin_text_area, "text", "") or ""
             applied = origin_bar.expand_xprompt_at_target(
                 origin_text_area,
                 origin_pane_id,
@@ -342,7 +348,14 @@ class PromptBarRequestsMixin:
             if not applied:
                 return "Prompt pane is no longer available - selection discarded"
             if result.inputs:
-                origin_bar.merge_frontmatter_inputs(result.inputs)
+                added = origin_bar.merge_frontmatter_inputs(result.inputs)
+                origin_bar.register_inline_expansion(
+                    origin_text_area,
+                    origin_pane_id,
+                    before_text,
+                    result.inputs,
+                    added,
+                )
             return None
 
         self.push_screen(  # type: ignore[attr-defined]

@@ -13,8 +13,10 @@ from __future__ import annotations
 
 from textual.message import Message
 
+from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.xprompt.models import InputArg, InputType
 
 from ._completion_helpers import CompletionTestApp
 
@@ -341,3 +343,100 @@ async def test_hash_at_expand_multiline_undo_is_single_step() -> None:
         await pilot.pause()
 
         assert ta.text == "#"
+
+
+# -- staged inputs follow body undo/redo (end-to-end key path) ---------------
+
+
+class _StageExpandApp(CompletionTestApp):
+    """Run the full ``Ctrl+I`` callback (splice + stage + register) on ``#@``.
+
+    Unlike :class:`_ExpandKeySequenceApp`, this also merges the expansion's
+    declared inputs into prompt frontmatter and registers the staged-input
+    transaction, exactly as the request wiring does -- so a NORMAL-mode ``u`` /
+    ``Ctrl+R`` exercises the whole staged-input undo/redo path end to end.
+    """
+
+    def __init__(self, body: str, inputs: list[InputArg]) -> None:
+        super().__init__()
+        self._expand_body = body
+        self._expand_inputs = inputs
+
+    def on_prompt_input_bar_snippet_requested(
+        self, event: PromptInputBar.SnippetRequested
+    ) -> None:
+        bar = event.origin_bar
+        assert bar is not None
+        text_area = event.origin_text_area
+        before_text = getattr(text_area, "text", "") or ""
+        applied = bar.expand_xprompt_at_target(
+            text_area,
+            event.origin_pane_id,
+            event.trigger_range,
+            self._expand_body,
+        )
+        if not applied:
+            return
+        added = bar.merge_frontmatter_inputs(self._expand_inputs)
+        bar.register_inline_expansion(
+            text_area,
+            event.origin_pane_id,
+            before_text,
+            self._expand_inputs,
+            added,
+        )
+
+
+async def test_hash_at_expand_undo_unstages_input_and_hides_panel() -> None:
+    topic = InputArg(name="topic", type=InputType.LINE)
+    app = _StageExpandApp("Read about {{ topic }}.", [topic])
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        panel = app.query_one(FrontmatterPanel)
+
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+        await pilot.press("@")
+        await pilot.pause()
+
+        # The expansion spliced the body and auto-staged `topic`, revealing the
+        # property panel for the lone staged input.
+        assert ta.text == "Read about {{ topic }}."
+        assert bar._stack.frontmatter == "---\ninput:\n  topic: line\n---"
+        assert not panel.has_class("hidden")
+
+        # One NORMAL-mode `u` reverts the body *and* unstages the input it added;
+        # with no properties left the panel hides itself.
+        await pilot.press("escape")
+        await pilot.press("u")
+        await pilot.pause()
+
+        assert ta.text == "#"
+        assert bar._stack.frontmatter == ""
+        assert panel.has_class("hidden")
+
+
+async def test_hash_at_expand_undo_then_redo_restages_input() -> None:
+    topic = InputArg(name="topic", type=InputType.LINE)
+    app = _StageExpandApp("Read about {{ topic }}.", [topic])
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+        await pilot.press("@")
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.press("u")
+        await pilot.pause()
+        assert ta.text == "#"
+        assert bar._stack.frontmatter == ""
+
+        # Redo reapplies the body splice and restages the input in lockstep.
+        await pilot.press("ctrl+r")
+        await pilot.pause()
+
+        assert ta.text == "Read about {{ topic }}."
+        assert bar._stack.frontmatter == "---\ninput:\n  topic: line\n---"

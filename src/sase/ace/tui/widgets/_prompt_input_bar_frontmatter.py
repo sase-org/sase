@@ -19,6 +19,7 @@ mixin only wires the panel into the bar's lifecycle, focus, and height.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from textual.dom import DOMNode
@@ -41,18 +42,59 @@ else:
     _MixinBase = object
 
 
+@dataclass(slots=True)
+class InlineExpansionTransaction:
+    """A single ``#@`` + ``Ctrl+I`` inline expansion that auto-staged inputs.
+
+    Couples the prompt-frontmatter inputs an inline expansion staged to the body
+    splice that introduced them, so prompt NORMAL-mode ``u`` / ``Ctrl+R`` on the
+    originating pane can unstage and restage exactly those auto-staged inputs in
+    lockstep with the (already undoable) body edit.
+
+    The body splice stays the source of truth: :attr:`before_text` /
+    :attr:`after_text` are the originating pane's full text immediately before
+    and after the splice, so a later ``undo()`` / ``redo()`` is recognized purely
+    by the text transition it produces -- no reaching into Textual's private
+    history stacks. :attr:`inputs` are the (non-step) inputs the expanded body
+    depends on; :attr:`active` tracks whether the body edit is currently applied.
+    """
+
+    text_area: PromptTextArea
+    before_text: str
+    after_text: str
+    inputs: list[InputArg] = field(default_factory=list)
+    active: bool = True
+
+    @property
+    def depends(self) -> set[str]:
+        """Names of the inputs the expanded body references."""
+        return {arg.name for arg in self.inputs}
+
+
 class PromptInputBarFrontmatterMixin(_MixinBase):
     """Mount, focus, persist, and size the Frontmatter Panel."""
 
     if TYPE_CHECKING:
         _mode: str
         _stack: PromptStackState
+        _inline_expansion_txns: list[InlineExpansionTransaction]
+        _auto_staged_inputs: dict[str, InputArg]
 
         def active_text_area(self) -> PromptTextArea: ...
         def _clear_active_completion_state(self) -> None: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
+        def expand_xprompt_at_target(
+            self,
+            target_text_area: object,
+            pane_id: str,
+            trigger_range: tuple[tuple[int, int], tuple[int, int]] | None,
+            expanded_text: str,
+        ) -> bool: ...
+        def _resolve_snippet_target(
+            self, target_text_area: object, pane_id: str
+        ) -> PromptTextArea | None: ...
 
     # Cache of (frontmatter string -> assist entries) so completion in every
     # pane reads the panel's *live* local xprompts without reparsing the YAML on
@@ -241,32 +283,190 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             panel.add_class("hidden")
             self._schedule_height_update()
 
-    def merge_frontmatter_inputs(self, inputs: list[InputArg]) -> None:
+    def merge_frontmatter_inputs(self, inputs: list[InputArg]) -> list[str]:
         """Stage undeclared xprompt inputs in prompt-level frontmatter.
 
         Existing prompt declarations win on name collisions so inline expansion
         cannot clobber user-authored input types, defaults, or descriptions.
-        The body splice remains a TextArea undo edit; this frontmatter merge is
-        prompt-level shared state and intentionally stays visible after body
-        undo so the user can remove staged inputs in the panel if needed.
+
+        Returns the names actually added, so the caller can record which
+        declarations this expansion now owns: a name skipped on collision is
+        *not* owned by this expansion and must survive a later body undo.
         """
         if self._mode != "prompt" or not inputs:
+            return []
+        try:
+            model = PromptFrontmatter.parse(self._stack.frontmatter)
+        except Exception:
+            return []
+
+        added: list[str] = []
+        for arg in inputs:
+            if arg.is_step_input or model.get_input(arg.name) is not None:
+                continue
+            model.set_input(arg)
+            added.append(arg.name)
+
+        if added:
+            self._stack.set_frontmatter_model(model)
+        self.refresh_frontmatter_panel_from_stack()
+        return added
+
+    # -- inline-expansion input transactions ----------------------------------
+
+    def register_inline_expansion(
+        self,
+        target_text_area: object,
+        pane_id: str,
+        before_text: str,
+        inputs: list[InputArg],
+        added: list[str],
+    ) -> None:
+        """Couple an inline expansion's auto-staged inputs to its body undo.
+
+        Called right after a successful ``Ctrl+I`` body splice + input merge.
+        *before_text* is the originating pane's text captured before the splice;
+        the live pane's current text is the post-splice ``after_text``. With both
+        text snapshots recorded, a later prompt NORMAL-mode ``u`` / ``Ctrl+R`` on
+        that pane is matched purely by the text transition it produces and its
+        auto-staged inputs are unstaged / restaged in lockstep.
+
+        A stale target (the pane was unmounted/rebuilt while the modal was open),
+        a no-op splice, or an expansion with no inputs records nothing.
+        """
+        text_area = self._resolve_snippet_target(target_text_area, pane_id)
+        if text_area is None or not inputs:
+            return
+        after_text = text_area.text
+        if before_text == after_text:
+            return
+        txns = self._inline_expansion_txns
+        # Drop transactions whose origin pane is gone so a rebuilt stack never
+        # accumulates stale, unmatchable entries.
+        txns[:] = [txn for txn in txns if txn.text_area.is_mounted]
+        txns.append(
+            InlineExpansionTransaction(
+                text_area=text_area,
+                before_text=before_text,
+                after_text=after_text,
+                inputs=[arg for arg in inputs if not arg.is_step_input],
+            )
+        )
+        self._snapshot_auto_staged(added)
+
+    def handle_text_area_undo(
+        self, text_area: PromptTextArea, before_text: str, after_text: str
+    ) -> None:
+        """Unstage auto-staged inputs when a pane undo reverses an expansion.
+
+        *before_text* / *after_text* are the pane's text immediately before and
+        after the ``undo()``. When they match a live transaction's after->before
+        edit on this pane, that expansion's auto-owned inputs are unstaged
+        (subject to shared-input refcounting and user-edit protection). An undo
+        that matches no transaction is a no-op here -- the body undo still
+        stands.
+        """
+        for txn in reversed(self._inline_expansion_txns):
+            if (
+                txn.active
+                and txn.text_area is text_area
+                and before_text == txn.after_text
+                and after_text == txn.before_text
+            ):
+                self._undo_inline_expansion(txn)
+                return
+
+    def handle_text_area_redo(
+        self, text_area: PromptTextArea, before_text: str, after_text: str
+    ) -> None:
+        """Restage auto-staged inputs when a pane redo reapplies an expansion."""
+        for txn in reversed(self._inline_expansion_txns):
+            if (
+                not txn.active
+                and txn.text_area is text_area
+                and before_text == txn.before_text
+                and after_text == txn.after_text
+            ):
+                self._redo_inline_expansion(txn)
+                return
+
+    def _undo_inline_expansion(self, txn: InlineExpansionTransaction) -> None:
+        """Mark *txn* undone and unstage the inputs it solely owns."""
+        txn.active = False
+        try:
+            model = PromptFrontmatter.parse(self._stack.frontmatter)
+        except Exception:
+            # Mid-edit / invalid frontmatter: leave it untouched rather than
+            # clobbering the user's text. The body undo still stands.
+            return
+        changed = False
+        for name in txn.depends:
+            owned = self._auto_staged_inputs.get(name)
+            if owned is None:
+                # Pre-existing / user-authored input, or already unstaged.
+                continue
+            if self._input_still_needed(name):
+                # Another active expansion's body still depends on it.
+                continue
+            current = model.get_input(name)
+            if current is not None and current == owned:
+                # Still the auto-staged declaration (user has not edited it).
+                if model.remove_input(name):
+                    changed = True
+            # Whether removed or left in place (user took it over), this
+            # expansion no longer owns the name.
+            del self._auto_staged_inputs[name]
+        if changed:
+            self._stack.set_frontmatter_model(model)
+            self.refresh_frontmatter_panel_from_stack()
+
+    def _redo_inline_expansion(self, txn: InlineExpansionTransaction) -> None:
+        """Mark *txn* active again and restage the inputs its body needs."""
+        txn.active = True
+        try:
+            model = PromptFrontmatter.parse(self._stack.frontmatter)
+        except Exception:
+            return
+        restaged: list[str] = []
+        for arg in txn.inputs:
+            if model.get_input(arg.name) is None:
+                model.set_input(arg)
+                restaged.append(arg.name)
+            # A name already present (user-authored or still staged by another
+            # active expansion) is left untouched -- never overwrite it.
+        if restaged:
+            self._stack.set_frontmatter_model(model)
+            self._snapshot_auto_staged(restaged)
+            self.refresh_frontmatter_panel_from_stack()
+
+    def _input_still_needed(self, name: str) -> bool:
+        """True when an active expansion still depends on *name*.
+
+        Called after the transaction being undone has been marked inactive, so a
+        ``True`` result means some *other* live expansion's body needs *name* and
+        it must not be unstaged yet.
+        """
+        return any(
+            txn.active and name in txn.depends for txn in self._inline_expansion_txns
+        )
+
+    def _snapshot_auto_staged(self, names: list[str]) -> None:
+        """Record the persisted declaration for each freshly auto-staged *name*.
+
+        Snapshots the round-tripped declaration (not the raw expansion arg) so a
+        later undo can tell an untouched auto-staged input from one the user has
+        since edited in the panel, and only remove the former.
+        """
+        if not names:
             return
         try:
             model = PromptFrontmatter.parse(self._stack.frontmatter)
         except Exception:
             return
-
-        changed = False
-        for arg in inputs:
-            if arg.is_step_input or model.get_input(arg.name) is not None:
-                continue
-            model.set_input(arg)
-            changed = True
-
-        if changed:
-            self._stack.set_frontmatter_model(model)
-        self.refresh_frontmatter_panel_from_stack()
+        for name in names:
+            arg = model.get_input(name)
+            if arg is not None:
+                self._auto_staged_inputs[name] = arg
 
     # -- panel messages -------------------------------------------------------
 

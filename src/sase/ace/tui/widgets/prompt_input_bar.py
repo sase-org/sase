@@ -13,6 +13,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion import (
     PromptInputBarCompletionMixin,
 )
 from sase.ace.tui.widgets._prompt_input_bar_frontmatter import (
+    InlineExpansionTransaction,
     PromptInputBarFrontmatterMixin,
 )
 from sase.ace.tui.widgets._prompt_input_bar_g_prefix_hints import (
@@ -41,6 +42,7 @@ from sase.ace.tui.widgets._prompt_input_bar_search import (
 )
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_stack import PromptStackState
+from sase.xprompt.models import InputArg
 
 __all__ = ["PromptInputBar", "StashedPromptPane"]
 
@@ -99,6 +101,12 @@ class PromptInputBar(
         # previous panes are still being detached never collides on widget ids.
         self._generation = 0
         self._placeholder = ""
+        # ``#@`` + ``Ctrl+I`` inline expansions that auto-staged xprompt inputs,
+        # coupled to the body splice so NORMAL-mode ``u`` / ``Ctrl+R`` unstage /
+        # restage them. ``_auto_staged_inputs`` maps a currently auto-owned input
+        # name to its persisted declaration (to detect later user edits).
+        self._inline_expansion_txns: list[InlineExpansionTransaction] = []
+        self._auto_staged_inputs: dict[str, InputArg] = {}
         if initial_panes is not None:
             # Explicit pane seeding: one verbatim pane per entry, never split on
             # an embedded ``---`` or lifted frontmatter. Used by bulk

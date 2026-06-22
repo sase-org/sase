@@ -96,6 +96,30 @@ class PromptTextAreaActionsMixin(_MixinBase):
             parent = parent.parent
         return None
 
+    def _notify_prompt_bar_text_undo(self, before_text: str, after_text: str) -> None:
+        """Tell the parent bar a NORMAL-mode undo changed this pane's text.
+
+        Lets the bar unstage xprompt inputs an inline expansion auto-staged when
+        (and only when) this undo reversed that expansion's body splice. A pane
+        with no parent bar -- or an undo that matches no expansion transaction --
+        is a no-op.
+        """
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return
+        handler = getattr(bar, "handle_text_area_undo", None)
+        if callable(handler):
+            handler(self, before_text, after_text)
+
+    def _notify_prompt_bar_text_redo(self, before_text: str, after_text: str) -> None:
+        """Tell the parent bar a NORMAL-mode redo changed this pane's text."""
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return
+        handler = getattr(bar, "handle_text_area_redo", None)
+        if callable(handler):
+            handler(self, before_text, after_text)
+
     def _show_insert_g_prefix_hints(self) -> None:
         """Reveal prompt-local ``Ctrl+G`` continuation hints for INSERT mode."""
         bar = self._find_prompt_bar()
