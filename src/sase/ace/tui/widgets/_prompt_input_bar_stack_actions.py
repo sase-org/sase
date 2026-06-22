@@ -45,6 +45,8 @@ class _PromptGPrefixBinding:
     ``action_name`` is the zero-arg method invoked on the second key,
     ``label_method_name`` renders the hint, and ``availability_method_name``
     gates whether the continuation is currently useful (and thus hinted).
+    ``ctrl_g_only`` keeps a continuation on the prompt-local ``Ctrl+G`` surface
+    without claiming the bare vim ``g`` prefix.
     """
 
     key: str
@@ -52,6 +54,7 @@ class _PromptGPrefixBinding:
     label_method_name: str
     availability_method_name: str
     uses_target_mode: bool = False
+    ctrl_g_only: bool = False
 
 
 _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
@@ -115,15 +118,10 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
     ),
     _PromptGPrefixBinding(
         "p",
-        "request_load_stash",
-        "_g_prefix_label_load_stash",
+        "request_open_prompt_stash",
+        "_g_prefix_label_open_stash",
         "_g_prefix_available_stash_restore",
-    ),
-    _PromptGPrefixBinding(
-        "P",
-        "request_restore_stash",
-        "_g_prefix_label_restore_stash",
-        "_g_prefix_available_stash_restore",
+        ctrl_g_only=True,
     ),
 )
 
@@ -147,7 +145,13 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         def hide_file_completions(self) -> None: ...
         def hide_soft_completion(self) -> None: ...
 
-    def dispatch_g_prefix_key(self, key: str, *, target_mode: str = "normal") -> bool:
+    def dispatch_g_prefix_key(
+        self,
+        key: str,
+        *,
+        target_mode: str = "normal",
+        via_ctrl_g: bool = False,
+    ) -> bool:
         """Dispatch the key following the prompt ``g`` prefix.
 
         Returns ``True`` when *key* is a prompt-specific ``g`` continuation
@@ -160,9 +164,13 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         harmless swallowed no-op.  ``target_mode`` only affects pane focus /
         reorder continuations; normal-mode callers keep the default while
         insert-mode ``Ctrl+G`` callers can keep the destination pane in INSERT.
+        ``via_ctrl_g`` exposes continuations that belong only to the ``Ctrl+G``
+        prefix, not bare vim ``g``.
         """
         for binding in _PROMPT_G_PREFIX_BINDINGS:
             if binding.key != key:
+                continue
+            if binding.ctrl_g_only and not via_ctrl_g:
                 continue
             action = getattr(self, binding.action_name, None)
             if callable(action):
@@ -173,10 +181,14 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             return True
         return False
 
-    def g_prefix_hint_entries(self) -> list[PromptGPrefixHintEntry]:
+    def g_prefix_hint_entries(
+        self, *, via_ctrl_g: bool = False
+    ) -> list[PromptGPrefixHintEntry]:
         """Return currently useful prompt ``g`` prefix entries for rendering."""
         entries: list[PromptGPrefixHintEntry] = []
         for binding in _PROMPT_G_PREFIX_BINDINGS:
+            if binding.ctrl_g_only and not via_ctrl_g:
+                continue
             is_available = getattr(self, binding.availability_method_name)
             if not is_available():
                 continue
@@ -239,7 +251,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         return any(item.text.strip() for item in self._stack.items)
 
     def _g_prefix_available_stash_restore(self) -> bool:
-        """Whether ``gp``/``gP`` have a restorable prompt stash in this app."""
+        """Whether ``Ctrl+G p`` has a restorable prompt stash in this app."""
         if self._mode != "prompt":
             return False
         try:
@@ -288,13 +300,9 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         """Return the ``gS`` label."""
         return "stash all panes"
 
-    def _g_prefix_label_load_stash(self) -> str:
-        """Return the ``gp`` label."""
-        return "load stash…"
-
-    def _g_prefix_label_restore_stash(self) -> str:
-        """Return the ``gP`` label."""
-        return "restore stash…"
+    def _g_prefix_label_open_stash(self) -> str:
+        """Return the ``Ctrl+G p`` label."""
+        return "stashed prompts…"
 
     def focus_relative(self, delta: int, target_mode: str = "normal") -> bool:
         """Move pane focus by *delta* (the ``gk`` / ``gj`` keymaps).
@@ -416,27 +424,18 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         self._clear_active_completion_state()
         self.post_message(self.Stashed(panes, source="all", dismiss_bar=True))
 
-    def request_restore_stash(self) -> None:
-        """Ask the app to open the destructive restore picker (the ``gP`` keymap).
+    def request_open_prompt_stash(self) -> None:
+        """Ask the app to open the unified prompt-stash panel.
 
-        Presentation-only: the bar posts ``RestoreRequested`` (``destructive``)
-        with its current mode and the app performs the snapshot read / pop / load
-        (boundary rule D6).  Posted in every mode so the app can toast a no-op
-        when restore is not available (feedback / approve-prompt bars).
+        Presentation-only: the bar posts ``RestoreRequested`` with its current
+        mode and the app performs the snapshot read, panel display, pop/keep
+        orchestration, and load (boundary rule D6). Posted in every mode so the
+        app can toast a no-op when restore is unavailable.
         """
-        self.post_message(self.RestoreRequested(self._mode, destructive=True))
-
-    def request_load_stash(self) -> None:
-        """Ask the app to load stash entries non-destructively (the ``gp`` keymap).
-
-        Mirrors :meth:`request_restore_stash` but posts ``destructive=False`` so
-        the app copies the chosen entries into the bar without removing them from
-        the stash; the stash badge is left unchanged.
-        """
-        self.post_message(self.RestoreRequested(self._mode, destructive=False))
+        self.post_message(self.RestoreRequested(self._mode))
 
     def restore_stashed_entries(self, entries: list[tuple[str, str]]) -> None:
-        """Append restored stash drafts as new panes (the ``gP`` restore path).
+        """Append restored stash drafts as new panes.
 
         Prompt mode only.  Each ``(text, frontmatter)`` becomes a new bottom
         pane, preserving any panes the user is already drafting.  The bar's

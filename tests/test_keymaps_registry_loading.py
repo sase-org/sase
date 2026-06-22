@@ -166,9 +166,10 @@ def test_stale_kill_marked_and_edit_override_is_dropped() -> None:
 def test_stale_restore_prompt_stash_override_is_dropped() -> None:
     """A lingering ``restore_prompt_stash`` override cannot revive global ``,P``.
 
-    The global leader restore was retired in favour of the prompt-local ``gP`` /
-    ``gp`` keymaps; a stale user config entry must be filtered during load so the
-    deep-merge does not reintroduce it, while other leader overrides still apply.
+    The global leader restore was retired in favour of ``@`` and the
+    prompt-local ``Ctrl+G p`` panel opener; a stale user config entry must be
+    filtered during load so the deep-merge does not reintroduce it, while other
+    leader overrides still apply.
     """
     reg = load_keymap_registry(
         {

@@ -2,7 +2,7 @@
 
 These pin that a failed agent launch which still holds the submitted prompt
 preserves it in the per-user prompt stash so it stays recoverable through
-``gp`` / ``gP`` after the prompt bar has been unmounted:
+``@`` / ``Ctrl+G p`` after the prompt bar has been unmounted:
 
 - the single-agent launch task carries the submitted prompt as recovery
   metadata,

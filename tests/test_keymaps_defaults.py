@@ -153,9 +153,9 @@ def test_leader_mode_kill_and_edit_is_contextual_x_only() -> None:
 def test_leader_mode_restore_prompt_stash_is_removed() -> None:
     """The global ``,P`` restore-stash leader key no longer exists.
 
-    Restore/load moved to the prompt-local ``gP`` / ``gp`` keymaps on the prompt
-    input bar, so ``restore_prompt_stash`` must be absent from both the typed
-    dataclass defaults and the loaded registry.
+    Restore/load moved to the app-level ``@`` binding and prompt-local
+    ``Ctrl+G p`` panel opener, so ``restore_prompt_stash`` must be absent from
+    both the typed dataclass defaults and the loaded registry.
     """
     reg = load_keymap_registry({})
     assert "restore_prompt_stash" not in LeaderModeKeymaps().keys

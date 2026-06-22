@@ -26,7 +26,9 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
         _g_prefix_hints_visible: bool
 
         def _update_height(self) -> None: ...
-        def g_prefix_hint_entries(self) -> list[PromptGPrefixHintEntry]: ...
+        def g_prefix_hint_entries(
+            self, *, via_ctrl_g: bool = False
+        ) -> list[PromptGPrefixHintEntry]: ...
 
     def show_g_prefix_hints(
         self,
@@ -35,7 +37,7 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
         include_editor: bool = False,
     ) -> None:
         """Render and reveal the prompt prefix hint panel if useful."""
-        entries = self.g_prefix_hint_entries()
+        entries = self.g_prefix_hint_entries(via_ctrl_g=(prefix_label == "^G"))
         if include_editor:
             entries = [
                 PromptGPrefixHintEntry("g / ^G^G", "edit in editor"),

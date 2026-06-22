@@ -1,20 +1,16 @@
-"""App-handler tests for prompt-stash restore (``gP``) and load (``gp``).
+"""App-handler tests for the unified prompt-stash panel.
 
 Pin the app glue that turns a ``RestoreRequested`` into an opened picker and, on
-confirm, either a destructive ``pop`` (``gP``) or a non-destructive snapshot
-read (``gp``) through ``prompt_stash_facade`` plus a load back into the bar
-(boundary rule D6):
+confirm, applies per-entry pop/keep/delete choices through
+``prompt_stash_facade`` plus a load back into the bar (boundary rule D6):
 
 - The mode guard toasts a no-op for feedback / approve-prompt bars.
 - An empty store toasts instead of opening an empty modal.
-- Opening reads the snapshot off-thread and pushes the picker with those entries
-  in the requested destructive/non-destructive mode.
-- Destructive confirm pops the chosen ids, loads restored drafts (append to a
-  mounted bar, or mount the home bar pre-filled when none is shown), expands
-  bundle rows into panes, discards delete-marked ids, toasts a count-aware
-  summary, and refreshes the badge.
-- Non-destructive confirm loads the chosen ids without popping, toasts a load
-  summary, and leaves the store and badge untouched.
+- Opening reads the snapshot off-thread and pushes the unified picker.
+- Confirm pops only pop+delete ids, loads pop+keep drafts (append to a mounted
+  bar, or mount the home bar pre-filled when none is shown), expands bundle rows
+  into panes, discards delete-marked ids, toasts a count-aware summary, and
+  refreshes the badge only when the stash changed.
 """
 
 from __future__ import annotations
@@ -121,7 +117,7 @@ async def test_feedback_mode_is_noop_with_toast(
     _point_store_at(monkeypatch, path)
     harness = _RestoreHarness()
 
-    await harness._open_prompt_stash_restore(bar_mode="feedback")
+    await harness._open_prompt_stash_panel(bar_mode="feedback")
 
     assert harness.pushed == []
     assert harness.notifications == [
@@ -137,13 +133,13 @@ async def test_empty_store_toasts_and_skips_modal(
     _point_store_at(monkeypatch, path)
     harness = _RestoreHarness()
 
-    await harness._open_prompt_stash_restore()
+    await harness._open_prompt_stash_panel()
 
     assert harness.pushed == []
     assert harness.notifications == [("No stashed prompts to restore", None)]
 
 
-async def test_open_pushes_destructive_modal_with_snapshot_entries(
+async def test_open_pushes_modal_with_snapshot_entries(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _skip_without_prompt_stash_bindings()
@@ -158,37 +154,19 @@ async def test_open_pushes_destructive_modal_with_snapshot_entries(
     )
     harness = _RestoreHarness()
 
-    await harness._open_prompt_stash_restore()
+    await harness._open_prompt_stash_panel()
 
     assert len(harness.pushed) == 1
     modal, _callback = harness.pushed[0]
     assert isinstance(modal, StashedPromptsModal)
-    assert modal._destructive is True
     # Newest first.
     assert [e.id for e in modal._entries] == ["b", "a"]
 
 
-async def test_open_non_destructive_pushes_load_modal(
+async def test_action_restore_prompt_stash_opens_modal(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    _skip_without_prompt_stash_bindings()
-    path = tmp_path / "prompt_stash.jsonl"
-    _point_store_at(monkeypatch, path)
-    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "")])
-    harness = _RestoreHarness()
-
-    await harness._open_prompt_stash_restore(destructive=False)
-
-    assert len(harness.pushed) == 1
-    modal, _callback = harness.pushed[0]
-    assert isinstance(modal, StashedPromptsModal)
-    assert modal._destructive is False
-
-
-async def test_action_restore_prompt_stash_opens_destructive_modal(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """The global ``@`` action opens a destructive picker over the stash entries."""
+    """The global ``@`` action opens the unified picker over the stash entries."""
     _skip_without_prompt_stash_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
@@ -206,7 +184,6 @@ async def test_action_restore_prompt_stash_opens_destructive_modal(
     assert len(harness.pushed) == 1
     modal, _callback = harness.pushed[0]
     assert isinstance(modal, StashedPromptsModal)
-    assert modal._destructive is True
     assert [e.id for e in modal._entries] == ["b", "a"]
 
 
@@ -240,25 +217,6 @@ async def test_restore_requested_event_routes_through_mode(
     assert harness.notifications[-1][1] == "warning"
 
 
-async def test_restore_requested_forwards_non_destructive_flag(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _skip_without_prompt_stash_bindings()
-    path = tmp_path / "prompt_stash.jsonl"
-    _point_store_at(monkeypatch, path)
-    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "")])
-    harness = _RestoreHarness()
-
-    await harness.on_prompt_input_bar_restore_requested(
-        PromptInputBar.RestoreRequested("prompt", destructive=False)
-    )
-
-    assert len(harness.pushed) == 1
-    modal, _callback = harness.pushed[0]
-    assert isinstance(modal, StashedPromptsModal)
-    assert modal._destructive is False
-
-
 async def test_non_restore_event_ignored() -> None:
     harness = _RestoreHarness()
     await harness.on_prompt_input_bar_restore_requested(PromptInputBar.Submitted("x"))
@@ -266,7 +224,7 @@ async def test_non_restore_event_ignored() -> None:
     assert harness.pushed == []
 
 
-# --- destructive confirm: pop + load ---------------------------------------
+# --- confirm: pop / keep / delete ------------------------------------------
 
 
 async def test_confirm_restores_into_mounted_bar_in_order(
@@ -287,18 +245,18 @@ async def test_confirm_restores_into_mounted_bar_in_order(
     harness = _RestoreHarness(bar=bar)
 
     await harness._on_prompt_stash_restore_confirmed(
-        StashRestoreResult(restore_ids=["b", "a"], delete_ids=[])
+        StashRestoreResult(pop_ids=["b"], keep_ids=["a"], delete_ids=[])
     )
 
     # Loaded oldest-first regardless of selection order; frontmatter preserved.
     assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
-    # Popped from disk; only the untouched entry remains.
+    # Only pop ids are removed; keep ids stay stashed.
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
     remaining = read_prompt_stash_snapshot(path).entries
-    assert [e.id for e in remaining] == ["c"]
+    assert [e.id for e in remaining] == ["a", "c"]
     assert harness.notifications == [("Restored 2 prompts", None)]
-    assert harness.applied_counts == [1]  # badge reflects remaining count
+    assert harness.applied_counts == [2]  # badge reflects remaining count
 
 
 async def test_confirm_restores_bundle_row_into_mounted_bar(
@@ -318,7 +276,7 @@ async def test_confirm_restores_bundle_row_into_mounted_bar(
     harness = _RestoreHarness(bar=bar)
 
     await harness._on_prompt_stash_restore_confirmed(
-        StashRestoreResult(restore_ids=["bundle"], delete_ids=[])
+        StashRestoreResult(pop_ids=["bundle"], delete_ids=[])
     )
 
     assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
@@ -345,7 +303,7 @@ async def test_confirm_without_bar_mounts_home_with_combined_text(
     harness = _RestoreHarness(bar=None)
 
     await harness._on_prompt_stash_restore_confirmed(
-        StashRestoreResult(restore_ids=["a", "b"], delete_ids=[])
+        StashRestoreResult(pop_ids=["a", "b"], delete_ids=[])
     )
 
     assert harness.home_mounts == ["model: c\nfirst\n---\nsecond\n---\nthird"]
@@ -374,7 +332,7 @@ async def test_confirm_without_bar_mounts_single_body_as_xprompt_markdown(
     harness = _RestoreHarness(bar=None)
 
     await harness._on_prompt_stash_restore_confirmed(
-        StashRestoreResult(restore_ids=["a"], delete_ids=[])
+        StashRestoreResult(pop_ids=["a"], delete_ids=[])
     )
 
     assert harness.home_mounts == [f"{frontmatter}\nsingle body"]
@@ -399,7 +357,7 @@ async def test_confirm_delete_only_pops_without_loading(
     harness = _RestoreHarness(bar=bar)
 
     await harness._on_prompt_stash_restore_confirmed(
-        StashRestoreResult(restore_ids=[], delete_ids=["a"])
+        StashRestoreResult(delete_ids=["a"])
     )
 
     assert bar.restored is None  # nothing loaded
@@ -427,7 +385,7 @@ async def test_confirm_restore_and_delete_mixed_summary(
     harness = _RestoreHarness(bar=bar)
 
     await harness._on_prompt_stash_restore_confirmed(
-        StashRestoreResult(restore_ids=["a"], delete_ids=["b"])
+        StashRestoreResult(pop_ids=["a"], delete_ids=["b"])
     )
 
     assert bar.restored == [("alpha", "")]
@@ -441,10 +399,10 @@ async def test_confirm_none_is_noop() -> None:
     assert harness.applied_counts == []
 
 
-# --- non-destructive confirm: load without popping -------------------------
+# --- keep-only confirm: load without popping -------------------------------
 
 
-async def test_confirm_non_destructive_loads_without_popping(
+async def test_confirm_keep_only_loads_without_popping(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _skip_without_prompt_stash_bindings()
@@ -462,22 +420,22 @@ async def test_confirm_non_destructive_loads_without_popping(
     harness = _RestoreHarness(bar=bar)
 
     await harness._on_prompt_stash_restore_confirmed(
-        StashRestoreResult(restore_ids=["b", "a"], destructive=False)
+        StashRestoreResult(keep_ids=["b", "a"])
     )
 
-    # Loaded oldest-first regardless of selection order, like a destructive
-    # restore, but the store keeps every entry.
+    # Loaded oldest-first regardless of selection order, but the store keeps
+    # every entry.
     assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
     remaining = read_prompt_stash_snapshot(path).entries
     assert [e.id for e in remaining] == ["a", "b", "c"]
-    assert harness.notifications == [("Loaded 2 prompts", None)]
+    assert harness.notifications == [("Restored 2 prompts", None)]
     # Badge unchanged: the entries are still stashed.
     assert harness.applied_counts == []
 
 
-async def test_confirm_non_destructive_single_load_summary(
+async def test_confirm_keep_only_single_restore_summary(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _skip_without_prompt_stash_bindings()
@@ -487,16 +445,14 @@ async def test_confirm_non_destructive_single_load_summary(
     bar = _FakeBar(mode="prompt")
     harness = _RestoreHarness(bar=bar)
 
-    await harness._on_prompt_stash_restore_confirmed(
-        StashRestoreResult(restore_ids=["a"], destructive=False)
-    )
+    await harness._on_prompt_stash_restore_confirmed(StashRestoreResult(keep_ids=["a"]))
 
     assert bar.restored == [("alpha", "")]
-    assert harness.notifications == [("Loaded prompt", None)]
+    assert harness.notifications == [("Restored prompt", None)]
     assert harness.applied_counts == []
 
 
-async def test_confirm_non_destructive_expands_bundle_without_popping(
+async def test_confirm_keep_only_expands_bundle_without_popping(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _skip_without_prompt_stash_bindings()
@@ -510,14 +466,14 @@ async def test_confirm_non_destructive_expands_bundle_without_popping(
     harness = _RestoreHarness(bar=bar)
 
     await harness._on_prompt_stash_restore_confirmed(
-        StashRestoreResult(restore_ids=["bundle"], destructive=False)
+        StashRestoreResult(keep_ids=["bundle"])
     )
 
     assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
     assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["bundle"]
-    assert harness.notifications == [("Loaded 2 prompts", None)]
+    assert harness.notifications == [("Restored 2 prompts", None)]
     assert harness.applied_counts == []
 
 

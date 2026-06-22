@@ -1,9 +1,9 @@
 """Regression: the leader footer no longer advertises a restore-stash keymap.
 
 The global ``,P`` restore-stash leader binding was retired in favour of the
-prompt-local ``gP`` / ``gp`` keymaps on the prompt input bar.  The leader footer
-must never surface a "restore stash" entry, and ``update_leader_bindings`` no
-longer accepts the old ``has_stashed_prompts`` gate.
+app-level ``@`` binding and prompt-local ``Ctrl+G p`` panel opener. The leader
+footer must never surface a "restore stash" entry, and ``update_leader_bindings``
+no longer accepts the old ``has_stashed_prompts`` gate.
 """
 
 from __future__ import annotations

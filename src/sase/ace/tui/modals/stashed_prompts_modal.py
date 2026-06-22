@@ -1,14 +1,12 @@
-"""Restore/load picker for stashed prompt drafts (the ``gP`` / ``gp`` modal).
+"""Unified picker for stashed prompt drafts.
 
 Lists stashed prompts newest-first with a relative age, an originating-project
-chip, bundle marker, and a one-line preview.  ``space``/``a`` toggle only
-single-prompt rows, ``d`` marks an entry for deletion (only in destructive
-``gP`` mode), and ``enter`` confirms.  The modal is presentation-only: it never
-touches the store.  It dismisses with a :class:`StashRestoreResult` describing
-which entries the chosen mode should apply (boundary rule D6); the app layer
-performs the actual ``pop`` (destructive ``gP``) or snapshot read
-(non-destructive ``gp``) through ``prompt_stash_facade`` and loads the chosen
-drafts into the bar.
+chip, bundle marker, and a one-line preview. ``space`` marks a single-prompt
+row to restore and pop, ``tab`` marks it to restore and keep, ``d`` marks any
+row for deletion, and ``enter`` confirms. The modal is presentation-only: it
+never touches the store. It dismisses with a :class:`StashRestoreResult`
+describing which ids the app layer should pop, keep, or delete through
+``prompt_stash_facade`` before loading the chosen drafts into the bar.
 """
 
 from __future__ import annotations
@@ -17,6 +15,7 @@ from dataclasses import dataclass, field
 
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
@@ -73,7 +72,8 @@ def _bundle_chip(prompt_count: int) -> str:
 def _stash_row_label(
     entry: PromptStashEntryWire,
     *,
-    selected: bool,
+    marked_for_pop: bool,
+    marked_for_keep: bool,
     marked_for_delete: bool,
     age: str,
     prompt_count: int = 1,
@@ -88,12 +88,15 @@ def _stash_row_label(
     text = Text(no_wrap=True, overflow="ellipsis")
     if marked_for_delete:
         text.append("✗ ", style="bold red")
-    elif selected:
+    elif marked_for_pop:
         text.append("✓ ", style="bold #AF87FF")
+    elif marked_for_keep:
+        text.append("+ ", style="bold #5FD787")
     else:
         text.append("  ")
 
     row_style = "dim strike" if marked_for_delete else ""
+    restoring = marked_for_pop or marked_for_keep
     text.append(
         age.rjust(_AGE_WIDTH), style="dim" if not marked_for_delete else row_style
     )
@@ -109,45 +112,41 @@ def _stash_row_label(
     )
     text.append("  ")
     preview = _first_line_preview(entry.text, preview_width)
-    text.append(preview, style=row_style or ("bold" if selected else ""))
+    text.append(preview, style=row_style or ("bold" if restoring else ""))
     return text
 
 
 @dataclass
 class StashRestoreResult:
-    """Outcome of the restore/load picker.
+    """Outcome of the unified stash picker.
 
-    ``restore_ids`` are the chosen entries; ``delete_ids`` are entries marked for
-    discard.  Entries in neither set stay in the store.  Order is irrelevant —
-    the app re-sorts the chosen entries by creation time before loading them as
-    panes.  ``destructive`` selects how the app applies the result: when ``True``
-    (the ``gP`` picker) ``restore_ids`` are popped from the store *and* loaded
-    while ``delete_ids`` are popped and discarded; when ``False`` (the ``gp``
-    picker) ``restore_ids`` are copied into the bar and the store is left intact
-    (``delete_ids`` is always empty because delete-marking is disabled there).
+    ``pop_ids`` are loaded into the bar and removed from the stash; ``keep_ids``
+    are loaded while staying stashed; ``delete_ids`` are removed without
+    loading. Entries in none of these sets stay untouched. Order is irrelevant —
+    the app re-sorts loaded entries by creation time before restoring them as
+    panes.
     """
 
-    restore_ids: list[str] = field(default_factory=list)
+    pop_ids: list[str] = field(default_factory=list)
+    keep_ids: list[str] = field(default_factory=list)
     delete_ids: list[str] = field(default_factory=list)
-    destructive: bool = True
 
 
 class StashedPromptsModal(
     OptionListNavigationMixin, ModalScreen["StashRestoreResult | None"]
 ):
-    """Multi-select picker that pops stashed prompts back into the bar."""
+    """Multi-select picker for restoring, keeping, and deleting stashed prompts."""
 
     _option_list_id = "stashed-prompts-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
-        ("space", "toggle_row", "Toggle"),
+        ("space", "toggle_pop", "Restore + pop"),
+        Binding("tab", "toggle_keep", "Restore + keep", priority=True),
         ("a", "toggle_all", "All"),
         ("d", "mark_delete", "Delete"),
     ]
 
-    def __init__(
-        self, entries: list[PromptStashEntryWire], *, destructive: bool = True
-    ) -> None:
+    def __init__(self, entries: list[PromptStashEntryWire]) -> None:
         super().__init__()
         # Newest first; ISO timestamps sort lexicographically, ties broken by
         # pane order so a "stash all" group keeps a stable display order.
@@ -162,10 +161,8 @@ class StashedPromptsModal(
         self._bundle_ids = {
             entry.id for entry in self._entries if entry_is_bundle(entry)
         }
-        # ``gP`` pops the chosen entries (destructive); ``gp`` copies them while
-        # leaving the stash intact and disables delete-marking entirely.
-        self._destructive = destructive
-        self._selected: set[str] = set()
+        self._pop: set[str] = set()
+        self._keep: set[str] = set()
         self._deleted: set[str] = set()
 
     # -- layout --------------------------------------------------------------
@@ -185,20 +182,12 @@ class StashedPromptsModal(
 
     def _title_text(self) -> str:
         count = len(self._entries)
-        noun = "prompt" if count == 1 else "prompts"
-        verb = "Restore" if self._destructive else "Load"
-        return f"{verb} stashed {noun} ({count})"
+        return f"Stashed prompts ({count})"
 
     def _hint_text(self) -> str:
-        if self._destructive:
-            return (
-                "j/k ↑/↓: navigate • space: select • a: all • "
-                "d: delete • enter: restore • esc/q: cancel"
-            )
-        # Non-destructive load: no delete-marking, the chosen entries are copied
-        # into the bar and stay in the stash.
         return (
-            "j/k ↑/↓: navigate • space: select • a: all • enter: load • esc/q: cancel"
+            "j/k ↑/↓ navigate   space ✓ restore+pop   tab + restore+keep   "
+            "d ✗ delete   a all   enter confirm   esc/q cancel"
         )
 
     def _build_options(self) -> list[Option]:
@@ -206,7 +195,8 @@ class StashedPromptsModal(
         for idx, entry in enumerate(self._entries):
             label = _stash_row_label(
                 entry,
-                selected=entry.id in self._selected,
+                marked_for_pop=entry.id in self._pop,
+                marked_for_keep=entry.id in self._keep,
                 marked_for_delete=entry.id in self._deleted,
                 age=format_relative_time(entry.created_at),
                 prompt_count=self._prompt_counts[entry.id],
@@ -240,17 +230,32 @@ class StashedPromptsModal(
         if self._entries and highlighted is not None:
             option_list.highlighted = min(highlighted, len(self._entries) - 1)
 
-    def action_toggle_row(self) -> None:
+    def action_toggle_pop(self) -> None:
         entry = self._highlighted_entry()
         if entry is None:
             return
         if not self._is_selectable(entry):
             return
-        if entry.id in self._selected:
-            self._selected.discard(entry.id)
+        if entry.id in self._pop:
+            self._pop.discard(entry.id)
         else:
-            self._selected.add(entry.id)
-            self._deleted.discard(entry.id)  # restore wins over delete
+            self._pop.add(entry.id)
+            self._keep.discard(entry.id)
+            self._deleted.discard(entry.id)
+        self._refresh_rows()
+
+    def action_toggle_keep(self) -> None:
+        entry = self._highlighted_entry()
+        if entry is None:
+            return
+        if not self._is_selectable(entry):
+            return
+        if entry.id in self._keep:
+            self._keep.discard(entry.id)
+        else:
+            self._keep.add(entry.id)
+            self._pop.discard(entry.id)
+            self._deleted.discard(entry.id)
         self._refresh_rows()
 
     def action_toggle_all(self) -> None:
@@ -259,18 +264,15 @@ class StashedPromptsModal(
         }
         if not selectable_ids:
             return
-        if selectable_ids <= self._selected:
-            self._selected.difference_update(selectable_ids)
+        if selectable_ids <= self._pop:
+            self._pop.difference_update(selectable_ids)
         else:
-            self._selected.update(selectable_ids)
+            self._pop.update(selectable_ids)
+            self._keep.difference_update(selectable_ids)
             self._deleted.difference_update(selectable_ids)
         self._refresh_rows()
 
     def action_mark_delete(self) -> None:
-        # Delete-marking is disabled in non-destructive load mode: the chosen
-        # entries are copied into the bar and must stay in the stash.
-        if not self._destructive:
-            return
         entry = self._highlighted_entry()
         if entry is None:
             return
@@ -278,24 +280,26 @@ class StashedPromptsModal(
             self._deleted.discard(entry.id)
         else:
             self._deleted.add(entry.id)
-            self._selected.discard(entry.id)  # delete clears a pending restore
+            self._pop.discard(entry.id)
+            self._keep.discard(entry.id)
         self._refresh_rows()
 
     def action_confirm(self) -> None:
-        restore_ids = [e.id for e in self._entries if e.id in self._selected]
-        if not restore_ids:
-            highlighted = self._highlighted_entry()
-            if highlighted is not None and highlighted.id not in self._deleted:
-                restore_ids = [highlighted.id]
+        pop_ids = [e.id for e in self._entries if e.id in self._pop]
+        keep_ids = [e.id for e in self._entries if e.id in self._keep]
         delete_ids = [e.id for e in self._entries if e.id in self._deleted]
-        if not restore_ids and not delete_ids:
+        if not pop_ids and not keep_ids and not delete_ids:
+            highlighted = self._highlighted_entry()
+            if highlighted is not None:
+                pop_ids = [highlighted.id]
+        if not pop_ids and not keep_ids and not delete_ids:
             self.dismiss(None)
             return
         self.dismiss(
             StashRestoreResult(
-                restore_ids=restore_ids,
+                pop_ids=pop_ids,
+                keep_ids=keep_ids,
                 delete_ids=delete_ids,
-                destructive=self._destructive,
             )
         )
 

@@ -113,7 +113,8 @@ def test_restore_prompt_stash_command_is_all_tab_at_keymap() -> None:
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "restore_prompt_stash"
     assert "stash" in spec.aliases
-    assert "gP" in spec.aliases
+    assert "pop" in spec.aliases
+    assert "gP" not in spec.aliases
 
 
 def test_start_agent_from_changespec_command_uses_ctrl_space() -> None:

@@ -199,7 +199,7 @@ _APP_COMMAND_META: tuple[
         "Restore stashed prompt",
         "Agents",
         _ALL_TABS,
-        ("stash", "restore", "gP"),
+        ("stash", "restore", "pop"),
     ),
     (
         "jump_to_agent_changespec",

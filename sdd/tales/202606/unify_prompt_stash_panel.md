@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-22 10:08:54
-status: wip
+status: done
 prompt: sdd/prompts/202606/unify_prompt_stash_panel.md
 ---
 # Unify Prompt-Stash Keymaps via a Per-Entry Restore Panel

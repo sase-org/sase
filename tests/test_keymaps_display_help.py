@@ -117,7 +117,7 @@ def test_help_modal_lists_frontmatter_panel_toggle() -> None:
         }
         assert ("g=", "Frontmatter panel") in pairs
         assert ("gs / gS", "Stash current / all panes") in pairs
-        assert ("gp / gP", "Load / restore stashed prompt") in pairs
+        assert ("Ctrl+G p / @", "Stashed prompts panel") in pairs
 
 
 def test_help_modal_lists_global_restore_prompt_stash() -> None:

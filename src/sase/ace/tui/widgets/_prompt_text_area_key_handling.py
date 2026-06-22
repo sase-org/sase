@@ -432,7 +432,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             getattr(bar, "dispatch_g_prefix_key", None) if bar is not None else None
         )
         if callable(dispatch):
-            dispatch(key, target_mode="insert")
+            dispatch(key, target_mode="insert", via_ctrl_g=True)
         return True
 
     def _handle_normal_g_prefix_key(self, event: Key) -> bool:
@@ -473,7 +473,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             getattr(bar, "dispatch_g_prefix_key", None) if bar is not None else None
         )
         if callable(dispatch):
-            dispatch(key, target_mode="normal")
+            dispatch(key, target_mode="normal", via_ctrl_g=True)
         return True
 
     def _try_jinja_auto_pair(self, event: Key) -> bool:

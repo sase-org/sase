@@ -4,7 +4,7 @@ Phase 4 visual polish: pin how the two user-facing chrome pieces of the prompt
 stash render — the top-bar ``StashedPromptsIndicator`` badge (snowflake glyph +
 violet accent, shown only when a stash exists) and the ``StashedPromptsModal``
 restore picker (newest-first rows with relative age, originating-project chip,
-truncated preview, and the ``✓`` restore / ``✗`` delete markers).
+truncated preview, and the ``✓`` pop / ``+`` keep / ``✗`` delete markers).
 
 Relative ages are frozen via a patched ``format_relative_time`` so the rows are
 deterministic regardless of when the suite runs.
@@ -50,9 +50,10 @@ def _stash_entries() -> list[PromptStashEntryWire]:
     """Entries spanning every row state the picker can show.
 
     Newest-first display order is ``recent → cleanup → longpreview → noproj →
-    multiline``; the snapshot toggles ``recent`` for restore and ``cleanup``
-    for deletion so both markers, the project chips, the placeholder, and the
-    preview-truncation path are all exercised in one frame.
+    multiline``; the snapshot marks ``recent`` for restore+pop, ``cleanup`` for
+    restore+keep, and ``longpreview`` for deletion so all three markers, the
+    project chips, the placeholder, and the preview-truncation path are all
+    exercised in one frame.
     """
     return [
         PromptStashEntryWire(
@@ -139,16 +140,17 @@ async def test_stashed_prompts_restore_modal_png_snapshot(
         page.app.push_screen(modal)
         await page.expect_modal("StashedPromptsModal")
 
-        # Mark one row for restore (✓) and one for deletion (✗) so both marker
-        # styles render alongside the plain rows.
-        modal._selected = {"recent"}
-        modal._deleted = {"cleanup"}
+        # Mark one row for pop (✓), one for keep (+), and one for deletion (✗)
+        # so all marker styles render alongside the plain rows.
+        modal._pop = {"recent"}
+        modal._keep = {"cleanup"}
+        modal._deleted = {"longpreview"}
         modal._refresh_rows()
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "stashed_prompts_restore_modal_120x40",
-            title="ACE stashed-prompts restore picker",
+            title="ACE stashed-prompts panel",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 # stale user override cannot deep-merge a removed command back into the registry.
 # ``kill_marked_and_edit`` was folded into the contextual ``kill_and_edit``
 # (``,x``) action; ``restore_prompt_stash`` (the old global ``,P``) was replaced
-# by the prompt-local ``gP`` / ``gp`` keymaps on the prompt input bar.
+# by the app-level ``@`` binding and prompt-local ``Ctrl+G p`` panel opener.
 _RETIRED_LEADER_KEYS: frozenset[str] = frozenset(
     {"kill_marked_and_edit", "restore_prompt_stash"}
 )
