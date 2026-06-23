@@ -103,7 +103,11 @@ def test_directive_completion_matches_aliases_to_canonical_insertions() -> None:
 def test_directive_completion_returns_multi_match_without_false_shared_prefix() -> None:
     candidates, shared = build_directive_completion_candidates("%e")
 
-    assert [candidate.insertion for candidate in candidates] == ["%edit", "%epic"]
+    assert [candidate.insertion for candidate in candidates] == [
+        "%edit",
+        "%effort",
+        "%epic",
+    ]
     assert shared == ""
 
 
@@ -275,6 +279,7 @@ async def test_directive_typing_narrows_deleting_widens_and_space_dismisses() ->
         await pilot.press("e")
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "%edit",
+            "%effort",
             "%epic",
         ]
 
@@ -286,6 +291,7 @@ async def test_directive_typing_narrows_deleting_widens_and_space_dismisses() ->
         assert ta.text == "%e"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "%edit",
+            "%effort",
             "%epic",
         ]
 

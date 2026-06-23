@@ -28,6 +28,7 @@ from ._disabled_regions import (
 )
 from ._exceptions import DirectiveError
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+from .effort import split_model_effort
 from ._parsing import (
     find_matching_brace_for_args,
     find_matching_paren_for_args,
@@ -283,7 +284,8 @@ def _extract_first_model_value(prompt: str) -> str | None:
     Used to identify the model bound to each sub-prompt produced by alt
     splitting.  Returns ``None`` if no directive is present, ignores
     fenced/disabled regions, and returns the empty string for a bare
-    directive.
+    directive. A trailing ``@<effort>`` suffix is stripped so the value names
+    the clean model; backtick-literal values keep their ``@`` verbatim.
     """
     if "%" not in prompt:
         return None
@@ -305,12 +307,16 @@ def _extract_first_model_value(prompt: str) -> str | None:
                 return None
             inner = protected[paren_start + 1 : paren_end]
             args, _ = parse_args(inner)
-            return args[0] if args else None
+            if not args:
+                return None
+            clean_model, _ = split_model_effort(args[0])
+            return clean_model
         colon_arg = match.group(3)
         if colon_arg is not None:
             if colon_arg.startswith("`") and colon_arg.endswith("`"):
                 return colon_arg[1:-1]
-            return colon_arg
+            clean_model, _ = split_model_effort(colon_arg)
+            return clean_model
         return None
     return None
 

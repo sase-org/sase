@@ -21,6 +21,7 @@ _KNOWN_DIRECTIVES = frozenset(
     {
         "approve",
         "edit",
+        "effort",
         "epic",
         "hide",
         "model",
@@ -55,6 +56,10 @@ class PromptDirectives:
 
     Attributes:
         model: Model override string, or None to use the default.
+        reasoning_effort: Reasoning-effort level requested via the ``%effort``
+            directive or a ``%model:<model>@<effort>`` suffix, or None when
+            none was given. The public directive/suffix spell it ``effort``;
+            the stored/threaded field is ``reasoning_effort`` everywhere.
         name: Agent name assigned via %name directive, or None.
         wait: List of agent names to wait for via %wait directives.
     """
@@ -64,6 +69,7 @@ class PromptDirectives:
     epic: bool = False
     hide: bool = False
     model: str | None = None
+    reasoning_effort: str | None = None
     name: str | None = None
     name_explicit: bool = False
     name_force_reuse: bool = False

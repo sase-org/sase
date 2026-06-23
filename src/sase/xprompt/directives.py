@@ -50,6 +50,7 @@ from ._disabled_regions import (
     unprotect_disabled_regions,
 )
 from ._exceptions import DirectiveError
+from .effort import EFFORT_LEVELS_ORDERED, is_valid_effort, split_model_effort
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from ._parsing import (
     find_matching_brace_for_args,
@@ -167,6 +168,49 @@ def _has_protected_directive_match(prompt: str, pattern: str) -> bool:
     return bool(re.search(pattern, protected, re.MULTILINE))
 
 
+def _resolve_reasoning_effort(
+    *,
+    effort_directive: str | None,
+    effort_present: bool,
+    model_effort: str | None,
+) -> str | None:
+    """Resolve the effective reasoning effort from the two directive surfaces.
+
+    ``effort_directive`` is the value of an explicit ``%effort`` directive
+    (``effort_present`` distinguishes an absent directive from an empty one);
+    ``model_effort`` is the effort peeled off a ``%model:<model>@<effort>``
+    suffix (already a known level, or None).
+
+    Validates the ``%effort`` spelling and enforces the conflict rule: if both
+    surfaces survive into the same prompt with different levels, raise; equal
+    values are allowed.
+    """
+    directive_effort: str | None = None
+    if effort_present:
+        if not effort_directive:
+            raise DirectiveError(
+                "'%effort' directive requires a level argument (e.g., %effort:xhigh)"
+            )
+        if not is_valid_effort(effort_directive):
+            raise DirectiveError(
+                f"Unknown effort level '{effort_directive}'; valid levels are: "
+                f"{', '.join(EFFORT_LEVELS_ORDERED)}"
+            )
+        directive_effort = effort_directive
+
+    if (
+        directive_effort is not None
+        and model_effort is not None
+        and directive_effort != model_effort
+    ):
+        raise DirectiveError(
+            f"Conflicting effort levels: %model:...@{model_effort} and "
+            f"%effort:{directive_effort} must match"
+        )
+
+    return directive_effort or model_effort
+
+
 def extract_prompt_directives(
     prompt: str, *, strip_disabled_markers: bool = True
 ) -> tuple[str, PromptDirectives]:
@@ -238,6 +282,10 @@ def extract_prompt_directives(
     seen_multi: dict[
         str, list[str]
     ] = {}  # directive name -> raw arg values (multi-value)
+    # Single-value directives whose argument came from a backtick literal
+    # (e.g. ``%model:`literal@id` ``). Tracked so the ``@effort`` split bypasses
+    # backtick-literal model values, preserving any ``@`` in the model id.
+    literal_directives: set[str] = set()
     # Regions to remove: list of (start, end) character positions
     regions_to_remove: list[tuple[int, int]] = []
 
@@ -280,6 +328,7 @@ def extract_prompt_directives(
         elif colon_arg is not None:
             if colon_arg.startswith("`") and colon_arg.endswith("`"):
                 raw_args = [colon_arg[1:-1]]
+                literal_directives.add(name)
             elif is_multi:
                 raw_args = [seg for seg in colon_arg.split(",") if seg]
             else:
@@ -403,6 +452,14 @@ def extract_prompt_directives(
     # (remove leftover blank lines from directive removal)
     cleaned = re.sub(r"^\s*\n", "", cleaned)
 
+    # Peel a trailing ``@<effort>`` suffix off the raw %model value before xprompt
+    # expansion so directives.model stays a clean model string. Backtick-literal
+    # models (``%model:`literal@id` ``) bypass the split to preserve their ``@``.
+    model_effort: str | None = None
+    if "model" in seen and "model" not in literal_directives:
+        clean_model, model_effort = split_model_effort(seen["model"])
+        seen["model"] = clean_model
+
     # Expand xprompt references in directive argument values
     expanded_args: dict[str, str] = {}
     for directive_name, raw_arg in seen.items():
@@ -504,6 +561,15 @@ def extract_prompt_directives(
             "'%group' directive requires a tag name argument (e.g., %group:review)"
         )
 
+    # Resolve the reasoning effort from the %effort directive and/or a
+    # %model:<model>@<effort> suffix. The public spelling is ``effort``; the
+    # stored field is ``reasoning_effort``.
+    reasoning_effort = _resolve_reasoning_effort(
+        effort_directive=expanded_args.get("effort"),
+        effort_present="effort" in expanded_args,
+        model_effort=model_effort,
+    )
+
     # Build PromptDirectives from expanded args
     directives = PromptDirectives(
         approve="approve" in expanded_args,
@@ -511,6 +577,7 @@ def extract_prompt_directives(
         epic="epic" in expanded_args,
         hide="hide" in expanded_args,
         model=expanded_args.get("model") or None,
+        reasoning_effort=reasoning_effort,
         name=expanded_args.get("name") or None,
         name_explicit=name_explicit,
         name_force_reuse=name_force_reuse,
