@@ -1,0 +1,472 @@
+"""Textual widget for the Config Center config pane."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from rich.text import Text
+from textual import events
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.widgets import Input, Label, Static, Tree
+from textual.widgets.tree import TreeNode
+from textual.worker import Worker, WorkerState
+
+from .config_pane_rendering import (
+    render_detail,
+    render_row_label,
+    render_source_rail,
+    visible_paths,
+)
+from .config_pane_view import ConfigPaneView, InputMode
+
+
+class ConfigFilterInput(Input):
+    """Filter/jump input that yields ``[`` / ``]`` to the host tab strip.
+
+    Like the XPrompts pane's filter, ``[`` / ``]`` must reach the Config
+    Center so tab switching works while typing; ``escape`` returns focus to
+    the tree without leaving a stale filter.
+    """
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key in ("left_square_bracket", "right_square_bracket"):
+            host = self.screen
+            prev_tab = getattr(host, "action_prev_center_tab", None)
+            next_tab = getattr(host, "action_next_center_tab", None)
+            if callable(prev_tab) and callable(next_tab):
+                event.stop()
+                event.prevent_default()
+                (prev_tab if event.key == "left_square_bracket" else next_tab)()
+        elif event.key == "escape":
+            pane = self._pane()
+            if pane is not None:
+                event.stop()
+                event.prevent_default()
+                pane.cancel_input()
+
+    def _pane(self) -> ConfigPane | None:
+        node: object | None = self.parent
+        while node is not None:
+            if isinstance(node, ConfigPane):
+                return node
+            node = getattr(node, "parent", None)
+        return None
+
+
+class ConfigPane(Vertical):
+    """Read-only, schema-driven config browser for the Config Center."""
+
+    can_focus = False
+
+    BINDINGS = [
+        ("j", "cursor_down", "Down"),
+        ("k", "cursor_up", "Up"),
+        ("down", "cursor_down", "Down"),
+        ("up", "cursor_up", "Up"),
+        ("slash", "focus_filter", "Filter"),
+        ("m", "toggle_modified", "Modified only"),
+        ("colon", "jump_to_path", "Jump to path"),
+        ("r", "refresh", "Refresh"),
+        ("e", "edit_field", "Edit"),
+        ("g", "migrate", "Migrate repos"),
+    ]
+
+    def __init__(
+        self,
+        *,
+        local_paths: tuple[str, ...] = (),
+        auto_load: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self._local_paths = tuple(local_paths)
+        self._auto_load = auto_load
+        self._view: ConfigPaneView | None = None
+        self._error: str | None = None
+        self._loading = auto_load
+        self._filter_text = ""
+        self._modified_only = False
+        self._input_mode: InputMode = "filter"
+        self._worker: Worker[Any] | None = None
+        self._node_by_path: dict[str, TreeNode[str]] = {}
+        self._selected_path: str | None = None
+
+    # -- composition --
+
+    def compose(self) -> ComposeResult:
+        yield Label(self._title_text(), id="config-pane-title")
+        with Horizontal(id="config-pane-panels"):
+            with Vertical(id="config-source-rail"):
+                yield Label("Sources", classes="config-region-header")
+                with VerticalScroll(id="config-source-scroll"):
+                    yield Static("", id="config-source-body", markup=False)
+            with Vertical(id="config-field-tree"):
+                yield Label("Fields", classes="config-region-header")
+                yield ConfigFilterInput(
+                    placeholder="/ filter   : jump", id="config-filter-input"
+                )
+                yield Static(
+                    self._status_message(), id="config-field-status", markup=False
+                )
+                tree: Tree[str] = Tree("config", id="config-tree")
+                tree.show_root = False
+                tree.guide_depth = 2
+                yield tree
+            with Vertical(id="config-detail"):
+                yield Label("Detail", classes="config-region-header")
+                with VerticalScroll(id="config-detail-scroll"):
+                    yield Static("", id="config-detail-body", markup=False)
+        yield Static(self._hints(), id="config-pane-hints", markup=False)
+
+    def on_mount(self) -> None:
+        self._sync_state_visibility()
+        if self._auto_load:
+            self._start_load(force=False)
+
+    def focus_default(self) -> None:
+        """Focus the tree (browse-first) when the Config tab activates."""
+        try:
+            self.query_one("#config-tree", Tree).focus()
+        except Exception:
+            pass
+
+    # -- loading --
+
+    def _start_load(self, *, force: bool) -> None:
+        self._loading = True
+        self._error = None
+        self._sync_state_visibility()
+        local_paths = self._local_paths
+
+        def task() -> Any:
+            from . import config_pane as public_config_pane
+
+            return public_config_pane._load_config_view(
+                local_paths=local_paths, force=force
+            )
+
+        self._worker = self.run_worker(task, thread=True, exclusive=True)
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is not self._worker:
+            return
+        if event.state == WorkerState.SUCCESS:
+            result = event.worker.result
+            self._loading = False
+            self._view = getattr(result, "view", None)
+            self._error = getattr(result, "error", None)
+            self._render_all()
+        elif event.state == WorkerState.ERROR:
+            self._loading = False
+            self._error = (
+                str(event.worker.error) if event.worker.error else "load failed"
+            )
+            self._render_all()
+
+    # -- rendering --
+
+    def _render_all(self) -> None:
+        self._update_static("#config-pane-title", self._title_text())
+        self._update_static("#config-pane-hints", self._hints())
+        view = self._view
+        if view is not None:
+            self._update_static("#config-source-body", render_source_rail(view))
+        else:
+            self._update_static("#config-source-body", Text(""))
+        self._rebuild_tree()
+        self._sync_state_visibility()
+
+    def _rebuild_tree(self) -> None:
+        try:
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            return
+        tree.clear()
+        self._node_by_path = {}
+        view = self._view
+        if view is None:
+            self._update_detail(None)
+            return
+        shown = visible_paths(
+            view, filter_text=self._filter_text, modified_only=self._modified_only
+        )
+        first_leaf: str | None = None
+        for field in view.field_model.fields:
+            if field.path not in shown:
+                continue
+            parent_node = (
+                self._node_by_path.get(field.parent)
+                if field.parent is not None
+                else tree.root
+            )
+            if parent_node is None:
+                parent_node = tree.root
+            label = render_row_label(view, field.path)
+            if field.leaf:
+                node = parent_node.add_leaf(label, data=field.path)
+                if first_leaf is None:
+                    first_leaf = field.path
+            else:
+                node = parent_node.add(label, data=field.path, expand=True)
+            self._node_by_path[field.path] = node
+        # Restore the prior selection if it is still visible, else first leaf.
+        target = (
+            self._selected_path
+            if self._selected_path in self._node_by_path
+            else first_leaf
+        )
+        if target is not None:
+            target_node = self._node_by_path.get(target)
+            if target_node is not None:
+                tree.move_cursor(target_node)
+            self._update_detail(target)
+        else:
+            self._update_detail(None)
+
+    def _update_detail(self, path: str | None) -> None:
+        self._selected_path = path
+        view = self._view
+        body = render_detail(view, path) if view is not None else Text("")
+        self._update_static("#config-detail-body", body)
+
+    def _update_static(self, selector: str, content: Text | str) -> None:
+        try:
+            self.query_one(selector, Static).update(content)
+        except Exception:
+            pass
+
+    def _sync_state_visibility(self) -> None:
+        """Show the tree when populated, else the status placeholder."""
+        has_rows = bool(self._node_by_path)
+        try:
+            status = self.query_one("#config-field-status", Static)
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            return
+        status.update(self._status_message())
+        show_status = self._loading or self._error is not None or not has_rows
+        status.display = show_status
+        tree.display = not show_status
+
+    # -- dynamic text --
+
+    def _title_text(self) -> str:
+        view = self._view
+        if view is None:
+            return "Configuration"
+        total = sum(1 for f in view.field_model.fields if f.leaf)
+        modified = len(view.modified_paths())
+        return f"Configuration  [{total} fields · {modified} modified]"
+
+    def _status_message(self) -> str:
+        if self._loading:
+            return "Loading configuration…"
+        if self._error is not None:
+            return f"Could not load configuration:\n{self._error}"
+        if self._view is None:
+            return "Configuration unavailable."
+        if not self._node_by_path and (self._filter_text or self._modified_only):
+            return "No fields match the current filter."
+        if not any(f.leaf for f in self._view.field_model.fields):
+            return "No configuration fields in schema."
+        return ""
+
+    def _hints(self) -> str:
+        mod = "modified ✓" if self._modified_only else "modified"
+        return (
+            f"j/k: move  ↵/e: edit  /: filter  :: jump  m: {mod}  g: migrate  "
+            "r: refresh  [ / ]: tab  Esc: close"
+        )
+
+    # -- tree selection events --
+
+    def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
+        data = event.node.data
+        if isinstance(data, str):
+            self._update_detail(data)
+
+    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+        """Enter / click on a leaf opens its editor (sections just toggle)."""
+        data = event.node.data
+        if isinstance(data, str):
+            view = self._view
+            if view is not None:
+                field = view.fields_by_path.get(data)
+                if field is not None and field.leaf:
+                    event.stop()
+                    self._open_editor(data)
+
+    # -- actions --
+
+    def action_cursor_down(self) -> None:
+        self._tree_action("action_cursor_down")
+
+    def action_cursor_up(self) -> None:
+        self._tree_action("action_cursor_up")
+
+    def _tree_action(self, name: str) -> None:
+        try:
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            return
+        getattr(tree, name)()
+
+    def action_focus_filter(self) -> None:
+        self._input_mode = "filter"
+        self._focus_input("/ filter")
+
+    def action_jump_to_path(self) -> None:
+        self._input_mode = "jump"
+        self._focus_input(": jump to dotted path")
+
+    def _focus_input(self, placeholder: str) -> None:
+        try:
+            field_input = self.query_one("#config-filter-input", ConfigFilterInput)
+        except Exception:
+            return
+        field_input.placeholder = placeholder
+        field_input.focus()
+
+    def action_toggle_modified(self) -> None:
+        self._modified_only = not self._modified_only
+        self._selected_path = None
+        self._rebuild_tree()
+        self._update_static("#config-pane-hints", self._hints())
+        self._sync_state_visibility()
+
+    def action_refresh(self) -> None:
+        from . import config_pane as public_config_pane
+
+        public_config_pane._clear_view_cache()
+        self._start_load(force=True)
+
+    def action_edit_field(self) -> None:
+        """Edit the selected leaf (or migrate, if it is the deprecated key)."""
+        path = self._selected_path
+        view = self._view
+        if path is None or view is None:
+            return
+        field = view.fields_by_path.get(path)
+        if field is None or not field.leaf:
+            return
+        if path == "sibling_repos" and view.is_modified("sibling_repos"):
+            self._open_migration()
+            return
+        self._open_editor(path)
+
+    def action_migrate(self) -> None:
+        """One-key ``sibling_repos`` → ``linked_repos`` migration."""
+        view = self._view
+        if view is None:
+            return
+        if "sibling_repos" not in view.fields_by_path or not view.is_modified(
+            "sibling_repos"
+        ):
+            self._error = None
+            self._update_static("#config-pane-hints", "no sibling_repos set to migrate")
+            return
+        self._open_migration()
+
+    def _open_editor(self, path: str) -> None:
+        view = self._view
+        if view is None:
+            return
+        field = view.fields_by_path.get(path)
+        if field is None or not field.leaf:
+            return
+        from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
+
+        self.app.push_screen(
+            ConfigEditModal(view, field=field), self._on_edit_dismissed
+        )
+
+    def _open_migration(self) -> None:
+        view = self._view
+        if view is None:
+            return
+        from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
+
+        self.app.push_screen(
+            ConfigEditModal.for_migration(view), self._on_edit_dismissed
+        )
+
+    def _on_edit_dismissed(self, result: Any) -> None:
+        """After a successful write, refresh the inventory to show the change."""
+        if result is not None:
+            self.action_refresh()
+
+    def cancel_input(self) -> None:
+        """Drop any in-progress filter and return focus to the tree."""
+        if self._input_mode == "filter" and self._filter_text:
+            self._filter_text = ""
+            self._set_input_value("")
+            self._rebuild_tree()
+            self._sync_state_visibility()
+        self.focus_default()
+
+    def _set_input_value(self, value: str) -> None:
+        try:
+            self.query_one("#config-filter-input", ConfigFilterInput).value = value
+        except Exception:
+            pass
+
+    # -- input events --
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id != "config-filter-input":
+            return
+        if self._input_mode != "filter":
+            return
+        self._filter_text = event.value
+        self._rebuild_tree()
+        self._sync_state_visibility()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "config-filter-input":
+            return
+        if self._input_mode == "jump":
+            self._do_jump(event.value)
+        else:
+            # Keep the filter applied; hand control back to the tree.
+            self.focus_default()
+
+    def _do_jump(self, query: str) -> None:
+        """Select the first field whose path matches *query*, clearing filters."""
+        view = self._view
+        target = self._match_path(view, query)
+        self._set_input_value("")
+        self._input_mode = "filter"
+        if target is None:
+            self.focus_default()
+            return
+        # Jump operates on the full tree so any target is reachable.
+        self._filter_text = ""
+        self._modified_only = False
+        self._selected_path = target
+        self._rebuild_tree()
+        self._update_static("#config-pane-hints", self._hints())
+        self._sync_state_visibility()
+        self.focus_default()
+
+    @staticmethod
+    def _match_path(view: ConfigPaneView | None, query: str) -> str | None:
+        if view is None:
+            return None
+        needle = query.strip().casefold()
+        if not needle:
+            return None
+        leaves = [f.path for f in view.field_model.fields if f.leaf]
+        for path in leaves:
+            if path.casefold() == needle:
+                return path
+        for path in leaves:
+            if path.casefold().startswith(needle):
+                return path
+        for path in leaves:
+            if needle in path.casefold():
+                return path
+        return None
+
+
+_ConfigFilterInput = ConfigFilterInput
