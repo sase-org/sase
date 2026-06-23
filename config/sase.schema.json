@@ -607,6 +607,12 @@
           "description": "Name of the LLM provider to use (e.g., 'agy', 'claude', 'codex'). Leave empty to autodetect an installed provider CLI.",
           "default": ""
         },
+        "default_effort": {
+          "type": "string",
+          "description": "Default reasoning-effort level applied to agent launches when a prompt does not request one via %effort or a %model:<model>@<effort> suffix. Leave empty for no override (let each provider use its own default). A configured level is best-effort: providers that cannot honor it skip it with a warning.",
+          "enum": ["", "none", "minimal", "low", "medium", "high", "xhigh", "max"],
+          "default": ""
+        },
         "worker_models": {
           "type": "object",
           "description": "Mapping from effective primary provider/model keys to worker-lane model targets. Keys are matched as provider/model, then bare model, then provider. Values accept bare known models, aliases, or explicit provider/model syntax.",

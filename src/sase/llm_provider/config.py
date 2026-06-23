@@ -3,6 +3,7 @@
 from typing import Any
 
 from sase.config import load_merged_config
+from sase.xprompt.effort import is_valid_effort
 
 _ALIAS_RESOLUTION_DEPTH_LIMIT = 16
 
@@ -28,6 +29,26 @@ def get_llm_provider_config() -> dict[str, Any]:
         return config
     except Exception:
         return {}
+
+
+def get_default_effort() -> str | None:
+    """Return the configured ``llm_provider.default_effort`` level, or ``None``.
+
+    Reads the layered ``llm_provider.default_effort`` value, normalizes it
+    (strip + lowercase), and validates it against the canonical effort
+    vocabulary shared with the xprompt directive parser
+    (:func:`sase.xprompt.effort.is_valid_effort`, the single source of truth).
+    Returns ``None`` when the value is unset, blank, non-string, or not a
+    recognized effort level, so a malformed config never forces an effort onto
+    agent launches.
+    """
+    raw = get_llm_provider_config().get("default_effort", "")
+    if not isinstance(raw, str):
+        return None
+    level = raw.strip().lower()
+    if level and is_valid_effort(level):
+        return level
+    return None
 
 
 def _get_model_aliases() -> dict[str, str]:
