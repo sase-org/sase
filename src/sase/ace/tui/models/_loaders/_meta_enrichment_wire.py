@@ -41,6 +41,8 @@ def enrich_agent_from_meta_wire(
         agent.model = meta.model
     if meta.llm_provider:
         agent.llm_provider = meta.llm_provider
+    if meta.reasoning_effort:
+        agent.reasoning_effort = meta.reasoning_effort
     if meta.vcs_provider:
         agent.vcs_provider = meta.vcs_provider
     if meta.workspace_dir:

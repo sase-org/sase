@@ -168,6 +168,11 @@ class Agent:
     # LLM provider name (e.g., "claude", "agy")
     llm_provider: str | None = None
 
+    # Effective reasoning-effort level (e.g. "xhigh"), resolved from the
+    # %effort/@effort directive or llm_provider.default_effort. Rendered as a
+    # uniform suffix on the Model field across every provider.
+    reasoning_effort: str | None = None
+
     # VCS provider display name (e.g., "GitHub", "Mercurial")
     vcs_provider: str | None = None
 

@@ -138,16 +138,21 @@ def append_model_field(
     header_text: Text,
     model: str | None,
     llm_provider: str | None,
+    reasoning_effort: str | None = None,
 ) -> None:
     """Append the Model field with provider-themed styling.
 
-    Format: ``Model: PROVIDER(model)`` with provider-specific colors.
-    Falls back to plain model display when provider is unknown.
+    Format: ``Model: PROVIDER(model)`` with provider-specific colors, plus a
+    uniform ``@ <effort>`` suffix (identical across every provider) when an
+    effective reasoning effort is set. Falls back to plain model display when
+    the provider is unknown.
 
     Args:
         header_text: Rich Text object to append to.
         model: Model name string (e.g., "opus", "Gemini 3.5 Flash (High)").
         llm_provider: Provider name (e.g., "claude", "agy"), or None.
+        reasoning_effort: Effective reasoning-effort level (e.g. "xhigh"), or
+            None to omit the suffix.
     """
     if not model:
         return
@@ -177,23 +182,31 @@ def append_model_field(
         header_text.append("CLAUDE", style="bold #FF5F00")
         header_text.append("(", style="#D75F00")
         header_text.append(model, style="#FFAF00")
-        header_text.append(")\n", style="#D75F00")
+        header_text.append(")", style="#D75F00")
     elif provider == "codex":
         # OpenAI theme: chartreuse/lime for name, lighter lime for model
         header_text.append("CODEX", style="bold #87FF00")
         header_text.append("(", style="#5FAF00")
         header_text.append(model, style="#AFFF5F")
-        header_text.append(")\n", style="#5FAF00")
+        header_text.append(")", style="#5FAF00")
     elif provider:
         color = provider_cli_status_color_map().get(provider, "#AF87D7")
         header_text.append(provider.upper(), style=f"bold {color}")
         header_text.append("(", style=color)
         header_text.append(model, style=color)
-        header_text.append(")\n", style=color)
+        header_text.append(")", style=color)
     else:
         header_text.append(
-            f"{format_provider_model_label(provider, model)}\n", style="#AF87D7"
+            format_provider_model_label(provider, model), style="#AF87D7"
         )
+
+    # Uniform reasoning-effort suffix, rendered the same way for every provider
+    # so the effective effort reads identically regardless of which CLI ran.
+    if reasoning_effort:
+        header_text.append(" @ ", style="#878787")
+        header_text.append(reasoning_effort, style="bold #AF87FF")
+
+    header_text.append("\n")
 
 
 def should_render_agent_detail_model(agent: Agent) -> bool:

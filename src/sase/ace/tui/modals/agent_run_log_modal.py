@@ -402,7 +402,9 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             }.get(agent.status, "")
             text.append(f"{agent.status}\n", style=status_style)
 
-        append_model_field(text, agent.model, agent.llm_provider)
+        append_model_field(
+            text, agent.model, agent.llm_provider, agent.reasoning_effort
+        )
 
         if agent.vcs_provider:
             text.append("VCS: ", style="bold #87D7FF")

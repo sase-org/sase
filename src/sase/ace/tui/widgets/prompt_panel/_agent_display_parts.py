@@ -436,7 +436,9 @@ def build_header_text(
 
     # Model (with provider-themed styling)
     if should_render_agent_detail_model(agent):
-        append_model_field(header_text, agent.model, agent.llm_provider)
+        append_model_field(
+            header_text, agent.model, agent.llm_provider, agent.reasoning_effort
+        )
 
     # VCS provider
     if agent.vcs_provider:

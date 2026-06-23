@@ -60,7 +60,9 @@ def build_workflow_detail_renderable(
         header_text.append(f"#{workspace_num}\n", style="#5FD7FF")
 
     # Model (with provider-themed styling)
-    append_model_field(header_text, agent.model, agent.llm_provider)
+    append_model_field(
+        header_text, agent.model, agent.llm_provider, agent.reasoning_effort
+    )
 
     # VCS provider
     if agent.vcs_provider:

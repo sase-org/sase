@@ -334,6 +334,7 @@ def _build_workflow_agent_steps_for_record(
                 is_pre_prompt_step=is_pre_prompt_step,
                 model=step.model,
                 llm_provider=step.llm_provider,
+                reasoning_effort=step.reasoning_effort,
             )
 
             if (

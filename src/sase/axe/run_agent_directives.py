@@ -144,6 +144,14 @@ def extract_directives_and_write_meta(
     else:
         agent_llm_provider, agent_model = resolve_effective_default_provider_model()
 
+    # Resolve the effective reasoning effort (explicit %effort/@effort directive
+    # beats llm_provider.default_effort) so the Agents tab can render a uniform
+    # ``Model: PROVIDER(model) @ <effort>`` suffix that matches the effort the
+    # provider adapter actually applied at invocation time.
+    from sase.llm_provider.config import resolve_effective_effort
+
+    agent_reasoning_effort, _ = resolve_effective_effort(directives)
+
     vcs_name = detect_vcs(workspace_dir)
     if vcs_name:
         from sase.workspace_provider import get_display_name_by_vcs
@@ -222,6 +230,8 @@ def extract_directives_and_write_meta(
             agent_meta["model"] = agent_model
         if agent_llm_provider:
             agent_meta["llm_provider"] = agent_llm_provider
+        if agent_reasoning_effort:
+            agent_meta["reasoning_effort"] = agent_reasoning_effort
         if agent_vcs_provider:
             agent_meta["vcs_provider"] = agent_vcs_provider
         if directives.approve:

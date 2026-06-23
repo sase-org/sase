@@ -272,6 +272,13 @@ class PromptStepMixin:
         else:
             step_llm_provider, step_model = resolve_effective_default_provider_model()
 
+        # Resolve the step's effective reasoning effort (explicit %effort/@effort
+        # beats llm_provider.default_effort) so the step row's Model field shows
+        # the same uniform effort suffix as a top-level agent.
+        from sase.llm_provider.config import resolve_effective_effort
+
+        step_reasoning_effort, _ = resolve_effective_effort(effective_directives)
+
         # Save initial marker to show step is running in TUI
         step_state.status = StepStatus.IN_PROGRESS
         self._save_prompt_step_marker(
@@ -280,6 +287,7 @@ class PromptStepMixin:
             hidden=step.hidden,
             model=step_model,
             llm_provider=step_llm_provider,
+            reasoning_effort=step_reasoning_effort,
         )
 
         # Check if any embedded workflow has finally-marked post-steps.

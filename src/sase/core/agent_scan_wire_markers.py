@@ -128,6 +128,7 @@ class AgentMetaWire:
     pid: int | None = None
     model: str | None = None
     llm_provider: str | None = None
+    reasoning_effort: str | None = None
     vcs_provider: str | None = None
     role_suffix: str | None = None
     parent_timestamp: str | None = None
@@ -267,6 +268,7 @@ class PromptStepMarkerWire:
     traceback: str | None = None
     model: str | None = None
     llm_provider: str | None = None
+    reasoning_effort: str | None = None
     output: dict[str, Any] | None = None
     output_types: dict[str, str] | None = None
 
