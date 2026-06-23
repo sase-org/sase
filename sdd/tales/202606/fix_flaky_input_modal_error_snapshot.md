@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 12:26:06
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_flaky_input_modal_error_snapshot.md
 ---
 # Fix flaky `test_input_collection_modal_error_png_snapshot`

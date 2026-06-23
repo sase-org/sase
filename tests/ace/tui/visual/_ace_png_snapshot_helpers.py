@@ -482,5 +482,14 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 1.0) -> None:
         await page.pause()
         await asyncio.sleep(0.02)
 
+    from textual.widgets import Button
+
+    # Button.press() adds a transient pressed highlight and removes it on a
+    # timer; visual snapshots should capture the resting state, not race that
+    # timer.
+    for screen in page.app.screen_stack:
+        for button in screen.query(Button):
+            button.remove_class("-active")
+
     for _ in range(3):
         await page.pause()
