@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 07:19:33
-status: wip
+status: done
 prompt: sdd/prompts/202606/rust_clippy_196_fix.md
 ---
 # Rust Clippy 1.96 CI Failure Fix
