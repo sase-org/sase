@@ -86,7 +86,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_attempt_view), "Toggle attempt history view"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
-                    "Next / prev file in panel",
+                    "Next / prev diff, linked diff, or file",
                 ),
                 (d(a.reset_file_trim), "Reset file trim to default"),
                 (d(a.show_all_file_lines), "Show all file lines"),

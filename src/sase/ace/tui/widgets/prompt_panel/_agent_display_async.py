@@ -14,6 +14,7 @@ from ..file_panel._linked_deltas import (
     compute_linked_delta_groups,
     should_refresh_linked_delta_groups,
 )
+from ..file_panel._messages import LinkedDeltasRefreshed
 
 
 @dataclass(frozen=True)
@@ -267,6 +268,7 @@ class AgentDisplayWorkerMixin:
             return
 
         self._update_display_impl(request.agent)  # type: ignore[attr-defined]
+        self.post_message(LinkedDeltasRefreshed(request.agent_identity))  # type: ignore[attr-defined]
 
     def _apply_agent_bead_display_worker_result(
         self, worker: Worker[Any], state: WorkerState

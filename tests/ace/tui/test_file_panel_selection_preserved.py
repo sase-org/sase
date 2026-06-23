@@ -10,12 +10,17 @@ import types
 from datetime import datetime
 from unittest.mock import MagicMock
 
+from sase.ace.changespec.models import DeltaEntry
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent import LinkedRepoMetadata
 from sase.ace.tui.widgets.file_panel import _LIVE_DIFF_SENTINEL, AgentFilePanel
+from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
+from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
 from sase.ace.tui.widgets.file_panel._messages import (
     FileCacheEntry,
     file_cache,
     get_cache_key,
+    linked_slot_id,
 )
 
 
@@ -23,15 +28,18 @@ def _make_agent(
     cl_name: str = "test_cl",
     raw_suffix: str | None = "20240101120000",
     extra_files: list[str] | None = None,
+    status: str = "RUNNING",
+    linked_repos: tuple[LinkedRepoMetadata, ...] = (),
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
         project_file="/tmp/test.sase",
-        status="RUNNING",
+        status=status,
         start_time=datetime(2024, 1, 1, 12, 0, 0),
         raw_suffix=raw_suffix,
         extra_files=list(extra_files) if extra_files else [],
+        linked_repos=linked_repos,
     )
 
 
@@ -53,6 +61,9 @@ def _make_panel() -> MagicMock:
     panel._full_content_lexer = "text"
     panel._content_mode = "none"
     panel._static_header_path = None
+    panel._linked_repo_name = None
+    panel._linked_workspace_dir = None
+    panel._linked_fetched_at = None
 
     # Bind the real methods we want to test
     panel.update_display = types.MethodType(AgentFilePanel.update_display, panel)
@@ -64,6 +75,30 @@ def _make_panel() -> MagicMock:
     panel.prev_file = types.MethodType(AgentFilePanel.prev_file, panel)
     panel._pick_up_extra_files = types.MethodType(
         AgentFilePanel._pick_up_extra_files, panel
+    )
+    panel._desired_file_list = types.MethodType(
+        AgentFilePanel._desired_file_list, panel
+    )
+    panel._select_file_index = types.MethodType(
+        AgentFilePanel._select_file_index, panel
+    )
+    panel._current_file_value = types.MethodType(
+        AgentFilePanel._current_file_value, panel
+    )
+    panel._linked_group_for_repo = types.MethodType(
+        AgentFilePanel._linked_group_for_repo, panel
+    )
+    panel._current_linked_diff_changed = types.MethodType(
+        AgentFilePanel._current_linked_diff_changed, panel
+    )
+    panel._reconcile_file_list = types.MethodType(
+        AgentFilePanel._reconcile_file_list, panel
+    )
+    panel.get_current_file_path = types.MethodType(
+        AgentFilePanel.get_current_file_path, panel
+    )
+    panel.current_source_label = types.MethodType(
+        AgentFilePanel.current_source_label, panel
     )
 
     # Stub out side-effecting internals that would touch the filesystem,
@@ -80,6 +115,26 @@ def _make_panel() -> MagicMock:
 
 def _clear_cache_for(agent: Agent) -> None:
     file_cache.pop(get_cache_key(agent), None)
+    linked_deltas_mod._selected_agent_linked_delta_cache.pop(agent.identity, None)
+    linked_deltas_mod._selected_agent_cache_monotonic.pop(agent.identity, None)
+
+
+def _seed_linked_group(
+    agent: Agent,
+    *,
+    repo_name: str = "sase-core",
+    workspace_dir: str = "/tmp/sase-core",
+    diff_text: str = "diff --git a/lib.py b/lib.py\n+++ b/lib.py\n+new\n",
+) -> None:
+    linked_deltas_mod._selected_agent_linked_delta_cache[agent.identity] = (
+        LinkedDeltaGroup(
+            repo_name=repo_name,
+            workspace_dir=workspace_dir,
+            entries=(DeltaEntry(path="lib.py", change_type="M"),),
+            diff_text=diff_text,
+            fetched_at=datetime(2024, 1, 1, 12, 30, 0),
+        ),
+    )
 
 
 def test_ctrl_n_index_survives_no_cache_refresh() -> None:
@@ -219,3 +274,159 @@ def test_update_display_fresh_cache_preserves_user_index() -> None:
         _clear_cache_for(agent)
 
     assert panel._current_file_index == 1
+
+
+def test_desired_file_list_orders_primary_linked_then_extra_files() -> None:
+    """Linked diff pages sit after the primary diff and before artifacts."""
+    panel = _make_panel()
+    agent = _make_agent(
+        extra_files=["/tmp/plan.md"],
+        linked_repos=(
+            LinkedRepoMetadata(
+                name="sase-core",
+                workspace_dir="/tmp/sase-core",
+                workspace_strategy="suffix",
+            ),
+        ),
+    )
+    file_cache[get_cache_key(agent)] = FileCacheEntry(
+        diff_output="diff --git a/a b/a\n+primary\n",
+        fetch_time=datetime.now(),
+    )
+    _seed_linked_group(agent)
+
+    try:
+        pages, default_value = panel._desired_file_list(agent)
+    finally:
+        _clear_cache_for(agent)
+
+    assert pages == [
+        _LIVE_DIFF_SENTINEL,
+        linked_slot_id("sase-core"),
+        "/tmp/plan.md",
+    ]
+    assert default_value == _LIVE_DIFF_SENTINEL
+
+
+def test_desired_file_list_plan_default_is_value_based_with_linked_pages() -> None:
+    """Plan-chain agents default to the plan path even after linked diff slots."""
+    panel = _make_panel()
+    agent = _make_agent(
+        extra_files=["/tmp/plan.md"],
+        linked_repos=(
+            LinkedRepoMetadata(
+                name="sase-core",
+                workspace_dir="/tmp/sase-core",
+                workspace_strategy="suffix",
+            ),
+        ),
+    )
+    agent.role_suffix = ".plan"
+    file_cache[get_cache_key(agent)] = FileCacheEntry(
+        diff_output="diff --git a/a b/a\n+primary\n",
+        fetch_time=datetime.now(),
+    )
+    _seed_linked_group(agent)
+
+    try:
+        pages, default_value = panel._desired_file_list(agent)
+    finally:
+        _clear_cache_for(agent)
+
+    assert pages == [
+        _LIVE_DIFF_SENTINEL,
+        linked_slot_id("sase-core"),
+        "/tmp/plan.md",
+    ]
+    assert default_value == "/tmp/plan.md"
+
+
+def test_reconcile_adds_linked_page_and_preserves_current_file() -> None:
+    """Adding a linked page before a static file preserves selection by value."""
+    panel = _make_panel()
+    agent = _make_agent(
+        extra_files=["/tmp/plan.md"],
+        linked_repos=(
+            LinkedRepoMetadata(
+                name="sase-core",
+                workspace_dir="/tmp/sase-core",
+                workspace_strategy="suffix",
+            ),
+        ),
+    )
+    panel._current_agent = agent
+    panel._file_list = ["/tmp/plan.md"]
+    panel._current_file_index = 0
+    panel._has_displayed_content = True
+    _seed_linked_group(agent)
+
+    try:
+        panel._reconcile_file_list(agent, allow_initial_display=True)
+    finally:
+        _clear_cache_for(agent)
+
+    assert panel._file_list == [linked_slot_id("sase-core"), "/tmp/plan.md"]
+    assert panel._current_file_index == 1
+    assert panel._file_list[panel._current_file_index] == "/tmp/plan.md"
+    panel._display_file_at_current_index.assert_not_called()
+
+
+def test_reconcile_removes_linked_page_and_falls_back_to_plan() -> None:
+    """When a linked page disappears, reconciliation selects the default page."""
+    panel = _make_panel()
+    agent = _make_agent(
+        extra_files=["/tmp/plan.md"],
+        linked_repos=(
+            LinkedRepoMetadata(
+                name="sase-core",
+                workspace_dir="/tmp/sase-core",
+                workspace_strategy="suffix",
+            ),
+        ),
+    )
+    panel._current_agent = agent
+    panel._file_list = [linked_slot_id("sase-core"), "/tmp/plan.md"]
+    panel._current_file_index = 0
+    panel._has_displayed_content = True
+    _clear_cache_for(agent)
+
+    panel._reconcile_file_list(agent, allow_initial_display=True)
+
+    assert panel._file_list == ["/tmp/plan.md"]
+    assert panel._current_file_index == 0
+    panel._display_file_at_current_index.assert_called_once()
+
+
+def test_completed_agents_do_not_get_linked_pages() -> None:
+    """The file-panel page list follows the header eligibility for terminal agents."""
+    panel = _make_panel()
+    agent = _make_agent(
+        status="DONE",
+        linked_repos=(
+            LinkedRepoMetadata(
+                name="sase-core",
+                workspace_dir="/tmp/sase-core",
+                workspace_strategy="suffix",
+            ),
+        ),
+    )
+    _seed_linked_group(agent)
+
+    try:
+        pages, _ = panel._desired_file_list(agent)
+    finally:
+        _clear_cache_for(agent)
+
+    assert pages == []
+
+
+def test_current_source_label_and_path_guard_for_linked_slot() -> None:
+    panel = _make_panel()
+    panel._file_list = [linked_slot_id("sase-core"), "/tmp/plan.md"]
+    panel._current_file_index = 0
+
+    assert panel.get_current_file_path() is None
+    assert panel.current_source_label() == "▣ sase-core"
+
+    panel._current_file_index = 1
+    assert panel.current_source_label() == "plan.md"

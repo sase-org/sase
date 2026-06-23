@@ -62,6 +62,14 @@ class FileTrimChanged(Message):
         self.is_trimmed = is_trimmed
 
 
+class LinkedDeltasRefreshed(Message):
+    """Message posted when cached linked-repo deltas refreshed for an agent."""
+
+    def __init__(self, agent_identity: tuple[object, ...]) -> None:
+        super().__init__()
+        self.agent_identity = agent_identity
+
+
 @dataclass
 class FileCacheEntry:
     """Cache entry for agent file output."""
@@ -72,6 +80,29 @@ class FileCacheEntry:
 
 # Module-level cache for file outputs
 file_cache: dict[str, FileCacheEntry] = {}
+
+
+# Sentinel value used in file-panel page lists to represent the
+# auto-refreshing primary live diff slot.
+_LIVE_DIFF_SENTINEL = "__live_diff__"
+LINKED_DIFF_PREFIX = "__linked_diff__:"
+
+
+def linked_slot_id(repo_name: str) -> str:
+    """Return the file-list slot id for a linked-repo diff page."""
+    return f"{LINKED_DIFF_PREFIX}{repo_name}"
+
+
+def is_linked_slot(value: str) -> bool:
+    """Return whether *value* is a linked-repo diff page slot id."""
+    return value.startswith(LINKED_DIFF_PREFIX)
+
+
+def linked_slot_repo_name(value: str) -> str:
+    """Return the repo name encoded in a linked-repo diff page slot id."""
+    if not is_linked_slot(value):
+        raise ValueError(f"not a linked diff slot: {value!r}")
+    return value[len(LINKED_DIFF_PREFIX) :]
 
 
 def get_cache_key(agent: Agent) -> str:

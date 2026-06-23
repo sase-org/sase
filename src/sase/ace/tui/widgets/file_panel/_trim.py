@@ -46,6 +46,9 @@ class FilePanelTrimMixin:
         self._full_content_lexer: str = "text"
         self._content_mode: str = "none"
         self._static_header_path: str | None = None
+        self._linked_repo_name: str | None = None
+        self._linked_workspace_dir: str | None = None
+        self._linked_fetched_at: datetime | None = None
 
     def _count_lines(self, content: str) -> int:
         """Count the number of lines in content.
@@ -72,7 +75,10 @@ class FilePanelTrimMixin:
         self, fetch_time: datetime, *, refreshing: bool = False
     ) -> None:
         """Update the timestamp line in _full_content without resetting trim state."""
-        if self._full_content is None or self._content_mode != "diff":
+        if self._full_content is None or self._content_mode not in (
+            "diff",
+            "linked_diff",
+        ):
             return
         newline_idx = self._full_content.index("\n")
         suffix = " (refreshing...)" if refreshing else ""
@@ -105,7 +111,7 @@ class FilePanelTrimMixin:
         visible = self._visible_line_count
         lexer = (
             "diff"
-            if self._content_mode in ("diff", "static_diff")
+            if self._content_mode in ("diff", "static_diff", "linked_diff")
             else self._full_content_lexer
         )
         syntax = Syntax(
@@ -126,6 +132,9 @@ class FilePanelTrimMixin:
                 self._static_header_path or "", style="bold #D7AF5F underline"
             )
             self.update(Group(header, Text(""), syntax, indicator))  # type: ignore[attr-defined]
+        elif self._content_mode == "linked_diff":
+            banner = self._build_linked_banner()  # type: ignore[attr-defined]
+            self.update(Group(banner, Text(""), syntax, indicator))  # type: ignore[attr-defined]
         else:
             self.update(Group(syntax, indicator))  # type: ignore[attr-defined]
 
@@ -245,7 +254,7 @@ class FilePanelTrimMixin:
 
         lexer = (
             "diff"
-            if self._content_mode in ("diff", "static_diff")
+            if self._content_mode in ("diff", "static_diff", "linked_diff")
             else self._full_content_lexer
         )
         syntax = Syntax(
@@ -260,6 +269,9 @@ class FilePanelTrimMixin:
                 self._static_header_path or "", style="bold #D7AF5F underline"
             )
             self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
+        elif self._content_mode == "linked_diff":
+            banner = self._build_linked_banner()  # type: ignore[attr-defined]
+            self.update(Group(banner, Text(""), syntax))  # type: ignore[attr-defined]
         else:
             self.update(syntax)  # type: ignore[attr-defined]
 

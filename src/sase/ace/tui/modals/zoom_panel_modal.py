@@ -193,6 +193,7 @@ class ZoomPanelModal(ModalScreen[None]):
         self.query_one("#zoom-file-scroll", VerticalScroll).border_subtitle = (
             self._seed.file_subtitle or ""
         )
+        file_panel._current_agent = self._last_agent
         if self._seed.file_list:
             file_panel._file_list = list(self._seed.file_list)
             file_panel._current_file_index = min(
@@ -245,6 +246,9 @@ class ZoomPanelModal(ModalScreen[None]):
                     f"FILE ({file_panel.current_file_index + 1}/"
                     f"{file_panel.current_file_count})"
                 )
+            source_label = file_panel.current_source_label()
+            if source_label:
+                target_name = f"{target_name} · {source_label}"
 
         title.update(f"⛶ ZOOM - {target_name} ({position}/{total})")
 

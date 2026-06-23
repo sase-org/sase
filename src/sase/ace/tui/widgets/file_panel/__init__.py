@@ -15,20 +15,23 @@ from ...graphics import is_supported_image_path
 from ...util.trace import tui_trace
 from ._diff import get_agent_diff
 from ._display import FilePanelDisplayMixin, StaticReadResult
+from ._linked_deltas import LinkedDeltaGroup, get_cached_linked_delta_groups
 from ._messages import (
     FileListChanged,
     FileTrimChanged,
     FileVisibilityChanged,
     FileCacheEntry,
     _EXTENSION_TO_LEXER,
+    _LIVE_DIFF_SENTINEL,
     file_cache,
     get_cache_key,
+    is_linked_slot,
+    linked_slot_id,
+    linked_slot_repo_name,
 )
 from ._trim import FilePanelTrimMixin
+from ..prompt_panel._agent_context_common import WORKSPACE_GLYPH
 
-# Sentinel value used in _file_list to represent the auto-refreshing live
-# diff slot (index 0) when extra static files (e.g. plan) are also present.
-_LIVE_DIFF_SENTINEL = "__live_diff__"
 InflightDiffKey = tuple[tuple[object, ...], int | None, str | None, str | None]
 
 
@@ -54,6 +57,9 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         self._full_content_lexer: str = "text"
         self._content_mode: str = "none"
         self._static_header_path: str | None = None
+        self._linked_repo_name: str | None = None
+        self._linked_workspace_dir: str | None = None
+        self._linked_fetched_at: datetime | None = None
         self._current_image_renderable = None
         # Phase 6: dedupe in-flight diff workers across rapid re-selections of
         # the same agent. The in-flight key is intentionally cheap to compute
@@ -88,11 +94,11 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             age_seconds = (datetime.now() - cache_entry.fetch_time).total_seconds()
             if age_seconds < stale_threshold_seconds:
                 self._current_agent = agent
-                self._pick_up_extra_files(agent)
+                self._reconcile_file_list(agent, allow_initial_display=True)
                 return  # Fresh cache, same agent -- preserve trim state
             # Stale cache, same agent -- start background worker only
             self._current_agent = agent
-            self._pick_up_extra_files(agent)
+            self._reconcile_file_list(agent, allow_initial_display=True)
             self._is_background_refreshing = True
             if self._current_worker is not None and self._current_worker.is_running:
                 self._current_worker.cancel()
@@ -108,7 +114,8 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             # Same agent with an in-flight worker but no cache yet — let
             # the existing worker finish rather than cancelling and
             # restarting on every auto-refresh cycle.
-            self._pick_up_extra_files(agent)
+            self._current_agent = agent
+            self._reconcile_file_list(agent, allow_initial_display=True)
             return
 
         # Different agent or no cache -- full reset (existing behavior),
@@ -123,32 +130,25 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         ):
             saved_path = self._file_list[self._current_file_index]
 
-        self._reset_trim_state()
-        self._current_file_index = 0
         self._current_agent = agent
+        desired, default_value = self._desired_file_list(agent)
+        self._reset_trim_state()
+        self._file_list = list(desired)
+        self._current_file_index = self._select_file_index(
+            self._file_list,
+            preferred_value=saved_path,
+            default_value=default_value,
+        )
 
-        # Populate file list with live diff sentinel + extra files.
-        # Only include the diff sentinel when we already have cached diff
-        # content — otherwise the plan file alone should show as [1/1].
-        if agent.extra_files:
-            has_cached_diff = cache_entry is not None and bool(cache_entry.diff_output)
-            if has_cached_diff:
-                self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
-            else:
-                self._file_list = list(agent.extra_files)
-            if saved_path is not None and saved_path in self._file_list:
-                self._current_file_index = self._file_list.index(saved_path)
-            self.post_message(
-                FileListChanged(
-                    file_count=len(self._file_list),
-                    file_index=self._current_file_index,
-                )
+        self.post_message(
+            FileListChanged(
+                file_count=len(self._file_list),
+                file_index=self._current_file_index,
             )
-        else:
-            self._file_list = []
+        )
 
-        # If starting on a static extra file, display it immediately
-        # and fetch the diff in the background.
+        # If starting on a linked or static extra page, display it immediately
+        # and fetch the primary diff in the background.
         if (
             self._file_list
             and self._file_list[self._current_file_index] != _LIVE_DIFF_SENTINEL
@@ -266,8 +266,7 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
     def _display_file_at_current_index(self) -> None:
         """Display the file at the current index.
 
-        Handles both the live diff sentinel (re-displays cached diff)
-        and static file paths.
+        Handles live diff, linked diff, and static file page slots.
         """
         if not self._file_list:
             return
@@ -282,47 +281,148 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
                         cache_entry.diff_output, cache_entry.fetch_time
                     )
             return
+        if is_linked_slot(path):
+            repo_name = linked_slot_repo_name(path)
+            group = self._linked_group_for_repo(repo_name)
+            if group is None:
+                self.display_linked_diff_unavailable(repo_name)
+                return
+            self.display_linked_diff(
+                group.repo_name,
+                group.workspace_dir,
+                group.diff_text,
+                group.fetched_at,
+            )
+            return
         self.display_static_file(path)
 
-    def _pick_up_extra_files(self, agent: Agent) -> None:
-        """Populate the file list when extra_files first appear on a same-agent refresh."""
-        if agent.extra_files and not self._file_list:
-            # Only include the diff sentinel when we already have cached
-            # diff content so the counter reads [1/1] until a real diff exists.
-            cache_key = get_cache_key(agent)
-            cache_entry = file_cache.get(cache_key)
-            has_diff = cache_entry is not None and bool(cache_entry.diff_output)
+    def _desired_file_list(self, agent: Agent) -> tuple[list[str], str | None]:
+        """Return the current canonical file-panel page list and default page."""
+        pages: list[str] = []
 
-            if has_diff:
-                self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
-                # For .plan agents without a code diff, default to showing
-                # the plan file.  When a follow-up .code agent has completed
-                # and propagated its diff_path, show the diff instead (index 0)
-                # so the user sees the code changes by default.
-                if (
-                    canonical_plan_chain_suffix(agent.role_suffix)
-                    == PLAN_CHAIN_PLAN_SUFFIX
-                    and not agent.diff_path
-                ):
-                    self._current_file_index = 1
-            else:
-                self._file_list = list(agent.extra_files)
-                self._current_file_index = 0
+        cache_entry = file_cache.get(get_cache_key(agent))
+        if cache_entry is not None and bool(cache_entry.diff_output):
+            pages.append(_LIVE_DIFF_SENTINEL)
 
-            self.post_message(
-                FileListChanged(
-                    file_count=len(self._file_list),
-                    file_index=self._current_file_index,
-                )
-            )
-            # Display the extra file immediately so the parent receives
-            # FileVisibilityChanged(has_file=True) and can switch from
-            # auto-shown tools to the file panel.
-            if (
-                self._file_list
-                and self._file_list[self._current_file_index] != _LIVE_DIFF_SENTINEL
-            ):
+        linked_groups = get_cached_linked_delta_groups(agent)
+        pages.extend(
+            linked_slot_id(group.repo_name) for group in linked_groups if group.entries
+        )
+
+        extra_files = list(agent.extra_files)
+        pages.extend(extra_files)
+
+        default_value = pages[0] if pages else None
+        if (
+            extra_files
+            and canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
+            and not agent.diff_path
+        ):
+            default_value = extra_files[0]
+        return pages, default_value
+
+    def _select_file_index(
+        self,
+        pages: list[str],
+        *,
+        preferred_value: str | None,
+        default_value: str | None,
+        fallback_index: int = 0,
+    ) -> int:
+        """Pick an index by current page value, then default page, then clamp."""
+        if not pages:
+            return 0
+        if preferred_value is not None and preferred_value in pages:
+            return pages.index(preferred_value)
+        if default_value is not None and default_value in pages:
+            return pages.index(default_value)
+        return min(max(fallback_index, 0), len(pages) - 1)
+
+    def _current_file_value(self) -> str | None:
+        if self._file_list and 0 <= self._current_file_index < len(self._file_list):
+            return self._file_list[self._current_file_index]
+        return None
+
+    def _linked_group_for_repo(self, repo_name: str) -> LinkedDeltaGroup | None:
+        agent = self._current_agent
+        if agent is None:
+            return None
+        for group in get_cached_linked_delta_groups(agent):
+            if group.repo_name == repo_name:
+                return group
+        return None
+
+    def _current_linked_diff_changed(self) -> bool:
+        current = self._current_file_value()
+        if current is None or not is_linked_slot(current):
+            return False
+        group = self._linked_group_for_repo(linked_slot_repo_name(current))
+        if group is None:
+            return self._last_file_content is not None
+        return group.diff_text != self._last_file_content
+
+    def _reconcile_file_list(
+        self,
+        agent: Agent,
+        *,
+        allow_initial_display: bool,
+    ) -> None:
+        """Synchronize page slots with cached diff/link/artifact state."""
+        self._current_agent = agent
+        desired, default_value = self._desired_file_list(agent)
+        current_value = self._current_file_value()
+
+        if desired == self._file_list:
+            if allow_initial_display and desired and not self._has_displayed_content:
                 self._display_file_at_current_index()
+            elif self._current_linked_diff_changed():
+                scroll_pos = self._save_scroll_position()
+                self._display_file_at_current_index()
+                self._restore_scroll_position(scroll_pos)
+            return
+
+        old_index = self._current_file_index
+        old_displayed = self._has_displayed_content
+        self._file_list = list(desired)
+        self._current_file_index = self._select_file_index(
+            self._file_list,
+            preferred_value=current_value,
+            default_value=default_value,
+            fallback_index=old_index,
+        )
+        new_value = self._current_file_value()
+
+        self.post_message(
+            FileListChanged(
+                file_count=len(self._file_list),
+                file_index=self._current_file_index,
+            )
+        )
+
+        if not self._file_list:
+            if allow_initial_display and current_value is not None:
+                cache_entry = file_cache.get(get_cache_key(agent))
+                if cache_entry is not None:
+                    self._display_file_with_timestamp(
+                        cache_entry.diff_output,
+                        cache_entry.fetch_time,
+                    )
+                else:
+                    self._post_file_visibility(has_file=False)
+            return
+
+        needs_render = new_value != current_value or not old_displayed
+        if new_value is not None and is_linked_slot(new_value):
+            needs_render = needs_render or self._current_linked_diff_changed()
+        if allow_initial_display and needs_render:
+            scroll_pos = self._save_scroll_position()
+            self._display_file_at_current_index()
+            if new_value == current_value:
+                self._restore_scroll_position(scroll_pos)
+
+    def _pick_up_extra_files(self, agent: Agent) -> None:
+        """Backward-compatible wrapper for same-agent file-list reconciliation."""
+        self._reconcile_file_list(agent, allow_initial_display=True)
 
     def _post_file_visibility(self, has_file: bool) -> None:
         """Post a FileVisibilityChanged message with current file list state."""
@@ -342,6 +442,11 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             agent: The Agent to refresh file for.
         """
         self._current_agent = agent
+        current = self._current_file_value()
+        if current is not None and is_linked_slot(current):
+            self._reconcile_file_list(agent, allow_initial_display=True)
+            self._start_background_fetch(agent)
+            return
 
         # Check for existing cache to display while refreshing
         cache_key = get_cache_key(agent)
@@ -464,28 +569,13 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         self._is_background_refreshing = False
 
         if event.state == WorkerState.SUCCESS:
-            # If diff content just arrived and extra files exist but the
-            # sentinel slot hasn't been added yet, insert it now and bump
-            # the current index so the user stays on the same file.
-            if self._current_agent and self._file_list:
-                ck = get_cache_key(self._current_agent)
-                ce = file_cache.get(ck)
-                if (
-                    ce is not None
-                    and ce.diff_output
-                    and _LIVE_DIFF_SENTINEL not in self._file_list
-                ):
-                    self._file_list.insert(0, _LIVE_DIFF_SENTINEL)
-                    self._current_file_index += 1
-                    self.post_message(
-                        FileListChanged(
-                            file_count=len(self._file_list),
-                            file_index=self._current_file_index,
-                        )
-                    )
-                    return  # Don't overwrite the static file display
+            if self._current_agent is not None:
+                self._reconcile_file_list(
+                    self._current_agent,
+                    allow_initial_display=False,
+                )
 
-            # If the user is viewing a static extra file (not the live diff),
+            # If the user is viewing a linked/static page (not the live diff),
             # don't overwrite it with the refreshed diff content.
             if self._file_list and (
                 self._current_file_index >= len(self._file_list)
@@ -537,10 +627,22 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         """Return the expanded path of the currently displayed file, or None."""
         if self._file_list:
             path = self._file_list[self._current_file_index]
-            if path == _LIVE_DIFF_SENTINEL:
+            if path == _LIVE_DIFF_SENTINEL or is_linked_slot(path):
                 return None
             return os.path.expanduser(path)
         return None
+
+    def current_source_label(self) -> str | None:
+        """Return a short label for the currently selected file-panel source."""
+        current = self._current_file_value()
+        if current is None:
+            return None
+        if current == _LIVE_DIFF_SENTINEL:
+            return "diff"
+        if is_linked_slot(current):
+            return f"{WORKSPACE_GLYPH} {linked_slot_repo_name(current)}"
+        expanded = os.path.expanduser(current)
+        return os.path.basename(expanded) or expanded
 
     def get_current_image_path(self) -> str | None:
         """Return the current existing image file path, or None."""
@@ -564,4 +666,5 @@ __all__ = [
     "FileTrimChanged",
     "FileVisibilityChanged",
     "_EXTENSION_TO_LEXER",
+    "_LIVE_DIFF_SENTINEL",
 ]

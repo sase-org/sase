@@ -2,6 +2,7 @@
 
 import tempfile
 import types
+from datetime import datetime
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -185,11 +186,17 @@ def _make_render_panel() -> MagicMock:
     panel._full_content_lexer = "text"
     panel._content_mode = "none"
     panel._static_header_path = None
+    panel._linked_repo_name = None
+    panel._linked_workspace_dir = None
+    panel._linked_fetched_at = None
     panel._static_request_id = 0
     panel._static_worker = None
 
     from sase.ace.tui.widgets.file_panel import AgentFilePanel
 
+    panel._build_linked_banner = types.MethodType(
+        AgentFilePanel._build_linked_banner, panel
+    )
     panel._post_file_visibility = types.MethodType(
         AgentFilePanel._post_file_visibility, panel
     )
@@ -294,3 +301,69 @@ def test_extension_to_lexer_mapping() -> None:
     assert _EXTENSION_TO_LEXER[".json"] == "json"
     assert _EXTENSION_TO_LEXER[".yml"] == "yaml"
     assert _EXTENSION_TO_LEXER[".sh"] == "bash"
+
+
+def test_display_linked_diff_renders_banner_and_raw_content() -> None:
+    """Linked diff pages render a repo banner and keep raw diff for copy/edit."""
+    from rich.console import Group
+    from rich.text import Text
+
+    from sase.ace.tui.widgets.file_panel import AgentFilePanel
+
+    panel = _make_render_panel()
+    diff_text = "diff --git a/lib.py b/lib.py\n--- a/lib.py\n+++ b/lib.py\n+new\n"
+
+    AgentFilePanel.display_linked_diff(
+        panel,
+        "sase-core",
+        "/tmp/sase-core",
+        diff_text,
+        datetime(2024, 1, 1, 12, 30, 0),
+    )
+
+    assert panel._content_mode == "linked_diff"
+    assert panel._full_content_lexer == "diff"
+    assert panel._full_content.startswith("# Last fetched: 12:30:00\n\n")
+    assert panel._last_file_content == diff_text
+    assert panel.post_message.call_args[0][0].has_file is True
+
+    group = panel.update.call_args[0][0]
+    assert isinstance(group, Group)
+    renderables = list(group._renderables)
+    assert isinstance(renderables[0], Text)
+    assert "▣ sase-core · linked repo" in str(renderables[0])
+    assert "/tmp/sase-core · fetched 12:30:00" in str(renderables[0])
+
+
+def test_linked_diff_trim_rerender_keeps_banner() -> None:
+    """Trim expand/reset re-renders linked diffs with their banner intact."""
+    from rich.console import Group
+    from rich.text import Text
+
+    from sase.ace.tui.widgets.file_panel import AgentFilePanel
+
+    panel = _make_render_panel()
+    panel._content_mode = "linked_diff"
+    panel._full_content = "# Last fetched: 12:30:00\n\n+one\n+two\n+three\n"
+    panel._full_content_lexer = "diff"
+    panel._linked_repo_name = "sase-core"
+    panel._linked_workspace_dir = "/tmp/sase-core"
+    panel._linked_fetched_at = datetime(2024, 1, 1, 12, 30, 0)
+    panel._total_line_count = 5
+    panel._visible_line_count = 3
+
+    AgentFilePanel._render_trimmed_content(panel)
+
+    group = panel.update.call_args[0][0]
+    assert isinstance(group, Group)
+    renderables = list(group._renderables)
+    assert isinstance(renderables[0], Text)
+    assert "▣ sase-core · linked repo" in str(renderables[0])
+
+    AgentFilePanel._render_full_content(panel)
+
+    group = panel.update.call_args[0][0]
+    assert isinstance(group, Group)
+    renderables = list(group._renderables)
+    assert isinstance(renderables[0], Text)
+    assert "▣ sase-core · linked repo" in str(renderables[0])

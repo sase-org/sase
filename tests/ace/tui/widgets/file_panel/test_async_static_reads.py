@@ -24,6 +24,7 @@ from sase.ace.tui.widgets.file_panel._display import (
     StaticReadResult,
     _read_static_file,
 )
+from sase.ace.tui.widgets.file_panel._messages import linked_slot_id
 
 
 def _make_render_panel() -> MagicMock:
@@ -227,6 +228,30 @@ def test_handle_static_read_result_drops_when_current_is_live_diff(
     panel = _make_render_panel()
     panel._static_request_id = 1
     panel._file_list = ["__live_diff__"]
+    panel._current_file_index = 0
+
+    result = StaticReadResult(
+        request_id=1,
+        mode="file",
+        path=str(tmp_path / "a.txt"),
+        expanded_path=str(tmp_path / "a.txt"),
+        status="ok",
+        content="x",
+        lexer="text",
+    )
+
+    AgentFilePanel._handle_static_read_result(panel, result)
+
+    panel.update.assert_not_called()
+
+
+def test_handle_static_read_result_drops_when_current_is_linked_diff(
+    tmp_path: Path,
+) -> None:
+    """If a linked diff slot is selected, a static result must not paint."""
+    panel = _make_render_panel()
+    panel._static_request_id = 1
+    panel._file_list = [linked_slot_id("sase-core")]
     panel._current_file_index = 0
 
     result = StaticReadResult(

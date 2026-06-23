@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from threading import Lock
 
 from sase.agent.status_buckets import status_bucket_for_values
@@ -28,6 +29,8 @@ class LinkedDeltaGroup:
     repo_name: str
     workspace_dir: str
     entries: tuple[DeltaEntry, ...]
+    diff_text: str = ""
+    fetched_at: datetime | None = None
 
 
 LinkedDeltaCacheKey = tuple[
@@ -167,6 +170,8 @@ def _compute_repo_group(
             repo_name=repo_name,
             workspace_dir=workspace_dir,
             entries=entries,
+            diff_text=diff_text,
+            fetched_at=datetime.now(),
         )
         if entries
         else None

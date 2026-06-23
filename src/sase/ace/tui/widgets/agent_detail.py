@@ -14,6 +14,7 @@ from ._agent_detail_panels import (
     DetailPanelMode,
 )
 from .file_panel import AgentFilePanel
+from .file_panel._messages import LinkedDeltasRefreshed
 from .prompt_panel import AgentPromptPanel
 from .tools_panel import AgentToolsPanel
 from ..util.trace import tui_trace
@@ -297,6 +298,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._trim_total_lines = 0
         self._trim_is_trimmed = False
         prompt_scroll.border_subtitle = ""
+        file_scroll.border_title = ""
         file_scroll.border_subtitle = ""
 
     def refresh_current_file(self, agent: Agent) -> None:
@@ -320,6 +322,20 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         """Cycle to the previous file in the file panel."""
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         file_panel.prev_file()
+
+    def on_linked_deltas_refreshed(self, message: LinkedDeltasRefreshed) -> None:
+        """Refresh file-panel linked pages after the prompt worker updates cache."""
+        if (
+            self._current_agent is None
+            or self._current_agent.identity != message.agent_identity
+        ):
+            return
+        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        file_panel._reconcile_file_list(
+            self._current_agent,
+            allow_initial_display=True,
+        )
+        message.stop()
 
     def toggle_layout(self) -> None:
         """Toggle between default (30/70) and swapped (70/30) layout."""

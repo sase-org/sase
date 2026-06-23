@@ -154,6 +154,8 @@ new file mode 100644
             line_stats=DeltaLineStats(added=1),
         ),
     )
+    assert groups[0].diff_text == provider.diff_by_workspace[str(core)]
+    assert groups[0].fetched_at is not None
     assert groups[1].entries == (
         DeltaEntry(
             path="plugin.lua",
@@ -161,6 +163,8 @@ new file mode 100644
             line_stats=DeltaLineStats(added=1),
         ),
     )
+    assert groups[1].diff_text == provider.diff_by_workspace[str(nvim)]
+    assert groups[1].fetched_at is not None
     assert provider.has_changes_calls == [str(core), str(clean), str(nvim)]
     assert provider.diff_calls == [str(core), str(nvim)]
     assert linked_deltas_mod.get_cached_linked_delta_groups(agent) == groups

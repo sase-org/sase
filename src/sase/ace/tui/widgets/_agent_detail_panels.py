@@ -212,6 +212,7 @@ class AgentDetailPanelMixin(Static):
         self._file_count = message.file_count
         self._file_index = message.file_index
         self._update_panel_indicators()
+        self._update_file_scroll_title()
 
     def on_file_trim_changed(self, message: FileTrimChanged) -> None:
         """Handle file trim state changes from the file panel.
@@ -255,6 +256,7 @@ class AgentDetailPanelMixin(Static):
         self._file_count = message.file_count
         self._file_index = message.file_index
         self._update_panel_indicators()
+        self._update_file_scroll_title()
 
         # Skip file visibility changes in TOOLS or INFO modes
         if self._panel_mode in (DetailPanelMode.TOOLS, DetailPanelMode.INFO):
@@ -302,6 +304,25 @@ class AgentDetailPanelMixin(Static):
                 style="dim #5FAFAF",
             )
 
+    def _current_file_source_label(self) -> str | None:
+        try:
+            file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        except Exception:
+            return None
+        return file_panel.current_source_label()
+
+    def _update_file_scroll_title(self) -> None:
+        """Update the file panel border title with the current page source."""
+        try:
+            file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+        except Exception:
+            return
+        label = self._current_file_source_label()
+        if label:
+            file_scroll.border_title = Text(label, style="bold green")
+        else:
+            file_scroll.border_title = ""
+
     def _update_panel_indicators(self) -> None:
         """Update the border subtitle on the prompt panel to show panel state."""
         try:
@@ -327,6 +348,9 @@ class AgentDetailPanelMixin(Static):
                     f" [{self._file_index + 1}/{self._file_count}]",
                     style="bold green",
                 )
+            source_label = self._current_file_source_label()
+            if source_label:
+                text.append(f" · {source_label}", style="bold green")
         elif self._has_file_content:
             text.append("●", style="green")
             text.append(" files", style="dim")
@@ -335,6 +359,9 @@ class AgentDetailPanelMixin(Static):
                     f" [{self._file_index + 1}/{self._file_count}]",
                     style="dim",
                 )
+            source_label = self._current_file_source_label()
+            if source_label:
+                text.append(f" · {source_label}", style="dim")
         else:
             text.append("○", style="dim")
             text.append(" files", style="dim")

@@ -17,12 +17,13 @@ from sase.ace.tui.graphics import (
 )
 
 from ...util.lazy_syntax import lazy_renderable
-from ._messages import _EXTENSION_TO_LEXER
-
-# Sentinel used in ``_file_list`` to represent the auto-refreshing live-diff
-# slot. Duplicated from ``__init__`` to avoid a circular import; the value
-# must stay in sync.
-_LIVE_DIFF_SENTINEL = "__live_diff__"
+from ..prompt_panel._agent_context_common import (
+    COLOR_WORKSPACE_GLYPH,
+    COLOR_WORKSPACE_NAME,
+    COLOR_WORKSPACE_PATH,
+    WORKSPACE_GLYPH,
+)
+from ._messages import _EXTENSION_TO_LEXER, _LIVE_DIFF_SENTINEL, is_linked_slot
 
 
 @dataclass
@@ -96,6 +97,9 @@ class FilePanelDisplayMixin:
 
     _full_content: str | None
     _static_header_path: str | None
+    _linked_repo_name: str | None
+    _linked_workspace_dir: str | None
+    _linked_fetched_at: datetime | None
     _static_request_id: int
     _static_worker: "Worker[StaticReadResult] | None"
 
@@ -196,6 +200,111 @@ class FilePanelDisplayMixin:
 
         self._has_displayed_content = True
 
+    def _build_linked_banner(
+        self,
+        repo_name: str | None = None,
+        workspace_dir: str | None = None,
+        fetched_at: datetime | None = None,
+    ) -> Text:
+        """Build the banner shown above linked-repository diffs."""
+        repo = repo_name or self._linked_repo_name or "linked repo"
+        workspace = workspace_dir or self._linked_workspace_dir
+        fetched = fetched_at if fetched_at is not None else self._linked_fetched_at
+
+        banner = Text()
+        banner.append(WORKSPACE_GLYPH, style=COLOR_WORKSPACE_GLYPH)
+        banner.append(f" {repo}", style=COLOR_WORKSPACE_NAME)
+        banner.append(" · linked repo", style="dim")
+        if workspace or fetched:
+            banner.append("\n")
+            if workspace:
+                banner.append(workspace, style=COLOR_WORKSPACE_PATH)
+            if fetched:
+                if workspace:
+                    banner.append(" · ", style="dim")
+                banner.append(
+                    f"fetched {fetched.strftime('%H:%M:%S')}",
+                    style="dim #87D7FF",
+                )
+        return banner
+
+    def display_linked_diff(
+        self,
+        repo_name: str,
+        workspace_dir: str,
+        diff_text: str,
+        fetched_at: datetime | None,
+    ) -> None:
+        """Display a cached linked-repository diff page."""
+        fetch_time = fetched_at or datetime.now()
+        self._last_file_content = diff_text
+        self._linked_repo_name = repo_name
+        self._linked_workspace_dir = workspace_dir
+        self._linked_fetched_at = fetch_time
+        self._static_header_path = None
+        self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
+        cleanup = self._consume_image_cleanup_segments()
+
+        diff_with_header = (
+            f"# Last fetched: {fetch_time.strftime('%H:%M:%S')}\n\n{diff_text}"
+        )
+
+        self._full_content = diff_with_header
+        self._full_content_lexer = "diff"
+        self._content_mode = "linked_diff"
+
+        total = self._count_lines(diff_with_header)  # type: ignore[attr-defined]
+        trim_size = self._compute_trim_size()  # type: ignore[attr-defined]
+        self._total_line_count = total
+        self._base_trim_size = trim_size
+
+        banner = self._build_linked_banner()
+        if trim_size > 0 and total > trim_size:
+            self._visible_line_count = trim_size
+            self._is_trimmed = True
+            syntax = lazy_renderable(
+                diff_with_header,
+                "diff",
+                line_numbers=True,
+                line_range=(1, trim_size),
+            )
+            remaining = total - trim_size
+            indicator = Text(
+                f"\n  ▾ {remaining} more lines below",
+                style="dim italic #87D7FF",
+            )
+            self.update(Group(*cleanup, banner, Text(""), syntax, indicator))  # type: ignore[attr-defined]
+            self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
+        else:
+            self._visible_line_count = total
+            self._is_trimmed = False
+            syntax = lazy_renderable(
+                diff_with_header,
+                "diff",
+                line_numbers=True,
+            )
+            self.update(Group(*cleanup, banner, Text(""), syntax))  # type: ignore[attr-defined]
+            if trim_size == 0:
+                self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
+
+        self._has_displayed_content = True
+        self._post_trim_changed()  # type: ignore[attr-defined]
+
+    def display_linked_diff_unavailable(self, repo_name: str) -> None:
+        """Display a temporary placeholder for a linked page whose cache vanished."""
+        cleanup = self._consume_image_cleanup_segments()
+        self._reset_trim_state()  # type: ignore[attr-defined]
+        self._last_file_content = None
+        self._linked_repo_name = repo_name
+        banner = self._build_linked_banner(repo_name=repo_name)
+        body = Text(
+            "No linked-repo changes are currently cached.\n", style="dim italic"
+        )
+        self.update(Group(*cleanup, banner, Text(""), body))  # type: ignore[attr-defined]
+        self._has_displayed_content = True
+        self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
+        self._post_trim_changed()  # type: ignore[attr-defined]
+
     def display_static_diff(self, diff_path: str) -> None:
         """Schedule an off-thread read of a static diff file.
 
@@ -256,7 +365,11 @@ class FilePanelDisplayMixin:
         file_list = getattr(self, "_file_list", None)
         if file_list:
             current = file_list[self._current_file_index]  # type: ignore[attr-defined]
-            if current == _LIVE_DIFF_SENTINEL or current != result.path:
+            if (
+                current == _LIVE_DIFF_SENTINEL
+                or is_linked_slot(current)
+                or current != result.path
+            ):
                 return
         if result.status == "image":
             # Edge case: the file's extension-based image detection diverged
