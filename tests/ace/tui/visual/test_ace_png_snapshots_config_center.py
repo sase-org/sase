@@ -22,10 +22,12 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from textual.widgets import Input
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals.config_center_modal import CenterTab, ConfigCenterModal
+from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
 from sase.ace.tui.modals.config_pane import ConfigPane
 from sase.config.core import ConfigLayer
 from sase.config.inventory import build_config_inventory, config_field_model
@@ -160,20 +162,18 @@ def _config_layers(*, long_value: bool = False) -> list[ConfigLayer]:
     ]
 
 
-def _build_view(
-    schema: dict[str, Any], layers: list[ConfigLayer]
-) -> cp._ConfigPaneView:
+def _build_view(schema: dict[str, Any], layers: list[ConfigLayer]) -> cp.ConfigPaneView:
     with patch(
         "sase.config.inventory.load_config_layers",
         return_value=layers,
     ):
         inventory = build_config_inventory(schema=schema)
     field_model = config_field_model(schema)
-    return cp._ConfigPaneView.build(field_model, inventory)
+    return cp.ConfigPaneView.build(field_model, inventory)
 
 
 def _patch_config_view(
-    monkeypatch: pytest.MonkeyPatch, view: cp._ConfigPaneView | None
+    monkeypatch: pytest.MonkeyPatch, view: cp.ConfigPaneView | None
 ) -> None:
     result = cp._LoadResult(view=view, error=None, token=("visual", 1))
     monkeypatch.setattr(cp, "_load_config_view", lambda **_kw: result)
@@ -360,5 +360,70 @@ async def test_config_center_xprompts_tab_png_snapshot(
             page,
             "config_center_xprompts_tab_120x40",
             title="ACE Config Center — XPrompts tab (migrated browser)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+# --- Phase 5: edit modal states -------------------------------------------
+
+
+async def _open_edit_modal(page: AcePage, path: str) -> ConfigEditModal:
+    """Open the Config edit modal for the leaf at *path*."""
+    _, pane = await _open_config_modal(page)
+    pane._do_jump(path)
+    await page.wait_for(lambda _s: pane._selected_path == path)
+    pane.action_edit_field()
+    await page.expect_modal("ConfigEditModal")
+    modal = page.app.screen
+    assert isinstance(modal, ConfigEditModal)
+    await page.wait_for(lambda _s: bool(modal.query("#config-edit-scope")))
+    return modal
+
+
+async def test_config_center_edit_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The edit stage: scope selector + typed editor for a string field."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await _open_edit_modal(page, "timezone")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_edit_modal_120x40",
+            title="ACE Config Center — edit field (scope + editor)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_config_center_edit_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The preview stage: target file, effective merge, validation, and diff."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        modal = await _open_edit_modal(page, "timezone")
+        modal.query_one("#config-edit-input", Input).value = "UTC"
+        modal.action_confirm()  # plan -> preview
+        await page.wait_for(lambda _s: modal._plan is not None)
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_edit_preview_120x40",
+            title="ACE Config Center — edit preview (diff + validation)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

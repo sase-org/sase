@@ -23,10 +23,11 @@ from sase.config.edit import (
     ConfigEditOp,
     apply_config_edit,
     plan_config_edit,
+    plan_repo_key_migration,
     set_key,
     unset_key,
 )
-from sase.config.inventory import build_config_inventory
+from sase.config.inventory import build_config_inventory, inventory_with_new_overlay
 from sase.config.targets import (
     CHEZMOI_HOME,
     chezmoi_source_path,
@@ -427,3 +428,110 @@ def test_overlay_config_path_normalizes_name() -> None:
 
     assert overlay_config_path("extra") == CONFIG_DIR / "sase_extra.yml"
     assert overlay_config_path("sase_foo.yml") == CONFIG_DIR / "sase_foo.yml"
+
+
+# --- Create-overlay target ------------------------------------------------
+
+
+def test_inventory_with_new_overlay_inserts_highest_priority_overlay(
+    tmp_path: Path,
+) -> None:
+    """A new overlay is added as the highest-priority writable overlay."""
+    user_file = tmp_path / "sase.yml"
+    user_file.write_text("timezone: US/Pacific\n", encoding="utf-8")
+    layers = [
+        _layer("default", data={"timezone": "America/New_York"}),
+        _layer(
+            "user",
+            path=str(user_file),
+            strategy="replace",
+            data={"timezone": "US/Pacific"},
+        ),
+    ]
+    inventory = _inventory(layers)
+    new_inventory, layer_name = inventory_with_new_overlay(inventory, "work")
+    assert layer_name == "overlay:sase_work.yml"
+    source = new_inventory.source(layer_name)
+    assert source is not None
+    assert source.writable and not source.exists
+    assert source.list_strategy == "concatenate"
+    # The new overlay can be targeted and wins over the user base.
+    plan = plan_config_edit(
+        new_inventory,
+        "timezone",
+        layer_name,
+        ConfigEditOp.set_value("UTC"),
+        use_chezmoi=False,
+    )
+    assert plan.effective_preview.after == "UTC"
+
+
+def test_inventory_with_new_overlay_is_idempotent_for_existing_name(
+    tmp_path: Path,
+) -> None:
+    overlay_file = tmp_path / "sase_extra.yml"
+    overlay_file.write_text("timezone: US/Eastern\n", encoding="utf-8")
+    layers = [
+        _layer("default", data={"timezone": "America/New_York"}),
+        _layer(
+            "overlay:sase_extra.yml",
+            path=str(overlay_file),
+            strategy="concatenate",
+            data={"timezone": "US/Eastern"},
+        ),
+    ]
+    inventory = _inventory(layers)
+    same, layer_name = inventory_with_new_overlay(inventory, "extra")
+    assert layer_name == "overlay:sase_extra.yml"
+    assert same is inventory  # unchanged: the overlay already exists
+
+
+# --- sibling_repos -> linked_repos migration ------------------------------
+
+
+_MIGRATION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "linked_repos": {
+            "type": "array",
+            "items": {"type": "object", "properties": {"name": {"type": "string"}}},
+            "default": [],
+        },
+        "sibling_repos": {
+            "type": "array",
+            "items": {"type": "object", "properties": {"name": {"type": "string"}}},
+        },
+    },
+}
+
+
+def _migration_inventory(tmp_path: Path, user_text: str) -> tuple[Any, Path]:
+    user_file = tmp_path / "sase.yml"
+    user_file.write_text(user_text, encoding="utf-8")
+    user_data = yaml.safe_load(user_text) if user_text.strip() else {}
+    layers = [
+        _layer("default", data={"linked_repos": []}),
+        _layer("user", path=str(user_file), strategy="replace", data=user_data or {}),
+    ]
+    return _inventory(layers, _MIGRATION_SCHEMA), user_file
+
+
+def test_plan_repo_key_migration_folds_and_removes(tmp_path: Path) -> None:
+    """Migration concatenates sibling_repos into linked_repos and removes it."""
+    inventory, user_file = _migration_inventory(
+        tmp_path,
+        "linked_repos:\n  - name: core\nsibling_repos:\n  - name: legacy\n",
+    )
+    plan = plan_repo_key_migration(inventory, use_chezmoi=False)
+    assert plan is not None
+    assert plan.is_valid
+    apply_config_edit(plan)
+    written = yaml.safe_load(user_file.read_text(encoding="utf-8"))
+    assert "sibling_repos" not in written
+    assert written["linked_repos"] == [{"name": "core"}, {"name": "legacy"}]
+
+
+def test_plan_repo_key_migration_none_when_not_set(tmp_path: Path) -> None:
+    inventory, _ = _migration_inventory(tmp_path, "linked_repos:\n  - name: core\n")
+    assert plan_repo_key_migration(inventory, use_chezmoi=False) is None

@@ -2969,6 +2969,114 @@ ConfigPane #config-pane-hints {
     margin-top: 1;
 }
 
+/* Config edit modal (Phase 5: scope / typed editor / preview / write) */
+ConfigEditModal {
+    align: center middle;
+}
+
+ConfigEditModal > Container {
+    width: 84;
+    height: auto;
+    max-height: 90%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+ConfigEditModal #config-edit-title {
+    text-style: bold;
+    height: 1;
+    margin-bottom: 1;
+}
+
+ConfigEditModal #config-edit-info {
+    height: auto;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+ConfigEditModal #config-edit-scope {
+    height: auto;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+ConfigEditModal #config-edit-banner {
+    height: auto;
+    margin-top: 1;
+}
+
+ConfigEditModal #config-edit-value {
+    height: auto;
+    margin-top: 1;
+}
+
+ConfigEditModal #config-edit-input {
+    width: 100%;
+    margin-top: 1;
+}
+
+ConfigEditModal #config-edit-textarea {
+    width: 100%;
+    height: 8;
+    margin-top: 1;
+    border: solid $secondary;
+}
+
+ConfigEditModal #config-edit-error {
+    height: auto;
+    margin-top: 1;
+}
+
+ConfigEditModal #config-edit-preview-scroll {
+    width: 100%;
+    height: auto;
+    max-height: 24;
+    margin-top: 1;
+}
+
+ConfigEditModal #config-edit-preview {
+    width: 100%;
+    height: auto;
+}
+
+ConfigEditModal #config-edit-hints {
+    height: 1;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+_OverlayNameModal {
+    align: center middle;
+}
+
+_OverlayNameModal > Container {
+    width: 60;
+    height: auto;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+_OverlayNameModal #overlay-name-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+_OverlayNameModal #overlay-name-help {
+    color: $text-muted;
+}
+
+_OverlayNameModal #overlay-name-input {
+    width: 100%;
+    margin-top: 1;
+}
+
+_OverlayNameModal #overlay-name-hints {
+    color: $text-muted;
+    margin-top: 1;
+}
+
 /* XPrompts tab (migrated XPrompt Browser body) */
 XPromptBrowserPane #browser-title {
     text-style: bold;

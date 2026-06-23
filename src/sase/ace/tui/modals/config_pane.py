@@ -85,7 +85,7 @@ InputMode = Literal["filter", "jump"]
 
 
 @dataclass(frozen=True)
-class _ConfigPaneView:
+class ConfigPaneView:
     """Joined, lookup-friendly view over the field model and inventory.
 
     The field model supplies the ordered tree structure and per-field schema
@@ -103,7 +103,7 @@ class _ConfigPaneView:
     @classmethod
     def build(
         cls, field_model: ConfigFieldModel, inventory: ConfigInventory
-    ) -> _ConfigPaneView:
+    ) -> ConfigPaneView:
         return cls(
             field_model=field_model,
             inventory=inventory,
@@ -191,7 +191,7 @@ def _ancestor_paths(path: str) -> list[str]:
 
 
 def _visible_leaf_paths(
-    view: _ConfigPaneView, *, filter_text: str = "", modified_only: bool = False
+    view: ConfigPaneView, *, filter_text: str = "", modified_only: bool = False
 ) -> list[str]:
     """Leaf paths passing the active filter + modified-only toggle, in order."""
     query = filter_text.strip().casefold()
@@ -211,7 +211,7 @@ def _visible_leaf_paths(
 
 
 def _visible_paths(
-    view: _ConfigPaneView, *, filter_text: str = "", modified_only: bool = False
+    view: ConfigPaneView, *, filter_text: str = "", modified_only: bool = False
 ) -> set[str]:
     """Every path to show: the visible leaves plus their ancestor sections."""
     leaves = _visible_leaf_paths(
@@ -223,7 +223,7 @@ def _visible_paths(
     return shown
 
 
-def _render_row_label(view: _ConfigPaneView, path: str) -> Text:
+def _render_row_label(view: ConfigPaneView, path: str) -> Text:
     """Tree row label: name + modified marker + winning-layer badge."""
     field = view.fields_by_path.get(path)
     if field is None:
@@ -249,7 +249,7 @@ def _render_row_label(view: _ConfigPaneView, path: str) -> Text:
     return text
 
 
-def _render_source_rail(view: _ConfigPaneView) -> Text:
+def _render_source_rail(view: ConfigPaneView) -> Text:
     """Render the source-rail body: one block per config layer."""
     text = Text()
     sources: tuple[ConfigSource, ...] = view.inventory.sources
@@ -319,7 +319,7 @@ def _abbreviate_path(path: str) -> str:
     return path
 
 
-def _render_detail(view: _ConfigPaneView, path: str | None) -> Text:
+def _render_detail(view: ConfigPaneView, path: str | None) -> Text:
     """Render the detail / provenance body for the selected *path*."""
     if path is None:
         return Text(
@@ -341,7 +341,7 @@ def _render_detail(view: _ConfigPaneView, path: str | None) -> Text:
 
 
 def _render_section_detail(
-    view: _ConfigPaneView, field: ConfigField, text: Text
+    view: ConfigPaneView, field: ConfigField, text: Text
 ) -> None:
     children = [
         child for child in view.field_model.fields if child.parent == field.path
@@ -352,7 +352,7 @@ def _render_section_detail(
         text.append(f"\n{field.description}\n", style=_MUTED)
 
 
-def _render_leaf_detail(view: _ConfigPaneView, field: ConfigField, text: Text) -> None:
+def _render_leaf_detail(view: ConfigPaneView, field: ConfigField, text: Text) -> None:
     type_label = "/".join(field.types) if field.types else field.kind
     text.append("type: ", style=_MUTED)
     text.append(type_label or "—")
@@ -385,7 +385,7 @@ def _render_leaf_detail(view: _ConfigPaneView, field: ConfigField, text: Text) -
     _render_provenance(view, field.path, text)
 
 
-def _render_provenance(view: _ConfigPaneView, path: str, text: Text) -> None:
+def _render_provenance(view: ConfigPaneView, path: str, text: Text) -> None:
     state = view.state_by_path.get(path)
     text.append("\nProvenance", style="bold")
     text.append("  (low → high priority)\n", style=_MUTED)
@@ -407,7 +407,7 @@ def _render_provenance(view: _ConfigPaneView, path: str, text: Text) -> None:
         text.append("\n")
 
 
-def _render_field_diagnostics(view: _ConfigPaneView, path: str, text: Text) -> None:
+def _render_field_diagnostics(view: ConfigPaneView, path: str, text: Text) -> None:
     diagnostics = [d for d in view.inventory.diagnostics if d.path == path]
     if not diagnostics:
         return
@@ -428,7 +428,7 @@ def _render_field_diagnostics(view: _ConfigPaneView, path: str, text: Text) -> N
 class _LoadResult:
     """The outcome of a (possibly cached) inventory load."""
 
-    view: _ConfigPaneView | None
+    view: ConfigPaneView | None
     error: str | None
     token: Any
 
@@ -463,7 +463,7 @@ def _load_config_view(
         field_model = config_field_model()
         inventory = build_config_inventory(local_paths=local_paths)
         result = _LoadResult(
-            view=_ConfigPaneView.build(field_model, inventory),
+            view=ConfigPaneView.build(field_model, inventory),
             error=None,
             token=token,
         )
@@ -531,6 +531,8 @@ class ConfigPane(Vertical):
         ("m", "toggle_modified", "Modified only"),
         ("colon", "jump_to_path", "Jump to path"),
         ("r", "refresh", "Refresh"),
+        ("e", "edit_field", "Edit"),
+        ("g", "migrate", "Migrate repos"),
     ]
 
     def __init__(
@@ -543,7 +545,7 @@ class ConfigPane(Vertical):
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._local_paths = tuple(local_paths)
         self._auto_load = auto_load
-        self._view: _ConfigPaneView | None = None
+        self._view: ConfigPaneView | None = None
         self._error: str | None = None
         self._loading = auto_load
         self._filter_text = ""
@@ -733,8 +735,8 @@ class ConfigPane(Vertical):
     def _hints(self) -> str:
         mod = "modified ✓" if self._modified_only else "modified"
         return (
-            f"j/k: move  /: filter  :: jump  m: {mod}  r: refresh  "
-            "[ / ]: switch tab  Esc: close"
+            f"j/k: move  ↵/e: edit  /: filter  :: jump  m: {mod}  g: migrate  "
+            "r: refresh  [ / ]: tab  Esc: close"
         )
 
     # -- tree selection events --
@@ -743,6 +745,17 @@ class ConfigPane(Vertical):
         data = event.node.data
         if isinstance(data, str):
             self._update_detail(data)
+
+    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+        """Enter / click on a leaf opens its editor (sections just toggle)."""
+        data = event.node.data
+        if isinstance(data, str):
+            view = self._view
+            if view is not None:
+                field = view.fields_by_path.get(data)
+                if field is not None and field.leaf:
+                    event.stop()
+                    self._open_editor(data)
 
     # -- actions --
 
@@ -785,6 +798,61 @@ class ConfigPane(Vertical):
     def action_refresh(self) -> None:
         _clear_view_cache()
         self._start_load(force=True)
+
+    def action_edit_field(self) -> None:
+        """Edit the selected leaf (or migrate, if it is the deprecated key)."""
+        path = self._selected_path
+        view = self._view
+        if path is None or view is None:
+            return
+        field = view.fields_by_path.get(path)
+        if field is None or not field.leaf:
+            return
+        if path == "sibling_repos" and view.is_modified("sibling_repos"):
+            self._open_migration()
+            return
+        self._open_editor(path)
+
+    def action_migrate(self) -> None:
+        """One-key ``sibling_repos`` → ``linked_repos`` migration."""
+        view = self._view
+        if view is None:
+            return
+        if "sibling_repos" not in view.fields_by_path or not view.is_modified(
+            "sibling_repos"
+        ):
+            self._error = None
+            self._update_static("#config-pane-hints", "no sibling_repos set to migrate")
+            return
+        self._open_migration()
+
+    def _open_editor(self, path: str) -> None:
+        view = self._view
+        if view is None:
+            return
+        field = view.fields_by_path.get(path)
+        if field is None or not field.leaf:
+            return
+        from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
+
+        self.app.push_screen(
+            ConfigEditModal(view, field=field), self._on_edit_dismissed
+        )
+
+    def _open_migration(self) -> None:
+        view = self._view
+        if view is None:
+            return
+        from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
+
+        self.app.push_screen(
+            ConfigEditModal.for_migration(view), self._on_edit_dismissed
+        )
+
+    def _on_edit_dismissed(self, result: Any) -> None:
+        """After a successful write, refresh the inventory to show the change."""
+        if result is not None:
+            self.action_refresh()
 
     def cancel_input(self) -> None:
         """Drop any in-progress filter and return focus to the tree."""
@@ -840,7 +908,7 @@ class ConfigPane(Vertical):
         self.focus_default()
 
     @staticmethod
-    def _match_path(view: _ConfigPaneView | None, query: str) -> str | None:
+    def _match_path(view: ConfigPaneView | None, query: str) -> str | None:
         if view is None:
             return None
         needle = query.strip().casefold()

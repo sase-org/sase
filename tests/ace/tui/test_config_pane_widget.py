@@ -20,17 +20,17 @@ from sase.config.inventory import build_config_inventory, config_field_model
 from tests.test_config_pane import _fixture_layers, _fixture_schema
 
 
-def _fixture_view() -> cp._ConfigPaneView:
+def _fixture_view() -> cp.ConfigPaneView:
     with patch(
         "sase.config.inventory.load_config_layers",
         return_value=_fixture_layers(),
     ):
         inventory = build_config_inventory(schema=_fixture_schema())
     field_model = config_field_model(_fixture_schema())
-    return cp._ConfigPaneView.build(field_model, inventory)
+    return cp.ConfigPaneView.build(field_model, inventory)
 
 
-def _patch_loaders(monkeypatch: pytest.MonkeyPatch) -> cp._ConfigPaneView:
+def _patch_loaders(monkeypatch: pytest.MonkeyPatch) -> cp.ConfigPaneView:
     view = _fixture_view()
     result = cp._LoadResult(view=view, error=None, token=("tok", 1))
     monkeypatch.setattr(cp, "_load_config_view", lambda **_kw: result)
@@ -119,3 +119,36 @@ async def test_config_pane_jump_selects_matching_path(
         pane._do_jump("chop")
         await page.wait_for(lambda _s: pane._selected_path == "axe.chop_script_dirs")
         assert "axe.chop_script_dirs" in pane._node_by_path
+
+
+async def test_config_pane_edit_opens_edit_modal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
+
+    _patch_loaders(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        pane._do_jump("timezone")
+        await page.wait_for(lambda _s: pane._selected_path == "timezone")
+        pane.action_edit_field()
+        await page.expect_modal("ConfigEditModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigEditModal)
+        assert modal._field is not None and modal._field.path == "timezone"
+
+
+async def test_config_pane_migrate_opens_migration_modal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
+
+    _patch_loaders(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        # The fixture user layer sets sibling_repos, so migration is available.
+        pane.action_migrate()
+        await page.expect_modal("ConfigEditModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigEditModal)
+        assert modal._mode == "migration"

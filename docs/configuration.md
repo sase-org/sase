@@ -6,6 +6,7 @@ and CLI flags.
 ## Table of Contents
 
 - [Config File Location](#config-file-location)
+- [Config Center (interactive editor)](#config-center-interactive-editor)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
   - [amd_h1_title](#amd_h1_title)
@@ -44,6 +45,32 @@ Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of
 `./sase.yml` in the current working directory usually takes highest priority. The ACE TUI deliberately disables
 project-local config loading for its own process so opening `sase ace` inside a repo does not inherit that repo's
 agent-run settings. See [Deep-Merge System](#deep-merge-system) below.
+
+## Config Center (interactive editor)
+
+Press `#` in the `sase ace` TUI to open the **Config Center**, a full-screen modal with two tabs (`[` / `]` switch
+between them): a schema-driven **Config** editor and the **XPrompts** browser.
+
+The Config tab answers four questions for every field — what value is effective, why (its provenance), where an edit
+will go, and whether it validates:
+
+- **Browse / inspect** (read-only): a source rail lists each config layer with loaded/missing/invalid/read-only badges;
+  the field tree is generated from the schema (`/` filters, `:` jumps to a dotted path, `m` shows only modified fields,
+  `r` refreshes); the detail pane shows the type, default, effective value, and the full provenance stack with the
+  winning layer marked.
+- **Edit** (`↵` or `e` on a field): a typed editor is generated from the schema — a toggle for booleans, an option cycle
+  for enums, validated inputs for numbers and strings, a line editor for string lists, and a raw-YAML escape hatch for
+  complex shapes. Pick the write **scope** (`ctrl+t` cycles user base / overlays / a selected local file; `ctrl+n`
+  creates a new overlay), or reset a field to its default (`ctrl+r`, which deletes the key from the chosen scope). A
+  banner states the list-merge consequence (replace vs. append) for the chosen scope.
+- **Preview / write** (`ctrl+s`): before anything is written you see the exact per-file text diff, the resulting
+  effective merged value, and schema validation of the candidate config. The write is source-preserving (comments, key
+  order, and quoting are kept) and is remapped to the chezmoi source tree when `use_chezmoi` is enabled.
+- **Migrate** (`g`, or `e` on the deprecated `sibling_repos` field): folds `sibling_repos` into
+  [`linked_repos`](#linked_repos) and removes the deprecated key in one step.
+
+The Config Center never writes without showing the diff and validation first, and never edits a built-in or plugin
+default (those layers are read-only).
 
 ## Deep-Merge System
 

@@ -403,6 +403,67 @@ class ConfigInventory:
         return None
 
 
+def overlay_layer_input(name: str) -> dict[str, Any]:
+    """Build a wire layer for a not-yet-created user overlay named *name*.
+
+    The new overlay is a writable, currently-missing ``concatenate`` layer at
+    the ``sase_<name>.yml`` user-config path. It is the highest-priority
+    overlay, so a value set here wins over the user base and other overlays
+    (local config, which ACE never loads, would still win if selected).
+    """
+    from sase.config.targets import overlay_config_path
+
+    path = overlay_config_path(name)
+    return {
+        "name": f"overlay:{path.name}",
+        "kind": "overlay",
+        "path": str(path),
+        "value": {},
+        "list_strategy": "concatenate",
+        "writable": True,
+        "exists": False,
+        "error": None,
+    }
+
+
+def inventory_with_new_overlay(
+    inventory: ConfigInventory, name: str
+) -> tuple[ConfigInventory, str]:
+    """Return a rebuilt inventory that includes a new overlay named *name*.
+
+    Inserts a synthetic, to-be-created overlay layer just below any local
+    layer (so it is the highest-priority overlay) and re-runs the Rust
+    inventory pass against the augmented stack. The Config Center uses this so
+    "create overlay" can be planned/previewed before the file exists. Returns
+    the new inventory and the synthetic overlay's layer name. When an overlay
+    with that name is already in the stack, the inventory is returned unchanged
+    alongside the existing layer name.
+    """
+    new_layer = overlay_layer_input(name)
+    layer_name: str = new_layer["name"]
+    layers = list(inventory.layer_inputs)
+    if any(layer.get("name") == layer_name for layer in layers):
+        return inventory, layer_name
+    insert_at = len(layers)
+    for index, layer in enumerate(layers):
+        if layer.get("kind") == "local":
+            insert_at = index
+            break
+    layers.insert(insert_at, new_layer)
+    request = {
+        "schema": inventory.schema,
+        "layers": layers,
+        "deprecations": dict(DEPRECATED_TOP_LEVEL_KEYS),
+        "unsupported": sorted(UNSUPPORTED_TOP_LEVEL_KEYS),
+    }
+    binding = require_rust_binding("config_inventory")
+    payload = binding(request)
+    new_inventory = ConfigInventory.from_wire(
+        payload, schema=inventory.schema, layer_inputs=layers
+    )
+    return new_inventory, layer_name
+
+
 def build_config_inventory(
     *,
     schema: dict[str, Any] | None = None,

@@ -101,7 +101,7 @@ def _fixture_layers() -> list[ConfigLayer]:
 
 
 @pytest.fixture
-def view() -> cp._ConfigPaneView:
+def view() -> cp.ConfigPaneView:
     schema = _fixture_schema()
     with patch(
         "sase.config.inventory.load_config_layers",
@@ -109,13 +109,13 @@ def view() -> cp._ConfigPaneView:
     ):
         inventory = build_config_inventory(schema=schema)
     field_model = config_field_model(schema=schema)
-    return cp._ConfigPaneView.build(field_model, inventory)
+    return cp.ConfigPaneView.build(field_model, inventory)
 
 
 # --- View join / derivations ----------------------------------------------
 
 
-def test_view_joins_model_and_inventory_by_path(view: cp._ConfigPaneView) -> None:
+def test_view_joins_model_and_inventory_by_path(view: cp.ConfigPaneView) -> None:
     assert "axe.max_hook_runners" in view.fields_by_path
     assert "axe.max_hook_runners" in view.state_by_path
     assert view.kind_by_layer["user"] == "user"
@@ -123,14 +123,14 @@ def test_view_joins_model_and_inventory_by_path(view: cp._ConfigPaneView) -> Non
 
 
 def test_winning_layer_is_highest_priority_contributor(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     assert view.winning_layer("timezone") == "user"
     assert view.winning_layer("axe.max_hook_runners") == "user"
 
 
 def test_is_modified_only_for_writable_layer_contributions(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     # Set by the user layer -> modified.
     assert view.is_modified("timezone") is True
@@ -140,7 +140,7 @@ def test_is_modified_only_for_writable_layer_contributions(
 
 
 def test_modified_paths_lists_writable_touched_leaves(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     modified = view.modified_paths()
     assert "timezone" in modified
@@ -153,7 +153,7 @@ def test_modified_paths_lists_writable_touched_leaves(
 
 
 def test_visible_leaf_paths_unfiltered_returns_all_leaves(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     leaves = cp._visible_leaf_paths(view)
     assert "timezone" in leaves
@@ -163,7 +163,7 @@ def test_visible_leaf_paths_unfiltered_returns_all_leaves(
 
 
 def test_visible_leaf_paths_filters_by_path_and_description(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     assert cp._visible_leaf_paths(view, filter_text="timezone") == ["timezone"]
     # Description match ("IANA timezone name.") even without a path hit.
@@ -173,14 +173,14 @@ def test_visible_leaf_paths_filters_by_path_and_description(
     assert set(axe_hits) == {"axe.max_hook_runners", "axe.chop_script_dirs"}
 
 
-def test_visible_leaf_paths_modified_only(view: cp._ConfigPaneView) -> None:
+def test_visible_leaf_paths_modified_only(view: cp.ConfigPaneView) -> None:
     leaves = cp._visible_leaf_paths(view, modified_only=True)
     assert "timezone" in leaves
     assert "use_chezmoi" not in leaves
 
 
 def test_visible_paths_includes_ancestor_sections(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     shown = cp._visible_paths(view, filter_text="max_hook")
     assert "axe.max_hook_runners" in shown
@@ -191,7 +191,7 @@ def test_visible_paths_includes_ancestor_sections(
 
 
 def test_render_row_label_marks_modified_and_winning_layer(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     label = cp._render_row_label(view, "timezone")
     assert "●" in label.plain  # modified marker
@@ -200,18 +200,18 @@ def test_render_row_label_marks_modified_and_winning_layer(
 
 
 def test_render_row_label_unmodified_has_no_marker(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     label = cp._render_row_label(view, "use_chezmoi")
     assert "●" not in label.plain
 
 
-def test_render_row_label_section_is_bare_name(view: cp._ConfigPaneView) -> None:
+def test_render_row_label_section_is_bare_name(view: cp.ConfigPaneView) -> None:
     label = cp._render_row_label(view, "axe")
     assert label.plain == "axe"
 
 
-def test_render_row_label_deprecated_field_struck(view: cp._ConfigPaneView) -> None:
+def test_render_row_label_deprecated_field_struck(view: cp.ConfigPaneView) -> None:
     label = cp._render_row_label(view, "sibling_repos")
     assert "sibling_repos" in label.plain
     spans = [s for s in label.spans if "strike" in str(s.style)]
@@ -222,7 +222,7 @@ def test_render_row_label_deprecated_field_struck(view: cp._ConfigPaneView) -> N
 
 
 def test_render_source_rail_lists_layers_with_badges(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     rail = cp._render_source_rail(view).plain
     assert "default" in rail
@@ -236,7 +236,7 @@ def test_render_source_rail_lists_layers_with_badges(
 
 
 def test_render_detail_shows_value_and_priority_ordered_provenance(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     detail = cp._render_detail(view, "timezone").plain
     assert "default:" in detail
@@ -249,7 +249,7 @@ def test_render_detail_shows_value_and_priority_ordered_provenance(
 
 
 def test_render_detail_flags_deprecation_and_replacement(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     detail = cp._render_detail(view, "sibling_repos").plain
     assert "DEPRECATED" in detail
@@ -257,14 +257,14 @@ def test_render_detail_flags_deprecation_and_replacement(
 
 
 def test_render_detail_section_summarizes_children(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     detail = cp._render_detail(view, "axe").plain
     assert "section" in detail
     assert "field(s)" in detail
 
 
-def test_render_detail_none_is_placeholder(view: cp._ConfigPaneView) -> None:
+def test_render_detail_none_is_placeholder(view: cp.ConfigPaneView) -> None:
     out = cp._render_detail(view, None)
     assert "Select a field" in out.plain
 
@@ -273,7 +273,7 @@ def test_render_detail_none_is_placeholder(view: cp._ConfigPaneView) -> None:
 
 
 def test_match_path_prefers_exact_then_prefix_then_substring(
-    view: cp._ConfigPaneView,
+    view: cp.ConfigPaneView,
 ) -> None:
     assert cp.ConfigPane._match_path(view, "timezone") == "timezone"
     assert cp.ConfigPane._match_path(view, "axe.max") == "axe.max_hook_runners"

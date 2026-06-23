@@ -23,6 +23,7 @@ side-effecting and must only run from a tracked background task.
 
 from __future__ import annotations
 
+import dataclasses
 import difflib
 from collections.abc import MutableMapping
 from dataclasses import dataclass
@@ -322,6 +323,66 @@ def plan_config_edit(
         new_text=new_text,
         text_diff=text_diff,
     )
+
+
+# --- Deprecated-key migration ---------------------------------------------
+
+
+def _migration_target_layer(inventory: ConfigInventory) -> dict[str, Any] | None:
+    """The highest-priority writable layer that sets ``sibling_repos``.
+
+    Layer inputs are ordered low → high priority, so the last writable match
+    is the one whose ``sibling_repos`` value actually wins. Returns ``None``
+    when no writable layer sets the deprecated key (nothing to migrate).
+    """
+    match: dict[str, Any] | None = None
+    for layer in inventory.layer_inputs:
+        value = layer.get("value")
+        if (
+            layer.get("writable")
+            and isinstance(value, dict)
+            and "sibling_repos" in value
+        ):
+            match = layer
+    return match
+
+
+def plan_repo_key_migration(
+    inventory: ConfigInventory, *, use_chezmoi: bool | None = None
+) -> EditPlanResult | None:
+    """Plan the ``sibling_repos`` → ``linked_repos`` migration.
+
+    Folds the deprecated ``sibling_repos`` list into ``linked_repos`` in the
+    one writable file where it is set: ``linked_repos`` becomes that file's
+    existing ``linked_repos`` followed by its ``sibling_repos`` entries, and
+    ``sibling_repos`` is removed. Reuses :func:`plan_config_edit` for the
+    ``linked_repos`` write-plan, candidate merge, effective preview, and
+    validation, then folds the ``sibling_repos`` removal into ``new_text`` /
+    ``text_diff`` so the previewed diff and the written bytes still agree.
+
+    Returns ``None`` when no writable layer sets ``sibling_repos``.
+    """
+    target = _migration_target_layer(inventory)
+    if target is None:
+        return None
+    value = target["value"]
+    existing = value.get("linked_repos")
+    siblings = value.get("sibling_repos")
+    existing_list = list(existing) if isinstance(existing, list) else []
+    sibling_list = list(siblings) if isinstance(siblings, list) else []
+    new_linked = [*existing_list, *sibling_list]
+
+    plan = plan_config_edit(
+        inventory,
+        "linked_repos",
+        target["name"],
+        ConfigEditOp.set_value(new_linked),
+        use_chezmoi=use_chezmoi,
+    )
+    combined_text = unset_key(plan.new_text, ("sibling_repos",))
+    write_path = Path(plan.target_path) if plan.target_path is not None else None
+    combined_diff = _unified_diff(plan.current_text, combined_text, write_path)
+    return dataclasses.replace(plan, new_text=combined_text, text_diff=combined_diff)
 
 
 # --- Write execution ------------------------------------------------------
