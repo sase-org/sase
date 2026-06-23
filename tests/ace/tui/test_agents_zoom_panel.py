@@ -278,6 +278,32 @@ def _collapsed_file_modal(agent: Agent) -> ZoomPanelModal:
     )
 
 
+def _write_named_files(tmp_path: Any, names: list[str]) -> list[str]:
+    """Write ``<name>.md`` files containing ``<name> file body`` and return paths."""
+    paths: list[str] = []
+    for name in names:
+        path = tmp_path / f"{name}.md"
+        path.write_text(f"{name} file body\n", encoding="utf-8")
+        paths.append(str(path))
+    return paths
+
+
+def _seeded_files_modal(paths: list[str], *, file_index: int = 0) -> ZoomPanelModal:
+    """Zoom modal opened on FILE with a fully seeded file list for a DONE agent."""
+    agent = _make_agent(status="DONE", extra_files=paths)
+    return ZoomPanelModal(
+        agent_provider=lambda: agent,
+        initial_agent=agent,
+        initial_target=ZoomPanelTarget.FILE,
+        seed=ZoomPanelSeed(
+            file_list=tuple(agent.all_files),
+            file_index=file_index,
+            has_file_content=True,
+        ),
+        refresh_interval=10,
+    )
+
+
 async def test_zoom_modal_z_closes() -> None:
     agent = _make_agent(status="DONE")
     modal = ZoomPanelModal(
@@ -409,6 +435,69 @@ async def test_zoom_next_file_shows_next_seeded_file(tmp_path: Any) -> None:
         assert str(second_path) in rendered
 
 
+async def test_zoom_prev_file_shows_previous_seeded_file(tmp_path: Any) -> None:
+    paths = _write_named_files(tmp_path, ["first", "second", "third"])
+    modal = _seeded_files_modal(paths, file_index=1)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        await _wait_for_file_content(pilot, panel, "second file body")
+
+        await pilot.press("ctrl+p")
+        rendered = await _wait_for_file_content(pilot, panel, "first file body")
+
+        assert panel.current_file_index == 0
+        assert panel._full_content == "first file body\n"
+        assert paths[0] in rendered
+
+
+async def test_zoom_prev_file_wraps_first_to_last(tmp_path: Any) -> None:
+    paths = _write_named_files(tmp_path, ["first", "second", "third"])
+    modal = _seeded_files_modal(paths, file_index=0)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        await _wait_for_file_content(pilot, panel, "first file body")
+
+        await pilot.press("ctrl+p")
+        rendered = await _wait_for_file_content(pilot, panel, "third file body")
+
+        assert panel.current_file_index == 2
+        assert panel._full_content == "third file body\n"
+        assert paths[2] in rendered
+
+
+async def test_zoom_next_file_wraps_last_to_first(tmp_path: Any) -> None:
+    paths = _write_named_files(tmp_path, ["first", "second", "third"])
+    modal = _seeded_files_modal(paths, file_index=2)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        await _wait_for_file_content(pilot, panel, "third file body")
+
+        await pilot.press("ctrl+n")
+        rendered = await _wait_for_file_content(pilot, panel, "first file body")
+
+        assert panel.current_file_index == 0
+        assert panel._full_content == "first file body\n"
+        assert paths[0] in rendered
+
+
 async def test_zoom_next_file_reveals_file_panel_from_metadata(
     tmp_path: Any,
 ) -> None:
@@ -495,6 +584,51 @@ async def test_zoom_revealed_file_panel_pages_after_first_press(
         assert str(first_path) in first_rendered
 
         await pilot.press("ctrl+n")
+        second_rendered = await _wait_for_file_content(
+            pilot,
+            panel,
+            "second file body",
+        )
+
+        assert panel.current_file_index == 1
+        assert panel._full_content == "second file body\n"
+        assert str(second_path) in second_rendered
+
+
+async def test_zoom_revealed_file_panel_reverse_pages_after_first_press(
+    tmp_path: Any,
+) -> None:
+    first_path = tmp_path / "first.md"
+    first_path.write_text("first file body\n", encoding="utf-8")
+    second_path = tmp_path / "second.md"
+    second_path.write_text("second file body\n", encoding="utf-8")
+
+    agent = _make_agent(
+        status="DONE",
+        extra_files=[str(first_path), str(second_path)],
+    )
+    modal = _collapsed_file_modal(agent)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        assert modal._target == ZoomPanelTarget.METADATA
+
+        # First press only reveals the file panel; it must not skip a file.
+        await pilot.press("ctrl+p")
+        first_rendered = await _wait_for_file_content(pilot, panel, "first file body")
+
+        assert modal._target == ZoomPanelTarget.FILE
+        assert panel.current_file_index == 0
+        assert panel._full_content == "first file body\n"
+        assert str(first_path) in first_rendered
+
+        # Second press reverse-pages, wrapping from the first file to the last.
+        await pilot.press("ctrl+p")
         second_rendered = await _wait_for_file_content(
             pilot,
             panel,
