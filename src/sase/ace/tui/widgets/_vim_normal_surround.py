@@ -163,12 +163,13 @@ class VimNormalSurroundMixin(VimNormalStateMixin):
 
         open_delim, close_delim = delimiters
         if open_delim == close_delim:
-            return self._same_char_surround_locations(open_delim)
+            return self._same_char_surround_locations(open_delim, count)
         return self._paired_surround_locations(key, open_delim, close_delim, count)
 
     def _same_char_surround_locations(
         self,
         delimiter: str,
+        count: int = 1,
     ) -> (
         tuple[
             tuple[int, int],
@@ -178,7 +179,13 @@ class VimNormalSurroundMixin(VimNormalStateMixin):
         ]
         | None
     ):
-        """Find a same-character delimiter pair enclosing the cursor."""
+        """Find a same-character delimiter pair enclosing the cursor.
+
+        Pairs the *count*-th unescaped delimiter before the cursor with the
+        *count*-th unescaped delimiter after it. Count ``1`` selects the
+        nearest enclosing pair; higher counts select successively outer pairs,
+        which is how doubled delimiters such as ``""foobar""`` are reached.
+        """
         row, col = self.cursor_location
         line = self.document.get_line(row)
         positions = [
@@ -186,18 +193,19 @@ class VimNormalSurroundMixin(VimNormalStateMixin):
             for index, char in enumerate(line)
             if char == delimiter and not self._is_escaped_delimiter(line, index)
         ]
-        pairs = [
-            (positions[index], positions[index + 1])
-            for index in range(0, len(positions) - 1, 2)
-        ]
-        for open_col, close_col in pairs:
-            if open_col <= col <= close_col:
-                open_loc = (row, open_col)
-                inner_start = (row, open_col + 1)
-                close_loc = (row, close_col)
-                outer_end = (row, close_col + 1)
-                return (open_loc, inner_start, close_loc, outer_end)
-        return None
+        before = [index for index in positions if index < col]
+        after = [index for index in positions if index > col]
+        count = max(1, count)
+        if len(before) < count or len(after) < count:
+            return None
+
+        open_col = before[-count]
+        close_col = after[count - 1]
+        open_loc = (row, open_col)
+        inner_start = (row, open_col + 1)
+        close_loc = (row, close_col)
+        outer_end = (row, close_col + 1)
+        return (open_loc, inner_start, close_loc, outer_end)
 
     def _paired_surround_locations(
         self,

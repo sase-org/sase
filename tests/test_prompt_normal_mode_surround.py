@@ -77,6 +77,34 @@ async def test_ds_custom_same_character_surround() -> None:
         assert page.text == "say hello now"
 
 
+async def test_ds_double_quote_doubled_removes_nearest_pair() -> None:
+    async with PromptPage('""foobar""', cursor=(0, 5)) as page:
+        await page.press("d", "s", '"')
+
+        assert page.text == '"foobar"'
+
+
+async def test_cs_double_quote_doubled_with_count_changes_outer_pair() -> None:
+    async with PromptPage('""foobar""', cursor=(0, 5)) as page:
+        await page.press("2", "c", "s", '"', "'")
+
+        assert page.text == "'\"foobar\"'"
+
+
+async def test_ds_custom_doubled_same_character_surround() -> None:
+    async with PromptPage("**foobar**", cursor=(0, 5)) as page:
+        await page.press("d", "s", "*")
+
+        assert page.text == "*foobar*"
+
+
+async def test_cs_double_quote_doubled_changes_nearest_pair() -> None:
+    async with PromptPage('""foobar""', cursor=(0, 5)) as page:
+        await page.press("c", "s", '"', "'")
+
+        assert page.text == "\"'foobar'\""
+
+
 async def test_ds_without_matching_surround_is_noop() -> None:
     async with PromptPage("plain text", cursor=(0, 2)) as page:
         await page.press("d", "s", '"')

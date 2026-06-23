@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 17:57:28
-status: wip
+status: done
 prompt: sdd/prompts/202606/surround_doubled_delimiters.md
 ---
 # Fix doubled same-character surround delimiters
