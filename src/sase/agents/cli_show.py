@@ -13,6 +13,7 @@ from rich.text import Text
 
 from sase.agent.names import find_named_agent
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
+from sase.llm_provider.model_label import append_model_field
 
 
 def handle_agents_show(args: argparse.Namespace) -> None:
@@ -48,12 +49,14 @@ def handle_agents_show(args: argparse.Namespace) -> None:
     body.append("Project: ", style="bold")
     body.append(f"{project}\n")
 
-    if meta.get("model"):
-        body.append("Model: ", style="bold")
-        body.append(f"{meta['model']}\n")
-    if meta.get("llm_provider"):
-        body.append("Provider: ", style="bold")
-        body.append(f"{meta['llm_provider']}\n")
+    # Uniform ``Model: PROVIDER(model) @ <effort>`` shape shared with the ACE
+    # TUI so the effective model/provider/reasoning-effort reads identically.
+    append_model_field(
+        body,
+        _optional_str(meta.get("model")),
+        _optional_str(meta.get("llm_provider")),
+        _optional_str(meta.get("reasoning_effort")),
+    )
     if meta.get("pid"):
         body.append("PID: ", style="bold")
         body.append(f"{meta['pid']}\n")
@@ -93,3 +96,7 @@ def _read_json(path: Path) -> dict[str, object]:
     if not isinstance(loaded, dict):
         return {}
     return loaded
+
+
+def _optional_str(value: object) -> str | None:
+    return value if isinstance(value, str) else None

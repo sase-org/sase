@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 14:38:57
-status: wip
+status: done
 prompt: sdd/prompts/202606/reasoning_effort_agent_metadata.md
 ---
 # Plan: Restore Reasoning-Effort Metadata in Agent Panels

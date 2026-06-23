@@ -262,3 +262,79 @@ def test_rust_scan_projects_reasoning_effort(tmp_path: Path) -> None:
     assert record.agent_meta is not None
     assert record.agent_meta.reasoning_effort == "xhigh"
     assert record.prompt_steps[0].reasoning_effort == "high"
+
+
+# --- `sase agent show` CLI detail panel ------------------------------------
+
+
+def _show_agent_with_meta(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    meta: dict[str, object],
+) -> str:
+    """Render ``sase agent show`` for an agent whose meta is ``meta``.
+
+    Stubs ``find_named_agent`` so the test exercises only the detail-panel
+    display path, not the artifact-scan lookup. Returns captured stdout.
+    """
+    import argparse
+
+    from sase.agent.names._common import NamedAgent
+    from sase.agents import cli_show
+
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
+
+    agent = NamedAgent(
+        name="04m.1",
+        artifacts_dir=str(artifacts_dir),
+        is_done=False,
+        outcome=None,
+    )
+
+    def _stub_find(name: str) -> NamedAgent:
+        assert name == "04m.1"
+        return agent
+
+    monkeypatch.setattr(cli_show, "find_named_agent", _stub_find)
+    # Keep the rendered panel on single lines so assertions are wrap-stable.
+    monkeypatch.setenv("COLUMNS", "200")
+
+    cli_show.handle_agents_show(argparse.Namespace(name="04m.1"))
+    return capsys.readouterr().out
+
+
+def test_agent_show_cli_renders_effort_suffix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI detail panel renders the uniform ``@ <effort>`` suffix."""
+    out = _show_agent_with_meta(
+        tmp_path,
+        monkeypatch,
+        capsys,
+        {"model": "opus", "llm_provider": "claude", "reasoning_effort": "xhigh"},
+    )
+
+    assert "CLAUDE" in out
+    assert "@ xhigh" in out
+
+
+def test_agent_show_cli_omits_suffix_without_effort(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """With no effort recorded the CLI keeps the bare model/provider label."""
+    out = _show_agent_with_meta(
+        tmp_path,
+        monkeypatch,
+        capsys,
+        {"model": "opus", "llm_provider": "claude"},
+    )
+
+    assert "CLAUDE" in out
+    assert " @ " not in out
