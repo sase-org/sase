@@ -276,7 +276,7 @@ class StartupMixin(StateInitMixin):
             )
             self._agents_refresh_scheduled_source = "startup"  # type: ignore[attr-defined]
             self.run_worker(  # type: ignore[attr-defined]
-                cast(Any, self._run_agents_async_refresh),  # type: ignore[attr-defined]
+                cast(Any, self._run_agent_index_startup_prepare_and_refresh),
                 thread=False,
                 exclusive=False,
                 group="startup-loads",
@@ -302,6 +302,37 @@ class StartupMixin(StateInitMixin):
             self._start_artifact_watcher()
         except Exception:
             log.exception("Failed to start artifact inotify watcher")
+
+    async def _run_agent_index_startup_prepare_and_refresh(self) -> None:
+        """Refresh stale index projections before the first agents query."""
+        try:
+            await self._run_agent_index_startup_prepare()
+        finally:
+            await self._run_agents_async_refresh()  # type: ignore[attr-defined]
+
+    async def _run_agent_index_startup_prepare(self) -> None:
+        """Run cheap pre-query index maintenance off the first-paint path."""
+        import asyncio
+
+        from sase.core.agent_artifact_index_lifecycle import (
+            refresh_agent_artifact_index_if_schema_stale,
+        )
+        from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
+
+        try:
+            report = await asyncio.to_thread(
+                refresh_agent_artifact_index_if_schema_stale
+            )
+        except Exception:
+            log.exception("Startup artifact-index schema refresh failed")
+            return
+        if report.refreshed:
+            log.info(
+                "rebuilt stale agent artifact index: schema %s -> %s, rows=%s",
+                report.stored_schema_version,
+                AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
+                report.rows_indexed,
+            )
 
     def _schedule_dismissed_index_startup_sync(self) -> None:
         """Schedule dismissed-index maintenance after startup agents load."""

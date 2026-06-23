@@ -116,7 +116,7 @@ def test_start_post_mount_background_loads_schedules_both_once() -> None:
         app._start_post_mount_background_loads()
         app._start_post_mount_background_loads()
 
-    assert scheduled.count(app._run_agents_async_refresh) == 1
+    assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
     assert scheduled.count(app._run_axe_startup_init) == 1
     assert app._post_mount_background_loads_started is True
 
@@ -135,6 +135,9 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
             self.axe_done = asyncio.Event()
             self.tasks: list[asyncio.Task[None]] = []
 
+        async def _run_agent_index_startup_prepare_and_refresh(self) -> None:
+            await self._run_agents_async_refresh()
+
         async def _run_agents_async_refresh(self) -> None:
             self.agent_started.set()
             await self.agent_release.wait()
@@ -144,6 +147,9 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
             self.axe_done.set()
 
         def _schedule_dismissed_index_startup_sync(self) -> None:
+            pass
+
+        def _start_artifact_watcher(self) -> None:
             pass
 
         def run_worker(self, fn, **kwargs) -> None:  # type: ignore[no-untyped-def]

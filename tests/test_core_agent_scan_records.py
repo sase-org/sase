@@ -11,6 +11,10 @@ import json
 import sqlite3
 from pathlib import Path
 
+from sase.ace.tui.models._loaders._meta_enrichment_wire import (
+    enrich_agent_from_meta_wire,
+)
+from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.core.agent_scan_facade import (
     query_agent_artifact_index,
     rebuild_agent_artifact_index,
@@ -184,6 +188,95 @@ def test_running_record_carries_output_variables_through_scan_and_index(
         "report_path": "/tmp/report.md",
         "status": "ok",
     }
+
+
+def test_running_record_linked_repos_survive_scan_index_and_enrichment(
+    fixture_root: Path,
+    tmp_path: Path,
+) -> None:
+    meta_path = (
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "ace-run"
+        / TS_ACE_RUN_RUNNING
+        / "agent_meta.json"
+    )
+    data = json.loads(meta_path.read_text(encoding="utf-8"))
+    data["linked_repos"] = [
+        {
+            "name": "sase-core",
+            "workspace_dir": "/tmp/workspaces/sase-core_14",
+            "workspace_strategy": "suffix",
+        },
+        "ignored",
+        {
+            "name": "sase-github",
+            "workspace_dir": "/tmp/workspaces/sase-github_14",
+            "workspace_strategy": "suffix",
+        },
+    ]
+    meta_path.write_text(json.dumps(data), encoding="utf-8")
+
+    snapshot = scan_agent_artifacts(fixture_root)
+    rec = record_by_timestamp(snapshot, TS_ACE_RUN_RUNNING)
+    assert rec.agent_meta is not None
+    assert rec.agent_meta.linked_repos == [
+        {
+            "name": "sase-core",
+            "workspace_dir": "/tmp/workspaces/sase-core_14",
+            "workspace_strategy": "suffix",
+        },
+        {
+            "name": "sase-github",
+            "workspace_dir": "/tmp/workspaces/sase-github_14",
+            "workspace_strategy": "suffix",
+        },
+    ]
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(index_path, fixture_root)
+    indexed = query_agent_artifact_index(
+        index_path,
+        fixture_root,
+        AgentArtifactIndexQueryWire(
+            include_active=True,
+            include_recent_completed=False,
+            include_full_history=False,
+            active_limit=None,
+            recent_completed_limit=None,
+            include_hidden=True,
+        ),
+    )
+    indexed_rec = record_by_timestamp(indexed, TS_ACE_RUN_RUNNING)
+    assert indexed_rec.agent_meta is not None
+
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature_alpha",
+        project_file=str(fixture_root / "myproj" / "myproj.sase"),
+        status="STARTING",
+        start_time=None,
+    )
+    enrich_agent_from_meta_wire(
+        agent,
+        indexed_rec.agent_meta,
+        indexed_rec.waiting,
+        indexed_rec.pending_question,
+    )
+
+    assert agent.linked_repos == (
+        LinkedRepoMetadata(
+            name="sase-core",
+            workspace_dir="/tmp/workspaces/sase-core_14",
+            workspace_strategy="suffix",
+        ),
+        LinkedRepoMetadata(
+            name="sase-github",
+            workspace_dir="/tmp/workspaces/sase-github_14",
+            workspace_strategy="suffix",
+        ),
+    )
 
 
 def test_index_query_honors_project_filters(

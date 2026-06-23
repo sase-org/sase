@@ -59,7 +59,7 @@ def test_start_post_mount_background_loads_schedules_dismissed_sync_once() -> No
         app._start_post_mount_background_loads()
         app._start_post_mount_background_loads()
 
-        assert scheduled.count(app._run_agents_async_refresh) == 1
+        assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
         assert scheduled.count(app._run_dismissed_index_startup_sync) == 0
         callbacks = list(app._agents_refresh_pending_callbacks)
         assert len(callbacks) == 1
@@ -80,6 +80,10 @@ async def test_startup_dismissed_sync_waits_for_initial_agents_refresh() -> None
             self.dismissed_done = asyncio.Event()
             self.events: list[str] = []
             self.tasks: list[asyncio.Task[None]] = []
+
+        async def _run_agent_index_startup_prepare_and_refresh(self) -> None:
+            self.events.append("prepare-start")
+            await self._run_agents_async_refresh()
 
         async def _run_agents_async_refresh(self) -> None:
             self.events.append("agents-start")
@@ -113,6 +117,7 @@ async def test_startup_dismissed_sync_waits_for_initial_agents_refresh() -> None
 
     await asyncio.wait_for(harness.agent_started.wait(), timeout=0.2)
     assert "dismissed-start" not in harness.events
+    assert harness.events.index("prepare-start") < harness.events.index("agents-start")
 
     harness.agent_release.set()
     await asyncio.wait_for(harness.dismissed_done.wait(), timeout=0.2)

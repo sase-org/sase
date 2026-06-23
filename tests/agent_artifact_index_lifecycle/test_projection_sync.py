@@ -1,20 +1,34 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 from sase.ace.tui.models.agent import AgentType
 from sase.core.agent_artifact_index_lifecycle import (
     build_dismissed_agent_projection_inputs,
+    refresh_agent_artifact_index_if_schema_stale,
     sync_dismissed_agent_artifact_index,
     sync_dismissed_agent_artifact_index_report,
 )
-from sase.core.agent_scan_wire import AgentArtifactIndexUpdateWire
+from sase.core.agent_scan_wire import (
+    AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
+    AgentArtifactIndexUpdateWire,
+)
 
 from .helpers import (
     install_projection_meta_store,
     read_projection_meta,
     write_projection_meta,
 )
+
+
+def _write_index_schema_version(index: Path, version: int) -> None:
+    with sqlite3.connect(index) as conn:
+        conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        conn.execute(
+            "INSERT OR REPLACE INTO meta(key, value) VALUES ('schema_version', ?)",
+            (str(version),),
+        )
 
 
 def test_sync_dismissed_agent_artifact_index_serializes_identities(
@@ -244,6 +258,69 @@ def test_active_tier_maintenance_marks_fast_path_report_changed(
     assert report.synced
     assert report.changed
     assert report.terminalized_active_rows == 3
+
+
+def test_stale_schema_refresh_rebuilds_before_index_query(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    index = tmp_path / "agent_artifact_index.sqlite"
+    projects_root = tmp_path / "projects"
+    projects_root.mkdir()
+    _write_index_schema_version(index, AGENT_ARTIFACT_INDEX_SCHEMA_VERSION - 1)
+    calls: list[tuple[Path, Path]] = []
+
+    def fake_rebuild(
+        index_path: Path,
+        root: Path,
+        options: object,
+    ) -> AgentArtifactIndexUpdateWire:
+        del options
+        calls.append((Path(index_path), Path(root)))
+        return AgentArtifactIndexUpdateWire(
+            schema_version=AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
+            index_path=str(index_path),
+            projects_root=str(root),
+            rows_indexed=7,
+        )
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle.rebuild_agent_artifact_index",
+        fake_rebuild,
+    )
+
+    report = refresh_agent_artifact_index_if_schema_stale(
+        index_path=index,
+        projects_root=projects_root,
+    )
+
+    assert calls == [(index, projects_root)]
+    assert report.checked
+    assert report.refreshed
+    assert report.stored_schema_version == AGENT_ARTIFACT_INDEX_SCHEMA_VERSION - 1
+    assert report.rows_indexed == 7
+
+
+def test_current_schema_refresh_skips_rebuild(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    index = tmp_path / "agent_artifact_index.sqlite"
+    _write_index_schema_version(index, AGENT_ARTIFACT_INDEX_SCHEMA_VERSION)
+
+    def fail_rebuild(*args: object, **kwargs: object) -> object:
+        raise AssertionError("current schema should not rebuild")
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle.rebuild_agent_artifact_index",
+        fail_rebuild,
+    )
+
+    report = refresh_agent_artifact_index_if_schema_stale(index_path=index)
+
+    assert report.checked
+    assert not report.refreshed
+    assert report.stored_schema_version == AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
 
 
 def test_authoritative_dismissed_sync_bypasses_matching_metadata(
