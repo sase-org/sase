@@ -375,7 +375,7 @@ DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {"sibling_repos": "linked_repos"}
 
 
 @dataclass
-class _ConfigLayer:
+class ConfigLayer:
     """Describes a single layer in the config merge chain."""
 
     name: str
@@ -407,7 +407,7 @@ def _collect_deprecated_keys(data: dict[str, Any] | None) -> list[str]:
     return sorted(key for key in data if key in DEPRECATED_TOP_LEVEL_KEYS)
 
 
-def _load_yaml_file_with_metadata(
+def load_yaml_file_with_metadata(
     path: Path,
 ) -> tuple[bool, dict[str, Any] | None, str | None]:
     """Load a YAML mapping and keep missing/invalid metadata separate."""
@@ -431,21 +431,21 @@ def _load_yaml_file_with_metadata(
     )
 
 
-def load_config_layers() -> list[_ConfigLayer]:
+def load_config_layers() -> list[ConfigLayer]:
     """Load all config layers with metadata, without merging.
 
-    Returns a list of _ConfigLayer descriptors in merge order (lowest to highest
+    Returns a list of ConfigLayer descriptors in merge order (lowest to highest
     priority).  Each entry records the source path, whether the file existed,
     which top-level keys it contributed, and the raw data.
     """
     from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
-    layers: list[_ConfigLayer] = []
+    layers: list[ConfigLayer] = []
 
     # 1. Built-in default
     default_data = _load_default_config()
     layers.append(
-        _ConfigLayer(
+        ConfigLayer(
             name="default",
             path=None,
             exists=True,
@@ -468,7 +468,7 @@ def load_config_layers() -> list[_ConfigLayer]:
                 data = yaml.safe_load(text)
                 if isinstance(data, dict):
                     layers.append(
-                        _ConfigLayer(
+                        ConfigLayer(
                             name=f"plugin:{module_name}",
                             path=None,
                             exists=True,
@@ -482,7 +482,7 @@ def load_config_layers() -> list[_ConfigLayer]:
                     )
             except Exception:
                 layers.append(
-                    _ConfigLayer(
+                    ConfigLayer(
                         name=f"plugin:{module_name}",
                         path=None,
                         exists=False,
@@ -494,9 +494,9 @@ def load_config_layers() -> list[_ConfigLayer]:
 
     # 3. User config
     base_path = CONFIG_DIR / "sase.yml"
-    user_present, user_data, user_error = _load_yaml_file_with_metadata(base_path)
+    user_present, user_data, user_error = load_yaml_file_with_metadata(base_path)
     layers.append(
-        _ConfigLayer(
+        ConfigLayer(
             name="user",
             path=str(base_path),
             exists=user_data is not None,
@@ -512,11 +512,11 @@ def load_config_layers() -> list[_ConfigLayer]:
 
     # 4. Overlay files
     for overlay_path in _get_overlay_paths():
-        overlay_present, overlay_data, overlay_error = _load_yaml_file_with_metadata(
+        overlay_present, overlay_data, overlay_error = load_yaml_file_with_metadata(
             overlay_path
         )
         layers.append(
-            _ConfigLayer(
+            ConfigLayer(
                 name=f"overlay:{overlay_path.name}",
                 path=str(overlay_path),
                 exists=overlay_data is not None,
@@ -533,11 +533,11 @@ def load_config_layers() -> list[_ConfigLayer]:
     # 5. Local config
     local_path = _get_local_config_path()
     if local_path:
-        local_present, local_data, local_error = _load_yaml_file_with_metadata(
+        local_present, local_data, local_error = load_yaml_file_with_metadata(
             local_path
         )
         layers.append(
-            _ConfigLayer(
+            ConfigLayer(
                 name="local",
                 path=str(local_path),
                 exists=local_data is not None,
@@ -552,7 +552,7 @@ def load_config_layers() -> list[_ConfigLayer]:
         )
     else:
         layers.append(
-            _ConfigLayer(
+            ConfigLayer(
                 name="local",
                 path=str(Path.cwd() / "sase.yml"),
                 exists=False,

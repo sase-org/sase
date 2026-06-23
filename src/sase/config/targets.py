@@ -1,0 +1,117 @@
+"""Write-target & scope resolution for config edits.
+
+Pure path/policy helpers used when planning and executing a config write:
+chezmoi source remapping (so an edit to a home-managed file is written to the
+chezmoi source, not the applied copy), the create-overlay target path, the
+defaulting rules for which writable layer to target, and a thin ``chezmoi
+apply`` wrapper.
+
+No Textual imports: callable from a worker thread. The ``chezmoi apply`` helper
+is side-effecting (subprocess) and must only run from a tracked background task.
+"""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+from sase.config.core import CHEZMOI_HOME, CONFIG_DIR
+from sase.config.inventory import ConfigInventory, ConfigSource
+
+
+def chezmoi_source_path(target: Path) -> Path:
+    """Map a home-managed config path to its chezmoi source path.
+
+    chezmoi encodes a dotfile/dir whose name starts with ``.`` using a
+    ``dot_`` prefix, rooted at ``~/.local/share/chezmoi/home``. For example
+    ``~/.config/sase/sase.yml`` maps to
+    ``~/.local/share/chezmoi/home/dot_config/sase/sase.yml`` (the same scheme
+    used by the xprompt location modal). A path that is not under ``$HOME`` is
+    not chezmoi-managed and is returned unchanged.
+    """
+    home = Path.home()
+    try:
+        rel = target.expanduser().relative_to(home)
+    except ValueError:
+        return target
+    parts = [f"dot_{part[1:]}" if part.startswith(".") else part for part in rel.parts]
+    return CHEZMOI_HOME.joinpath(*parts)
+
+
+def resolve_write_path(file: str | None, *, use_chezmoi: bool) -> Path | None:
+    """Resolve the actual file an edit is written to.
+
+    When *use_chezmoi* is enabled, home-managed targets are remapped to their
+    chezmoi source (see :func:`chezmoi_source_path`); project-local files
+    outside ``$HOME`` are never remapped. Returns ``None`` when *file* is
+    ``None`` (no file-backed target, e.g. a package-default layer).
+    """
+    if file is None:
+        return None
+    target = Path(file)
+    if use_chezmoi:
+        return chezmoi_source_path(target)
+    return target
+
+
+def overlay_config_path(name: str) -> Path:
+    """Return the user-overlay path for *name* (the create-overlay target).
+
+    Normalizes to the ``sase_<name>.yml`` convention under the user config
+    directory, accepting names already carrying the prefix and/or extension.
+    """
+    stem = name if name.startswith("sase_") else f"sase_{name}"
+    if not stem.endswith(".yml"):
+        stem = f"{stem}.yml"
+    return CONFIG_DIR / stem
+
+
+def _writable_sources(inventory: ConfigInventory) -> list[ConfigSource]:
+    """Return the writable source rows (candidate write targets), in order."""
+    return [src for src in inventory.sources if src.writable]
+
+
+def _existing_writable_sources(inventory: ConfigInventory) -> list[ConfigSource]:
+    """Return the writable source rows whose file already exists."""
+    return [src for src in inventory.sources if src.writable and src.exists]
+
+
+def default_target_layer(
+    inventory: ConfigInventory, *, force_explicit: bool = False
+) -> str | None:
+    """Pick a sensible default writable target layer name.
+
+    Defaulting rules (from the research):
+
+    - When *force_explicit* (e.g. editing a list-valued field, where the
+      replace-vs-concatenate consequence differs per layer), return ``None`` so
+      the caller forces an explicit choice.
+    - A single existing mutable source → target it.
+    - Otherwise fall back to the user base layer, then to the first writable
+      source, then ``None`` when nothing is writable.
+    """
+    if force_explicit:
+        return None
+    existing = _existing_writable_sources(inventory)
+    if len(existing) == 1:
+        return existing[0].name
+    for src in inventory.sources:
+        if src.writable and src.kind == "user":
+            return src.name
+    writable = _writable_sources(inventory)
+    return writable[0].name if writable else None
+
+
+def apply_chezmoi(
+    path: Path | str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run ``chezmoi apply`` (optionally scoped to a single target *path*).
+
+    Side-effecting subprocess; only ever call from a tracked background task.
+    Returns the completed process so the caller can surface stdout/stderr; a
+    non-zero exit is not raised here.
+    """
+    cmd = ["chezmoi", "apply"]
+    if path is not None:
+        cmd.append(str(path))
+    return subprocess.run(cmd, capture_output=True, text=True, check=False)
