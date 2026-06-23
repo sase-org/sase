@@ -2889,7 +2889,7 @@ ConfigCenterModal XPromptBrowserPane {
     height: 100%;
 }
 
-/* Config tab skeleton (Phase 3 placeholder; filled by Phases 4-5) */
+/* Config tab: schema-driven read-only browser (Phase 4) */
 ConfigPane #config-pane-title {
     text-style: bold;
     height: 1;
@@ -2908,12 +2908,35 @@ ConfigPane #config-source-rail {
     padding: 0 1;
 }
 
+ConfigPane #config-source-scroll {
+    width: 100%;
+    height: 1fr;
+}
+
 ConfigPane #config-field-tree {
     width: 1fr;
     height: 100%;
     border: solid $secondary;
     margin: 0 1;
     padding: 0 1;
+}
+
+ConfigPane #config-filter-input {
+    width: 100%;
+    height: 3;
+    margin-bottom: 1;
+}
+
+ConfigPane #config-field-status {
+    width: 100%;
+    height: auto;
+    color: $text-muted;
+}
+
+ConfigPane #config-tree {
+    width: 100%;
+    height: 1fr;
+    background: transparent;
 }
 
 ConfigPane #config-detail {
@@ -2923,15 +2946,20 @@ ConfigPane #config-detail {
     padding: 0 1;
 }
 
+ConfigPane #config-detail-scroll {
+    width: 100%;
+    height: 1fr;
+}
+
+ConfigPane #config-detail-body {
+    width: 100%;
+    height: auto;
+}
+
 ConfigPane .config-region-header {
     text-style: bold;
     color: $text-muted;
     height: 1;
-}
-
-ConfigPane .config-placeholder {
-    color: $text-muted;
-    height: auto;
 }
 
 ConfigPane #config-pane-hints {
