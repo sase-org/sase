@@ -85,7 +85,10 @@ def preprocess_prompt_early(
 
         fenced_blocks: list[str] = []
         prompt = protect_fenced_blocks(prompt, fenced_blocks)
+        disabled_regions: list[str] = []
+        prompt = protect_disabled_regions(prompt, disabled_regions)
         prompt = render_template(prompt, context)
+        prompt = unprotect_disabled_regions(prompt, disabled_regions)
         prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
     from sase.project_aliases import canonicalize_project_aliases_in_prompt

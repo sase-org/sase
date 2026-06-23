@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 08:37:05
-status: wip
+status: done
 prompt: sdd/prompts/202606/xprompts_enabled_skips_early_jinja_render.md
 ---
 # Plan: `%xprompts_enabled:false` must exempt its block from early-phase Jinja2 rendering

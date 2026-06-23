@@ -60,3 +60,77 @@ class TestJinjaContextRendering:
                 "{{ wait_chats }}",
                 context={"cl_name": "test"},
             )
+
+    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    def test_disabled_region_preserves_new_multi_model_syntax(
+        self,
+        _mock_xprompt: object,
+    ) -> None:
+        """Disabled regions can contain Jinja-looking multi-model syntax."""
+        prompt = (
+            "before\n"
+            "%xprompts_enabled:false\n"
+            "%{%m:claude/opus | %m:codex/gpt-5.5}\n"
+            "%xprompts_enabled:true\n"
+            "after\n"
+        )
+
+        result = preprocess_prompt_early(prompt, context={"N": 1})
+
+        assert "%{%m:claude/opus | %m:codex/gpt-5.5}" in result.prompt
+
+    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    def test_disabled_region_jinja_content_is_opaque(
+        self,
+        _mock_xprompt: object,
+    ) -> None:
+        """Jinja syntax inside disabled regions is not parsed or rendered."""
+        prompt = (
+            "%xprompts_enabled:false\n"
+            "{% for value in missing_values %}{{ value }}{% endfor %}\n"
+            "%xprompts_enabled:true\n"
+        )
+
+        result = preprocess_prompt_early(prompt, context={"N": 1})
+
+        assert "{% for value in missing_values %}" in result.prompt
+        assert "{{ value }}" in result.prompt
+        assert "{% endfor %}" in result.prompt
+
+    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    def test_disabled_region_does_not_block_outside_jinja_rendering(
+        self,
+        _mock_xprompt: object,
+    ) -> None:
+        """Only disabled-region Jinja is masked; outside Jinja still renders."""
+        prompt = (
+            "Run {{ N }}\n"
+            "%xprompts_enabled:false\n"
+            "Keep {{ N }} literal.\n"
+            "%xprompts_enabled:true\n"
+        )
+
+        result = preprocess_prompt_early(prompt, context={"N": 7})
+
+        assert "Run 7" in result.prompt
+        assert "Keep {{ N }} literal." in result.prompt
+
+    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    def test_disabled_region_markers_survive_early_jinja_rendering(
+        self,
+        _mock_xprompt: object,
+    ) -> None:
+        """Early preprocessing preserves markers for the late phase."""
+        prompt = (
+            "%xprompts_enabled:false\n"
+            "{{ not_rendered }}\n"
+            "%xprompts_enabled:true\n"
+            "{{ rendered }}\n"
+        )
+
+        result = preprocess_prompt_early(prompt, context={"rendered": "done"})
+
+        assert "%xprompts_enabled:false" in result.prompt
+        assert "%xprompts_enabled:true" in result.prompt
+        assert "{{ not_rendered }}" in result.prompt
+        assert "done" in result.prompt
