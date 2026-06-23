@@ -1,0 +1,312 @@
+"""Tests for split_prompt_for_models fan-out naming and model resolution."""
+
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+from sase.xprompt.directives import split_prompt_for_models
+from sase.xprompt.models import XPrompt
+
+
+def test_split_prompt_for_models_multi_model_distinct_runtimes() -> None:
+    """Two models on distinct runtimes get plain runtime suffixes (no model)."""
+    prompt = "%n:foo\n%{%model:opus | %model:gpt-5.5}\nReview this code"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:foo.cld\n%model:opus\nReview this code"
+    assert result[1] == "%name:foo.cdx\n%model:gpt-5.5\nReview this code"
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_split_prompt_for_models_alias_uses_resolved_suffix(
+    mock_config: MagicMock,
+) -> None:
+    """Fan-out names use the concrete configured model behind an alias."""
+    mock_config.return_value = {"model_aliases": {"other": "claude/opus"}}
+
+    prompt = "%n:foo\n%{%model:other | %model:gpt-5.5}\nReview this code"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:foo.cld\n%model:other\nReview this code"
+    assert result[1] == "%name:foo.cdx\n%model:gpt-5.5\nReview this code"
+
+
+def test_split_prompt_for_models_other_uses_override_snapshot(
+    monkeypatch,
+) -> None:
+    """While an override is active, "other" resolves to the displaced model.
+
+    The configured alias points at claude/sonnet, but the override snapshot
+    captures claude/opus (the default at the time the override was set).
+    The fan-out disambiguator must use the snapshot's "opus" - pairing
+    "other" against the actual displaced model - not the static alias.
+    """
+    from sase.llm_provider.temporary_override import set_temporary_override
+
+    cfg = {
+        "provider": "claude",
+        "model_aliases": {"other": "claude/sonnet"},
+    }
+    # Patch both modules: registry imports the symbol at load time,
+    # config defines it. Snapshot capture goes through registry.
+    monkeypatch.setattr("sase.llm_provider.config.get_llm_provider_config", lambda: cfg)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config", lambda: cfg
+    )
+    set_temporary_override("codex/o3", 3600.0, source="test")
+
+    # other + sonnet are both claude; same-runtime collision uses model
+    # names as the disambiguator. Without the override-aware "other",
+    # other would also resolve to sonnet (per configured alias) and the
+    # split would collapse to a single model.
+    prompt = "%n:foo\n%{%model:other | %model:sonnet}\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:foo.cld_opus\n%model:other\nReview"
+    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview"
+
+
+def test_split_prompt_for_models_resume_base(tmp_path: Path) -> None:
+    """Multi-model fan-out without %name uses the resume-derived base."""
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = split_prompt_for_models(
+            "#fork:foo\n%{%model:opus | %model:sonnet}\nDo work"
+        )
+    assert result is not None
+    assert result[0] == "%name:foo.f1.cld_opus\n#fork:foo\n%model:opus\nDo work"
+    assert result[1] == "%name:foo.f1.cld_sonnet\n#fork:foo\n%model:sonnet\nDo work"
+
+
+def test_split_prompt_for_models_wait_base(tmp_path: Path) -> None:
+    """Multi-model fan-out without %name uses the wait-derived base."""
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = split_prompt_for_models(
+            "%wait:foo\n%{%model:opus | %model:sonnet}\nDo work"
+        )
+    assert result is not None
+    assert result[0] == "%name:foo.w1.cld_opus\n%wait:foo\n%model:opus\nDo work"
+    assert result[1] == "%name:foo.w1.cld_sonnet\n%wait:foo\n%model:sonnet\nDo work"
+
+
+def test_split_prompt_for_models_resume_base_wins_over_wait(
+    tmp_path: Path,
+) -> None:
+    """Multi-model fan-out uses the fork-derived base when both refs exist."""
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = split_prompt_for_models(
+            "%wait:foo\n#fork:foo\n%{%model:opus | %model:sonnet}\nDo work"
+        )
+    assert result is not None
+    assert result[0] == (
+        "%name:foo.f1.cld_opus\n%wait:foo\n#fork:foo\n%model:opus\nDo work"
+    )
+    assert result[1] == (
+        "%name:foo.f1.cld_sonnet\n%wait:foo\n#fork:foo\n%model:sonnet\nDo work"
+    )
+
+
+def test_split_prompt_for_models_multi_model_auto_generated_base() -> None:
+    """No %name with multi-model injects grouped auto-name templates."""
+    result = split_prompt_for_models("%{%model:opus | %model:gpt-5.5}\nReview")
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:@.cld\n%model:opus\nReview"
+    assert result[1] == "%name:@.cdx\n%model:gpt-5.5\nReview"
+
+
+def test_split_prompt_for_models_multi_model_bare_name_auto_generated() -> None:
+    """Bare %name with multi-model behaves like an unnamed generated launch."""
+    result = split_prompt_for_models("%name\n%{%model:opus | %model:gpt-5.5}\nReview")
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:@.cld\n%model:opus\nReview"
+    assert result[1] == "%name:@.cdx\n%model:gpt-5.5\nReview"
+
+
+def test_split_prompt_for_models_unknown_model_uses_default_provider() -> None:
+    """An unknown model maps to the default provider's runtime label."""
+    from sase.llm_provider.registry import (
+        get_default_provider_name,
+        provider_short_name_map,
+    )
+
+    default = get_default_provider_name()
+    default_short = provider_short_name_map().get(default, default)
+    prompt = "%n:foo\n%{%model:unknown_model_xyz | %model:opus}\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    # When the unknown model resolves to the same runtime as opus (claude),
+    # collision suffixing kicks in; otherwise plain runtime labels.
+    if default == "claude":
+        assert (
+            result[0] == "%name:foo.cld_unknown_model_xyz\n"
+            "%model:unknown_model_xyz\nReview"
+        )
+        assert result[1] == "%name:foo.cld_opus\n%model:opus\nReview"
+    else:
+        assert (
+            result[0] == f"%name:foo.{default_short}\n%model:unknown_model_xyz\nReview"
+        )
+        assert result[1] == "%name:foo.cld\n%model:opus\nReview"
+
+
+def test_split_prompt_for_models_codex_collision_uses_short_alias() -> None:
+    """Same-runtime codex collision substitutes short aliases for model names."""
+    prompt = "%n:o\n%{%model:gpt-5.5 | %model:gpt-5.3-codex}\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == ("%name:o.cdx_gpt55\n%model:gpt-5.5\nReview")
+    assert result[1] == ("%name:o.cdx_gpt53\n%model:gpt-5.3-codex\nReview")
+
+
+def test_split_prompt_for_models_opencode_nested_models_use_short_aliases() -> None:
+    """Explicit OpenCode provider/model strings use provider-local model aliases."""
+    prompt = (
+        "%n:o\n"
+        "%{%model:opencode/anthropic/claude-sonnet-4-5 | %model:opencode/openai/gpt-5-mini}\n"
+        "Review"
+    )
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == (
+        "%name:o.opc_sonnet45\n%model:opencode/anthropic/claude-sonnet-4-5\nReview"
+    )
+    assert result[1] == ("%name:o.opc_gpt5m\n%model:opencode/openai/gpt-5-mini\nReview")
+
+
+def test_split_prompt_for_models_unknown_nested_model_suffix_is_name_safe() -> None:
+    """Unknown explicit nested model names are sanitized for generated names."""
+    prompt = (
+        "%n:o\n%{%model:opencode/acme/foo/bar | %model:opencode/acme/baz/qux}\nReview"
+    )
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    name_lines = [line for item in result for line in item.splitlines()[:1]]
+    assert name_lines == ["%name:o.opc_acme_foo_bar", "%name:o.opc_acme_baz_qux"]
+
+
+def test_split_prompt_for_models_claude_collision_unchanged() -> None:
+    """Claude opus/sonnet keep their raw names (no aliases declared)."""
+    prompt = "%n:o\n%{%model:opus | %model:sonnet}\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:o.cld_opus\n%model:opus\nReview"
+    assert result[1] == "%name:o.cld_sonnet\n%model:sonnet\nReview"
+
+
+def test_split_prompt_for_models_no_collision_unchanged() -> None:
+    """Distinct-runtime case never embeds the model name (alias irrelevant)."""
+    prompt = "%n:o\n%{%model:opus | %model:gpt-5.5}\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:o.cld\n%model:opus\nReview"
+    assert result[1] == "%name:o.cdx\n%model:gpt-5.5\nReview"
+
+
+def test_split_prompt_for_models_unknown_model_falls_through() -> None:
+    """Unknown model in a same-runtime collision keeps its raw name."""
+    from sase.llm_provider.registry import get_default_provider_name
+
+    if get_default_provider_name() != "codex":
+        # Test relies on unknown_xyz routing to codex (the fallback default).
+        # If a different default is configured, skip the assertion path.
+        return
+    prompt = "%n:o\n%{%model:gpt-5.5 | %model:unknown_xyz}\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == ("%name:o.cdx_gpt55\n%model:gpt-5.5\nReview")
+    assert result[1] == "%name:o.cdx_unknown_xyz\n%model:unknown_xyz\nReview"
+
+
+def test_split_prompt_for_models_alias_collision_falls_back_to_raw() -> None:
+    """Two models that alias to the same short form fall back to raw names."""
+    fake_aliases = {
+        "gpt-5.5": "gp",
+        "gpt-5.3-codex": "gp",
+    }
+    with patch(
+        "sase.llm_provider.registry.model_short_alias_map",
+        return_value=fake_aliases,
+    ):
+        result = split_prompt_for_models(
+            "%n:o\n%{%model:gpt-5.5 | %model:gpt-5.3-codex}\nReview"
+        )
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == ("%name:o.cdx_gpt_5.5\n%model:gpt-5.5\nReview")
+    assert result[1] == ("%name:o.cdx_gpt_5.3_codex\n%model:gpt-5.3-codex\nReview")
+
+
+def test_split_prompt_for_models_global_shorthand_name_uses_resolved_alias() -> None:
+    """A model shorthand keeps its raw directive but names with the resolved alias."""
+    xprompts = {
+        "flash": XPrompt(name="flash", content="gpt-5.5"),
+    }
+    with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
+        result = split_prompt_for_models(
+            "%n:o\n%{%model:#flash | %model:gpt-5.3-codex}\nReview"
+        )
+
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:o.cdx_gpt55\n%model:#flash\nReview"
+    assert result[1] == "%name:o.cdx_gpt53\n%model:gpt-5.3-codex\nReview"
+
+
+def test_split_prompt_for_models_same_runtime_shorthands_use_resolved_aliases() -> None:
+    """Same-runtime shorthand variants disambiguate with resolved model aliases."""
+    xprompts = {
+        "flash": XPrompt(name="flash", content="gpt-5.5"),
+        "pro": XPrompt(name="pro", content="gpt-4.1"),
+    }
+    with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
+        result = split_prompt_for_models(
+            "%n:ag\n%{%model:#flash | %model:#pro}\nReview"
+        )
+
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:ag.cdx_gpt55\n%model:#flash\nReview"
+    assert result[1] == "%name:ag.cdx_gpt41\n%model:#pro\nReview"
+
+
+def test_split_prompt_for_models_keeps_raw_and_shorthand_alt_branches() -> None:
+    """Raw and shorthand branches stay distinct even if they resolve alike."""
+    xprompts = {
+        "flash": XPrompt(name="flash", content="gemini-3-flash-preview"),
+    }
+    with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
+        result = split_prompt_for_models(
+            "%{%model:#flash | %model:gemini-3-flash-preview}\nReview"
+        )
+
+    assert result == [
+        "%name:@.1\n%model:#flash\nReview",
+        "%name:@.2\n%model:gemini-3-flash-preview\nReview",
+    ]
+
+
+def test_split_prompt_for_models_unknown_shorthand_name_strips_hash_fallback() -> None:
+    """Unknown shorthand remains raw in %model but drops # from the name suffix."""
+    with patch(
+        "sase.xprompt._directive_alt._runtime_label_for_model",
+        return_value="cdx",
+    ):
+        result = split_prompt_for_models(
+            "%n:o\n%{%model:#unknown_model_alias | %model:gpt-5.5}\nReview"
+        )
+
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == (
+        "%name:o.cdx_unknown_model_alias\n%model:#unknown_model_alias\nReview"
+    )
+    assert result[1] == "%name:o.cdx_gpt55\n%model:gpt-5.5\nReview"
