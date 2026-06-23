@@ -264,3 +264,61 @@ def test_launch_multi_prompt_distinguishes_two_xprompt_template_groups(
     ]
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch(
+    "sase.running_field.claim_next_axe_workspace",
+    side_effect=[100, 101, 102, 103],
+)
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[
+        ("/ws1", None),
+        ("/ws2", None),
+        ("/ws3", None),
+        ("/ws4", None),
+    ],
+)
+def test_launch_multi_prompt_text_alt_model_alt_uses_distinct_generated_templates(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Text and model fan-out axes do not render duplicate template names."""
+    del mock_ws_dir, mock_first_ws, mock_timestamp
+    mock_spawn.side_effect = spawn_result_with_planned_name
+    local_xprompts = {"codex": XPrompt(name="codex", content="gpt-5.5")}
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        results = launch_multi_prompt_agents(
+            segments=["%{Describe | Explain} repo. %{%m:opus | %m:#codex}"],
+            local_xprompts=local_xprompts,
+            cl_name="test",
+            project_file="/test.sase",
+            project_name="test",
+            is_home_mode=False,
+            vcs_ref=None,
+        )
+
+    assert [result.agent_name for result in results] == [
+        "0.1.cld",
+        "0.1.cdx",
+        "0.2.cld",
+        "0.2.cdx",
+    ]
+    assert [call.kwargs["prompt"] for call in mock_spawn.call_args_list] == [
+        "%name:@.1.cld\nDescribe repo. %m:opus",
+        "%name:@.1.cdx\nDescribe repo. %m:#codex",
+        "%name:@.2.cld\nExplain repo. %m:opus",
+        "%name:@.2.cdx\nExplain repo. %m:#codex",
+    ]
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0

@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.xprompt.directives import split_prompt_for_models
+from sase.xprompt.models import XPrompt
 from tests._agent_names_fixtures import make_agent as _make_agent
 
 
@@ -13,10 +14,45 @@ def test_split_prompt_for_models_multi_model_with_user_alt_cartesian() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 4
-    assert "%name:foo.cld_opus" in result[0] and " x\nReview" in result[0]
-    assert "%name:foo.cld_opus" in result[1] and " y\nReview" in result[1]
-    assert "%name:foo.cld_sonnet" in result[2] and " x\nReview" in result[2]
-    assert "%name:foo.cld_sonnet" in result[3] and " y\nReview" in result[3]
+    name_lines = [variant.splitlines()[0] for variant in result]
+    assert name_lines == [
+        "%name:foo.cld_opus.1",
+        "%name:foo.cld_opus.2",
+        "%name:foo.cld_sonnet.1",
+        "%name:foo.cld_sonnet.2",
+    ]
+    assert len(set(name_lines)) == len(name_lines)
+    assert " x\nReview" in result[0]
+    assert " y\nReview" in result[1]
+    assert " x\nReview" in result[2]
+    assert " y\nReview" in result[3]
+
+
+def test_split_prompt_for_models_text_alt_then_model_alt_gets_unique_names() -> None:
+    """Text-first and model-last axes keep both dimensions in generated names."""
+    xprompts = {
+        "codex": XPrompt(name="codex", content="gpt-5.5"),
+    }
+
+    result = split_prompt_for_models(
+        "%n:foo %{Describe | Explain} repo. %{%m:opus | %m:#codex}",
+        extra_xprompts=xprompts,
+    )
+
+    assert result is not None
+    assert len(result) == 4
+    name_lines = [variant.splitlines()[0] for variant in result]
+    assert name_lines == [
+        "%name:foo.1.cld",
+        "%name:foo.1.cdx",
+        "%name:foo.2.cld",
+        "%name:foo.2.cdx",
+    ]
+    assert len(set(name_lines)) == len(name_lines)
+    assert "Describe repo." in result[0]
+    assert "Describe repo." in result[1]
+    assert "Explain repo." in result[2]
+    assert "Explain repo." in result[3]
 
 
 def test_split_prompt_for_models_pure_alt_gets_planned_names() -> None:
@@ -161,23 +197,15 @@ def test_split_prompt_for_models_with_alt_directive() -> None:
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 4
-    assert (
-        "%name:foo.cld_opus" in result[0]
-        and "%model:opus" in result[0]
-        and "x" in result[0]
-    )
-    assert (
-        "%name:foo.cld_opus" in result[1]
-        and "%model:opus" in result[1]
-        and "y" in result[1]
-    )
-    assert (
-        "%name:foo.cld_sonnet" in result[2]
-        and "%model:sonnet" in result[2]
-        and "x" in result[2]
-    )
-    assert (
-        "%name:foo.cld_sonnet" in result[3]
-        and "%model:sonnet" in result[3]
-        and "y" in result[3]
-    )
+    name_lines = [variant.splitlines()[0] for variant in result]
+    assert name_lines == [
+        "%name:foo.cld_opus.1",
+        "%name:foo.cld_opus.2",
+        "%name:foo.cld_sonnet.1",
+        "%name:foo.cld_sonnet.2",
+    ]
+    assert len(set(name_lines)) == len(name_lines)
+    assert "%model:opus" in result[0] and "x" in result[0]
+    assert "%model:opus" in result[1] and "y" in result[1]
+    assert "%model:sonnet" in result[2] and "x" in result[2]
+    assert "%model:sonnet" in result[3] and "y" in result[3]

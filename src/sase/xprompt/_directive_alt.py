@@ -553,23 +553,75 @@ def _fanout_suffixes(
         label_models_per_sub=label_models_per_sub,
         distinct_label_models=distinct_label_models,
     )
+    component_lists = [slot.alt_id.split(".") if slot.alt_id else [] for slot in slots]
+    model_axis = _detect_model_axis(component_lists, label_models_per_sub)
 
     suffixes: list[str | None] = []
-    for slot, label_model in zip(slots, label_models_per_sub, strict=True):
+    for slot, label_model, components in zip(
+        slots,
+        label_models_per_sub,
+        component_lists,
+        strict=True,
+    ):
         alt_suffix = _safe_fanout_suffix(slot.alt_id)
         if (
             label_model is not None
             and len(distinct_label_models) >= 2
             and label_model in model_suffix_for
         ):
-            suffixes.append(
-                alt_suffix
-                if _alt_id_has_named_component(slot.alt_id)
-                else model_suffix_for[label_model]
-            )
+            if _alt_id_has_named_component(slot.alt_id):
+                suffixes.append(alt_suffix)
+            elif model_axis is not None and model_axis < len(components):
+                model_components = list(components)
+                model_components[model_axis] = model_suffix_for[label_model]
+                suffixes.append(_safe_fanout_suffix(".".join(model_components)))
+            else:
+                suffixes.append(alt_suffix)
         else:
             suffixes.append(alt_suffix)
+
+    if _has_duplicate_suffixes(suffixes):
+        suffixes = [_safe_fanout_suffix(slot.alt_id) for slot in slots]
     return suffixes
+
+
+def _detect_model_axis(
+    component_lists: list[list[str]],
+    label_models_per_sub: list[str | None],
+) -> int | None:
+    max_component_count = max(
+        (len(components) for components in component_lists), default=0
+    )
+    candidates: list[int] = []
+    for index in range(max_component_count):
+        component_models: dict[str, str | None] = {}
+        valid = True
+        for components, label_model in zip(
+            component_lists,
+            label_models_per_sub,
+            strict=True,
+        ):
+            if index >= len(components) or not components[index]:
+                valid = False
+                break
+            component = components[index]
+            previous = component_models.setdefault(component, label_model)
+            if previous != label_model:
+                valid = False
+                break
+        if not valid:
+            continue
+        models = {model for model in component_models.values() if model is not None}
+        if len(models) >= 2:
+            candidates.append(index)
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
+def _has_duplicate_suffixes(suffixes: list[str | None]) -> bool:
+    concrete_suffixes = [suffix for suffix in suffixes if suffix is not None]
+    return len(set(concrete_suffixes)) != len(concrete_suffixes)
 
 
 def _model_suffixes(
