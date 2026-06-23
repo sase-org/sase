@@ -58,6 +58,7 @@ class VimNormalModeMixin(VimNormalEditingMixin):
                 and not self._count_prefix
             ):
                 self._mutation_key_buffer.clear()
+                self._mutation_count = 1
             self._mutation_key_buffer.append(key)
 
         if event.key == "escape":
@@ -76,6 +77,8 @@ class VimNormalModeMixin(VimNormalEditingMixin):
             return self._handle_normal_pending_key(key, event)
 
         if key in "123456789" or (key == "0" and self._count_prefix):
+            if not self._replaying_dot and self._mutation_key_buffer:
+                self._mutation_key_buffer.pop()
             self._count_prefix += key
             self._update_count_display()
             return True
@@ -108,7 +111,7 @@ class VimNormalModeMixin(VimNormalEditingMixin):
                 self._pending_operator_count = 1
                 self._update_count_display()
             self._mutation_key_buffer.clear()
-            self._replay_dot(count)
+            self._replay_dot(count, has_count)
             return True
 
         if self._pending_operator and self._is_line_repeat_key(
@@ -119,6 +122,7 @@ class VimNormalModeMixin(VimNormalEditingMixin):
             self._pending_operator = ""
             self._pending_operator_count = 1
             total = op_count * count
+            self._mutation_count = max(1, total)
             cur_row = self.cursor_location[0]
             last_row = min(cur_row + total - 1, self.document.line_count - 1)
             self._execute_linewise_operator(cur_row, last_row, op)

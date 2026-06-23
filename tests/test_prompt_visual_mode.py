@@ -227,3 +227,62 @@ async def test_visual_uppercase_selection() -> None:
         assert page.mode == "normal"
         assert page.ta._vim_register.text == "ab"
         assert page.ta._vim_register.kind == "charwise"
+
+
+async def test_dot_repeats_charwise_visual_delete_same_size() -> None:
+    """Dot repeats a visual delete over a same-sized range."""
+    async with PromptPage("abcdef") as page:
+        await page.press("v", "l", "d")
+        assert page.text == "cdef"
+
+        await page.press(".")
+        assert page.text == "ef"
+        assert page.mode == "normal"
+
+
+async def test_dot_repeats_linewise_visual_delete_same_size() -> None:
+    """Dot repeats a V-line delete over the same number of lines."""
+    async with PromptPage("aaa\nbbb\nccc\nddd\neee", cursor=(1, 0)) as page:
+        await page.press("V", "j", "d")
+        assert page.text == "aaa\nddd\neee"
+
+        await page.press(".")
+        assert page.text == "aaa"
+        assert page.mode == "normal"
+
+
+async def test_dot_repeats_visual_change_inserted_text() -> None:
+    """Dot repeats a visual change and restores the typed replacement text."""
+    async with PromptPage("one two three") as page:
+        await page.press("v", "e", "c", "X", "escape")
+        assert page.text == "X two three"
+        assert page.mode == "normal"
+
+        page.cursor = (0, 2)
+        await page.press(".")
+        assert page.text == "X X three"
+        assert page.mode == "normal"
+
+
+async def test_dot_repeats_visual_indent_same_line_count() -> None:
+    """Dot repeats visual indent over the same number of touched lines."""
+    async with PromptPage("aaa\nbbb\nccc\nddd") as page:
+        await page.press("v", "j", ">")
+        assert page.text == "  aaa\n  bbb\nccc\nddd"
+
+        page.cursor = (2, 0)
+        await page.press(".")
+        assert page.text == "  aaa\n  bbb\n  ccc\n  ddd"
+        assert page.mode == "normal"
+
+
+async def test_dot_repeats_visual_case_same_char_count() -> None:
+    """Dot repeats a visual case operation over the same character count."""
+    async with PromptPage("ab cd ef") as page:
+        await page.press("v", "l", "U")
+        assert page.text == "AB cd ef"
+
+        page.cursor = (0, 3)
+        await page.press(".")
+        assert page.text == "AB CD ef"
+        assert page.mode == "normal"

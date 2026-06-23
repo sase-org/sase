@@ -69,10 +69,9 @@ class VimNormalPendingMixin(VimVisualModeMixin):
             if char is None:
                 self._mutation_key_buffer.clear()
             else:
-                self._delete_surround(
-                    char,
-                    pending_count if pending_count is not None else 1,
-                )
+                count = pending_count if pending_count is not None else 1
+                self._mutation_count = max(1, count)
+                self._delete_surround(char, count)
             self._update_count_display()
             return True
 
@@ -84,6 +83,10 @@ class VimNormalPendingMixin(VimVisualModeMixin):
                 self._pending_change_surround_locations = None
                 self._mutation_key_buffer.clear()
             else:
+                self._mutation_count = max(
+                    1,
+                    pending_count if pending_count is not None else 1,
+                )
                 self._queue_pending_change_surround(
                     char,
                     pending_count if pending_count is not None else 1,
@@ -116,11 +119,16 @@ class VimNormalPendingMixin(VimVisualModeMixin):
                 target = 0
             if self._pending_operator:
                 op = self._pending_operator
+                op_count = self._pending_operator_count
                 self._pending_operator = ""
                 self._pending_operator_count = 1
                 cur_row = self.cursor_location[0]
                 first = min(cur_row, target)
                 last = max(cur_row, target)
+                self._mutation_count = max(
+                    1,
+                    pending_count if pending_count is not None else op_count,
+                )
                 self._execute_linewise_operator(first, last, op)
                 self._update_count_display()
             else:
@@ -165,9 +173,11 @@ class VimNormalPendingMixin(VimVisualModeMixin):
         elif pending == "a" and key == "e":
             if self._pending_operator:
                 op = self._pending_operator
+                op_count = self._pending_operator_count
                 self._pending_operator = ""
                 self._pending_operator_count = 1
                 last_row = self.document.line_count - 1
+                self._mutation_count = max(1, op_count)
                 self._execute_linewise_operator(0, last_row, op)
                 self._update_count_display()
         elif pending in "ai" and key in "wWp":
@@ -178,6 +188,7 @@ class VimNormalPendingMixin(VimVisualModeMixin):
                 self._pending_operator = ""
                 self._pending_operator_count = 1
                 eff = op_count * motion_count
+                self._mutation_count = max(1, eff)
                 row, col = self.cursor_location
                 if key == "p":
                     if pending == "i":
@@ -211,6 +222,7 @@ class VimNormalPendingMixin(VimVisualModeMixin):
                 self._pending_operator = ""
                 self._pending_operator_count = 1
                 eff = op_count * motion_count
+                self._mutation_count = max(1, eff)
                 row, col = self.cursor_location
                 text_object = find_quote_or_bracket_text_object(
                     self.document,

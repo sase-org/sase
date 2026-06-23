@@ -77,6 +77,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
             ctx: Any,
             result: CompletionCandidate,
         ) -> None: ...
+        def _finish_dot_insert_capture(self) -> None: ...
         def _refresh_file_completion_from_cursor(self) -> None: ...
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
         def _replace_via_keyboard(
@@ -412,6 +413,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
 
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
+        self._finish_dot_insert_capture()
         self._clear_insert_g_prefix()
         self._clear_normal_g_prefix()
         self._clear_prompt_search(clear_highlights=True)

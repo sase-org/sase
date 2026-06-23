@@ -13,8 +13,10 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
     """Mixin for normal-mode edit commands and mode changes."""
 
     if TYPE_CHECKING:
+        _mutation_count: int
 
         def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None: ...
+        def _record_insert_mutation_start(self, count: int) -> None: ...
         def _notify_prompt_bar_text_undo(
             self, before_text: str, after_text: str
         ) -> None: ...
@@ -64,6 +66,7 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             return True
         if key == "i":
             self._enter_insert_mode()
+            self._record_insert_mutation_start(count)
             return True
         if key == "a":
             row, col = self.cursor_location
@@ -71,12 +74,14 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             self._enter_insert_mode()
             if col < len(line):
                 self.cursor_location = (row, col + 1)
+            self._record_insert_mutation_start(count)
             return True
         if key == "A":
             row = self.cursor_location[0]
             line = self.document.get_line(row)
             self._enter_insert_mode()
             self.cursor_location = (row, len(line))
+            self._record_insert_mutation_start(count)
             return True
         if key == "I":
             row = self.cursor_location[0]
@@ -86,6 +91,7 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
                 col += 1
             self._enter_insert_mode()
             self.cursor_location = (row, col)
+            self._record_insert_mutation_start(count)
             return True
         if key == "o":
             row = self.cursor_location[0]
@@ -94,6 +100,7 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             self.cursor_location = (row, len(line))
             start, end = self.selection
             self._replace_via_keyboard("\n", start, end)
+            self._record_insert_mutation_start(count)
             return True
         if key == "O":
             row = self.cursor_location[0]
@@ -102,6 +109,7 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             start, end = self.selection
             self._replace_via_keyboard("\n", start, end)
             self.cursor_location = (row, 0)
+            self._record_insert_mutation_start(count)
             return True
 
         if key == "Y":
@@ -114,15 +122,18 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             row, col = self.cursor_location
             line = doc.get_line(row)
             op = "c" if key == "C" else "d"
+            self._mutation_count = max(1, count)
             self._execute_charwise_operator((row, col), (row, len(line)), op)
             return True
         if key == "S":
             cur_row = self.cursor_location[0]
             last_row = min(cur_row + count - 1, self.document.line_count - 1)
+            self._mutation_count = max(1, count)
             self._execute_linewise_operator(cur_row, last_row, "c")
             return True
 
         if key in ("p", "P"):
+            self._mutation_count = max(1, count)
             self._paste_vim_register(before=key == "P", count=count)
             return True
 
@@ -131,11 +142,13 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             line = doc.get_line(row)
             end_col = min(col + count, len(line))
             op = "c" if key == "s" else "d"
+            self._mutation_count = max(1, count)
             self._execute_charwise_operator((row, col), (row, end_col), op)
             return True
         if key == "X":
             row, col = self.cursor_location
             start_col = max(0, col - count)
+            self._mutation_count = max(1, count)
             self._execute_charwise_operator((row, start_col), (row, col), "d")
             return True
         if key == "r":
@@ -145,13 +158,16 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             return True
 
         if key == "~":
+            self._mutation_count = max(1, count)
             self._toggle_case(count)
             return True
         if event.key in ("ctrl+a", "ctrl+x"):
+            self._mutation_count = max(1, count)
             self._apply_number_change(count if event.key == "ctrl+a" else -count)
             return True
 
         if key == "J":
+            self._mutation_count = max(1, count)
             self._join_lines(count)
             return True
 

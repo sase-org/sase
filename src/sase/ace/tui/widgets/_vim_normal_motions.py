@@ -247,6 +247,8 @@ class VimNormalMotionsMixin(VimNormalPendingMixin):
             if op_info:
                 op = op_info[0]
                 if has_count:
+                    self._mutation_count = max(1, count)
+                if has_count:
                     target = max(0, min(count - 1, self.document.line_count - 1))
                 else:
                     target = self.document.line_count - 1

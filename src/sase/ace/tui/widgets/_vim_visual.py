@@ -55,6 +55,11 @@ class VimVisualModeMixin(VimNormalOpsMixin):
         _pending_operator: str
         _pending_operator_count: int
         _mutation_key_buffer: list[str]
+        _last_mutation_keys: list[str]
+        _last_mutation_count: int
+        _last_mutation_insert: str | None
+        _last_visual_mutation: tuple[str, str, int, int] | None
+        _replaying_dot: bool
         _last_char_search: tuple[str, str] | None
         _vim_register: VimRegister
         _visual_anchor: tuple[int, int] | None
@@ -65,6 +70,8 @@ class VimVisualModeMixin(VimNormalOpsMixin):
         def _enter_normal_mode(self) -> None: ...
 
         def _enter_insert_mode(self) -> None: ...
+
+        def _absolute_offset(self, location: tuple[int, int]) -> int: ...
 
         def _replace_via_keyboard(
             self, insert: str, start: tuple[int, int], end: tuple[int, int]
@@ -288,6 +295,32 @@ class VimVisualModeMixin(VimNormalOpsMixin):
         start, end = self._charwise_visual_range()
         return (self._get_text_in_range(start, end), "charwise")
 
+    def _visual_mutation_shape(self, op: str) -> tuple[str, int]:
+        """Return visual-repeat kind and same-sized range for *op*."""
+        if self._visual_kind() == "linewise":
+            first, last = self._linewise_visual_rows()
+            return ("linewise", last - first + 1)
+
+        start, end = self._charwise_visual_range()
+        if op in {">", "<"}:
+            return ("linewise", end[0] - start[0] + 1)
+        size = self._absolute_offset(end) - self._absolute_offset(start)
+        return ("charwise", max(0, size))
+
+    def _record_visual_mutation(self, op: str, *, units: int = 1) -> None:
+        """Record a visual-mode change for dot-repeat."""
+        if self._replaying_dot:
+            return
+        kind, size = self._visual_mutation_shape(op)
+        if size <= 0:
+            self._mutation_key_buffer.clear()
+            return
+        self._last_visual_mutation = (op, kind, size, max(1, units))
+        self._last_mutation_keys = []
+        self._last_mutation_count = 1
+        self._last_mutation_insert = None
+        self._mutation_key_buffer.clear()
+
     def _linewise_replacement_payload(self, text: str) -> str:
         """Return replacement text for a linewise visual range."""
         _first, last = self._linewise_visual_rows()
@@ -298,6 +331,8 @@ class VimVisualModeMixin(VimNormalOpsMixin):
     def _apply_visual_operator(self, op: str) -> None:
         """Apply a visual operator to the active selection."""
         kind = self._visual_kind()
+        if op in {"d", "c"}:
+            self._record_visual_mutation(op)
         self._collapse_visual_before_operator()
         if kind == "linewise":
             first, last = self._linewise_visual_rows()
@@ -356,6 +391,7 @@ class VimVisualModeMixin(VimNormalOpsMixin):
             self._enter_normal_mode()
             return
         kind = self._visual_kind()
+        self._record_visual_mutation(op)
         self._collapse_visual_before_operator()
         self._store_visual_register(selected_text, selected_kind)
         was_readonly = self.read_only
@@ -383,6 +419,7 @@ class VimVisualModeMixin(VimNormalOpsMixin):
         else:
             start, end = self._charwise_visual_range()
             first, last = start[0], end[0]
+        self._record_visual_mutation(op, units=count)
         self._collapse_visual_before_operator()
         self._execute_linewise_transform_operator(first, last, op, units=count)
         self.selection = Selection.cursor(self.cursor_location)

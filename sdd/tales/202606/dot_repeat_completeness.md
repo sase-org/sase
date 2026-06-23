@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 18:53:41
-status: wip
+status: done
 prompt: sdd/prompts/202606/dot_repeat_completeness.md
 ---
 # Plan: Make the prompt-input vim dot-repeat (`.`) complete and correct

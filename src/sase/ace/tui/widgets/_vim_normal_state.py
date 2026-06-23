@@ -36,12 +36,19 @@ class VimNormalStateMixin(_MixinBase):
             | None
         )
         _mutation_key_buffer: list[str]
+        _mutation_count: int
         _last_mutation_keys: list[str]
+        _last_mutation_count: int
+        _last_mutation_insert: str | None
+        _last_visual_mutation: tuple[str, str, int, int] | None
+        _dot_insert_capture_offset: int | None
         _replaying_dot: bool
         _last_char_search: tuple[str, str] | None
         _vim_register: VimRegister
 
         def _find_prompt_bar(self) -> Any: ...
+
+        def _enter_normal_mode(self) -> None: ...
 
         def _enter_insert_mode(self) -> None: ...
 
@@ -54,6 +61,42 @@ class VimNormalStateMixin(_MixinBase):
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
 
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
+
+        def _execute_charwise_operator(
+            self,
+            start: tuple[int, int],
+            end: tuple[int, int],
+            op: str,
+        ) -> None: ...
+
+        def _execute_charwise_case_operator(
+            self,
+            start: tuple[int, int],
+            end: tuple[int, int],
+            op: str,
+        ) -> None: ...
+
+        def _execute_linewise_operator(
+            self,
+            first_row: int,
+            last_row: int,
+            op: str,
+        ) -> None: ...
+
+        def _execute_linewise_transform_operator(
+            self,
+            first_row: int,
+            last_row: int,
+            op: str,
+            *,
+            units: int = 1,
+        ) -> None: ...
+
+        def _last_char_location_after_insert(
+            self,
+            start: tuple[int, int],
+            text: str,
+        ) -> tuple[int, int]: ...
 
     # -- Mixin implementation --
 
@@ -130,18 +173,143 @@ class VimNormalStateMixin(_MixinBase):
         """Record the current key buffer as the last mutation for dot-repeat."""
         if not self._replaying_dot and self._mutation_key_buffer:
             self._last_mutation_keys = list(self._mutation_key_buffer)
+            self._last_mutation_count = max(1, self._mutation_count)
+            self._last_mutation_insert = None
+            self._last_visual_mutation = None
         self._mutation_key_buffer.clear()
+        self._mutation_count = 1
 
-    def _replay_dot(self, count: int) -> None:
-        """Replay the last recorded mutation *count* times."""
+    def _record_insert_mutation_start(self, count: int) -> None:
+        """Record an insert-style change and begin capturing inserted text."""
+        if self._replaying_dot:
+            return
+        self._mutation_count = max(1, count)
+        self._record_mutation()
+        self._start_dot_insert_capture()
+
+    def _start_dot_insert_capture(self) -> None:
+        """Mark the current cursor offset as the start of insert-text capture."""
+        if not self._replaying_dot:
+            self._dot_insert_capture_offset = self._absolute_offset(
+                self.cursor_location
+            )
+
+    def _finish_dot_insert_capture(self) -> None:
+        """Finish an insert-text capture when INSERT mode exits."""
+        start_offset = self._dot_insert_capture_offset
+        if start_offset is None:
+            return
+        self._dot_insert_capture_offset = None
+        if self._replaying_dot:
+            return
+
+        end_offset = self._absolute_offset(self.cursor_location)
+        if end_offset < start_offset:
+            self._last_mutation_insert = ""
+            return
+
+        text = self.text
+        start_offset = max(0, min(start_offset, len(text)))
+        end_offset = max(0, min(end_offset, len(text)))
+        self._last_mutation_insert = text[start_offset:end_offset]
+
+    def _dot_insert_repeats_text(self, keys: list[str]) -> bool:
+        """Return whether a replay count should multiply captured insert text."""
+        return bool(keys) and keys[0] in {"i", "a", "A", "I", "o", "O"}
+
+    def _insert_replayed_text_and_return_normal(self, payload: str) -> None:
+        """Insert replayed text, leave INSERT mode, and place the cursor."""
+        insert_at, replace_end = self.selection
+        if payload:
+            self._replace_via_keyboard(payload, insert_at, replace_end)
+            cursor = self._last_char_location_after_insert(insert_at, payload)
+        else:
+            cursor = insert_at
+        self._enter_normal_mode()
+        self.cursor_location = cursor
+
+    def _visual_dot_char_range(
+        self,
+        size: int,
+    ) -> tuple[tuple[int, int], tuple[int, int]]:
+        """Return a charwise visual-repeat range from the current cursor."""
+        start = self.cursor_location
+        start_offset = self._absolute_offset(start)
+        end_offset = min(start_offset + max(0, size), len(self.text))
+        return (start, self._location_from_absolute(end_offset))
+
+    def _visual_dot_line_rows(self, size: int) -> tuple[int, int]:
+        """Return linewise visual-repeat rows from the current cursor."""
+        first_row = self.cursor_location[0]
+        last_row = min(first_row + max(1, size) - 1, self.document.line_count - 1)
+        return (first_row, last_row)
+
+    def _replay_visual_dot(self, count: int, has_count: bool) -> None:
+        """Replay a structured visual-mode mutation over a same-sized range."""
+        change = self._last_visual_mutation
+        if change is None:
+            return
+        op, kind, size, units = change
+        if has_count:
+            size *= max(1, count)
+
+        self._replaying_dot = True
+        try:
+            if kind == "linewise":
+                first_row, last_row = self._visual_dot_line_rows(size)
+                if op in {"d", "c"}:
+                    self._execute_linewise_operator(first_row, last_row, op)
+                elif self._is_indent_operator(op) or self._is_case_operator(op):
+                    self._execute_linewise_transform_operator(
+                        first_row,
+                        last_row,
+                        op,
+                        units=max(1, units),
+                    )
+            else:
+                start, end = self._visual_dot_char_range(size)
+                if op in {"d", "c"}:
+                    self._execute_charwise_operator(start, end, op)
+                elif self._is_case_operator(op):
+                    self._execute_charwise_case_operator(start, end, op)
+
+            if (
+                op == "c"
+                and self._last_mutation_insert is not None
+                and self._vim_mode == "insert"
+            ):
+                self._insert_replayed_text_and_return_normal(self._last_mutation_insert)
+        finally:
+            self._replaying_dot = False
+
+    def _replay_dot(self, count: int, has_count: bool) -> None:
+        """Replay the last recorded mutation with vim count-override semantics."""
+        if self._last_visual_mutation is not None:
+            self._replay_visual_dot(count, has_count)
+            return
         if not self._last_mutation_keys:
             return
         keys = list(self._last_mutation_keys)
+        effective_count = max(1, count if has_count else self._last_mutation_count)
+        insert_text = self._last_mutation_insert
+        repeats_insert_text = insert_text is not None and self._dot_insert_repeats_text(
+            keys
+        )
+        replay_keys = list(keys)
+        if effective_count > 1 and not repeats_insert_text:
+            replay_keys = [*str(effective_count), *replay_keys]
+
         self._replaying_dot = True
         try:
-            for _ in range(count):
-                for char in keys:
-                    self._handle_normal_mode_key(Key(char, char))
+            for char in replay_keys:
+                self._handle_normal_mode_key(Key(char, char))
+            if insert_text is not None and self._vim_mode == "insert":
+                payload = (
+                    insert_text * effective_count
+                    if repeats_insert_text
+                    else insert_text
+                )
+                self._insert_replayed_text_and_return_normal(payload)
         finally:
             self._replaying_dot = False
 
@@ -158,6 +326,7 @@ class VimNormalStateMixin(_MixinBase):
         op_count = self._pending_operator_count
         self._pending_operator = ""
         self._pending_operator_count = 1
+        self._mutation_count = max(1, op_count * count)
         self._update_count_display()
         return (op, op_count * count)
 

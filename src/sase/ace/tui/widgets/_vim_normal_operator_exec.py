@@ -47,6 +47,7 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
             if op == "c":
                 self._record_mutation()
                 self._enter_insert_mode()
+                self._start_dot_insert_capture()
             else:
                 # An empty delete performs no edit; recording it would
                 # overwrite the dot-repeat register with a no-op.
@@ -68,10 +69,12 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         self.read_only = False
         self.delete(start, end)
         if op == "c":
+            self.cursor_location = start
             self._enter_insert_mode()
+            self._start_dot_insert_capture()
         else:
             self.read_only = was_readonly
-        self.cursor_location = start
+            self.cursor_location = start
 
     def _execute_charwise_case_operator(
         self,
@@ -109,6 +112,7 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         self._replace_via_keyboard(replacement * count, (row, col), (row, end_col))
         self.read_only = was_readonly
         self.cursor_location = (row, end_col - 1)
+        self._mutation_count = max(1, count)
         self._record_mutation()
 
     def _redo(self) -> None:
@@ -166,8 +170,9 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
             # Change: clear line contents but keep one empty line.
             last_line = doc.get_line(last_row)
             self.delete((first_row, 0), (last_row, len(last_line)))
-            self._enter_insert_mode()
             self.cursor_location = (first_row, 0)
+            self._enter_insert_mode()
+            self._start_dot_insert_capture()
         else:
             # Delete: remove lines entirely.
             if first_row == 0 and last_row >= doc.line_count - 1:

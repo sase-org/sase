@@ -111,7 +111,12 @@ class PromptTextArea(
             | None
         ) = None
         self._mutation_key_buffer: list[str] = []
+        self._mutation_count: int = 1
         self._last_mutation_keys: list[str] = []
+        self._last_mutation_count: int = 1
+        self._last_mutation_insert: str | None = None
+        self._last_visual_mutation: tuple[str, str, int, int] | None = None
+        self._dot_insert_capture_offset: int | None = None
         self._replaying_dot: bool = False
         self._last_char_search: tuple[str, str] | None = None
         self._vim_register: VimRegister = VimRegister()
