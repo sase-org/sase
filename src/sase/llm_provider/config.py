@@ -36,7 +36,7 @@ def get_llm_provider_config() -> dict[str, Any]:
         return {}
 
 
-def get_default_effort() -> str | None:
+def _get_default_effort() -> str | None:
     """Return the configured ``llm_provider.default_effort`` level, or ``None``.
 
     Reads the layered ``llm_provider.default_effort`` value, normalizes it
@@ -78,7 +78,7 @@ def resolve_effective_effort(
     explicit_effort = directives.reasoning_effort
     if explicit_effort:
         return explicit_effort, True
-    default_effort = get_default_effort()
+    default_effort = _get_default_effort()
     if default_effort:
         return default_effort, False
     return None, False

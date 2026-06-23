@@ -60,7 +60,7 @@ def test_agent_meta_omits_effort_when_unset(
 
     # Pin the config default to "unset" so the test is independent of the
     # developer's ~/.config/sase/sase.yml (which Phase 6 sets to xhigh).
-    monkeypatch.setattr("sase.llm_provider.config.get_default_effort", lambda: None)
+    monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: None)
 
     workspace_dir = str(tmp_path / "workspace")
     artifacts_dir = str(tmp_path / "artifacts")
@@ -85,7 +85,7 @@ def test_agent_meta_uses_config_default_effort(
     """With no directive, ``llm_provider.default_effort`` is persisted."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
 
-    monkeypatch.setattr("sase.llm_provider.config.get_default_effort", lambda: "high")
+    monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: "high")
 
     workspace_dir = str(tmp_path / "workspace")
     artifacts_dir = str(tmp_path / "artifacts")

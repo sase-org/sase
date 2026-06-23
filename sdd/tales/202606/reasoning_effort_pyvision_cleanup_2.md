@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 14:22:58
-status: wip
+status: done
 prompt: sdd/prompts/202606/reasoning_effort_pyvision_cleanup_2.md
 ---
 # Reasoning Effort Pyvision Cleanup Plan

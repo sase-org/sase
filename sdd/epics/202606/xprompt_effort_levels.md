@@ -2,7 +2,7 @@
 create_time: 2026-06-23 11:20:08
 bead_id: sase-55
 tier: epic
-status: wip
+status: done
 prompt: sdd/prompts/202606/xprompt_effort_levels.md
 ---
 # Plan: Reasoning-Effort Levels for XPrompt Model/Provider Selection

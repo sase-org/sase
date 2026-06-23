@@ -702,7 +702,8 @@ while a config-default effort is skipped with a warning. The effort args are app
 [`SASE_LLM_*_ARGS` / `SASE_<P>_LARGE_ARGS`](#environment-variables) escape hatches, which remain available.
 
 Source: `src/sase/xprompt/effort.py` (vocabulary + `split_model_effort`), `src/sase/llm_provider/config.py`
-(`get_default_effort`, `resolve_effective_effort`), `src/sase/llm_provider/_effort_args.py` (per-provider translation).
+(`resolve_effective_effort`, backed by the private `_get_default_effort` config reader),
+`src/sase/llm_provider/_effort_args.py` (per-provider translation).
 
 ## Model Tier System
 

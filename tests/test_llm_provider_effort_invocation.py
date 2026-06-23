@@ -45,19 +45,19 @@ class TestResolveEffectiveEffort:
     def test_explicit_directive_beats_config_default(self) -> None:
         # An explicit %effort/@effort value wins and is marked explicit, even
         # when a config default exists.
-        with patch("sase.llm_provider.config.get_default_effort", return_value="low"):
+        with patch("sase.llm_provider.config._get_default_effort", return_value="low"):
             effort, explicit = resolve_effective_effort(
                 PromptDirectives(reasoning_effort="xhigh")
             )
         assert (effort, explicit) == ("xhigh", True)
 
     def test_config_default_used_when_no_directive(self) -> None:
-        with patch("sase.llm_provider.config.get_default_effort", return_value="high"):
+        with patch("sase.llm_provider.config._get_default_effort", return_value="high"):
             effort, explicit = resolve_effective_effort(PromptDirectives())
         assert (effort, explicit) == ("high", False)
 
     def test_none_when_neither_present(self) -> None:
-        with patch("sase.llm_provider.config.get_default_effort", return_value=None):
+        with patch("sase.llm_provider.config._get_default_effort", return_value=None):
             assert resolve_effective_effort(PromptDirectives()) == (None, False)
 
 
@@ -332,7 +332,7 @@ def test_invoke_agent_threads_explicit_directive_effort(
     assert mock_finalizer.call_args.kwargs["options"] == expected
 
 
-@patch("sase.llm_provider.config.get_default_effort", return_value="high")
+@patch("sase.llm_provider.config._get_default_effort", return_value="high")
 @patch("sase.llm_provider._invoke.run_commit_finalizer")
 @patch("sase.llm_provider._invoke.get_provider")
 @patch("sase.llm_provider._invoke.postprocess_success")
