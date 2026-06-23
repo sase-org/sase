@@ -9,6 +9,7 @@ from ._agent_status_diff import classify_diff_badges as classify_persisted_diff_
 from ._agent_status_family import (
     active_approved_plan_handoff_status,
     append_unique_timestamps,
+    approved_followup_planner_status,
     child_launch_time,
     children_by_parent_timestamp,
     copy_missing_display_metadata,
@@ -154,6 +155,13 @@ def apply_status_overrides(
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 role = agent_family_role(agent)
+                approved_status = (
+                    approved_followup_planner_status(agent)
+                    if agent.status == "DONE" and is_root_plan_workflow(parent)
+                    else None
+                )
+                if approved_status is not None:
+                    agent.status = approved_status
                 if has_unanswered_completed_question(
                     agent, parents_with_followup
                 ) and not has_inherited_family_question(agent, parent_by_suffix):

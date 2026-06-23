@@ -348,6 +348,27 @@ def test_sticky_approved_plan_workflow_child_freezes_at_plan_time() -> None:
     assert runtime_suffix_ticks(child) is False
 
 
+def test_question_continuation_planner_approved_runtime_freezes() -> None:
+    start = datetime(2026, 6, 23, 7, 5, 50)
+    plan_submit = datetime(2026, 6, 23, 7, 6, 42)
+    child = agent(
+        status="TALE APPROVED",
+        start=start,
+        run_start=start,
+        plan_times=[plan_submit],
+        role_suffix="--plan",
+        raw_suffix="20260623070550",
+    )
+    child.parent_timestamp = "20260623065702"
+    child.agent_family_role = "q"
+
+    ts, elapsed = compute_row_runtime(child, now=datetime(2026, 6, 23, 7, 33, 38))
+
+    assert ts == ("", "07:06:42")
+    assert elapsed == "52s"
+    assert runtime_suffix_ticks(child) is False
+
+
 def test_workflow_root_aggregate_ticks_at_1s_per_1s_with_done_plan_child() -> None:
     """Regression: a DONE plan child + RUNNING epic child must tick 1s/1s.
 

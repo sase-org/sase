@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 08:09:02
-status: wip
+status: done
 prompt: sdd/prompts/202606/question_continuation_planner_status.md
 ---
 # Plan: Fix status + runtime for a `%approve` question-continuation planner family

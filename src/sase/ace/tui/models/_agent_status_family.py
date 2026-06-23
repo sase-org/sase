@@ -82,7 +82,7 @@ def has_inherited_family_question(
         return False
     # Feedback/code rows can ask their own questions; only root-question
     # continuations inherit the asker's question timestamp by construction.
-    if agent_family_role(agent) != "q":
+    if agent_family_role(agent) != "q" and agent.agent_family_role != "q":
         return False
     parent = parent_by_suffix.get(agent.parent_timestamp)
     if parent is None:
@@ -274,6 +274,19 @@ def _approved_planner_status(
     return PLAN_APPROVED_STATUS
 
 
+def approved_followup_planner_status(agent: Agent) -> str | None:
+    """Return the sticky approved status for a concrete follow-up planner."""
+    if agent_family_role(agent) != "plan":
+        return None
+    if not agent.plan_times:
+        return None
+    if agent.plan_action not in APPROVED_PLANNER_ACTIONS:
+        return None
+    if agent.plan_action == "tale":
+        return TALE_APPROVED_STATUS
+    return PLAN_APPROVED_STATUS
+
+
 def feedback_child_progressed_past_review(
     agent: Agent,
     all_agents: list[Agent],
@@ -316,14 +329,15 @@ def planner_child_status(
         return parent.status
     if parent.status in {"QUESTION", "ANSWERED"}:
         return parent.status
+    has_followup_child = all_agents is not None and has_family_followup_child(
+        parent, all_agents, children_by_parent
+    )
+    if has_followup_child and parent.questions_times and not parent.plan_times:
+        return "ANSWERED"
     approved_status = _approved_planner_status(parent, all_agents, children_by_parent)
     if approved_status is not None:
         return approved_status
-    if all_agents is not None and has_family_followup_child(
-        parent, all_agents, children_by_parent
-    ):
-        if parent.questions_times and not parent.plan_times:
-            return "ANSWERED"
+    if has_followup_child:
         return "DONE"
     if has_unanswered_completed_question(parent):
         return "QUESTION"
