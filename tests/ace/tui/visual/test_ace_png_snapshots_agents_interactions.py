@@ -1,0 +1,222 @@
+"""ACE TUI PNG visual snapshot coverage for Agents-tab interaction states."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+import pytest
+
+from sase.ace.testing import AcePage
+from sase.ace.tui.models.agent import Agent, AgentType
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+    assert_page_svg_contains,
+)
+from tests.ace.tui.visual._ace_png_snapshot_helpers import (
+    changespecs,
+    patch_startup_loaders,
+    sibling_agents,
+    wait_for_startup,
+    wait_for_visual_idle,
+)
+from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
+
+pytestmark = pytest.mark.visual
+
+
+def _done_agents() -> list[Agent]:
+    """Three completed agents in the ``Done`` bucket.
+
+    Used by the unread-highlight snapshot — all three rows are then
+    marked unread post-startup so the Agents-tab info-panel header
+    renders a non-zero ``N unread`` count that exercises the yellow
+    background style.
+    """
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-plan",
+            project_file="/workspace/sase/visual_project.sase",
+            status="DONE",
+            start_time=datetime(2026, 5, 9, 10, 0, 0),
+            stop_time=datetime(2026, 5, 9, 10, 7, 30),
+            raw_suffix="20260509-100000-plan",
+            agent_name="planner",
+            llm_provider="codex",
+            model="gpt-5",
+            response_path="/workspace/sase/artifacts/visual-plan/response.md",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-code",
+            project_file="/workspace/sase/visual_project.sase",
+            status="DONE",
+            start_time=datetime(2026, 5, 9, 10, 8, 0),
+            stop_time=datetime(2026, 5, 9, 10, 9, 5),
+            raw_suffix="20260509-100800-code",
+            agent_name="coder",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-review",
+            project_file="/workspace/sase/visual_project.sase",
+            status="PLAN DONE",
+            start_time=datetime(2026, 5, 9, 10, 10, 0),
+            stop_time=datetime(2026, 5, 9, 10, 12, 0),
+            raw_suffix="20260509-101000-review",
+            agent_name="reviewer",
+            tag="visual",
+        ),
+    ]
+
+
+async def test_agents_unread_highlight_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    done = _done_agents()
+    patch_startup_loaders(monkeypatch, agents=done)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        identities = {agent.identity for agent in done}
+        page.app._unread_completed_agent_ids = set(identities)
+        page.app._manual_unread_agent_ids = set(identities)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        page.app._update_agents_info_panel()
+        from sase.ace.tui.widgets import AgentInfoPanel
+
+        panel = page.app.query_one("#agent-info-panel", AgentInfoPanel)
+        assert panel._unread_count == 3, f"expected 3 unread, got {panel._unread_count}"
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_unread_highlight_120x40",
+            title="ACE agents unread highlight",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_agents_sibling_badge_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+        assert page.app._agent_sibling_index().sibling_count(page.app.current_idx) == 2
+        assert_page_svg_contains(page, "siblings: ")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_sibling_badge_120x40",
+            title="ACE agents sibling badge",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_agent_sibling_modal_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(60, 30)
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        page.app.action_start_sibling_mode()
+        await page.expect_modal("AgentSiblingModal")
+        await wait_for_visual_idle(page)
+        modal = page.app.screen_stack[-1]
+        assert modal.__class__.__name__ == "AgentSiblingModal"
+        choices = vars(modal)["_choices"]
+        assert [choice.global_idx for choice in choices] == [1, 2]
+        assert_page_svg_contains(page, "Sibling Agents: visual family")
+        assert_page_svg_contains(page, "visual.code.implementation.with...")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agent_sibling_modal_60x30",
+            title="ACE agent sibling modal narrow",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+def _workspace_tmux_choices() -> list:
+    from sase.ace.tui.modals.agent_workspace_tmux_modal import (
+        AgentWorkspaceTmuxChoice,
+    )
+
+    return [
+        AgentWorkspaceTmuxChoice(
+            kind="current",
+            label="workspaces_lane",
+            window_name="",
+            project_name="sase",
+            workspace_dir="~/.sase/sase_12",
+        ),
+        AgentWorkspaceTmuxChoice(
+            kind="linked",
+            label="sase-core",
+            window_name="sase-core_12",
+            workspace_dir="/w/sase-core_12",
+            reason="Need Rust backend context",
+            agent_label="code",
+        ),
+        AgentWorkspaceTmuxChoice(
+            kind="linked",
+            label="bob",
+            window_name="bob_12",
+            workspace_dir="/w/bob_12",
+            reason="Compare Obsidian workflow",
+        ),
+    ]
+
+
+async def test_agent_workspace_tmux_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(100, 28)
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+
+        from sase.ace.tui.modals.agent_workspace_tmux_modal import (
+            AgentWorkspaceTmuxModal,
+        )
+
+        page.app.push_screen(AgentWorkspaceTmuxModal(_workspace_tmux_choices()))
+        await page.expect_modal("AgentWorkspaceTmuxModal")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Tmux Workspace")
+        assert_page_svg_contains(page, "CURRENT")
+        assert_page_svg_contains(page, "LINKED")
+        assert_page_svg_contains(page, "sase-core")
+        assert_page_svg_contains(page, "Rust backend")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agent_workspace_tmux_modal_100x28",
+            title="ACE agent workspace tmux modal",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
