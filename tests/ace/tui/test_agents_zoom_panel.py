@@ -13,13 +13,15 @@ from sase.ace.tui.actions.agents._panel_detail import AgentPanelDetailMixin
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
+from sase.ace.tui.modals.zoom_panel_modal import _renderable_to_text, _status_text
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_status import (
     STOPPED_COLOR,
     STOPPED_GLYPH,
     STOPPED_STATUS,
 )
-from sase.ace.tui.modals.zoom_panel_modal import _status_text
+from sase.ace.tui.widgets.agent_detail import AgentDetail
+from sase.ace.tui.widgets.file_panel import AgentFilePanel
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -37,8 +39,8 @@ def _make_agent(**overrides: object) -> Agent:
 
 
 class _FakePanel:
-    def __init__(self, renderable: object) -> None:
-        self.renderable = renderable
+    def __init__(self, content: object) -> None:
+        self.content = content
 
 
 class _FakeFilePanel(_FakePanel):
@@ -222,6 +224,31 @@ class _ModalTestApp(App[None]):
         yield from ()
 
 
+class _DetailTestApp(App[None]):
+    ENABLE_COMMAND_PALETTE = False
+
+    def compose(self) -> ComposeResult:
+        yield AgentDetail(id="agent-detail-panel")
+
+
+async def _wait_for_file_content(
+    pilot: Any,
+    panel: Any,
+    expected: str,
+    *,
+    attempts: int = 20,
+) -> str:
+    rendered = ""
+    for _ in range(attempts):
+        await pilot.pause()
+        rendered = _renderable_to_text(getattr(panel, "content", None)) or ""
+        if panel._full_content is not None and expected in rendered:
+            return rendered
+    assert panel._full_content is not None
+    assert expected in rendered
+    return rendered
+
+
 async def test_zoom_modal_z_closes() -> None:
     agent = _make_agent(status="DONE")
     modal = ZoomPanelModal(
@@ -241,6 +268,133 @@ async def test_zoom_modal_z_closes() -> None:
         await pilot.pause()
 
         assert not isinstance(pilot.app.screen, ZoomPanelModal)
+
+
+async def test_zoom_seed_uses_textual_content_and_paints_file_panel() -> None:
+    file_renderable = Text("seeded file content")
+    agent = _make_agent(status="DONE")
+
+    async with _DetailTestApp().run_test(size=(120, 40)) as pilot:
+        detail = pilot.app.query_one("#agent-detail-panel", AgentDetail)
+        file_panel = detail.query_one("#agent-file-panel", AgentFilePanel)
+        file_panel.update(file_renderable)
+        detail._has_file_content = True
+
+        app = _FakeZoomApp(agent=agent, detail=detail)
+        seed = app._zoom_seed_from_detail(detail)
+
+        assert seed.file_renderable is not None
+        assert "seeded file content" in (
+            _renderable_to_text(seed.file_renderable) or ""
+        )
+
+        modal = ZoomPanelModal(
+            agent_provider=lambda: None,
+            initial_agent=agent,
+            initial_target=ZoomPanelTarget.FILE,
+            seed=seed,
+            refresh_interval=10,
+        )
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        zoom_file_panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        assert "seeded file content" in (
+            _renderable_to_text(zoom_file_panel.content) or ""
+        )
+
+
+async def test_completed_agent_zoom_loads_seeded_file_list_without_refresh(
+    tmp_path: Any,
+) -> None:
+    first_path = tmp_path / "first.md"
+    first_path.write_text("first file body\n", encoding="utf-8")
+    second_path = tmp_path / "second.md"
+    second_path.write_text("second file body\n", encoding="utf-8")
+
+    agent = _make_agent(
+        status="DONE",
+        extra_files=[str(first_path), str(second_path)],
+    )
+    modal = ZoomPanelModal(
+        agent_provider=lambda: agent,
+        initial_agent=agent,
+        initial_target=ZoomPanelTarget.FILE,
+        seed=ZoomPanelSeed(
+            file_list=tuple(agent.all_files),
+            has_file_content=True,
+        ),
+        refresh_interval=10,
+    )
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        rendered = await _wait_for_file_content(pilot, panel, "first file body")
+
+        assert panel._full_content == "first file body\n"
+        assert str(first_path) in rendered
+
+
+async def test_zoom_next_file_shows_next_seeded_file(tmp_path: Any) -> None:
+    first_path = tmp_path / "first.md"
+    first_path.write_text("first file body\n", encoding="utf-8")
+    second_path = tmp_path / "second.md"
+    second_path.write_text("second file body\n", encoding="utf-8")
+
+    agent = _make_agent(
+        status="DONE",
+        extra_files=[str(first_path), str(second_path)],
+    )
+    modal = ZoomPanelModal(
+        agent_provider=lambda: agent,
+        initial_agent=agent,
+        initial_target=ZoomPanelTarget.FILE,
+        seed=ZoomPanelSeed(
+            file_list=tuple(agent.all_files),
+            has_file_content=True,
+        ),
+        refresh_interval=10,
+    )
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        await _wait_for_file_content(pilot, panel, "first file body")
+
+        await pilot.press("ctrl+n")
+        rendered = await _wait_for_file_content(pilot, panel, "second file body")
+
+        assert panel.current_file_index == 1
+        assert panel._full_content == "second file body\n"
+        assert str(second_path) in rendered
+
+
+async def test_zoom_metadata_copy_fallback_uses_textual_content() -> None:
+    agent = _make_agent(status="DONE")
+    modal = ZoomPanelModal(
+        agent_provider=lambda: None,
+        initial_agent=agent,
+        initial_target=ZoomPanelTarget.METADATA,
+        seed=ZoomPanelSeed(metadata_renderable=Text("metadata copy body")),
+        refresh_interval=10,
+    )
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert modal._zoom_text() == "metadata copy body"
 
 
 async def test_zoom_file_show_all_survives_periodic_refresh(tmp_path: Any) -> None:

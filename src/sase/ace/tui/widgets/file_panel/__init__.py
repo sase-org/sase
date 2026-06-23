@@ -199,7 +199,7 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         # full reset (which would leave this static file list on screen).
         self._current_agent = None
 
-        if files == self._file_list and self._file_list:
+        if files == self._file_list and self._file_list and self._has_displayed_content:
             # Files unchanged — preserve the user's current_file_index regardless
             # of the caller's default start_index. Auto-refresh must not overwrite
             # a user selection driven by <ctrl+n>/<ctrl+p>.

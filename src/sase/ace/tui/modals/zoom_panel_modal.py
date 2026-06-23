@@ -8,6 +8,7 @@ import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
+from io import StringIO
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Console, RenderableType
@@ -179,7 +180,7 @@ class ZoomPanelModal(ModalScreen[None]):
         if self._content_seeded:
             return
         self._content_seeded = True
-        if self._seed.metadata_renderable is not None:
+        if self._seed.metadata_renderable:
             self.query_one("#zoom-metadata-panel", AgentPromptPanel).update(
                 self._seed.metadata_renderable
             )
@@ -187,7 +188,7 @@ class ZoomPanelModal(ModalScreen[None]):
             self._seed.metadata_subtitle or ""
         )
         file_panel = self.query_one("#zoom-file-panel", _ZoomFilePanel)
-        if self._seed.file_renderable is not None:
+        if self._seed.file_renderable:
             file_panel.update(self._seed.file_renderable)
         self.query_one("#zoom-file-scroll", VerticalScroll).border_subtitle = (
             self._seed.file_subtitle or ""
@@ -198,7 +199,7 @@ class ZoomPanelModal(ModalScreen[None]):
                 max(self._seed.file_index, 0),
                 len(self._seed.file_list) - 1,
             )
-        if self._seed.tools_renderable is not None:
+        if self._seed.tools_renderable:
             self.query_one("#zoom-tools-panel", _ZoomToolsPanel).update(
                 self._seed.tools_renderable
             )
@@ -370,7 +371,7 @@ class ZoomPanelModal(ModalScreen[None]):
             if content:
                 return content
         active_panel = self.query_one(f"#zoom-{self._target.value}-panel", Static)
-        rendered_text = _renderable_to_text(getattr(active_panel, "renderable", None))
+        rendered_text = _renderable_to_text(getattr(active_panel, "content", None))
         return rendered_text or file_path
 
     def _editor_info(self) -> tuple[str | None, str | None, str]:
@@ -563,7 +564,7 @@ def _status_text(status: str) -> Text:
 def _renderable_to_text(renderable: object) -> str | None:
     if renderable is None:
         return None
-    console = Console(record=True, width=120, color_system=None)
+    console = Console(record=True, width=120, color_system=None, file=StringIO())
     console.print(renderable)
     text = console.export_text(clear=True).rstrip()
     return text or None

@@ -223,9 +223,9 @@ class AgentPanelDetailMixin:
         tools_panel = agent_detail.query_one("#agent-tools-panel", AgentToolsPanel)
         file_list = tuple(getattr(file_panel, "_file_list", ()))
         return ZoomPanelSeed(
-            metadata_renderable=getattr(prompt_panel, "renderable", None),
-            file_renderable=getattr(file_panel, "renderable", None),
-            tools_renderable=getattr(tools_panel, "renderable", None),
+            metadata_renderable=getattr(prompt_panel, "content", None),
+            file_renderable=getattr(file_panel, "content", None),
+            tools_renderable=getattr(tools_panel, "content", None),
             metadata_subtitle=self._zoom_border_subtitle(
                 agent_detail, "#agent-prompt-scroll"
             ),
