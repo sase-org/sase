@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 06:54:26
-status: wip
+status: done
 prompt: sdd/prompts/202606/quit_confirm_panel.md
 ---
 # Plan: Beautiful Quit Confirmation Panel with Background-Task Details

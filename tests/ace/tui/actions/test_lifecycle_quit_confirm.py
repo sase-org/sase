@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+import pytest
+
+from sase.ace.tui.actions.lifecycle import LifecycleMixin
+from sase.ace.tui.modals import QuitConfirmModal
+from sase.ace.tui.task_queue import TaskInfo, TaskQueue
+
+
+class _QuitApp(LifecycleMixin):
+    def __init__(self, task_queue: TaskQueue | None = None) -> None:
+        self._task_queue = task_queue or TaskQueue()
+        self.pushed: list[tuple[Any, Any]] = []
+        self.did_quit = False
+        self.killed_task_ids: list[str] = []
+
+    def push_screen(self, modal: Any, callback: Any = None) -> None:
+        self.pushed.append((modal, callback))
+
+    def _kill_background_task(self, task_id: str) -> bool:
+        self.killed_task_ids.append(task_id)
+        return True
+
+    def _do_quit(self) -> None:
+        self.did_quit = True
+
+
+def _task(
+    task_id: str,
+    task_type: str,
+    status: str = "running",
+    *,
+    display_name: str | None = None,
+) -> TaskInfo:
+    return TaskInfo(
+        task_id=task_id,
+        task_type=task_type,
+        cl_name=f"{task_type}-cl",
+        project_file="/tmp/project.sase",
+        status=status,
+        message=f"{task_type} in progress",
+        started_at=datetime(2026, 6, 23, 12, 0, 0),
+        display_name=display_name,
+    )
+
+
+def _queue(*tasks: TaskInfo) -> TaskQueue:
+    queue = TaskQueue()
+    for task in tasks:
+        queue._tasks[task.task_id] = task
+    return queue
+
+
+@pytest.mark.asyncio
+async def test_action_quit_with_running_tasks_pushes_quit_confirm_modal() -> None:
+    running = _task("run-1", "sync", display_name="Sync visual-auth")
+    completed = _task("done-1", "mail", status="success")
+    app = _QuitApp(_queue(running, completed))
+
+    await app.action_quit()
+
+    assert app.did_quit is False
+    assert app.killed_task_ids == []
+    assert len(app.pushed) == 1
+    modal, callback = app.pushed[0]
+    assert isinstance(modal, QuitConfirmModal)
+    assert callback is not None
+    assert modal._tasks == [running]
+
+
+@pytest.mark.asyncio
+async def test_action_quit_confirm_kills_running_tasks_and_quits() -> None:
+    sync = _task("run-sync", "sync")
+    mail = _task("run-mail", "mail")
+    completed = _task("done-accept", "accept", status="success")
+    app = _QuitApp(_queue(sync, mail, completed))
+
+    await app.action_quit()
+    _, callback = app.pushed[0]
+    callback(True)
+
+    assert app.did_quit is True
+    assert app.killed_task_ids == ["run-sync", "run-mail"]
+
+
+@pytest.mark.asyncio
+async def test_action_quit_cancel_keeps_tasks_running() -> None:
+    app = _QuitApp(_queue(_task("run-sync", "sync")))
+
+    await app.action_quit()
+    _, callback = app.pushed[0]
+    callback(False)
+    callback(None)
+
+    assert app.did_quit is False
+    assert app.killed_task_ids == []
+
+
+@pytest.mark.asyncio
+async def test_action_quit_without_running_tasks_quits_without_modal() -> None:
+    app = _QuitApp(_queue(_task("done-mail", "mail", status="success")))
+
+    await app.action_quit()
+
+    assert app.did_quit is True
+    assert app.pushed == []
+    assert app.killed_task_ids == []

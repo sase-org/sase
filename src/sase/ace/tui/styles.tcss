@@ -145,7 +145,7 @@ ChangeSpecList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal, StashedPromptsModal, InputCollectionModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal, StashedPromptsModal, QuitConfirmModal, InputCollectionModal {
     align: center middle;
 }
 
@@ -276,6 +276,61 @@ StashedPromptsModal #stashed-prompts-hints {
     height: auto;
     margin-top: 1;
     color: $text-muted;
+}
+
+/* Quit confirmation with running background-task details */
+QuitConfirmModal > #quit-confirm-container {
+    width: 70;
+    max-width: 95%;
+    height: auto;
+    max-height: 88%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+QuitConfirmModal #quit-confirm-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+QuitConfirmModal #quit-confirm-summary {
+    height: auto;
+    margin-bottom: 1;
+}
+
+QuitConfirmModal #quit-confirm-tasks {
+    height: auto;
+    max-height: 16;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+    margin-bottom: 1;
+}
+
+QuitConfirmModal .quit-confirm-task-card {
+    height: auto;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+QuitConfirmModal #quit-confirm-buttons {
+    align: center middle;
+    height: auto;
+    margin-top: 1;
+}
+
+QuitConfirmModal Button {
+    margin: 0 1;
+    min-width: 20;
+}
+
+QuitConfirmModal #quit-confirm-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
 }
 
 /* Workflow HITL Modal styling */

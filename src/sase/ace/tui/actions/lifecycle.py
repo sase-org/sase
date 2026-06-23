@@ -180,7 +180,16 @@ class LifecycleMixin:
             return
         count = self._count_running_tasks()
         if count > 0:
-            from ..modals import ConfirmActionModal
+            from ..modals import QuitConfirmModal
+
+            running = [
+                task
+                for task in self._task_queue.get_all()  # type: ignore[attr-defined]
+                if task.status == "running"
+            ]
+            if not running:
+                self._do_quit()
+                return
 
             def _on_confirm(confirmed: bool | None) -> None:
                 if not confirmed:
@@ -189,10 +198,7 @@ class LifecycleMixin:
                 self._do_quit()
 
             self.push_screen(  # type: ignore[attr-defined]
-                ConfirmActionModal(
-                    title="Quit",
-                    message=f"{count} background task(s) still running. Quit and kill them?",
-                ),
+                QuitConfirmModal(running),
                 callback=_on_confirm,
             )
             return
