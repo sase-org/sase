@@ -484,6 +484,54 @@ ApproveOptionsModal {
 }
 
 
+/* Auto-Approve quick-action menu styling (agents tab `a` key). Mirrors the
+   ApproveOptionsModal visual language (double border, $surface background,
+   $success selected-row highlight) but drives single-key instant select. */
+AutoApproveModal {
+    align: center middle;
+}
+
+#auto-approve-container {
+    width: 56;
+    height: auto;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#auto-approve-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.auto-approve-choice-row {
+    height: 1;
+    color: $text;
+}
+
+.auto-approve-choice-row.selected {
+    color: $success;
+    text-style: bold;
+}
+
+#auto-approve-agent {
+    height: auto;
+    margin-top: 1;
+    color: $text-muted;
+}
+
+#auto-approve-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid $secondary;
+    padding-top: 1;
+    margin-top: 1;
+}
+
+
 /* Model Picker Modal styling */
 ModelPickerModal {
     align: center middle;

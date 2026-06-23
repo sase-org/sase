@@ -13,9 +13,22 @@ from sase.core.agent_artifact_index_lifecycle import (
 
 if TYPE_CHECKING:
     from ...models import Agent
+    from ...modals import AutoApproveChoice
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
+
+# Agent statuses for which auto-approval can be configured.
+_APPROVE_ELIGIBLE = frozenset(
+    {
+        "STARTING",
+        "RUNNING",
+        "PLAN",
+        *ACTIVE_PLAN_HANDOFF_STATUSES,
+        "WAITING",
+        "QUESTION",
+    }
+)
 
 
 def _persist_plan_auto_approval(
@@ -48,12 +61,39 @@ def _persist_plan_auto_approval(
     update_agent_artifact_index_for_marker_mutation(meta_path.parent)
 
 
-def _next_auto_approval_state(agent: Agent) -> tuple[bool, str | None, str]:
+def _auto_approval_choice_for_agent(agent: Agent) -> AutoApproveChoice:
+    """Map an agent's current auto-approval state to a menu choice id.
+
+    Used to mark the agent's current standing in the Auto-Approve menu. Note
+    ``agent.approve`` stays ``True`` in memory for tale/epic (it drives the row
+    icon) even though the persisted ``approve`` key is omitted, so the
+    ``auto_approve_plan_action`` value is checked first.
+    """
     if agent.auto_approve_plan_action == "epic":
-        return False, None, "Auto-approve disabled"
+        return "epic"
+    if agent.auto_approve_plan_action == "tale":
+        return "tale"
     if agent.approve:
+        return "plan"
+    return "disable"
+
+
+def _auto_approval_state_for_choice(
+    choice: AutoApproveChoice,
+) -> tuple[bool, str | None, str]:
+    """Map a menu choice to ``(approve, auto_approve_plan_action, toast)``.
+
+    Mirrors the state<->persistence table: tale/epic keep ``approve`` truthy
+    in memory while carrying the action; plan is a plain auto-approve; disable
+    clears everything.
+    """
+    if choice == "tale":
+        return True, "tale", "Tale auto-approve enabled"
+    if choice == "epic":
         return True, "epic", "Epic auto-approve enabled"
-    return True, None, "Auto-approve enabled"
+    if choice == "plan":
+        return True, None, "Auto-approve enabled"
+    return False, None, "Auto-approve disabled"
 
 
 class AgentApproveMixin:
@@ -66,15 +106,16 @@ class AgentApproveMixin:
     current_idx: int
     _agents: list[Agent]
 
-    def action_toggle_approve(self) -> None:
-        """Toggle auto-approve for the selected agent.
+    def action_open_auto_approve_menu(self) -> None:
+        """Open the Auto-Approve menu for the selected agent.
 
-        The disk write is dispatched to a worker via
-        :func:`sase.ace.tui.util.io_async.schedule_persist` so the UI thread
-        never blocks on I/O. The in-memory ``agent.approve`` flag is flipped
-        optimistically and reverted if the persistence worker fails.
+        Replaces the old 3-state ``a`` toggle. Pushes the single-key
+        :class:`~sase.ace.tui.modals.AutoApproveModal`; the chosen state is
+        applied (and persisted) in the dismiss callback via
+        :meth:`_apply_auto_approve_choice`. Cancelling leaves the agent
+        unchanged.
         """
-        from ...util.io_async import schedule_persist
+        from ...modals import AutoApproveModal
 
         if self.current_tab != "agents":
             return
@@ -84,17 +125,31 @@ class AgentApproveMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        _APPROVE_ELIGIBLE = {
-            "STARTING",
-            "RUNNING",
-            "PLAN",
-            *ACTIVE_PLAN_HANDOFF_STATUSES,
-            "WAITING",
-            "QUESTION",
-        }
         if agent.status not in _APPROVE_ELIGIBLE:
             self.notify("Agent not in an active status", severity="warning")  # type: ignore[attr-defined]
             return
+
+        current = _auto_approval_choice_for_agent(agent)
+
+        def _on_dismiss(choice: AutoApproveChoice | None) -> None:
+            if choice is None:
+                return
+            self._apply_auto_approve_choice(agent, choice)
+
+        self.push_screen(AutoApproveModal(current, agent.display_name), _on_dismiss)  # type: ignore[attr-defined]
+
+    def _apply_auto_approve_choice(
+        self, agent: Agent, choice: AutoApproveChoice
+    ) -> None:
+        """Apply and persist an Auto-Approve menu choice for ``agent``.
+
+        The disk write is dispatched to a worker via
+        :func:`sase.ace.tui.util.io_async.schedule_persist` so the UI thread
+        never blocks on I/O. The in-memory ``agent.approve`` /
+        ``auto_approve_plan_action`` fields are patched optimistically and
+        reverted if the persistence worker fails.
+        """
+        from ...util.io_async import schedule_persist
 
         artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
         if not artifacts_dir:
@@ -103,11 +158,11 @@ class AgentApproveMixin:
 
         prior_approve = agent.approve
         prior_auto_action = agent.auto_approve_plan_action
-        new_approve, new_auto_action, toast = _next_auto_approval_state(agent)
+        new_approve, new_auto_action, toast = _auto_approval_state_for_choice(choice)
         agent.approve = new_approve
         agent.auto_approve_plan_action = new_auto_action
-        # Approve flips one in-memory boolean — try the selective patch
-        # first; fall back to the full rebuild if the row can't be
+        # Auto-approve flips a couple of in-memory fields — try the selective
+        # patch first; fall back to the full rebuild if the row can't be
         # patched in place (cross-group risk, alignment overflow, etc.).
         if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
@@ -125,6 +180,8 @@ class AgentApproveMixin:
             self,  # type: ignore[arg-type]
             _persist_plan_auto_approval,
             meta_path,
+            # The persisted ``approve`` key is only written for a plain plan
+            # auto-approve; tale/epic carry their state in the action instead.
             new_approve and new_auto_action is None,
             new_auto_action,
             error_label="Auto-approve persist",

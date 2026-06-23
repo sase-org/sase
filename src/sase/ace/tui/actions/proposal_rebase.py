@@ -359,7 +359,7 @@ class ProposalRebaseMixin:
                     "QUESTION",
                 }
                 if agent.status in _APPROVE_ELIGIBLE:
-                    self.action_toggle_approve()  # type: ignore[attr-defined]
+                    self.action_open_auto_approve_menu()  # type: ignore[attr-defined]
                     return
             return
 

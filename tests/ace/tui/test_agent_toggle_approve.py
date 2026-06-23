@@ -1,4 +1,4 @@
-"""Tests for the optimistic + async ``action_toggle_approve`` flow."""
+"""Tests for the Auto-Approve menu open + apply flow (``a`` key on agents)."""
 
 from __future__ import annotations
 
@@ -12,9 +12,12 @@ import pytest
 
 from sase.ace.tui.actions.agents._approve import (
     AgentApproveMixin,
+    _auto_approval_choice_for_agent,
+    _auto_approval_state_for_choice,
     _persist_plan_auto_approval,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.modals.auto_approve_modal import AutoApproveModal
 
 
 def _make_agent(artifacts_dir: str, **overrides: object) -> Agent:
@@ -40,11 +43,11 @@ class FakeApproveApp(AgentApproveMixin):
         self.notifications: list[tuple[str, str]] = []
         self.scheduled: list[tuple[Any, tuple[Any, ...], dict[str, Any]]] = []
         self.refresh_calls: list[bool] = []
-        # Phase 3 (sase-u.3): the approve handler tries selective row
-        # patching first, falling back to a full refresh when the patch
-        # can't land. This fake forces the fallback so the existing
-        # contract (in-memory mutation + refresh + persistence) stays
-        # under test without a real widget tree.
+        self.pushed_screens: list[tuple[Any, Any]] = []
+        # The approve handler tries selective row patching first, falling back
+        # to a full refresh when the patch can't land. This fake forces the
+        # fallback so the contract (in-memory mutation + refresh + persistence)
+        # stays under test without a real widget tree.
         self.patch_attempts: int = 0
 
     def _try_patch_agent_row(self, agent: Agent) -> bool:
@@ -63,6 +66,39 @@ class FakeApproveApp(AgentApproveMixin):
 
     def _refresh_agents_display(self, *, list_changed: bool = False) -> None:
         self.refresh_calls.append(list_changed)
+
+    def push_screen(self, screen: Any, callback: Any = None) -> None:
+        self.pushed_screens.append((screen, callback))
+
+
+# --- Pure mapping helpers ------------------------------------------------
+
+
+def test_auto_approval_choice_for_agent_maps_each_state() -> None:
+    assert _auto_approval_choice_for_agent(_make_agent("/x")) == "disable"
+    assert _auto_approval_choice_for_agent(_make_agent("/x", approve=True)) == "plan"
+    assert (
+        _auto_approval_choice_for_agent(
+            _make_agent("/x", approve=True, auto_approve_plan_action="tale")
+        )
+        == "tale"
+    )
+    assert (
+        _auto_approval_choice_for_agent(
+            _make_agent("/x", approve=True, auto_approve_plan_action="epic")
+        )
+        == "epic"
+    )
+
+
+def test_auto_approval_state_for_choice_table() -> None:
+    assert _auto_approval_state_for_choice("plan")[:2] == (True, None)
+    assert _auto_approval_state_for_choice("tale")[:2] == (True, "tale")
+    assert _auto_approval_state_for_choice("epic")[:2] == (True, "epic")
+    assert _auto_approval_state_for_choice("disable")[:2] == (False, None)
+
+
+# --- Persistence primitive ------------------------------------------------
 
 
 def testpersist_approve_field_writes_new_file(tmp_path: Any) -> None:
@@ -106,63 +142,120 @@ def test_persist_plan_auto_approval_refreshes_artifact_index(tmp_path: Any) -> N
     update_index.assert_called_once_with(tmp_path)
 
 
-def test_action_toggle_approve_optimistic_update(tmp_path: Any) -> None:
-    """The in-memory toggle and refresh happen before any disk write."""
-    agent = _make_agent(str(tmp_path))
-    assert agent.approve is False
+# --- Menu open routing ----------------------------------------------------
+
+
+def test_open_menu_pushes_modal_marking_current_state(tmp_path: Any) -> None:
+    agent = _make_agent(str(tmp_path), approve=True, auto_approve_plan_action="epic")
     app = FakeApproveApp(agent)
 
-    app.action_toggle_approve()
+    app.action_open_auto_approve_menu()
 
-    # Optimistic mutation already applied
+    assert len(app.pushed_screens) == 1
+    screen, callback = app.pushed_screens[0]
+    assert isinstance(screen, AutoApproveModal)
+    assert screen._current == "epic"
+    assert callable(callback)
+    # Opening the menu mutates nothing on its own.
+    assert agent.auto_approve_plan_action == "epic"
+    assert app.scheduled == []
+
+
+def test_open_menu_no_op_off_agents_tab(tmp_path: Any) -> None:
+    agent = _make_agent(str(tmp_path))
+    app = FakeApproveApp(agent)
+    app.current_tab = "changespecs"
+
+    app.action_open_auto_approve_menu()
+
+    assert app.pushed_screens == []
+    assert app.notifications == []
+
+
+def test_open_menu_warns_when_status_ineligible(tmp_path: Any) -> None:
+    agent = _make_agent(str(tmp_path), status="DONE")
+    app = FakeApproveApp(agent)
+
+    app.action_open_auto_approve_menu()
+
+    assert app.pushed_screens == []
+    assert any(sev == "warning" for _, sev in app.notifications)
+
+
+def test_open_menu_warns_when_no_agent_selected() -> None:
+    app = FakeApproveApp(None)
+
+    app.action_open_auto_approve_menu()
+
+    assert app.pushed_screens == []
+    assert any(sev == "warning" for _, sev in app.notifications)
+
+
+def _dismiss_with(app: FakeApproveApp, choice: str | None) -> None:
+    """Invoke the dismiss callback recorded by the last ``push_screen``."""
+    callback = app.pushed_screens[-1][1]
+    callback(choice)
+
+
+# --- Apply: each menu choice ---------------------------------------------
+
+
+def test_choose_plan_enables_normal_auto_approve(tmp_path: Any) -> None:
+    agent = _make_agent(str(tmp_path))
+    app = FakeApproveApp(agent)
+
+    app.action_open_auto_approve_menu()
+    _dismiss_with(app, "plan")
+
     assert agent.approve is True
-    # Display refreshed inline so the keystroke feels instant
+    assert agent.auto_approve_plan_action is None
+    # Optimistic refresh fired and disk write scheduled (not inline).
     assert app.refresh_calls == [True]
-    # User saw confirmation toast
-    assert any(msg.startswith("Auto-approve enabled") for msg, _ in app.notifications)
-    # Disk write was scheduled, not performed inline
     assert len(app.scheduled) == 1
-    # File hasn't been written yet on the UI thread
     assert not (tmp_path / "agent_meta.json").exists()
+    assert any(msg.startswith("Auto-approve enabled") for msg, _ in app.notifications)
+
+    asyncio.run(app.scheduled[0][0]())
+    assert json.loads((tmp_path / "agent_meta.json").read_text()) == {"approve": True}
 
 
-def test_action_toggle_approve_persists_via_worker(tmp_path: Any) -> None:
-    """Running the scheduled coroutine writes the file in the worker."""
-    agent = _make_agent(str(tmp_path))
-    app = FakeApproveApp(agent)
-    app.action_toggle_approve()
-    callback = app.scheduled[0][0]
-
-    asyncio.run(callback())
-
-    data = json.loads((tmp_path / "agent_meta.json").read_text())
-    assert data == {"approve": True}
-    # No error toast
-    assert not any(sev == "error" for _, sev in app.notifications)
-
-
-def test_action_toggle_approve_cycles_to_epic(tmp_path: Any) -> None:
-    """A second press switches normal auto-approve to plan-only epic."""
+def test_choose_tale_sets_tale_action(tmp_path: Any) -> None:
     agent = _make_agent(str(tmp_path), approve=True)
     app = FakeApproveApp(agent)
 
-    app.action_toggle_approve()
+    app.action_open_auto_approve_menu()
+    _dismiss_with(app, "tale")
+
+    assert agent.approve is True
+    assert agent.auto_approve_plan_action == "tale"
+    assert any(
+        msg.startswith("Tale auto-approve enabled") for msg, _ in app.notifications
+    )
+
+    asyncio.run(app.scheduled[0][0]())
+    # Tale carries its state in the action; the legacy approve key is omitted.
+    assert json.loads((tmp_path / "agent_meta.json").read_text()) == {
+        "auto_approve_plan_action": "tale"
+    }
+
+
+def test_choose_epic_sets_epic_action(tmp_path: Any) -> None:
+    agent = _make_agent(str(tmp_path), approve=True)
+    app = FakeApproveApp(agent)
+
+    app.action_open_auto_approve_menu()
+    _dismiss_with(app, "epic")
 
     assert agent.approve is True
     assert agent.auto_approve_plan_action == "epic"
-    assert any(
-        msg.startswith("Epic auto-approve enabled") for msg, _ in app.notifications
-    )
 
-    callback = app.scheduled[0][0]
-    asyncio.run(callback())
-
-    data = json.loads((tmp_path / "agent_meta.json").read_text())
-    assert data == {"auto_approve_plan_action": "epic"}
+    asyncio.run(app.scheduled[0][0]())
+    assert json.loads((tmp_path / "agent_meta.json").read_text()) == {
+        "auto_approve_plan_action": "epic"
+    }
 
 
-def test_action_toggle_approve_cycles_epic_to_off(tmp_path: Any) -> None:
-    """A third press disables both legacy and plan-specific auto approval."""
+def test_choose_disable_clears_everything(tmp_path: Any) -> None:
     meta_path = tmp_path / "agent_meta.json"
     meta_path.write_text(
         json.dumps(
@@ -173,29 +266,37 @@ def test_action_toggle_approve_cycles_epic_to_off(tmp_path: Any) -> None:
             }
         )
     )
-    agent = _make_agent(
-        str(tmp_path),
-        approve=True,
-        auto_approve_plan_action="epic",
-    )
+    agent = _make_agent(str(tmp_path), approve=True, auto_approve_plan_action="epic")
     app = FakeApproveApp(agent)
 
-    app.action_toggle_approve()
+    app.action_open_auto_approve_menu()
+    _dismiss_with(app, "disable")
 
     assert agent.approve is False
     assert agent.auto_approve_plan_action is None
 
-    callback = app.scheduled[0][0]
-    asyncio.run(callback())
-
-    data = json.loads(meta_path.read_text())
-    assert data == {"other": "keep"}
+    asyncio.run(app.scheduled[0][0]())
+    assert json.loads(meta_path.read_text()) == {"other": "keep"}
 
 
-def test_action_toggle_approve_rolls_back_on_persist_failure(
+def test_cancel_leaves_agent_unchanged(tmp_path: Any) -> None:
+    agent = _make_agent(str(tmp_path), approve=True, auto_approve_plan_action="tale")
+    app = FakeApproveApp(agent)
+
+    app.action_open_auto_approve_menu()
+    _dismiss_with(app, None)
+
+    assert agent.approve is True
+    assert agent.auto_approve_plan_action == "tale"
+    assert app.scheduled == []
+    assert app.refresh_calls == []
+    assert not (tmp_path / "agent_meta.json").exists()
+
+
+def test_apply_rolls_back_on_persist_failure(
     tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Disk failure reverts the optimistic mutation and shows an error toast."""
+    """A disk failure reverts the optimistic mutation and shows an error."""
     agent = _make_agent(str(tmp_path))
     app = FakeApproveApp(agent)
 
@@ -206,39 +307,28 @@ def test_action_toggle_approve_rolls_back_on_persist_failure(
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._approve._persist_plan_auto_approval", _boom
     )
-    app.action_toggle_approve()
-    assert agent.approve is True  # optimistic
 
-    callback = app.scheduled[0][0]
-    asyncio.run(callback())
+    app.action_open_auto_approve_menu()
+    _dismiss_with(app, "tale")
+    assert agent.auto_approve_plan_action == "tale"  # optimistic
+
+    asyncio.run(app.scheduled[0][0]())
 
     assert agent.approve is False  # rolled back
+    assert agent.auto_approve_plan_action is None
     assert any(sev == "error" for _, sev in app.notifications)
-    # Refresh fired twice: once optimistic, once on rollback
+    # Refresh fired twice: once optimistic, once on rollback.
     assert app.refresh_calls == [True, True]
 
 
-def test_action_toggle_approve_warns_when_status_ineligible(tmp_path: Any) -> None:
-    agent = _make_agent(str(tmp_path), status="DONE")
+def test_apply_warns_when_no_artifacts_dir() -> None:
+    agent = _make_agent("")
     app = FakeApproveApp(agent)
+    with patch.object(Agent, "get_artifacts_dir", return_value=None):
+        app._apply_auto_approve_choice(agent, "tale")
 
-    app.action_toggle_approve()
-
-    assert agent.approve is False
     assert app.scheduled == []
     assert any(sev == "warning" for _, sev in app.notifications)
-
-
-def test_action_toggle_approve_no_op_off_agents_tab(tmp_path: Any) -> None:
-    agent = _make_agent(str(tmp_path))
-    app = FakeApproveApp(agent)
-    app.current_tab = "changespecs"
-
-    app.action_toggle_approve()
-
-    assert agent.approve is False
-    assert app.scheduled == []
-    assert app.notifications == []
 
 
 if __name__ == "__main__":

@@ -80,6 +80,7 @@ from .approve_options_modal import (
     CustomApprovalModal,
     CustomApprovalResult,
 )
+from .auto_approve_modal import AutoApproveChoice, AutoApproveModal
 from .custom_model_input_modal import CustomModelInputModal
 from .model_picker_modal import ModelPickerModal
 from .plan_approval_modal import PlanApprovalModal, PlanApprovalResult
@@ -132,6 +133,8 @@ __all__ = [
     "ApproveOptionsEditPrompt",
     "ApproveOptionsModal",
     "ApproveOptionsResult",
+    "AutoApproveChoice",
+    "AutoApproveModal",
     "CustomApprovalEditPrompt",
     "CustomApprovalModal",
     "CustomApprovalResult",
