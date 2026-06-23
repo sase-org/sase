@@ -142,6 +142,7 @@ def test_stats_json_has_stable_shape(
         "path",
         "exists",
         "size_bytes",
+        "shard_count",
         "total",
         "launched",
         "cancelled",
@@ -152,4 +153,5 @@ def test_stats_json_has_stable_shape(
         "top_chips",
     }
     assert payload["total"] == 2
+    assert payload["shard_count"] == 1
     assert set(payload["length_percentiles"]) == {"p50", "p90", "p99", "max"}

@@ -27,6 +27,24 @@ from sase.history.prompt_store import (
 )
 
 
+def _history_dir(legacy_file: Path) -> Path:
+    return legacy_file.with_suffix("")
+
+
+def _shard_file(legacy_file: Path, key: str) -> Path:
+    return _history_dir(legacy_file) / f"{key}.json"
+
+
+def _snapshot_shards(legacy_file: Path) -> dict[str, str]:
+    history_dir = _history_dir(legacy_file)
+    if not history_dir.exists():
+        return {}
+    return {
+        path.name: path.read_text(encoding="utf-8")
+        for path in sorted(history_dir.glob("*.json"))
+    }
+
+
 def _prompt_id(text: str) -> str:
     """Local re-implementation of the stable ``ph_<sha256[:12]>`` content ID."""
     return f"ph_{hashlib.sha256(text.encode('utf-8')).hexdigest()[:12]}"
@@ -97,12 +115,12 @@ def test_delete_removes_one_prompt(history_file: Path) -> None:
 
 def test_delete_unknown_selector_does_not_rewrite(history_file: Path) -> None:
     save_prompt_history([_entry("a stored prompt here", "260601_000000")])
-    before = history_file.read_text(encoding="utf-8")
+    before = _snapshot_shards(history_file)
 
     with pytest.raises(PromptSelectorError):
         delete_prompt("ph_ffffffffffff")
 
-    assert history_file.read_text(encoding="utf-8") == before
+    assert _snapshot_shards(history_file) == before
 
 
 def test_delete_uses_atomic_replace_and_lock(history_file: Path) -> None:
@@ -129,7 +147,7 @@ def test_delete_uses_atomic_replace_and_lock(history_file: Path) -> None:
     assert mock_lock.called
     assert len(replace_calls) == 1
     temp_path, final_path = replace_calls[0]
-    assert final_path == history_file
+    assert final_path == _shard_file(history_file, "2606")
     assert not temp_path.exists()
 
 
@@ -216,13 +234,13 @@ def test_prune_dry_run_does_not_mutate(history_file: Path) -> None:
             _entry("drop me", "260601_000000"),
         ]
     )
-    before = history_file.read_text(encoding="utf-8")
+    before = _snapshot_shards(history_file)
 
     plan = prune_prompts(keep=1, dry_run=True)
 
     assert plan.applied is False
     assert {r.text for r in plan.removed} == {"drop me"}
-    assert history_file.read_text(encoding="utf-8") == before
+    assert _snapshot_shards(history_file) == before
 
 
 def test_prune_requires_a_predicate(history_file: Path) -> None:
@@ -239,12 +257,12 @@ def test_prune_rejects_negative_keep_without_mutation(history_file: Path) -> Non
             _entry("old prompt", "260601_000000"),
         ]
     )
-    before = history_file.read_text(encoding="utf-8")
+    before = _snapshot_shards(history_file)
 
     with pytest.raises(ValueError, match="greater than or equal to 0"):
         prune_prompts(keep=-1)
 
-    assert history_file.read_text(encoding="utf-8") == before
+    assert _snapshot_shards(history_file) == before
 
 
 def test_prune_corrupt_store_aborts(history_file: Path) -> None:

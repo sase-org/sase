@@ -140,10 +140,9 @@ class EntryPromptHistoryMixin:
 
     def _first_prompt_history_entry_for_editor(self) -> str | None:
         """Return the default prompt-history entry highlighted by the modal."""
-        from sase.history.prompt import get_prompts_for_fzf
+        from sase.history.prompt import list_prompt_records
 
-        items = get_prompts_for_fzf(include_cancelled=True)
-        for _display, entry in items:
-            if not entry.cancelled:
-                return entry.text
+        records = list_prompt_records(limit=1)
+        if records:
+            return records[0].text
         return None

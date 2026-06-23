@@ -221,6 +221,7 @@ def test_doctor_json_has_stable_shape(
         "path",
         "exists",
         "size_bytes",
+        "shard_count",
         "parseable",
         "total",
         "cancelled",
@@ -233,5 +234,6 @@ def test_doctor_json_has_stable_shape(
         "clipboard_available",
     }
     assert payload["total"] == 2
+    assert payload["shard_count"] == 1
     assert payload["cancelled"] == 1
     assert payload["parseable"] is True

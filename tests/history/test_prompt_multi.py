@@ -43,12 +43,12 @@ def test_multi_prompt_saves_combined_and_segments_in_one_mutation(
             "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
         ),
         patch(
-            "sase.history.prompt_store.load_prompt_history_for_write",
-            wraps=prompt_store.load_prompt_history_for_write,
+            "sase.history.prompt_store.load_shard_for_write",
+            wraps=prompt_store.load_shard_for_write,
         ) as load_for_write,
         patch(
-            "sase.history.prompt_store.save_prompt_history",
-            wraps=prompt_store.save_prompt_history,
+            "sase.history.prompt_store.save_shard",
+            wraps=prompt_store.save_shard,
         ) as save_history,
     ):
         add_or_update_prompt("Fix the auth bug\n---\nAdd tests")

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 18:09:15
-status: wip
+status: done
 prompt: sdd/prompts/202606/sharded_prompt_history.md
 ---
 # Sharded, Lazy-Loaded Prompt History

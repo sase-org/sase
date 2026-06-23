@@ -226,6 +226,7 @@ def _doctor_to_json(report: PromptHistoryDoctor) -> dict[str, object]:
         "path": report.path,
         "exists": report.exists,
         "size_bytes": report.size_bytes,
+        "shard_count": report.shard_count,
         "parseable": report.parseable,
         "total": report.total,
         "cancelled": report.cancelled,
@@ -258,6 +259,7 @@ def _print_doctor_pretty(report: PromptHistoryDoctor) -> None:
     if not report.exists:
         summary.add_row("status", Text("no history file yet", style="yellow"))
     summary.add_row("size", format_size(report.size_bytes))
+    summary.add_row("shards", str(report.shard_count))
     summary.add_row(
         "parseable", _ok_bad(report.parseable, ok="yes", bad="NO — corrupt store")
     )

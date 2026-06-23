@@ -36,6 +36,7 @@ def _stats_to_json(stats: PromptHistoryStats) -> dict[str, object]:
         "path": stats.path,
         "exists": stats.exists,
         "size_bytes": stats.size_bytes,
+        "shard_count": stats.shard_count,
         "total": stats.total,
         "launched": stats.launched,
         "cancelled": stats.cancelled,
@@ -62,6 +63,7 @@ def _print_pretty(stats: PromptHistoryStats) -> None:
     if not stats.exists:
         summary.add_row("status", "[yellow]no history file yet[/yellow]")
     summary.add_row("size", format_size(stats.size_bytes))
+    summary.add_row("shards", str(stats.shard_count))
     summary.add_row("total", str(stats.total))
     summary.add_row("launched", f"[green]{stats.launched}[/green]")
     summary.add_row("cancelled", f"[magenta]{stats.cancelled}[/magenta]")

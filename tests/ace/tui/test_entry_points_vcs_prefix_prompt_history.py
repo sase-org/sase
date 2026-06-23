@@ -6,6 +6,7 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow import _entry_points
 from sase.ace.tui.modals import SelectionItem
+from sase.history.prompt_catalog import record_from_entry
 from sase.history.prompt_store import PromptEntry
 
 from ._entry_points_vcs_prefix_helpers import (
@@ -23,29 +24,17 @@ def test_prompt_history_edit_first_uses_first_non_cancelled_modal_entry(
         _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
     )
     monkeypatch.setattr(
-        "sase.history.prompt.get_prompts_for_fzf",
-        lambda *, include_cancelled: [
-            (
-                "x target | cancelled",
-                PromptEntry(
-                    text="#gh:old cancelled prompt",
-                    branch_or_workspace="target",
-                    timestamp="260509_100000",
-                    last_used="260509_130000",
-                    workspace="home",
-                    cancelled=True,
-                ),
-            ),
-            (
-                "* target | picked",
+        "sase.history.prompt.list_prompt_records",
+        lambda *, limit: [
+            record_from_entry(
                 PromptEntry(
                     text="picked prompt",
                     branch_or_workspace="target",
                     timestamp="260509_090000",
                     last_used="260509_120000",
                     workspace="home",
-                ),
-            ),
+                )
+            )
         ],
     )
     app = _App()
@@ -73,20 +62,8 @@ def test_prompt_history_edit_first_notifies_when_no_non_cancelled_entry(
         _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
     )
     monkeypatch.setattr(
-        "sase.history.prompt.get_prompts_for_fzf",
-        lambda *, include_cancelled: [
-            (
-                "x target | cancelled",
-                PromptEntry(
-                    text="#gh:old cancelled prompt",
-                    branch_or_workspace="target",
-                    timestamp="260509_100000",
-                    last_used="260509_130000",
-                    workspace="home",
-                    cancelled=True,
-                ),
-            )
-        ],
+        "sase.history.prompt.list_prompt_records",
+        lambda *, limit: [],
     )
     app = _App()
     app._last_custom_agent_selection = SelectionItem(
@@ -118,18 +95,17 @@ def test_prompt_history_edit_first_edit_directive_reloads_instead_of_launching(
         _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
     )
     monkeypatch.setattr(
-        "sase.history.prompt.get_prompts_for_fzf",
-        lambda *, include_cancelled: [
-            (
-                "* target | picked",
+        "sase.history.prompt.list_prompt_records",
+        lambda *, limit: [
+            record_from_entry(
                 PromptEntry(
                     text="picked prompt",
                     branch_or_workspace="target",
                     timestamp="260509_090000",
                     last_used="260509_120000",
                     workspace="home",
-                ),
-            ),
+                )
+            )
         ],
     )
 

@@ -154,7 +154,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",
-                    "Prompt history",
+                    "Prompt history (PgDn older)",
                 ),
                 (
                     f"{d(lm.prefix)} {d(sk(lm.keys, 'prompt_history_edit_first'))}",
@@ -162,7 +162,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history_cancelled'))}",
-                    "Prompt history (+cancelled)",
+                    "History +cancelled (PgDn older)",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_notification'))}",

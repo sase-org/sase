@@ -167,9 +167,9 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_history_uses_submitted_promp
 
     assert result == launched
     assert launch_multi.call_args.kwargs["segments"] == ["Plan phase", "Build phase"]
-    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
-    assert [entry["text"] for entry in entries] == ["#!swarm"]
-    assert all("Plan phase" not in entry["text"] for entry in entries)
+    entries = prompt_store.load_prompt_history()
+    assert [entry.text for entry in entries] == ["#!swarm"]
+    assert all("Plan phase" not in entry.text for entry in entries)
 
 
 def test_launch_agents_from_cwd_multi_agent_xprompt_cancelled_history_uses_submitted_prompt(
@@ -207,10 +207,10 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_cancelled_history_uses_submi
             launch_agents_from_cwd("#!swarm")
 
     launch.assert_not_called()
-    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
-    assert [entry["text"] for entry in entries] == ["#!swarm"]
-    assert entries[0]["cancelled"] is True
-    assert "Plan phase" not in entries[0]["text"]
+    entries = prompt_store.load_prompt_history()
+    assert [entry.text for entry in entries] == ["#!swarm"]
+    assert entries[0].cancelled is True
+    assert "Plan phase" not in entries[0].text
 
 
 def test_launch_agents_from_cwd_multi_agent_xprompt_failure_forces_cancelled_history(
@@ -244,6 +244,6 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_failure_forces_cancelled_his
         with pytest.raises(RuntimeError, match="multi boom"):
             launch_agents_from_cwd("#!swarm")
 
-    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
-    assert [entry["text"] for entry in entries] == ["#!swarm"]
-    assert entries[0]["cancelled"] is True
+    entries = prompt_store.load_prompt_history()
+    assert [entry.text for entry in entries] == ["#!swarm"]
+    assert entries[0].cancelled is True

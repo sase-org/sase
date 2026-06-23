@@ -98,7 +98,7 @@ def test_migrates_artifacts_refs_notifications_and_history(tmp_path: Path) -> No
         "%w:260508.a\n#fork:260508.b.1 continue\n#resume:260508.b.1 legacy continue\n"
     )
     assert _read_json(bundle)["agent_name"] == "260508.c"
-    migrated_history = _read_json(history)["prompts"]  # type: ignore[index]
+    migrated_history = _read_json(history.with_suffix("") / "2605.json")["prompts"]  # type: ignore[index]
     assert migrated_history[0]["text"] == (
         "%wait:260508.a,260508.c\n#fork(260508.b.1) run"
     )

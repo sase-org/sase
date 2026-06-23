@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 from sase.history import prompt_catalog as catalog
 from sase.history import prompt_stats as stats
@@ -71,19 +72,12 @@ def parse_prune_date(value: str) -> str:
     raise PromptDateError(value)
 
 
-def _load_raw_prompt_entries() -> tuple[bool, list[object]]:
-    """Return ``(parseable, raw_prompt_list)`` for read-only diagnostics.
-
-    ``parseable`` is False when the file exists but is not a JSON object with a
-    ``prompts`` list. The raw list is returned untouched so ``doctor`` can count
-    individually invalid entries without discarding them silently.
-    """
-    history_file = store.prompt_history_file()
-    if not history_file.exists():
+def _load_raw_prompt_entries_from_path(path: Path) -> tuple[bool, list[object]]:
+    if not path.exists():
         return True, []
 
     try:
-        with open(history_file, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError):
         return False, []
@@ -96,6 +90,31 @@ def _load_raw_prompt_entries() -> tuple[bool, list[object]]:
     return True, prompts
 
 
+def _load_raw_prompt_entries() -> tuple[bool, list[object]]:
+    """Return ``(parseable, raw_prompt_list)`` for read-only diagnostics.
+
+    ``parseable`` is False when any store file is not a JSON object with a
+    ``prompts`` list. The raw list is returned untouched so ``doctor`` can count
+    individually invalid entries without discarding them silently.
+    """
+    try:
+        store.ensure_migrated_for_read()
+    except store.PromptHistoryLoadError:
+        return _load_raw_prompt_entries_from_path(store.legacy_prompt_history_file())
+
+    shard_paths = list(store.iter_shard_paths_newest_first())
+    if not shard_paths:
+        return True, []
+
+    parseable = True
+    raw_prompts: list[object] = []
+    for path in shard_paths:
+        shard_parseable, shard_prompts = _load_raw_prompt_entries_from_path(path)
+        parseable = parseable and shard_parseable
+        raw_prompts.extend(shard_prompts)
+    return parseable, raw_prompts
+
+
 @dataclass(frozen=True)
 class PromptHistoryDoctor:
     """Read-only health report for the prompt-history store (no full text)."""
@@ -103,6 +122,7 @@ class PromptHistoryDoctor:
     path: str
     exists: bool
     size_bytes: int
+    shard_count: int
     parseable: bool
     total: int
     cancelled: int
@@ -124,14 +144,17 @@ def compute_prompt_doctor() -> PromptHistoryDoctor:
     """
     from sase.core.clipboard import clipboard_available
 
-    history_file = store.prompt_history_file()
-    exists = history_file.exists()
-    try:
-        size_bytes = history_file.stat().st_size if exists else 0
-    except OSError:
-        size_bytes = 0
-
     parseable, raw_prompts = _load_raw_prompt_entries()
+    history_dir = store.prompt_history_dir()
+    legacy_file = store.legacy_prompt_history_file()
+    shard_paths = list(store.iter_shard_paths_newest_first())
+    exists = history_dir.exists() or legacy_file.exists()
+    size_bytes = 0
+    for path in shard_paths or ([legacy_file] if legacy_file.exists() else []):
+        try:
+            size_bytes += path.stat().st_size
+        except OSError:
+            pass
     entries = [
         entry
         for entry in (store.prompt_entry_from_json(raw) for raw in raw_prompts)
@@ -175,9 +198,10 @@ def compute_prompt_doctor() -> PromptHistoryDoctor:
     ][:_DOCTOR_LIST_LIMIT]
 
     return PromptHistoryDoctor(
-        path=str(history_file),
+        path=str(history_dir),
         exists=exists,
         size_bytes=size_bytes,
+        shard_count=len(shard_paths),
         parseable=parseable,
         total=len(records),
         cancelled=cancelled,
@@ -189,6 +213,31 @@ def compute_prompt_doctor() -> PromptHistoryDoctor:
         fzf_available=shutil.which("fzf") is not None,
         clipboard_available=clipboard_available(),
     )
+
+
+def _save_or_remove_shard(path: Path, entries: list[store.PromptEntry]) -> bool:
+    if entries:
+        entries.sort(key=lambda entry: entry.last_used, reverse=True)
+        return store.save_shard(path, entries)
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError:
+        return False
+    return True
+
+
+def _remove_prompt_texts_from_shards(texts: set[str]) -> None:
+    if not texts:
+        return
+    for path in list(store.iter_shard_paths_newest_first()):
+        entries = store.load_shard_for_write(path)
+        remaining = [entry for entry in entries if entry.text not in texts]
+        if len(remaining) == len(entries):
+            continue
+        if not _save_or_remove_shard(path, remaining):
+            raise PromptStoreWriteError
 
 
 def delete_prompt(selector: str) -> catalog.PromptHistoryRecord:
@@ -208,11 +257,10 @@ def delete_prompt(selector: str) -> catalog.PromptHistoryRecord:
 
         records = [catalog.record_from_entry(entry) for entry in entries]
         record = catalog.resolve_prompt_selector(selector, records=records)
-        # Content-addressed IDs mean every entry sharing this prompt's text is
-        # the same logical prompt; drop them all so duplicates cannot linger.
-        remaining = [entry for entry in entries if entry.text != record.text]
-        if not store.save_prompt_history(remaining):
-            raise PromptStoreWriteError
+        try:
+            _remove_prompt_texts_from_shards({record.text})
+        except store.PromptHistoryLoadError as exc:
+            raise PromptStoreCorruptError from exc
         return record
 
 
@@ -319,8 +367,9 @@ def prune_prompts(
         if dry_run or not removable:
             return plan
 
-        remove_set = set(removable)
-        remaining = [e for i, e in enumerate(entries) if i not in remove_set]
-        if not store.save_prompt_history(remaining):
-            raise PromptStoreWriteError
+        remove_texts = {entries[i].text for i in removable}
+        try:
+            _remove_prompt_texts_from_shards(remove_texts)
+        except store.PromptHistoryLoadError as exc:
+            raise PromptStoreCorruptError from exc
         return replace(plan, applied=True)

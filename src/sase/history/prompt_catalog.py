@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from sase.history import prompt_store as store
@@ -50,6 +51,24 @@ class PromptHistoryRecord:
         )
 
 
+@dataclass(frozen=True)
+class PromptHistoryPageCursor:
+    """Cursor for shard-backed prompt-history pagination."""
+
+    shard_index: int = 0
+    offset: int = 0
+    seen_texts: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class PromptHistoryPage:
+    """One page of prompt-history records plus a cursor for older records."""
+
+    records: list[PromptHistoryRecord]
+    next_cursor: PromptHistoryPageCursor | None
+    exhausted: bool
+
+
 class PromptSelectorError(ValueError):
     """Base class for prompt selector resolution failures."""
 
@@ -91,13 +110,14 @@ def record_from_entry(entry: store.PromptEntry) -> PromptHistoryRecord:
 
 
 def _filter_records(
-    records: list[PromptHistoryRecord],
+    records: Iterable[PromptHistoryRecord],
     *,
     include_cancelled: bool,
     cancelled_only: bool,
     query: str | None,
 ) -> list[PromptHistoryRecord]:
     """Apply launched/all/cancelled and case-insensitive substring filters."""
+    records = list(records)
     if cancelled_only:
         records = [r for r in records if r.cancelled]
     elif not include_cancelled:
@@ -108,6 +128,111 @@ def _filter_records(
         records = [r for r in records if needle in r.text.lower()]
 
     return records
+
+
+def _record_matches_filters(
+    record: PromptHistoryRecord,
+    *,
+    include_cancelled: bool,
+    cancelled_only: bool,
+    query: str | None,
+) -> bool:
+    if cancelled_only:
+        if not record.cancelled:
+            return False
+    elif not include_cancelled and record.cancelled:
+        return False
+
+    if query and query.lower() not in record.text.lower():
+        return False
+    return True
+
+
+def _load_page_from_shards(
+    *,
+    page_size: int,
+    cursor: PromptHistoryPageCursor | None,
+    include_cancelled: bool,
+    cancelled_only: bool,
+    query: str | None,
+) -> PromptHistoryPage:
+    if page_size <= 0:
+        start = cursor or PromptHistoryPageCursor()
+        return PromptHistoryPage(records=[], next_cursor=start, exhausted=False)
+
+    try:
+        store.ensure_migrated_for_read()
+    except store.PromptHistoryLoadError:
+        return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
+
+    shard_paths = list(store.iter_shard_paths_newest_first())
+    if not shard_paths:
+        return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
+
+    current = cursor or PromptHistoryPageCursor()
+    shard_index = current.shard_index
+    offset = current.offset
+    seen = set(current.seen_texts)
+    records: list[PromptHistoryRecord] = []
+
+    while shard_index < len(shard_paths):
+        entries = store.load_shard(shard_paths[shard_index])
+        entries.sort(key=lambda entry: entry.last_used, reverse=True)
+        if offset >= len(entries):
+            shard_index += 1
+            offset = 0
+            continue
+
+        while offset < len(entries):
+            entry = entries[offset]
+            offset += 1
+            if entry.text in seen:
+                continue
+            seen.add(entry.text)
+
+            record = record_from_entry(entry)
+            if not _record_matches_filters(
+                record,
+                include_cancelled=include_cancelled,
+                cancelled_only=cancelled_only,
+                query=query,
+            ):
+                continue
+            records.append(record)
+            if len(records) >= page_size:
+                next_cursor = PromptHistoryPageCursor(
+                    shard_index=shard_index,
+                    offset=offset,
+                    seen_texts=frozenset(seen),
+                )
+                return PromptHistoryPage(
+                    records=records,
+                    next_cursor=next_cursor,
+                    exhausted=False,
+                )
+
+        shard_index += 1
+        offset = 0
+
+    return PromptHistoryPage(records=records, next_cursor=None, exhausted=True)
+
+
+def load_prompt_record_page(
+    *,
+    page_size: int = 250,
+    cursor: PromptHistoryPageCursor | None = None,
+    include_cancelled: bool = False,
+    cancelled_only: bool = False,
+    query: str | None = None,
+) -> PromptHistoryPage:
+    """Load one deduped recency page from prompt-history shards."""
+    return _load_page_from_shards(
+        page_size=page_size,
+        cursor=cursor,
+        include_cancelled=include_cancelled,
+        cancelled_only=cancelled_only,
+        query=query,
+    )
 
 
 def list_prompt_records(
@@ -125,7 +250,24 @@ def list_prompt_records(
     case-insensitive substring filter over exact prompt text. ``limit`` is
     applied after sorting; ``None`` returns every matching record.
     """
-    records = [record_from_entry(entry) for entry in store.load_prompt_history()]
+    if limit is not None and limit >= 0:
+        records: list[PromptHistoryRecord] = []
+        cursor: PromptHistoryPageCursor | None = None
+        exhausted = False
+        while len(records) < limit and not exhausted:
+            page = load_prompt_record_page(
+                page_size=limit - len(records),
+                cursor=cursor,
+                include_cancelled=include_cancelled,
+                cancelled_only=cancelled_only,
+                query=query,
+            )
+            records.extend(page.records)
+            cursor = page.next_cursor
+            exhausted = page.exhausted or cursor is None
+        return records
+
+    records = [record_from_entry(entry) for entry in store.load_all_prompt_history()]
     records = _filter_records(
         records,
         include_cancelled=include_cancelled,
@@ -133,8 +275,6 @@ def list_prompt_records(
         query=query,
     )
     records.sort(key=lambda r: r.last_used, reverse=True)
-    if limit is not None and limit >= 0:
-        records = records[:limit]
     return records
 
 
@@ -174,7 +314,9 @@ def resolve_prompt_selector(
             (as a short prefix) matches more than one record.
     """
     if records is None:
-        records = [record_from_entry(entry) for entry in store.load_prompt_history()]
+        records = [
+            record_from_entry(entry) for entry in store.load_all_prompt_history()
+        ]
 
     hexprefix = _normalize_selector(selector)
     if hexprefix is None:

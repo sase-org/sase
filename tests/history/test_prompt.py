@@ -16,6 +16,10 @@ from sase.history.prompt_store import (
 )
 
 
+def _shard_file(legacy_file: Path, key: str) -> Path:
+    return legacy_file.with_suffix("") / f"{key}.json"
+
+
 def test_add_new_prompt(tmp_path: Path) -> None:
     """Test adding a new prompt to history."""
     test_file = tmp_path / "prompt_history.json"
@@ -34,7 +38,9 @@ def test_add_new_prompt(tmp_path: Path) -> None:
         assert result[0].branch_or_workspace == ""
         assert result[0].workspace == ""
 
-    saved = json.loads(test_file.read_text(encoding="utf-8"))["prompts"][0]
+    saved = json.loads(_shard_file(test_file, "2512").read_text(encoding="utf-8"))[
+        "prompts"
+    ][0]
     assert set(saved) == {"text", "timestamp", "last_used", "cancelled"}
 
 
@@ -86,11 +92,13 @@ def test_save_prompt_history_uses_atomic_replace(tmp_path: Path) -> None:
 
     assert len(replace_calls) == 1
     temp_path, final_path = replace_calls[0]
-    assert temp_path.parent == tmp_path
-    assert temp_path.name.startswith(".prompt_history.json.")
-    assert final_path == test_file
+    assert temp_path.parent == test_file.with_suffix("")
+    assert temp_path.name.startswith(".2512.json.")
+    assert final_path == _shard_file(test_file, "2512")
     assert not temp_path.exists()
-    saved = json.loads(test_file.read_text(encoding="utf-8"))["prompts"][0]
+    saved = json.loads(_shard_file(test_file, "2512").read_text(encoding="utf-8"))[
+        "prompts"
+    ][0]
     assert saved == {
         "text": "test prompt",
         "timestamp": "251231_100000",
@@ -122,7 +130,7 @@ def test_save_prompt_history_keeps_existing_file_when_replace_fails(
 
         result = load_prompt_history()
         assert [entry.text for entry in result] == ["initial prompt"]
-        assert list(tmp_path.glob(".prompt_history.json.*.tmp")) == []
+        assert list(test_file.with_suffix("").glob(".2512.json.*.tmp")) == []
 
 
 def test_format_prompt_truncates_long_prompts() -> None:

@@ -209,15 +209,11 @@ def test_launch_agent_from_cwd_spawn_failure_records_short_failed_history(
         with pytest.raises(RuntimeError, match="spawn boom"):
             launch_agent_from_cwd(prompt)
 
-    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
-    assert entries == [
-        {
-            "text": prompt,
-            "timestamp": entries[0]["timestamp"],
-            "last_used": entries[0]["last_used"],
-            "cancelled": True,
-        }
-    ]
+    entries = prompt_store.load_prompt_history()
+    assert len(entries) == 1
+    assert entries[0].text == prompt
+    assert entries[0].timestamp == entries[0].last_used
+    assert entries[0].cancelled is True
 
 
 def test_launch_agent_from_cwd_alt_failure_records_failed_history(
@@ -245,9 +241,9 @@ def test_launch_agent_from_cwd_alt_failure_records_failed_history(
         with pytest.raises(RuntimeError, match="fanout boom"):
             launch_agents_from_cwd(prompt)
 
-    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
-    assert entries[0]["text"] == prompt
-    assert entries[0]["cancelled"] is True
+    entries = prompt_store.load_prompt_history()
+    assert entries[0].text == prompt
+    assert entries[0].cancelled is True
 
 
 def test_launch_agent_from_cwd_repeat_failure_records_failed_history(
@@ -279,9 +275,9 @@ def test_launch_agent_from_cwd_repeat_failure_records_failed_history(
         with pytest.raises(RuntimeError, match="repeat boom"):
             launch_agents_from_cwd(prompt)
 
-    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
-    assert entries[0]["text"] == prompt
-    assert entries[0]["cancelled"] is True
+    entries = prompt_store.load_prompt_history()
+    assert entries[0].text == prompt
+    assert entries[0].cancelled is True
 
 
 def test_launch_agents_from_cwd_repeat_injects_prev_name_env(

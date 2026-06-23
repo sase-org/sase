@@ -19,6 +19,7 @@ from sase.ace.tui.modals.prompt_history_modal import (
     _prompt_history_header_text,
     _prompt_preview_width_for_list_content,
 )
+from sase.history.prompt_catalog import PromptHistoryPage, record_from_entry
 from sase.history.prompt_store import PromptEntry
 from sase.history.prompt_metadata import PromptListSummary
 
@@ -191,13 +192,16 @@ def test_prompt_history_initial_filter_prefilters_items(monkeypatch) -> None:
         _item(text="fix auth login").entry,
         _item(text="update docs").entry,
     ]
-    monkeypatch.setattr(
-        prompt_history_modal,
-        "get_prompts_for_fzf",
-        lambda *, include_cancelled: [("", entry) for entry in entries],
-    )
 
     modal = PromptHistoryModal(initial_filter="auth")
+    modal._append_page(
+        PromptHistoryPage(
+            records=[record_from_entry(entry) for entry in entries],
+            next_cursor=None,
+            exhausted=True,
+        )
+    )
+    modal._filtered_items = modal._get_filtered_items(modal._initial_filter)
 
     assert modal._initial_filter == "auth"
     assert [item.entry.text for item in modal._filtered_items] == ["fix auth login"]
@@ -219,6 +223,9 @@ def test_prompt_history_count_label_updates(monkeypatch: pytest.MonkeyPatch) -> 
         _item(text="cancelled", cancelled=True),
     ]
     modal._filtered_items = [modal._all_items[0]]
+    modal._history_loaded_once = True
+    modal._history_loading = False
+    modal._history_exhausted = True
 
     monkeypatch.setattr(
         modal,
@@ -228,7 +235,7 @@ def test_prompt_history_count_label_updates(monkeypatch: pytest.MonkeyPatch) -> 
 
     modal._update_history_count_label()
 
-    assert label.value == "History · 1 / 3"
+    assert label.value == "History · 1 / 3 total"
 
 
 def test_prompt_history_preview_metadata_includes_prompt_metadata(

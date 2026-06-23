@@ -6,15 +6,20 @@ import fcntl
 import json
 import os
 import tempfile
+from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from sase.core.paths import sase_home
 from sase.core.time import generate_timestamp
 
 _PROMPT_HISTORY_FILE: Path | None = None
+_PROMPT_HISTORY_DIR: Path | None = None
+_LEGACY_PROMPT_HISTORY_FILE: Path | None = None
+_UNKNOWN_SHARD_KEY = "unknown"
 
 # Display settings for fzf
 _PROMPT_PREVIEW_LENGTH = 60
@@ -52,7 +57,69 @@ class PromptHistoryLoadError(Exception):
 
 
 def prompt_history_file() -> Path:
-    return _PROMPT_HISTORY_FILE or sase_home() / "prompt_history.json"
+    """Return the legacy single-file prompt-history path.
+
+    Kept for migration, diagnostics, and tests that need to seed a pre-shard
+    store. New prompt-history writes use :func:`prompt_history_dir`.
+    """
+    return legacy_prompt_history_file()
+
+
+def legacy_prompt_history_file() -> Path:
+    """Return the legacy single-file prompt-history path."""
+    return (
+        _LEGACY_PROMPT_HISTORY_FILE
+        or _PROMPT_HISTORY_FILE
+        or sase_home() / "prompt_history.json"
+    )
+
+
+def prompt_history_dir() -> Path:
+    """Return the sharded prompt-history directory."""
+    if _PROMPT_HISTORY_DIR is not None:
+        return _PROMPT_HISTORY_DIR
+    if _PROMPT_HISTORY_FILE is not None:
+        return _PROMPT_HISTORY_FILE.with_suffix("")
+    legacy_file = legacy_prompt_history_file()
+    return legacy_file.with_suffix("")
+
+
+def shard_key_for_timestamp(ts: str) -> str:
+    """Return the ``YYMM`` shard key for a SASE timestamp, or ``unknown``."""
+    raw = ts.strip()
+    try:
+        datetime.strptime(raw, "%y%m%d_%H%M%S")
+    except ValueError:
+        return _UNKNOWN_SHARD_KEY
+    return raw[:4]
+
+
+def shard_path(key: str) -> Path:
+    """Return the JSON path for a shard key."""
+    return prompt_history_dir() / f"{key}.json"
+
+
+def _shard_sort_key(path: Path) -> tuple[int, str]:
+    """Sort valid YYMM shards before unknown, newest first."""
+    key = path.stem
+    if len(key) == 4 and key.isdigit():
+        return (1, key)
+    if key == _UNKNOWN_SHARD_KEY:
+        return (0, key)
+    return (-1, key)
+
+
+def iter_shard_paths_newest_first() -> Iterator[Path]:
+    """Yield shard files newest first, with ``unknown`` last."""
+    history_dir = prompt_history_dir()
+    if not history_dir.exists() or not history_dir.is_dir():
+        return
+    paths = [
+        path
+        for path in history_dir.glob("*.json")
+        if path.is_file() and (path.stem == _UNKNOWN_SHARD_KEY or path.stem.isdigit())
+    ]
+    yield from sorted(paths, key=_shard_sort_key, reverse=True)
 
 
 def prompt_entry_from_json(value: object) -> PromptEntry | None:
@@ -85,54 +152,206 @@ def prompt_entry_from_json(value: object) -> PromptEntry | None:
     )
 
 
-def load_prompt_history() -> list[PromptEntry]:
-    """Load prompt history from disk.
+def _entries_from_data(data: object) -> list[PromptEntry]:
+    if not isinstance(data, dict):
+        return []
+    prompts = data.get("prompts", [])
+    if not isinstance(prompts, list):
+        return []
+    return [
+        entry
+        for entry in (prompt_entry_from_json(prompt) for prompt in prompts)
+        if entry is not None
+    ]
 
-    Returns:
-        List of PromptEntry objects, or empty list if file doesn't exist.
-    """
-    history_file = prompt_history_file()
+
+def _entries_from_data_for_write(data: object) -> list[PromptEntry]:
+    if not isinstance(data, dict):
+        raise PromptHistoryLoadError
+    prompts = data.get("prompts", [])
+    if not isinstance(prompts, list):
+        raise PromptHistoryLoadError
+    return [
+        entry
+        for entry in (prompt_entry_from_json(prompt) for prompt in prompts)
+        if entry is not None
+    ]
+
+
+def _load_legacy_prompt_history() -> list[PromptEntry]:
+    history_file = legacy_prompt_history_file()
     if not history_file.exists():
         return []
 
     try:
         with open(history_file, encoding="utf-8") as f:
             data = json.load(f)
-
-        prompts = data.get("prompts", [])
-        return [
-            entry
-            for entry in (prompt_entry_from_json(prompt) for prompt in prompts)
-            if entry is not None
-        ]
-    except (AttributeError, OSError, json.JSONDecodeError, KeyError):
+    except (OSError, json.JSONDecodeError):
         return []
+    return _entries_from_data(data)
 
 
-def load_prompt_history_for_write() -> list[PromptEntry]:
-    """Load prompt history for a writer without masking corrupt/partial files."""
-    history_file = prompt_history_file()
+def _load_legacy_prompt_history_for_write() -> list[PromptEntry]:
+    history_file = legacy_prompt_history_file()
     if not history_file.exists():
         return []
 
     try:
         with open(history_file, encoding="utf-8") as f:
             data = json.load(f)
-
-        prompts = data.get("prompts", [])
-        return [
-            entry
-            for entry in (prompt_entry_from_json(prompt) for prompt in prompts)
-            if entry is not None
-        ]
+        return _entries_from_data_for_write(data)
     except (AttributeError, OSError, json.JSONDecodeError, KeyError) as exc:
         raise PromptHistoryLoadError from exc
 
 
+def load_shard(path: Path) -> list[PromptEntry]:
+    """Load one prompt-history shard, masking corrupt shards for read-only use."""
+    if not path.exists():
+        return []
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+    return _entries_from_data(data)
+
+
+def load_shard_for_write(path: Path) -> list[PromptEntry]:
+    """Load one shard for mutation without masking corrupt/partial files."""
+    if not path.exists():
+        return []
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return _entries_from_data_for_write(data)
+    except (AttributeError, OSError, json.JSONDecodeError, KeyError) as exc:
+        raise PromptHistoryLoadError from exc
+
+
+def _prompt_to_json(entry: PromptEntry) -> dict[str, object]:
+    data: dict[str, object] = {
+        "text": entry.text,
+        "timestamp": entry.timestamp,
+        "last_used": entry.last_used,
+        "cancelled": entry.cancelled,
+    }
+    if entry.branch_or_workspace:
+        data["branch_or_workspace"] = entry.branch_or_workspace
+    if entry.workspace:
+        data["workspace"] = entry.workspace
+    return data
+
+
+def save_shard(path: Path, prompts: list[PromptEntry]) -> bool:
+    """Atomically save one prompt-history shard."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = {"prompts": [_prompt_to_json(p) for p in prompts]}
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f".{path.name}.",
+            suffix=f".{os.getpid()}.tmp",
+            dir=path.parent,
+            text=True,
+        )
+        temp_path = Path(temp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, path)
+        except OSError:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+            return False
+        return True
+    except OSError:
+        return False
+
+
+def _entry_last_used_sort_key(entry: PromptEntry) -> str:
+    return entry.last_used
+
+
+def _reconcile_duplicate_prompt(
+    current: PromptEntry,
+    duplicate: PromptEntry,
+) -> PromptEntry:
+    """Merge duplicate prompt entries while keeping newest usage authoritative."""
+    if duplicate.timestamp < current.timestamp:
+        current.timestamp = duplicate.timestamp
+    return current
+
+
+def _dedup_entries_newest_first(entries: Iterator[PromptEntry]) -> list[PromptEntry]:
+    by_text: OrderedDict[str, PromptEntry] = OrderedDict()
+    for entry in entries:
+        existing = by_text.get(entry.text)
+        if existing is None:
+            by_text[entry.text] = PromptEntry(
+                text=entry.text,
+                timestamp=entry.timestamp,
+                last_used=entry.last_used,
+                cancelled=entry.cancelled,
+                branch_or_workspace=entry.branch_or_workspace,
+                workspace=entry.workspace,
+            )
+            continue
+        _reconcile_duplicate_prompt(existing, entry)
+    return list(by_text.values())
+
+
+def _iter_all_shard_entries_newest_first() -> Iterator[PromptEntry]:
+    for path in iter_shard_paths_newest_first():
+        entries = load_shard(path)
+        entries.sort(key=_entry_last_used_sort_key, reverse=True)
+        yield from entries
+
+
+def load_all_prompt_history() -> list[PromptEntry]:
+    """Load and dedup prompt history from every shard, newest first."""
+    try:
+        ensure_migrated_for_read()
+    except PromptHistoryLoadError:
+        return _dedup_entries_newest_first(
+            iter(
+                sorted(
+                    _load_legacy_prompt_history(),
+                    key=_entry_last_used_sort_key,
+                    reverse=True,
+                )
+            )
+        )
+    return _dedup_entries_newest_first(_iter_all_shard_entries_newest_first())
+
+
+def load_prompt_history() -> list[PromptEntry]:
+    """Load prompt history from disk.
+
+    Returns:
+        Deduped PromptEntry objects, or an empty list if no store exists.
+    """
+    return load_all_prompt_history()
+
+
+def load_prompt_history_for_write() -> list[PromptEntry]:
+    """Load all shards for a writer without masking corrupt/partial files."""
+    ensure_migrated()
+    entries: list[PromptEntry] = []
+    for path in iter_shard_paths_newest_first():
+        shard_entries = load_shard_for_write(path)
+        shard_entries.sort(key=_entry_last_used_sort_key, reverse=True)
+        entries.extend(shard_entries)
+    return _dedup_entries_newest_first(iter(entries))
+
+
 def _prompt_history_lock_file() -> Path:
     """Return the lock file path for prompt history mutations."""
-    history_file = prompt_history_file()
-    return history_file.with_name(f"{history_file.name}.lock")
+    return legacy_prompt_history_file().with_name("prompt_history.lock")
 
 
 @contextmanager
@@ -149,7 +368,7 @@ def locked_prompt_history() -> Iterator[None]:
 
 
 def save_prompt_history(prompts: list[PromptEntry]) -> bool:
-    """Save prompt history to disk.
+    """Save prompt history to monthly shards.
 
     Args:
         prompts: List of PromptEntry objects to save.
@@ -158,41 +377,98 @@ def save_prompt_history(prompts: list[PromptEntry]) -> bool:
         True if saved successfully, False otherwise.
     """
     try:
-        history_file = prompt_history_file()
-        history_file.parent.mkdir(parents=True, exist_ok=True)
-        data = {
-            "prompts": [
-                {
-                    "text": p.text,
-                    "timestamp": p.timestamp,
-                    "last_used": p.last_used,
-                    "cancelled": p.cancelled,
-                }
-                for p in prompts
-            ]
-        }
-        fd, temp_name = tempfile.mkstemp(
-            prefix=f".{history_file.name}.",
-            suffix=f".{os.getpid()}.tmp",
-            dir=history_file.parent,
-            text=True,
-        )
-        temp_path = Path(temp_name)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(temp_path, history_file)
-        except OSError:
+        ensure_migrated()
+        history_dir = prompt_history_dir()
+        history_dir.mkdir(parents=True, exist_ok=True)
+        buckets: dict[str, list[PromptEntry]] = {}
+        for prompt in prompts:
+            key = shard_key_for_timestamp(prompt.last_used)
+            buckets.setdefault(key, []).append(prompt)
+
+        existing_paths = set(iter_shard_paths_newest_first())
+        target_paths = {shard_path(key) for key in buckets}
+        for path in existing_paths - target_paths:
             try:
-                temp_path.unlink()
+                path.unlink()
+            except OSError:
+                return False
+
+        for key, shard_prompts in buckets.items():
+            shard_prompts.sort(key=_entry_last_used_sort_key, reverse=True)
+            if not save_shard(shard_path(key), shard_prompts):
+                return False
+        return True
+    except (OSError, PromptHistoryLoadError):
+        return False
+
+
+def _raw_prompt_count(path: Path) -> int:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise PromptHistoryLoadError
+    prompts = data.get("prompts", [])
+    if not isinstance(prompts, list):
+        raise PromptHistoryLoadError
+    return len(prompts)
+
+
+def _legacy_backup_path() -> Path:
+    ts = generate_timestamp()
+    return prompt_history_dir() / f"legacy-imported-{ts}.json.bak"
+
+
+def ensure_migrated() -> None:
+    """Migrate the legacy single-file store into shards once, losslessly."""
+    history_dir = prompt_history_dir()
+    if history_dir.exists() and history_dir.is_dir():
+        return
+
+    legacy_file = legacy_prompt_history_file()
+    if not legacy_file.exists():
+        return
+
+    entries = _load_legacy_prompt_history_for_write()
+    buckets: dict[str, list[PromptEntry]] = {}
+    for entry in entries:
+        buckets.setdefault(shard_key_for_timestamp(entry.last_used), []).append(entry)
+
+    history_dir.mkdir(parents=True, exist_ok=True)
+    written_count = 0
+    try:
+        for key, shard_entries in buckets.items():
+            shard_entries.sort(key=_entry_last_used_sort_key, reverse=True)
+            if not save_shard(shard_path(key), shard_entries):
+                raise PromptHistoryLoadError
+            written_count += len(shard_entries)
+        if written_count != len(entries):
+            raise PromptHistoryLoadError
+        raw_count = _raw_prompt_count(legacy_file)
+        if written_count != raw_count:
+            raise PromptHistoryLoadError
+        backup_path = _legacy_backup_path()
+        os.replace(legacy_file, backup_path)
+    except Exception:
+        for path in iter_shard_paths_newest_first():
+            try:
+                path.unlink()
             except OSError:
                 pass
-            return False
-        return True
-    except OSError:
-        return False
+        try:
+            history_dir.rmdir()
+        except OSError:
+            pass
+        raise
+
+
+def ensure_migrated_for_read() -> None:
+    """Ensure migration before a read, taking the global lock only if needed."""
+    history_dir = prompt_history_dir()
+    legacy_file = legacy_prompt_history_file()
+    if history_dir.exists() or not legacy_file.exists():
+        return
+    with locked_prompt_history():
+        ensure_migrated()
 
 
 def add_or_update_prompt(
@@ -282,10 +558,12 @@ def _apply_prompt_mutations(
     mutations: list[_PromptMutation],
     current_timestamp: str,
 ) -> bool:
-    """Apply prompt mutations in one locked read/modify/write cycle."""
+    """Apply prompt mutations to the current month shard under the writer lock."""
     with locked_prompt_history():
         try:
-            prompts = load_prompt_history_for_write()
+            ensure_migrated()
+            path = shard_path(shard_key_for_timestamp(current_timestamp))
+            prompts = load_shard_for_write(path)
         except PromptHistoryLoadError:
             return False
 
@@ -310,7 +588,8 @@ def _apply_prompt_mutations(
                 )
             )
 
-        return save_prompt_history(prompts)
+        prompts.sort(key=_entry_last_used_sort_key, reverse=True)
+        return save_shard(path, prompts)
 
 
 def format_prompt_for_display(entry: PromptEntry) -> str:

@@ -9,6 +9,7 @@ import sase.history.prompt_metadata as prompt_metadata
 import sase.xprompt._parsing as xprompt_parsing
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.prompt_history_modal import PromptHistoryModal
+from sase.history.prompt_catalog import PromptHistoryPage, record_from_entry
 from sase.history.prompt_store import PromptEntry
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
@@ -28,12 +29,12 @@ def prompt_history_sources(monkeypatch: pytest.MonkeyPatch):
     """Patch prompt-history sources to deterministic visual fixtures."""
     monkeypatch.setattr(
         prompt_history_modal,
-        "get_prompts_for_fzf",
-        lambda *, include_cancelled: [
-            ("", entry)
-            for entry in _prompt_entries()
-            if include_cancelled or not entry.cancelled
-        ],
+        "load_prompt_record_page",
+        lambda **_kwargs: PromptHistoryPage(
+            records=[record_from_entry(entry) for entry in _prompt_entries()],
+            next_cursor=None,
+            exhausted=True,
+        ),
     )
     monkeypatch.setattr(
         "sase.workspace_provider.get_workflow_names",

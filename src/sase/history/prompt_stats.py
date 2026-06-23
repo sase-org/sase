@@ -31,6 +31,7 @@ class PromptHistoryStats:
     path: str
     exists: bool
     size_bytes: int
+    shard_count: int
     total: int
     launched: int
     cancelled: int
@@ -86,16 +87,19 @@ def compute_prompt_stats() -> PromptHistoryStats:
     for the largest prompts. Tolerates a missing or corrupt store by reporting
     whatever can be read.
     """
-    history_file = store.prompt_history_file()
-    exists = history_file.exists()
-    try:
-        size_bytes = history_file.stat().st_size if exists else 0
-    except OSError:
-        size_bytes = 0
-
     records = [
-        catalog.record_from_entry(entry) for entry in store.load_prompt_history()
+        catalog.record_from_entry(entry) for entry in store.load_all_prompt_history()
     ]
+    history_dir = store.prompt_history_dir()
+    legacy_file = store.legacy_prompt_history_file()
+    shard_paths = list(store.iter_shard_paths_newest_first())
+    exists = history_dir.exists() or legacy_file.exists()
+    size_bytes = 0
+    for path in shard_paths or ([legacy_file] if legacy_file.exists() else []):
+        try:
+            size_bytes += path.stat().st_size
+        except OSError:
+            pass
     total = len(records)
     cancelled = sum(1 for r in records if r.cancelled)
     launched = total - cancelled
@@ -132,9 +136,10 @@ def compute_prompt_stats() -> PromptHistoryStats:
     ]
 
     return PromptHistoryStats(
-        path=str(history_file),
+        path=str(history_dir),
         exists=exists,
         size_bytes=size_bytes,
+        shard_count=len(shard_paths),
         total=total,
         launched=launched,
         cancelled=cancelled,

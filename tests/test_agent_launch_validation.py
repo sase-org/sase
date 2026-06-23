@@ -268,6 +268,6 @@ def test_launch_agents_from_cwd_cancels_history_and_skips_spawn(
         with pytest.raises(AgentNameSyntaxError):
             launch_agents_from_cwd(prompt)
 
-    entries = json.loads(history_path.read_text(encoding="utf-8"))["prompts"]
-    assert entries[0]["text"] == prompt
-    assert entries[0]["cancelled"] is True
+    entries = prompt_store.load_prompt_history()
+    assert entries[0].text == prompt
+    assert entries[0].cancelled is True

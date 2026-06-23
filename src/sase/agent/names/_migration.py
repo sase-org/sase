@@ -22,6 +22,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_home, sase_projects_dir, sase_subdir
+from sase.history import prompt_store
 
 MIGRATION_SCHEMA_VERSION = 1
 MIGRATION_MARKER_FILENAME = "agent_name_auto_migration.json"
@@ -343,28 +344,37 @@ def _rewrite_prompt_artifact_files(mapping: dict[str, str]) -> set[Path]:
 
 
 def _rewrite_prompt_history(mapping: dict[str, str]) -> set[Path]:
-    path = sase_home() / "prompt_history.json"
-    data = _read_json_object(path)
-    if data is None:
-        return set()
-    prompts = data.get("prompts")
-    if not isinstance(prompts, list):
-        return set()
-    changed = False
-    for entry in prompts:
-        if not isinstance(entry, dict):
-            continue
-        text = entry.get("text")
-        if not isinstance(text, str):
-            continue
-        updated = _rewrite_prompt_references(text, mapping)
-        if updated != text:
-            entry["text"] = updated
-            changed = True
-    if not changed:
-        return set()
-    _write_json_file(path, data)
-    return {path}
+    with prompt_store.locked_prompt_history():
+        try:
+            prompt_store.ensure_migrated()
+            paths = list(prompt_store.iter_shard_paths_newest_first())
+        except prompt_store.PromptHistoryLoadError:
+            path = prompt_store.legacy_prompt_history_file()
+            paths = [path] if path.is_file() else []
+
+        changed_paths: set[Path] = set()
+        for path in paths:
+            data = _read_json_object(path)
+            if data is None:
+                continue
+            prompts = data.get("prompts")
+            if not isinstance(prompts, list):
+                continue
+            changed = False
+            for entry in prompts:
+                if not isinstance(entry, dict):
+                    continue
+                text = entry.get("text")
+                if not isinstance(text, str):
+                    continue
+                updated = _rewrite_prompt_references(text, mapping)
+                if updated != text:
+                    entry["text"] = updated
+                    changed = True
+            if changed:
+                _write_json_file(path, data)
+                changed_paths.add(path)
+        return changed_paths
 
 
 def _rewrite_notifications(mapping: dict[str, str]) -> set[Path]:

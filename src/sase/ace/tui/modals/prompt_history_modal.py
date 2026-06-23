@@ -1,10 +1,16 @@
 """Prompt history selection modal with filtering for the ace TUI."""
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum, auto
 
-from sase.history.prompt import PromptEntry, get_prompts_for_fzf
+from sase.history.prompt import (
+    PromptEntry,
+    PromptHistoryPage,
+    PromptHistoryPageCursor,
+    load_prompt_record_page,
+)
 from sase.history.prompt_metadata import (
     PromptListSummary,
     PromptPreviewSummary,
@@ -14,6 +20,7 @@ from sase.history.prompt_metadata import (
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
@@ -29,6 +36,7 @@ _COLUMN_GAP_WIDTH = 2
 _OPTION_HORIZONTAL_PADDING_WIDTH = 2
 _MIN_PREVIEW_WIDTH = 16
 _FALLBACK_PREVIEW_WIDTH = 132
+_PROMPT_HISTORY_PAGE_SIZE = 250
 _PROMPT_COL_START = (
     _MARKER_COL_WIDTH
     + _LAST_USED_WIDTH
@@ -284,6 +292,7 @@ class PromptHistoryModal(
     _option_list_id = "prompt-history-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        Binding("pagedown", "load_more", "Load More", priority=True),
         ("ctrl+g", "edit_first", "Edit in editor"),
         ("ctrl+x", "toggle_cancelled", "Toggle cancelled"),
         ("ctrl+y", "copy_and_cancel", "Copy & cancel"),
@@ -306,65 +315,67 @@ class PromptHistoryModal(
         self._show_cancelled = show_cancelled
         self._initial_filter = initial_filter
         self._last_preview_width_budget = _FALLBACK_PREVIEW_WIDTH
-        self._load_items()
-        self._filtered_items = self._get_filtered_items(self._initial_filter)
+        self._next_cursor: PromptHistoryPageCursor | None = None
+        self._history_exhausted = False
+        self._history_loaded_once = False
+        self._history_loading = False
+        self._filtered_items = []
 
-    def _load_items(self) -> None:
-        """Load prompt history items (including cancelled for toggle filtering)."""
-        items = get_prompts_for_fzf(include_cancelled=True)
+    def _load_page(self) -> PromptHistoryPage:
+        """Load the next page of prompt history records."""
+        return load_prompt_record_page(
+            page_size=_PROMPT_HISTORY_PAGE_SIZE,
+            cursor=self._next_cursor,
+            include_cancelled=True,
+        )
 
-        if not items:
-            return
-
-        for _display_str, entry in items:
-            if entry.cancelled:
-                marker = "x"
-            else:
-                marker = " "
-
+    def _append_page(self, page: PromptHistoryPage) -> None:
+        """Append a loaded page to modal state."""
+        for record in page.records:
+            entry = record.to_entry()
             self._all_items.append(
                 _PromptDisplayItem(
                     entry=entry,
-                    marker=marker,
+                    marker="x" if entry.cancelled else " ",
                 )
             )
+        self._next_cursor = page.next_cursor
+        self._history_exhausted = page.exhausted
+        self._history_loaded_once = True
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         with Container(id="prompt-history-modal-container"):
             yield Label("Select Prompt from History", id="modal-title")
-            if not self._all_items:
-                yield Label("No prompt history found.")
-            else:
-                yield FilterInput(
-                    value=self._initial_filter,
-                    placeholder="Type to filter...",
-                    id="prompt-history-filter-input",
-                )
-                with Horizontal(id="prompt-history-panels"):
-                    with Vertical(id="prompt-history-list-panel"):
-                        yield Label(
-                            self._history_count_label(),
-                            id="prompt-history-list-label",
+            yield FilterInput(
+                value=self._initial_filter,
+                placeholder="Type to filter loaded prompts...",
+                id="prompt-history-filter-input",
+            )
+            with Horizontal(id="prompt-history-panels"):
+                with Vertical(id="prompt-history-list-panel"):
+                    yield Label(
+                        self._history_count_label(),
+                        id="prompt-history-list-label",
+                    )
+                    with Vertical(id="prompt-history-table"):
+                        yield Static(
+                            _prompt_history_header_text(),
+                            id="prompt-history-columns",
                         )
-                        with Vertical(id="prompt-history-table"):
-                            yield Static(
-                                _prompt_history_header_text(),
-                                id="prompt-history-columns",
-                            )
-                            yield OptionList(
-                                *self._create_options(self._filtered_items),
-                                id="prompt-history-list",
-                            )
-                    with Vertical(id="prompt-history-preview-panel"):
-                        yield Label("Preview", id="prompt-history-preview-label")
-                        with VerticalScroll(id="prompt-history-preview-scroll"):
-                            yield Static("", id="prompt-history-preview", markup=False)
-                            yield Static("", id="prompt-history-metadata")
-                yield Static(
-                    "j/k ↑/↓ ^n/^p: navigate • Enter: submit • ^g: edit • ^i: load • ^x: cancelled • ^y: copy • Esc/q: cancel",
-                    id="prompt-history-hints",
-                )
+                        yield OptionList(
+                            *self._create_options(self._filtered_items),
+                            id="prompt-history-list",
+                        )
+                with Vertical(id="prompt-history-preview-panel"):
+                    yield Label("Preview", id="prompt-history-preview-label")
+                    with VerticalScroll(id="prompt-history-preview-scroll"):
+                        yield Static("", id="prompt-history-preview", markup=False)
+                        yield Static("", id="prompt-history-metadata")
+            yield Static(
+                "j/k ↑/↓ ^n/^p: navigate • PgDn: older +250 • Enter: submit • ^g: edit • ^i: load • ^x: cancelled • ^y: copy • Esc/q: cancel",
+                id="prompt-history-hints",
+            )
 
     def _create_styled_label(self, item: _PromptDisplayItem) -> Text:
         """Create styled text for a prompt list item."""
@@ -438,7 +449,21 @@ class PromptHistoryModal(
 
     def _history_count_label(self) -> str:
         """Return the live list-pane history count label."""
-        return f"History · {len(self._filtered_items):,} / {len(self._all_items):,}"
+        history_loading = getattr(self, "_history_loading", False)
+        history_loaded_once = getattr(self, "_history_loaded_once", True)
+        history_exhausted = getattr(self, "_history_exhausted", True)
+        if history_loading and not history_loaded_once:
+            return "History · loading..."
+        loaded = len(self._all_items)
+        visible = len(self._filtered_items)
+        if not history_loaded_once:
+            return "History · loading..."
+        if history_exhausted:
+            return f"History · {visible:,} / {loaded:,} total"
+        suffix = " · PgDn +250 older"
+        if history_loading:
+            suffix = " · loading older..."
+        return f"History · {visible:,} / {loaded:,} loaded{suffix}"
 
     def _update_history_count_label(self) -> None:
         """Update the list-pane count label if it is mounted."""
@@ -488,22 +513,54 @@ class PromptHistoryModal(
             event.stop()
             self.action_toggle_cancelled()
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         """Focus the input and show initial preview on mount."""
-        if self._all_items:
-            filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
-            filter_input.focus()
-            filter_input.cursor_position = len(filter_input.value)
-            self._update_history_count_label()
-            # Show preview for first item
-            if self._filtered_items:
-                self._update_preview(self._filtered_items[0])
-            self.call_after_refresh(self._refresh_options_for_current_width)
+        filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
+        filter_input.focus()
+        filter_input.cursor_position = len(filter_input.value)
+        await self._load_more_async(preserve_highlight=False)
 
     def on_resize(self, _event: events.Resize) -> None:
         """Recompute adaptive row widths after terminal resize/layout changes."""
         if self._all_items:
             self.call_after_refresh(self._refresh_options_for_current_width)
+
+    async def _load_more_async(self, *, preserve_highlight: bool = True) -> None:
+        """Load another bounded prompt-history page off the event loop."""
+        if self._history_loading or self._history_exhausted:
+            return
+        self._history_loading = True
+        self._update_history_count_label()
+        try:
+            page = await asyncio.to_thread(self._load_page)
+        except Exception as exc:
+            self.notify(f"Failed to load prompt history: {exc}", severity="error")
+            return
+        finally:
+            self._history_loading = False
+
+        self._append_page(page)
+        filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
+        self._filtered_items = self._get_filtered_items(filter_input.value)
+        self._update_history_count_label()
+        self._refresh_options(preserve_highlight=preserve_highlight)
+        if self._filtered_items:
+            option_list = self.query_one("#prompt-history-list", OptionList)
+            highlighted = option_list.highlighted
+            idx = highlighted if highlighted is not None else 0
+            idx = min(max(idx, 0), len(self._filtered_items) - 1)
+            option_list.highlighted = idx
+            self._update_preview(self._filtered_items[idx])
+            self.call_after_refresh(self._refresh_options_for_current_width)
+        else:
+            self._clear_preview()
+
+    def action_load_more(self) -> None:
+        """Load the next prompt-history page."""
+        if self._history_loading or self._history_exhausted:
+            self._update_history_count_label()
+            return
+        self.run_worker(self._load_more_async(), exclusive=True)
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle input change - update the option list."""
