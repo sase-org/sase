@@ -570,7 +570,7 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 | `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)      |
 | `≡`   | Workflow row (top-level)                             |
 | `❑`   | ChangeSpec / CL row (top-level)                      |
-| `⚡`  | Autonomous (`%approve`) agent                        |
+| `⚡`  | Autonomous (`%plan`) agent                           |
 | `◌`   | Hidden agent (visible only when `.` toggles them in) |
 
 Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the status glyph and the tag/name. A

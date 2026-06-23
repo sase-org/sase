@@ -27,7 +27,7 @@ from sase.plan_approval_actions import (
     execute_plan_approval_response,
 )
 
-PlanAutoApprovalAction = Literal["approve", "epic"]
+PlanAutoApprovalAction = Literal["approve", "epic", "tale"]
 
 
 def _normalize_plan_action(value: object) -> PlanAutoApprovalAction | None:
@@ -38,6 +38,8 @@ def _normalize_plan_action(value: object) -> PlanAutoApprovalAction | None:
         return "approve"
     if normalized == "epic":
         return "epic"
+    if normalized == "tale":
+        return "tale"
     return None
 
 

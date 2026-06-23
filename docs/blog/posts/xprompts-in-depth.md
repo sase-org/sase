@@ -75,16 +75,17 @@ the prompt body.
 Directives are in-prompt tags with a `%` prefix that modify the agent runner instead of the prompt text. They are
 stripped before the prompt reaches the model. The ones worth knowing on day one:
 
-| Directive  | What it does                                                    |
-| ---------- | --------------------------------------------------------------- |
-| `%model`   | Override the LLM model for this run                             |
-| `%name`    | Assign a permanent agent name (or auto-generate one)            |
-| `%wait`    | Wait for another named agent to complete successfully           |
-| `%time`    | Defer launch by a duration or until an absolute wall-clock time |
-| `%approve` | Run fully autonomously (skip the approval gate)                 |
-| `%epic`    | Enable plan mode and auto-approve the resulting plan as an epic |
-| `%repeat`  | Run the prompt N times                                          |
-| `%alt`     | Split the prompt into variants with different text              |
+| Directive | What it does                                                                                                |
+| --------- | ----------------------------------------------------------------------------------------------------------- |
+| `%model`  | Override the LLM model for this run                                                                         |
+| `%name`   | Assign a permanent agent name (or auto-generate one)                                                        |
+| `%wait`   | Wait for another named agent to complete successfully                                                       |
+| `%time`   | Defer launch by a duration or until an absolute wall-clock time                                             |
+| `%plan`   | Auto-approve the submitted plan as a normal plan (run autonomously; `%approve`/`%a` are deprecated aliases) |
+| `%tale`   | Plan first, then auto-approve & commit the resulting plan as a tale                                         |
+| `%epic`   | Plan first, then auto-approve & commit the resulting plan as an epic                                        |
+| `%repeat` | Run the prompt N times                                                                                      |
+| `%alt`    | Split the prompt into variants with different text                                                          |
 
 Directives compose. `%wait:planner %time:5m` waits for the `planner` agent to land, then adds a five-minute floor before
 launching. `%name:!reviewer` forces reuse of an existing name by wiping the previous owner from the TUI — useful when

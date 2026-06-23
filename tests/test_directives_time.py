@@ -15,12 +15,13 @@ def test_time_duration_sets_field() -> None:
     assert directives.wait_duration == 300.0
 
 
-def test_time_alias_t() -> None:
-    """%t:5m sets wait_duration=300.0 (alias)."""
-    prompt = "%t:5m\nDo work"
-    cleaned, directives = extract_prompt_directives(prompt)
+def test_t_no_longer_aliases_time() -> None:
+    """%t now means %tale, not %time; it sets no time wait."""
+    cleaned, directives = extract_prompt_directives("%t\nDo work")
     assert cleaned == "Do work"
-    assert directives.wait_duration == 300.0
+    assert directives.wait_duration is None
+    assert directives.wait_until is None
+    assert directives.tale is True
 
 
 def test_time_compound_duration() -> None:

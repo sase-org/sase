@@ -323,11 +323,13 @@ def test_legacy_tag_directive_left_in_prompt() -> None:
     assert directives.tag is None
 
 
-def test_legacy_t_alias_now_means_time() -> None:
-    """``%t:<name>`` no longer means tag — it now aliases ``%time``.
+def test_t_alias_now_means_tale() -> None:
+    """``%t`` is the ``%tale`` alias now (it used to alias ``%time``).
 
-    A non-time argument errors with a hint pointing toward ``%wait:`` for
-    agents. Users who meant tag/group should use ``%group:``.
+    It auto-approves the submitted plan as a tale and no longer sets any time
+    wait.
     """
-    with pytest.raises(DirectiveError, match=r"%wait:foo"):
-        extract_prompt_directives("%t:foo\nRest of prompt")
+    cleaned, directives = extract_prompt_directives("%t\nRest of prompt")
+    assert cleaned == "Rest of prompt"
+    assert directives.tale is True
+    assert directives.wait_duration is None

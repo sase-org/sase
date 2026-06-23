@@ -238,9 +238,11 @@ def extract_directives_and_write_meta(
             agent_meta["approve"] = True
         if directives.epic:
             agent_meta["auto_approve_plan_action"] = "epic"
+        if directives.tale:
+            agent_meta["auto_approve_plan_action"] = "tale"
         if directives.hide or auto_dismiss:
             agent_meta["hidden"] = True
-        if directives.epic:
+        if directives.epic or directives.tale:
             agent_meta["plan"] = True
         if agent_tag:
             agent_meta["tag"] = agent_tag
@@ -309,7 +311,7 @@ def extract_directives_and_write_meta(
         vcs_provider=agent_vcs_provider,
         hidden=bool(directives.hide or auto_dismiss),
         approve=bool(directives.approve),
-        plan=bool(directives.epic),
+        plan=bool(directives.epic or directives.tale),
         tag=agent_tag,
         meta=agent_meta,
         local_xprompts=multi.local_xprompts,

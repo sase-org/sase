@@ -97,10 +97,10 @@ def test_has_deferred_start_directive_wait() -> None:
 
 
 def test_has_deferred_start_directive_time() -> None:
-    """Matches %time variants."""
+    """Matches %time variants; %t (now %tale) does not defer launch."""
     assert has_deferred_start_directive("%time:5m\nDo something") is True
-    assert has_deferred_start_directive("%t:5m\nDo something") is True
     assert has_deferred_start_directive("Do %time(5m) more") is True
+    assert has_deferred_start_directive("%t:5m\nDo something") is False
 
 
 def test_has_deferred_start_directive_fork_reference() -> None:
@@ -125,7 +125,7 @@ def test_has_deferred_start_directive_no_percent() -> None:
 
 @pytest.mark.parametrize(
     "directive",
-    ["%wait:old_agent", "%w:old_agent", "%time:5m", "%t:5m"],
+    ["%wait:old_agent", "%w:old_agent", "%time:5m", "%time(5m)"],
 )
 def test_has_deferred_start_directive_ignores_fenced_blocks(directive: str) -> None:
     """Deferred-start syntax inside fences does not defer launch."""
@@ -135,7 +135,7 @@ def test_has_deferred_start_directive_ignores_fenced_blocks(directive: str) -> N
 
 @pytest.mark.parametrize(
     "directive",
-    ["%wait:old_agent", "%w:old_agent", "%time:5m", "%t:5m"],
+    ["%wait:old_agent", "%w:old_agent", "%time:5m", "%time(5m)"],
 )
 def test_has_deferred_start_directive_ignores_disabled_regions(
     directive: str,
@@ -305,7 +305,7 @@ def test_has_alt_directive_ignores_disabled_regions(directive: str) -> None:
         (_extracts_wait_directive, "%wait:old_agent"),
         (_extracts_wait_directive, "%w:old_agent"),
         (has_deferred_start_directive, "%time:5m"),
-        (has_deferred_start_directive, "%t:5m"),
+        (has_deferred_start_directive, "%time(5m)"),
         (has_model_directive, "%model:opus"),
         (has_model_directive, "%m:opus"),
         (has_alt_directive, "%alt(a,b)"),

@@ -33,17 +33,35 @@ def test_directive_completion_lists_canonical_directives() -> None:
     assert "%alt" in insertions
     assert "%model" in insertions
     assert "%wait" in insertions
+    assert "%plan" in insertions
+    assert "%tale" in insertions
     assert "%xprompts_enabled" not in insertions
-    assert "%plan" not in insertions
+    assert "%approve" not in insertions
 
 
-def test_removed_plan_alias_has_no_completion() -> None:
-    """The removed %plan directive and its %p alias no longer complete."""
-    plan_candidates, _ = build_directive_completion_candidates("%plan")
-    alias_candidates, _ = build_directive_completion_candidates("%p")
+def test_plan_and_tale_complete_from_name_and_alias() -> None:
+    """%plan/%p and %tale/%t are advertised auto-approve directives."""
+    plan, _ = _single_candidate("%pl")
+    plan_alias, _ = _single_candidate("%p")
+    tale, _ = _single_candidate("%tal")
 
-    assert plan_candidates == []
-    assert alias_candidates == []
+    assert plan.insertion == "%plan"
+    assert plan_alias.insertion == "%plan"
+    assert tale.insertion == "%tale"
+
+
+def test_deprecated_approve_alias_is_hidden_from_completion() -> None:
+    """%approve/%a still parse but are never advertised as completions."""
+    approve_candidates, _ = build_directive_completion_candidates("%approve")
+    assert approve_candidates == []
+
+    # %a only surfaces %alt (the lone directive whose name starts with "a").
+    a_candidates, _ = build_directive_completion_candidates("%a")
+    assert [candidate.insertion for candidate in a_candidates] == ["%alt"]
+
+    # %plan advertises only its %p alias, not the deprecated a/approve.
+    plan, _ = _single_candidate("%pl")
+    assert _metadata(plan).aliases == ("p",)
 
 
 def test_directive_completion_includes_representative_descriptions() -> None:
@@ -62,8 +80,14 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     )
 
 
-def test_directive_completion_t_alias_completes_to_time() -> None:
-    time_, _ = _single_candidate("%t")
+def test_directive_completion_t_prefix_lists_tale_and_time() -> None:
+    """%t matches both %tale (alias) and %time (name); %ta/%ti disambiguate."""
+    candidates, _ = build_directive_completion_candidates("%t")
+    assert [candidate.insertion for candidate in candidates] == ["%tale", "%time"]
+
+    tale, _ = _single_candidate("%ta")
+    time_, _ = _single_candidate("%ti")
+    assert tale.insertion == "%tale"
     assert time_.insertion == "%time"
 
 
@@ -249,9 +273,9 @@ async def test_unknown_directive_does_not_show_placeholder() -> None:
         ta = app.query_one(PromptTextArea)
 
         await pilot.press("%")
-        await pilot.press("p")
+        await pilot.press("z")
 
-        assert ta.text == "%p"
+        assert ta.text == "%z"
         assert ta._file_completion_active is False
         assert ta._file_completion_candidates == []
 

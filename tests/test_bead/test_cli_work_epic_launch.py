@@ -297,10 +297,10 @@ def test_work_dry_run_renders_model_directives(
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
 
     out = capsys.readouterr().out
-    assert f"%name:!{p1_id}\n%group:{epic_id}\n%model:codex/gpt-5.5\n%approve" in out
+    assert f"%name:!{p1_id}\n%group:{epic_id}\n%model:codex/gpt-5.5\n%plan" in out
     # Phase without an explicit model opts into the worker lane.
-    assert f"%name:!{p2_id}\n%group:{epic_id}\n%model:worker\n%approve" in out
-    assert f"%name:!{epic_id}\n%group:{epic_id}\n%model:claude/opus\n%approve" in out
+    assert f"%name:!{p2_id}\n%group:{epic_id}\n%model:worker\n%plan" in out
+    assert f"%name:!{epic_id}\n%group:{epic_id}\n%model:claude/opus\n%plan" in out
     # Three %model directives: explicit phase, worker phase, and land.
     assert out.count("%model:") == 3
 

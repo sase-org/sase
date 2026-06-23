@@ -93,8 +93,8 @@ The most useful single command in this layer turns an epic-tier plan into actual
    the land agent. Phase dependencies become `%wait` directives on blocker phase-agent names; the land agent waits on
    every launched phase agent.
 
-Because every segment uses `%name:!<agent_name>` (force-reuse) and `%approve` (self-approve), `sase bead work` is safe
-to retry after a killed or failed run. AXE's `wait_checks` chop is what unblocks each phase the moment its blockers have
+Because every segment uses `%name:!<agent_name>` (force-reuse) and `%plan` (self-approve), `sase bead work` is safe to
+retry after a killed or failed run. AXE's `wait_checks` chop is what unblocks each phase the moment its blockers have
 `done.json` outcomes of `completed`. Failed or killed phases keep the land agent parked until that phase name retries
 successfully — there is no fail-open.
 

@@ -157,7 +157,7 @@ The `agent` field contains a prompt template that can:
 
 Standalone workflows, which have no `prompt_part` step, cannot be embedded inside an `agent` prompt. Launch them with
 `#!workflow_name(args)` at the top level or inside an anonymous wrapper prompt such as
-`sase run '#gh:sase #!sase/pylimit_split %approve'`.
+`sase run '#gh:sase #!sase/pylimit_split %plan'`.
 
 > **Note:** The keyword `prompt` is still accepted for backward compatibility, but `agent` is the canonical name.
 

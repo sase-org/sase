@@ -272,7 +272,7 @@ Examples:
 
 ```bash
 sase run '#!sync'
-sase run '#gh:sase #!sase/pylimit_split %approve'
+sase run '#gh:sase #!sase/pylimit_split %plan'
 ```
 
 During the compatibility window, top-level legacy invocations such as `sase run '#sync'` still run but emit a warning
@@ -965,20 +965,25 @@ the prompt before further processing.
 
 ### Supported Directives
 
-| Directive  | Alias | Description                                                      |
-| ---------- | ----- | ---------------------------------------------------------------- |
-| `%model`   | `%m`  | Override the LLM model for this prompt                           |
-| `%effort`  |       | Set the reasoning-effort level (e.g. `%effort:xhigh`)            |
-| `%name`    | `%n`  | Assign, auto-generate, or force-reuse an agent name              |
-| `%wait`    | `%w`  | Wait for another agent or workflow to succeed                    |
-| `%time`    | `%t`  | Defer launch by a duration or until an absolute wall-clock time  |
-| `%hide`    | `%h`  | Hide the agent from the default Agents tab display               |
-| `%approve` | `%a`  | Run the agent fully autonomously (skip approval)                 |
-| `%epic`    |       | Enable plan mode and auto-approve the plan as an epic            |
-| `%edit`    | `%e`  | Return editor text to the prompt bar for review                  |
-| `%repeat`  | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                |
-| `%group`   | `%g`  | Assign the agent's user-managed tag (e.g., `%group:review`)      |
-| `%alt`     | `%{}` | Split prompt into variants with different text (brace shorthand) |
+| Directive | Alias | Description                                                      |
+| --------- | ----- | ---------------------------------------------------------------- |
+| `%model`  | `%m`  | Override the LLM model for this prompt                           |
+| `%effort` |       | Set the reasoning-effort level (e.g. `%effort:xhigh`)            |
+| `%name`   | `%n`  | Assign, auto-generate, or force-reuse an agent name              |
+| `%wait`   | `%w`  | Wait for another agent or workflow to succeed                    |
+| `%time`   |       | Defer launch by a duration or until an absolute wall-clock time  |
+| `%hide`   | `%h`  | Hide the agent from the default Agents tab display               |
+| `%plan`   | `%p`  | Auto-approve the submitted plan as a normal plan                 |
+| `%tale`   | `%t`  | Plan first, then auto-approve & commit the plan as a tale        |
+| `%epic`   |       | Plan first, then auto-approve & commit the plan as an epic       |
+| `%edit`   | `%e`  | Return editor text to the prompt bar for review                  |
+| `%repeat` | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                |
+| `%group`  | `%g`  | Assign the agent's user-managed tag (e.g., `%group:review`)      |
+| `%alt`    | `%{}` | Split prompt into variants with different text (brace shorthand) |
+
+> `%approve` and its `%a` alias are **deprecated** spellings of `%plan`. They still parse identically for back-compat
+> but are hidden from completion; prefer `%plan`/`%p` in new prompts. `%time` no longer accepts the `%t` short alias —
+> `%t` now means `%tale`.
 
 ### Syntax
 
@@ -1017,11 +1022,13 @@ Directives use the same argument syntax as xprompt references:
 %(#review,#test)             # Legacy shorthand, still accepted (prefer `%{...}`)
 %{sec=#review | perf=#test}  # Named branches become child name suffixes
 %{extra instructions}        # Single branch: split into with/without variants
-%approve                     # Run fully autonomously
-%a                           # Same, using alias
+%plan                        # Auto-approve the submitted plan as a normal plan
+%p                           # Same, using alias (%approve/%a are deprecated aliases)
+%tale                        # Plan first, then auto-approve & commit the plan as a tale
+%t                           # Same, using alias
 %edit                        # Return editor text to prompt bar
 %e                           # Same, using alias
-%epic                        # Enable plan mode and auto-approve the plan as an epic
+%epic                        # Plan first, then auto-approve & commit the plan as an epic
 %group:review                # Assign the tag "review" to this agent
 %g:review                    # Same, using alias
 ```
@@ -1085,8 +1092,8 @@ Multi-value directives (`%wait`, `%time`, `%model`, `%alt`) accept comma-separat
 otherwise be several lines: `%wait:agent_a,agent_b` is equivalent to two separate `%wait:` directives. Backtick-quoted
 values (e.g. `` %wait:`a,b` ``) are treated as a single literal and not split on commas.
 
-The `%approve`, `%edit`, and `%epic` directives are boolean flags — they take no arguments and are simply present or
-absent.
+The `%plan`, `%tale`, `%edit`, and `%epic` directives are boolean flags — they take no arguments and are simply present
+or absent.
 
 ### Example
 
@@ -1161,15 +1168,31 @@ monitoring:
 Run periodic health checks.
 ```
 
-### Approve Directive
+### Plan Directive
 
-The `%approve` directive marks an agent as fully autonomous. The agent runs without requiring human approval for plan
-steps or other checkpoints that would normally pause for user input:
+The `%plan` directive (alias `%p`) marks an agent as fully autonomous: it auto-approves the submitted plan as a normal
+plan, so the agent runs without requiring human approval for plan steps or other checkpoints that would normally pause
+for user input:
 
 ```
-%approve
+%plan
 %name:auto-fixer
 Fix the lint errors in the codebase.
+```
+
+`%approve` and its `%a` alias are deprecated spellings of `%plan`. They still parse identically for back-compat, but
+`%plan`/`%p` is the canonical, advertised name; prefer it in new prompts.
+
+### Tale Directive
+
+The `%tale` directive (alias `%t`) enables plan mode and marks the submitted plan for **tale** approval. When the agent
+later submits a plan with `/sase_plan` or `sase plan propose`, sase auto-approves and commits it as an SDD tale (under
+`sdd/tales/YYYYMM/`) and launches the coder follow-up — the same path as the TUI Tale action:
+
+```
+%tale
+%name:cleanup-tale
+Tidy up the logging module.
 ```
 
 ### Edit Directive
@@ -1225,8 +1248,8 @@ the `approve` and `tale` paths.
 
 The `%epic` directive enables plan mode and marks the submitted plan for epic approval. When the agent later submits a
 plan with `/sase_plan` or `sase plan propose`, sase follows the same epic path as the TUI Epic action: it writes the SDD
-epic files, commits them as needed, initializes beads, and launches the epic follow-up agent. Unlike `%approve`, `%epic`
-is plan-specific and does not automatically answer unrelated questions.
+epic files, commits them as needed, initializes beads, and launches the epic follow-up agent. Unlike `%plan`, `%epic` is
+plan-specific and does not automatically answer unrelated questions.
 
 ```
 %epic

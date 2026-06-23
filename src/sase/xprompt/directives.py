@@ -132,7 +132,9 @@ def has_deferred_start_directive(prompt: str) -> bool:
     """
     if _has_wait_directive(prompt) or _has_protected_directive_match(
         prompt,
-        r"(?:^|\s)%(?:time|t)(?:[:+(]|\s|$)",
+        # ``%time`` only — ``%t`` now means ``%tale`` (auto-approval), which
+        # does not defer launch.
+        r"(?:^|\s)%time(?:[:+(]|\s|$)",
     ):
         return True
     if "#fork" not in prompt:
@@ -570,11 +572,15 @@ def extract_prompt_directives(
         model_effort=model_effort,
     )
 
-    # Build PromptDirectives from expanded args
+    # Build PromptDirectives from expanded args. ``%plan``/``%p`` (and the
+    # deprecated ``%approve``/``%a`` aliases) all resolve to the canonical
+    # ``plan`` key before this point, so the normal-plan ``approve`` flag keys
+    # off ``"plan"``; ``%tale``/``%t`` resolve to ``tale``.
     directives = PromptDirectives(
-        approve="approve" in expanded_args,
+        approve="plan" in expanded_args,
         edit="edit" in expanded_args,
         epic="epic" in expanded_args,
+        tale="tale" in expanded_args,
         hide="hide" in expanded_args,
         model=expanded_args.get("model") or None,
         reasoning_effort=reasoning_effort,

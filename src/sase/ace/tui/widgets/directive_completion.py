@@ -7,7 +7,11 @@ import re
 from dataclasses import dataclass
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _KNOWN_DIRECTIVES
+from sase.xprompt._directive_types import (
+    _DEPRECATED_DIRECTIVE_ALIASES,
+    _DIRECTIVE_ALIASES,
+    _KNOWN_DIRECTIVES,
+)
 
 _DIRECTIVE_TOKEN_RE = re.compile(r"^%[A-Za-z0-9_]*$")
 _DIRECTIVE_IDENTIFIER_RE = re.compile(r"[A-Za-z0-9_]")
@@ -26,15 +30,16 @@ class DirectiveCompletionMetadata:
 
 _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "alt": "(variants)",
-    "approve": "flag",
     "edit": "flag",
     "effort": ":level",
     "epic": "flag",
     "hide": "flag",
     "model": ":model or (models)",
     "name": ":agent",
+    "plan": "flag",
     "repeat": ":count",
     "group": ":tag",
+    "tale": "flag",
     "time": ":duration or :HHMM",
     "wait": ":agent",
 }
@@ -42,15 +47,16 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
 
 _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "alt": "split a prompt into variants; shorthand %{A | B}",
-    "approve": "run autonomously without plan approval prompts",
     "edit": "return editor text to the prompt bar before launch",
     "effort": "set the reasoning-effort level for this prompt",
     "epic": "plan first and auto-approve the plan as an epic",
     "hide": "hide the agent from the default Agents tab",
     "model": "choose one or more provider/model targets",
     "name": "assign, auto-generate, or force-reuse an agent name",
+    "plan": "auto-approve the submitted plan as a normal plan",
     "repeat": "run the prompt multiple serial iterations",
     "group": "assign a user-managed agent tag",
+    "tale": "plan first and auto-approve the plan as a tale",
     "time": "defer launch until a duration or wall-clock time",
     "wait": "defer launch until agents complete",
 }
@@ -142,6 +148,11 @@ def _aliases_by_directive() -> dict[str, tuple[str, ...]]:
         directive: [] for directive in _USER_FACING_DIRECTIVES
     }
     for alias, canonical in _DIRECTIVE_ALIASES.items():
+        # Deprecated aliases (e.g. %approve/%a for %plan) still resolve at parse
+        # time but must not be advertised as completion candidates or alias
+        # details.
+        if alias in _DEPRECATED_DIRECTIVE_ALIASES:
+            continue
         if canonical in grouped:
             grouped[canonical].append(alias)
     return {directive: tuple(sorted(aliases)) for directive, aliases in grouped.items()}

@@ -106,6 +106,21 @@ def test_handle_plan_approval_auto_epic_skips_notification() -> None:
     notify.assert_not_called()
 
 
+def test_handle_plan_approval_auto_tale_skips_notification() -> None:
+    """Plan-specific auto-tale enters the auto-approval action path."""
+    with (
+        patch(
+            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+            return_value="tale",
+        ),
+        patch("sase.notifications.senders.notify_plan_approval") as notify,
+    ):
+        result = handle_plan_approval("/path/to/plan.md", "session-123")
+
+    assert result == PlanApprovalResult(action="tale", plan_file="/path/to/plan.md")
+    notify.assert_not_called()
+
+
 def test_auto_plan_action_reads_epic_from_agent_meta(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -118,6 +133,29 @@ def test_auto_plan_action_reads_epic_from_agent_meta(
 
     assert get_auto_plan_approval_action() == "epic"
     assert is_auto_approve_active() is True
+
+
+def test_auto_plan_action_reads_tale_from_agent_meta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text('{"auto_approve_plan_action": "tale"}')
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+
+    assert get_auto_plan_approval_action() == "tale"
+
+
+def test_normalize_plan_action_recognizes_tale() -> None:
+    """_normalize_plan_action accepts tale alongside approve and epic."""
+    from sase.main.plan_approve_handler import _normalize_plan_action
+
+    assert _normalize_plan_action("tale") == "tale"
+    assert _normalize_plan_action("  TALE  ") == "tale"
+    assert _normalize_plan_action("epic") == "epic"
+    assert _normalize_plan_action("approve") == "approve"
+    assert _normalize_plan_action("bogus") is None
+    assert _normalize_plan_action(None) is None
 
 
 def test_handle_plan_approval_commit(

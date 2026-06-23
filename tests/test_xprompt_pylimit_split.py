@@ -84,7 +84,7 @@ def _assert_split_segment(segment: str, *, name: str, path: str) -> None:
     assert "\n#m_codex\n" in segment
     assert "#gh:sase" in segment
     assert "%group:chop" in segment
-    assert "%approve" in segment
+    assert "%plan" in segment
     assert f"#split_file:{path}" in segment
 
 
