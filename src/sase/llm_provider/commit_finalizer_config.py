@@ -6,7 +6,10 @@ import os
 from typing import Any
 
 from sase.config.core import load_merged_config
-from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
+from sase.env_contracts import (
+    PROVIDER_PROJECT_DIR_ENV_VARS,
+    SASE_WORKSPACE_DIR_ENV_VARS,
+)
 
 from .commit_finalizer_types import (
     _DEFAULT_ENABLED,
@@ -14,20 +17,8 @@ from .commit_finalizer_types import (
     CommitFinalizerConfig,
 )
 
-_WORKSPACE_ENV_VARS: tuple[str, ...] = (
-    "SASE_GIT_WORKSPACE_DIR",
-    "SASE_CD_WORKSPACE_DIR",
-)
-_PROVIDER_PROJECT_ENV_VARS: tuple[str, ...] = (
-    "CODEX_PROJECT_DIR",
-    SASE_ACTIVE_PROJECT_DIR_ENV,
-    "CLAUDE_PROJECT_DIR",
-    "QWEN_PROJECT_DIR",
-    # Antigravity CLI (`agy`) runs in the `.gemini` namespace it inherited from
-    # the Gemini CLI and exports GEMINI_PROJECT_DIR for its workspace root.
-    "GEMINI_PROJECT_DIR",
-    "OPENCODE_PROJECT_DIR",
-)
+_WORKSPACE_ENV_VARS = SASE_WORKSPACE_DIR_ENV_VARS
+_PROVIDER_PROJECT_ENV_VARS = PROVIDER_PROJECT_DIR_ENV_VARS
 
 
 def resolve_finalizer_project_dir() -> str:

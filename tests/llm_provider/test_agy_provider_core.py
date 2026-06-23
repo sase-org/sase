@@ -156,6 +156,30 @@ def test_agy_provider_pins_workspace_cwd_and_add_dir(
     assert mock_popen.call_args.kwargs["cwd"] == expected
 
 
+@patch("sase.llm_provider.agy.stream_process_output")
+@patch("sase.llm_provider.agy.subprocess.Popen")
+@patch("sase.llm_provider.agy.provider_timer")
+def test_agy_provider_skips_missing_workspace_pin(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for env_name in _AGY_WORKSPACE_ENV_VARS:
+        monkeypatch.delenv(env_name, raising=False)
+    monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(tmp_path / "deleted-workspace"))
+    mock_popen.return_value = MagicMock()
+    mock_stream.return_value = ("response", "", 0)
+
+    AgyProvider().invoke("test", model_tier="large", suppress_output=True)
+
+    expected = str(Path.cwd().resolve())
+    cmd = mock_popen.call_args.args[0]
+    assert cmd[cmd.index("--add-dir") + 1] == expected
+    assert mock_popen.call_args.kwargs["cwd"] == expected
+
+
 @patch.dict(os.environ, {"SASE_AGY_PRINT_TIMEOUT": "45m"})
 @patch("sase.llm_provider.agy.stream_process_output")
 @patch("sase.llm_provider.agy.subprocess.Popen")
@@ -237,6 +261,27 @@ def test_agy_provider_missing_executable_error_mentions_resolution_paths(
     message = str(exc_info.value)
     assert "SASE_AGY_PATH" in message
     assert "PATH" in message
+
+
+@patch("sase.llm_provider.agy.subprocess.Popen")
+def test_agy_provider_missing_cwd_error_mentions_workspace_not_binary(
+    mock_popen: MagicMock,
+    tmp_path: Path,
+) -> None:
+    missing_workspace = tmp_path / "deleted-workspace"
+    mock_popen.side_effect = FileNotFoundError("missing cwd")
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        AgyProvider()._run_subprocess(
+            ["agy", "--print", "test"],
+            suppress_output=True,
+            cwd=str(missing_workspace),
+        )
+
+    message = str(exc_info.value)
+    assert str(missing_workspace) in message
+    assert "workspace directory" in message
+    assert "SASE_AGY_PATH" not in message
 
 
 @patch("sase.llm_provider.agy.subprocess.Popen")

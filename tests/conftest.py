@@ -1,5 +1,6 @@
 """Pytest configuration for sase tests."""
 
+from collections.abc import Iterator
 import os
 import tempfile
 from pathlib import Path
@@ -12,6 +13,7 @@ from sase.ace.changespec import (
     CommitEntry,
     HookEntry,
 )
+from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -109,7 +111,7 @@ def _isolate_sase_home(
 
 
 @pytest.fixture(autouse=True)
-def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Clear ambient SASE agent env vars before each test.
 
     Prevents launcher state from leaking into tests and causing side effects
@@ -119,7 +121,9 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     are scrubbed so finalizer tests don't inherit the developer's real linked
     repositories (e.g. a dirty chezmoi checkout) from the surrounding agent.
     """
-    for key in list(os.environ):
+    keys_to_clear = {
+        key
+        for key in os.environ
         if (
             key.startswith("SASE_AGENT_")
             or key.startswith("SASE_LINKED_REPO_")
@@ -131,8 +135,17 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
                 "SASE_LINKED_REPOS_JSON",
                 "SASE_SIBLING_REPOS_JSON",
             }
-        ):
-            monkeypatch.delenv(key)
+        )
+    }
+    keys_to_clear.update(WORKSPACE_PIN_ENV_VARS)
+
+    for key in keys_to_clear:
+        monkeypatch.delenv(key, raising=False)
+
+    yield
+
+    for key in WORKSPACE_PIN_ENV_VARS:
+        os.environ.pop(key, None)
 
 
 @pytest.fixture(scope="session")

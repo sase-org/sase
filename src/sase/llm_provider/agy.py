@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
+from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
 from sase.output import provider_timer
 
 from ._hookspec import hookimpl
@@ -52,16 +52,7 @@ _DEFAULT_MAX_NO_PROGRESS_CONTINUATIONS = 2
 # Linux rejects a single argv element above 128 KiB. Keep SASE's guard below
 # that so `agy --print <prompt>` fails with an actionable error before exec.
 _AGY_PRINT_PROMPT_ARGV_BYTE_LIMIT = 120 * 1024
-_AGY_WORKSPACE_ENV_VARS = (
-    "CODEX_PROJECT_DIR",
-    SASE_ACTIVE_PROJECT_DIR_ENV,
-    "CLAUDE_PROJECT_DIR",
-    "QWEN_PROJECT_DIR",
-    "GEMINI_PROJECT_DIR",
-    "OPENCODE_PROJECT_DIR",
-    "SASE_GIT_WORKSPACE_DIR",
-    "SASE_CD_WORKSPACE_DIR",
-)
+_AGY_WORKSPACE_ENV_VARS = WORKSPACE_PIN_ENV_VARS
 _AGY_PRINT_MODE_DIRECTIVE = """SASE Antigravity print-mode instructions:
 - You are running non-interactively with --dangerously-skip-permissions; never ask the user to approve commands or tool calls.
 - Run commands synchronously and wait for their output. Do not start background or async tasks; print mode has no follow-up event loop to receive notifications.
@@ -123,7 +114,9 @@ def _resolve_agy_workspace_dir() -> str:
     for env_name in _AGY_WORKSPACE_ENV_VARS:
         value = os.environ.get(env_name)
         if value:
-            return str(Path(value).expanduser().resolve(strict=False))
+            candidate = Path(value).expanduser().resolve(strict=False)
+            if candidate.is_dir():
+                return str(candidate)
     return str(Path.cwd().resolve())
 
 
@@ -133,6 +126,16 @@ def _agy_executable_not_found_error(command: str) -> FileNotFoundError:
         "Unable to launch Antigravity CLI executable "
         f"{command!r}. Set SASE_AGY_PATH to the Antigravity (`agy`) binary or "
         "ensure 'agy' is discoverable on PATH."
+    )
+
+
+def _agy_workspace_dir_not_found_error(cwd: str) -> FileNotFoundError:
+    """Build an actionable missing-workspace diagnostic."""
+    return FileNotFoundError(
+        "Unable to launch Antigravity CLI from workspace directory "
+        f"{cwd!r} because it does not exist. Clear stale workspace environment "
+        "variables such as CODEX_PROJECT_DIR or SASE_ACTIVE_PROJECT_DIR, or "
+        "start the provider from an existing workspace."
     )
 
 
@@ -529,6 +532,8 @@ class AgyProvider(LLMProvider):
                 cwd=cwd,
             )
         except FileNotFoundError as exc:
+            if not Path(cwd).is_dir():
+                raise _agy_workspace_dir_not_found_error(cwd) from exc
             raise _agy_executable_not_found_error(args[0]) from exc
 
         start_interrupt_monitor(
