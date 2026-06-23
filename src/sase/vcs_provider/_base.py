@@ -192,6 +192,16 @@ class VCSProvider(ABC):
             "get_default_parent_revision is not supported by this VCS provider"
         )
 
+    def list_commits(
+        self, base_ref: str, head_ref: str, cwd: str
+    ) -> tuple[bool, str | None]:
+        """Return compact commit rows between two refs.
+
+        The provider-specific text format is intended for nearby UI parsing.
+        Git providers return one ``<short-sha>\\x1f<subject>`` row per commit.
+        """
+        raise NotImplementedError("list_commits is not supported by this VCS provider")
+
     def diff_name_status(
         self, parent_ref: str, head_ref: str, cwd: str
     ) -> list[tuple[str, str]]:

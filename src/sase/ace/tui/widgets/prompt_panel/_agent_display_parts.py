@@ -547,6 +547,10 @@ def build_header_text(
 
     _append_output_variables_section(header_text, agent.output_variables)
 
+    from ._agent_commits import append_agent_commits_section
+
+    append_agent_commits_section(header_text, agent)
+
     if not cheap and summary is not None:
         from ._agent_artifacts import append_agent_artifacts_section
         from ._agent_deltas import append_agent_deltas_section

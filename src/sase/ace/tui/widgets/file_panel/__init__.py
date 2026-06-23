@@ -15,6 +15,7 @@ from ...graphics import is_supported_image_path
 from ...util.trace import tui_trace
 from ._diff import get_agent_diff
 from ._display import FilePanelDisplayMixin, StaticReadResult
+from ._linked_commits import LinkedCommitGroup
 from ._linked_deltas import LinkedDeltaGroup, get_cached_linked_delta_groups
 from ._messages import (
     FileListChanged,

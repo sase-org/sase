@@ -74,6 +74,12 @@ class _MultiMethodPlugin:
     def vcs_get_default_parent_revision(self, cwd: str) -> str:
         return "origin/main"
 
+    @hookimpl
+    def vcs_list_commits(
+        self, base_ref: str, head_ref: str, cwd: str
+    ) -> tuple[bool, str | None]:
+        return (True, f"{base_ref}..{head_ref}")
+
 
 # ---------------------------------------------------------------------------
 # Tests: delegation to plugins
@@ -106,6 +112,13 @@ class TestDelegation:
     def test_get_default_parent_revision_delegates(self) -> None:
         mgr = _make_manager(_MultiMethodPlugin())
         assert mgr.get_default_parent_revision("/tmp") == "origin/main"
+
+    def test_list_commits_delegates(self) -> None:
+        mgr = _make_manager(_MultiMethodPlugin())
+        assert mgr.list_commits("origin/main", "HEAD", "/tmp") == (
+            True,
+            "origin/main..HEAD",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +153,11 @@ class TestNotImplemented:
         mgr = _make_manager()
         with pytest.raises(NotImplementedError, match="get_default_parent_revision"):
             mgr.get_default_parent_revision("/tmp")
+
+    def test_unimplemented_list_commits_raises(self) -> None:
+        mgr = _make_manager()
+        with pytest.raises(NotImplementedError, match="list_commits"):
+            mgr.list_commits("origin/main", "HEAD", "/tmp")
 
     def test_unimplemented_google_internal_raises(self) -> None:
         mgr = _make_manager()

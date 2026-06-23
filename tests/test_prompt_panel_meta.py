@@ -20,6 +20,17 @@ def testextract_meta_fields_basic() -> None:
     assert result == [("New Cl", "my_cl")]
 
 
+def testextract_meta_fields_excludes_commit_meta() -> None:
+    """Commit metadata renders in the COMMITS section, not workflow variables."""
+    output = {
+        "meta_commit_message": "fix: align",
+        "meta_new_commit": "96a895335",
+        "meta_result": "ready",
+    }
+    result = extract_meta_fields(output)
+    assert result == [("Result", "ready")]
+
+
 # --- aggregate_meta_fields tests ---
 
 

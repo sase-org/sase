@@ -75,6 +75,7 @@ def format_meta_key(key: str) -> str:
 
 
 SPECIAL_META_KEYS = frozenset({"meta_project", "meta_changespec", "meta_workspace"})
+COMMIT_META_KEYS = frozenset({"meta_commit_message", "meta_new_commit"})
 WORKFLOW_VARIABLES_SECTION_LABEL = "WORKFLOW VARIABLES"
 
 
@@ -92,7 +93,11 @@ def extract_meta_fields(output: dict[str, Any]) -> list[tuple[str, str]]:
     """
     results: list[tuple[str, str]] = []
     for key, value in output.items():
-        if key.startswith("meta_") and key not in SPECIAL_META_KEYS:
+        if (
+            key.startswith("meta_")
+            and key not in SPECIAL_META_KEYS
+            and key not in COMMIT_META_KEYS
+        ):
             results.append((format_meta_key(key), str(value)))
     return results
 

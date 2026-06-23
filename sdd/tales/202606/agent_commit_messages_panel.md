@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 17:23:26
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_commit_messages_panel.md
 ---
 # Plan: Show all of an agent's commit messages (primary + linked repos) in the Agents-tab metadata panel

@@ -171,6 +171,13 @@ class VCSPluginManager(VCSProvider):
             )
         return result  # type: ignore[return-value]
 
+    def list_commits(
+        self, base_ref: str, head_ref: str, cwd: str
+    ) -> tuple[bool, str | None]:
+        return self._call_or_raise(
+            "vcs_list_commits", base_ref=base_ref, head_ref=head_ref, cwd=cwd
+        )
+
     def diff_name_status(
         self, parent_ref: str, head_ref: str, cwd: str
     ) -> list[tuple[str, str]]:
