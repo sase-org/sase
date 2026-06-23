@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.dismissed_agents import (
+    delete_dismissed_agent_group,
     list_dismissed_agent_groups,
     list_recent_dismissed_agent_groups,
     load_dismissed_agent_group,
@@ -112,6 +113,25 @@ def test_saved_agent_group_corrupt_missing_and_revived_marking(
     assert payload["agent_refs"][0]["tag"] == "backend"
 
 
+def test_delete_saved_agent_group_removes_group_record(tmp_path: Path) -> None:
+    """Deleting a saved group removes only that group metadata file."""
+
+    groups_dir = tmp_path / "groups"
+    with patch("sase.ace.dismissed_agents._DISMISSED_AGENT_GROUPS_DIR", groups_dir):
+        save_dismissed_agent_group(_group("group-a", "2026-05-27T12:00:00Z"))
+        save_dismissed_agent_group(_group("group-b", "2026-05-27T12:01:00Z"))
+
+        deleted = delete_dismissed_agent_group("group-a")
+        missing = delete_dismissed_agent_group("group-a")
+        page = list_dismissed_agent_groups(limit=20)
+
+    assert deleted is True
+    assert missing is False
+    assert not (groups_dir / "group-a.json").exists()
+    assert (groups_dir / "group-b.json").is_file()
+    assert [summary.group_id for summary in page.groups] == ["group-b"]
+
+
 def test_saved_agent_group_python_fallback_when_binding_missing(
     tmp_path: Path,
 ) -> None:
@@ -133,6 +153,30 @@ def test_saved_agent_group_python_fallback_when_binding_missing(
     assert saved.name is None
     assert [summary.group_id for summary in page.groups] == ["fallback"]
     assert page.groups[0].name is None
+
+
+def test_delete_saved_agent_group_python_fallback_when_binding_missing(
+    tmp_path: Path,
+) -> None:
+    """Delete keeps working when the installed Rust extension is stale."""
+
+    groups_dir = tmp_path / "groups"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_AGENT_GROUPS_DIR", groups_dir),
+        patch(
+            "sase.ace.dismissed_agent_groups.require_rust_binding",
+            side_effect=AttributeError("stale"),
+        ),
+    ):
+        save_dismissed_agent_group(_group("fallback", "2026-05-27T12:00:00Z"))
+        deleted = delete_dismissed_agent_group("fallback")
+        missing = delete_dismissed_agent_group("fallback")
+        page = list_dismissed_agent_groups(limit=20)
+
+    assert deleted is True
+    assert missing is False
+    assert not (groups_dir / "fallback.json").exists()
+    assert page.groups == ()
 
 
 def test_saved_agent_group_missing_optional_fields_load_as_none(

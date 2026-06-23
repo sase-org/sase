@@ -26,6 +26,7 @@ from sase.core.agent_group_archive_wire import (
 )
 
 from .base import OptionListNavigationMixin
+from .confirm_action_modal import ConfirmActionModal
 from .saved_agent_group_revival_rendering import (
     apply_jump_hint_prefix,
     build_empty_groups_preview,
@@ -67,6 +68,7 @@ class SavedAgentGroupRevivalModal(
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         Binding("pagedown", "load_more", "Load More", priority=True),
         Binding("apostrophe", "jump_to_entry", "Jump"),
+        Binding("ctrl+d", "delete_group", "Delete", priority=True),
     ]
 
     def __init__(
@@ -77,6 +79,7 @@ class SavedAgentGroupRevivalModal(
         page_loader: Callable[[int | None], SavedAgentGroupPageWire] | None = None,
         group_loader: Callable[[str], SavedAgentGroupWire | None] | None = None,
         recent_group_loader: Callable[[str], SavedAgentGroupWire | None] | None = None,
+        delete_callback: Callable[[str], bool] | None = None,
     ) -> None:
         super().__init__()
         self._recent_groups: list[SavedAgentGroupSummaryWire] = list(
@@ -87,6 +90,7 @@ class SavedAgentGroupRevivalModal(
         self._page_loader = page_loader
         self._group_loader = group_loader
         self._recent_group_loader = recent_group_loader
+        self._delete_callback = delete_callback
         self._loaded_groups: dict[str, SavedAgentGroupWire | None] = {}
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_option_id: dict[str, str] = {}
@@ -138,11 +142,43 @@ class SavedAgentGroupRevivalModal(
         option_list = self.query_one("#saved-agent-group-list", OptionList)
         option_list.focus()
         self._update_preview_for_option_id(self._first_option_id())
+        self._update_hints()
 
     def action_load_more(self) -> None:
         """Load another page of saved groups, if available."""
 
         self._load_more()
+
+    def action_delete_group(self) -> None:
+        """Delete the highlighted saved group after confirmation."""
+
+        option_id = self._current_highlighted_option_id()
+        if _group_location_from_option(option_id) != "saved":
+            return
+        group_id = _group_id_from_option(option_id, prefix=_GROUP_PREFIX)
+        if group_id is None:
+            return
+
+        summary = self._summary_for_group_id(group_id, location="saved")
+        title = _group_display_title(summary, group_id)
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            if confirmed is True:
+                self._perform_delete(group_id)
+
+        self.app.push_screen(
+            ConfirmActionModal(
+                title="Delete Saved Agent Group",
+                message=(
+                    f"Delete saved agent group '{title}'?\n\n"
+                    "This removes only the saved group record. The dismissed "
+                    "agents themselves are not deleted and can still be found "
+                    "with custom revival search.\n\n"
+                    "This action cannot be undone."
+                ),
+            ),
+            _on_confirm,
+        )
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
@@ -151,6 +187,7 @@ class SavedAgentGroupRevivalModal(
 
         option_id = event.option.id if event.option else None
         self._update_preview_for_option_id(option_id)
+        self._update_hints()
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle Enter on a group or sentinel row."""
@@ -207,6 +244,58 @@ class SavedAgentGroupRevivalModal(
         self._clear_entry_jump_hints()
         self._rebuild_options(highlighted_option_id=old_highlighted_id)
         self._update_hints()
+
+    def _perform_delete(self, group_id: str) -> None:
+        if self._delete_callback is None:
+            self.notify(
+                "No saved-group delete handler is available",
+                severity="warning",
+            )
+            return
+
+        summary = self._summary_for_group_id(group_id, location="saved")
+        title = _group_display_title(summary, group_id)
+        next_highlight = self._next_highlight_after_saved_delete(group_id)
+        try:
+            deleted = self._delete_callback(group_id)
+        except Exception as exc:
+            self.notify(
+                f"Failed to delete saved group '{title}': {exc}", severity="error"
+            )
+            return
+
+        self._groups = [group for group in self._groups if group.group_id != group_id]
+        self._loaded_groups.pop(f"{_GROUP_PREFIX}{group_id}", None)
+        self._clear_entry_jump_hints()
+        self._rebuild_options(highlighted_option_id=next_highlight)
+        self._focus_option_list()
+        self._update_preview_for_option_id(self._current_highlighted_option_id())
+        self._update_hints()
+
+        if deleted:
+            self.notify(f"Deleted saved group '{title}'")
+        else:
+            self.notify(
+                f"Saved group '{title}' was already gone",
+                severity="warning",
+            )
+
+    def _next_highlight_after_saved_delete(self, group_id: str) -> str:
+        for idx, group in enumerate(self._groups):
+            if group.group_id != group_id:
+                continue
+            next_group = self._groups[idx + 1] if idx + 1 < len(self._groups) else None
+            if next_group is not None:
+                return f"{_GROUP_PREFIX}{next_group.group_id}"
+            previous_group = self._groups[idx - 1] if idx > 0 else None
+            if previous_group is not None:
+                return f"{_GROUP_PREFIX}{previous_group.group_id}"
+            break
+        if self._next_cursor is not None:
+            return _LOAD_MORE_ID
+        if self._recent_groups:
+            return f"{_RECENT_PREFIX}{self._recent_groups[0].group_id}"
+        return _CUSTOM_SEARCH_ID
 
     def _create_options(
         self, *, jump_hints: dict[str, str] | None = None
@@ -330,10 +419,16 @@ class SavedAgentGroupRevivalModal(
         recent_count = len(self._recent_groups)
         group_count = len(self._groups)
         load_more = " | PgDn/load row: more" if self._next_cursor is not None else ""
+        delete = (
+            " | ^d: delete"
+            if _group_location_from_option(self._current_highlighted_option_id())
+            == "saved"
+            else ""
+        )
         return (
             f"j/k: navigate | ': jump | Enter: revive/open | "
             f"{group_count} saved loaded | {recent_count} recent"
-            f"{load_more} | Esc/q: cancel"
+            f"{load_more}{delete} | Esc/q: cancel"
         )
 
     def _first_option_id(self) -> str:
@@ -365,6 +460,12 @@ class SavedAgentGroupRevivalModal(
             if option_list.get_option_at_index(row).id == option_id:
                 return row
         return None
+
+    def _focus_option_list(self) -> None:
+        try:
+            self.query_one("#saved-agent-group-list", OptionList).focus()
+        except Exception:
+            return
 
     def _selectable_option_ids(self) -> list[str]:
         """Return selectable option ids in current visual order.
@@ -554,3 +655,12 @@ def _group_id_from_option(option_id: str | None, *, prefix: str) -> str | None:
     if not option_id or not option_id.startswith(prefix):
         return None
     return option_id.removeprefix(prefix)
+
+
+def _group_display_title(
+    summary: SavedAgentGroupSummaryWire | None,
+    fallback: str,
+) -> str:
+    if summary is None:
+        return fallback
+    return (summary.name or summary.title or fallback).strip() or fallback

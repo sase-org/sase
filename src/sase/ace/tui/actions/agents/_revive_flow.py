@@ -43,6 +43,7 @@ class AgentReviveFlowMixin:
     def _revive_agent(self) -> None:
         """Show saved groups first, then let users open custom revival search."""
         from ....dismissed_agents import (
+            delete_dismissed_agent_group,
             list_dismissed_agent_groups,
             list_recent_dismissed_agent_groups,
             load_dismissed_agent_group,
@@ -103,6 +104,9 @@ class AgentReviveFlowMixin:
         def _load_page(cursor: int | None) -> SavedAgentGroupPageWire:
             return list_dismissed_agent_groups(limit=20, cursor=cursor)
 
+        def _delete_group(group_id: str) -> bool:
+            return delete_dismissed_agent_group(group_id)
+
         def _load_recent_group(group_id: str) -> SavedAgentGroupWire | None:
             group = load_recent_group_from_cache(self, group_id)
             if group is not None:
@@ -135,6 +139,7 @@ class AgentReviveFlowMixin:
                 page_loader=_load_page,
                 group_loader=load_dismissed_agent_group,
                 recent_group_loader=_load_recent_group,
+                delete_callback=_delete_group,
             ),
             _on_group_revival_selected,
         )

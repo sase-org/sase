@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 07:14:03
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_restore_delete_saved_group.md
 ---
 # Plan: `ctrl+d` to delete a saved agent group from the Agent Restore panel

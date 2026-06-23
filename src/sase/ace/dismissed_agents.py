@@ -30,6 +30,7 @@ from .dismissed_agents_bundles import (
     write_json_file_atomic as _write_json_file_atomic_impl,
 )
 from .dismissed_agent_groups import (
+    delete_dismissed_agent_group as _delete_dismissed_agent_group_impl,
     list_dismissed_agent_groups as _list_dismissed_agent_groups_impl,
     list_recent_dismissed_agent_groups as _list_recent_dismissed_agent_groups_impl,
     load_dismissed_agent_group as _load_dismissed_agent_group_impl,
@@ -258,6 +259,13 @@ def mark_dismissed_agent_group_revived(
     return _mark_dismissed_agent_group_revived_impl(
         group_id,
         revived_at=revived_at,
+        groups_dir=_dismissed_agent_groups_dir(),
+    )
+
+
+def delete_dismissed_agent_group(group_id: str) -> bool:
+    return _delete_dismissed_agent_group_impl(
+        group_id,
         groups_dir=_dismissed_agent_groups_dir(),
     )
 

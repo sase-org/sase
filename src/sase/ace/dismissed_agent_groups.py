@@ -171,6 +171,26 @@ def mark_dismissed_agent_group_revived(
     return saved_agent_group_from_dict(dict(result))
 
 
+def delete_dismissed_agent_group(
+    group_id: str,
+    *,
+    groups_dir: Path | None = None,
+) -> bool:
+    """Delete one saved group metadata record.
+
+    Returns ``True`` when a record was removed and ``False`` when it was
+    already absent.
+    """
+
+    root = groups_dir or _default_dismissed_agent_groups_dir()
+    try:
+        binding = _rust_group_archive_binding("delete_dismissed_agent_group")
+    except (ImportError, AttributeError):
+        return _delete_dismissed_agent_group_python(root, group_id)
+
+    return bool(binding(str(root), group_id))
+
+
 def record_recent_dismissed_agent_group(
     group: SavedAgentGroupWire | dict[str, Any],
     *,
@@ -322,6 +342,13 @@ def _mark_dismissed_agent_group_revived_python(
     return updated
 
 
+def _delete_dismissed_agent_group_python(root: Path, group_id: str) -> bool:
+    path = _group_path(root, group_id)
+    existed = path.exists()
+    path.unlink(missing_ok=True)
+    return existed
+
+
 def _record_recent_dismissed_agent_group_python(
     root: Path,
     payload: dict[str, Any],
@@ -422,6 +449,7 @@ __all__ = [
     "list_dismissed_agent_groups",
     "load_dismissed_agent_group",
     "mark_dismissed_agent_group_revived",
+    "delete_dismissed_agent_group",
     "record_recent_dismissed_agent_group",
     "list_recent_dismissed_agent_groups",
     "load_recent_dismissed_agent_group",
