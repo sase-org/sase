@@ -256,6 +256,19 @@ def test_has_alt_directive_brace_shorthand_after_openers(prefix: str) -> None:
     assert has_alt_directive(f"{prefix}%{{a | b}}") is True
 
 
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "%effort:%{medium | high}",
+        "%m:%(opus,sonnet)",
+        "%m:%alt(opus,sonnet)",
+    ],
+)
+def test_has_alt_directive_after_directive_colon(prompt: str) -> None:
+    """Detects value fan-out directly after a directive argument colon."""
+    assert has_alt_directive(prompt) is True
+
+
 def test_has_alt_directive_brace_shorthand_word_adjacent() -> None:
     """Does not detect %{ brace shorthand when glued to a word."""
     assert has_alt_directive("x%{a | b}") is False

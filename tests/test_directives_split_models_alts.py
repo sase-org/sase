@@ -191,6 +191,17 @@ def test_split_prompt_for_models_alt_with_nested_model_not_double_collected() ->
     assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview"
 
 
+def test_split_prompt_for_models_model_value_fanout() -> None:
+    """%m:%{...} is equivalent to per-branch model directives."""
+    prompt = "%n:foo\n%m:%{opus | sonnet}\nReview"
+    result = split_prompt_for_models(prompt)
+
+    assert result == [
+        "%name:foo.cld_opus\n%m:opus\nReview",
+        "%name:foo.cld_sonnet\n%m:sonnet\nReview",
+    ]
+
+
 def test_split_prompt_for_models_with_alt_directive() -> None:
     """Model branches combined with %(x,y) produce 4 prompts."""
     prompt = "%n:foo\n%{%model:opus | %model:sonnet} %(x,y)\nReview this code"

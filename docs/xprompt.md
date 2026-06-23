@@ -992,6 +992,7 @@ Directives use the same argument syntax as xprompt references:
 %model:agy/flash35h          # Provider/model syntax for Antigravity (agy)
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %effort:xhigh                # Set the reasoning-effort level for this prompt
+%effort:%{medium | high | xhigh} # Fan out directive values
 %model:opus@xhigh            # Model + reasoning-effort suffix (alias: %m:opus@xhigh)
 %{%m:opus@xhigh | %m:sonnet@low} # Per-branch effort via fan-out
 %name:reviewer               # Short-form
@@ -1131,6 +1132,13 @@ token is stripped from the generated agent-name suffixes):
 ```
 %{%m:opus@xhigh | %m:sonnet@low}
 Try this two ways and compare.
+```
+
+To keep the model fixed and fan out only effort values, put the alt group after `%effort:`:
+
+```
+%m:opus %effort:%{medium | high | xhigh}
+Run the same prompt at three effort levels.
 ```
 
 If both a `%model:...@x` suffix and a separate `%effort:y` survive into the same final prompt branch with `x != y`, SASE
@@ -1299,6 +1307,10 @@ place of the directive. Branches can be arbitrary text — xprompt references, d
 `[[text blocks]]`. Because branches split only on a top-level `|`, a comma is ordinary branch text: `%{foo, bar | baz}`
 is two branches (`foo, bar` and `baz`), not three. Nested `()`, `[]`, `{}`, and backtick-quoted spans are not split, and
 any `|` inside them is treated literally.
+
+You can also fan out just a directive value by putting the alt group after the directive's colon. For example,
+`%effort:%{medium | high | xhigh}` expands into three launched prompts with `%effort:medium`, `%effort:high`, and
+`%effort:xhigh`; `%m:%{opus | sonnet}` is equivalent to `%{%m:opus | %m:sonnet}`.
 
 The long form `%alt(...)` and the legacy `%(...)` shorthand remain accepted; both use parentheses with comma-separated
 branches:

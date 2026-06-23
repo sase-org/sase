@@ -18,10 +18,9 @@ from __future__ import annotations
 from sase.ace.tui.widgets._paired_text_editing import TextEdit
 
 # A ``%`` may open a ``%{`` directive at the start of the document or directly
-# after whitespace or one of these opening characters -- mirrors the
-# directive-valid contexts used by ``_ALT_DIRECTIVE_RE`` and the directive
-# completion engine.
-_DIRECTIVE_OPENING_CONTEXTS = frozenset("([{\"'")
+# after whitespace, a directive-value colon, or one of these opening characters
+# -- mirrors the directive-valid contexts used by ``_ALT_DIRECTIVE_RE``.
+_DIRECTIVE_OPENING_CONTEXTS = frozenset(":([{\"'")
 
 
 def _is_directive_valid_brace_opening(text: str, percent_index: int) -> bool:

@@ -242,3 +242,26 @@ def test_fanout_branch_bodies_round_trip_to_effort() -> None:
         _, directives = extract_prompt_directives(body.split("\n", 1)[1])
         efforts.append((directives.model, directives.reasoning_effort))
     assert efforts == [("opus", "xhigh"), ("sonnet", "low")]
+
+
+def test_effort_value_fanout_round_trips_to_effort() -> None:
+    """%effort:%{...} fans out before per-slot directive extraction."""
+    result = split_prompt_for_models(
+        "%n:foo\n%m:opus %effort:%{medium | high | xhigh}\nReview"
+    )
+
+    assert result is not None
+    assert [variant.splitlines()[0] for variant in result] == [
+        "%name:foo.1",
+        "%name:foo.2",
+        "%name:foo.3",
+    ]
+    efforts = []
+    for body in result:
+        _, directives = extract_prompt_directives(body)
+        efforts.append((directives.model, directives.reasoning_effort))
+    assert efforts == [
+        ("opus", "medium"),
+        ("opus", "high"),
+        ("opus", "xhigh"),
+    ]

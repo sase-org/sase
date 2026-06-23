@@ -77,10 +77,25 @@ def test_tokenize_unmatched_opener_is_error() -> None:
 def test_tokenize_requires_directive_valid_position() -> None:
     # ``%{`` glued to a word character is not a directive opener.
     assert alt_inspect.tokenize("foo%{a | b}") == []
-    # Start of line, after whitespace, and after brackets/quotes are valid.
-    for prefix in ("", " ", "(", "[", "{", '"', "'"):
+    # Start of line, after whitespace, brackets/quotes, and directive-value
+    # colon are valid.
+    for prefix in ("", " ", "(", "[", "{", '"', "'", ":"):
         text = f"{prefix}%{{a | b}}"
         assert any(s.kind == "delimiter" for s in alt_inspect.tokenize(text))
+
+
+def test_tokenize_marks_value_fanout_after_directive_colon() -> None:
+    text = "%effort:%{medium | high}"
+    spans = alt_inspect.tokenize(text)
+
+    assert [span.kind for span in spans] == [
+        "delimiter",
+        "separator",
+        "delimiter",
+    ]
+    assert text[spans[0].start : spans[0].end] == "%{"
+    assert text[spans[1].start : spans[1].end] == "|"
+    assert text[spans[2].start : spans[2].end] == "}"
 
 
 def test_tokenize_skips_fenced_code_blocks() -> None:

@@ -40,11 +40,12 @@ if TYPE_CHECKING:
 
     from .models import XPrompt
 
-# Pattern to match %alt(, %( or %{ at a directive-valid position. The group
-# captures through the opening delimiter so ``match.end() - 1`` is the ``(`` or
-# ``{`` that opens the alt body. Mirrors ``alt_directive_re`` in the Rust core.
+# Pattern to match %alt(, %( or %{ at a directive-valid position, including
+# directive value fan-out after a colon. The group captures through the opening
+# delimiter so ``match.end() - 1`` is the ``(`` or ``{`` that opens the alt
+# body. Mirrors ``alt_directive_re`` in the Rust core.
 _ALT_DIRECTIVE_RE = re.compile(
-    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
+    r"(?:^|(?<=\s)|(?<=[(\[{\"':]))"
     r"(%(?:alt)?\(|%\{)",
     re.MULTILINE,
 )

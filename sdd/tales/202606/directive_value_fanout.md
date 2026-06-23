@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 14:43:55
-status: wip
+status: done
 prompt: sdd/prompts/202606/directive_value_fanout.md
 ---
 # Plan: Directive-Value Fan-Out (`%directive:%{a | b | c}`)

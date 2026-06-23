@@ -33,6 +33,7 @@ def test_is_directive_valid_brace_opening_contexts() -> None:
     assert _is_directive_valid_brace_opening("%", 0) is True
     assert _is_directive_valid_brace_opening("run %", 4) is True
     assert _is_directive_valid_brace_opening("(%", 1) is True
+    assert _is_directive_valid_brace_opening("%effort:%", 8) is True
     assert _is_directive_valid_brace_opening("a%", 1) is False
     assert _is_directive_valid_brace_opening("50%", 2) is False
     assert _is_directive_valid_brace_opening("x", 0) is False
@@ -81,6 +82,17 @@ def test_plan_alt_separator_second_branch_preserves_prior_separator() -> None:
 
 def test_plan_alt_separator_outside_span_returns_none() -> None:
     assert plan_alt_separator("plain", 3) is None
+
+
+def test_plan_alt_separator_after_directive_colon() -> None:
+    text = "%effort:%{medium}"
+
+    assert plan_alt_separator(text, 16) == TextEdit(
+        start=10,
+        end=16,
+        text="medium | ",
+        cursor=19,
+    )
 
 
 # --------------------------------------------------------------------------- #

@@ -7,7 +7,7 @@ canonical fan-out grammar lives in the Rust core
 that grammar so the visual treatment matches launch behavior:
 
 - ``%{`` is only recognized at a directive-valid position (start of line, or
-  after whitespace / an opening bracket / a quote);
+  after whitespace / an opening bracket / a quote / a directive-value colon);
 - the matching ``}`` is found by counting only ``{``/``}`` pairs and ignoring
   backtick-quoted spans;
 - top-level ``|`` separators split branches, where "top-level" means outside
@@ -29,7 +29,7 @@ AltSpanKind = Literal["delimiter", "separator", "branch_name", "error"]
 # ``alt_directive_re`` so detection matches launch fan-out exactly. Group 2 is
 # the ``%{`` marker; the preceding character is consumed (not a lookbehind) to
 # match the non-overlapping behavior of the Rust scanner.
-_ALT_OPEN_RE = re.compile(r"(?m)(^|[\s(\[{\"'])(%\{)")
+_ALT_OPEN_RE = re.compile(r"(?m)(^|[\s(\[{\"':])(%\{)")
 
 
 @dataclass(frozen=True, slots=True)

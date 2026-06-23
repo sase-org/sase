@@ -270,6 +270,24 @@ def testsplit_prompt_for_alternatives_brace_preserves_other_directives() -> None
     assert result == ["%approve\na\nReview", "%approve\nb\nReview"]
 
 
+def testsplit_prompt_for_alternatives_brace_after_directive_colon() -> None:
+    """A brace alt after a directive colon fans out just the directive value."""
+    result = split_prompt_for_alternatives("%effort:%{medium | high | xhigh}\nReview")
+
+    assert result == [
+        "%effort:medium\nReview",
+        "%effort:high\nReview",
+        "%effort:xhigh\nReview",
+    ]
+
+
+def testsplit_prompt_for_alternatives_paren_after_directive_colon() -> None:
+    """The paren shorthand also works as directive value fan-out."""
+    result = split_prompt_for_alternatives("%m:%(opus,sonnet)\nReview")
+
+    assert result == ["%m:opus\nReview", "%m:sonnet\nReview"]
+
+
 def testsplit_prompt_for_alternatives_brace_unclosed_raises() -> None:
     """An unclosed %{ reports a DirectiveError mentioning the missing close."""
     with pytest.raises(DirectiveError, match=r"%\{"):
