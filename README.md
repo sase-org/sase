@@ -137,9 +137,9 @@ SASE keeps durable state outside any one chat session:
   prompt panes so each agent segment can be edited, reordered, launched individually, or submitted together in
   top-to-bottom order. In prompt NORMAL mode, use `g-` to add panes, `gj`/`gk` to focus panes, and `gJ`/`gK` to reorder
   them. Prompt-level frontmatter is edited from the Frontmatter Panel with `g=`, and draft panes can be stashed with
-  `gs`/`gS`; open the unified stashed-draft picker with `Ctrl+G p` from the prompt bar or `@` from any ACE tab. `Ctrl+P`
-  and `Ctrl+N` cycle workspace MRU prefixes forward and backward, with a no-prefix stop. Use `%wait` when one segment
-  must wait for another to finish.
+  `gs`/`gS`; open the unified stashed-prompt picker with `Ctrl+G p` from the prompt bar or `@` from the main ACE tabs.
+  `Ctrl+P` moves through recent workspace prefixes toward older entries and `Ctrl+N` toward newer entries; both pass
+  through a no-prefix stop. Use `%wait` when one segment must wait for another to finish.
 - **Provider retries** - The LLM provider layer can retry matching provider errors, preserve the workspace across
   retries, and fall back to another model when configured. Claude adds built-in matching for context-limit,
   socket-close, and Claude CLI API-error output; per-provider retry counts, waits, and fallback policy live under

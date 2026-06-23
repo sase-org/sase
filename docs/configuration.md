@@ -1751,12 +1751,13 @@ then runs the coder, `epic` and `legend` commit the matching SDD tier and launch
 records the approved plan in SDD without launching a coder. The `-m/--model` flag applies to the follow-up agent;
 `-p/--prompt` adds extra coder instructions only for the `approve` and `tale` paths.
 
-`sase plan search [query]` scans committed repo `sdd/` plans and the machine-local `~/.sase/plans/` archive. The query
-is a literal case-insensitive substring; omit it to browse and filter. `--format` accepts `compact`, `full`, `json`, or
-`markdown`; `--kind` filters repo plans to `tale`, `epic`, `legend`, `myth`, or `research`; `--status` filters
-frontmatter status to `wip` or `done`; `--source` selects `all`, `repo`, or `local`; `--sort` selects `relevance`,
-`recent`, or `title`; `--since`/`--until` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative durations such as `14d`;
-and `--limit 0` prints all matches.
+`sase plan search [query]` scans repo-local `sdd/` plans and the machine-local `~/.sase/plans/` archive. The query is a
+literal case-insensitive substring; omit it to browse and filter. `--format` accepts `compact`, `full`, `json`, or
+`markdown`; `--kind` is repeatable and filters repo plans to `tale`, `epic`, `legend`, `myth`, or `research`; `--status`
+is repeatable and filters frontmatter status to `wip` or `done`; `--source` selects `all`, `repo`, or `local`; `--sort`
+selects `relevance`, `recent`, or `title` (defaulting to relevance with a query and recent without one);
+`--since`/`--until` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative durations such as `14d`; and `--limit 0`
+prints all matches.
 
 ### `sase artifact`
 

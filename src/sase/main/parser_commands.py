@@ -539,8 +539,8 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Search SDD and machine-local markdown plans",
         description=(
             "Find plan artifacts whose text contains a literal, "
-            "case-insensitive query string, across the committed repo `sdd/` "
-            "plans (prioritized) and the machine-local `~/.sase/plans/` "
+            "case-insensitive query string, across repo-local `sdd/` plans "
+            "(prioritized) and the machine-local `~/.sase/plans/` "
             "archive. The query is optional: omit it to browse and filter. "
             "Repo plans are surfaced above local plans on equal-relevance ties."
         ),
