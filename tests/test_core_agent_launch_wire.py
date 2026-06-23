@@ -406,6 +406,26 @@ def test_plan_agent_launch_fanout_rust_model_branches_and_alt() -> None:
     assert plan.slots[3].prompt == "%n:foo\n%model:sonnet y\nReview"
 
 
+def test_plan_agent_launch_fanout_rust_strips_model_effort_suffix() -> None:
+    pytest.importorskip("sase_core_rs")
+
+    plan = plan_agent_launch_fanout(
+        "%n:foo\n%{%m:opus@xhigh | %m:sonnet@low} %alt(x,y)\nReview",
+        launch_kind="model",
+    )
+
+    assert plan.launch_kind == "model"
+    assert len(plan.slots) == 4
+    # Slots are named by the clean model (the `@effort` suffix is split off),
+    # mirroring the Python xprompt `split_model_effort` rule.
+    assert plan.slots[0].model == "opus"
+    assert plan.slots[3].model == "sonnet"
+    # The branch body retains the `@effort` token for the launched agent's own
+    # directive parsing.
+    assert "%m:opus@xhigh" in plan.slots[0].prompt
+    assert "%m:sonnet@low" in plan.slots[3].prompt
+
+
 def test_plan_agent_launch_fanout_rust_exposes_alt_ids() -> None:
     pytest.importorskip("sase_core_rs")
 
