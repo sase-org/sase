@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from rich.text import Text
 from textual.app import App, ComposeResult
+from textual.notifications import SeverityLevel
 
 from sase.ace.tui.actions.agents._panel_detail import AgentPanelDetailMixin
 from sase.ace.tui.app import AceApp
@@ -224,6 +225,24 @@ class _ModalTestApp(App[None]):
         yield from ()
 
 
+class _RecordingZoomPanelModal(ZoomPanelModal):
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.notifications: list[tuple[str, SeverityLevel]] = []
+
+    def notify(
+        self,
+        message: str,
+        *,
+        title: str = "",
+        severity: SeverityLevel = "information",
+        timeout: float | None = None,
+        markup: bool = True,
+    ) -> None:
+        del title, timeout, markup
+        self.notifications.append((message, severity))
+
+
 class _DetailTestApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
@@ -247,6 +266,16 @@ async def _wait_for_file_content(
     assert panel._full_content is not None
     assert expected in rendered
     return rendered
+
+
+def _collapsed_file_modal(agent: Agent) -> ZoomPanelModal:
+    return ZoomPanelModal(
+        agent_provider=lambda: agent,
+        initial_agent=agent,
+        initial_target=ZoomPanelTarget.METADATA,
+        seed=ZoomPanelSeed(metadata_renderable=Text("seed metadata")),
+        refresh_interval=10,
+    )
 
 
 async def test_zoom_modal_z_closes() -> None:
@@ -378,6 +407,125 @@ async def test_zoom_next_file_shows_next_seeded_file(tmp_path: Any) -> None:
         assert panel.current_file_index == 1
         assert panel._full_content == "second file body\n"
         assert str(second_path) in rendered
+
+
+async def test_zoom_next_file_reveals_file_panel_from_metadata(
+    tmp_path: Any,
+) -> None:
+    first_path = tmp_path / "first.md"
+    first_path.write_text("first file body\n", encoding="utf-8")
+
+    agent = _make_agent(status="DONE", extra_files=[str(first_path)])
+    modal = _collapsed_file_modal(agent)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        assert modal._target == ZoomPanelTarget.METADATA
+        assert ZoomPanelTarget.FILE not in modal._available_targets()
+
+        await pilot.press("ctrl+n")
+        rendered = await _wait_for_file_content(pilot, panel, "first file body")
+
+        assert modal._target == ZoomPanelTarget.FILE
+        assert ZoomPanelTarget.FILE in modal._available_targets()
+        assert panel._full_content == "first file body\n"
+        assert str(first_path) in rendered
+
+
+async def test_zoom_prev_file_reveals_file_panel_from_metadata(
+    tmp_path: Any,
+) -> None:
+    first_path = tmp_path / "first.md"
+    first_path.write_text("first file body\n", encoding="utf-8")
+
+    agent = _make_agent(status="DONE", extra_files=[str(first_path)])
+    modal = _collapsed_file_modal(agent)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        assert modal._target == ZoomPanelTarget.METADATA
+
+        await pilot.press("ctrl+p")
+        rendered = await _wait_for_file_content(pilot, panel, "first file body")
+
+        assert modal._target == ZoomPanelTarget.FILE
+        assert ZoomPanelTarget.FILE in modal._available_targets()
+        assert panel._full_content == "first file body\n"
+        assert str(first_path) in rendered
+
+
+async def test_zoom_revealed_file_panel_pages_after_first_press(
+    tmp_path: Any,
+) -> None:
+    first_path = tmp_path / "first.md"
+    first_path.write_text("first file body\n", encoding="utf-8")
+    second_path = tmp_path / "second.md"
+    second_path.write_text("second file body\n", encoding="utf-8")
+
+    agent = _make_agent(
+        status="DONE",
+        extra_files=[str(first_path), str(second_path)],
+    )
+    modal = _collapsed_file_modal(agent)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+
+        await pilot.press("ctrl+n")
+        first_rendered = await _wait_for_file_content(pilot, panel, "first file body")
+
+        assert modal._target == ZoomPanelTarget.FILE
+        assert panel.current_file_index == 0
+        assert panel._full_content == "first file body\n"
+        assert str(first_path) in first_rendered
+
+        await pilot.press("ctrl+n")
+        second_rendered = await _wait_for_file_content(
+            pilot,
+            panel,
+            "second file body",
+        )
+
+        assert panel.current_file_index == 1
+        assert panel._full_content == "second file body\n"
+        assert str(second_path) in second_rendered
+
+
+async def test_zoom_next_file_warns_when_metadata_agent_has_no_files() -> None:
+    agent = _make_agent(status="DONE")
+    modal = _RecordingZoomPanelModal(
+        agent_provider=lambda: agent,
+        initial_agent=agent,
+        initial_target=ZoomPanelTarget.METADATA,
+        seed=ZoomPanelSeed(metadata_renderable=Text("seed metadata")),
+        refresh_interval=10,
+    )
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+
+        assert modal._target == ZoomPanelTarget.METADATA
+        assert modal.query_one("#zoom-file-scroll").has_class("hidden")
+        assert modal.notifications == [("No files for this agent", "warning")]
 
 
 async def test_zoom_metadata_copy_fallback_uses_textual_content() -> None:

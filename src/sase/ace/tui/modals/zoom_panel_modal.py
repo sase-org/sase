@@ -492,14 +492,38 @@ class ZoomPanelModal(ModalScreen[None]):
         self._show_target(available[(current + step) % len(available)])
         self._refresh_active_panel(force=False)
 
+    def _agent_has_files(self, agent: Agent) -> bool:
+        if self._seed.attempt_number is not None:
+            return False
+        if self._has_file_content:
+            return True
+        if agent.all_files:
+            return True
+        return agent.status in _ACTIVE_STATUSES
+
+    def _reveal_file_panel(self) -> bool:
+        agent = self._agent_provider()
+        if agent is None or not self._agent_has_files(agent):
+            self.notify("No files for this agent", severity="warning")
+            self._update_header()
+            return False
+
+        self._last_agent = agent
+        self._has_file_content = True
+        self._show_target(ZoomPanelTarget.FILE)
+        self._refresh_active_panel(force=False)
+        return True
+
     def action_next_file(self) -> None:
         if self._target != ZoomPanelTarget.FILE:
+            self._reveal_file_panel()
             return
         self.query_one("#zoom-file-panel", _ZoomFilePanel).next_file()
         self._update_header()
 
     def action_prev_file(self) -> None:
         if self._target != ZoomPanelTarget.FILE:
+            self._reveal_file_panel()
             return
         self.query_one("#zoom-file-panel", _ZoomFilePanel).prev_file()
         self._update_header()
