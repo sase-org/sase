@@ -94,10 +94,10 @@ recent use. `Enter` submits the highlighted prompt directly; `Ctrl+G` loads it i
 into the input widget for tweaking (pressing `Tab` does the same thing). Entries shorter than two words are filtered on
 write so trivial replies (`y`, `ok`) don't clutter the list.
 
-When the input is empty or contains only a workspace prefix, `Ctrl+N` / `Ctrl+P` cycles the most-recently-used workspace
-references (`#git:foo`, `#hg:bar`, `#cd:~/path`). The history files behind this — `~/.sase/prompt_history.json` and the
-file-reference history — use a sidecar lock plus atomic tempfile replacement so concurrent agent launches do not
-truncate the shared state.
+`Ctrl+P` and `Ctrl+N` cycle most-recently-used workspace references (`#git:foo`, `#hg:bar`, `#cd:~/path`) forward and
+backward through one ring with a no-prefix stop. They replace the first real workspace tag in the prompt or prepend a
+tag when none is present. The history files behind this — `~/.sase/prompt_history.json` and the file-reference history —
+use a sidecar lock plus atomic tempfile replacement so concurrent agent launches do not truncate the shared state.
 
 ## `Ctrl+G`: Handing Off To The Editor
 

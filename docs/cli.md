@@ -90,6 +90,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase plan` / `sase plan list`               | Show the plan pipeline dashboard: pending proposals, recent approvals, and inferred rejects. | [XPrompt directives](xprompt.md#plan-directive)        |
 | `sase plan approve`                          | Approve one pending plan by ID or prefix; `--kind` chooses approve/commit/epic/legend/tale.  | [XPrompt directives](xprompt.md#plan-directive)        |
 | `sase plan propose`                          | Submit a plan file for approval from the plan skill path.                                    | [XPrompt directives](xprompt.md#plan-directive)        |
+| `sase plan search`                           | Search committed SDD plans and the machine-local plan archive by literal text and metadata.  | [SDD](sdd.md#how-sdd-works)                            |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                 | [XPrompt directives](xprompt.md#directives)            |
 
 ChangeSpecs are CL/PR-sized review records. SDD stores durable prompt and planning artifacts. Beads add git-portable
@@ -125,6 +126,10 @@ the workflow choice: `approve` runs the coder without asking the runner to commi
 as an SDD tale and then runs the coder, `epic` and `legend` commit the matching SDD tier and launch the bead follow-up,
 and `commit` records the approved plan in SDD without launching a coder. Use `-m/--model` to pick the follow-up agent's
 model. Use `-p/--prompt` to add extra coder instructions for the `approve` and `tale` paths.
+
+`sase plan search [QUERY]` searches committed repo SDD plans before machine-local `~/.sase/plans/` archives. Omit the
+query to browse with metadata filters. Useful filters include `--kind`, `--status`, `--source`, `--since`, `--until`,
+`--sort`, and `--format json|markdown` for agent-friendly output.
 
 ## Automation
 

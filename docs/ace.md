@@ -304,7 +304,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `V`                 | Open the Agent Run Log modal for the focused agent                                                            |
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                               |
 | `W`                 | Wait for agent (populate prompt with `%w`); with marks, fans out to `%w:a,b,c`                                |
-| `m`                 | Mark / unmark current agent (auto-advances to next)                                                           |
+| `m`                 | Mark / unmark current agent or focused collapsed group (auto-advances to next)                                |
 | `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                         |
 | `U`                 | Toggle the focused agent's unread marker                                                                      |
 | `u`                 | Clear all agent marks                                                                                         |
@@ -493,10 +493,12 @@ A single global fold level controls how much of the hierarchy is visible:
 | `L` | Snap to fully expanded — every banner, every agent row, every workflow step visible                                |
 | `H` | Snap to fully collapsed — every per-workflow fold collapsed, then group fold to `L0` (only top-level banners)      |
 
-Banners at fold levels `< 3` are selectable rows. When a banner is focused, `x` performs a bulk kill/dismiss on every
-top-level agent in that group (single confirmation modal). Marks take priority over the group, so a non-empty mark set
-always drives the bulk action regardless of banner focus. When a fold change hides the previously focused agent, focus
-snaps to the nearest visible ancestor banner so navigation context is never lost.
+Banners at fold levels `< 3` are selectable rows. When a banner is focused, `m` toggles marks for all top-level agents
+in that group, and `x` performs a bulk kill/dismiss on every top-level agent in that group (single confirmation modal).
+Marked collapsed banners show `[✓]` when all covered top-level agents are marked and `[~]` when only some are marked.
+Marks take priority over the group for bulk actions, so a non-empty mark set always drives the bulk action regardless of
+banner focus. When a fold change hides the previously focused agent, focus snaps to the nearest visible ancestor banner
+so navigation context is never lost.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  ` segment per ancestor L0/L1
 banner (in the parent tier's dim accent — project blue or ChangeSpec cooler accent), so nesting reads as a tree at a
@@ -868,6 +870,7 @@ These work on all tabs:
 | `I`                 | Pin idle mode (IDLE stays until `I` is pressed again; keypresses don't clear it)  |
 | `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix          |
 | `Ctrl+L`            | Dismiss all currently-visible toast notifications                                 |
+| `@`                 | Open the stashed-prompt restore picker                                            |
 | `Q`                 | Stop axe daemon and quit                                                          |
 | `y`                 | Refresh current tab                                                               |
 | `q`                 | Quit                                                                              |
@@ -1654,16 +1657,22 @@ The detailed multi-agent parsing rules live in the [XPrompt reference](xprompt.m
 | `Ctrl+G -`     | Add an empty bottom pane                                                                      |
 | `Ctrl+G =`     | Show/focus the xprompt frontmatter panel                                                      |
 | `Ctrl+G s/S`   | Stash the selected pane / every non-empty pane                                                |
-| `Ctrl+G p/P`   | Load / restore stashed prompt drafts                                                          |
+| `Ctrl+G p`     | Open the stashed-prompt picker                                                                |
 | `Ctrl+Y`       | Open the workflow YAML editor                                                                 |
 | `Ctrl+K`       | Open prompt history, filtered by the current single-line prompt                               |
 | `Ctrl+P`       | Cycle forward through workspace MRU prefixes, including a no-prefix stop before wrapping      |
-| `Ctrl+N`       | Remove the first workspace prefix from the prompt                                             |
+| `Ctrl+N`       | Cycle backward through workspace MRU prefixes, including a no-prefix stop before wrapping     |
 | `Ctrl+T`       | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
 | `Ctrl+R`       | Recursive fuzzy file finder using the same prompt-aware path root as file completion          |
 | `Tab`          | Snippet expansion (see below)                                                                 |
 | `#@`           | Open XPrompt snippet picker (type `#` then `@`)                                               |
 | `Escape`       | Switch to vim NORMAL mode                                                                     |
+
+In INSERT mode, ACE auto-pairs safe openers for `()`, `[]`, `{}`, `<>`, single quotes, double quotes, and backticks.
+Typing the matching closer over an auto-inserted closer moves the cursor across it instead of duplicating it, and
+backspace or delete removes both sides of an empty pair. Pairing is conservative: it is suppressed before token
+characters, inside selected text replacement, for contractions or possessives, and for repeated quotes/backticks needed
+to type Markdown fences or code spans.
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line.
@@ -1704,8 +1713,6 @@ In prompt NORMAL mode, pressing `g` opens a small hint row for the prompt-local 
 | `g=`        | Show/focus the xprompt frontmatter panel; in the focused panel, run its deactivate/apply path          |
 | `gs`        | Stash the selected pane and remove it from the stack                                                   |
 | `gS`        | Stash every non-empty pane and dismiss the prompt bar                                                  |
-| `gp`        | Load selected stashed prompt drafts into the current bar without deleting them from the stash          |
-| `gP`        | Restore selected stashed prompt drafts into the current bar and delete them from the stash             |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane so local xprompts and metadata
 continue to resolve. Empty selected panes are dropped without launching. Whole-stack submission joins panes in
@@ -1719,11 +1726,11 @@ without changing the stack.
 Prompt stashes are a per-user draft pile stored outside prompt history. `gs` captures the selected non-empty pane plus
 the shared prompt frontmatter; when other panes remain the bar stays open, and when the last pane is stashed the bar
 closes without also recording the draft as cancelled history. `gS` captures all non-empty panes in their current order.
-`gP` opens a destructive restore picker: selected entries load oldest-first with ties broken by original pane index and
-are removed from the stash, while unselected entries stay available. `gp` opens the same picker in non-destructive load
-mode, so selected entries are copied into the current bar and remain available in the stash. Restore no longer opens
-from a global `,P` when no prompt bar is active. A small top-bar badge shows how many restorable drafts are currently
-stashed.
+`Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar, and `@` opens the same picker from any ACE tab
+even when the prompt bar is not active. In the picker, `space` marks a selected draft to restore and remove from the
+stash, `Tab` marks it to restore while keeping it stashed, `d` marks it for deletion, `a` toggles all selectable drafts,
+and `Enter` confirms. With no explicit marks, `Enter` restores and removes the highlighted draft. A small top-bar badge
+shows how many restorable drafts are currently stashed.
 
 ### Completion
 
@@ -1974,9 +1981,9 @@ writing to history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter th
 Bare prompts are stored after launch normalization, so a prompt without an explicit workspace reference appears with the
 default `#git:home` prefix. Use `#cd:~` for direct home-directory runs with no VCS workspace management. Explicit
 workspace prefixes, including `#cd:<path>`, also feed the prompt-input MRU controls. In the prompt input, `Ctrl+P`
-cycles forward through launchable workspace MRU prefixes; after the oldest entry it removes the shown prefix for a
-no-prefix stop, then wraps to the most recent entry. `Ctrl+N` removes the first workspace prefix from the prompt and is
-a no-op when none is present.
+cycles forward through launchable workspace MRU prefixes, while `Ctrl+N` cycles backward through the same ring. After
+the oldest or newest edge, the ring reaches a no-prefix stop that removes the shown workspace tag from the prompt, then
+wraps. When no workspace tag is present, `Ctrl+P` starts at the most recent entry and `Ctrl+N` starts at the oldest one.
 
 ### Keybindings
 
