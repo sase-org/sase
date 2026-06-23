@@ -346,6 +346,24 @@ def planner_child_status(
     return "DONE"
 
 
+def _answered_asker_freeze_time(
+    parent: Agent,
+    child_status: str,
+    all_agents: list[Agent] | None = None,
+    children_by_parent: dict[str, list[Agent]] | None = None,
+) -> datetime | None:
+    """Return the answer-time stop marker for a handed-off asker row."""
+    if child_status != "ANSWERED":
+        return None
+    if not parent.questions_times:
+        return None
+    if all_agents is None:
+        return None
+    if not has_family_followup_child(parent, all_agents, children_by_parent):
+        return None
+    return max(parent.questions_times)
+
+
 def sync_planner_child_from_parent(
     parent: Agent,
     child: Agent,
@@ -354,6 +372,11 @@ def sync_planner_child_from_parent(
 ) -> None:
     """Copy root planner metadata onto a concrete or synthetic planner child."""
     child.status = planner_child_status(parent, all_agents, children_by_parent)
+    freeze_time = _answered_asker_freeze_time(
+        parent, child.status, all_agents, children_by_parent
+    )
+    if freeze_time is not None:
+        child.stop_time = freeze_time
     child.plan_times = list(parent.plan_times)
     child.feedback_times = list(parent.feedback_times)
     child.feedback_plan_paths = dict(parent.feedback_plan_paths)
@@ -408,14 +431,16 @@ def ensure_synthetic_planner_children(
         family = agent_family_name(parent) or parent.agent_name or parent.display_name
         planner_name = agent_family_phase_name(family, child_suffix)
         child_role = agent_family_role_for_suffix(child_suffix)
+        child_status = planner_child_status(parent, all_agents)
+        freeze_time = _answered_asker_freeze_time(parent, child_status, all_agents)
         planner = Agent(
             agent_type=AgentType.RUNNING,
             cl_name=planner_name,
             project_file=parent.project_file,
-            status=planner_child_status(parent, all_agents),
+            status=child_status,
             start_time=parent.run_start_time or parent.start_time,
             run_start_time=parent.run_start_time,
-            stop_time=parent.stop_time,
+            stop_time=freeze_time or parent.stop_time,
             workflow=parent.workflow,
             parent_timestamp=parent.raw_suffix,
             role_suffix=child_suffix,

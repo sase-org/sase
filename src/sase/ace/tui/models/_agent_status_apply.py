@@ -131,6 +131,10 @@ def apply_status_overrides(
                 sync_planner_child_from_parent(
                     parent, agent, all_agents, children_by_parent
                 )
+            elif parent is None:
+                approved_status = approved_followup_planner_status(agent)
+                if approved_status is not None:
+                    agent.status = approved_status
         elif (
             is_feedback_agent(agent)
             and agent.status in {"DONE", "RUNNING"}

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 10:14:49
-status: wip
+status: done
 prompt: sdd/prompts/202606/question_continuation_planner_runtime.md
 ---
 # Plan: Pin the runtime for the `ANSWERED` asker and `*APPROVED` approver rows of a `%approve` question-continuation family
