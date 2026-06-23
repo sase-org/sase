@@ -260,6 +260,61 @@ def test_active_tier_maintenance_marks_fast_path_report_changed(
     assert report.terminalized_active_rows == 3
 
 
+def test_projection_sync_can_skip_active_tier_maintenance(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    index = tmp_path / "agent_artifact_index.sqlite"
+    index.touch()
+    install_projection_meta_store(monkeypatch)
+    calls: list[tuple[Path, list[object]]] = []
+    identity = (AgentType.RUNNING, "kept", "20260501010101")
+
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.dismissed_agents_file_signature",
+        lambda: (10, 20),
+    )
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.dismissed_bundle_index_signature",
+        lambda: (1, 30, 40, 0),
+    )
+
+    def fake_replace(index_path: Path, identities: list[object]) -> object:
+        calls.append((index_path, identities))
+        return AgentArtifactIndexUpdateWire(
+            schema_version=1,
+            index_path=str(index_path),
+            projects_root="",
+            rows_indexed=len(identities),
+        )
+
+    def fail_terminalize(*args: object, **kwargs: object) -> object:
+        raise AssertionError("terminalizer should be skipped")
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "replace_agent_artifact_index_dismissed_agents",
+        fake_replace,
+    )
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "terminalize_stale_active_agent_artifact_index_rows",
+        fail_terminalize,
+    )
+
+    report = sync_dismissed_agent_artifact_index_report(
+        {identity},
+        added={identity},
+        index_path=index,
+        run_active_tier_maintenance=False,
+    )
+
+    assert report.synced
+    assert report.changed
+    assert report.terminalized_active_rows == 0
+    assert calls[0][0] == index
+
+
 def test_stale_schema_refresh_rebuilds_before_index_query(
     tmp_path: Path,
     monkeypatch,

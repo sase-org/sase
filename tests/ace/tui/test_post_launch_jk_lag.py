@@ -154,6 +154,11 @@ class _FakeApplyApp(AgentLoadingMixin):
         self._bead_warmup_scan_running = False
         self._bead_warmup_scan_pending = False
         self._bead_warmup_scan_source = "unknown"
+        # Deferred artifact-index maintenance scheduled by the apply path.
+        self._artifact_index_maintenance_running = False
+        self._artifact_index_maintenance_pending = False
+        self._artifact_index_maintenance_pending_request = None
+        self._artifact_index_maintenance_last_mono = 0.0
         self.call_later_calls: list[object] = []
         self.finalize_calls: int = 0
 
@@ -197,10 +202,6 @@ def test_apply_batches_auto_dismiss_into_one_disk_write() -> None:
         patch(
             "sase.ace.dismissed_agents.save_dismissed_agents", return_value=True
         ) as mock_save,
-        patch(
-            "sase.ace.tui.actions.agents._loading_apply."
-            "sync_dismissed_agent_artifact_index"
-        ) as sync_index,
     ):
         app._apply_loaded_agents(
             list(agents),
@@ -215,9 +216,11 @@ def test_apply_batches_auto_dismiss_into_one_disk_write() -> None:
     assert len(app._dismissed_agents) == 5
     # The finalize step ran (apply step delegated to it as expected).
     assert app.finalize_calls == 1
-    sync_index.assert_called_once_with(
-        app._dismissed_agents,
-        added={agent.identity for agent in agents},
+    assert app._artifact_index_maintenance_pending_request == (
+        set(app._dismissed_agents),
+        {agent.identity for agent in agents},
+        False,
+        "apply",
     )
 
 

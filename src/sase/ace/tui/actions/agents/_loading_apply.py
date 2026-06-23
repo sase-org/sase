@@ -7,9 +7,6 @@ from typing import TYPE_CHECKING, cast
 
 from ...models.agent import AgentType
 from ...util.trace import tui_trace
-from sase.core.agent_artifact_index_lifecycle import (
-    sync_dismissed_agent_artifact_index,
-)
 from ._loading_compute import (
     PreparedApplyBoundary,
     PreparedApplyData,
@@ -311,18 +308,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             from ....dismissed_agents import save_dismissed_agents
 
             if save_dismissed_agents(self._dismissed_agents):
-                try:
-                    if dismissed_changes_include_removals:
-                        sync_dismissed_agent_artifact_index(
-                            self._dismissed_agents, force=True
-                        )
-                    else:
-                        sync_dismissed_agent_artifact_index(
-                            self._dismissed_agents,
-                            added=added_identities or None,
-                        )
-                except Exception:
-                    pass
+                self._schedule_artifact_index_maintenance(
+                    dismissed=set(self._dismissed_agents),
+                    added=added_identities or None,
+                    force=dismissed_changes_include_removals,
+                    source="apply",
+                )
             else:
                 record_agents_refresh_trace(
                     self,

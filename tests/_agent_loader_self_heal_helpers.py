@@ -93,6 +93,11 @@ class FakeLoadingApp(AgentLoadingMixin):
         self._bead_warmup_scan_running = False
         self._bead_warmup_scan_pending = False
         self._bead_warmup_scan_source = "unknown"
+        # Deferred artifact-index maintenance scheduled by the apply path.
+        self._artifact_index_maintenance_running = False
+        self._artifact_index_maintenance_pending = False
+        self._artifact_index_maintenance_pending_request = None
+        self._artifact_index_maintenance_last_mono = 0.0
         self.call_later_calls: list[object] = []
 
     def set_timer(self, _delay: float, _callback: object) -> None:

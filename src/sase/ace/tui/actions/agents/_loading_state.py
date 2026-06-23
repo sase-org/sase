@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ....changespec import ChangeSpec
 from ._loading_compute import (
@@ -29,6 +29,14 @@ if TYPE_CHECKING:
     from ...models.fold_state import FoldStateManager
     from ...models.fold_state import FoldLevel
     from ...util.nav_gate import NavigationGate
+
+AgentIdentity = tuple[Any, str, str | None]
+ArtifactIndexMaintenanceRequest = tuple[
+    set[AgentIdentity],
+    set[AgentIdentity] | None,
+    bool,
+    str,
+]
 
 
 class AgentLoadingStateMixin:
@@ -122,6 +130,10 @@ class AgentLoadingStateMixin:
     # collapses into a single deferred ``_schedule_agents_async_refresh``.
     _agents_refresh_debounce_armed: bool
     _agents_refresh_debounce_source: str
+    _artifact_index_maintenance_running: bool
+    _artifact_index_maintenance_pending: bool
+    _artifact_index_maintenance_pending_request: ArtifactIndexMaintenanceRequest | None
+    _artifact_index_maintenance_last_mono: float
     _dirty_agent_artifact_dirs: tuple[Path, ...]
     _dirty_agent_artifact_fallback_reason: str | None
     # Per-STARTING-agent ``agent_meta.json`` and ``waiting.json`` (mtime_ns,
@@ -174,6 +186,16 @@ class AgentLoadingStateMixin:
 
     def _load_agents(
         self, *, full_history: bool = False, source: str = "sync_load"
+    ) -> None:
+        raise NotImplementedError
+
+    def _schedule_artifact_index_maintenance(
+        self,
+        *,
+        dismissed: Iterable[tuple[Any, str, str | None]],
+        added: Iterable[tuple[Any, str, str | None]] | None = None,
+        force: bool = False,
+        source: str = "unknown",
     ) -> None:
         raise NotImplementedError
 

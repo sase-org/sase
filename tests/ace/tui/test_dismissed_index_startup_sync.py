@@ -133,6 +133,7 @@ class _SyncHarness:
 
     def __init__(self) -> None:
         self._dismissed_agents: set[tuple[Any, str, str | None]] = set()
+        self._artifact_index_maintenance_last_mono = 0.0
         self.notifications: list[tuple[str, dict[str, Any]]] = []
         self.refresh_sources: list[str] = []
 
@@ -165,6 +166,7 @@ async def test_startup_sync_is_quiet_when_fast_path_hits(
     monkeypatch,
 ) -> None:  # type: ignore[no-untyped-def]
     harness = _SyncHarness()
+    monkeypatch.setattr("sase.ace.tui.actions.startup.time.monotonic", lambda: 123.0)
     monkeypatch.setattr(
         "sase.core.agent_artifact_index_lifecycle."
         "sync_dismissed_agent_artifact_index_report",
@@ -175,6 +177,7 @@ async def test_startup_sync_is_quiet_when_fast_path_hits(
 
     assert harness.refresh_sources == []
     assert harness.notifications == []
+    assert harness._artifact_index_maintenance_last_mono == 123.0
 
 
 @pytest.mark.asyncio

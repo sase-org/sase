@@ -47,6 +47,7 @@ _UPDATE_INDEX = "update_agent_artifact_index_for_marker_mutation"
 _UPSERT_INDEX = "upsert_agent_artifact_index_artifacts"
 _DELETE_INDEX = "delete_agent_artifact_index_artifacts"
 _SYNC_DISMISSED_INDEX = "sync_dismissed_agent_artifact_index"
+_SCHEDULE_DISMISSED_INDEX = "_schedule_artifact_index_maintenance"
 
 
 @dataclass(frozen=True)
@@ -227,6 +228,9 @@ def _function_name_used_by_call(call: ast.Call, name: str) -> bool:
 
 
 def _dismissed_save_contexts(root: Path = _REPO_ROOT) -> dict[str, tuple[str, ...]]:
+    dismissed_projection_call_names = _LIFECYCLE_CALL_NAMES | {
+        _SCHEDULE_DISMISSED_INDEX
+    }
     contexts: dict[str, tuple[str, ...]] = {}
     for path in _iter_source_files(root):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -243,7 +247,7 @@ def _dismissed_save_contexts(root: Path = _REPO_ROOT) -> dict[str, tuple[str, ..
             lifecycle_calls = tuple(
                 dict.fromkeys(
                     name
-                    for name in _LIFECYCLE_CALL_NAMES
+                    for name in dismissed_projection_call_names
                     if any(_function_name_used_by_call(call, name) for call in calls)
                 )
             )

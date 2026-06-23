@@ -28,6 +28,7 @@ from ._loading_helpers import (
     load_agent_artifact_delta_from_disk_with_state,
     load_agents_from_disk_with_state,
 )
+from ._index_maintenance import AgentIndexMaintenanceMixin
 from ._loading_live_hints import AgentLiveHintMixin
 from ._loading_refresh import AgentLoadingRefreshMixin
 
@@ -54,6 +55,7 @@ __all__ = [
 
 class AgentLoadingMixin(
     AgentLoadingDiskMixin,
+    AgentIndexMaintenanceMixin,
     AgentLoadingApplyMixin,
     AgentLoadingRefreshMixin,
     AgentLoadingFilterMixin,

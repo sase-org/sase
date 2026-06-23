@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from tests._agent_artifact_marker_audit_helpers import (
+    _SCHEDULE_DISMISSED_INDEX,
     _SYNC_DISMISSED_INDEX,
     _dismissed_save_contexts,
 )
@@ -24,7 +25,7 @@ _REVIEWED_DISMISSED_SAVE_CONTEXTS: dict[str, tuple[str, ...]] = {
         _SYNC_DISMISSED_INDEX,
     ),
     "src/sase/ace/tui/actions/agents/_loading_apply.py:_apply_loaded_agents_prepared_inner": (
-        _SYNC_DISMISSED_INDEX,
+        _SCHEDULE_DISMISSED_INDEX,
     ),
     "src/sase/ace/tui/actions/agents/_marking.py:_persist_marked_agent_group_save": (
         _SYNC_DISMISSED_INDEX,

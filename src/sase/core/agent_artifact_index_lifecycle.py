@@ -139,6 +139,7 @@ def sync_dismissed_agent_artifact_index(
     added: Iterable[AgentIdentityLike] | None = None,
     index_path: Path | str | None = None,
     force: bool = False,
+    run_active_tier_maintenance: bool = True,
 ) -> bool:
     """Best-effort sync of dismissed identities into the SQLite artifact index.
 
@@ -151,6 +152,7 @@ def sync_dismissed_agent_artifact_index(
         added=added,
         index_path=index_path,
         force=force,
+        run_active_tier_maintenance=run_active_tier_maintenance,
     ).synced
 
 
@@ -160,6 +162,7 @@ def sync_dismissed_agent_artifact_index_report(
     added: Iterable[AgentIdentityLike] | None = None,
     index_path: Path | str | None = None,
     force: bool = False,
+    run_active_tier_maintenance: bool = True,
 ) -> DismissedProjectionSyncReport:
     """Sync dismissed identities into the artifact index, reporting outcome.
 
@@ -187,6 +190,8 @@ def sync_dismissed_agent_artifact_index_report(
 
         try:
             report = _sync_projection(index, dismissed, added=added, force=force)
+            if not run_active_tier_maintenance:
+                return report
             return _run_active_tier_maintenance(index, report)
         except _CorruptArtifactIndexError:
             return _heal_corrupt_index_and_resync(index, dismissed)

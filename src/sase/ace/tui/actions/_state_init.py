@@ -267,6 +267,10 @@ class StateInitMixin:
         self._agents_refresh_active_source: str = "unknown"
         self._agents_refresh_debounce_armed: bool = False
         self._agents_refresh_debounce_source: str = "unknown"
+        self._artifact_index_maintenance_running: bool = False
+        self._artifact_index_maintenance_pending: bool = False
+        self._artifact_index_maintenance_pending_request: Any | None = None
+        self._artifact_index_maintenance_last_mono: float = 0.0
         # Deferred Tier 2 reconcile: set when a load arrives with
         # incomplete history. The reconcile is then triggered lazily by an
         # idle tick or explicit full-history refresh action rather than

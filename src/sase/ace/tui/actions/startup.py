@@ -375,6 +375,7 @@ class StartupMixin(StateInitMixin):
         except Exception:
             log.exception("Startup dismissed-index sync failed")
             return
+        self._artifact_index_maintenance_last_mono = time.monotonic()  # type: ignore[attr-defined]
         if report.healed:
             quarantined = report.quarantined_path
             suffix = f" (old copy: {quarantined.name})" if quarantined else ""
