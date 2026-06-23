@@ -1,0 +1,97 @@
+"""Tests for the Agents-tab zoom panel action and related key routing."""
+
+from __future__ import annotations
+
+import pytest
+
+from sase.ace.tui.app import AceApp
+from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
+from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelTarget
+
+from tests.ace.tui._agents_zoom_panel_helpers import (
+    _FakeDetail,
+    _FakeZoomApp,
+    _make_agent,
+)
+
+
+@pytest.mark.parametrize(
+    ("detail", "attempt", "expected"),
+    [
+        (_FakeDetail(file_visible=True), None, ZoomPanelTarget.FILE),
+        (
+            _FakeDetail(tools_visible=True, file_visible=False, has_tools=True),
+            None,
+            ZoomPanelTarget.TOOLS,
+        ),
+        (
+            _FakeDetail(layout_swapped=True, tools_visible=True, has_tools=True),
+            None,
+            ZoomPanelTarget.METADATA,
+        ),
+        (_FakeDetail(info=True, file_visible=False), None, ZoomPanelTarget.METADATA),
+        (_FakeDetail(file_visible=True), 2, ZoomPanelTarget.METADATA),
+    ],
+)
+def test_action_zoom_panel_selects_expected_initial_target(
+    detail: _FakeDetail,
+    attempt: int | None,
+    expected: ZoomPanelTarget,
+) -> None:
+    app = _FakeZoomApp(
+        agent=_make_agent(),
+        detail=detail,
+        current_attempt_number=attempt,
+    )
+
+    app.action_zoom_panel()
+
+    assert len(app.pushed) == 1
+    modal = app.pushed[0]
+    assert isinstance(modal, ZoomPanelModal)
+    assert modal._target == expected
+    assert modal._seed.attempt_view_mode == "current-only"
+
+
+def test_action_zoom_panel_warns_without_agent() -> None:
+    app = _FakeZoomApp(agent=None)
+
+    app.action_zoom_panel()
+
+    assert app.pushed == []
+    assert app.notifications == [("No agent selected", "warning")]
+
+
+def test_action_zoom_panel_provider_resolves_fresh_agent_by_identity() -> None:
+    agent = _make_agent(status="RUNNING")
+    app = _FakeZoomApp(agent=agent)
+
+    app.action_zoom_panel()
+    modal = app.pushed[0]
+    refreshed = _make_agent(status="DONE")
+    app._agents = [refreshed]
+    app._agents_with_children = [refreshed]
+
+    assert modal._agent_provider() is refreshed
+
+
+def test_default_z_bindings_route_fold_then_zoom() -> None:
+    registry = load_keymap_registry({})
+    bindings = build_app_bindings(registry.app)
+
+    assert registry.app.start_fold_mode == "z"
+    assert registry.app.zoom_panel == "z"
+    assert [binding.action for binding in bindings if binding.key == "z"] == [
+        "start_fold_mode",
+        "zoom_panel",
+    ]
+
+
+def test_zoom_and_fold_actions_are_tab_gated() -> None:
+    agents_app = AceApp(auto_start_axe=False, initial_tab="agents")
+    changespecs_app = AceApp(auto_start_axe=False, initial_tab="changespecs")
+
+    assert agents_app.check_action("start_fold_mode", ()) is False
+    assert agents_app.check_action("zoom_panel", ()) is not False
+    assert changespecs_app.check_action("zoom_panel", ()) is False
+    assert changespecs_app.check_action("start_fold_mode", ()) is not False
