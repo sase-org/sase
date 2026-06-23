@@ -1,13 +1,14 @@
-"""``%alt(...)`` / ``%(...)`` / ``%{...}`` splitting and multi-model fan-out.
+"""``%alt(...)`` / ``%(...)`` / ``%{...}`` splitting and model fan-out.
 
-This module owns the logic that turns a single prompt with multiple
-``%model`` directives or explicit ``%alt(a,b,...)`` / ``%{a | b | ...}``
-calls into a list of sub-prompts. Unrelated directives form a Cartesian
-product, while explicit branch names repeated across directives are correlated
-into the same fan-out slot. Empty branch renders collapse adjacent horizontal
-whitespace so variants do not keep doubled spaces or spaces before
-punctuation, while newlines and indentation are preserved. This module also
-owns the naming logic that disambiguates spawned agents per runtime.
+This module owns the logic that turns a single prompt with explicit
+``%alt(a,b,...)`` / ``%{a | b | ...}`` calls into a list of sub-prompts. A
+``%model`` directive participates in fan-out only when it lives inside one of
+those alternative branches. Unrelated directives form a Cartesian product,
+while explicit branch names repeated across directives are correlated into the
+same fan-out slot. Empty branch renders collapse adjacent horizontal whitespace
+so variants do not keep doubled spaces or spaces before punctuation, while
+newlines and indentation are preserved. This module also owns the naming logic
+that disambiguates spawned agents per runtime.
 
 ``%{...}`` is the preferred shorthand for ``%alt(...)``; it uses braces
 with top-level ``|``-separated branches.  The legacy ``%(...)`` shorthand
@@ -116,32 +117,22 @@ def split_prompt_for_models(
     *,
     extra_xprompts: dict[str, XPrompt] | None = None,
 ) -> list[str] | None:
-    """Split a prompt with multi-model or ``%alt``/``%(``/``%{`` directives into per-variant prompts.
+    """Split a prompt with model-bearing ``%alt``/``%(``/``%{`` directives.
 
-    Handles three cases:
-
-    1. ``%model(a,b,...)`` / ``%m(a,b,...)`` — rewritten internally to
-       ``%alt(%model:a,%model:b,...)`` then split.
-    2. Repeated scalar ``%model`` / ``%m`` directives (e.g.
-       ``%model:opus\\n%model:sonnet``) — collected, deduped in document
-       order, and collapsed into a single ``%alt(%model:a,%model:b,...)``
-       before splitting.  Mixing scalar and paren forms is supported.
-    3. Direct ``%alt(...)`` / ``%(...)`` / ``%{...}`` usage — split as-is.
+    ``%model`` / ``%m`` is a single-value directive. Multi-model fan-out must
+    be expressed by putting one model directive in each alternative branch,
+    e.g. ``%{%m:opus | %m:sonnet}``. Legacy multi-argument forms such as
+    ``%m(opus,sonnet)`` and repeated top-level ``%model`` directives raise a
+    :class:`DirectiveError` with a migration hint.
 
     Unrelated alt/model axes form a Cartesian product. Explicit branch names
     repeated across alt directives are correlated into one slot, while unnamed
     branches and disjoint names remain Cartesian. Empty alt renders collapse
     adjacent horizontal whitespace as in :func:`split_prompt_for_alternatives`.
 
-    Multiple model directives that all resolve to the same model yield a
-    single variant (no split); duplicate ``%model`` directives inside
-    fenced code blocks or ``%xprompts_enabled:false`` regions are ignored.
-
-    Returns ``None`` if there is no splitting directive at all, or if model
-    collection finds only one unique model and no alt directives produce slots.
-    When only one unique model remains but multiple ``%model`` directives
-    exist, the duplicates are tolerated downstream by
-    :func:`extract_prompt_directives` (last-wins).
+    Returns ``None`` if there is no splitting directive at all, or if only a
+    single top-level model directive is present and no alt directives produce
+    slots.
     """
     plan = plan_prompt_fanout_variants(prompt, extra_xprompts=extra_xprompts)
     if plan is None:
@@ -190,7 +181,7 @@ def _plan_prompt_fanout(
         return None
 
     # Protect fenced code blocks and disabled regions so %model directives
-    # inside them are neither collected nor rewritten.
+    # inside them are ignored.
     fenced_blocks: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced_blocks)
     disabled_regions: list[str] = []
@@ -213,8 +204,8 @@ def _plan_prompt_fanout(
     def _is_inside_alt(pos: int) -> bool:
         return any(start <= pos < end for start, end in alt_inner_regions)
 
-    # Walk all directive matches and pick out %model / %m occurrences.
-    directive_spans: list[tuple[int, int, list[str]]] = []
+    # Walk all directive matches and pick out top-level %model / %m occurrences.
+    valued_directive_spans: list[tuple[int, int, str]] = []
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         raw_name = match.group(1)
         resolved = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
@@ -249,75 +240,29 @@ def _plan_prompt_fanout(
             # %model+ is a plus-syntax sentinel with no real model value —
             # leave it alone for the extractor to handle.
             continue
-        # Bare %model (no arg) contributes no model but its span is still
-        # eligible for rewrite so the prompt stays clean.
 
-        directive_spans.append((match.start(), match_end, args))
+        if len(args) > 1:
+            source = protected[match.start() : match_end]
+            raise DirectiveError(multi_model_unsupported_message(source, args))
+        if args:
+            valued_directive_spans.append((match.start(), match_end, args[0]))
 
-    if not directive_spans:
-        # No collectable %model directives — fall through to alt-only handling
-        # on the original (unprotected) prompt.
-        fanout_plan = _plan_model_fanout(prompt)
-        if fanout_plan is None:
-            return None
-        return fanout_plan
+    if len(valued_directive_spans) > 1:
+        source = " ... ".join(
+            protected[start:end] for start, end, _ in valued_directive_spans
+        )
+        models = [value for _, _, value in valued_directive_spans]
+        raise DirectiveError(multi_model_unsupported_message(source, models))
 
-    # Dedupe model args in document order (first occurrence wins).
-    seen_models: set[str] = set()
-    unique_models: list[str] = []
-    for _, _, args in directive_spans:
-        for arg in args:
-            model_key = _model_value_for_naming(arg, extra_xprompts=extra_xprompts)
-            if model_key not in seen_models:
-                seen_models.add(model_key)
-                unique_models.append(arg)
-
-    if len(unique_models) <= 1:
-        # Zero or one unique model — no split needed.  Any duplicate scalar
-        # %model directives are tolerated by extract_prompt_directives.  A
-        # real %alt/%(...)/%{...} beside the single model still fans out.
-        if not has_alt_directive(prompt):
-            return None
-        fanout_plan = _plan_model_fanout(prompt)
-        if fanout_plan is None:
-            return None
-        return fanout_plan
-
-    # Two or more unique models — collapse every collected span into a
-    # single %alt(%model:a,%model:b,...) directive at the first span's
-    # position and remove the others.
-    alt_args = ",".join(f"%model:{m}" for m in unique_models)
-    replacement = f"%alt({alt_args})"
-
-    # Absorb a trailing newline for non-first spans that occupy a whole
-    # line, so the rewrite does not leave behind blank lines.
-    adjusted: list[tuple[int, int, bool]] = []
-    for i, (span_start, span_end, _) in enumerate(directive_spans):
-        is_first = i == 0
-        if (
-            not is_first
-            and span_end < len(protected)
-            and protected[span_end] == "\n"
-            and (span_start == 0 or protected[span_start - 1] == "\n")
-        ):
-            span_end += 1
-        adjusted.append((span_start, span_end, is_first))
-
-    # Splice right-to-left so earlier positions aren't shifted.
-    rewritten = protected
-    for span_start, span_end, is_first in reversed(adjusted):
-        if is_first:
-            rewritten = rewritten[:span_start] + replacement + rewritten[span_end:]
-        else:
-            rewritten = rewritten[:span_start] + rewritten[span_end:]
-
-    rewritten = unprotect_disabled_regions(rewritten, disabled_regions)
-    rewritten = unprotect_fenced_blocks(rewritten, fenced_blocks)
-
-    fanout_plan = _plan_model_fanout(rewritten)
+    fanout_plan = _plan_model_fanout(prompt)
     if fanout_plan is None:
         return None
     return fanout_plan
+
+
+def multi_model_unsupported_message(source: str, models: list[str]) -> str:
+    replacement = " | ".join(f"%m:{model}" for model in models)
+    return f"{source} is no longer supported; use %{{{replacement}}} instead"
 
 
 def _plan_model_fanout(prompt: str) -> LaunchFanoutPlanWire | None:

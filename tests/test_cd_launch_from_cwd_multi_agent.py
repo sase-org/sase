@@ -66,7 +66,7 @@ def test_launch_agents_from_cwd_xprompt_expanded_multi_model_fans_out(
     from sase.agent.launcher import launch_agents_from_cwd
 
     launched = [MagicMock(name="opus"), MagicMock(name="sonnet")]
-    expanded = "%n:ag\n%m(opus,sonnet)\nDo work"
+    expanded = "%n:ag\n%{%model:opus | %model:sonnet}\nDo work"
     with (
         patch(
             "sase.main.utils.ensure_project_file_and_get_workspace_num",

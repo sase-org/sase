@@ -985,7 +985,7 @@ Directives use the same argument syntax as xprompt references:
 
 ```
 %model:claude-sonnet         # Colon syntax
-%model(claude-sonnet)        # Parenthesis syntax
+%model(claude-sonnet)        # Parenthesis syntax (single value only)
 %model:`claude-sonnet-4`     # Backtick syntax (for values with special chars)
 %model:codex/o3              # Provider/model syntax — switches both provider and model
 %model:agy/flash35h          # Provider/model syntax for Antigravity (agy)
@@ -1299,44 +1299,44 @@ Multiple alt directives can appear in the same prompt. Branch lists with no repe
 product**: one agent is launched per combination. Brace and paren forms mix freely:
 
 ```
-%{Focus on security | Focus on perf} %m(opus, sonnet)
+%{Focus on security | Focus on perf} %{%m:opus | %m:sonnet}
 Review this code.
 ```
 
-This produces 2 × 2 = 4 agents (every focus area paired with every model). The multi-model directive (`%m(opus,sonnet)`)
-is internally rewritten as `%alt(%model:opus,%model:sonnet)`, so it participates in the Cartesian product naturally. A
-`%model` directive used as a branch inside `%{...}` composes the same way: `%{#review | %model:opus}` fans out a
-default-model review branch and an opus branch.
+This produces 2 × 2 = 4 agents (every focus area paired with every model). Model directives used as branches inside
+`%{...}` participate in the Cartesian product naturally: `%{#review | %model:opus}` fans out a default-model review
+branch and an opus branch.
 
 Repeated named ids are the exception to the Cartesian rule. Disjoint named ids and unnamed branches remain Cartesian;
 only the same explicit id repeated across directives is zipped together.
 
-### Multi-Model Directive
+### Multi-Model Fan-Out
 
-The `%model` directive supports launching multiple agents in parallel — one per model — when given comma-separated model
-names in parentheses:
+The `%model` directive is single-value. To launch multiple agents in parallel — one per model — put one model directive
+in each `%{...}` branch:
 
 ```
-%m(opus,sonnet)
+%{%m:opus | %m:sonnet}
 Review this code for edge cases.
 ```
 
 This launches two agents with identical prompts, each using a different model. Each agent appears as a separate entry in
-the Agents tab. Only the parenthesized syntax triggers multi-model behavior; colon syntax (`%m:opus`) and single-model
-parentheses (`%m(opus)`) always launch a single agent.
+the Agents tab. Comma/paren multi-argument syntax (`%m(opus,sonnet)`) and repeated top-level `%model` directives are no
+longer supported; use `%{%m:opus | %m:sonnet}` instead. Colon syntax (`%m:opus`) and single-model parentheses
+(`%m(opus)`) launch a single agent.
 
 When a prompt fans out to multiple models, the spawned agents share a single base name and carry a runtime suffix so
-they can be told apart at a glance. Given `%m(opus,gpt-5.5) %n:foo`, the two agents are named `foo.cld` and `foo.cdx`.
-The runtime suffix is a short alias declared by the provider plugin (via the `llm_provider_short_name` hook) — `cld`,
-`cdx`, `agy`, `qwn`, `opc` for the built-in providers — falling back to the full provider name for plugins that don't
-declare one. If `%name` is omitted, a single auto-generated base is allocated and shared (e.g. `a.cld` / `a.cdx`) rather
-than each agent picking its own letter independently. Single-model prompts retain their plain `%name` value unchanged.
-When two models share a runtime (e.g. `%m(opus,sonnet)` — both `claude`), the model name disambiguates the suffix:
-`foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g. `Gemini 3.5 Flash (High)`) are replaced with a short alias
-(`flash35h`) declared by the provider plugin, so a same-runtime agy fan-out reads as `foo.agy-flash35h` /
+they can be told apart at a glance. Given `%{%m:opus | %m:gpt-5.5} %n:foo`, the two agents are named `foo.cld` and
+`foo.cdx`. The runtime suffix is a short alias declared by the provider plugin (via the `llm_provider_short_name` hook)
+— `cld`, `cdx`, `agy`, `qwn`, `opc` for the built-in providers — falling back to the full provider name for plugins that
+don't declare one. If `%name` is omitted, a single auto-generated base is allocated and shared (e.g. `a.cld` / `a.cdx`)
+rather than each agent picking its own letter independently. Single-model prompts retain their plain `%name` value
+unchanged. When two models share a runtime (e.g. `%{%m:opus | %m:sonnet}` — both `claude`), the model name disambiguates
+the suffix: `foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g. `Gemini 3.5 Flash (High)`) are replaced with a
+short alias (`flash35h`) declared by the provider plugin, so a same-runtime agy fan-out reads as `foo.agy-flash35h` /
 `foo.agy-flash35l` rather than echoing the full model string. Model arguments used for naming are first resolved through
 xprompt shorthand expansion, while the launched prompt keeps the original `%model` value. For example,
-`%n:ag %m(#flash,#pro)` can launch agents named `ag.agy-flash35h` and `ag.agy-pro31h`.
+`%n:ag %{%m:#flash | %m:#pro}` can launch agents named `ag.agy-flash35h` and `ag.agy-pro31h`.
 
 ### Multi-Value Directives
 

@@ -28,8 +28,10 @@ predicates.
 import re
 
 from ._directive_alt import (
+    _ALT_DIRECTIVE_RE,
     apply_fanout_naming,
     has_alt_directive,
+    multi_model_unsupported_message,
     plan_prompt_fanout_variants,
     split_prompt_for_alternatives,
     split_prompt_for_models,
@@ -49,7 +51,11 @@ from ._disabled_regions import (
 )
 from ._exceptions import DirectiveError
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
-from ._parsing import find_matching_paren_for_args, parse_args
+from ._parsing import (
+    find_matching_brace_for_args,
+    find_matching_paren_for_args,
+    parse_args,
+)
 from .processor import process_xprompt_references
 
 __all__ = [
@@ -182,10 +188,12 @@ def extract_prompt_directives(
         Tuple of (cleaned_prompt, directives).
 
     Raises:
-        DirectiveError: If a known non-``%model`` directive appears more
-            than once.  Multiple ``%model`` directives are tolerated with
-            last-wins semantics; multi-model splitting is normally handled
-            upstream by :func:`split_prompt_for_models`.
+        DirectiveError: If a known single-value directive appears more than
+            once. Top-level ``%model`` is single-value; repeated model
+            directives and multi-argument ``%model(...)`` forms raise with a
+            migration hint. Directives inside raw ``%alt(...)`` / ``%(...)`` /
+            ``%{...}`` bodies are ignored until the fan-out planner splits
+            those branches.
     """
     if "%" not in prompt:
         return prompt, PromptDirectives()
@@ -199,7 +207,25 @@ def extract_prompt_directives(
     disabled_regions: list[str] = []
     prompt = protect_disabled_regions(prompt, disabled_regions)
 
-    matches = list(re.finditer(_DIRECTIVE_PATTERN, prompt, re.MULTILINE))
+    alt_inner_regions: list[tuple[int, int]] = []
+    for alt_match in _ALT_DIRECTIVE_RE.finditer(prompt):
+        open_pos = alt_match.end() - 1
+        if prompt[open_pos] == "{":
+            close_pos = find_matching_brace_for_args(prompt, open_pos)
+        else:
+            close_pos = find_matching_paren_for_args(prompt, open_pos)
+        if close_pos is None:
+            continue
+        alt_inner_regions.append((open_pos + 1, close_pos))
+
+    def _is_inside_alt(pos: int) -> bool:
+        return any(start <= pos < end for start, end in alt_inner_regions)
+
+    matches = [
+        match
+        for match in re.finditer(_DIRECTIVE_PATTERN, prompt, re.MULTILINE)
+        if not _is_inside_alt(match.start())
+    ]
     if not matches:
         prompt = unprotect_disabled_regions(prompt, disabled_regions)
         if strip_disabled_markers:
@@ -208,6 +234,7 @@ def extract_prompt_directives(
 
     # Collect known directive matches (we'll strip these from the prompt)
     seen: dict[str, str] = {}  # directive name -> raw arg value (single-value)
+    seen_source: dict[str, str] = {}  # directive name -> raw directive text
     seen_multi: dict[
         str, list[str]
     ] = {}  # directive name -> raw arg values (multi-value)
@@ -219,16 +246,6 @@ def extract_prompt_directives(
         name = _DIRECTIVE_ALIASES.get(name, name)  # resolve alias
         if name not in _KNOWN_DIRECTIVES:
             continue
-
-        # Check for duplicates (multi-value directives are allowed to repeat).
-        # `%model` is a soft exception: repeated `%model` directives are
-        # normally collapsed by :func:`split_prompt_for_models` upstream.
-        # If a caller bypasses the splitter, we tolerate duplicates here
-        # with last-wins semantics so the prompt still extracts cleanly.
-        if name in _MULTI_VALUE_DIRECTIVES or name == "model":
-            pass  # handled below after arg extraction
-        elif name in seen:
-            raise DirectiveError(f"Duplicate directive '%{name}' in prompt")
 
         # Extract argument value
         has_open_paren = match.group(2) is not None
@@ -247,6 +264,14 @@ def extract_prompt_directives(
                 positional_args, _ = parse_args(paren_content)
                 if is_multi:
                     raw_args = list(positional_args)
+                elif (
+                    name == "model" and len([arg for arg in positional_args if arg]) > 1
+                ):
+                    source = prompt[match.start() : paren_end + 1]
+                    models = [arg for arg in positional_args if arg]
+                    raise DirectiveError(
+                        multi_model_unsupported_message(source, models)
+                    )
                 else:
                     raw_args = [positional_args[0] if positional_args else ""]
                 match_end = paren_end + 1
@@ -267,7 +292,20 @@ def extract_prompt_directives(
         if is_multi:
             seen_multi.setdefault(name, []).extend(raw_args)
         else:
+            if name in seen:
+                if name == "model":
+                    models = [arg for arg in [seen[name], raw_args[0]] if arg]
+                    if models:
+                        source = (
+                            f"{seen_source[name]} ... "
+                            f"{prompt[match.start() : match_end]}"
+                        )
+                        raise DirectiveError(
+                            multi_model_unsupported_message(source, models)
+                        )
+                raise DirectiveError(f"Duplicate directive '%{name}' in prompt")
             seen[name] = raw_args[0]
+            seen_source[name] = prompt[match.start() : match_end]
         regions_to_remove.append((match.start(), match_end))
 
     if not regions_to_remove:

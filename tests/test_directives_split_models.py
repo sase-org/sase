@@ -3,14 +3,27 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import split_prompt_for_models
 from sase.xprompt.models import XPrompt
 from tests._agent_names_fixtures import make_agent as _make_agent
 
 
+def test_split_prompt_for_models_rejects_paren_multi_model() -> None:
+    """Paren multi-argument %m is rejected with the migration syntax."""
+    with pytest.raises(
+        DirectiveError,
+        match=r"%m\(opus,sonnet\) is no longer supported; "
+        r"use %\{%m:opus \| %m:sonnet\} instead",
+    ):
+        split_prompt_for_models("%m(opus,sonnet)\nReview this code")
+
+
 def test_split_prompt_for_models_two_models() -> None:
     """Two models produce two prompts, each with a single %model directive."""
-    prompt = "%n:foo\n%m(opus,sonnet)\nReview this code"
+    prompt = "%n:foo\n%{%model:opus | %model:sonnet}\nReview this code"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -20,7 +33,7 @@ def test_split_prompt_for_models_two_models() -> None:
 
 def test_split_prompt_for_models_three_models() -> None:
     """Three models produce three prompts."""
-    prompt = "%n:foo\n%model(opus,sonnet,haiku)\nDo work"
+    prompt = "%n:foo\n%{%model:opus | %model:sonnet | %model:haiku}\nDo work"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 3
@@ -30,7 +43,7 @@ def test_split_prompt_for_models_three_models() -> None:
 
 
 def test_split_prompt_for_models_single_model_returns_none() -> None:
-    """Single model in parens returns None (not multi-model)."""
+    """Single model in parens returns None (not fan-out)."""
     assert split_prompt_for_models("%m(opus)\nDo work") is None
 
 
@@ -46,7 +59,7 @@ def test_split_prompt_for_models_colon_syntax_returns_none() -> None:
 
 def test_split_prompt_for_models_preserves_other_directives() -> None:
     """Other directives in the prompt are preserved."""
-    prompt = "%n:foo\n%approve\n%m(opus,sonnet)\nReview this code"
+    prompt = "%n:foo\n%approve\n%{%model:opus | %model:sonnet}\nReview this code"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -58,7 +71,7 @@ def test_split_prompt_for_models_preserves_other_directives() -> None:
 
 def test_split_prompt_for_models_with_provider_syntax() -> None:
     """Multi-model with provider/model syntax splits correctly."""
-    prompt = "%n:foo\n%m(codex/o3,claude/opus)\nReview this code"
+    prompt = "%n:foo\n%{%model:codex/o3 | %model:claude/opus}\nReview this code"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -68,7 +81,7 @@ def test_split_prompt_for_models_with_provider_syntax() -> None:
 
 def test_split_prompt_for_models_spaces_in_args() -> None:
     """Spaces around model names in args are handled."""
-    prompt = "%n:foo\n%m(opus, sonnet)\nDo work"
+    prompt = "%n:foo\n%{%model:opus | %model:sonnet}\nDo work"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -77,15 +90,15 @@ def test_split_prompt_for_models_spaces_in_args() -> None:
 
 
 def test_split_prompt_for_models_after_xprompt_expansion() -> None:
-    """Xprompt-expanded %m(...) is correctly split by split_prompt_for_models."""
+    """Xprompt-expanded model branches are split by split_prompt_for_models."""
     from sase.xprompt.processor import process_xprompt_references
 
-    # Simulate what happens when #swarm expands to %m(opus,sonnet)
+    # Simulate what happens when #swarm expands to %{%model:opus | %model:sonnet}
     with patch(
         "sase.xprompt.processor.process_xprompt_references",
         wraps=process_xprompt_references,
     ):
-        expanded = "%n:foo\n%m(opus,sonnet)\nReview this code"
+        expanded = "%n:foo\n%{%model:opus | %model:sonnet}\nReview this code"
         result = split_prompt_for_models(expanded)
         assert result is not None
         assert len(result) == 2
@@ -94,13 +107,13 @@ def test_split_prompt_for_models_after_xprompt_expansion() -> None:
 
 
 def test_split_prompt_for_models_requires_caller_expanded_xprompt_body() -> None:
-    """The planner splits xprompt-injected %m(...) only after caller expansion."""
+    """The planner splits xprompt-injected model branches after caller expansion."""
     from sase.xprompt.processor import process_xprompt_references
 
     xprompts = {
         "_fanout": XPrompt(
             name="_fanout",
-            content="%n:foo\n%m(opus,sonnet)\nReview this code",
+            content="%n:foo\n%{%model:opus | %model:sonnet}\nReview this code",
         ),
     }
 
@@ -122,17 +135,21 @@ def test_split_prompt_for_models_xprompt_model_axis_composes_with_alts() -> None
 
     Regression for the launch fan-out shape bug: planning the raw prompt sees
     only the two %( alternative axes — the launch-shaping xprompt
-    (#m_opus_codex -> %model(opus, #codex)) is still an unexpanded reference,
+    (#m_opus_codex -> %{%model:opus | %model:#codex}) is still an unexpanded reference,
     so the model dimension is missing and the split yields 4 model-less
     variants. Expanding the xprompt before planning unlocks the model axis,
-    and %model(opus, #codex) joins the Cartesian product:
-    2 alts x 2 alts x 2 models = 8 variants, split evenly across opus/gpt-5.5.
+    and %{%model:opus | %model:#codex} joins the Cartesian product:
+    2 alts x 2 alts x 2 models = 8 variants, split evenly across the raw
+    opus/#codex branches.
     """
     from sase.xprompt.processor import process_xprompt_references
 
     catalog = {
         "codex": XPrompt(name="codex", content="gpt-5.5"),
-        "m_opus_codex": XPrompt(name="m_opus_codex", content="%model(opus, #codex)"),
+        "m_opus_codex": XPrompt(
+            name="m_opus_codex",
+            content="%{%model:opus | %model:#codex}",
+        ),
     }
     prompt = (
         "%n:foo Describe this repo %(briefly, in detail). "
@@ -153,12 +170,14 @@ def test_split_prompt_for_models_xprompt_model_axis_composes_with_alts() -> None
     assert result is not None
     assert len(result) == 8
     assert sum("%model:opus" in variant for variant in result) == 4
-    assert sum("%model:gpt-5.5" in variant for variant in result) == 4
+    assert sum("%model:#codex" in variant for variant in result) == 4
 
 
-def test_split_prompt_for_models_direct_alt_same_as_multi_model() -> None:
-    """Direct %alt(%model:...) produces the same output as %m(...)."""
-    via_m = split_prompt_for_models("%n:foo\n%m(opus,sonnet)\nReview this code")
+def test_split_prompt_for_models_brace_model_alt_same_as_paren_alt() -> None:
+    """Brace model branches produce the same output as %alt(%model:...)."""
+    via_m = split_prompt_for_models(
+        "%n:foo\n%{%model:opus | %model:sonnet}\nReview this code"
+    )
     via_alt = split_prompt_for_models(
         "%n:foo\n%alt(%model:opus,%model:sonnet)\nReview this code"
     )
@@ -169,50 +188,53 @@ def test_split_prompt_for_models_direct_alt_same_as_multi_model() -> None:
 
 
 def test_split_prompt_for_models_two_scalar_directives() -> None:
-    """Two %model:X scalars produce two variants, directive lines collapsed."""
+    """Two top-level %model:X scalars raise with a migration hint."""
     prompt = "%n:foo\n%model:opus\n%model:sonnet\nReview this code"
-    result = split_prompt_for_models(prompt)
-    assert result is not None
-    assert len(result) == 2
-    assert result[0] == "%name:foo.cld_opus\n%model:opus\nReview this code"
-    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview this code"
+    with pytest.raises(
+        DirectiveError,
+        match=r"use %\{%m:opus \| %m:sonnet\} instead",
+    ):
+        split_prompt_for_models(prompt)
 
 
 def test_split_prompt_for_models_alias_mix() -> None:
-    """%m:opus + %model:sonnet (alias mix) produces two variants."""
+    """%m:opus + %model:sonnet (alias mix) raises with a migration hint."""
     prompt = "%n:foo\n%m:opus\n%model:sonnet\nReview this code"
-    result = split_prompt_for_models(prompt)
-    assert result is not None
-    assert len(result) == 2
-    assert result[0] == "%name:foo.cld_opus\n%model:opus\nReview this code"
-    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview this code"
+    with pytest.raises(
+        DirectiveError,
+        match=r"use %\{%m:opus \| %m:sonnet\} instead",
+    ):
+        split_prompt_for_models(prompt)
 
 
 def test_split_prompt_for_models_scalar_plus_paren() -> None:
-    """%model:opus + %model(sonnet,haiku) → three variants in order."""
+    """Mixing scalar and paren multi-model syntax raises."""
     prompt = "%n:foo\n%model:opus\n%model(sonnet,haiku)\nReview this code"
-    result = split_prompt_for_models(prompt)
-    assert result is not None
-    assert len(result) == 3
-    assert result[0] == "%name:foo.cld_opus\n%model:opus\nReview this code"
-    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview this code"
-    assert result[2] == "%name:foo.cld_haiku\n%model:haiku\nReview this code"
+    with pytest.raises(
+        DirectiveError,
+        match=r"use %\{%m:sonnet \| %m:haiku\} instead",
+    ):
+        split_prompt_for_models(prompt)
 
 
-def test_split_prompt_for_models_identical_dupes_return_none() -> None:
-    """Two identical %model:opus dupes yield no split (single unique model)."""
+def test_split_prompt_for_models_identical_dupes_raise() -> None:
+    """Two identical %model:opus directives are still duplicate misuse."""
     prompt = "%model:opus\n%model:opus\nReview this code"
-    assert split_prompt_for_models(prompt) is None
+    with pytest.raises(
+        DirectiveError,
+        match=r"use %\{%m:opus \| %m:opus\} instead",
+    ):
+        split_prompt_for_models(prompt)
 
 
 def test_split_prompt_for_models_interleaved_duplicates() -> None:
-    """Duplicates spread across non-adjacent lines split correctly."""
+    """Duplicates spread across non-adjacent lines raise."""
     prompt = "%n:foo\n%model:opus\nHeader line\n%model:sonnet\nBody"
-    result = split_prompt_for_models(prompt)
-    assert result is not None
-    assert len(result) == 2
-    assert result[0] == "%name:foo.cld_opus\n%model:opus\nHeader line\nBody"
-    assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nHeader line\nBody"
+    with pytest.raises(
+        DirectiveError,
+        match=r"use %\{%m:opus \| %m:sonnet\} instead",
+    ):
+        split_prompt_for_models(prompt)
 
 
 def test_split_prompt_for_models_scalar_inside_fenced_block_ignored() -> None:
@@ -224,8 +246,8 @@ def test_split_prompt_for_models_scalar_inside_fenced_block_ignored() -> None:
 
 
 def test_split_prompt_for_models_multi_model_with_user_alt_cartesian() -> None:
-    """Two scalar %model directives Cartesian-product with a user %alt(x,y)."""
-    prompt = "%n:foo\n%model:opus\n%model:sonnet %alt(x,y)\nReview"
+    """Model branches Cartesian-product with a user %alt(x,y)."""
+    prompt = "%n:foo\n%{%model:opus | %model:sonnet} %alt(x,y)\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 4
@@ -237,7 +259,7 @@ def test_split_prompt_for_models_multi_model_with_user_alt_cartesian() -> None:
 
 def test_split_prompt_for_models_multi_model_distinct_runtimes() -> None:
     """Two models on distinct runtimes get plain runtime suffixes (no model)."""
-    prompt = "%n:foo\n%m(opus,gpt-5.5)\nReview this code"
+    prompt = "%n:foo\n%{%model:opus | %model:gpt-5.5}\nReview this code"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -252,7 +274,7 @@ def test_split_prompt_for_models_alias_uses_resolved_suffix(
     """Fan-out names use the concrete configured model behind an alias."""
     mock_config.return_value = {"model_aliases": {"other": "claude/opus"}}
 
-    prompt = "%n:foo\n%m(other,gpt-5.5)\nReview this code"
+    prompt = "%n:foo\n%{%model:other | %model:gpt-5.5}\nReview this code"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -288,7 +310,7 @@ def test_split_prompt_for_models_other_uses_override_snapshot(
     # names as the disambiguator. Without the override-aware "other",
     # other would also resolve to sonnet (per configured alias) and the
     # split would collapse to a single model.
-    prompt = "%n:foo\n%m(other,sonnet)\nReview"
+    prompt = "%n:foo\n%{%model:other | %model:sonnet}\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -299,7 +321,9 @@ def test_split_prompt_for_models_other_uses_override_snapshot(
 def test_split_prompt_for_models_resume_base(tmp_path: Path) -> None:
     """Multi-model fan-out without %name uses the resume-derived base."""
     with patch.object(Path, "home", return_value=tmp_path):
-        result = split_prompt_for_models("#fork:foo\n%m(opus,sonnet)\nDo work")
+        result = split_prompt_for_models(
+            "#fork:foo\n%{%model:opus | %model:sonnet}\nDo work"
+        )
     assert result is not None
     assert result[0] == "%name:foo.f1.cld_opus\n#fork:foo\n%model:opus\nDo work"
     assert result[1] == "%name:foo.f1.cld_sonnet\n#fork:foo\n%model:sonnet\nDo work"
@@ -308,7 +332,9 @@ def test_split_prompt_for_models_resume_base(tmp_path: Path) -> None:
 def test_split_prompt_for_models_wait_base(tmp_path: Path) -> None:
     """Multi-model fan-out without %name uses the wait-derived base."""
     with patch.object(Path, "home", return_value=tmp_path):
-        result = split_prompt_for_models("%wait:foo\n%m(opus,sonnet)\nDo work")
+        result = split_prompt_for_models(
+            "%wait:foo\n%{%model:opus | %model:sonnet}\nDo work"
+        )
     assert result is not None
     assert result[0] == "%name:foo.w1.cld_opus\n%wait:foo\n%model:opus\nDo work"
     assert result[1] == "%name:foo.w1.cld_sonnet\n%wait:foo\n%model:sonnet\nDo work"
@@ -320,7 +346,7 @@ def test_split_prompt_for_models_resume_base_wins_over_wait(
     """Multi-model fan-out uses the fork-derived base when both refs exist."""
     with patch.object(Path, "home", return_value=tmp_path):
         result = split_prompt_for_models(
-            "%wait:foo\n#fork:foo\n%m(opus,sonnet)\nDo work"
+            "%wait:foo\n#fork:foo\n%{%model:opus | %model:sonnet}\nDo work"
         )
     assert result is not None
     assert result[0] == (
@@ -333,7 +359,7 @@ def test_split_prompt_for_models_resume_base_wins_over_wait(
 
 def test_split_prompt_for_models_multi_model_auto_generated_base() -> None:
     """No %name with multi-model injects grouped auto-name templates."""
-    result = split_prompt_for_models("%m(opus,gpt-5.5)\nReview")
+    result = split_prompt_for_models("%{%model:opus | %model:gpt-5.5}\nReview")
     assert result is not None
     assert len(result) == 2
     assert result[0] == "%name:@.cld\n%model:opus\nReview"
@@ -342,7 +368,7 @@ def test_split_prompt_for_models_multi_model_auto_generated_base() -> None:
 
 def test_split_prompt_for_models_multi_model_bare_name_auto_generated() -> None:
     """Bare %name with multi-model behaves like an unnamed generated launch."""
-    result = split_prompt_for_models("%name\n%m(opus,gpt-5.5)\nReview")
+    result = split_prompt_for_models("%name\n%{%model:opus | %model:gpt-5.5}\nReview")
     assert result is not None
     assert len(result) == 2
     assert result[0] == "%name:@.cld\n%model:opus\nReview"
@@ -358,7 +384,7 @@ def test_split_prompt_for_models_unknown_model_uses_default_provider() -> None:
 
     default = get_default_provider_name()
     default_short = provider_short_name_map().get(default, default)
-    prompt = "%n:foo\n%m(unknown_model_xyz,opus)\nReview"
+    prompt = "%n:foo\n%{%model:unknown_model_xyz | %model:opus}\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -379,7 +405,7 @@ def test_split_prompt_for_models_unknown_model_uses_default_provider() -> None:
 
 def test_split_prompt_for_models_codex_collision_uses_short_alias() -> None:
     """Same-runtime codex collision substitutes short aliases for model names."""
-    prompt = "%n:o\n%m(gpt-5.5,gpt-5.3-codex)\nReview"
+    prompt = "%n:o\n%{%model:gpt-5.5 | %model:gpt-5.3-codex}\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -391,7 +417,7 @@ def test_split_prompt_for_models_opencode_nested_models_use_short_aliases() -> N
     """Explicit OpenCode provider/model strings use provider-local model aliases."""
     prompt = (
         "%n:o\n"
-        "%m(opencode/anthropic/claude-sonnet-4-5,opencode/openai/gpt-5-mini)\n"
+        "%{%model:opencode/anthropic/claude-sonnet-4-5 | %model:opencode/openai/gpt-5-mini}\n"
         "Review"
     )
     result = split_prompt_for_models(prompt)
@@ -405,7 +431,9 @@ def test_split_prompt_for_models_opencode_nested_models_use_short_aliases() -> N
 
 def test_split_prompt_for_models_unknown_nested_model_suffix_is_name_safe() -> None:
     """Unknown explicit nested model names are sanitized for generated names."""
-    prompt = "%n:o\n%m(opencode/acme/foo/bar,opencode/acme/baz/qux)\nReview"
+    prompt = (
+        "%n:o\n%{%model:opencode/acme/foo/bar | %model:opencode/acme/baz/qux}\nReview"
+    )
     result = split_prompt_for_models(prompt)
     assert result is not None
     name_lines = [line for item in result for line in item.splitlines()[:1]]
@@ -414,7 +442,7 @@ def test_split_prompt_for_models_unknown_nested_model_suffix_is_name_safe() -> N
 
 def test_split_prompt_for_models_claude_collision_unchanged() -> None:
     """Claude opus/sonnet keep their raw names (no aliases declared)."""
-    prompt = "%n:o\n%m(opus,sonnet)\nReview"
+    prompt = "%n:o\n%{%model:opus | %model:sonnet}\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -424,7 +452,7 @@ def test_split_prompt_for_models_claude_collision_unchanged() -> None:
 
 def test_split_prompt_for_models_no_collision_unchanged() -> None:
     """Distinct-runtime case never embeds the model name (alias irrelevant)."""
-    prompt = "%n:o\n%m(opus,gpt-5.5)\nReview"
+    prompt = "%n:o\n%{%model:opus | %model:gpt-5.5}\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -440,7 +468,7 @@ def test_split_prompt_for_models_unknown_model_falls_through() -> None:
         # Test relies on unknown_xyz routing to codex (the fallback default).
         # If a different default is configured, skip the assertion path.
         return
-    prompt = "%n:o\n%m(gpt-5.5,unknown_xyz)\nReview"
+    prompt = "%n:o\n%{%model:gpt-5.5 | %model:unknown_xyz}\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
@@ -458,7 +486,9 @@ def test_split_prompt_for_models_alias_collision_falls_back_to_raw() -> None:
         "sase.llm_provider.registry.model_short_alias_map",
         return_value=fake_aliases,
     ):
-        result = split_prompt_for_models("%n:o\n%m(gpt-5.5,gpt-5.3-codex)\nReview")
+        result = split_prompt_for_models(
+            "%n:o\n%{%model:gpt-5.5 | %model:gpt-5.3-codex}\nReview"
+        )
     assert result is not None
     assert len(result) == 2
     assert result[0] == ("%name:o.cdx_gpt_5.5\n%model:gpt-5.5\nReview")
@@ -471,7 +501,9 @@ def test_split_prompt_for_models_global_shorthand_name_uses_resolved_alias() -> 
         "flash": XPrompt(name="flash", content="gpt-5.5"),
     }
     with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
-        result = split_prompt_for_models("%n:o\n%m(#flash,gpt-5.3-codex)\nReview")
+        result = split_prompt_for_models(
+            "%n:o\n%{%model:#flash | %model:gpt-5.3-codex}\nReview"
+        )
 
     assert result is not None
     assert len(result) == 2
@@ -486,7 +518,9 @@ def test_split_prompt_for_models_same_runtime_shorthands_use_resolved_aliases() 
         "pro": XPrompt(name="pro", content="gpt-4.1"),
     }
     with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
-        result = split_prompt_for_models("%n:ag\n%m(#flash,#pro)\nReview")
+        result = split_prompt_for_models(
+            "%n:ag\n%{%model:#flash | %model:#pro}\nReview"
+        )
 
     assert result is not None
     assert len(result) == 2
@@ -494,15 +528,20 @@ def test_split_prompt_for_models_same_runtime_shorthands_use_resolved_aliases() 
     assert result[1] == "%name:ag.cdx_gpt41\n%model:#pro\nReview"
 
 
-def test_split_prompt_for_models_dedupes_raw_and_shorthand_same_model() -> None:
-    """Raw and shorthand forms of the same model do not fan out."""
+def test_split_prompt_for_models_keeps_raw_and_shorthand_alt_branches() -> None:
+    """Raw and shorthand branches stay distinct even if they resolve alike."""
     xprompts = {
         "flash": XPrompt(name="flash", content="gemini-3-flash-preview"),
     }
     with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
-        result = split_prompt_for_models("%m(#flash,gemini-3-flash-preview)\nReview")
+        result = split_prompt_for_models(
+            "%{%model:#flash | %model:gemini-3-flash-preview}\nReview"
+        )
 
-    assert result is None
+    assert result == [
+        "%name:@.1\n%model:#flash\nReview",
+        "%name:@.2\n%model:gemini-3-flash-preview\nReview",
+    ]
 
 
 def test_split_prompt_for_models_unknown_shorthand_name_strips_hash_fallback() -> None:
@@ -512,7 +551,7 @@ def test_split_prompt_for_models_unknown_shorthand_name_strips_hash_fallback() -
         return_value="cdx",
     ):
         result = split_prompt_for_models(
-            "%n:o\n%m(#unknown_model_alias,gpt-5.5)\nReview"
+            "%n:o\n%{%model:#unknown_model_alias | %model:gpt-5.5}\nReview"
         )
 
     assert result is not None
@@ -660,8 +699,8 @@ def test_split_prompt_for_models_alt_with_nested_model_not_double_collected() ->
 
 
 def test_split_prompt_for_models_with_alt_directive() -> None:
-    """%model(opus,sonnet) combined with %(x,y) produces 4 prompts."""
-    prompt = "%n:foo\n%m(opus,sonnet) %(x,y)\nReview this code"
+    """Model branches combined with %(x,y) produce 4 prompts."""
+    prompt = "%n:foo\n%{%model:opus | %model:sonnet} %(x,y)\nReview this code"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 4

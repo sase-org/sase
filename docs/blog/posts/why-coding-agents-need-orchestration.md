@@ -242,25 +242,25 @@ That is a multi-agent markdown xprompt. It is readable. It does not need a workf
 Directives are `%` tags that change launch behavior. They are extracted from the prompt before the agent sees it. The
 full reference is in [XPrompts: Directives](../../xprompt.md#directives); this is the practical tour.
 
-| Directive  | Alias | What it does                                                                                                                               | Example                                                                                 |
-| ---------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| `%model`   | `%m`  | Select a provider/model. Parenthesized multi-values fan out into one agent per model.                                                      | `%m:claude/opus audit this API` or `%m(codex/gpt-5.5,claude/sonnet) compare the design` |
-| `%name`    | `%n`  | Give an agent a stable name. Bare `%name` auto-names; `@` templates allocate suffixes; `!` force-reuses from confirmed TUI launches.       | `%n:reviewer`, `%n:build-@`, `%n:!reviewer`                                             |
-| `%wait`    | `%w`  | Start only after named agents or workflows complete successfully. Bare `%wait` waits for the most recently named agent.                    | `%w:planner`, `%wait:agent1,agent2`, `%wait`                                            |
-| `%time`    | `%t`  | Delay launch by a duration or until wall-clock time. Dependencies wait first, then the time floor applies.                                 | `%t:5m`, `%time:1h30m`, `%time:1430`, `%time:260415/0900`                               |
-| `%hide`    | `%h`  | Hide the agent from the default Agents tab display. ACE can toggle hidden rows back into view.                                             | `%h %n:background-log-checker inspect logs`                                             |
-| `%approve` | `%a`  | Run autonomously without pausing for human approval.                                                                                       | `%a #!sase/fix_just`                                                                    |
-| `%epic`    |       | Plan first, then auto-approve the submitted plan as an SDD epic with beads and follow-up work.                                             | `%epic %n:checkout-epic plan the checkout rewrite`                                      |
-| `%edit`    | `%e`  | Open the editor and return the edited text to the ACE prompt bar instead of launching immediately.                                         | `%e draft a careful prompt for the migration`                                           |
-| `%repeat`  | `%r`  | Run the same prompt serially multiple times; later slots wait on earlier slots. A slot can set `STOP` to stop the chain.                   | `%r:5 %n:flaky-repro try to reproduce the flaky test once`                              |
-| `%group`   | `%g`  | Assign the agent's user-managed tag for ACE grouping and filtering.                                                                        | `%g:review review the latest ChangeSpec`                                                |
-| `%alt`     | `%(`  | Split one prompt into variants. Named variants become child suffixes; multiple `%alt` and multi-model directives form a Cartesian product. | `%alt(sec=focus on auth,perf=focus on hot paths) review this diff`                      |
+| Directive  | Alias | What it does                                                                                                                         | Example                                                            |
+| ---------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | -------------------------- |
+| `%model`   | `%m`  | Select a provider/model. Use `%{...}` branches to fan out into one agent per model.                                                  | `%m:claude/opus audit this API` or `%{%m:codex/gpt-5.5             | %m:claude/sonnet} compare` |
+| `%name`    | `%n`  | Give an agent a stable name. Bare `%name` auto-names; `@` templates allocate suffixes; `!` force-reuses from confirmed TUI launches. | `%n:reviewer`, `%n:build-@`, `%n:!reviewer`                        |
+| `%wait`    | `%w`  | Start only after named agents or workflows complete successfully. Bare `%wait` waits for the most recently named agent.              | `%w:planner`, `%wait:agent1,agent2`, `%wait`                       |
+| `%time`    | `%t`  | Delay launch by a duration or until wall-clock time. Dependencies wait first, then the time floor applies.                           | `%t:5m`, `%time:1h30m`, `%time:1430`, `%time:260415/0900`          |
+| `%hide`    | `%h`  | Hide the agent from the default Agents tab display. ACE can toggle hidden rows back into view.                                       | `%h %n:background-log-checker inspect logs`                        |
+| `%approve` | `%a`  | Run autonomously without pausing for human approval.                                                                                 | `%a #!sase/fix_just`                                               |
+| `%epic`    |       | Plan first, then auto-approve the submitted plan as an SDD epic with beads and follow-up work.                                       | `%epic %n:checkout-epic plan the checkout rewrite`                 |
+| `%edit`    | `%e`  | Open the editor and return the edited text to the ACE prompt bar instead of launching immediately.                                   | `%e draft a careful prompt for the migration`                      |
+| `%repeat`  | `%r`  | Run the same prompt serially multiple times; later slots wait on earlier slots. A slot can set `STOP` to stop the chain.             | `%r:5 %n:flaky-repro try to reproduce the flaky test once`         |
+| `%group`   | `%g`  | Assign the agent's user-managed tag for ACE grouping and filtering.                                                                  | `%g:review review the latest ChangeSpec`                           |
+| `%alt`     | `%(`  | Split one prompt into variants. Named variants become child suffixes; model branches and text variants form a Cartesian product.     | `%alt(sec=focus on auth,perf=focus on hot paths) review this diff` |
 
 Directives compose. This launches two named model variants, groups them under `review`, and keeps them hidden unless you
 toggle hidden agents:
 
 ```bash
-sase run '%n:api-review %g:review %h %m(codex/gpt-5.5,claude/sonnet) review the API boundary'
+sase run '%n:api-review %g:review %h %{%m:codex/gpt-5.5 | %m:claude/sonnet} review the API boundary'
 ```
 
 And this chains a planner, coder, and reviewer without inventing a YAML workflow:
@@ -512,7 +512,7 @@ somewhere sensible."
 The same idea appears in prompts:
 
 ```bash
-sase run '%n:api-audit %m(codex/gpt-5.5,claude/sonnet) audit the API boundary and compare findings'
+sase run '%n:api-audit %{%m:codex/gpt-5.5 | %m:claude/sonnet} audit the API boundary and compare findings'
 ```
 
 That launches a model fan-out. Sometimes the right answer is not trusting one model harder. Sometimes it is asking two

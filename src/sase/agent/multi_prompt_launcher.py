@@ -277,8 +277,8 @@ def _spawn_segments_into(
             or _has_bare_resume_reference(segments[i + 1])
         )
 
-        # Check for launch fan-out directives (e.g., %m(opus,sonnet),
-        # %alt(a,b) or %{a | b}).
+        # Check for launch fan-out directives (e.g.,
+        # %{%m:opus | %m:sonnet}, %alt(a,b), or %{a | b}).
         # Try the raw segment first; if no match and the segment contains
         # xprompt references, expand them and re-check.
         preplanned_fanout_plan = (

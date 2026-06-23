@@ -1,7 +1,7 @@
 """Tests that ``_run_agent_launch_body`` routes prompts to the right dispatch.
 
 These tests cover the routing decisions made inside the launch body:
-plain single-agent launches, multi-model fanout via ``%m(...)``,
+plain single-agent launches, model fanout via ``%{...}``,
 ``%alt(...)`` alternative fanout, forwarding of inline ``xprompts:``
 to the fanout worker, and the post-launch refresh schedule.
 
@@ -45,7 +45,7 @@ def test_run_agent_launch_body_expands_possible_xprompt_for_model_dispatch() -> 
 
     with patch(
         "sase.xprompt.processor.process_xprompt_references",
-        return_value="%m(opus,sonnet)\nReview this code",
+        return_value="%{%model:opus | %model:sonnet}\nReview this code",
     ) as process:
         _run_launch_body_with_common_patches(app, "Review this with #swarm")
 
@@ -62,17 +62,21 @@ def test_run_agent_launch_body_xprompt_model_axis_joins_alt_fanout() -> None:
 
     Regression for the "4 agents, all Opus" bug: a prompt that already
     contains %( directives must still expand its launch-shaping xprompt
-    (#m_opus_codex -> %model(opus, #codex)) *before* the fan-out shape is
+    (#m_opus_codex -> %{%model:opus | %model:#codex}) *before* the fan-out shape is
     planned. Otherwise the raw prompt plans a 4-slot alternatives shape that
     omits the injected model dimension, and the child runner expands the
     model directive too late to fan out. With the expansion ordered first,
     the model axis composes with both %( axes into a full Cartesian product:
-    2 alts x 2 alts x 2 models = 8 slots, split evenly across the models.
+    2 alts x 2 alts x 2 models = 8 slots, split evenly across the raw model
+    branches.
     """
     app = _LaunchBodyApp()
     catalog = {
         "codex": XPrompt(name="codex", content="gpt-5.5"),
-        "m_opus_codex": XPrompt(name="m_opus_codex", content="%model(opus, #codex)"),
+        "m_opus_codex": XPrompt(
+            name="m_opus_codex",
+            content="%{%model:opus | %model:#codex}",
+        ),
     }
 
     with patch("sase.xprompt.processor.get_all_xprompts", return_value=dict(catalog)):
@@ -93,7 +97,7 @@ def test_run_agent_launch_body_xprompt_model_axis_joins_alt_fanout() -> None:
     slot_models = [slot.model for slot in fanout_plan.slots]
     assert len(slot_models) == 8
     assert slot_models.count("opus") == 4
-    assert slot_models.count("gpt-5.5") == 4
+    assert slot_models.count("#codex") == 4
 
 
 def test_run_agent_launch_body_dispatches_pure_alt_fanout() -> None:
@@ -132,7 +136,7 @@ def test_run_agent_launch_body_forwards_local_xprompts_to_fanout_worker() -> Non
         '  _flash: "gemini-3-flash-preview"\n'
         "---\n"
         "%n:ag\n"
-        "%m(#_flash,sonnet)\n"
+        "%{%model:#_flash | %model:sonnet}\n"
         "Review",
     )
 

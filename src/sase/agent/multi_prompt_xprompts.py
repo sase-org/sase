@@ -2,9 +2,11 @@
 
 import json
 import os
+import re
 import tempfile
 from typing import Any
 
+from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
 from sase.xprompt.models import UNSET as _UNSET
 from sase.xprompt.models import XPrompt
 
@@ -22,7 +24,30 @@ def extract_called_xprompt_names(text: str, available_xprompts: set[str]) -> set
         call.name
         for call in extract_xprompt_calls(preprocessed)
         if call.name in available_xprompts
-    }
+    } | _model_directive_xprompt_names(preprocessed, available_xprompts)
+
+
+def _model_directive_xprompt_names(
+    text: str,
+    available_xprompts: set[str],
+) -> set[str]:
+    """Return local xprompt names referenced as ``%model:#name`` values."""
+    names: set[str] = set()
+    for match in re.finditer(_DIRECTIVE_PATTERN, text, re.MULTILINE):
+        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name != "model":
+            continue
+        colon_arg = match.group(3)
+        if colon_arg is None:
+            continue
+        if colon_arg.startswith("`") and colon_arg.endswith("`"):
+            colon_arg = colon_arg[1:-1]
+        if not colon_arg.startswith("#"):
+            continue
+        candidate = colon_arg[1:]
+        if candidate in available_xprompts:
+            names.add(candidate)
+    return names
 
 
 def local_xprompts_for_segment(

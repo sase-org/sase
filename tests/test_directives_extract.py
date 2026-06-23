@@ -38,6 +38,16 @@ def test_model_directive_paren_arg() -> None:
     assert directives.model == "opus"
 
 
+def test_model_directive_paren_multi_arg_rejected() -> None:
+    """Multi-argument %model(...) raises with the migration syntax."""
+    prompt = "%model(opus,sonnet)\nReview this code"
+    with pytest.raises(
+        DirectiveError,
+        match=r"use %\{%m:opus \| %m:sonnet\} instead",
+    ):
+        extract_prompt_directives(prompt)
+
+
 def test_model_directive_plus_syntax() -> None:
     """Test %model+ syntax (sets arg to 'true')."""
     prompt = "%model+\nSome prompt"
@@ -94,25 +104,32 @@ def test_unknown_directive_left_in_prompt() -> None:
 # --- Alias / edge case tests ---
 
 
-def test_alias_m_and_model_duplicate_last_wins() -> None:
-    """%m + %model in the same prompt: last-wins, both directive lines stripped.
-
-    Multi-model splitting is handled upstream by split_prompt_for_models; if
-    the extractor is called directly on a prompt with duplicate %model
-    directives, it tolerates them with last-wins semantics.
-    """
+def test_alias_m_and_model_duplicate_rejected() -> None:
+    """%m + %model in the same prompt is duplicate model misuse."""
     prompt = "%m:opus\n%model:sonnet\nPrompt text"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Prompt text"
-    assert directives.model == "sonnet"
+    with pytest.raises(
+        DirectiveError,
+        match=r"use %\{%m:opus \| %m:sonnet\} instead",
+    ):
+        extract_prompt_directives(prompt)
 
 
-def test_identical_duplicate_model_directives_accepted() -> None:
-    """Two %model:opus directives collapse to a single model, no error."""
+def test_identical_duplicate_model_directives_rejected() -> None:
+    """Two %model:opus directives are duplicate model misuse."""
     prompt = "%model:opus\n%model:opus\nPrompt text"
+    with pytest.raises(
+        DirectiveError,
+        match=r"use %\{%m:opus \| %m:opus\} instead",
+    ):
+        extract_prompt_directives(prompt)
+
+
+def test_raw_alt_model_branches_are_not_top_level_model_metadata() -> None:
+    """Raw model branches inside %{...} are ignored until fan-out splitting."""
+    prompt = "%{%m:opus | %m:sonnet}\nPrompt text"
     cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Prompt text"
-    assert directives.model == "opus"
+    assert cleaned == prompt
+    assert directives.model is None
 
 
 def test_duplicate_non_model_directive_still_raises() -> None:

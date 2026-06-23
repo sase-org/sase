@@ -375,11 +375,24 @@ def test_plan_agent_launch_fanout_rust_multi_prompt() -> None:
     assert plan.requires_sequential_naming_wait is True
 
 
-def test_plan_agent_launch_fanout_rust_model_and_alt() -> None:
+def test_plan_agent_launch_fanout_rust_rejects_repeated_models() -> None:
+    pytest.importorskip("sase_core_rs")
+
+    with pytest.raises(
+        ValueError,
+        match=r"use %\{%m:opus \| %m:sonnet\} instead",
+    ):
+        plan_agent_launch_fanout(
+            "%n:foo\n%model:opus\n%model:sonnet %alt(x,y)\nReview",
+            launch_kind="model",
+        )
+
+
+def test_plan_agent_launch_fanout_rust_model_branches_and_alt() -> None:
     pytest.importorskip("sase_core_rs")
 
     plan = plan_agent_launch_fanout(
-        "%n:foo\n%model:opus\n%model:sonnet %alt(x,y)\nReview",
+        "%n:foo\n%{%model:opus | %model:sonnet} %alt(x,y)\nReview",
         launch_kind="model",
     )
 
@@ -387,10 +400,10 @@ def test_plan_agent_launch_fanout_rust_model_and_alt() -> None:
     assert len(plan.slots) == 4
     assert plan.slots[0].model == "opus"
     assert plan.slots[0].alt_id == "1.1"
-    assert plan.slots[0].prompt == "%n:foo\n%model:opus\n x\nReview"
+    assert plan.slots[0].prompt == "%n:foo\n%model:opus x\nReview"
     assert plan.slots[3].model == "sonnet"
     assert plan.slots[3].alt_id == "2.2"
-    assert plan.slots[3].prompt == "%n:foo\n%model:sonnet\n y\nReview"
+    assert plan.slots[3].prompt == "%n:foo\n%model:sonnet y\nReview"
 
 
 def test_plan_agent_launch_fanout_rust_exposes_alt_ids() -> None:
@@ -427,7 +440,7 @@ def test_plan_agent_launch_fanout_empty_alt_preserves_following_model() -> None:
     pytest.importorskip("sase_core_rs")
 
     plan = plan_agent_launch_fanout(
-        "Do work. %{extra} %model(opus,gpt-5.5)",
+        "Do work. %{extra} %{%model:opus | %model:gpt-5.5}",
         launch_kind="model",
     )
 

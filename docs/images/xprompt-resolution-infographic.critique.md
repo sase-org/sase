@@ -61,7 +61,7 @@ Reading the committed `xprompt-resolution-infographic.png` directly:
    that protects them) would close the loop.
 3. **`%directives` chip says "append, override, repeat" — those are not the salient categories.** The actual functional
    categories of directives are launch overrides (`%model`, `%name`, `%group`, `%hide`, `%approve`, `%epic`), scheduling
-   (`%wait`, `%time`), and fan-out (`%alt`/`%(`, `%repeat`, `%m(...)`). "Append, override, repeat" picks three behaviors
+   (`%wait`, `%time`), and fan-out (`%alt`/`%(`, `%repeat`, `%{...}`). "Append, override, repeat" picks three behaviors
    that don't map cleanly to the directive surface in `docs/xprompt.md` and isn't a useful taxonomy for a new reader.
 4. **`#cd / #gh refs` says "workspace selection first" but the pipeline doesn't show that.** The caption hints that
    workspace refs are special and run before everything else, but the resolution column has no chip representing "pick

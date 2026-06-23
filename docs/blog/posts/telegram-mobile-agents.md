@@ -74,7 +74,7 @@ inherits it. Push behavior follows the operator, not a per-channel timer.
 
 Any text message that isn't a slash command, a feedback reply, or a callback is treated as a prompt for a new agent. The
 inbound script expands xprompt references the same way the local CLI does, so `#mentor reorder` from your phone launches
-with the same template you use in the terminal. Multi-model directives work too: `%m(opus,sonnet) draft tests for X`
+with the same template you use in the terminal. Model fan-out works too: `%{%m:opus | %m:sonnet} draft tests for X`
 launches the same prompt across both models and gives the runs auto-assigned names so they don't collide.
 
 Photos and image documents follow the same path. Send a screenshot of a failing UI or a whiteboard sketch and the plugin

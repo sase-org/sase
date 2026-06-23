@@ -125,7 +125,7 @@ def test_launch_multi_prompt_with_multi_model_segment(
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
-    """A segment with %model(a,b) spawns one agent per model."""
+    """A segment with explicit model branches spawns one agent per model."""
     mock_first_ws.side_effect = [100, 101, 102]
     mock_ws_dir.side_effect = [
         ("/ws/100", None),
@@ -137,7 +137,10 @@ def test_launch_multi_prompt_with_multi_model_segment(
     mock_spawn.return_value = MagicMock(pid=1)
 
     results = launch_multi_prompt_agents(
-        segments=["%model(opus,sonnet) Do the work", "Review the output"],
+        segments=[
+            "%{%model:opus | %model:sonnet} Do the work",
+            "Review the output",
+        ],
         local_xprompts={},
         cl_name="test",
         project_file="/test.sase",
@@ -187,7 +190,7 @@ def test_launch_multi_prompt_waits_on_last_multi_model_generated_name(
     mock_spawn.return_value = MagicMock(pid=1)
 
     launch_multi_prompt_agents(
-        segments=["%n:ag\n%m(opus,sonnet)\nBuild", "%wait\nReview"],
+        segments=["%n:ag\n%{%model:opus | %model:sonnet}\nBuild", "%wait\nReview"],
         local_xprompts={},
         cl_name="test",
         project_file="/test.sase",
@@ -228,7 +231,7 @@ def test_launch_multi_prompt_generated_model_fanout_allocates_grouped_names(
 
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
-            segments=["%m(opus,gpt-5.5)\nBuild", "%wait\nReview"],
+            segments=["%{%model:opus | %model:gpt-5.5}\nBuild", "%wait\nReview"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -289,7 +292,7 @@ def test_launch_multi_prompt_generated_model_fanout_skips_colliding_token(
 
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
-            segments=["%m(opus,gpt-5.5)\nBuild"],
+            segments=["%{%model:opus | %model:gpt-5.5}\nBuild"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -324,7 +327,7 @@ def test_launch_multi_prompt_explicit_template_model_fanout_groups_token(
 
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
-            segments=["%name:review-@\n%m(opus,gpt-5.5)\nBuild"],
+            segments=["%name:review-@\n%{%model:opus | %model:gpt-5.5}\nBuild"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -420,7 +423,7 @@ def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
     }
 
     results = launch_multi_prompt_agents(
-        segments=["%n:ag\n%m(#_flash,gpt-5.3-codex)\nReview"],
+        segments=["%n:ag\n%{%model:#_flash | %model:gpt-5.3-codex}\nReview"],
         local_xprompts=xprompts,
         cl_name="test",
         project_file="/test.sase",

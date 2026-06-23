@@ -580,7 +580,7 @@ Then prompts can use:
 
 ```
 %model:other
-%m(other,gpt-5.5)
+%{%m:other | %m:gpt-5.5}
 ```
 
 Alias values may point at another alias, a bare known model such as `opus`, an explicit provider/model string such as
@@ -595,9 +595,9 @@ The literal alias name `other` is reserved as a context-aware key. When a
 override's `pre_override_*` snapshot. When no override is active, `other` falls back to whatever the user configured
 under `llm_provider.model_aliases.other` (or the literal model name `other` if no alias is configured).
 
-This makes `%m(other, …)` always pair "the alternate model" with the current default, even when the user has temporarily
-switched their default via the ACE `,o` chord. Without the snapshot, `%m(other, …)` on an override-displaced default
-could otherwise launch the override's model side-by-side with itself.
+This makes `%{%m:other | %m:...}` always pair "the alternate model" with the current default, even when the user has
+temporarily switched their default via the ACE `,o` chord. Without the snapshot, `%{%m:other | %m:...}` on an
+override-displaced default could otherwise launch the override's model side-by-side with itself.
 
 #### Reserved alias: `worker`
 
