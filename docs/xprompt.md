@@ -968,6 +968,7 @@ the prompt before further processing.
 | Directive  | Alias | Description                                                      |
 | ---------- | ----- | ---------------------------------------------------------------- |
 | `%model`   | `%m`  | Override the LLM model for this prompt                           |
+| `%effort`  |       | Set the reasoning-effort level (e.g. `%effort:xhigh`)            |
 | `%name`    | `%n`  | Assign, auto-generate, or force-reuse an agent name              |
 | `%wait`    | `%w`  | Wait for another agent or workflow to succeed                    |
 | `%time`    | `%t`  | Defer launch by a duration or until an absolute wall-clock time  |
@@ -990,6 +991,9 @@ Directives use the same argument syntax as xprompt references:
 %model:codex/o3              # Provider/model syntax — switches both provider and model
 %model:agy/flash35h          # Provider/model syntax for Antigravity (agy)
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
+%effort:xhigh                # Set the reasoning-effort level for this prompt
+%model:opus@xhigh            # Model + reasoning-effort suffix (alias: %m:opus@xhigh)
+%{%m:opus@xhigh | %m:sonnet@low} # Per-branch effort via fan-out
 %name:reviewer               # Short-form
 %n:reviewer                  # Same, using alias
 %name                        # Bare — auto-generates a unique name
@@ -1024,6 +1028,10 @@ Directives use the same argument syntax as xprompt references:
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
 `qwen3.6-plus`) are automatically mapped to their provider. See
 [Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for the full model-to-provider mapping.
+
+A `%model` value may carry a trailing `@<effort>` reasoning-effort suffix (e.g. `%model:opus@xhigh`); the effort is
+split off the clean model and behaves exactly like a standalone `%effort` directive. See the
+[Effort Directive](#effort-directive) below.
 
 The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a permanent unique name
 for the agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
@@ -1090,6 +1098,48 @@ Review the code changes and provide feedback.
 
 The directives are stripped from the prompt text. The agent will use the specified model, be named "code-reviewer", and
 will wait for the "planner" agent to complete successfully before running.
+
+### Effort Directive
+
+The `%effort` directive sets the reasoning-effort level the agent's LLM provider should run at. There is no `%e` alias —
+`%e` already means `%edit`, so `%effort` is the only spelling.
+
+```
+%effort:xhigh
+%name:reviewer
+Audit this module for subtle concurrency bugs.
+```
+
+The canonical effort vocabulary is `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (ordered least → most).
+Spelling is validated globally — an unknown level raises a `DirectiveError`. _Which_ levels a given provider actually
+honors is decided per provider; see the [provider support matrix](llms.md#reasoning-effort) in the LLM docs.
+
+You can also attach an effort to a `%model` value with a trailing `@<effort>` suffix instead of a separate directive:
+
+```
+%model:opus@xhigh            # opus, run at xhigh effort
+%m:codex/gpt-5.5@high        # alias form, with an explicit provider/model
+```
+
+The suffix is split off the clean model before alias/provider resolution, so the resolved model stays `opus` /
+`codex/gpt-5.5`. To preserve an `@` that is genuinely part of a model id, wrap the value in a backtick literal
+(`` %model:`literal@id` ``) — backtick literals are never split.
+
+The `@effort` suffix works per branch in a fan-out, so different variants can run at different efforts (and the effort
+token is stripped from the generated agent-name suffixes):
+
+```
+%{%m:opus@xhigh | %m:sonnet@low}
+Try this two ways and compare.
+```
+
+If both a `%model:...@x` suffix and a separate `%effort:y` survive into the same final prompt branch with `x != y`, SASE
+raises a `DirectiveError`; equal values are allowed.
+
+When no `%effort` (or `@effort`) is given, the agent falls back to the `llm_provider.default_effort` config value, and
+then to the runtime's own default. An _explicitly_ requested effort that the chosen provider cannot honor is an error,
+while a config-default effort is best-effort (silently skipped with a warning on providers that don't support it). See
+[Reasoning Effort](llms.md#reasoning-effort) for the resolution precedence and per-provider support.
 
 ### Hide Directive
 

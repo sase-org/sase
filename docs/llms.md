@@ -17,6 +17,7 @@ plugins) behind a shared orchestration layer that handles preprocessing, invocat
 - [External Provider Plugins](#external-provider-plugins)
 - [Configuration](#configuration)
 - [Per-Prompt Provider Switching](#per-prompt-provider-switching)
+- [Reasoning Effort](#reasoning-effort)
 - [Model Tier System](#model-tier-system)
 - [Worker Model](#worker-model)
 - [Temporary Default Override](#temporary-default-override)
@@ -540,6 +541,7 @@ The LLM provider reads its configuration from `~/.config/sase/sase.yml` under th
 ```yaml
 llm_provider:
   provider: claude # or "qwen", "opencode", "agy" (default: auto-detect)
+  default_effort: xhigh # default reasoning effort when a prompt sets none (default: unset)
   worker_models:
     claude: codex/gpt-5.5 # worker default when primary is on Claude
     codex: claude/opus # worker default when primary is on Codex
@@ -552,13 +554,14 @@ llm_provider:
 
 ### Config Fields
 
-| Field                               | Type   | Default     | Description                                                                                                                                                                    |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                                       |
-| `llm_provider.worker_models`        | dict   | unset       | Optional worker-lane targets for plan follow-ups and epic phase agents, keyed by the effective primary lane. Values accept aliases, bare models, or explicit `provider/model`. |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                                          |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                                          |
-| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths.                           |
+| Field                               | Type   | Default     | Description                                                                                                                                                                                                |
+| ----------------------------------- | ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                                                                   |
+| `llm_provider.default_effort`       | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort. |
+| `llm_provider.worker_models`        | dict   | unset       | Optional worker-lane targets for plan follow-ups and epic phase agents, keyed by the effective primary lane. Values accept aliases, bare models, or explicit `provider/model`.                             |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                                                                      |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                                                                      |
+| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths.                                                       |
 
 ## Per-Prompt Provider Switching
 
@@ -655,6 +658,51 @@ configured model alias yourself.
 | opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                    |
 
 Source: `llm_model_short_aliases()` in each provider module under `src/sase/llm_provider/`
+
+## Reasoning Effort
+
+A prompt can request a reasoning-effort level for its agent, and a config default can apply one to every launch. The
+public surface spells it `effort`; the threaded/stored field is named `reasoning_effort` everywhere internally.
+
+### Requesting an Effort
+
+There are three ways an effort reaches a launch, in precedence order:
+
+1. An explicit per-prompt `%effort:<level>` directive, or the `@<level>` suffix on a `%model` value
+   (`%model:opus@xhigh`). See [Effort Directive](xprompt.md#effort-directive) for the directive syntax and per-branch
+   fan-out (`%{%m:opus@xhigh | %m:sonnet@low}`).
+2. The `llm_provider.default_effort` config value, applied when the prompt sets no effort of its own.
+3. Nothing — the provider runs at its own built-in default.
+
+The canonical effort vocabulary, ordered least → most, is `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
+Spelling is validated globally; _which_ levels a given provider honors is decided per provider (below).
+
+### Explicit vs. Default Semantics
+
+The distinction between an explicitly requested effort and a config-default effort governs what happens on a provider
+that cannot honor the requested level:
+
+- **Explicit** (`%effort`/`@effort`): an unsupported level raises an error — SASE never silently launches at a different
+  effort than you asked for.
+- **Config default** (`llm_provider.default_effort`): best-effort. Unsupported levels are logged and skipped so a global
+  default never breaks an `agy`/`qwen` run.
+
+### Provider Support Matrix
+
+| Provider            | Mechanism                             | Supported levels                  | Rejected      |
+| ------------------- | ------------------------------------- | --------------------------------- | ------------- |
+| Claude              | `--effort <level>`                    | low, medium, high, xhigh, max     | none, minimal |
+| Codex               | `-c model_reasoning_effort="<level>"` | minimal, low, medium, high, xhigh | none, max     |
+| OpenCode            | `--variant <level>`                   | all (validated by OpenCode/model) | —             |
+| Antigravity (`agy`) | none today                            | —                                 | all           |
+| Qwen                | none today                            | —                                 | all           |
+
+For `agy` and `qwen` (no reasoning-effort mechanism today), every level is "unsupported": an explicit effort raises,
+while a config-default effort is skipped with a warning. The effort args are appended alongside the existing
+[`SASE_LLM_*_ARGS` / `SASE_<P>_LARGE_ARGS`](#environment-variables) escape hatches, which remain available.
+
+Source: `src/sase/xprompt/effort.py` (vocabulary + `split_model_effort`), `src/sase/llm_provider/config.py`
+(`get_default_effort`, `resolve_effective_effort`), `src/sase/llm_provider/_effort_args.py` (per-provider translation).
 
 ## Model Tier System
 
