@@ -10,6 +10,7 @@ import pytest
 from sase.llm_provider.agy import (
     AgyProvider,
     _AGY_PRINT_PROMPT_ARGV_BYTE_LIMIT,
+    _AGY_WORKSPACE_ENV_VARS,
     _wrap_agy_print_prompt,
 )
 from sase.llm_provider.base import LLMProvider
@@ -54,7 +55,14 @@ def test_agy_provider_command_construction(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
     mock_stream: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # This test pins the no-env fallback contract (`--add-dir`/`cwd` default to
+    # the current directory), so scrub every workspace-resolution env var that
+    # `AgyProvider` honors. Otherwise an inherited or xdist-sibling-mutated value
+    # (e.g. SASE_ACTIVE_PROJECT_DIR) makes the assertions flaky under CI.
+    for env_name in _AGY_WORKSPACE_ENV_VARS:
+        monkeypatch.delenv(env_name, raising=False)
     mock_popen.return_value = MagicMock()
     mock_stream.return_value = ("response", "", 0)
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 06:51:21
-status: wip
+status: done
 prompt: sdd/prompts/202606/agy_provider_test_isolation.md
 ---
 # Plan: Fix flaky agy provider command-construction test
