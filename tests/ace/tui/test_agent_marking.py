@@ -201,6 +201,171 @@ def test_toggle_mark_skips_collapsed_banner_rows() -> None:
     assert app._agents[app.current_idx].cl_name == "b1"
 
 
+def test_toggle_mark_on_focused_group_marks_top_level_members_in_order() -> None:
+    a1 = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="release-fix",
+        raw_suffix="20240101120000",
+    )
+    a2 = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="release-fix",
+        raw_suffix="20240101130000",
+    )
+    other = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="other-cl",
+        raw_suffix="20240101140000",
+    )
+    app = _FakeMarkApp([a1, a2, other])
+    app._group_fold_registry.collapse(("proj_a", "release-fix"))
+    app._current_group_key = ("proj_a", "release-fix")
+
+    app._toggle_mark_agent()
+
+    assert app._marked_agents == {a1.identity, a2.identity}
+    assert app._marked_agent_order == [a1.identity, a2.identity]
+    assert other.identity not in app._marked_agents
+    assert app.current_idx == 2
+    assert app._current_group_key is None
+    assert app.refresh_call_kwargs[-1] == {"list_changed": True, "defer_detail": False}
+
+
+def test_toggle_mark_on_focused_group_unmarks_when_fully_marked() -> None:
+    a1 = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="release-fix",
+        raw_suffix="20240101120000",
+    )
+    a2 = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="release-fix",
+        raw_suffix="20240101130000",
+    )
+    app = _FakeMarkApp([a1, a2])
+    app._group_fold_registry.collapse(("proj_a", "release-fix"))
+    app._current_group_key = ("proj_a", "release-fix")
+    app._marked_agents = {a1.identity, a2.identity}
+    app._marked_agent_order = [a1.identity, a2.identity]
+
+    app._toggle_mark_agent()
+
+    assert app._marked_agents == set()
+    assert app._marked_agent_order == []
+
+
+def test_toggle_mark_on_partially_marked_group_marks_all() -> None:
+    a1 = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="release-fix",
+        raw_suffix="20240101120000",
+    )
+    a2 = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="release-fix",
+        raw_suffix="20240101130000",
+    )
+    outside = _make_agent(
+        project_file="/tmp/projects/proj_b/proj_b.sase",
+        cl_name="outside",
+        raw_suffix="20240101140000",
+    )
+    app = _FakeMarkApp([a1, a2, outside])
+    app._group_fold_registry.collapse(("proj_a", "release-fix"))
+    app._current_group_key = ("proj_a", "release-fix")
+    app._marked_agents = {a1.identity, outside.identity}
+    app._marked_agent_order = [a1.identity, outside.identity]
+
+    app._toggle_mark_agent()
+
+    assert app._marked_agents == {a1.identity, a2.identity, outside.identity}
+    assert app._marked_agent_order == [outside.identity, a1.identity, a2.identity]
+
+
+def test_toggle_mark_on_focused_group_skips_workflow_children() -> None:
+    parent = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="parent",
+        raw_suffix="20240101120000",
+    )
+    child = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="parent",
+        raw_suffix="20240101120100",
+        parent_timestamp="20240101120000",
+    )
+    app = _FakeMarkApp([parent, child])
+    app._group_fold_registry.collapse(("proj_a", "parent"))
+    app._current_group_key = ("proj_a", "parent")
+
+    app._toggle_mark_agent()
+
+    assert parent.identity in app._marked_agents
+    assert child.identity not in app._marked_agents
+
+
+def test_toggle_mark_stale_group_key_falls_back_to_single_agent() -> None:
+    a1 = _make_agent(raw_suffix="20240101120000")
+    app = _FakeMarkApp([a1])
+    app._current_group_key = ("ghost",)
+
+    app._toggle_mark_agent()
+
+    assert app._marked_agents == {a1.identity}
+    assert app._current_group_key is None
+
+
+def test_group_marked_agents_are_seen_by_bulk_kill() -> None:
+    running = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="release-fix",
+        raw_suffix="20240101120000",
+        status="RUNNING",
+        pid=111,
+    )
+    done = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="release-fix",
+        raw_suffix="20240101130000",
+        status="DONE",
+        pid=None,
+    )
+    app = _FakeMarkApp([running, done])
+    app._group_fold_registry.collapse(("proj_a", "release-fix"))
+    app._current_group_key = ("proj_a", "release-fix")
+    app._toggle_mark_agent()
+
+    with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
+        app._bulk_kill_marked_agents()
+        app.pushed_callbacks[0](True)
+
+    mock_bulk.assert_called_once_with([running], [done])
+
+
+def test_group_mark_advance_lands_on_next_banner_stop() -> None:
+    alpha = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="alpha",
+        raw_suffix="20240101120000",
+    )
+    beta = _make_agent(
+        project_file="/tmp/projects/proj_a/proj_a.sase",
+        cl_name="beta",
+        raw_suffix="20240101130000",
+    )
+    app = _FakeMarkApp([alpha, beta])
+    app._group_fold_registry.collapse(("proj_a", "alpha"))
+    app._group_fold_registry.collapse(("proj_a", "beta"))
+    app._current_group_key = ("proj_a", "alpha")
+
+    app._toggle_mark_agent()
+
+    assert app._marked_agents == {alpha.identity}
+    assert app._current_group_key == ("proj_a", "beta")
+    assert app.current_idx == 1
+
+
 def test_toggle_mark_twice_removes_identity() -> None:
     a1 = _make_agent()
     app = _FakeMarkApp([a1])

@@ -25,6 +25,7 @@ from ._agent_list_build import (
 from ._agent_list_helpers import compute_fold_annotation
 from ._agent_list_rendering import (
     AgentRenderCache,
+    BannerMarkState,
     assemble_padded_option,
     format_agent_option,
     format_attempt_option,
@@ -424,6 +425,7 @@ class AgentList(OptionList, inherit_bindings=False):
         width: int,
         sequence: int,
         selectable: bool = False,
+        mark_state: BannerMarkState = "none",
     ) -> Option:
         """Render a group banner row Option."""
         return format_banner_option(
@@ -433,6 +435,7 @@ class AgentList(OptionList, inherit_bindings=False):
             sequence=sequence,
             selectable=selectable,
             mode=self._grouping_mode,
+            mark_state=mark_state,
         )
 
     def _format_attempt_option(

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 06:03:40
-status: wip
+status: done
 prompt: sdd/prompts/202606/mark_collapsed_agent_groups.md
 ---
 # Plan: Mark Collapsed Agent Groups on the Agents Tab

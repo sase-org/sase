@@ -9,7 +9,7 @@ concerns (bindings, messages, event wiring).
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from rich.text import Text
 from textual.widgets.option_list import Option
@@ -35,6 +35,8 @@ from ._agent_list_styling import (
     _MIN_BANNER_WIDTH,
     _PROJECT_BANNER_RULE_STYLE,
 )
+
+BannerMarkState = Literal["none", "partial", "all"]
 
 # ``widget`` is the :class:`AgentList` instance.  Importing the class
 # would create a circular import (``agent_list`` already imports this
@@ -154,6 +156,27 @@ def resolve_row(
             return (0, None, None)
         return (entry[0], entry[1], None)
     return (option_index, None, None)
+
+
+def _banner_mark_state(
+    group: GroupRow,
+    agents: list[Agent],
+    marked: set[tuple[AgentType, str, str | None]],
+) -> BannerMarkState:
+    """Classify top-level group members as unmarked, partially, or all marked."""
+    member_identities = [
+        agents[idx].identity
+        for idx in group.agent_indices
+        if 0 <= idx < len(agents) and not agents[idx].is_workflow_child
+    ]
+    if not member_identities:
+        return "none"
+    marked_count = sum(1 for identity in member_identities if identity in marked)
+    if marked_count == 0:
+        return "none"
+    if marked_count == len(member_identities):
+        return "all"
+    return "partial"
 
 
 def build_list(
@@ -301,6 +324,11 @@ def build_list(
                 if banner_selectable
                 else None
             )
+            mark_state = (
+                _banner_mark_state(entry.group, agents, marked)
+                if banner_selectable
+                else "none"
+            )
             option = cached_format_banner_option(
                 widget._agent_render_cache,
                 entry.group,
@@ -311,6 +339,7 @@ def build_list(
                 mode=grouping_mode,
                 tier_styles=tier_styles_for_banner,
                 hint_char=banner_hint,
+                mark_state=mark_state,
             )
             banner_seq += 1
             row_index = len(widget._row_entries)

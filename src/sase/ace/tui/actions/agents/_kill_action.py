@@ -447,18 +447,9 @@ class AgentKillMixin:
         banner is focused or the key no longer maps to a visible group
         (e.g. the underlying agents have all been dismissed).
         """
-        from ...models.agent_groups import GroupingMode, build_agent_tree
+        from ._group_focus import get_focused_agent_group
 
-        if self._current_group_key is None or not self._agents:
-            return None
-        registry = getattr(self, "_group_fold_registry", None)
-        mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        for entry in build_agent_tree(self._agents, fold_registry=registry, mode=mode):
-            if entry.kind != "group" or entry.group is None:
-                continue
-            if entry.group.group_key == self._current_group_key:
-                return entry.group
-        return None
+        return get_focused_agent_group(self)
 
     def _bulk_kill_group_agents(self, group: GroupRow) -> None:
         """Kill / dismiss every (top-level) agent in *group*.
@@ -470,13 +461,9 @@ class AgentKillMixin:
         ``_collect_immediate_kill_identities``, so listing them here
         would only inflate the modal.
         """
-        identities = set()
-        for idx in group.agent_indices:
-            if 0 <= idx < len(self._agents):
-                a = self._agents[idx]
-                if a.is_workflow_child:
-                    continue
-                identities.add(a.identity)
+        from ._group_focus import top_level_group_agents
+
+        identities = {a.identity for a in top_level_group_agents(group, self._agents)}
         agents = [a for a in self._agents_with_children if a.identity in identities]
         if not agents:
             self.notify("No agents in group", severity="warning")  # type: ignore[attr-defined]

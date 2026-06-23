@@ -8,7 +8,7 @@ byte-identical to the prior render.
 
 from collections import OrderedDict
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from rich.text import Text
 from textual.widgets.option_list import Option
@@ -21,6 +21,7 @@ from ._agent_list_helpers import ordered_row_providers
 
 _AGENT_CACHE_MAX = 512
 _BANNER_CACHE_MAX = 128
+BannerMarkState = Literal["none", "partial", "all"]
 
 
 def _bounded_lru_get(cache: "OrderedDict[Any, Any]", key: Any) -> Any:
@@ -176,6 +177,7 @@ def banner_render_key(
     mode: GroupingMode,
     tier_styles: tuple[str, ...],
     hint_char: str | None,
+    mark_state: BannerMarkState = "none",
 ) -> tuple[Any, ...]:
     """Stable cache key for :func:`format_banner_option`.
 
@@ -198,6 +200,7 @@ def banner_render_key(
         mode,
         tier_styles,
         hint_char,
+        mark_state,
         member_sig,
     )
 

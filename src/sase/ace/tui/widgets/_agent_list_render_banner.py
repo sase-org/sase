@@ -3,6 +3,8 @@ group banners, plus a memoized wrapper backed by
 :class:`AgentRenderCache`.
 """
 
+from typing import Literal
+
 from textual.widgets.option_list import Option
 
 from ..models.agent import Agent
@@ -32,6 +34,8 @@ from ._agent_list_styling import (
     _TIER_GUIDE_SEGMENT_WIDTH,
 )
 
+BannerMarkState = Literal["none", "partial", "all"]
+
 
 def format_banner_option(
     group: GroupRow,
@@ -43,6 +47,7 @@ def format_banner_option(
     mode: GroupingMode = GroupingMode.STANDARD,
     tier_styles: tuple[str, ...] = (),
     hint_char: str | None = None,
+    mark_state: BannerMarkState = "none",
 ) -> Option:
     """Render a group banner row Option.
 
@@ -124,19 +129,33 @@ def format_banner_option(
     if hint_char is not None:
         text.append(f"[{hint_char}] ", style="bold #FFFF00")
     hint_cells = 4 if hint_char is not None else 0
+    if mark_state == "all":
+        text.append("[✓] ", style="bold #00D700")
+    elif mark_state == "partial":
+        text.append("[~] ", style="dim #00D700")
+    mark_cells = 4 if mark_state != "none" else 0
     text.append(prefix, style=prefix_style)
     text.append(label, style=label_style)
     if chip:
         # ``<gutter><hint><prefix><label> <rule…>  <chip>``: 1-cell gap
         # before the rule, 2-cell gap before the chip.
-        used = gutter_cells + hint_cells + len(prefix) + len(label) + 1 + 2 + len(chip)
+        used = (
+            gutter_cells
+            + hint_cells
+            + mark_cells
+            + len(prefix)
+            + len(label)
+            + 1
+            + 2
+            + len(chip)
+        )
         pad_len = max(2, width - used)
         text.append(
             " " + rule_char * pad_len + "  " + chip,
             style=rule_style,
         )
     else:
-        used = gutter_cells + hint_cells + len(prefix) + len(label) + 1
+        used = gutter_cells + hint_cells + mark_cells + len(prefix) + len(label) + 1
         pad_len = max(2, width - used)
         text.append(" " + rule_char * pad_len, style=rule_style)
 
@@ -161,6 +180,7 @@ def cached_format_banner_option(
     mode: GroupingMode = GroupingMode.STANDARD,
     tier_styles: tuple[str, ...] = (),
     hint_char: str | None = None,
+    mark_state: BannerMarkState = "none",
 ) -> Option:
     """Memoized wrapper for :func:`format_banner_option`."""
     key = banner_render_key(
@@ -172,6 +192,7 @@ def cached_format_banner_option(
         mode=mode,
         tier_styles=tier_styles,
         hint_char=hint_char,
+        mark_state=mark_state,
     )
     hit = cache.get_banner(key)
     if hit is not None:
@@ -185,6 +206,7 @@ def cached_format_banner_option(
         mode=mode,
         tier_styles=tier_styles,
         hint_char=hint_char,
+        mark_state=mark_state,
     )
     cache.put_banner(key, option)
     return option

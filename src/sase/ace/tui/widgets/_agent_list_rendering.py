@@ -17,6 +17,7 @@ from ._agent_list_render_agent import (
 )
 from ._agent_list_render_attempt import format_attempt_option
 from ._agent_list_render_banner import (
+    BannerMarkState,
     cached_format_banner_option,
     format_banner_option,
 )
@@ -29,6 +30,7 @@ from ._agent_list_render_layout import assemble_padded_option
 
 __all__ = [
     "AgentRenderCache",
+    "BannerMarkState",
     "agent_render_key",
     "assemble_padded_option",
     "banner_render_key",

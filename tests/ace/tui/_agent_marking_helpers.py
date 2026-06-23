@@ -136,6 +136,33 @@ class _FakeMarkApp(AgentMarkingMixin, AgentUnreadMixin, MarkingMixin):
             if entry.kind == "agent" and entry.agent_idx is not None
         ]
 
+    def _panel_navigation_stops(self) -> list[tuple[str, int | tuple[str, ...]]]:
+        from sase.ace.tui.models.agent_groups import build_agent_tree
+
+        tree = build_agent_tree(self._agents, fold_registry=self._group_fold_registry)
+        stops: list[tuple[str, int | tuple[str, ...]]] = []
+        for entry in tree:
+            if entry.kind == "group" and entry.group is not None:
+                if entry.group.is_collapsed:
+                    stops.append(("banner", entry.group.group_key))
+            elif entry.kind == "agent" and entry.agent_idx is not None:
+                stops.append(("agent", entry.agent_idx))
+        return stops
+
+    def _panel_navigation_stop_maps(
+        self,
+    ) -> tuple[dict[int, int], dict[tuple[str, ...], int]]:
+        agent_positions: dict[int, int] = {}
+        banner_positions: dict[tuple[str, ...], int] = {}
+        for pos, (kind, payload) in enumerate(self._panel_navigation_stops()):
+            if kind == "agent":
+                assert isinstance(payload, int)
+                agent_positions[payload] = pos
+            else:
+                assert isinstance(payload, tuple)
+                banner_positions[payload] = pos
+        return agent_positions, banner_positions
+
     def _get_selected_agent(self) -> Agent | None:
         if 0 <= self.current_idx < len(self._agents):
             return self._agents[self.current_idx]

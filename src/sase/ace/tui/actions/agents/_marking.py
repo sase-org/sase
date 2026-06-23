@@ -149,7 +149,10 @@ class AgentMarkingMixin:
         return result
 
     def _toggle_mark_agent(self) -> None:
-        """Toggle the mark on the currently-selected agent."""
+        """Toggle the mark on the selected agent or focused group."""
+        if self._current_group_key is not None and self._toggle_mark_focused_group():
+            return
+
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
@@ -185,6 +188,106 @@ class AgentMarkingMixin:
                 self._try_patch_agent_row(new_agent)  # type: ignore[attr-defined]
         if not patched:
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+
+    def _toggle_mark_focused_group(self) -> bool:
+        """Toggle all top-level members of the focused collapsed group.
+
+        Returns ``False`` when the stored group key is stale, allowing the
+        caller to fall through to the single-agent path just like kill/dismiss.
+        """
+        from ._group_focus import get_focused_agent_group, top_level_group_agents
+
+        group = get_focused_agent_group(self)
+        if group is None:
+            return False
+
+        members = top_level_group_agents(group, self._agents)
+        if not members:
+            self.notify("No agents in group", severity="warning")  # type: ignore[attr-defined]
+            return True
+
+        identities = [agent.identity for agent in members]
+        if all(identity in self._marked_agents for identity in identities):
+            for identity in identities:
+                self._forget_marked_agent(identity)
+        else:
+            for identity in identities:
+                self._record_marked_agent(identity)
+
+        prev_idx = self.current_idx
+        prev_group_key = self._current_group_key
+        self._advance_mark_group_selection(prev_idx, prev_group_key)
+        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        return True
+
+    def _advance_mark_group_selection(
+        self,
+        prev_idx: int,
+        prev_group_key: tuple[str, ...] | None,
+    ) -> None:
+        """Move focus to the next selectable stop after a group mark."""
+        if not self._agents or prev_group_key is None:
+            return
+
+        try:
+            stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
+        except Exception:
+            stops = []
+        if not stops:
+            return
+
+        stop_maps = getattr(self, "_panel_navigation_stop_maps", None)
+        agent_positions: dict[int, int] = {}
+        banner_positions: dict[tuple[str, ...], int] = {}
+        if callable(stop_maps):
+            try:
+                agent_positions, banner_positions = stop_maps()
+            except Exception:
+                agent_positions, banner_positions = {}, {}
+        if not banner_positions:
+            for stop_pos, (kind, payload) in enumerate(stops):
+                if kind == "banner":
+                    assert isinstance(payload, tuple)
+                    banner_positions[payload] = stop_pos
+                else:
+                    assert isinstance(payload, int)
+                    agent_positions[payload] = stop_pos
+
+        current_pos = banner_positions.get(prev_group_key)
+        if current_pos is None:
+            current_pos = agent_positions.get(prev_idx)
+        if current_pos is None:
+            return
+
+        kind, payload = stops[(current_pos + 1) % len(stops)]
+        if kind == "banner":
+            assert isinstance(payload, tuple)
+            self._current_group_key = payload
+            self._set_current_idx_to_group_anchor(payload)
+            return
+
+        assert isinstance(payload, int)
+        self.current_idx = payload
+        self._current_group_key = None
+        if 0 <= payload < len(self._agents):
+            self._acknowledge_mark_selection_arrival(self._agents[payload])
+
+    def _set_current_idx_to_group_anchor(self, group_key: tuple[str, ...]) -> None:
+        """Set ``current_idx`` to a banner group's first backing agent."""
+        from ._group_focus import get_focused_agent_group
+
+        old_key = self._current_group_key
+        self._current_group_key = group_key
+        try:
+            group = get_focused_agent_group(self)
+        finally:
+            self._current_group_key = old_key
+        if group is None:
+            return
+        for idx in group.agent_indices:
+            if 0 <= idx < len(self._agents):
+                self.current_idx = idx
+                return
 
     def _advance_mark_selection(self, prev_idx: int) -> tuple[bool, Agent | None, bool]:
         """Move mark focus to the next visible agent row.
