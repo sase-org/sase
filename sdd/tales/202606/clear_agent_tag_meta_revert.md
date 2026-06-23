@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 08:25:59
-status: wip
+status: done
 prompt: sdd/prompts/202606/clear_agent_tag_meta_revert.md
 ---
 # Fix: Clearing an agent's group/tag reverts when the agent name contains `<group>.`

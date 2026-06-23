@@ -189,6 +189,40 @@ def test_apply_unset_drops_tag(tmp_path: Path) -> None:
     assert persisted == []
 
 
+def test_apply_unset_strips_meta_only_tag(tmp_path: Path) -> None:
+    tag_file = tmp_path / "agent_tags.json"
+    artifacts_dir = tmp_path / "artifacts" / "ace-run" / "20240101120000"
+    artifacts_dir.mkdir(parents=True)
+    meta_path = artifacts_dir / "agent_meta.json"
+    meta_path.write_text(
+        json.dumps({"name": "foo.bar", "tag": "foo", "model": "test-model"}),
+        encoding="utf-8",
+    )
+    agent = _make_agent(artifacts_dir=str(artifacts_dir), agent_name="foo.bar")
+    agent.tag = "foo"
+    app = _FakeApp([agent])
+
+    with (
+        patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file),
+        patch(
+            "sase.core.agent_artifact_index_lifecycle."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+    ):
+        app._apply_agent_tag_change(
+            AgentTagModalResult(action="unset", tag=None),
+            [agent],
+        )
+
+    assert agent.tag is None
+    assert json.loads(tag_file.read_text(encoding="utf-8")) == []
+    assert json.loads(meta_path.read_text(encoding="utf-8")) == {
+        "name": "foo.bar",
+        "model": "test-model",
+    }
+    assert app.refresh_calls == 1
+
+
 def test_marked_bulk_path_targets_marked_agents(tmp_path: Path) -> None:
     tag_file = tmp_path / "agent_tags.json"
     a1 = _make_agent(suffix="t1")

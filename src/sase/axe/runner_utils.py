@@ -196,6 +196,61 @@ def write_agent_meta(
         print(f"Warning: Failed to write agent_meta.json: {e}")
 
 
+def clear_agent_meta_tag(artifacts_dir: str) -> bool:
+    """Remove the Agents-tab tag from an agent_meta.json file.
+
+    Returns True when a ``tag`` field was removed and persisted. Missing,
+    unreadable, malformed, or already-untagged metadata is treated as a safe
+    no-op.
+    """
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        logger.debug(
+            "clear_agent_meta_tag: metadata missing or unreadable: %s",
+            meta_path,
+        )
+        return False
+
+    if not isinstance(data, dict) or "tag" not in data:
+        return False
+
+    data.pop("tag", None)
+    tmp_path = f"{meta_path}.tmp.{os.getpid()}"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+        os.replace(tmp_path, meta_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        logger.debug(
+            "clear_agent_meta_tag: failed to write %s",
+            meta_path,
+            exc_info=True,
+        )
+        return False
+
+    try:
+        from sase.core.agent_artifact_index_lifecycle import (
+            update_agent_artifact_index_for_marker_mutation,
+        )
+
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    except Exception:
+        logger.debug(
+            "clear_agent_meta_tag: failed to update artifact index for %s",
+            artifacts_dir,
+            exc_info=True,
+        )
+    return True
+
+
 def _detect_and_write_agent_meta(
     artifacts_dir: str,
     project_file: str,

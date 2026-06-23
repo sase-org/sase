@@ -11,6 +11,7 @@ from sase.ace.agent_tags import REVIEW_AGENT_TAG
 from sase.axe.runner_utils import (
     _killed_state,
     all_steps_hidden,
+    clear_agent_meta_tag,
     detect_write_and_persist_review_agent_meta,
     finalize_axe_runner,
     install_sigterm_handler,
@@ -180,6 +181,44 @@ def test_detect_write_and_persist_review_agent_meta(tmp_path: Path) -> None:
         }
     ]
     assert calls == [str(artifacts_dir)]
+
+
+def test_clear_agent_meta_tag_removes_only_tag(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "agent" / "20260623120000"
+    artifacts_dir.mkdir(parents=True)
+    meta_path = artifacts_dir / "agent_meta.json"
+    meta_path.write_text(
+        json.dumps({"name": "foo.bar", "tag": "foo", "model": "test-model"}),
+        encoding="utf-8",
+    )
+    calls: list[str] = []
+
+    with patch(
+        "sase.core.agent_artifact_index_lifecycle."
+        "update_agent_artifact_index_for_marker_mutation",
+        side_effect=lambda path: calls.append(path),
+    ):
+        assert clear_agent_meta_tag(str(artifacts_dir)) is True
+
+    with open(meta_path, encoding="utf-8") as f:
+        meta = json.load(f)
+    assert meta == {"name": "foo.bar", "model": "test-model"}
+    assert calls == [str(artifacts_dir)]
+
+
+def test_clear_agent_meta_tag_safe_noops(tmp_path: Path) -> None:
+    missing_dir = tmp_path / "missing"
+    assert clear_agent_meta_tag(str(missing_dir)) is False
+
+    artifacts_dir = tmp_path / "agent"
+    artifacts_dir.mkdir()
+    meta_path = artifacts_dir / "agent_meta.json"
+    meta_path.write_text(json.dumps({"name": "foo.bar"}), encoding="utf-8")
+    assert clear_agent_meta_tag(str(artifacts_dir)) is False
+    assert json.loads(meta_path.read_text(encoding="utf-8")) == {"name": "foo.bar"}
+
+    meta_path.write_text("{not-json", encoding="utf-8")
+    assert clear_agent_meta_tag(str(artifacts_dir)) is False
 
 
 # Tests for finalize_axe_runner

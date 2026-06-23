@@ -121,14 +121,24 @@ class AgentTaggingMixin:
         affected_identities = {agent.identity for agent in affected}
         for agent in affected:
             before = store.get(agent.identity)
+            visible_before = agent.tag
+            meta_tag_cleared = False
             if result.action == "set":
                 assert result.tag is not None
                 set_tag(store, agent.identity, result.tag)
                 after: str | None = result.tag
             else:
+                from sase.axe.runner_utils import clear_agent_meta_tag
+
                 unset_tag(store, agent.identity)
+                artifacts_dir = agent.get_artifacts_dir()
+                if artifacts_dir:
+                    meta_tag_cleared = clear_agent_meta_tag(artifacts_dir)
                 after = None
-            if after != before:
+            if result.action == "unset":
+                if before is not None or visible_before is not None or meta_tag_cleared:
+                    changed += 1
+            elif after != before:
                 changed += 1
             for candidates in (self._agents, self._agents_with_children):
                 for candidate in candidates:
