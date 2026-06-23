@@ -145,7 +145,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     d(a.start_agent_from_changespec),
                     "Repeat last +/Ctrl+Space selection",
                 ),
-                (d(a.browse_xprompts), "Browse xprompts"),
+                (d(a.open_config_center), "Config center / xprompts"),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.refresh), "Refresh"),

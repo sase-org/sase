@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from rich.text import Text
 
-from sase.ace.tui.modals.xprompt_browser_modal import XPromptBrowserModal
+from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
 from sase.ace.tui.modals.xprompt_browser_helpers import (
     append_input_args,
     classify_source,
@@ -77,15 +77,15 @@ def test_browser_filters_and_previews_descriptions() -> None:
 
     with (
         patch(
-            "sase.ace.tui.modals.xprompt_browser_modal.get_all_prompts",
+            "sase.ace.tui.modals.xprompt_browser_pane.get_all_prompts",
             return_value=prompts,
         ),
         patch("sase.xprompt.loader.get_all_project_local_prompts", return_value={}),
     ):
-        modal = XPromptBrowserModal()
+        pane = XPromptBrowserPane()
 
-    modal._rebuild_groups("file to inspect")
-    assert [item.name for item in modal._get_flat_items()] == ["review"]
-    preview = modal._create_simple_preview(prompts["review"])
+    pane._rebuild_groups("file to inspect")
+    assert [item.name for item in pane._get_flat_items()] == ["review"]
+    preview = pane._create_simple_preview(prompts["review"])
     assert "Review a selected diff." in preview
     assert "Diff file to inspect." in preview

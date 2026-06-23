@@ -1,0 +1,174 @@
+"""Config Center modal: a tabbed home for config editing and xprompts.
+
+The Config Center is a full-screen ``ModalScreen`` that hosts two internal
+tabs over a :class:`ContentSwitcher`:
+
+- **Config** (leftmost, default focus on open) — the schema-driven config
+  editor skeleton (:class:`ConfigPane`); filled in by later phases.
+- **XPrompts** — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
+
+``#`` opens the modal on the **Config** tab. ``[`` / ``]`` cycle the two
+tabs with modulo wrapping, mirroring the notification panel's sub-tab
+navigation. The clickable tab strip mirrors the app's :class:`TabBar`.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Literal
+
+from rich.text import Text
+from textual import on
+from textual.app import ComposeResult
+from textual.containers import Container
+from textual.events import Click
+from textual.message import Message
+from textual.screen import ModalScreen
+from textual.widgets import ContentSwitcher, Label, Static
+
+from .config_pane import ConfigPane
+from .xprompt_browser_pane import XPromptBrowserPane
+
+CenterTab = Literal["config", "xprompts"]
+
+_TAB_ORDER: tuple[CenterTab, ...] = ("config", "xprompts")
+_TAB_LABELS: list[tuple[CenterTab, str]] = [
+    ("config", "Config"),
+    ("xprompts", "XPrompts"),
+]
+_TAB_COLORS: dict[CenterTab, str] = {
+    "config": "#00D7AF",
+    "xprompts": "#87D7FF",
+}
+
+
+class _ConfigCenterTabStrip(Static):
+    """Clickable one-line tab strip for the Config Center modal."""
+
+    class TabClicked(Message):
+        """Message emitted when a tab is clicked."""
+
+        def __init__(self, tab: CenterTab) -> None:
+            super().__init__()
+            self.tab: CenterTab = tab
+
+    def __init__(self, active_tab: CenterTab, **kwargs: Any) -> None:
+        self._active_tab: CenterTab = active_tab
+        self._tab_ranges: dict[CenterTab, tuple[int, int]] = {}
+        super().__init__(self._build_content(), **kwargs)
+
+    def set_active_tab(self, active_tab: CenterTab) -> None:
+        """Refresh the active tab indicator."""
+        self._active_tab = active_tab
+        self.update(self._build_content())
+
+    def _build_content(self) -> Text:
+        text = Text()
+        self._tab_ranges.clear()
+        for index, (tab, label) in enumerate(_TAB_LABELS):
+            if index > 0:
+                text.append(" │ ", style="#444444")
+            is_active = tab == self._active_tab
+            style = f"bold {_TAB_COLORS[tab]}" if is_active else "#888888"
+            start = len(text.plain)
+            text.append(f" {label} ", style=style)
+            self._tab_ranges[tab] = (start, len(text.plain))
+        return text
+
+    def on_click(self, event: Click) -> None:
+        for tab, (start, end) in self._tab_ranges.items():
+            if start <= event.x < end:
+                if tab != self._active_tab:
+                    self.post_message(self.TabClicked(tab))
+                return
+
+
+class ConfigCenterModal(ModalScreen[None]):
+    """Full-screen modal hosting the Config and XPrompts tabs."""
+
+    BINDINGS = [
+        ("escape", "close", "Close"),
+        ("q", "close", "Close"),
+        ("left_square_bracket", "prev_center_tab", "Prev Tab"),
+        ("right_square_bracket", "next_center_tab", "Next Tab"),
+    ]
+
+    def __init__(
+        self,
+        project: str | None = None,
+        *,
+        initial_tab: CenterTab = "config",
+    ) -> None:
+        super().__init__()
+        self._project = project
+        self._active_tab: CenterTab = (
+            initial_tab if initial_tab in _TAB_ORDER else "config"
+        )
+
+    def compose(self) -> ComposeResult:
+        with Container(id="config-center-container"):
+            yield Label("Config Center", id="config-center-title")
+            yield _ConfigCenterTabStrip(self._active_tab, id="config-center-tabs")
+            with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
+                yield ConfigPane(id="config")
+                yield XPromptBrowserPane(self._project, id="xprompts")
+
+    def on_mount(self) -> None:
+        self._focus_active_pane()
+
+    def _active_pane(self) -> ConfigPane | XPromptBrowserPane | None:
+        """Return the currently visible pane widget."""
+        if self._active_tab == "config":
+            try:
+                return self.query_one("#config", ConfigPane)
+            except Exception:
+                return None
+        try:
+            return self.query_one("#xprompts", XPromptBrowserPane)
+        except Exception:
+            return None
+
+    def _focus_active_pane(self) -> None:
+        pane = self._active_pane()
+        focus_default = getattr(pane, "focus_default", None)
+        if callable(focus_default):
+            focus_default()
+
+    def _switch_to(self, tab: CenterTab) -> None:
+        if tab == self._active_tab:
+            return
+        self._active_tab = tab
+        try:
+            switcher = self.query_one("#config-center-switcher", ContentSwitcher)
+            switcher.current = tab
+        except Exception:
+            return
+        try:
+            strip = self.query_one("#config-center-tabs", _ConfigCenterTabStrip)
+            strip.set_active_tab(tab)
+        except Exception:
+            pass
+        self._focus_active_pane()
+
+    def action_close(self) -> None:
+        """Close the Config Center."""
+        self.dismiss(None)
+
+    def action_prev_center_tab(self) -> None:
+        """Switch to the previous tab (wrapping)."""
+        if len(_TAB_ORDER) <= 1:
+            return
+        index = _TAB_ORDER.index(self._active_tab)
+        self._switch_to(_TAB_ORDER[(index - 1) % len(_TAB_ORDER)])
+
+    def action_next_center_tab(self) -> None:
+        """Switch to the next tab (wrapping)."""
+        if len(_TAB_ORDER) <= 1:
+            return
+        index = _TAB_ORDER.index(self._active_tab)
+        self._switch_to(_TAB_ORDER[(index + 1) % len(_TAB_ORDER)])
+
+    @on(_ConfigCenterTabStrip.TabClicked)
+    def _on_tab_clicked(self, event: _ConfigCenterTabStrip.TabClicked) -> None:
+        """Handle mouse selection of a tab."""
+        event.stop()
+        self._switch_to(event.tab)

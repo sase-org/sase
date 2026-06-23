@@ -283,7 +283,13 @@ _APP_COMMAND_META: tuple[
     ("toggle_hide_submitted", "Toggle hide submitted", "Display", _CL_ONLY, ()),
     ("show_notifications", "Show notifications", "Display", _ALL_TABS, ()),
     ("show_help", "Show help", "Display", _ALL_TABS, ("?",)),
-    ("browse_xprompts", "Browse xprompts", "Display", _ALL_TABS, ("#",)),
+    (
+        "open_config_center",
+        "Open config center",
+        "Display",
+        _ALL_TABS,
+        ("#", "config", "configuration", "xprompts", "browse xprompts"),
+    ),
     (
         "dismiss_toasts",
         "Dismiss toasts",

@@ -127,7 +127,7 @@ ace:
       toggle_hide_submitted: "x"
       show_notifications: "i"
       show_help: "question_mark"
-      browse_xprompts: "number_sign"
+      open_config_center: "number_sign"
       open_command_palette: "colon,semicolon"
       dismiss_toasts: "ctrl+l"
       # Workspace mode prefixes

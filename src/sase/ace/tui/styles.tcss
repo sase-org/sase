@@ -2853,12 +2853,12 @@ SavedAgentGroupRevivalModal #saved-agent-group-hints {
     margin-top: 1;
 }
 
-/* XPrompt browser modal styling */
-XPromptBrowserModal {
+/* Config Center modal styling (config editor + xprompt browser) */
+ConfigCenterModal {
     align: center middle;
 }
 
-XPromptBrowserModal > Container {
+ConfigCenterModal > Container {
     width: 92%;
     height: 85%;
     border: thick $primary;
@@ -2866,54 +2866,130 @@ XPromptBrowserModal > Container {
     padding: 1 2;
 }
 
-XPromptBrowserModal #browser-title {
+ConfigCenterModal #config-center-title {
+    text-style: bold;
+    height: 1;
+}
+
+ConfigCenterModal #config-center-tabs {
+    height: 1;
+    margin-bottom: 1;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+ConfigCenterModal #config-center-switcher {
+    width: 100%;
+    height: 1fr;
+}
+
+ConfigCenterModal ConfigPane,
+ConfigCenterModal XPromptBrowserPane {
+    width: 100%;
+    height: 100%;
+}
+
+/* Config tab skeleton (Phase 3 placeholder; filled by Phases 4-5) */
+ConfigPane #config-pane-title {
+    text-style: bold;
+    height: 1;
+    margin-bottom: 1;
+}
+
+ConfigPane #config-pane-panels {
+    width: 100%;
+    height: 1fr;
+}
+
+ConfigPane #config-source-rail {
+    width: 32;
+    height: 100%;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+ConfigPane #config-field-tree {
+    width: 1fr;
+    height: 100%;
+    border: solid $secondary;
+    margin: 0 1;
+    padding: 0 1;
+}
+
+ConfigPane #config-detail {
+    width: 40%;
+    height: 100%;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+ConfigPane .config-region-header {
+    text-style: bold;
+    color: $text-muted;
+    height: 1;
+}
+
+ConfigPane .config-placeholder {
+    color: $text-muted;
+    height: auto;
+}
+
+ConfigPane #config-pane-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
+/* XPrompts tab (migrated XPrompt Browser body) */
+XPromptBrowserPane #browser-title {
     text-style: bold;
     margin-bottom: 1;
 }
 
-XPromptBrowserModal #browser-filter-input {
+XPromptBrowserPane #browser-filter-input {
     width: 100%;
     margin-bottom: 1;
 }
 
-XPromptBrowserModal #browser-panels {
+XPromptBrowserPane #browser-panels {
     width: 100%;
     height: 1fr;
 }
 
-XPromptBrowserModal #browser-list-panel {
+XPromptBrowserPane #browser-list-panel {
     width: 40;
     height: 100%;
 }
 
-XPromptBrowserModal OptionList {
+XPromptBrowserPane OptionList {
     height: 1fr;
     border: solid $secondary;
 }
 
-XPromptBrowserModal #browser-preview-panel {
+XPromptBrowserPane #browser-preview-panel {
     width: 1fr;
     height: 100%;
     margin-left: 1;
 }
 
-XPromptBrowserModal #browser-preview-scroll {
+XPromptBrowserPane #browser-preview-scroll {
     height: 1fr;
     border: solid $secondary;
     padding: 0 1;
 }
 
-XPromptBrowserModal #browser-preview {
+XPromptBrowserPane #browser-preview {
     height: auto;
 }
 
-XPromptBrowserModal #browser-meta {
+XPromptBrowserPane #browser-meta {
     height: auto;
     padding: 1 1 0 1;
     max-height: 8;
 }
 
-XPromptBrowserModal #browser-hints {
+XPromptBrowserPane #browser-hints {
     height: 1;
     color: $text-muted;
     text-align: center;

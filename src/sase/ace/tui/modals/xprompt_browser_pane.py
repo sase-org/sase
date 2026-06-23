@@ -1,12 +1,20 @@
-"""XPrompt browser modal for exploring and managing xprompts."""
+"""Reusable XPrompt browser pane for the Config Center modal.
+
+This widget hosts the body of the former ``XPromptBrowserModal`` (filter
+input, grouped list, preview, and metadata) so it can live inside the
+**XPrompts** tab of the :class:`ConfigCenterModal` content switcher. All
+behavior of the old browser is preserved; the only structural change is
+that the surrounding ``ModalScreen`` chrome (centering container, escape
+handling, tab navigation) now belongs to the host modal.
+"""
 
 from __future__ import annotations
 
 from rich.syntax import Syntax
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, Vertical, VerticalScroll
-from textual.screen import ModalScreen
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
@@ -19,16 +27,17 @@ from sase.xprompt.reference_display import (
 )
 from sase.xprompt.workflow_models import Workflow
 
-from .base import OptionListNavigationMixin
 from .xprompt_browser_actions import XPromptBrowserActionsMixin
 from .xprompt_browser_helpers import BrowserItem, append_input_args, classify_source
 
 
 class _BrowserFilterInput(Input):
-    """Custom input for XPrompt browser with navigation key bindings.
+    """Custom input for the XPrompt browser with navigation key bindings.
 
-    Since the filter input always has focus, Ctrl-key combinations are used
-    for navigation and actions to avoid conflicts with text input.
+    Since the filter input always has focus while the XPrompts tab is
+    active, Ctrl-key combinations are used for navigation and actions to
+    avoid conflicts with text input. The ``[`` / ``]`` keys are forwarded
+    to the host Config Center so tab switching works even while typing.
     """
 
     BINDINGS = [
@@ -42,43 +51,80 @@ class _BrowserFilterInput(Input):
         ("ctrl+o", "forward('add_xprompt')", "Add"),
     ]
 
+    def on_key(self, event: events.Key) -> None:
+        """Forward ``[`` / ``]`` to the host modal before they become text.
+
+        Printable keys are consumed by :class:`Input` as text, so a normal
+        binding for ``[`` / ``]`` would never fire while the filter input
+        has focus. Intercepting them here (and calling ``prevent_default``)
+        lets the Config Center tab strip respond to the same keys the
+        notification panel uses.
+        """
+        if event.key in ("left_square_bracket", "right_square_bracket"):
+            host = self.screen
+            prev_tab = getattr(host, "action_prev_center_tab", None)
+            next_tab = getattr(host, "action_next_center_tab", None)
+            if callable(prev_tab) and callable(next_tab):
+                event.stop()
+                event.prevent_default()
+                if event.key == "left_square_bracket":
+                    prev_tab()
+                else:
+                    next_tab()
+
+    def _pane(self) -> XPromptBrowserPane | None:
+        """Return the owning :class:`XPromptBrowserPane`, if any."""
+        node: object | None = self.parent
+        while node is not None:
+            if isinstance(node, XPromptBrowserPane):
+                return node
+            node = getattr(node, "parent", None)
+        return None
+
     def action_forward(self, action_name: str) -> None:
-        """Forward an action to the parent modal."""
-        modal = self.screen
-        if isinstance(modal, XPromptBrowserModal):
-            getattr(modal, f"action_{action_name}")()
+        """Forward an action to the owning pane."""
+        pane = self._pane()
+        if pane is not None:
+            getattr(pane, f"action_{action_name}")()
 
     def action_scroll_preview_down(self) -> None:
         """Scroll the preview panel down."""
-        modal = self.screen
-        if isinstance(modal, XPromptBrowserModal):
-            modal.scroll_preview_down()
+        pane = self._pane()
+        if pane is not None:
+            pane.scroll_preview_down()
 
     def action_scroll_preview_up_or_clear(self) -> None:
         """Scroll preview up, or clear input if already at top."""
-        modal = self.screen
-        if isinstance(modal, XPromptBrowserModal):
-            scroll = modal.query_one("#browser-preview-scroll", VerticalScroll)
-            if scroll.scroll_y > 0:
-                modal.scroll_preview_up()
-            elif self.cursor_position > 0:
-                self.value = self.value[self.cursor_position :]
-                self.cursor_position = 0
+        pane = self._pane()
+        if pane is None:
+            return
+        scroll = pane.query_one("#browser-preview-scroll", VerticalScroll)
+        if scroll.scroll_y > 0:
+            pane.scroll_preview_up()
+        elif self.cursor_position > 0:
+            self.value = self.value[self.cursor_position :]
+            self.cursor_position = 0
 
 
-class XPromptBrowserModal(
-    XPromptBrowserActionsMixin, OptionListNavigationMixin, ModalScreen[None]
-):
-    """Modal for browsing, inspecting, and managing xprompts."""
+class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
+    """Pane for browsing, inspecting, and managing xprompts."""
 
     _option_list_id = "browser-list"
     BINDINGS = [
-        *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        ("j", "next_option", "Next"),
+        ("k", "prev_option", "Previous"),
+        ("down", "next_option", "Next"),
+        ("up", "prev_option", "Previous"),
+        ("ctrl+n", "next_option", "Next"),
+        ("ctrl+p", "prev_option", "Previous"),
+        ("ctrl+o", "add_xprompt", "Add"),
+        ("ctrl+d", "scroll_preview_down", "Scroll Down"),
+        ("ctrl+u", "scroll_preview_up", "Scroll Up"),
         ("enter", "edit_xprompt", "Edit"),
     ]
 
-    def __init__(self, project: str | None = None) -> None:
-        super().__init__()
+    def __init__(self, project: str | None = None, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
         self._project = project
         self._all_items: list[BrowserItem] = []
         self._grouped: list[tuple[str, list[BrowserItem]]] = []
@@ -204,29 +250,30 @@ class XPromptBrowserModal(
 
     def compose(self) -> ComposeResult:
         total = len(self._all_items)
-        with Container(id="browser-container"):
-            yield Label(
-                f"XPrompt Browser [{total} xprompts]",
-                id="browser-title",
-            )
-            yield _BrowserFilterInput(
-                placeholder="Type to filter...",
-                id="browser-filter-input",
-            )
-            with Horizontal(id="browser-panels"):
-                with Vertical(id="browser-list-panel"):
-                    yield OptionList(
-                        *self._create_options(),
-                        id="browser-list",
-                    )
-                with Vertical(id="browser-preview-panel"):
-                    with VerticalScroll(id="browser-preview-scroll"):
-                        yield Static("", id="browser-preview")
-                    yield Static("", id="browser-meta")
-            yield Static(
-                "^n/^p: navigate  enter: edit  ^o: add new  ^d/^u: scroll  Esc: close",
-                id="browser-hints",
-            )
+        yield Label(
+            f"XPrompt Browser [{total} xprompts]",
+            id="browser-title",
+        )
+        yield _BrowserFilterInput(
+            placeholder="Type to filter...",
+            id="browser-filter-input",
+        )
+        with Horizontal(id="browser-panels"):
+            with Vertical(id="browser-list-panel"):
+                yield OptionList(
+                    *self._create_options(),
+                    id="browser-list",
+                )
+            with Vertical(id="browser-preview-panel"):
+                with VerticalScroll(id="browser-preview-scroll"):
+                    yield Static("", id="browser-preview")
+                yield Static("", id="browser-meta")
+        yield Static(
+            "^n/^p: navigate  enter: edit  ^o: add new  ^d/^u: scroll  "
+            "[ / ]: switch tab  Esc: close",
+            id="browser-hints",
+            markup=False,
+        )
 
     def _create_options(self) -> list[Option]:
         """Create OptionList items with group headers as disabled options."""
@@ -263,13 +310,18 @@ class XPromptBrowserModal(
         return text
 
     def on_mount(self) -> None:
-        filter_input = self.query_one("#browser-filter-input", _BrowserFilterInput)
-        filter_input.focus()
         flat_items = self._get_flat_items()
         if flat_items:
             self._update_preview(flat_items[0])
             option_list = self.query_one("#browser-list", OptionList)
             self._skip_to_first_item(option_list)
+
+    def focus_default(self) -> None:
+        """Focus the filter input (called when the XPrompts tab activates)."""
+        try:
+            self.query_one("#browser-filter-input", _BrowserFilterInput).focus()
+        except Exception:
+            pass
 
     def _skip_to_first_item(self, option_list: OptionList) -> None:
         """Skip to the first non-header item."""
@@ -528,6 +580,14 @@ class XPromptBrowserModal(
         scroll = self.query_one("#browser-preview-scroll", VerticalScroll)
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=-(height // 2), animate=False)
+
+    def action_scroll_preview_down(self) -> None:
+        """Action wrapper so the binding can scroll the preview down."""
+        self.scroll_preview_down()
+
+    def action_scroll_preview_up(self) -> None:
+        """Action wrapper so the binding can scroll the preview up."""
+        self.scroll_preview_up()
 
 
 def _input_preview_lines(inputs: list[InputArg]) -> list[str]:
