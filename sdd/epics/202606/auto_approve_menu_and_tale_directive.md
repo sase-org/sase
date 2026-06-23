@@ -1,5 +1,7 @@
 ---
 create_time: 2026-06-23 18:31:14
+bead_id: sase-56
+tier: epic
 status: wip
 prompt: sdd/prompts/202606/auto_approve_menu_and_tale_directive.md
 ---
