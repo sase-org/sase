@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 18:24:50
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_number_increment.md
 ---
 # Plan: Vim-style `<ctrl+a>` / `<ctrl+x>` number increment/decrement in the prompt input

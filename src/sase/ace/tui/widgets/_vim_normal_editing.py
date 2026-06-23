@@ -147,6 +147,9 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
         if key == "~":
             self._toggle_case(count)
             return True
+        if event.key in ("ctrl+a", "ctrl+x"):
+            self._apply_number_change(count if event.key == "ctrl+a" else -count)
+            return True
 
         if key == "J":
             self._join_lines(count)

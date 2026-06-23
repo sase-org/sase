@@ -9,6 +9,7 @@ from sase.ace.tui.widgets._vim_motions import (
     find_char_backward,
     find_char_forward,
 )
+from sase.ace.tui.widgets._vim_number import compute_number_change
 from sase.ace.tui.widgets._vim_normal_surround import VimNormalSurroundMixin
 from sase.ace.tui.widgets._vim_registers import first_non_blank_col
 from sase.ace.tui.widgets._vim_transforms import (
@@ -343,6 +344,23 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         self._replace_via_keyboard(toggled, (row, col), (row, col))
         self.read_only = was_readonly
         self.cursor_location = (row, end)
+        self._record_mutation()
+
+    def _apply_number_change(self, delta: int) -> None:
+        """Increment or decrement the next number in the prompt by *delta*."""
+        cursor = self._absolute_offset(self.cursor_location)
+        change = compute_number_change(self.text, cursor, delta)
+        if change is None:
+            return
+
+        start = self._location_from_absolute(change.start)
+        end = self._location_from_absolute(change.end)
+        was_readonly = self.read_only
+        self.read_only = False
+        self.delete(start, end)
+        self._replace_via_keyboard(change.new_text, start, start)
+        self.read_only = was_readonly
+        self.cursor_location = self._location_from_absolute(change.new_cursor)
         self._record_mutation()
 
     def _join_lines(self, count: int) -> None:

@@ -1928,26 +1928,28 @@ Text objects compose with `d`, `c`, and `y`.
 
 #### Other Commands
 
-| Key      | Action                                                       |
-| -------- | ------------------------------------------------------------ |
-| `i`      | Enter INSERT mode                                            |
-| `v`      | Enter charwise VISUAL mode                                   |
-| `V`      | Enter linewise V-LINE mode                                   |
-| `a`      | Append after cursor                                          |
-| `A`      | Append at end of line                                        |
-| `I`      | Insert at line start                                         |
-| `o`      | Open line below                                              |
-| `O`      | Open line above                                              |
-| `u`      | Undo                                                         |
-| `Ctrl+R` | Redo                                                         |
-| `x`      | Delete character                                             |
-| `X`      | Delete character before cursor                               |
-| `r{c}`   | Replace character(s) at cursor (supports count: `3rx`)       |
-| `p`      | Paste after cursor / below line from the internal register   |
-| `P`      | Paste before cursor / above line from the internal register  |
-| `~`      | Toggle case of character(s) at cursor (supports count: `5~`) |
-| `.`      | Repeat last mutation (supports count: `3.`)                  |
-| `J`      | Join current line with next (supports count: `5J`)           |
+| Key      | Action                                                                                    |
+| -------- | ----------------------------------------------------------------------------------------- |
+| `i`      | Enter INSERT mode                                                                         |
+| `v`      | Enter charwise VISUAL mode                                                                |
+| `V`      | Enter linewise V-LINE mode                                                                |
+| `a`      | Append after cursor                                                                       |
+| `A`      | Append at end of line                                                                     |
+| `I`      | Insert at line start                                                                      |
+| `o`      | Open line below                                                                           |
+| `O`      | Open line above                                                                           |
+| `u`      | Undo                                                                                      |
+| `Ctrl+R` | Redo                                                                                      |
+| `Ctrl+A` | Increment the number at/after cursor, wrapping to the prompt top (supports count and `.`) |
+| `Ctrl+X` | Decrement the number at/after cursor, wrapping to the prompt top (supports count and `.`) |
+| `x`      | Delete character                                                                          |
+| `X`      | Delete character before cursor                                                            |
+| `r{c}`   | Replace character(s) at cursor (supports count: `3rx`)                                    |
+| `p`      | Paste after cursor / below line from the internal register                                |
+| `P`      | Paste before cursor / above line from the internal register                               |
+| `~`      | Toggle case of character(s) at cursor (supports count: `5~`)                              |
+| `.`      | Repeat last mutation (supports count: `3.`)                                               |
+| `J`      | Join current line with next (supports count: `5J`)                                        |
 
 The border subtitle shows pending operators and counts (e.g., `2d` when a delete with count 2 is pending).
 
