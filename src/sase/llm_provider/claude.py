@@ -10,10 +10,11 @@ from typing import TYPE_CHECKING, Any
 
 from sase.output import provider_timer
 
+from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_json_output
 from .base import LLMProvider
-from .types import InvokeResult, ModelTier
+from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
@@ -22,6 +23,12 @@ if TYPE_CHECKING:
 _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "opus",
     "small": "sonnet",
+}
+
+# Reasoning-effort levels Claude Code honors via ``--effort <level>``. Claude
+# rejects ``none``/``minimal`` (epic sase-55 provider support matrix).
+_EFFORT_CLI_ARGS: dict[str, list[str]] = {
+    level: ["--effort", level] for level in ("low", "medium", "high", "xhigh", "max")
 }
 
 
@@ -109,6 +116,12 @@ class ClaudeCodeProvider(LLMProvider):
             preserve_workspace=True,
         )
 
+    def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
+        """Translate a resolved reasoning effort into ``--effort`` args."""
+        return effort_cli_args(
+            options, provider_label="Claude", supported=_EFFORT_CLI_ARGS
+        )
+
     @hookimpl
     def llm_invoke(
         self,
@@ -116,12 +129,14 @@ class ClaudeCodeProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool,
         model_override: str | None,
+        options: LLMInvocationOptions | None,
     ) -> InvokeResult:
         return self.invoke(
             prompt,
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,
+            options=options,
         )
 
     def invoke(
@@ -131,6 +146,7 @@ class ClaudeCodeProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool = False,
         model_override: str | None = None,
+        options: LLMInvocationOptions | None = None,
     ) -> InvokeResult:
         """Invoke Claude Code CLI with the given prompt.
 
@@ -140,6 +156,8 @@ class ClaudeCodeProvider(LLMProvider):
             suppress_output: If True, suppress real-time output to console.
             model_override: If set, use this model name directly instead of
                 mapping from ``model_tier``.
+            options: Resolved per-invocation options; the reasoning effort is
+                translated into ``--effort`` args.
 
         Returns:
             An ``InvokeResult`` with the response text and token usage.
@@ -148,6 +166,7 @@ class ClaudeCodeProvider(LLMProvider):
             subprocess.CalledProcessError: If the Claude CLI process fails.
         """
         model_alias = model_override if model_override else _TIER_TO_MODEL[model_tier]
+        effort_args = self.invocation_option_args(options)
 
         # Parse additional args from environment variable based on tier
         # Check generic SASE_LLM_*_ARGS first, fall back to Claude-specific
@@ -180,6 +199,7 @@ class ClaudeCodeProvider(LLMProvider):
             total_usage=total_usage,
             cycle=cycle,
             model_alias=model_alias,
+            effort_args=effort_args,
             extra_args_env=extra_args_env,
             timer_context=timer_context,
             suppress_output=suppress_output,
@@ -193,6 +213,7 @@ class ClaudeCodeProvider(LLMProvider):
         total_usage: dict[str, int],
         cycle: int,
         model_alias: str,
+        effort_args: list[str],
         extra_args_env: str | None,
         timer_context: Any,
         suppress_output: bool,
@@ -211,6 +232,8 @@ class ClaudeCodeProvider(LLMProvider):
                 "--session-id",
                 session_uuid,
             ]
+
+            base_args.extend(effort_args)
 
             if extra_args_env:
                 for arg in extra_args_env.split():

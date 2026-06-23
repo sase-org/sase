@@ -30,9 +30,11 @@ from .postprocessing import (
 from .preprocessing import preprocess_prompt
 from sase.xprompt.directives import PromptDirectives
 from .commit_finalizer import run_commit_finalizer
+from .config import resolve_effective_effort
 from .registry import get_default_provider_name, get_provider, resolve_model_provider
 from .types import (
     LLMInvocationError,
+    LLMInvocationOptions,
     _MODEL_SIZE_TO_TIER,
     _MODEL_TIER_TO_LABEL,
     LoggingContext,
@@ -138,6 +140,15 @@ def invoke_agent(
         result_directives = result.directives
     model_override = result_directives.model
 
+    # Resolve the effective reasoning effort (explicit %effort/@effort beats
+    # the llm_provider.default_effort config) into per-invocation options that
+    # each provider translates into its own CLI args.
+    effective_effort, effort_explicit = resolve_effective_effort(result_directives)
+    invocation_options = LLMInvocationOptions(
+        reasoning_effort=effective_effort,
+        explicit=effort_explicit,
+    )
+
     # Resolve provider from model override (e.g. "o3" → codex, "codex/o3" → codex)
     if model_override and not provider_name:
         original_model_override = model_override
@@ -214,6 +225,7 @@ def invoke_agent(
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,
+            options=invocation_options,
         )
         invoke_result = run_commit_finalizer(
             provider=provider,
@@ -223,6 +235,7 @@ def invoke_agent(
             suppress_output=suppress_output,
             model_override=model_override,
             artifacts_dir=artifacts_dir,
+            options=invocation_options,
         )
         response_content = invoke_result.content
 

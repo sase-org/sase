@@ -14,10 +14,11 @@ from typing import TYPE_CHECKING
 from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
 from sase.output import provider_timer
 
+from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_codex_json_output
 from .base import LLMProvider
-from .types import InvokeResult, ModelTier
+from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
@@ -26,6 +27,14 @@ if TYPE_CHECKING:
 _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "gpt-5.5",
     "small": "codex-mini-latest",
+}
+
+# Reasoning-effort levels Codex honors via ``-c model_reasoning_effort=...``.
+# Codex rejects ``none``/``max`` (epic sase-55 provider support matrix). The
+# quoted value mirrors the ``SASE_CODEX_LARGE_ARGS`` escape hatch exactly.
+_EFFORT_CLI_ARGS: dict[str, list[str]] = {
+    level: ["-c", f'model_reasoning_effort="{level}"']
+    for level in ("minimal", "low", "medium", "high", "xhigh")
 }
 _DISABLE_SHADOW_HOME_ENV = "SASE_CODEX_DISABLE_SHADOW_HOME"
 _CODEX_PATH_ENV = "SASE_CODEX_PATH"
@@ -275,6 +284,12 @@ class CodexProvider(LLMProvider):
             preserve_workspace=True,
         )
 
+    def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
+        """Translate a resolved reasoning effort into ``-c`` config args."""
+        return effort_cli_args(
+            options, provider_label="Codex", supported=_EFFORT_CLI_ARGS
+        )
+
     @hookimpl
     def llm_invoke(
         self,
@@ -282,12 +297,14 @@ class CodexProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool,
         model_override: str | None,
+        options: LLMInvocationOptions | None,
     ) -> InvokeResult:
         return self.invoke(
             prompt,
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,
+            options=options,
         )
 
     def invoke(
@@ -297,6 +314,7 @@ class CodexProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool = False,
         model_override: str | None = None,
+        options: LLMInvocationOptions | None = None,
     ) -> InvokeResult:
         """Invoke Codex CLI with the given prompt.
 
@@ -306,6 +324,8 @@ class CodexProvider(LLMProvider):
             suppress_output: If True, suppress real-time output to console.
             model_override: If set, use this model name directly instead of
                 mapping from ``model_tier``.
+            options: Resolved per-invocation options; the reasoning effort is
+                translated into ``-c model_reasoning_effort=...`` args.
 
         Returns:
             An ``InvokeResult`` with the response text (usage is ``None``).
@@ -331,6 +351,8 @@ class CodexProvider(LLMProvider):
             "--skip-git-repo-check",
             "-",
         ]
+
+        base_args.extend(self.invocation_option_args(options))
 
         # Parse additional args from environment variable based on tier
         if model_tier == "large":

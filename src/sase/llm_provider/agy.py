@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
 from sase.output import provider_timer
 
+from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_process_output
 from ._subprocess_agy import (
@@ -32,7 +33,12 @@ from ._subprocess_agy import (
     prepare_agy_tool_call_extraction,
 )
 from .base import LLMProvider
-from .types import InvokeResult, LLMInvocationError, ModelTier
+from .types import (
+    InvokeResult,
+    LLMInvocationError,
+    LLMInvocationOptions,
+    ModelTier,
+)
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
@@ -350,6 +356,17 @@ class AgyProvider(LLMProvider):
             preserve_workspace=True,
         )
 
+    def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
+        """Reject explicit effort; skip a config default (``agy`` has none).
+
+        Antigravity exposes no reasoning-effort mechanism today, so the
+        supported map is empty: an explicit ``%effort`` raises while a
+        config-default effort is logged and skipped.
+        """
+        return effort_cli_args(
+            options, provider_label="Antigravity (agy)", supported={}
+        )
+
     @hookimpl
     def llm_invoke(
         self,
@@ -357,12 +374,14 @@ class AgyProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool,
         model_override: str | None,
+        options: LLMInvocationOptions | None,
     ) -> InvokeResult:
         return self.invoke(
             prompt,
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,
+            options=options,
         )
 
     def invoke(
@@ -372,6 +391,7 @@ class AgyProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool = False,
         model_override: str | None = None,
+        options: LLMInvocationOptions | None = None,
     ) -> InvokeResult:
         """Invoke the Antigravity CLI with the given prompt.
 
@@ -380,6 +400,9 @@ class AgyProvider(LLMProvider):
             model_tier: Which model tier to resolve when no override is given.
             suppress_output: If True, suppress real-time output to console.
             model_override: If set, use this model name directly.
+            options: Resolved per-invocation options. Antigravity supports no
+                reasoning effort, so an explicit effort raises here before any
+                subprocess launches; a config-default effort is skipped.
 
         Returns:
             An ``InvokeResult`` with the response text. ``usage`` is ``None``
@@ -388,6 +411,8 @@ class AgyProvider(LLMProvider):
         Raises:
             subprocess.CalledProcessError: If the ``agy`` process fails.
             FileNotFoundError: If the ``agy`` executable cannot be launched.
+            LLMInvocationError: If an explicit reasoning effort is requested
+                (Antigravity cannot honor any effort level).
         """
         agy_bin = _agy_bin()
         model = model_override if model_override else _TIER_TO_MODEL[model_tier]
@@ -403,6 +428,8 @@ class AgyProvider(LLMProvider):
             "--add-dir",
             workspace_dir,
         ]
+
+        base_args.extend(self.invocation_option_args(options))
 
         if model_tier == "large":
             extra_args_env = os.environ.get(

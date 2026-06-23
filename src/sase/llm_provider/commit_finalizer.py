@@ -39,7 +39,7 @@ from .commit_finalizer_types import (
     SiblingTarget,
 )
 from .base import LLMProvider
-from .types import InvokeResult, ModelTier
+from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 _DirtyRepoKind = finalizer_types._DirtyRepoKind
 _FinalizerStatus = finalizer_types._FinalizerStatus
@@ -132,8 +132,14 @@ def run_commit_finalizer(
     suppress_output: bool,
     model_override: str | None,
     artifacts_dir: str | None = None,
+    options: LLMInvocationOptions | None = None,
 ) -> InvokeResult:
-    """Run bounded commit finalization after a successful provider turn."""
+    """Run bounded commit finalization after a successful provider turn.
+
+    ``options`` carries the same resolved per-invocation options (e.g.
+    reasoning effort) used for the original turn, so commit/fix follow-ups run
+    at the same effort instead of falling back to the provider default.
+    """
     config = _load_finalizer_config()
     artifact_root = _artifact_root(artifacts_dir)
 
@@ -223,6 +229,7 @@ def run_commit_finalizer(
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,
+            options=options,
         )
         _write_text(
             artifact_root,

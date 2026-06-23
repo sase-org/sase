@@ -16,8 +16,10 @@ from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.preprocessing import PreprocessResult
 from sase.llm_provider.registry import get_default_provider_name
 from sase.llm_provider.temporary_override import set_temporary_override
-from sase.llm_provider.types import InvokeResult
+from sase.llm_provider.types import InvokeResult, LLMInvocationOptions
 from sase.xprompt.directives import PromptDirectives
+
+_NO_EFFORT = LLMInvocationOptions(reasoning_effort=None, explicit=False)
 
 
 # ---------------------------------------------------------------------------
@@ -93,6 +95,7 @@ def test_invoke_agent_applies_active_override(
         model_tier="large",
         suppress_output=True,
         model_override="o3",
+        options=_NO_EFFORT,
     )
 
 
@@ -123,6 +126,7 @@ def test_invoke_agent_prompt_directive_beats_override(
         model_tier="large",
         suppress_output=True,
         model_override="opus",
+        options=_NO_EFFORT,
     )
 
 
@@ -155,6 +159,7 @@ def test_invoke_agent_explicit_provider_name_beats_override(
         model_tier="large",
         suppress_output=True,
         model_override=None,
+        options=_NO_EFFORT,
     )
 
 
@@ -192,6 +197,7 @@ def test_invoke_agent_expired_override_ignored(
         model_tier="large",
         suppress_output=True,
         model_override=None,
+        options=_NO_EFFORT,
     )
 
 

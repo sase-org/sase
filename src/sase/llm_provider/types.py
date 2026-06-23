@@ -31,6 +31,26 @@ class InvokeResult:
     usage: dict[str, int] | None = None
 
 
+@dataclass(frozen=True)
+class LLMInvocationOptions:
+    """Per-invocation options resolved from prompt directives plus config.
+
+    Threaded from :func:`invoke_agent` through the provider chain so a resolved
+    reasoning-effort level becomes the right per-run CLI args. ``explicit``
+    records whether the effort was requested explicitly (``%effort``/
+    ``@effort``) or merely inherited from ``llm_provider.default_effort``: the
+    provider adapter raises on an unsupported *explicit* effort but silently
+    skips an unsupported *default* one, so a global default never breaks a run.
+
+    The field spells the internal name ``reasoning_effort`` to match
+    ``PromptDirectives`` and the persisted ``agent_meta.json`` field; only the
+    public ``%effort`` directive/config surface uses the shorter ``effort``.
+    """
+
+    reasoning_effort: str | None = None
+    explicit: bool = False
+
+
 @dataclass
 class LoggingContext:
     """Context for logging prompts and responses."""

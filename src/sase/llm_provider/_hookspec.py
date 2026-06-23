@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pluggy
 
-from .types import InvokeResult, ModelTier
+from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
@@ -41,6 +41,7 @@ class LLMHookSpec:
         model_tier: ModelTier,
         suppress_output: bool,
         model_override: str | None,
+        options: LLMInvocationOptions | None,
     ) -> InvokeResult: ...
 
     @hookspec(firstresult=True)

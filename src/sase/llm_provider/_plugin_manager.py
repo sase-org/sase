@@ -3,7 +3,7 @@
 import pluggy
 
 from .base import LLMProvider
-from .types import InvokeResult, ModelTier
+from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 
 class LLMPluginManager(LLMProvider):
@@ -26,12 +26,14 @@ class LLMPluginManager(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool = False,
         model_override: str | None = None,
+        options: LLMInvocationOptions | None = None,
     ) -> InvokeResult:
         result = self._pm.hook.llm_invoke(
             prompt=prompt,
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,
+            options=options,
         )
         if result is None:
             raise NotImplementedError("invoke is not supported by this LLM provider")

@@ -1,9 +1,14 @@
 """Configuration reader for the LLM provider layer."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from sase.config import load_merged_config
 from sase.xprompt.effort import is_valid_effort
+
+if TYPE_CHECKING:
+    from sase.xprompt.directives import PromptDirectives
 
 _ALIAS_RESOLUTION_DEPTH_LIMIT = 16
 
@@ -49,6 +54,34 @@ def get_default_effort() -> str | None:
     if level and is_valid_effort(level):
         return level
     return None
+
+
+def resolve_effective_effort(
+    directives: PromptDirectives,
+) -> tuple[str | None, bool]:
+    """Resolve the effective reasoning effort and whether it was explicit.
+
+    Precedence (epic sase-55 design decisions):
+
+    1. An explicit per-branch ``%effort``/``@effort`` value
+       (``directives.reasoning_effort``) — returned with ``explicit=True``.
+    2. The ``llm_provider.default_effort`` config value — returned with
+       ``explicit=False`` (best-effort: providers silently skip levels they
+       cannot honor).
+    3. Nothing — ``(None, False)`` so each runtime keeps its own default.
+
+    Centralizing the precedence here (reused by invocation and, later, the TUI
+    metadata) keeps display and behavior from ever disagreeing. The ``explicit``
+    flag lets the provider adapter raise on an unsupported *explicit* request
+    while quietly skipping an unsupported *config-default* one.
+    """
+    explicit_effort = directives.reasoning_effort
+    if explicit_effort:
+        return explicit_effort, True
+    default_effort = get_default_effort()
+    if default_effort:
+        return default_effort, False
+    return None, False
 
 
 def _get_model_aliases() -> dict[str, str]:

@@ -9,10 +9,11 @@ from pathlib import Path
 
 from sase.output import provider_timer
 
+from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_qwen_json_output
 from .base import LLMProvider
-from .types import InvokeResult, ModelTier
+from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "qwen3.6-plus",
@@ -118,6 +119,15 @@ class QwenProvider(LLMProvider):
     def llm_autodetect_cli_name(self) -> str:
         return "qwen"
 
+    def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
+        """Reject explicit effort; skip a config default (Qwen has none).
+
+        Qwen Code exposes no reasoning-effort mechanism today, so the supported
+        map is empty: an explicit ``%effort`` raises while a config-default
+        effort is logged and skipped.
+        """
+        return effort_cli_args(options, provider_label="Qwen", supported={})
+
     @hookimpl
     def llm_invoke(
         self,
@@ -125,12 +135,14 @@ class QwenProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool,
         model_override: str | None,
+        options: LLMInvocationOptions | None,
     ) -> InvokeResult:
         return self.invoke(
             prompt,
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,
+            options=options,
         )
 
     def invoke(
@@ -140,8 +152,14 @@ class QwenProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool = False,
         model_override: str | None = None,
+        options: LLMInvocationOptions | None = None,
     ) -> InvokeResult:
-        """Invoke Qwen Code with the given prompt."""
+        """Invoke Qwen Code with the given prompt.
+
+        ``options`` carries the resolved reasoning effort; Qwen supports none,
+        so an explicit effort raises here before launch and a config-default
+        effort is skipped.
+        """
         model = model_override if model_override else _TIER_TO_MODEL[model_tier]
 
         base_args = [
@@ -154,6 +172,8 @@ class QwenProvider(LLMProvider):
             "--model",
             model,
         ]
+
+        base_args.extend(self.invocation_option_args(options))
 
         if model_tier == "large":
             extra_args_env = os.environ.get(

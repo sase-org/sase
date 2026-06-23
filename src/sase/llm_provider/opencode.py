@@ -9,16 +9,27 @@ from pathlib import Path
 
 from sase.output import provider_timer
 
+from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+
+from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_opencode_json_output
 from .base import LLMProvider
-from .types import InvokeResult, ModelTier
+from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "anthropic/claude-sonnet-4-5",
     "small": "openai/gpt-5-mini",
 }
 _OPENCODE_PATH_ENV = "SASE_OPENCODE_PATH"
+
+# OpenCode forwards reasoning effort via ``--variant <level>`` ("Model variant
+# (provider-specific reasoning effort)"); the level is validated downstream by
+# OpenCode/the model API, so every canonical level is forwarded and an invalid
+# combination surfaces as a CLI run error rather than a SASE-side rejection.
+_EFFORT_CLI_ARGS: dict[str, list[str]] = {
+    level: ["--variant", level] for level in EFFORT_LEVELS_ORDERED
+}
 
 
 def _opencode_bin() -> str:
@@ -121,6 +132,12 @@ class OpenCodeProvider(LLMProvider):
     def llm_autodetect_cli_name(self) -> str:
         return "opencode"
 
+    def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
+        """Translate a resolved reasoning effort into ``--variant`` args."""
+        return effort_cli_args(
+            options, provider_label="OpenCode", supported=_EFFORT_CLI_ARGS
+        )
+
     @hookimpl
     def llm_invoke(
         self,
@@ -128,12 +145,14 @@ class OpenCodeProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool,
         model_override: str | None,
+        options: LLMInvocationOptions | None,
     ) -> InvokeResult:
         return self.invoke(
             prompt,
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,
+            options=options,
         )
 
     def invoke(
@@ -143,6 +162,7 @@ class OpenCodeProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool = False,
         model_override: str | None = None,
+        options: LLMInvocationOptions | None = None,
     ) -> InvokeResult:
         """Invoke OpenCode with the given prompt."""
         model = model_override if model_override else _TIER_TO_MODEL[model_tier]
@@ -158,6 +178,8 @@ class OpenCodeProvider(LLMProvider):
             "--dir",
             os.getcwd(),
         ]
+
+        base_args.extend(self.invocation_option_args(options))
 
         if model_tier == "large":
             extra_args_env = os.environ.get(

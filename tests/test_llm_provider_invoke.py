@@ -8,9 +8,15 @@ import pytest
 
 from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.messages import AIMessage
-from sase.llm_provider.types import InvokeResult, LLMInvocationError
+from sase.llm_provider.types import (
+    InvokeResult,
+    LLMInvocationError,
+    LLMInvocationOptions,
+)
 from sase.llm_provider.preprocessing import _PreprocessResult
 from sase.xprompt.directives import PromptDirectives
+
+_NO_EFFORT = LLMInvocationOptions(reasoning_effort=None, explicit=False)
 
 
 @patch("sase.llm_provider._invoke.get_provider")
@@ -66,6 +72,7 @@ def test_invoke_agent_model_size_backward_compat(
         model_tier="small",
         suppress_output=True,
         model_override=None,
+        options=_NO_EFFORT,
     )
 
 
@@ -121,6 +128,7 @@ def test_invoke_agent_model_tier_override_env(
             model_tier="small",
             suppress_output=True,
             model_override=None,
+            options=_NO_EFFORT,
         )
     finally:
         del os.environ["SASE_MODEL_TIER_OVERRIDE"]
@@ -154,6 +162,7 @@ def test_invoke_agent_resolves_model_alias_for_provider_and_model(
         model_tier="large",
         suppress_output=True,
         model_override="opus",
+        options=_NO_EFFORT,
     )
 
 
@@ -200,6 +209,7 @@ def test_invoke_agent_warns_when_model_override_falls_back_to_default_provider(
         model_tier="large",
         suppress_output=True,
         model_override="unregistered-model",
+        options=_NO_EFFORT,
     )
     assert "unregistered-model" in caplog.text
     assert "codex" in caplog.text
@@ -233,6 +243,7 @@ def test_invoke_agent_model_size_override_env_compat(
             model_tier="small",
             suppress_output=True,
             model_override=None,
+            options=_NO_EFFORT,
         )
     finally:
         del os.environ["SASE_MODEL_SIZE_OVERRIDE"]
