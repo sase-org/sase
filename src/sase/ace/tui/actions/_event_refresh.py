@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.paths import sase_projects_dir, sase_subdir
 
 from ._debug_leaks import debug_leaks_enabled, log_leak_snapshot
@@ -33,6 +34,7 @@ PROMPT_INPUT_DEFER_SECONDS = 0.25
 # often the dirty flag is re-armed by inotify. Sanity refreshes bypass it.
 AGENTS_LOAD_MIN_INTERVAL_SECONDS = 5.0
 AGENT_ARTIFACT_DELTA_QUEUE_LIMIT = 64
+EXPECTED_AGENT_ARTIFACT_DELETION_TTL_SECONDS = 30.0
 
 _AGENTS_RELEVANT_ARTIFACT_MARKERS = frozenset(
     {
@@ -146,6 +148,36 @@ def _artifact_dir_from_known_marker_path(path: Path) -> Path | None:
     return None
 
 
+def _looks_like_agent_artifact_dir_path(relative_parts: tuple[str, ...]) -> bool:
+    """Return True for a specific per-agent artifact directory path."""
+    if len(relative_parts) == 1:
+        return _is_artifact_timestamp(relative_parts[0])
+    if len(relative_parts) == 2:
+        return _is_artifact_timestamp(relative_parts[1])
+    if len(relative_parts) == 4:
+        return _is_sharded_ace_run_dir_path(relative_parts)
+    return False
+
+
+def _artifact_dir_from_directory_path(path: Path) -> Path | None:
+    """Return the exact artifact dir for a directory-level artifact event."""
+    relative_parts = _artifact_relative_parts(path)
+    if relative_parts is None or not relative_parts:
+        return None
+    if path.suffix != "":
+        return None
+    if not _looks_like_agent_artifact_dir_path(relative_parts):
+        return None
+
+    try:
+        parsed = parse_agent_artifact_path(path)
+    except (ImportError, AttributeError, OSError, RuntimeError, ValueError):
+        parsed = None
+    if parsed is not None:
+        return Path(parsed.artifact_dir)
+    return path
+
+
 def _agent_has_live_file_panel(agent: Agent) -> bool:
     """Return True when the detail view can live-refresh this row's file panel."""
     if agent.status not in _LIVE_FILE_REFRESH_STATUSES:
@@ -166,48 +198,60 @@ class EventRefreshMixin(EventHandlersBase):
 
     def _agent_artifact_delta_dir_for_path(
         self, path: Path
-    ) -> tuple[Path | None, bool]:
-        """Return ``(artifact_dir, affects_agents)`` for one watcher path."""
+    ) -> tuple[Path | None, bool, bool]:
+        """Return ``(artifact_dir, affects_agents, deleted_dir)`` for a path."""
         notifications_root = sase_subdir("notifications")
         if notifications_root in (path, *path.parents):
-            return None, False
+            return None, False, False
         beads_dir = Path.cwd() / "sdd" / "beads"
         if beads_dir in (path, *path.parents):
-            return None, False
+            return None, False, False
         if path.suffix in {".sase", ".gp"}:
-            return None, False
+            return None, False, False
         if "artifacts" in path.parts:
             if not _artifact_path_affects_agents(path):
-                return None, False
-            return _artifact_dir_from_known_marker_path(path), True
+                return None, False, False
+            marker_dir = _artifact_dir_from_known_marker_path(path)
+            if marker_dir is not None:
+                return marker_dir, True, False
+            directory_dir = _artifact_dir_from_directory_path(path)
+            if directory_dir is None:
+                return None, True, False
+            deleted_dir = not path.exists()
+            return directory_dir, True, deleted_dir
         projects_root = sase_projects_dir()
         if projects_root in (path, *path.parents):
-            return None, True
-        return None, True
+            return None, True, False
+        return None, True, False
 
     def _agent_artifact_delta_dirs_for_paths(
         self, changed_paths: tuple[Path, ...] | None
-    ) -> tuple[list[Path], AgentRefreshFallbackReason | None]:
+    ) -> tuple[list[Path], list[Path], AgentRefreshFallbackReason | None]:
         """Classify watcher paths as an exact artifact-dir batch or fallback."""
         if not changed_paths:
-            return [], "unknown_watcher_path"
+            return [], [], "unknown_watcher_path"
 
         artifact_dirs: list[Path] = []
+        deleted_artifact_dirs: list[Path] = []
         unmapped_agents_path = False
         for path in changed_paths:
-            artifact_dir, affects_agents = self._agent_artifact_delta_dir_for_path(path)
+            artifact_dir, affects_agents, deleted_dir = (
+                self._agent_artifact_delta_dir_for_path(path)
+            )
             if not affects_agents:
                 continue
             if artifact_dir is None:
                 unmapped_agents_path = True
                 continue
             artifact_dirs.append(artifact_dir)
+            if deleted_dir:
+                deleted_artifact_dirs.append(artifact_dir)
 
         if unmapped_agents_path:
-            return [], "unknown_watcher_path"
+            return [], [], "unknown_watcher_path"
         if not artifact_dirs:
-            return [], None
-        return artifact_dirs, None
+            return [], [], None
+        return artifact_dirs, deleted_artifact_dirs, None
 
     def _enqueue_agent_artifact_delta_paths(
         self, changed_paths: tuple[Path, ...] | None
@@ -216,33 +260,48 @@ class EventRefreshMixin(EventHandlersBase):
         if getattr(self, "_dirty_agent_artifact_fallback_reason", None) is not None:
             return
 
-        artifact_dirs, fallback_reason = self._agent_artifact_delta_dirs_for_paths(
-            changed_paths
+        artifact_dirs, deleted_dirs, fallback_reason = (
+            self._agent_artifact_delta_dirs_for_paths(changed_paths)
         )
         if fallback_reason is not None:
             self._dirty_agent_artifact_dirs = ()
+            self._dirty_deleted_agent_artifact_dirs = ()
             self._dirty_agent_artifact_fallback_reason = fallback_reason
             return
         if not artifact_dirs:
             return
 
         queued: list[Path] = list(getattr(self, "_dirty_agent_artifact_dirs", ()))
+        queued_deleted: list[Path] = list(
+            getattr(self, "_dirty_deleted_agent_artifact_dirs", ())
+        )
         seen = {str(path) for path in queued}
+        deleted_seen = {str(path) for path in queued_deleted}
+        deleted_keys = {str(Path(path).expanduser()) for path in deleted_dirs}
         for artifact_dir in artifact_dirs:
             path = Path(artifact_dir).expanduser()
             key = str(path)
             if key in seen:
+                if key in deleted_keys and key not in deleted_seen:
+                    queued_deleted.append(path)
+                    deleted_seen.add(key)
                 continue
             if len(queued) >= AGENT_ARTIFACT_DELTA_QUEUE_LIMIT:
                 self._dirty_agent_artifact_dirs = ()
+                self._dirty_deleted_agent_artifact_dirs = ()
                 self._dirty_agent_artifact_fallback_reason = "dirty_queue_overflow"
                 return
             seen.add(key)
             queued.append(path)
+            if key in deleted_keys and key not in deleted_seen:
+                queued_deleted.append(path)
+                deleted_seen.add(key)
         self._dirty_agent_artifact_dirs = tuple(queued)
+        self._dirty_deleted_agent_artifact_dirs = tuple(queued_deleted)
 
     def _clear_agent_artifact_delta_state(self) -> None:
         self._dirty_agent_artifact_dirs = ()
+        self._dirty_deleted_agent_artifact_dirs = ()
         self._dirty_agent_artifact_fallback_reason = None
 
     def _record_agent_artifact_delta_fallback(
@@ -264,6 +323,9 @@ class EventRefreshMixin(EventHandlersBase):
         artifact_dirs = list(getattr(self, "_dirty_agent_artifact_dirs", ()))
         if not artifact_dirs:
             return False
+        deleted_artifact_dirs = list(
+            getattr(self, "_dirty_deleted_agent_artifact_dirs", ())
+        )
         schedule_delta = getattr(self, "_schedule_agent_artifact_delta_refresh", None)
         if not callable(schedule_delta):
             self._dirty_agent_artifact_fallback_reason = "delta_read_failure"
@@ -273,8 +335,77 @@ class EventRefreshMixin(EventHandlersBase):
             )
             return False
         self._clear_agent_artifact_delta_state()
-        schedule_delta(artifact_dirs, source=source)
+        kwargs: dict[str, Any] = {"source": source}
+        if deleted_artifact_dirs and _callable_accepts_kwarg(
+            schedule_delta, "deleted_artifact_dirs"
+        ):
+            kwargs["deleted_artifact_dirs"] = deleted_artifact_dirs
+        schedule_delta(artifact_dirs, **kwargs)
         return True
+
+    def _register_expected_agent_artifact_deletion(
+        self, artifacts_dir: str | Path | None
+    ) -> None:
+        """Record an artifact dir the TUI cleanup worker is about to delete."""
+        if not artifacts_dir:
+            return
+        registry = getattr(self, "_expected_agent_artifact_deletions", None)
+        lock = getattr(self, "_expected_agent_artifact_deletions_lock", None)
+        if registry is None or lock is None:
+            return
+
+        now = time.monotonic()
+        key = str(Path(artifacts_dir).expanduser())
+        with lock:
+            self._prune_expected_agent_artifact_deletions_locked(now)
+            registry[key] = now + EXPECTED_AGENT_ARTIFACT_DELETION_TTL_SECONDS
+
+    def _prune_expected_agent_artifact_deletions_locked(self, now_mono: float) -> None:
+        registry = getattr(self, "_expected_agent_artifact_deletions", None)
+        if not registry:
+            return
+        expired = [
+            key for key, expires_at in registry.items() if expires_at <= now_mono
+        ]
+        for key in expired:
+            registry.pop(key, None)
+
+    def _registered_self_deletion_key_for_path(self, path: Path) -> str | None:
+        registry = getattr(self, "_expected_agent_artifact_deletions", None)
+        if not registry:
+            return None
+        candidate = Path(path).expanduser()
+        for key in registry:
+            registered = Path(key)
+            if candidate == registered or registered in candidate.parents:
+                return key
+        return None
+
+    def _filter_expected_self_deletion_paths(
+        self, changed_paths: tuple[Path, ...] | None
+    ) -> tuple[Path, ...] | None:
+        if not changed_paths:
+            return changed_paths
+        registry = getattr(self, "_expected_agent_artifact_deletions", None)
+        lock = getattr(self, "_expected_agent_artifact_deletions_lock", None)
+        if registry is None or lock is None:
+            return changed_paths
+
+        remaining: list[Path] = []
+        consumed: set[str] = set()
+        now = time.monotonic()
+        with lock:
+            self._prune_expected_agent_artifact_deletions_locked(now)
+            for path in changed_paths:
+                key = self._registered_self_deletion_key_for_path(path)
+                if key is None:
+                    remaining.append(path)
+                    continue
+                if Path(path).expanduser() == Path(key):
+                    consumed.add(key)
+            for key in consumed:
+                registry.pop(key, None)
+        return tuple(remaining)
 
     def _on_artifact_change(
         self, changed_paths: tuple[Path, ...] | None = None
@@ -301,6 +432,9 @@ class EventRefreshMixin(EventHandlersBase):
                 delay,
                 callback,
             )
+            return
+        changed_paths = self._filter_expected_self_deletion_paths(changed_paths)
+        if changed_paths is not None and not changed_paths:
             return
         targets = self._dirty_surfaces_for_paths(changed_paths)
         if not targets:

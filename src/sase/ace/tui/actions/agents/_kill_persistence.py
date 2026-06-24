@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
@@ -41,6 +42,8 @@ def persist_kill_side_effects(
     kind: KillKind,
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: AgentCleanupPlanWire | None = None,
+    *,
+    register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> bool:
     """Apply filesystem/project-file side effects for a kill operation.
 
@@ -52,6 +55,7 @@ def persist_kill_side_effects(
     consumed_intents = persist_cleanup_side_effect_intents(
         cleanup_plan,
         agents_with_children_snapshot,
+        register_expected_deletion=register_expected_deletion,
     )
     if consumed_intents and kind in {"running", "workflow"}:
         return True
@@ -65,7 +69,11 @@ def persist_kill_side_effects(
     elif kind == "crs":
         _persist_crs_kill(agent)
     elif kind == "workflow":
-        _persist_workflow_kill(agent, agents_with_children_snapshot)
+        _persist_workflow_kill(
+            agent,
+            agents_with_children_snapshot,
+            register_expected_deletion=register_expected_deletion,
+        )
     return consumed_intents
 
 
@@ -76,6 +84,8 @@ def persist_bulk_kill_side_effects(
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: object | None = None,
     recent_group: SavedAgentGroupWire | None = None,
+    *,
+    register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
     """Apply filesystem/project-file side effects for a bulk kill operation."""
     from ....dismissed_agents import (
@@ -86,18 +96,34 @@ def persist_bulk_kill_side_effects(
     consumed_intents = persist_cleanup_side_effect_intents(
         cleanup_plan,
         agents_with_children_snapshot,
+        register_expected_deletion=register_expected_deletion,
     )
     for item in kill_items:
         if consumed_intents and item.kind in {"running", "workflow"}:
             continue
-        persist_kill_side_effects(
-            item.agent,
-            item.kind,
-            agents_with_children_snapshot,
-        )
+        if register_expected_deletion is None:
+            persist_kill_side_effects(
+                item.agent,
+                item.kind,
+                agents_with_children_snapshot,
+            )
+        else:
+            persist_kill_side_effects(
+                item.agent,
+                item.kind,
+                agents_with_children_snapshot,
+                register_expected_deletion=register_expected_deletion,
+            )
     if not consumed_intents:
         for agent in dismissable:
-            persist_dismiss_side_effects(agent, agents_with_children_snapshot)
+            if register_expected_deletion is None:
+                persist_dismiss_side_effects(agent, agents_with_children_snapshot)
+            else:
+                persist_dismiss_side_effects(
+                    agent,
+                    agents_with_children_snapshot,
+                    register_expected_deletion=register_expected_deletion,
+                )
 
     if not consumed_intents and (kill_items or dismissable):
         dismiss_notifications_for_agents(
@@ -225,7 +251,10 @@ def _persist_crs_kill(agent: Agent) -> None:
 
 
 def _persist_workflow_kill(
-    agent: Agent, agents_with_children_snapshot: list[Agent]
+    agent: Agent,
+    agents_with_children_snapshot: list[Agent],
+    *,
+    register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
     from ....dismissed_agents import save_dismissed_bundle
     from sase.running_field import release_workspace
@@ -270,4 +299,10 @@ def _persist_workflow_kill(
                 )
     delete_agent_artifact_index_artifacts(artifact_delete_paths)
     for artifacts_dir in artifact_delete_paths:
-        delete_agent_artifacts(artifacts_dir)
+        if register_expected_deletion is None:
+            delete_agent_artifacts(artifacts_dir)
+        else:
+            delete_agent_artifacts(
+                artifacts_dir,
+                before_delete=register_expected_deletion,
+            )

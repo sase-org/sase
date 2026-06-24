@@ -52,6 +52,7 @@ class EventHandlersBase:
     _dirty_changespecs: bool
     _dirty_agents: bool
     _dirty_agent_artifact_dirs: tuple[Path, ...]
+    _dirty_deleted_agent_artifact_dirs: tuple[Path, ...]
     _dirty_agent_artifact_fallback_reason: str | None
     _dirty_axe: bool
     _dirty_notifications: bool

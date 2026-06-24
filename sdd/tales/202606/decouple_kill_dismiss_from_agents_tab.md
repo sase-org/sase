@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 06:46:34
-status: wip
+status: done
 prompt: sdd/prompts/202606/decouple_kill_dismiss_from_agents_tab.md
 ---
 # Plan: Stop kill/dismiss cleanup from blocking Agents-tab updates

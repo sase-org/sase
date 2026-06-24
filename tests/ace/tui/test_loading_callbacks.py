@@ -137,9 +137,12 @@ async def test_delta_refresh_forwards_pending_full_history_request() -> None:
     app = _FakeApp()
 
     async def _fake_delta_load(
-        artifact_dirs: list[Path], *, source: str = "unknown"
+        artifact_dirs: list[Path],
+        *,
+        source: str = "unknown",
+        deleted_artifact_dirs: list[Path] | None = None,
     ) -> bool:
-        del artifact_dirs, source
+        del artifact_dirs, source, deleted_artifact_dirs
         # Simulate the user's full-history keybind racing the delta load.
         app._schedule_agents_async_refresh(
             full_history=True,

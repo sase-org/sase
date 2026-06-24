@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ._dismiss_cleanup import agent_wire_identity, wire_identity_key
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
 def persist_cleanup_side_effect_intents(
     cleanup_plan: object | None,
     agents_with_children_snapshot: list[Agent],
+    *,
+    register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> bool:
     """Execute host-owned side effects described by a cleanup intent plan."""
     side_effects = getattr(cleanup_plan, "side_effects", None)
@@ -83,7 +86,13 @@ def persist_cleanup_side_effect_intents(
     ]
     delete_agent_artifact_index_artifacts(artifact_delete_paths)
     for artifacts_dir in artifact_delete_paths:
-        delete_agent_artifacts(artifacts_dir)
+        if register_expected_deletion is None:
+            delete_agent_artifacts(artifacts_dir)
+        else:
+            delete_agent_artifacts(
+                artifacts_dir,
+                before_delete=register_expected_deletion,
+            )
 
     notification_identities = {
         wire_identity_key(intent.identity)
@@ -176,6 +185,8 @@ def _artifact_delete_paths_for(
 def persist_dismiss_side_effects(
     agent: Agent,
     agents_with_children_snapshot: list[Agent],
+    *,
+    register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
     """Apply filesystem side effects for one asynchronously dismissed agent."""
     _save_dismissed_bundles_for(agent, agents_with_children_snapshot)
@@ -186,12 +197,20 @@ def persist_dismiss_side_effects(
     )
     delete_agent_artifact_index_artifacts(artifact_delete_paths)
     for artifacts_dir in artifact_delete_paths:
-        delete_agent_artifacts(artifacts_dir)
+        if register_expected_deletion is None:
+            delete_agent_artifacts(artifacts_dir)
+        else:
+            delete_agent_artifacts(
+                artifacts_dir,
+                before_delete=register_expected_deletion,
+            )
 
 
 def persist_bulk_dismiss_side_effects(
     agents: list[Agent],
     agents_with_children_snapshot: list[Agent],
+    *,
+    register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
     """Batched fallback for bulk dismiss when Rust cleanup intents are absent.
 
@@ -214,7 +233,13 @@ def persist_bulk_dismiss_side_effects(
 
     delete_agent_artifact_index_artifacts(artifact_delete_paths)
     for artifacts_dir in artifact_delete_paths:
-        delete_agent_artifacts(artifacts_dir)
+        if register_expected_deletion is None:
+            delete_agent_artifacts(artifacts_dir)
+        else:
+            delete_agent_artifacts(
+                artifacts_dir,
+                before_delete=register_expected_deletion,
+            )
 
 
 def agents_related_to_dismissal(

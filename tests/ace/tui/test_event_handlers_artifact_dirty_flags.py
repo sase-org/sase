@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.actions._event_refresh import AGENT_ARTIFACT_DELTA_QUEUE_LIMIT
+from sase.ace.tui.actions._event_refresh import (
+    AGENT_ARTIFACT_DELTA_QUEUE_LIMIT,
+)
 from sase.ace.tui.widgets.changespec_list import ChangeSpecList
 
 from ._event_handlers_dirty_flags_helpers import _FakeApp
@@ -87,16 +90,10 @@ async def test_known_marker_change_schedules_artifact_delta_not_broad_load() -> 
 
 
 @pytest.mark.asyncio
-async def test_unknown_agent_path_uses_broad_auto_refresh_fallback() -> None:
+async def test_artifact_month_shard_path_uses_broad_auto_refresh_fallback() -> None:
     app = _FakeApp(watcher_active=True)
     path = (
-        Path.home()
-        / ".sase"
-        / "projects"
-        / "sase"
-        / "artifacts"
-        / "ace-run"
-        / "20260528120000"
+        Path.home() / ".sase" / "projects" / "sase" / "artifacts" / "ace-run" / "202605"
     )
 
     app._on_artifact_change((path,))
@@ -157,9 +154,130 @@ def test_artifact_change_marks_agents_dirty_for_likely_agent_root_directory(
     app._on_artifact_change((path,))
 
     assert app._dirty_agents is True
-    assert app._dirty_agent_artifact_dirs == ()
-    assert app._dirty_agent_artifact_fallback_reason == "unknown_watcher_path"
+    assert app._dirty_agent_artifact_dirs == (path,)
+    assert app._dirty_deleted_agent_artifact_dirs == (path,)
+    assert app._dirty_agent_artifact_fallback_reason is None
     assert app.refresh_calls == []
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "202605"
+        / "28"
+        / "20260528120000",
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "workflow-build"
+        / "20260528120000",
+    ],
+)
+@pytest.mark.asyncio
+async def test_artifact_dir_deletion_schedules_delta_not_broad_load(
+    path: Path,
+) -> None:
+    app = _FakeApp(watcher_active=True)
+
+    app._on_artifact_change((path,))
+    await app._on_auto_refresh()
+
+    assert app.refresh_calls == ["delta:watcher:1"]
+    assert app.delta_requests == [("watcher", (path,))]
+    assert app._dirty_agent_artifact_fallback_reason is None
+
+
+def test_existing_moved_artifact_dir_schedules_exact_delta(tmp_path: Path) -> None:
+    app = _FakeApp(watcher_active=True)
+    path = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "202605"
+        / "28"
+        / "20260528120000"
+    )
+    path.mkdir(parents=True)
+
+    app._on_artifact_change((path,))
+
+    assert app._dirty_agents is True
+    assert app._dirty_agent_artifact_dirs == (path,)
+    assert app._dirty_deleted_agent_artifact_dirs == ()
+    assert app._dirty_agent_artifact_fallback_reason is None
+
+
+def test_registered_self_deletion_path_is_dropped() -> None:
+    app = _FakeApp(watcher_active=True)
+    path = (
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "20260528120000"
+    )
+
+    app._register_expected_agent_artifact_deletion(path)
+    app._on_artifact_change((path,))
+
+    assert app._dirty_agents is False
+    assert app._dirty_agent_artifact_dirs == ()
+    assert app.refresh_calls == []
+    assert app._expected_agent_artifact_deletions == {}
+
+
+def test_registered_self_deletion_marker_path_is_dropped() -> None:
+    app = _FakeApp(watcher_active=True)
+    artifacts_dir = (
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "20260528120000"
+    )
+
+    app._register_expected_agent_artifact_deletion(artifacts_dir)
+    app._on_artifact_change((artifacts_dir / "done.json",))
+
+    assert app._dirty_agents is False
+    assert app._dirty_agent_artifact_dirs == ()
+    assert app.refresh_calls == []
+
+
+def test_expired_self_deletion_registry_entry_does_not_suppress_path() -> None:
+    app = _FakeApp(watcher_active=True)
+    path = (
+        Path.home()
+        / ".sase"
+        / "projects"
+        / "sase"
+        / "artifacts"
+        / "ace-run"
+        / "20260528120000"
+    )
+    with app._expected_agent_artifact_deletions_lock:
+        app._expected_agent_artifact_deletions[str(path)] = time.monotonic() - 1.0
+
+    app._on_artifact_change((path,))
+
+    assert app._dirty_agents is True
+    assert app._dirty_agent_artifact_dirs == (path,)
+    assert app._dirty_deleted_agent_artifact_dirs == (path,)
 
 
 @pytest.mark.parametrize(

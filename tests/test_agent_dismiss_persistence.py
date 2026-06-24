@@ -216,6 +216,42 @@ def test_dismiss_side_effects_delete_artifact_index_row(tmp_path) -> None:  # ty
     mock_delete_artifacts.assert_called_once_with(str(tmp_path / "artifacts"))
 
 
+def test_dismiss_side_effects_register_expected_delete_before_artifact_cleanup(
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    """Dismiss persistence can notify the watcher before deleting artifacts."""
+    from sase.ace.tui.actions.agents._dismiss_persistence import (
+        persist_dismiss_side_effects,
+    )
+
+    agent = make_agent(
+        raw_suffix="20240101120000",
+        artifacts_dir=str(tmp_path / "artifacts"),
+    )
+    registered: list[str | None] = []
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
+        patch(
+            "sase.ace.tui.actions.agents._dismiss_persistence."
+            "delete_agent_artifact_index_artifacts"
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._dismiss_persistence.delete_agent_artifacts"
+        ) as mock_delete_artifacts,
+    ):
+        persist_dismiss_side_effects(
+            agent,
+            [agent],
+            register_expected_deletion=registered.append,
+        )
+
+    mock_delete_artifacts.assert_called_once_with(
+        str(tmp_path / "artifacts"),
+        before_delete=registered.append,
+    )
+
+
 def test_delete_agent_artifacts_deletes_artifact_index_row(  # type: ignore[no-untyped-def]
     tmp_path,
 ) -> None:

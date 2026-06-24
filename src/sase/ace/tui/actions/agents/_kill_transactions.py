@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from types import ModuleType
 from typing import TYPE_CHECKING
 
@@ -26,24 +27,43 @@ def persist_single_kill_transaction(
     dismissed_snapshot: set[AgentIdentity],
     cleanup_plan: AgentCleanupPlanWire | None,
     related_agents: list[Agent],
+    *,
+    register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
     """Persist all side effects for one optimistic kill operation."""
     from ....dismissed_agents import save_dismissed_agents
 
     killing_compat = _killing_compat_module()
     if cleanup_plan is None:
-        consumed_intents_result = killing_compat.persist_kill_side_effects(
-            agent,
-            kind,
-            agents_with_children_snapshot,
-        )
+        if register_expected_deletion is None:
+            consumed_intents_result = killing_compat.persist_kill_side_effects(
+                agent,
+                kind,
+                agents_with_children_snapshot,
+            )
+        else:
+            consumed_intents_result = killing_compat.persist_kill_side_effects(
+                agent,
+                kind,
+                agents_with_children_snapshot,
+                register_expected_deletion=register_expected_deletion,
+            )
     else:
-        consumed_intents_result = killing_compat.persist_kill_side_effects(
-            agent,
-            kind,
-            agents_with_children_snapshot,
-            cleanup_plan,
-        )
+        if register_expected_deletion is None:
+            consumed_intents_result = killing_compat.persist_kill_side_effects(
+                agent,
+                kind,
+                agents_with_children_snapshot,
+                cleanup_plan,
+            )
+        else:
+            consumed_intents_result = killing_compat.persist_kill_side_effects(
+                agent,
+                kind,
+                agents_with_children_snapshot,
+                cleanup_plan,
+                register_expected_deletion=register_expected_deletion,
+            )
     consumed_intents = consumed_intents_result is True
     # Persist the dismissed-set snapshot captured on the UI thread, then
     # rewrite the notifications file (single read+write) for this agent and
@@ -62,35 +82,68 @@ def persist_bulk_kill_transaction(
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: object | None,
     recent_group: SavedAgentGroupWire | None,
+    *,
+    register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
     """Persist all side effects for one optimistic bulk kill/dismiss operation."""
     killing_compat = _killing_compat_module()
     if cleanup_plan is None:
         if recent_group is None:
-            killing_compat.persist_bulk_kill_side_effects(
-                kill_items,
-                dismissable,
-                dismissed_snapshot,
-                agents_with_children_snapshot,
-            )
+            if register_expected_deletion is None:
+                killing_compat.persist_bulk_kill_side_effects(
+                    kill_items,
+                    dismissable,
+                    dismissed_snapshot,
+                    agents_with_children_snapshot,
+                )
+            else:
+                killing_compat.persist_bulk_kill_side_effects(
+                    kill_items,
+                    dismissable,
+                    dismissed_snapshot,
+                    agents_with_children_snapshot,
+                    register_expected_deletion=register_expected_deletion,
+                )
         else:
-            killing_compat.persist_bulk_kill_side_effects(
-                kill_items,
-                dismissable,
-                dismissed_snapshot,
-                agents_with_children_snapshot,
-                None,
-                recent_group,
-            )
+            if register_expected_deletion is None:
+                killing_compat.persist_bulk_kill_side_effects(
+                    kill_items,
+                    dismissable,
+                    dismissed_snapshot,
+                    agents_with_children_snapshot,
+                    None,
+                    recent_group,
+                )
+            else:
+                killing_compat.persist_bulk_kill_side_effects(
+                    kill_items,
+                    dismissable,
+                    dismissed_snapshot,
+                    agents_with_children_snapshot,
+                    None,
+                    recent_group,
+                    register_expected_deletion=register_expected_deletion,
+                )
         return
-    killing_compat.persist_bulk_kill_side_effects(
-        kill_items,
-        dismissable,
-        dismissed_snapshot,
-        agents_with_children_snapshot,
-        cleanup_plan,
-        recent_group,
-    )
+    if register_expected_deletion is None:
+        killing_compat.persist_bulk_kill_side_effects(
+            kill_items,
+            dismissable,
+            dismissed_snapshot,
+            agents_with_children_snapshot,
+            cleanup_plan,
+            recent_group,
+        )
+    else:
+        killing_compat.persist_bulk_kill_side_effects(
+            kill_items,
+            dismissable,
+            dismissed_snapshot,
+            agents_with_children_snapshot,
+            cleanup_plan,
+            recent_group,
+            register_expected_deletion=register_expected_deletion,
+        )
 
 
 def bulk_kill_task_display_name(killed_count: int, dismissed_count: int) -> str:

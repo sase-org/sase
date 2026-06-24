@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
 from sase.core.agent_artifact_index_lifecycle import (
@@ -14,7 +14,11 @@ if TYPE_CHECKING:
     from ...models import Agent
 
 
-def delete_agent_artifacts(artifacts_dir: str | None) -> None:
+def delete_agent_artifacts(
+    artifacts_dir: str | None,
+    *,
+    before_delete: Callable[[str | None], None] | None = None,
+) -> None:
     """Delete artifact files that cause an agent to be loaded.
 
     Removes workflow_state.json, done.json, and prompt_step_*.json files
@@ -25,6 +29,9 @@ def delete_agent_artifacts(artifacts_dir: str | None) -> None:
     """
     if not artifacts_dir:
         return
+
+    if before_delete is not None:
+        before_delete(artifacts_dir)
 
     if try_delete_agent_artifacts(artifacts_dir):
         delete_agent_artifact_index_artifacts([artifacts_dir])

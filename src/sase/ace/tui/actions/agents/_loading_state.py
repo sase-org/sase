@@ -200,7 +200,11 @@ class AgentLoadingStateMixin:
         raise NotImplementedError
 
     async def _load_agent_artifact_delta_async(
-        self, artifact_dirs: list[Path], *, source: str = "unknown"
+        self,
+        artifact_dirs: list[Path],
+        *,
+        source: str = "unknown",
+        deleted_artifact_dirs: list[Path] | None = None,
     ) -> bool:
         raise NotImplementedError
 

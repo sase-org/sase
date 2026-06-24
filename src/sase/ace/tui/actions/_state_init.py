@@ -10,6 +10,7 @@ import asyncio
 import logging
 import os
 import signal
+import threading
 from collections import OrderedDict
 from collections.abc import Callable
 from pathlib import Path
@@ -117,7 +118,10 @@ class StateInitMixin:
         self._dirty_changespecs: bool = True
         self._dirty_agents: bool = True
         self._dirty_agent_artifact_dirs: tuple[Path, ...] = ()
+        self._dirty_deleted_agent_artifact_dirs: tuple[Path, ...] = ()
         self._dirty_agent_artifact_fallback_reason: str | None = None
+        self._expected_agent_artifact_deletions: dict[str, float] = {}
+        self._expected_agent_artifact_deletions_lock = threading.Lock()
         self._dirty_axe: bool = True
         self._dirty_notifications: bool = True
         self._artifact_change_defer_pending: bool = False

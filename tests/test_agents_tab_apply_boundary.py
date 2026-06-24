@@ -8,6 +8,7 @@ refresh, and background content-index refresh scheduling.
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -311,6 +312,50 @@ def test_incomplete_merge_replaces_plan_chain_child_with_transient_cl_name() -> 
     assert refreshed_child.cl_name == "sase"
     assert refreshed_child.model == "fresh-model"
     assert refreshed_child.llm_provider == "codex"
+
+
+def test_artifact_delta_deleted_dir_removes_cached_row() -> None:
+    """A watcher deletion delta should delete the cached artifact-backed row."""
+    artifact_dir = Path("/tmp/projects/sase/artifacts/ace-run/20260528120000")
+    cached = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 28, 12, 0, 0),
+        raw_suffix="20260528120000",
+        artifacts_dir=str(artifact_dir),
+    )
+    prep = PreparedApplyData(
+        filtered_agents=[],
+        has_always_visible=False,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    snapshot = PreparedApplySnapshot(
+        cached_agents_with_children=[cached],
+        dismissed_agents=set(),
+        agents_seen_complete_history=True,
+        hide_non_run_agents=False,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_delta",
+            used_artifact_index=False,
+            deleted_artifact_dirs=frozenset({str(artifact_dir)}),
+        ),
+        fold_levels=None,
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+    )
+
+    merge_incomplete_load_after_complete_history(prep, snapshot)
+
+    assert prep.filtered_agents == []
 
 
 def test_on_tab_finalizer_defers_selected_agent_file_refresh() -> None:

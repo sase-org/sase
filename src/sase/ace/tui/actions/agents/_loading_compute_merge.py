@@ -7,6 +7,7 @@ module so the entry point in :mod:`._loading_compute` stays small.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ._loading_compute_types import PreparedApplyData, PreparedApplySnapshot
@@ -171,6 +172,14 @@ def merge_incomplete_load_after_complete_history(
         for _, cl_name, raw_suffix in dismissed
         if raw_suffix is not None
     }
+    deleted_artifact_dirs = set(
+        getattr(load_state, "deleted_artifact_dirs", frozenset())
+    )
+    deleted_suffixes = {
+        Path(path).name
+        for path in deleted_artifact_dirs
+        if Path(path).name.isdigit() and len(Path(path).name) == 14
+    }
 
     def is_dismissed(agent: Agent) -> bool:
         if agent.identity in dismissed:
@@ -182,6 +191,21 @@ def merge_incomplete_load_after_complete_history(
                 agent.cl_name == "unknown" and agent.raw_suffix in dismissed_suffixes
             )
         return agent.raw_suffix in dismissed_suffixes
+
+    def is_deleted_artifact_delta(agent: Agent) -> bool:
+        if not deleted_artifact_dirs:
+            return False
+        artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
+        if artifacts_dir is not None:
+            key = str(Path(artifacts_dir).expanduser())
+            if key in deleted_artifact_dirs:
+                return True
+        if agent.raw_suffix is not None and agent.raw_suffix in deleted_suffixes:
+            return True
+        return (
+            agent.parent_timestamp is not None
+            and agent.parent_timestamp in deleted_suffixes
+        )
 
     merged: list[Agent] = []
     seen: set[_Tier1MergeKey] = set()
@@ -255,7 +279,11 @@ def merge_incomplete_load_after_complete_history(
     for cached in cached_agents:
         replacement = incoming_by_key.get(_tier1_merge_key(cached), cached)
         replacement_key = _tier1_merge_key(replacement)
-        if replacement_key in seen or is_dismissed(replacement):
+        if (
+            replacement_key in seen
+            or is_dismissed(replacement)
+            or is_deleted_artifact_delta(replacement)
+        ):
             continue
         merged.append(replacement)
         seen.add(replacement_key)

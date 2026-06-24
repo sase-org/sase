@@ -165,3 +165,27 @@ def test_delta_loader_marks_missing_exact_dir_for_broad_fallback(
     assert result.all_agents == []
     assert result.load_state.repair_recommended is True
     assert result.load_state.repair_reason == "artifact_delta_scan_incomplete"
+
+
+def test_delta_loader_accepts_expected_deleted_exact_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    projects_root = build_fixture_tree(sase_home / "projects")
+    deleted_dir = _artifact_dir(projects_root, "home", "ace-run", "20990101000000")
+
+    with patch("sase.ace.agent_tags.load_agent_tags", return_value={}):
+        result = load_agent_artifact_delta_from_disk_with_state(
+            set(),
+            [deleted_dir],
+            changespec_snapshot=[],
+            update_index=False,
+            deleted_artifact_dirs=[deleted_dir],
+        )
+
+    assert result.all_agents == []
+    assert result.load_state.repair_recommended is False
+    assert result.load_state.repair_reason is None
+    assert result.load_state.deleted_artifact_dirs == frozenset({str(deleted_dir)})

@@ -423,6 +423,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         artifact_dirs: list[Path],
         *,
         source: str = "unknown",
+        deleted_artifact_dirs: list[Path] | None = None,
     ) -> bool:
         """Load and apply a bounded exact-artifact delta.
 
@@ -450,6 +451,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             artifact_dirs,
             changespec_snapshot=changespec_snapshot,
             source=source,
+            deleted_artifact_dirs=deleted_artifact_dirs or (),
         )
         all_agents = load_result.all_agents
         dismissed_from_loader = load_result.dismissed_from_loader

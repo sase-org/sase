@@ -1,7 +1,7 @@
 """Functions for loading and aggregating agents from all sources."""
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal
 
@@ -102,6 +102,7 @@ class AgentLoadState:
     repair_recommended: bool = False
     repair_reason: str | None = None
     truncated: bool = False
+    deleted_artifact_dirs: frozenset[str] = field(default_factory=frozenset)
 
     @property
     def needs_full_history_reconcile(self) -> bool:
@@ -645,6 +646,7 @@ def load_artifact_delta_agents(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     update_index: bool = True,
+    deleted_artifact_dirs: Sequence[Path | str] = (),
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load normalized agents from an exact set of artifact directories."""
 
@@ -657,6 +659,9 @@ def load_artifact_delta_agents(
             continue
         seen_dirs.add(key)
         unique_dirs.append(path)
+    deleted_dir_keys = {
+        str(Path(artifact_dir).expanduser()) for artifact_dir in deleted_artifact_dirs
+    }
 
     snapshot = _scan_artifact_dirs_for_loader(unique_dirs)
     if update_index and snapshot.records:
@@ -668,7 +673,12 @@ def load_artifact_delta_agents(
             record.artifact_dir for record in snapshot.records
         )
 
-    repair_recommended = len(snapshot.records) != len(unique_dirs)
+    scanned_dirs = {
+        str(Path(record.artifact_dir).expanduser()) for record in snapshot.records
+    }
+    missing_dirs = seen_dirs - scanned_dirs
+    unexpected_missing_dirs = missing_dirs - deleted_dir_keys
+    repair_recommended = bool(unexpected_missing_dirs)
     state = AgentLoadState(
         tier="tier1",
         complete_history=False,
@@ -677,6 +687,7 @@ def load_artifact_delta_agents(
         complete_visible_inbox=True,
         repair_recommended=repair_recommended,
         repair_reason="artifact_delta_scan_incomplete" if repair_recommended else None,
+        deleted_artifact_dirs=frozenset(deleted_dir_keys & seen_dirs),
     )
     agents, workflow_agent_steps = _load_agents_from_artifact_snapshot_sources(
         snapshot,

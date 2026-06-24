@@ -173,6 +173,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         *,
         source: str = "unknown",
         on_complete: Callable[[], None] | None = None,
+        deleted_artifact_dirs: list[Path] | None = None,
     ) -> None:
         """Schedule an exact artifact-dir reconcile for a bounded row delta."""
         source = _normalize_refresh_source(source)
@@ -194,6 +195,13 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                 continue
             seen.add(key)
             unique_dirs.append(path)
+        deleted_keys = {
+            str(Path(artifact_dir).expanduser())
+            for artifact_dir in (deleted_artifact_dirs or [])
+        }
+        unique_deleted_dirs = [
+            path for path in unique_dirs if str(path) in deleted_keys
+        ]
         if not unique_dirs:
             record_agents_refresh_trace(
                 self,
@@ -234,8 +242,10 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             artifact_dirs=len(unique_dirs),
         )
         args: tuple[Any, ...] = (tuple(unique_dirs), source)
-        if on_complete is not None:
+        if on_complete is not None or unique_deleted_dirs:
             args = (*args, on_complete)
+        if unique_deleted_dirs:
+            args = (*args, tuple(unique_deleted_dirs))
         self.call_later(  # type: ignore[attr-defined]
             self._run_agent_artifact_delta_refresh,
             *args,
@@ -246,6 +256,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         artifact_dirs: tuple[Path, ...],
         source: str = "unknown",
         on_complete: Callable[[], None] | None = None,
+        deleted_artifact_dirs: tuple[Path, ...] = (),
     ) -> None:
         """Run an exact artifact-dir reconcile with broad fallback on failure."""
         if self._nav_gate.is_navigating():
@@ -257,6 +268,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                     artifact_dirs,
                     source,
                     on_complete,
+                    deleted_artifact_dirs,
                 ),
             )
             return
@@ -275,6 +287,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             ok = await self._load_agent_artifact_delta_async(  # type: ignore[attr-defined]
                 list(artifact_dirs),
                 source=source,
+                deleted_artifact_dirs=list(deleted_artifact_dirs),
             )
             if not ok:
                 needs_broad_fallback = True

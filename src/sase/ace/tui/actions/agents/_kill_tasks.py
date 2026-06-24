@@ -46,15 +46,31 @@ class AgentKillPersistenceTaskMixin:
 
         def _worker() -> CleanupTaskOutcome:
             started = time.perf_counter()
-            try:
-                killing_compat._persist_bulk_kill_transaction(
-                    kill_items,
-                    dismissable,
-                    dismissed_snapshot,
-                    agents_with_children_snapshot,
-                    cleanup_plan,
-                    recent_group,
+            register_expected_deletion = None
+            if hasattr(self, "_expected_agent_artifact_deletions_lock"):
+                register_expected_deletion = (
+                    self._register_expected_agent_artifact_deletion  # type: ignore[attr-defined]
                 )
+            try:
+                if register_expected_deletion is None:
+                    killing_compat._persist_bulk_kill_transaction(
+                        kill_items,
+                        dismissable,
+                        dismissed_snapshot,
+                        agents_with_children_snapshot,
+                        cleanup_plan,
+                        recent_group,
+                    )
+                else:
+                    killing_compat._persist_bulk_kill_transaction(
+                        kill_items,
+                        dismissable,
+                        dismissed_snapshot,
+                        agents_with_children_snapshot,
+                        cleanup_plan,
+                        recent_group,
+                        register_expected_deletion=register_expected_deletion,
+                    )
             except Exception as exc:
                 return CleanupTaskOutcome(
                     message=f"Bulk kill cleanup failed: {exc}",
@@ -116,15 +132,31 @@ class AgentKillPersistenceTaskMixin:
             from . import _killing as killing_compat
 
             started = time.perf_counter()
-            try:
-                killing_compat._persist_single_kill_transaction(
-                    agent,
-                    kind,
-                    agents_with_children_snapshot,
-                    dismissed_snapshot,
-                    cleanup_plan,
-                    related_agents,
+            register_expected_deletion = None
+            if hasattr(self, "_expected_agent_artifact_deletions_lock"):
+                register_expected_deletion = (
+                    self._register_expected_agent_artifact_deletion  # type: ignore[attr-defined]
                 )
+            try:
+                if register_expected_deletion is None:
+                    killing_compat._persist_single_kill_transaction(
+                        agent,
+                        kind,
+                        agents_with_children_snapshot,
+                        dismissed_snapshot,
+                        cleanup_plan,
+                        related_agents,
+                    )
+                else:
+                    killing_compat._persist_single_kill_transaction(
+                        agent,
+                        kind,
+                        agents_with_children_snapshot,
+                        dismissed_snapshot,
+                        cleanup_plan,
+                        related_agents,
+                        register_expected_deletion=register_expected_deletion,
+                    )
             except Exception as exc:
                 return CleanupTaskOutcome(
                     message=f"Kill cleanup failed for {agent.display_name}: {exc}",

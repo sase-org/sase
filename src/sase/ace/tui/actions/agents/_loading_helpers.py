@@ -238,6 +238,7 @@ def load_agent_artifact_delta_from_disk_with_state(
     changespec_snapshot: list[ChangeSpec] | None = None,
     source: str = "unknown",
     update_index: bool = True,
+    deleted_artifact_dirs: Sequence[Path | str] = (),
 ) -> _AgentDiskLoadResult:
     """Load agents from exact artifact dirs and include the delta load state."""
 
@@ -251,6 +252,7 @@ def load_agent_artifact_delta_from_disk_with_state(
             artifact_dirs,
             changespec_snapshot=changespec_snapshot,
             update_index=update_index,
+            deleted_artifact_dirs=deleted_artifact_dirs,
         )
         state = result.load_state
         counters["data_cost"] = classify_agents_data_cost(artifact_delta=True)
@@ -378,6 +380,7 @@ def _load_agent_artifact_delta_from_disk_impl(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     update_index: bool = True,
+    deleted_artifact_dirs: Sequence[Path | str] = (),
 ) -> _AgentDiskLoadResult:
     from ...models.agent_loader import load_artifact_delta_agents
 
@@ -385,6 +388,7 @@ def _load_agent_artifact_delta_from_disk_impl(
         artifact_dirs,
         changespec_snapshot=changespec_snapshot,
         update_index=update_index,
+        deleted_artifact_dirs=deleted_artifact_dirs,
     )
     return _apply_loaded_agent_disk_projections(
         all_agents,

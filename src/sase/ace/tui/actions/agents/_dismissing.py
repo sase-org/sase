@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -199,6 +200,11 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
 
         def _worker() -> CleanupTaskOutcome:
             started = time.perf_counter()
+            register_expected_deletion = None
+            if hasattr(self, "_expected_agent_artifact_deletions_lock"):
+                register_expected_deletion = (
+                    self._register_expected_agent_artifact_deletion  # type: ignore[attr-defined]
+                )
             try:
                 _persist_bulk_dismiss_transaction(
                     agents,
@@ -207,6 +213,7 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
                     cleanup_plan,
                     added,
                     recent_group,
+                    register_expected_deletion=register_expected_deletion,
                 )
             except Exception as exc:
                 return CleanupTaskOutcome(
@@ -311,6 +318,11 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
 
         def _worker() -> CleanupTaskOutcome:
             started = time.perf_counter()
+            register_expected_deletion = None
+            if hasattr(self, "_expected_agent_artifact_deletions_lock"):
+                register_expected_deletion = (
+                    self._register_expected_agent_artifact_deletion  # type: ignore[attr-defined]
+                )
             try:
                 _persist_single_dismiss_transaction(
                     agent,
@@ -319,6 +331,7 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
                     cleanup_plan,
                     added,
                     recent_group,
+                    register_expected_deletion=register_expected_deletion,
                 )
             except Exception as exc:
                 return CleanupTaskOutcome(
@@ -360,6 +373,8 @@ def _persist_single_dismiss_transaction(
     cleanup_plan: object | None = None,
     added: set[AgentIdentity] | None = None,
     recent_group: SavedAgentGroupWire | None = None,
+    *,
+    register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
     """Persist all side effects for one optimistic dismiss operation."""
     from ....dismissed_agents import (
@@ -370,8 +385,16 @@ def _persist_single_dismiss_transaction(
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
         agents_with_children_snapshot,
+        register_expected_deletion=register_expected_deletion,
     ):
-        persist_dismiss_side_effects(agent, agents_with_children_snapshot)
+        if register_expected_deletion is None:
+            persist_dismiss_side_effects(agent, agents_with_children_snapshot)
+        else:
+            persist_dismiss_side_effects(
+                agent,
+                agents_with_children_snapshot,
+                register_expected_deletion=register_expected_deletion,
+            )
         dismiss_notifications_for_agents(
             agents_related_to_dismissal(agent, agents_with_children_snapshot)
         )
@@ -391,6 +414,8 @@ def _persist_bulk_dismiss_transaction(
     cleanup_plan: object | None = None,
     added: set[AgentIdentity] | None = None,
     recent_group: SavedAgentGroupWire | None = None,
+    *,
+    register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
     """Persist all side effects for an optimistic batch dismiss operation."""
     from ....dismissed_agents import (
@@ -401,8 +426,16 @@ def _persist_bulk_dismiss_transaction(
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
         agents_with_children_snapshot,
+        register_expected_deletion=register_expected_deletion,
     ):
-        persist_bulk_dismiss_side_effects(agents, agents_with_children_snapshot)
+        if register_expected_deletion is None:
+            persist_bulk_dismiss_side_effects(agents, agents_with_children_snapshot)
+        else:
+            persist_bulk_dismiss_side_effects(
+                agents,
+                agents_with_children_snapshot,
+                register_expected_deletion=register_expected_deletion,
+            )
         related: list[Agent] = []
         seen: set[AgentIdentity] = set()
         for agent in agents:

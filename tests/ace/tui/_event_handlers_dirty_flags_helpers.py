@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import threading
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -71,7 +72,10 @@ class _FakeApp(EventHandlersMixin):
         self._dirty_changespecs = False
         self._dirty_agents = False
         self._dirty_agent_artifact_dirs: tuple[Path, ...] = ()
+        self._dirty_deleted_agent_artifact_dirs: tuple[Path, ...] = ()
         self._dirty_agent_artifact_fallback_reason: str | None = None
+        self._expected_agent_artifact_deletions: dict[str, float] = {}
+        self._expected_agent_artifact_deletions_lock = threading.Lock()
         self._dirty_axe = False
         self._dirty_notifications = False
         self._artifact_change_defer_pending = False
@@ -125,7 +129,9 @@ class _FakeApp(EventHandlersMixin):
         artifact_dirs: list[Path],
         *,
         source: str = "unknown",
+        deleted_artifact_dirs: list[Path] | None = None,
     ) -> None:
+        del deleted_artifact_dirs
         dirs = tuple(artifact_dirs)
         self.delta_requests.append((source, dirs))
         self.refresh_calls.append(f"delta:{source}:{len(dirs)}")
