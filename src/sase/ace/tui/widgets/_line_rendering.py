@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from rich.segment import Segment
 from rich.style import Style
@@ -20,8 +20,33 @@ class LineRenderingMixin(_MixinBase):
     Mixed into :class:`~sase.ace.tui.widgets.prompt_text_area.PromptTextArea`.
     """
 
+    _VIM_MODE_CLASSES: ClassVar[dict[str, str]] = {
+        "insert": "-vim-insert",
+        "normal": "-vim-normal",
+        "visual": "-vim-visual",
+        "visual_line": "-vim-visual",
+    }
+    _VIM_CURSOR_CLASSES: ClassVar[tuple[str, ...]] = (
+        "-vim-insert",
+        "-vim-normal",
+        "-vim-visual",
+    )
+
     if TYPE_CHECKING:
         _vim_mode: str
+
+    def on_mount(self) -> None:
+        """Seed the initial INSERT-mode cursor class after mount."""
+        super_on_mount = getattr(super(), "on_mount", None)
+        if callable(super_on_mount):
+            super_on_mount()
+        self._sync_vim_cursor_class()
+
+    def _sync_vim_cursor_class(self) -> None:
+        """Sync the CSS class that colors Textual's native cursor cell."""
+        active_class = self._VIM_MODE_CLASSES.get(self._vim_mode, "-vim-insert")
+        for class_name in self._VIM_CURSOR_CLASSES:
+            self.set_class(class_name == active_class, class_name)
 
     def render_line(self, y: int) -> Strip:
         """Bypass cache in NORMAL mode so relative line numbers stay current."""

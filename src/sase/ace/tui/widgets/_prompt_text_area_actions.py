@@ -86,6 +86,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
             start: tuple[int, int],
             end: tuple[int, int],
         ) -> None: ...
+        def _sync_vim_cursor_class(self) -> None: ...
 
     def _find_prompt_bar(self) -> Any:
         """Walk up the widget tree to find the parent PromptInputBar."""
@@ -429,6 +430,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         self._pending_change_surround_locations = None
         self._snippet_tabstops = []
         self.read_only = True
+        self._sync_vim_cursor_class()
         self.show_line_numbers = self.document.line_count > 1
         self.highlight_cursor_line = True
         bar = self._find_prompt_bar()
@@ -448,6 +450,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         self._pending_surround_range = None
         self._pending_change_surround_locations = None
         self.read_only = False
+        self._sync_vim_cursor_class()
         self.show_line_numbers = self.document.line_count > 1
         self.highlight_cursor_line = False
         bar = self._find_prompt_bar()

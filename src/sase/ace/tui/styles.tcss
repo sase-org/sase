@@ -1535,6 +1535,28 @@ PromptInputBar .prompt-input {
     color: $text;
 }
 
+/* Vim cursor accents mirror the prompt gutter colors in
+   widgets/_line_rendering.py: normal gold (#D0A215), insert cyan (#3AA99F),
+   and visual magenta (#CE5D97).  These prompt-scoped component rules replace
+   TextArea's default reverse-video cursor with explicit readable cells. */
+PromptInputBar PromptTextArea.prompt-input.-vim-normal .text-area--cursor {
+    color: #100F0F;
+    background: #D0A215;
+    text-style: bold;
+}
+
+PromptInputBar PromptTextArea.prompt-input.-vim-insert .text-area--cursor {
+    color: #100F0F;
+    background: #3AA99F;
+    text-style: bold;
+}
+
+PromptInputBar PromptTextArea.prompt-input.-vim-visual .text-area--cursor {
+    color: #FFFCF0;
+    background: #CE5D97;
+    text-style: bold;
+}
+
 /* Single-pane (solo) mode is visually identical to the pre-stack bar: the
    text area fills the bar and carries no border of its own. */
 PromptInputBar .prompt-input.solo {

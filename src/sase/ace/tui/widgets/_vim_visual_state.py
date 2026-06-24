@@ -44,6 +44,7 @@ class VimVisualStateMixin(VimNormalOpsMixin):
         def _replace_via_keyboard(
             self, insert: str, start: tuple[int, int], end: tuple[int, int]
         ) -> None: ...
+        def _sync_vim_cursor_class(self) -> None: ...
 
         def _execute_linewise_transform_operator(
             self,
@@ -66,6 +67,7 @@ class VimVisualStateMixin(VimNormalOpsMixin):
         self._visual_cursor = self.cursor_location
         self._vim_mode = "visual" if kind == "charwise" else "visual_line"
         self.read_only = True
+        self._sync_vim_cursor_class()
         self.show_line_numbers = self.document.line_count > 1
         self.highlight_cursor_line = True
         self._update_visual_selection()
@@ -90,6 +92,7 @@ class VimVisualStateMixin(VimNormalOpsMixin):
     def _switch_visual_kind(self, kind: VisualKind) -> None:
         """Switch an active visual selection between charwise and linewise."""
         self._vim_mode = "visual" if kind == "charwise" else "visual_line"
+        self._sync_vim_cursor_class()
         self._update_visual_selection()
         self._update_visual_display()
 
@@ -219,6 +222,7 @@ class VimVisualStateMixin(VimNormalOpsMixin):
         start = self._clamp_visual_location(start)
         cursor = self._location_before_exclusive_end(end, start)
         self._vim_mode = "visual"
+        self._sync_vim_cursor_class()
         self._visual_anchor = start
         self._visual_cursor = cursor
         self._update_visual_selection()
@@ -229,6 +233,7 @@ class VimVisualStateMixin(VimNormalOpsMixin):
         first_row = max(0, min(first_row, self.document.line_count - 1))
         last_row = max(0, min(last_row, self.document.line_count - 1))
         self._vim_mode = "visual_line"
+        self._sync_vim_cursor_class()
         self._visual_anchor = (first_row, 0)
         self._visual_cursor = (last_row, 0)
         self._update_visual_selection()
