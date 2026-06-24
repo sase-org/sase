@@ -19,6 +19,7 @@ class PromptStashEntryWire:
     project: str | None = None
     source: str = ""
     pane_index: int = 0
+    pinned: bool = False
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,7 @@ def _prompt_stash_entry_from_dict(data: dict[str, Any]) -> PromptStashEntryWire:
         project=None if data.get("project") is None else str(data["project"]),
         source=str(data.get("source", "")),
         pane_index=int(data.get("pane_index", 0)),
+        pinned=bool(data.get("pinned", False)),
     )
 
 

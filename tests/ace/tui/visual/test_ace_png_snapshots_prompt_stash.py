@@ -4,7 +4,7 @@ Phase 4 visual polish: pin how the two user-facing chrome pieces of the prompt
 stash render — the top-bar ``StashedPromptsIndicator`` badge (snowflake glyph +
 violet accent, shown only when a stash exists) and the ``StashedPromptsModal``
 restore picker (newest-first rows with relative age, originating-project chip,
-truncated preview, and the ``✓`` pop / ``+`` keep / ``✗`` delete markers).
+truncated preview, and the ``✓`` pop / ``📌`` pin / ``✗`` delete markers).
 
 Relative ages are frozen via a patched ``format_relative_time`` so the rows are
 deterministic regardless of when the suite runs.
@@ -50,8 +50,8 @@ def _stash_entries() -> list[PromptStashEntryWire]:
     """Entries spanning every row state the picker can show.
 
     Newest-first display order is ``recent → cleanup → longpreview → noproj →
-    multiline``; the snapshot marks ``recent`` for restore+pop, ``cleanup`` for
-    restore+keep, and ``longpreview`` for deletion so all three markers, the
+    multiline``; the snapshot marks ``recent`` for restore+pop, ``cleanup`` as
+    pinned, and ``longpreview`` for deletion so the marker and pin columns, the
     project chips, the placeholder, and the preview-truncation path are all
     exercised in one frame.
     """
@@ -140,10 +140,10 @@ async def test_stashed_prompts_restore_modal_png_snapshot(
         page.app.push_screen(modal)
         await page.expect_modal("StashedPromptsModal")
 
-        # Mark one row for pop (✓), one for keep (+), and one for deletion (✗)
-        # so all marker styles render alongside the plain rows.
+        # Mark one row for pop (✓), one as pinned (📌), and one for deletion
+        # (✗) so the marker/pin columns render alongside the plain rows.
         modal._pop = {"recent"}
-        modal._keep = {"cleanup"}
+        modal._pinned = {"cleanup"}
         modal._deleted = {"longpreview"}
         modal._refresh_rows()
         await wait_for_visual_idle(page)

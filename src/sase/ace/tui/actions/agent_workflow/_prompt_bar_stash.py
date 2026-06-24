@@ -174,6 +174,43 @@ class PromptBarStashMixin:
 
         await self._apply_stash_restore(result)
 
+    def on_stashed_prompts_modal_pin_toggled(self, event: object) -> None:
+        """Persist a prompt-stash pin toggle without blocking key handling."""
+        from ...modals import StashedPromptsModal
+
+        if not isinstance(event, StashedPromptsModal.PinToggled):
+            return
+        self._spawn_prompt_stash_task(
+            self._persist_prompt_stash_pin_async(event.entry.id, event.pinned)
+        )
+
+    async def _persist_prompt_stash_pin_async(
+        self, entry_id: str, pinned: bool
+    ) -> None:
+        """Apply a pin toggle through the Rust store on a worker thread."""
+        import asyncio
+
+        from sase.core.paths import prompt_stash_path
+        from sase.core.prompt_stash_facade import set_prompt_stash_pinned
+
+        lock = getattr(self, "_prompt_stash_pin_lock", None)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._prompt_stash_pin_lock = lock
+        async with lock:
+            try:
+                await asyncio.to_thread(
+                    set_prompt_stash_pinned,
+                    prompt_stash_path(),
+                    [entry_id],
+                    pinned,
+                )
+            except Exception as exc:  # pragma: no cover - stale wheel/IO failure
+                self.notify(  # type: ignore[attr-defined]
+                    f"Failed to update stashed prompt pin: {exc}",
+                    severity="error",
+                )
+
     async def _apply_stash_restore(self, result: StashRestoreResult) -> None:
         """Apply per-entry pop/keep/delete decisions from the unified panel.
 
@@ -186,6 +223,8 @@ class PromptBarStashMixin:
         from sase.core.paths import prompt_stash_path
         from sase.core.prompt_stash_facade import pop_prompt_stash
 
+        # The current panel does not produce keep ids, but the transport path is
+        # retained so callers can still load-without-pop without re-plumbing.
         restore_ids = [*result.pop_ids, *result.keep_ids]
         remove_ids = [*result.pop_ids, *result.delete_ids]
         if not restore_ids and not remove_ids:

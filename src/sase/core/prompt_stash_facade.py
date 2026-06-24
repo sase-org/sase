@@ -44,6 +44,17 @@ def pop_prompt_stash(
     return prompt_stash_pop_outcome_from_dict(payload)
 
 
+def set_prompt_stash_pinned(
+    path: Path | str,
+    ids: Sequence[str],
+    pinned: bool,
+) -> PromptStashSnapshotWire:
+    """Set the persisted pin flag for the given entry ids."""
+    binding = require_rust_binding("set_prompt_stash_pinned")
+    payload: dict[str, Any] = binding(str(path), [str(i) for i in ids], bool(pinned))
+    return prompt_stash_snapshot_from_dict(payload)
+
+
 __all__ = [
     "PromptStashEntryWire",
     "PromptStashPopOutcomeWire",
@@ -51,4 +62,5 @@ __all__ = [
     "append_prompt_stash",
     "pop_prompt_stash",
     "read_prompt_stash_snapshot",
+    "set_prompt_stash_pinned",
 ]

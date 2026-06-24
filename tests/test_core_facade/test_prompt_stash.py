@@ -27,6 +27,7 @@ def _entry(
     project: str | None = None,
     source: str = "current",
     pane_index: int = 0,
+    pinned: bool = False,
 ) -> PromptStashEntryWire:
     return PromptStashEntryWire(
         id=id,
@@ -36,6 +37,7 @@ def _entry(
         project=project,
         source=source,
         pane_index=pane_index,
+        pinned=pinned,
     )
 
 
@@ -72,6 +74,7 @@ def test_read_snapshot_rehydrates_typed_records(
                     "project": "proj-a",
                     "source": "all",
                     "pane_index": 2,
+                    "pinned": True,
                 }
             ],
             "stats": {
@@ -95,6 +98,7 @@ def test_read_snapshot_rehydrates_typed_records(
     assert entry.project == "proj-a"
     assert entry.source == "all"
     assert entry.pane_index == 2
+    assert entry.pinned is True
 
 
 def test_missing_prompt_stash_binding_raises(
@@ -137,6 +141,7 @@ def test_append_serializes_entry_dict(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls[0][0] == "/tmp/prompt_stash.jsonl"
     assert calls[0][1]["id"] == "e1"
     assert calls[0][1]["project"] == "proj-a"
+    assert calls[0][1]["pinned"] is False
     assert snapshot.entries[0].id == "e1"
 
 
@@ -172,8 +177,45 @@ def test_pop_passes_string_ids_and_rehydrates_outcome(
     assert outcome.snapshot.entries == []
 
 
+def test_set_pinned_passes_string_ids_and_rehydrates_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, list[str], bool]] = []
+
+    def fake_set_pinned(path: str, ids: list[str], pinned: bool) -> dict:
+        calls.append((path, ids, pinned))
+        return {
+            "schema_version": PROMPT_STASH_WIRE_SCHEMA_VERSION,
+            "entries": [
+                {
+                    "id": "a",
+                    "created_at": "2026-06-16T01:02:03+00:00",
+                    "text": "x",
+                    "pinned": pinned,
+                }
+            ],
+            "stats": {"loaded_rows": 1},
+        }
+
+    _fake_module(monkeypatch, set_prompt_stash_pinned=fake_set_pinned)
+
+    snapshot = facade.set_prompt_stash_pinned(
+        "/tmp/prompt_stash.jsonl", ("a", "b"), True
+    )
+
+    assert calls == [("/tmp/prompt_stash.jsonl", ["a", "b"], True)]
+    assert snapshot.entries[0].id == "a"
+    assert snapshot.entries[0].pinned is True
+
+
 def test_wire_helpers_round_trip_entry() -> None:
-    entry = _entry("e1", project="proj-a", frontmatter="m: c\n", pane_index=3)
+    entry = _entry(
+        "e1",
+        project="proj-a",
+        frontmatter="m: c\n",
+        pane_index=3,
+        pinned=True,
+    )
     payload = prompt_stash_wire_to_json_dict(entry)
     assert payload == {
         "id": "e1",
@@ -183,6 +225,7 @@ def test_wire_helpers_round_trip_entry() -> None:
         "project": "proj-a",
         "source": "current",
         "pane_index": 3,
+        "pinned": True,
     }
     assert _prompt_stash_entry_from_dict(payload) == entry
 
@@ -196,6 +239,7 @@ def test_entry_from_dict_applies_defaults() -> None:
     assert entry.project is None
     assert entry.source == ""
     assert entry.pane_index == 0
+    assert entry.pinned is False
 
 
 def test_real_extension_round_trips_store_operations(tmp_path: Path) -> None:
@@ -220,6 +264,23 @@ def test_real_extension_round_trips_store_operations(tmp_path: Path) -> None:
 
     after = facade.read_prompt_stash_snapshot(path)
     assert [e.id for e in after.entries] == ["b"]
+
+
+def test_real_extension_sets_and_clears_pinned(tmp_path: Path) -> None:
+    _skip_without_prompt_stash_bindings("set_prompt_stash_pinned")
+    path = tmp_path / "prompt_stash.jsonl"
+
+    facade.append_prompt_stash(path, _entry("a"))
+    facade.append_prompt_stash(path, _entry("b"))
+
+    pinned = facade.set_prompt_stash_pinned(path, ["a", "missing"], True)
+    assert [(e.id, e.pinned) for e in pinned.entries] == [("a", True), ("b", False)]
+
+    cleared = facade.set_prompt_stash_pinned(path, ["a"], False)
+    assert [(e.id, e.pinned) for e in cleared.entries] == [
+        ("a", False),
+        ("b", False),
+    ]
 
 
 def test_real_extension_missing_file_is_empty(tmp_path: Path) -> None:

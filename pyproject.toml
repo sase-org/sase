@@ -44,7 +44,7 @@ dependencies = [
     "plotext",
     "rich",
     "ruamel.yaml>=0.18,<1.0",
-    "sase-core-rs>=0.1.1,<0.3.0",
+    "sase-core-rs>=0.2.0,<0.3.0",
     "schedule",
     "textual[syntax]>=0.45.0",
 ]

@@ -1488,7 +1488,7 @@ requires-dist = [
     { name = "pyyaml" },
     { name = "rich" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "sase-core-rs", specifier = ">=0.1.1,<0.3.0" },
+    { name = "sase-core-rs", specifier = ">=0.2.0,<0.3.0" },
     { name = "schedule" },
     { name = "textual", extras = ["syntax"], specifier = ">=0.45.0" },
     { name = "tox", marker = "extra == 'dev'" },

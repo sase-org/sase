@@ -15,6 +15,7 @@ confirm, applies per-entry pop/keep/delete choices through
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,18 @@ def _skip_without_prompt_stash_bindings() -> None:
     rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     if not hasattr(rust_module, "pop_prompt_stash"):
         pytest.skip("sase_core_rs is too old (no pop_prompt_stash binding).")
+
+
+def _skip_without_pinned_binding() -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    if not hasattr(rust_module, "set_prompt_stash_pinned"):
+        pytest.skip("sase_core_rs is too old (no set_prompt_stash_pinned binding).")
+
+
+async def _wait_prompt_stash_tasks(harness: object) -> None:
+    tasks = list(getattr(harness, "_prompt_stash_async_tasks", set()))
+    if tasks:
+        await asyncio.gather(*tasks)
 
 
 class _FakeBar:
@@ -395,6 +408,37 @@ async def test_confirm_restore_and_delete_mixed_summary(
 async def test_confirm_none_is_noop() -> None:
     harness = _RestoreHarness(bar=_FakeBar())
     await harness._on_prompt_stash_restore_confirmed(None)
+    assert harness.notifications == []
+    assert harness.applied_counts == []
+
+
+async def test_pin_toggled_persists_without_badge_refresh(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_pinned_binding()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "")])
+    harness = _RestoreHarness()
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    entry = read_prompt_stash_snapshot(path).entries[0]
+    harness.on_stashed_prompts_modal_pin_toggled(
+        StashedPromptsModal.PinToggled(entry, True)
+    )
+    await _wait_prompt_stash_tasks(harness)
+
+    assert read_prompt_stash_snapshot(path).entries[0].pinned is True
+    assert harness.notifications == []
+    assert harness.applied_counts == []
+
+    harness.on_stashed_prompts_modal_pin_toggled(
+        StashedPromptsModal.PinToggled(entry, False)
+    )
+    await _wait_prompt_stash_tasks(harness)
+
+    assert read_prompt_stash_snapshot(path).entries[0].pinned is False
     assert harness.notifications == []
     assert harness.applied_counts == []
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 14:05:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/persist_prompt_stash_pin.md
 ---
 # Plan: Persistent "pin" for prompt-stash entries (`<space>` toggles a pin that survives restarts)
