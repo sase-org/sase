@@ -56,6 +56,11 @@ class PromptHistoryLoadError(Exception):
     """Raised when prompt history cannot be loaded for a safe mutation."""
 
 
+def is_recordable_prompt(text: str, *, allow_short: bool = False) -> bool:
+    """Return True if *text* meets the prompt-history recording threshold."""
+    return allow_short or len(text.split()) >= _MIN_PROMPT_WORDS
+
+
 def prompt_history_file() -> Path:
     """Return the legacy single-file prompt-history path.
 
@@ -490,7 +495,7 @@ def add_or_update_prompt(
             the normal history threshold. This is used for replayable generated
             fanout invocations such as a bare multi-agent xprompt trigger.
     """
-    if not allow_short and len(text.split()) < _MIN_PROMPT_WORDS:
+    if not is_recordable_prompt(text, allow_short=allow_short):
         return
 
     current_timestamp = generate_timestamp()
@@ -548,7 +553,7 @@ def _multi_prompt_segment_mutations(
     multi = parse_multi_prompt(text)
     mutations = []
     for segment in multi.segments:
-        if len(segment.split()) < _MIN_PROMPT_WORDS:
+        if not is_recordable_prompt(segment):
             continue
         mutations.append(_PromptMutation(text=segment, cancelled=cancelled))
     return mutations

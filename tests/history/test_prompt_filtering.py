@@ -6,9 +6,23 @@ from unittest.mock import patch
 from sase.history.prompt_store import (
     PromptEntry,
     add_or_update_prompt,
+    is_recordable_prompt,
     load_prompt_history,
     save_prompt_history,
 )
+
+
+def test_is_recordable_prompt_matches_word_threshold() -> None:
+    assert is_recordable_prompt("fix bug") is True
+    assert is_recordable_prompt("   fix   bug   ") is True
+    assert is_recordable_prompt("") is False
+    assert is_recordable_prompt("   \n\t  ") is False
+    assert is_recordable_prompt("#gh:sase") is False
+
+
+def test_is_recordable_prompt_allows_short_override() -> None:
+    assert is_recordable_prompt("#gh:sase", allow_short=True) is True
+    assert is_recordable_prompt("", allow_short=True) is True
 
 
 def test_single_word_prompt_not_written(tmp_path: Path) -> None:

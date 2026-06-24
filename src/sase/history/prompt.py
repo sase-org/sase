@@ -43,6 +43,7 @@ from sase.history.prompt_stats import (
 from sase.history.prompt_store import (
     PromptEntry,
     add_or_update_prompt,
+    is_recordable_prompt,
     load_prompt_history,
     prompt_history_file,
     record_failed_launch_prompt,
@@ -69,6 +70,7 @@ __all__ = [
     "compute_prompt_stats",
     "delete_prompt",
     "get_prompts_for_fzf",
+    "is_recordable_prompt",
     "load_prompt_history",
     "load_prompt_record_page",
     "list_prompt_records",

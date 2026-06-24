@@ -20,6 +20,7 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_submit import (
 )
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.history.prompt import is_recordable_prompt
 
 from tests.ace.tui._agent_launch_helpers import _FakeApp
 
@@ -50,19 +51,29 @@ class _SubmitHarness(PromptBarSubmitMixin):
         self.finish_calls: list[tuple[str, bool]] = []
         self.saved_cancelled: list[str] = []
         self.unmount_calls = 0
-        self.notifications: list[tuple[str, str | None]] = []
+        self.unmount_return = "stored prompt"
+        self.notifications: list[tuple[str, str | None, str | None]] = []
 
-    def notify(self, msg: str, *, severity: str | None = None) -> None:
-        self.notifications.append((msg, severity))
+    def notify(
+        self,
+        msg: str,
+        *,
+        severity: str | None = None,
+        title: str | None = None,
+    ) -> None:
+        self.notifications.append((msg, severity, title))
 
     def _finish_agent_launch(self, prompt: str, *, keep_bar: bool = False) -> None:
         self.finish_calls.append((prompt, keep_bar))
 
-    def _save_text_as_cancelled(self, text: str) -> None:
+    def _save_text_as_cancelled(self, text: str) -> str:
         self.saved_cancelled.append(text)
+        stripped = text.strip()
+        return stripped if is_recordable_prompt(stripped) else ""
 
-    def _unmount_prompt_bar(self) -> None:
+    def _unmount_prompt_bar(self) -> str:
         self.unmount_calls += 1
+        return self.unmount_return
 
 
 # --- submit routing --------------------------------------------------------
@@ -101,7 +112,7 @@ def test_empty_whole_bar_submit_unmounts_and_clears_context() -> None:
     assert harness.finish_calls == []
     assert harness.unmount_calls == 1
     assert harness._prompt_context is None
-    assert harness.notifications == [("Empty prompt - cancelled", "warning")]
+    assert harness.notifications == [("Empty prompt - cancelled", "warning", None)]
 
 
 # --- cancel routing --------------------------------------------------------
@@ -117,10 +128,29 @@ def test_per_pane_cancel_saves_only_that_pane_and_keeps_bar() -> None:
     assert harness.saved_cancelled == ["cancelled pane"]
     assert harness.unmount_calls == 0
     assert harness._prompt_context is not None
+    assert harness.notifications == [
+        (
+            '"cancelled pane"',
+            None,
+            "Prompt pane cancelled — saved to history",
+        )
+    ]
+
+
+def test_per_pane_cancel_skips_toast_when_text_was_not_stored() -> None:
+    harness = _SubmitHarness()
+
+    harness.on_prompt_input_bar_cancelled(
+        PromptInputBar.Cancelled("#gh:sase", "prompt", keep_bar=True)
+    )
+
+    assert harness.saved_cancelled == ["#gh:sase"]
+    assert harness.notifications == []
 
 
 def test_whole_bar_cancel_unmounts_and_clears_context() -> None:
     harness = _SubmitHarness()
+    harness.unmount_return = "fix bug"
 
     harness.on_prompt_input_bar_cancelled(PromptInputBar.Cancelled("text", "prompt"))
 
@@ -129,6 +159,39 @@ def test_whole_bar_cancel_unmounts_and_clears_context() -> None:
     assert harness.saved_cancelled == []
     assert harness.unmount_calls == 1
     assert harness._prompt_context is None
+    assert harness.notifications == [
+        (
+            '"fix bug"',
+            None,
+            "Prompt input cancelled — saved to history",
+        )
+    ]
+
+
+def test_whole_bar_cancel_skips_toast_when_text_was_not_stored() -> None:
+    harness = _SubmitHarness()
+    harness.unmount_return = ""
+
+    harness.on_prompt_input_bar_cancelled(
+        PromptInputBar.Cancelled("#gh:sase", "prompt")
+    )
+
+    assert harness.unmount_calls == 1
+    assert harness._prompt_context is None
+    assert harness.notifications == []
+
+
+def test_cancel_toast_uses_short_preview_for_long_prompts() -> None:
+    harness = _SubmitHarness()
+    harness.unmount_return = " ".join(["longprompt"] * 12)
+
+    harness.on_prompt_input_bar_cancelled(PromptInputBar.Cancelled("text", "prompt"))
+
+    assert len(harness.notifications) == 1
+    message, _severity, title = harness.notifications[0]
+    assert title == "Prompt input cancelled — saved to history"
+    assert message.startswith('"longprompt longprompt')
+    assert message.endswith('…"')
 
 
 # --- keep_bar context lifecycle (the race the design calls out) ------------

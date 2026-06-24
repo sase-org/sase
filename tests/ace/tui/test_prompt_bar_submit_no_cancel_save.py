@@ -68,9 +68,12 @@ def test_finish_agent_launch_does_not_write_cancelled_history() -> None:
 class _MountHarness(PromptBarMountMixin):
     """Drive the unmount methods without a live Textual DOM."""
 
-    def __init__(self, bar: object | None) -> None:
+    def __init__(
+        self, bar: object | None, *, saved_text: str = "stored prompt"
+    ) -> None:
         self._prompt_context: PromptContext | None = _ctx()
         self._bar = bar
+        self._saved_text = saved_text
         self.detached: list[object] = []
         self.save_called_with: list[object] = []
 
@@ -80,8 +83,9 @@ class _MountHarness(PromptBarMountMixin):
             raise RuntimeError("no bar mounted")
         return self._bar
 
-    def _save_bar_text_as_cancelled(self, bar: object) -> None:  # type: ignore[override]
+    def _save_bar_text_as_cancelled(self, bar: object) -> str:  # type: ignore[override]
         self.save_called_with.append(bar)
+        return self._saved_text
 
     def _detach_prompt_bar(self, bar: object) -> None:  # type: ignore[override]
         self.detached.append(bar)
@@ -103,10 +107,11 @@ def test_cancel_unmount_still_saves_text_as_cancelled() -> None:
     bar = object()
     harness = _MountHarness(bar)
 
-    harness._unmount_prompt_bar()
+    stored = harness._unmount_prompt_bar()
 
     assert harness.save_called_with == [bar]
     assert harness.detached == [bar]
+    assert stored == "stored prompt"
 
 
 def test_unmount_after_submit_is_noop_when_no_bar_mounted() -> None:
@@ -117,3 +122,93 @@ def test_unmount_after_submit_is_noop_when_no_bar_mounted() -> None:
 
     assert harness.save_called_with == []
     assert harness.detached == []
+
+
+class _Bar:
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    def current_prompt_text(self) -> str:
+        return self._text
+
+
+class _RealSaveHarness(PromptBarMountMixin):
+    def __init__(self, bar: object | None) -> None:
+        self._prompt_context: PromptContext | None = _ctx()
+        self._bar = bar
+        self.detached: list[object] = []
+
+    def query_one(self, selector: str, _cls: object | None = None) -> object:
+        del selector, _cls
+        if self._bar is None:
+            raise RuntimeError("no bar mounted")
+        return self._bar
+
+    def _detach_prompt_bar(self, bar: object) -> None:  # type: ignore[override]
+        self.detached.append(bar)
+
+
+def test_save_text_as_cancelled_returns_recorded_text() -> None:
+    harness = _RealSaveHarness(bar=None)
+
+    with (
+        patch("sase.history.prompt.add_or_update_prompt") as add_or_update,
+        patch(
+            "sase.history.file_references.extract_recordable_file_refs",
+            return_value=[],
+        ),
+    ):
+        stored = harness._save_text_as_cancelled("  fix bug  ")
+
+    assert stored == "fix bug"
+    add_or_update.assert_called_once_with("fix bug", cancelled=True)
+
+
+def test_save_text_as_cancelled_returns_empty_for_unrecordable_text() -> None:
+    harness = _RealSaveHarness(bar=None)
+
+    with (
+        patch("sase.history.prompt.add_or_update_prompt") as add_or_update,
+        patch(
+            "sase.history.file_references.extract_recordable_file_refs",
+            return_value=[],
+        ),
+    ):
+        empty = harness._save_text_as_cancelled("  \n\t  ")
+        short = harness._save_text_as_cancelled("#gh:sase")
+
+    assert empty == ""
+    assert short == ""
+    add_or_update.assert_called_once_with("#gh:sase", cancelled=True)
+
+
+def test_save_bar_text_as_cancelled_propagates_recorded_text() -> None:
+    harness = _RealSaveHarness(bar=None)
+
+    with (
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch(
+            "sase.history.file_references.extract_recordable_file_refs",
+            return_value=[],
+        ),
+    ):
+        stored = harness._save_bar_text_as_cancelled(_Bar("fix bug"))
+
+    assert stored == "fix bug"
+
+
+def test_unmount_prompt_bar_propagates_recorded_text() -> None:
+    bar = _Bar("fix bug")
+    harness = _RealSaveHarness(bar)
+
+    with (
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch(
+            "sase.history.file_references.extract_recordable_file_refs",
+            return_value=[],
+        ),
+    ):
+        stored = harness._unmount_prompt_bar()
+
+    assert stored == "fix bug"
+    assert harness.detached == [bar]

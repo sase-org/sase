@@ -100,7 +100,7 @@ class PromptBarMountMixin:
         # Immediately show prompt input bar (workspace prep happens in runner)
         self.mount(PromptInputBar(id="prompt-input-bar"))  # type: ignore[attr-defined]
 
-    def _save_bar_text_as_cancelled(self, bar: object) -> None:
+    def _save_bar_text_as_cancelled(self, bar: object) -> str:
         """Extract text from bar and save to history as cancelled.
 
         Safe to call even if the prompt was already saved — add_or_update_prompt
@@ -109,10 +109,10 @@ class PromptBarMountMixin:
         try:
             text = bar.current_prompt_text()  # type: ignore[attr-defined]
         except Exception:
-            return
-        self._save_text_as_cancelled(text)
+            return ""
+        return self._save_text_as_cancelled(text)
 
-    def _save_text_as_cancelled(self, text: str) -> None:
+    def _save_text_as_cancelled(self, text: str) -> str:
         """Save *text* to prompt history as cancelled, with file references.
 
         Shared by the whole-bar cancel safety net and the Phase 4 per-pane
@@ -122,10 +122,11 @@ class PromptBarMountMixin:
         """
         text = text.strip()
         if not text:
-            return
+            return ""
 
-        from sase.history.prompt import add_or_update_prompt
+        from sase.history.prompt import add_or_update_prompt, is_recordable_prompt
 
+        recorded = is_recordable_prompt(text)
         add_or_update_prompt(text, cancelled=True)
 
         from sase.history.file_references import (
@@ -136,8 +137,9 @@ class PromptBarMountMixin:
         refs = extract_recordable_file_refs(text)
         if refs:
             record_file_references(refs)
+        return text if recorded else ""
 
-    def _unmount_prompt_bar(self) -> None:
+    def _unmount_prompt_bar(self) -> str:
         """Unmount the prompt input bar if present, saving any unsaved text.
 
         Cancel/dismiss path. Use ``_unmount_prompt_bar_after_submit()`` from
@@ -149,13 +151,14 @@ class PromptBarMountMixin:
         try:
             bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
         except Exception:
-            return  # Bar not present
+            return ""  # Bar not present
 
         # Save any non-trivial text as cancelled before removing the bar.
         # This is the safety net — every dismissal code path flows through
         # here, so no prompt text can ever be silently lost.
-        self._save_bar_text_as_cancelled(bar)
+        stored_text = self._save_bar_text_as_cancelled(bar)
         self._detach_prompt_bar(bar)
+        return stored_text
 
     def _unmount_prompt_bar_after_submit(self) -> None:
         """Unmount the prompt input bar after a successful submit.

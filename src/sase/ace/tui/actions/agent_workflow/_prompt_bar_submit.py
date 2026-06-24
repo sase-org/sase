@@ -74,13 +74,25 @@ class PromptBarSubmitMixin:
             # the pane and kept the bar mounted, so just record that pane's text
             # as cancelled history. The base prompt context stays valid for the
             # remaining panes.
-            self._save_text_as_cancelled(event.cancelled_text)  # type: ignore[attr-defined]
-            self.notify("Prompt pane cancelled")  # type: ignore[attr-defined]
+            stored = self._save_text_as_cancelled(event.cancelled_text)  # type: ignore[attr-defined]
+            if stored:
+                self._notify_prompt_cancelled(stored, pane=True)
             return
 
-        self.notify("Prompt input cancelled")  # type: ignore[attr-defined]
-        self._unmount_prompt_bar()  # type: ignore[attr-defined]  # saves text automatically
+        stored = self._unmount_prompt_bar()  # type: ignore[attr-defined]
         self._prompt_context = None
+        if stored:
+            self._notify_prompt_cancelled(stored, pane=False)
+
+    def _notify_prompt_cancelled(self, stored_text: str, *, pane: bool) -> None:
+        """Show the prompt-history receipt toast for a cancelled prompt."""
+        from sase.history.prompt_stats import short_preview
+
+        title = "Prompt pane cancelled" if pane else "Prompt input cancelled"
+        self.notify(  # type: ignore[attr-defined]
+            f'"{short_preview(stored_text)}"',
+            title=f"{title} — saved to history",
+        )
 
     def _handle_plan_feedback_submitted(self, feedback: str) -> None:
         """Handle submission of plan feedback via the PromptInputBar."""

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 12:18:16
-status: wip
+status: done
 prompt: sdd/prompts/202606/cancel_toast.md
 ---
 # Plan: Make the prompt-cancel toast meaningful
