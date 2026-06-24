@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 06:40:42
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_rust_fmt_check_directive.md
 ---
 # Fix `rust-fmt-check` CI failure in `directive.rs`
