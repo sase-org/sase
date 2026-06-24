@@ -60,7 +60,10 @@ def overlay_config_path(name: str) -> Path:
     Normalizes to the ``sase_<name>.yml`` convention under the user config
     directory, accepting names already carrying the prefix and/or extension.
     """
-    stem = name if name.startswith("sase_") else f"sase_{name}"
+    raw = name.strip()
+    if not raw or raw in {".", ".."} or "/" in raw or "\\" in raw:
+        raise ValueError("overlay name must be a single filename stem")
+    stem = raw if raw.startswith("sase_") else f"sase_{raw}"
     if not stem.endswith(".yml"):
         stem = f"{stem}.yml"
     return CONFIG_DIR / stem

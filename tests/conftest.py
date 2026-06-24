@@ -100,7 +100,7 @@ def redirect_sase_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> Path:
 def _isolate_sase_home(
     monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
 ) -> None:
-    """Redirect ``~/.sase/`` to a per-test tmpdir so tests never touch real state.
+    """Redirect per-user SASE state/config to per-test tmpdirs.
 
     Uses ``tmp_path_factory`` (not ``tmp_path``) so the fake sase home lives
     in a sibling directory and doesn't pollute tests that iterate over their
@@ -108,6 +108,13 @@ def _isolate_sase_home(
     """
     fake_home = tmp_path_factory.mktemp("home")
     redirect_sase_home(monkeypatch, fake_home / ".sase")
+    fake_config_dir = fake_home / ".config" / "sase"
+
+    from sase.config import core as config_core
+    from sase.config import targets as config_targets
+
+    monkeypatch.setattr(config_core, "CONFIG_DIR", fake_config_dir)
+    monkeypatch.setattr(config_targets, "CONFIG_DIR", fake_config_dir)
 
 
 @pytest.fixture(autouse=True)
