@@ -427,7 +427,15 @@ def test_overlay_config_path_normalizes_name() -> None:
     from sase.config.core import CONFIG_DIR
 
     assert overlay_config_path("extra") == CONFIG_DIR / "sase_extra.yml"
+    assert overlay_config_path(" extra ") == CONFIG_DIR / "sase_extra.yml"
     assert overlay_config_path("sase_foo.yml") == CONFIG_DIR / "sase_foo.yml"
+
+
+def test_overlay_config_path_rejects_path_like_names() -> None:
+    """Overlay names must not escape the user config directory."""
+    for name in ("", "../evil", "nested/evil", r"nested\evil", ".", ".."):
+        with pytest.raises(ValueError, match="single filename stem"):
+            overlay_config_path(name)
 
 
 # --- Create-overlay target ------------------------------------------------

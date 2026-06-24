@@ -501,6 +501,18 @@ def test_epic_directive_writes_plan_auto_action(tmp_path: Path) -> None:
     assert "approve" not in result["meta"]
 
 
+def test_tale_directive_writes_plan_auto_action(tmp_path: Path) -> None:
+    """%tale is plan-specific and does not enable full auto-approve."""
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = _run_extract(tmp_path, prompt="%tale\nDraft the tale")
+
+    assert result["info"].plan is True
+    assert result["info"].approve is False
+    assert result["meta"]["plan"] is True
+    assert result["meta"]["auto_approve_plan_action"] == "tale"
+    assert "approve" not in result["meta"]
+
+
 def test_concurrent_auto_extract_assigns_unique_names(tmp_path: Path) -> None:
     from sase.agent.names import get_next_auto_name as real_get_next_auto_name
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
