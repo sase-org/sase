@@ -42,6 +42,14 @@ def test_removed_auto_approve_directive_preserved() -> None:
     assert strip_known_directives(text) == text
 
 
+def test_deprecated_time_directive_stripped_for_history_cleanup() -> None:
+    """Deprecated %time remains strippable from historical prompt text."""
+    text = "%time:5m Do the thing"
+    result = strip_known_directives(text)
+    assert "%time" not in result
+    assert result.strip() == "Do the thing"
+
+
 def test_duplicate_directives_do_not_raise() -> None:
     """Duplicate non-multi directives are stripped without raising."""
     # extract_prompt_directives would raise DirectiveError here.

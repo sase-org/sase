@@ -38,6 +38,7 @@ from ._directive_alt import (
 )
 from ._directive_time import parse_absolute_time, parse_duration
 from ._directive_types import (
+    _DEPRECATED_DIRECTIVES,
     _DIRECTIVE_ALIASES,
     _DIRECTIVE_PATTERN,
     _KNOWN_DIRECTIVES,
@@ -79,10 +80,10 @@ def strip_known_directives(prompt: str) -> str:
     """Remove known ``%name`` directive spans from *prompt* without side effects.
 
     Side-effect-free counterpart to :func:`extract_prompt_directives`: it
-    strips the same known-directive spans (colon, paren, backtick, and plus
-    argument forms, plus short aliases) but never allocates auto-names,
-    resolves ``%wait``/``%time`` arguments, or raises :class:`DirectiveError`
-    on duplicate or bare directives. Unknown ``%name`` tokens and directives
+    strips the same known/directive-migration spans (colon, paren, backtick,
+    and plus argument forms, plus short aliases) but never allocates auto-names,
+    resolves ``%wait`` arguments, or raises :class:`DirectiveError` on
+    duplicate or bare directives. Unknown ``%name`` tokens and directives
     inside fenced code blocks are left untouched.
 
     Intended for cleaning historical prompt text (e.g. ``#fork`` resume
@@ -99,7 +100,7 @@ def strip_known_directives(prompt: str) -> str:
     regions_to_remove: list[tuple[int, int]] = []
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
-        if name not in _KNOWN_DIRECTIVES:
+        if name not in _KNOWN_DIRECTIVES and name not in _DEPRECATED_DIRECTIVES:
             continue
         match_end = match.end()
         if match.group(2) is not None:  # paren argument form: consume to ')'
@@ -130,12 +131,7 @@ def has_deferred_start_directive(prompt: str) -> bool:
     start (waiting on a dependency or a wall-clock time) does not claim a
     workspace until it is actually ready to run.
     """
-    if _has_wait_directive(prompt) or _has_protected_directive_match(
-        prompt,
-        # ``%time`` only; there is no short alias because ``%t`` is left as an
-        # unknown token.
-        r"(?:^|\s)%time(?:[:+(]|\s|$)",
-    ):
+    if _has_wait_directive(prompt) or _has_t_time_xprompt_reference(prompt):
         return True
     if "#fork" not in prompt:
         return False
@@ -158,7 +154,23 @@ def has_model_directive(prompt: str) -> bool:
 
 def _has_protected_directive_match(prompt: str, pattern: str) -> bool:
     """Run a cheap directive predicate after extractor-equivalent protection."""
-    if "%" not in prompt:
+    return _has_protected_pattern_match(prompt, pattern, required_substring="%")
+
+
+def _has_t_time_xprompt_reference(prompt: str) -> bool:
+    """Quick check whether a prompt contains an explicit ``#t`` time wait."""
+    return _has_protected_pattern_match(
+        prompt,
+        r"(?:^|(?<=\s)|(?<=[(\[{\"']))#t(?=[:(])",
+        required_substring="#t",
+    )
+
+
+def _has_protected_pattern_match(
+    prompt: str, pattern: str, *, required_substring: str
+) -> bool:
+    """Run a cheap predicate after fenced-block and disabled-region protection."""
+    if required_substring not in prompt:
         return False
 
     fenced_blocks: list[str] = []
@@ -284,6 +296,7 @@ def extract_prompt_directives(
     seen_multi: dict[
         str, list[str]
     ] = {}  # directive name -> raw arg values (multi-value)
+    wait_time_args: list[str] = []
     # Single-value directives whose argument came from a backtick literal
     # (e.g. ``%model:`literal@id` ``). Tracked so the ``@effort`` split bypasses
     # backtick-literal model values, preserving any ``@`` in the model id.
@@ -294,6 +307,11 @@ def extract_prompt_directives(
     for match in matches:
         name = match.group(1)
         name = _DIRECTIVE_ALIASES.get(name, name)  # resolve alias
+        if name in _DEPRECATED_DIRECTIVES:
+            raise DirectiveError(
+                "The '%time' directive has been removed; use #t:<time> "
+                "or %wait(time=<time>) instead."
+            )
         if name not in _KNOWN_DIRECTIVES:
             continue
 
@@ -311,7 +329,17 @@ def extract_prompt_directives(
             paren_end = find_matching_paren_for_args(prompt, paren_start)
             if paren_end is not None:
                 paren_content = prompt[paren_start + 1 : paren_end]
-                positional_args, _ = parse_args(paren_content)
+                positional_args, named_args = parse_args(paren_content)
+                if name == "wait":
+                    unknown_keys = sorted(key for key in named_args if key != "time")
+                    if unknown_keys:
+                        keys = ", ".join(f"{key}=" for key in unknown_keys)
+                        raise DirectiveError(
+                            f"Unsupported keyword on %wait: {keys}. "
+                            "Only time= is supported."
+                        )
+                    if "time" in named_args:
+                        wait_time_args.append(named_args["time"])
                 if is_multi:
                     raw_args = list(positional_args)
                 elif (
@@ -380,8 +408,8 @@ def extract_prompt_directives(
 
         seen["name"] = get_next_auto_name()
 
-    # %wait branch: resolve bare to previous agent; reject time-shaped args
-    # with a migration hint pointing users to %time.
+    # %wait branch: resolve bare to previous agent; reject time-shaped
+    # positional args with a migration hint pointing users to the time= keyword.
     if "wait" in seen_multi:
         resolved_wait: list[str] = []
         prev_name: str | None = None  # lazily fetched
@@ -400,24 +428,26 @@ def extract_prompt_directives(
                 continue
             if parse_duration(raw_arg) is not None:
                 raise DirectiveError(
-                    f"%wait:{raw_arg} is a time wait; use %time:{raw_arg} instead"
+                    f"%wait:{raw_arg} is a time wait; use "
+                    f"%wait(time={raw_arg}) or #t:{raw_arg} instead"
                 )
             if parse_absolute_time(raw_arg) is not None:
                 raise DirectiveError(
-                    f"%wait:{raw_arg} is a time wait; use %time:{raw_arg} instead"
+                    f"%wait:{raw_arg} is a time wait; use "
+                    f"%wait(time={raw_arg}) or #t:{raw_arg} instead"
                 )
             resolved_wait.append(raw_arg)
         seen_multi["wait"] = resolved_wait
 
-    # %time branch: durations fold to wait_duration (max); a single absolute
-    # time sets wait_until. Bare %time is invalid; non-time arguments error.
+    # %wait time= keyword: durations fold to wait_duration (max); a single
+    # absolute time sets wait_until. Empty and non-time values are invalid.
     wait_duration: float | None = None
     wait_until: str | None = None
-    if "time" in seen_multi:
-        for raw_arg in seen_multi["time"]:
+    if wait_time_args:
+        for raw_arg in wait_time_args:
             if not raw_arg:
                 raise DirectiveError(
-                    "Bare '%time' requires a duration or absolute time argument"
+                    "'%wait(time=...)' requires a duration or absolute time argument"
                 )
             dur = parse_duration(raw_arg)
             if dur is not None:
@@ -438,12 +468,10 @@ def extract_prompt_directives(
                 wait_until = abs_time
                 continue
             raise DirectiveError(
-                f"Invalid %time value '{raw_arg}'; %time accepts only durations"
-                " (e.g. 5m) and absolute times (e.g. 1430)."
-                f" Use %wait:{raw_arg} to wait for an agent."
+                f"Invalid %wait time= value '{raw_arg}'; time= accepts only "
+                "durations (e.g. 5m) and absolute times (e.g. 1430). "
+                f"Use %wait:{raw_arg} to wait for an agent."
             )
-        # Drop %time from multi-value collection — it's not stored as a list.
-        seen_multi.pop("time", None)
 
     # Remove directive regions from prompt (last-to-first to preserve positions)
     cleaned = prompt

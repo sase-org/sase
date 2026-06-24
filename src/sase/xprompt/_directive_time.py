@@ -1,8 +1,8 @@
-"""Duration and absolute-time argument parsing for ``%wait`` directives.
+"""Duration and absolute-time argument parsing for ``%wait(time=...)``.
 
 Used by :func:`sase.xprompt.directives.extract_prompt_directives` to
-interpret ``%wait:5m``, ``%wait:1h30m``, ``%wait:1430``, and
-``%wait:260418/0900`` style arguments.
+interpret ``%wait(time=5m)``, ``%wait(time=1h30m)``,
+``%wait(time=1430)``, and ``%wait(time=260418/0900)`` style arguments.
 """
 
 import re
@@ -35,7 +35,7 @@ def parse_absolute_time(s: str) -> str | None:
         hh, mm = int(time_part[:2]), int(time_part[2:])
         if hh > 23 or mm > 59:
             raise DirectiveError(
-                f"Invalid time '{time_part}' in '%wait:{s}'"
+                f"Invalid time '{time_part}' in '%wait(time={s})'"
                 f" — hours must be 00-23 and minutes 00-59"
             )
         yy = int(date_part[:2])
@@ -43,25 +43,27 @@ def parse_absolute_time(s: str) -> str | None:
         dd = int(date_part[4:6])
         if mo < 1 or mo > 12:
             raise DirectiveError(
-                f"Invalid month '{mo:02d}' in '%wait:{s}' — month must be 01-12"
+                f"Invalid month '{mo:02d}' in '%wait(time={s})' — month must be 01-12"
             )
         if dd < 1 or dd > 31:
             raise DirectiveError(
-                f"Invalid day '{dd:02d}' in '%wait:{s}' — day must be 01-31"
+                f"Invalid day '{dd:02d}' in '%wait(time={s})' — day must be 01-31"
             )
         try:
             target = datetime(2000 + yy, mo, dd, hh, mm)
         except ValueError as exc:
-            raise DirectiveError(f"Invalid date/time in '%wait:{s}' — {exc}") from exc
+            raise DirectiveError(
+                f"Invalid date/time in '%wait(time={s})' — {exc}"
+            ) from exc
         if target <= datetime.now():
-            raise DirectiveError(f"Target time '%wait:{s}' is in the past")
+            raise DirectiveError(f"Target time '%wait(time={s})' is in the past")
         return target.isoformat()
 
     if _HHMM_RE.match(s):
         hh, mm = int(s[:2]), int(s[2:])
         if hh > 23 or mm > 59:
             raise DirectiveError(
-                f"Invalid time '{s}' in '%wait:{s}'"
+                f"Invalid time '{s}' in '%wait(time={s})'"
                 f" — hours must be 00-23 and minutes 00-59"
             )
         now = datetime.now()

@@ -970,8 +970,7 @@ the prompt before further processing.
 | `%model`  | `%m`  | Override the LLM model for this prompt                           |
 | `%effort` |       | Set the reasoning-effort level (e.g. `%effort:xhigh`)            |
 | `%name`   | `%n`  | Assign, auto-generate, or force-reuse an agent name              |
-| `%wait`   | `%w`  | Wait for another agent or workflow to succeed                    |
-| `%time`   |       | Defer launch by a duration or until an absolute wall-clock time  |
+| `%wait`   | `%w`  | Wait for another agent/workflow and/or a time floor              |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display               |
 | `%auto`   | `%a`  | Auto-approve the submitted plan as plan (default), tale, or epic |
 | `%edit`   | `%e`  | Return editor text to the prompt bar for review                  |
@@ -1003,12 +1002,13 @@ Directives use the same argument syntax as xprompt references:
 %wait                        # Bare — waits for the most recently named agent
 %wait:agent1,agent2          # Multi-value: equivalent to two separate %wait: lines
 %wait(agent1, agent2)        # Same, paren form
-%time:5m                     # Wait for 5 minutes before starting
-%time:1h30m                  # Wait for 1 hour 30 minutes
-%time:90s                    # Wait for 90 seconds
-%time:1430                   # Wait until 14:30 today (wraps to tomorrow if past)
-%time:260415/0900            # Wait until 2026-04-15 at 09:00
-%wait:agent1 %time:5m        # Wait for agent1, then a 5-minute floor
+%wait(time=5m)               # Wait for 5 minutes before starting
+%wait(time=1h30m)            # Wait for 1 hour 30 minutes
+%wait(time=90s)              # Wait for 90 seconds
+%wait(time=1430)             # Wait until 14:30 today (wraps to tomorrow if past)
+%wait(time=260415/0900)      # Wait until 2026-04-15 at 09:00
+%wait(agent1, time=5m)       # Wait for agent1, then a 5-minute floor
+#t:5m                        # Shorthand for %wait(time=5m)
 %repeat:3                    # Run the prompt 3 times
 %r:5                         # Same, using alias
 %{#review | #test}           # Brace shorthand: branches split on top-level `|`
@@ -1066,25 +1066,28 @@ If a prompt includes both `#fork`/`#resume` and `%wait`, the fork-derived `.f<N>
 wait-derived `.w<N>` name. The wait still controls launch ordering, but the planned agent name follows the resume/fork
 lineage.
 
-The `%time` directive defers launch by a duration or until an absolute wall-clock time:
+The `%wait` directive also accepts a `time=` keyword to defer launch by a duration or until an absolute wall-clock time.
+For a pure time wait, `#t:<time>` is shorthand for `%wait(time=<time>)`.
 
-- **Durations** in `XhYmZs` format (e.g., `%time:5m`, `%time:1h30m`, `%time:90s`). When multiple `%time` durations are
-  specified, the maximum is used.
-- **`HHMM`** — wait until that time today (e.g., `%time:1430` for 14:30). If the time has already passed, it wraps to
-  tomorrow.
-- **`yymmdd/HHMM`** — wait until a specific date and time (e.g., `%time:260415/0900` for 2026-04-15 at 09:00). Raises an
-  error if the target is in the past.
+- **Durations** in `XhYmZs` format (e.g., `%wait(time=5m)`, `%wait(time=1h30m)`, `%wait(time=90s)`, or `#t:5m`). When
+  multiple `time=` durations are specified, the maximum is used.
+- **`HHMM`** — wait until that time today (e.g., `%wait(time=1430)` for 14:30). If the time has already passed, it wraps
+  to tomorrow.
+- **`yymmdd/HHMM`** — wait until a specific date and time (e.g., `%wait(time=260415/0900)` for 2026-04-15 at 09:00).
+  Raises an error if the target is in the past.
 
-`%time` and `%wait` combine freely: dependencies wait first, then the time floor applies.
+Agent dependencies and `time=` combine in one `%wait(...)` directive: dependencies wait first, then the time floor
+applies.
 
 Absolute time waits cannot be combined with duration waits or with each other.
 
-Bare `%time` is invalid — `%time` requires a duration or absolute time argument. Time-shaped values passed to `%wait`
-(e.g. `%wait:5m`) raise an error with a migration hint pointing to `%time:5m`.
+The old `%time:<value>` spelling is no longer accepted; use `#t:<value>` or `%wait(time=<value>)`. Time-shaped
+positional values passed to `%wait` (e.g. `%wait:5m`) raise an error with a migration hint pointing to `%wait(time=5m)`
+/ `#t:5m`.
 
-Multi-value directives (`%wait`, `%time`, `%model`, `%alt`) accept comma-separated arguments to collapse what would
-otherwise be several lines: `%wait:agent_a,agent_b` is equivalent to two separate `%wait:` directives. Backtick-quoted
-values (e.g. `` %wait:`a,b` ``) are treated as a single literal and not split on commas.
+Multi-value directives (`%wait`, `%model`, `%alt`) accept comma-separated arguments to collapse what would otherwise be
+several lines: `%wait:agent_a,agent_b` is equivalent to two separate `%wait:` directives. Backtick-quoted values (e.g.
+`` %wait:`a,b` ``) are treated as a single literal and not split on commas.
 
 The `%edit` and `%hide` directives are boolean flags — they take no arguments and are simply present or absent. The
 `%auto` directive defaults to plan mode when bare and accepts `:plan`, `:tale`, or `:epic`.
@@ -1427,8 +1430,7 @@ Do work after all three agents finish.
 Agent dependencies and time floors can be mixed freely:
 
 ```
-%wait:agent1
-%time:5m
+%wait(agent1, time=5m)
 Wait for agent1 to finish, then wait at least 5 minutes from launch.
 ```
 

@@ -128,23 +128,26 @@ def test_wait_template_no_existing_latest_raises() -> None:
 
 
 def test_wait_duration_arg_raises_with_migration_hint() -> None:
-    """%wait:5m raises with a migration hint pointing to %time."""
+    """%wait:5m raises with a migration hint pointing to time=."""
     prompt = "%wait:5m\nDo work"
-    with pytest.raises(DirectiveError, match=r"%time:5m"):
+    with pytest.raises(DirectiveError, match=r"%wait\(time=5m\).*#t:5m"):
         extract_prompt_directives(prompt)
 
 
 def test_wait_hhmm_arg_raises_with_migration_hint() -> None:
-    """%wait:1430 raises with a migration hint pointing to %time."""
+    """%wait:1430 raises with a migration hint pointing to time=."""
     prompt = "%wait:1430\nDo work"
-    with pytest.raises(DirectiveError, match=r"%time:1430"):
+    with pytest.raises(DirectiveError, match=r"%wait\(time=1430\).*#t:1430"):
         extract_prompt_directives(prompt)
 
 
 def test_wait_yymmdd_arg_raises_with_migration_hint() -> None:
-    """%wait:300415/0900 raises with a migration hint pointing to %time."""
+    """%wait:300415/0900 raises with a migration hint pointing to time=."""
     prompt = "%wait:300415/0900\nDo work"
-    with pytest.raises(DirectiveError, match=r"%time:300415/0900"):
+    with pytest.raises(
+        DirectiveError,
+        match=r"%wait\(time=300415/0900\).*#t:300415/0900",
+    ):
         extract_prompt_directives(prompt)
 
 
@@ -180,3 +183,59 @@ def test_wait_paren_form_matches_colon_form() -> None:
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do work"
     assert directives.wait == ["a", "b"]
+
+
+def test_wait_time_keyword_sets_wait_duration() -> None:
+    """%wait(time=5m) sets wait_duration and leaves wait empty."""
+    prompt = "%wait(time=5m)\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == []
+    assert directives.wait_duration == 300.0
+    assert directives.wait_until is None
+
+
+def test_wait_time_keyword_combines_with_agent() -> None:
+    """%wait(agent_a, time=5m) sets both dependency and time floor."""
+    prompt = "%wait(agent_a, time=5m)\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == ["agent_a"]
+    assert directives.wait_duration == 300.0
+
+
+def test_wait_time_keyword_sets_wait_until() -> None:
+    """%wait(time=1430) sets wait_until."""
+    prompt = "%wait(time=1430)\nDo work"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.wait == []
+    assert directives.wait_duration is None
+    assert directives.wait_until is not None
+
+
+def test_wait_time_keyword_duration_and_absolute_conflict() -> None:
+    """Duration and absolute time waits cannot be combined."""
+    prompt = "%wait(time=5m)\n%wait(time=1430)\nDo work"
+    with pytest.raises(DirectiveError, match="Cannot combine duration and absolute"):
+        extract_prompt_directives(prompt)
+
+
+def test_wait_time_keyword_double_absolute_conflict() -> None:
+    """Multiple absolute time waits cannot be combined."""
+    prompt = "%wait(time=0000)\n%wait(time=0100)\nDo work"
+    with pytest.raises(DirectiveError, match="Multiple absolute time waits"):
+        extract_prompt_directives(prompt)
+
+
+def test_wait_time_keyword_repeated_durations_take_max() -> None:
+    """Repeated time= durations fold to the maximum."""
+    prompt = "%wait(time=5m)\n%wait(time=10m)\nDo work"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.wait_duration == 600.0
+
+
+def test_wait_unknown_keyword_raises() -> None:
+    """Only time= is supported as a %wait keyword."""
+    prompt = "%wait(foo=bar)\nDo work"
+    with pytest.raises(DirectiveError, match=r"Unsupported keyword on %wait: foo="):
+        extract_prompt_directives(prompt)

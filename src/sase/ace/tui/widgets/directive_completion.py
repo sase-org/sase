@@ -37,8 +37,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "name": ":agent",
     "repeat": ":count",
     "group": ":tag",
-    "time": ":duration or :HHMM",
-    "wait": ":agent",
+    "wait": ":agent or (agent, time=5m)",
 }
 
 
@@ -52,8 +51,7 @@ _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "name": "assign, auto-generate, or force-reuse an agent name",
     "repeat": "run the prompt multiple serial iterations",
     "group": "assign a user-managed agent tag",
-    "time": "defer launch until a duration or wall-clock time",
-    "wait": "defer launch until agents complete",
+    "wait": "defer launch until agents complete or a time floor passes",
 }
 
 

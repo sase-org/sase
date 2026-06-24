@@ -22,7 +22,7 @@ class TestWaitDerivedAgentNames:
     def test_single_wait_agent_name_requires_one_explicit_dependency(self) -> None:
         assert single_wait_agent_name("%wait:foo\n%wait:bar\nwork") is None
         assert single_wait_agent_name("%wait:foo,bar\nwork") is None
-        assert single_wait_agent_name("%time:5m\nwork") is None
+        assert single_wait_agent_name("%wait(time=5m)\nwork") is None
         assert single_wait_agent_name("%wait\nwork") is None
 
     def test_single_wait_agent_name_ignores_fenced_and_disabled_regions(self) -> None:

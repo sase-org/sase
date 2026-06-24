@@ -69,30 +69,28 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     wait, _ = _single_candidate("%w")
     alt, _ = _single_candidate("%al")
     auto, _ = _single_candidate("%au")
-    time_, _ = _single_candidate("%ti")
 
     assert _metadata(model).description == "choose one or more provider/model targets"
-    assert _metadata(wait).description == "defer launch until agents complete"
+    assert _metadata(wait).description == (
+        "defer launch until agents complete or a time floor passes"
+    )
     assert _metadata(alt).description == (
         "split a prompt into variants; shorthand %{A | B}"
     )
     assert _metadata(auto).description == (
         "auto-approve the submitted plan as plan (default), tale, or epic"
     )
-    assert _metadata(time_).description == (
-        "defer launch until a duration or wall-clock time"
-    )
 
 
-def test_directive_completion_t_prefix_lists_only_time() -> None:
-    """%t matches %time only."""
+def test_directive_completion_t_prefix_lists_no_directives() -> None:
+    """%time is no longer a directive completion candidate."""
     candidates, _ = build_directive_completion_candidates("%t")
-    assert [candidate.insertion for candidate in candidates] == ["%time"]
+    assert candidates == []
 
     tale_candidates, _ = build_directive_completion_candidates("%ta")
-    time_, _ = _single_candidate("%ti")
     assert tale_candidates == []
-    assert time_.insertion == "%time"
+    ti_candidates, _ = build_directive_completion_candidates("%ti")
+    assert ti_candidates == []
 
 
 def test_directive_completion_includes_group() -> None:

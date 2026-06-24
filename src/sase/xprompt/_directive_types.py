@@ -27,13 +27,15 @@ _KNOWN_DIRECTIVES = frozenset(
         "name",
         "group",
         "repeat",
-        "time",
         "wait",
     }
 )
 
 # Directives that allow multiple occurrences (values are collected into a list)
-_MULTI_VALUE_DIRECTIVES = frozenset({"time", "wait"})
+_MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
+
+# Removed directive spellings that should raise targeted migration errors.
+_DEPRECATED_DIRECTIVES = frozenset({"time"})
 
 # Short aliases for directives (alias -> canonical name). ``%auto`` is the
 # unified plan auto-approval directive; ``%a`` is its advertised alias.
@@ -60,7 +62,9 @@ class PromptDirectives:
             none was given. The public directive/suffix spell it ``effort``;
             the stored/threaded field is ``reasoning_effort`` everywhere.
         name: Agent name assigned via %name directive, or None.
-        wait: List of agent names to wait for via %wait directives.
+        wait: List of agent names to wait for via positional %wait arguments.
+        wait_duration: Duration in seconds from the %wait(time=...) keyword.
+        wait_until: Absolute target datetime from the %wait(time=...) keyword.
         auto_mode: Auto-approval mode from ``%auto``/``%a``: ``"plan"``,
             ``"tale"``, ``"epic"``, or None when no auto-approval directive
             was present.

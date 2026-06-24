@@ -265,23 +265,26 @@ def test_wait_template_no_existing_latest_raises() -> None:
 
 
 def test_wait_duration_arg_raises_with_migration_hint() -> None:
-    """%wait:5m raises with a migration hint pointing to %time."""
+    """%wait:5m raises with a migration hint pointing to time=."""
     prompt = "%wait:5m\nDo work"
-    with pytest.raises(DirectiveError, match=r"%time:5m"):
+    with pytest.raises(DirectiveError, match=r"%wait\(time=5m\).*#t:5m"):
         extract_prompt_directives(prompt)
 
 
 def test_wait_hhmm_arg_raises_with_migration_hint() -> None:
-    """%wait:1430 raises with a migration hint pointing to %time."""
+    """%wait:1430 raises with a migration hint pointing to time=."""
     prompt = "%wait:1430\nDo work"
-    with pytest.raises(DirectiveError, match=r"%time:1430"):
+    with pytest.raises(DirectiveError, match=r"%wait\(time=1430\).*#t:1430"):
         extract_prompt_directives(prompt)
 
 
 def test_wait_yymmdd_arg_raises_with_migration_hint() -> None:
-    """%wait:300415/0900 raises with a migration hint pointing to %time."""
+    """%wait:300415/0900 raises with a migration hint pointing to time=."""
     prompt = "%wait:300415/0900\nDo work"
-    with pytest.raises(DirectiveError, match=r"%time:300415/0900"):
+    with pytest.raises(
+        DirectiveError,
+        match=r"%wait\(time=300415/0900\).*#t:300415/0900",
+    ):
         extract_prompt_directives(prompt)
 
 

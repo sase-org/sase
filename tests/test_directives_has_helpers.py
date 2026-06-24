@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import (
     extract_prompt_directives,
     has_alt_directive,
@@ -65,8 +66,10 @@ def test_has_wait_directive_no_percent() -> None:
 
 
 def test_has_wait_directive_does_not_match_time() -> None:
-    """has_wait_directive must not match %time or unknown %t tokens."""
-    assert _extracts_wait_directive("%time:5m\nDo something") is False
+    """Time spellings must not produce wait-agent dependencies."""
+    with pytest.raises(DirectiveError, match=r"%time"):
+        extract_prompt_directives("%time:5m\nDo something")
+    assert _extracts_wait_directive("%wait(time=5m)\nDo something") is False
     assert _extracts_wait_directive("%t:5m\nDo something") is False
 
 
@@ -96,10 +99,14 @@ def test_has_deferred_start_directive_wait() -> None:
     assert has_deferred_start_directive("%wait\nDo something") is True
 
 
-def test_has_deferred_start_directive_time() -> None:
-    """Matches %time variants; unknown %t tokens do not defer launch."""
-    assert has_deferred_start_directive("%time:5m\nDo something") is True
-    assert has_deferred_start_directive("Do %time(5m) more") is True
+def test_has_deferred_start_directive_time_waits() -> None:
+    """Matches %wait time= and #t variants."""
+    assert has_deferred_start_directive("%wait(time=5m)\nDo something") is True
+    assert has_deferred_start_directive("Do %wait(agent, time=5m) more") is True
+    assert has_deferred_start_directive("#t:5m\nDo something") is True
+    assert has_deferred_start_directive("Do #t(5m) more") is True
+    assert has_deferred_start_directive("#t(time=1430)\nDo something") is True
+    assert has_deferred_start_directive("%time:5m\nDo something") is False
     assert has_deferred_start_directive("%t:5m\nDo something") is False
 
 
@@ -118,14 +125,14 @@ def test_has_deferred_start_directive_absent() -> None:
     assert has_deferred_start_directive("#resume:foo do something") is False
 
 
-def test_has_deferred_start_directive_no_percent() -> None:
-    """Returns False quickly when no % in prompt."""
+def test_has_deferred_start_directive_plain_prompt() -> None:
+    """Returns False when no deferred-start syntax is present."""
     assert has_deferred_start_directive("Just a plain prompt") is False
 
 
 @pytest.mark.parametrize(
     "directive",
-    ["%wait:old_agent", "%w:old_agent", "%time:5m", "%time(5m)"],
+    ["%wait:old_agent", "%w:old_agent", "%wait(time=5m)", "#t:5m", "#t(5m)"],
 )
 def test_has_deferred_start_directive_ignores_fenced_blocks(directive: str) -> None:
     """Deferred-start syntax inside fences does not defer launch."""
@@ -135,7 +142,7 @@ def test_has_deferred_start_directive_ignores_fenced_blocks(directive: str) -> N
 
 @pytest.mark.parametrize(
     "directive",
-    ["%wait:old_agent", "%w:old_agent", "%time:5m", "%time(5m)"],
+    ["%wait:old_agent", "%w:old_agent", "%wait(time=5m)", "#t:5m", "#t(5m)"],
 )
 def test_has_deferred_start_directive_ignores_disabled_regions(
     directive: str,
@@ -304,8 +311,9 @@ def test_has_alt_directive_ignores_disabled_regions(directive: str) -> None:
     [
         (_extracts_wait_directive, "%wait:old_agent"),
         (_extracts_wait_directive, "%w:old_agent"),
-        (has_deferred_start_directive, "%time:5m"),
-        (has_deferred_start_directive, "%time(5m)"),
+        (has_deferred_start_directive, "%wait(time=5m)"),
+        (has_deferred_start_directive, "#t:5m"),
+        (has_deferred_start_directive, "#t(5m)"),
         (has_model_directive, "%model:opus"),
         (has_model_directive, "%m:opus"),
         (has_alt_directive, "%alt(a,b)"),
