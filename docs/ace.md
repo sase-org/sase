@@ -295,7 +295,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `R`                 | Revive a previously dismissed agent                                                                           |
 | `A`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                |
 | `+`                 | Run custom agent                                                                                              |
-| `a`                 | Cycle auto-approve state / answer HITL                                                                        |
+| `a`                 | Open auto-approve menu / answer HITL                                                                          |
 | `f`                 | Fork agent (by name if running, by chat file if completed)                                                    |
 | `n`                 | Name agent                                                                                                    |
 | `r`                 | Edit prompt and relaunch agent (retry without killing)                                                        |
@@ -1473,10 +1473,14 @@ and starts the coder, `epic` and `legend` commit the matching SDD tier and launc
 records the approved plan in SDD without launching a coder. `-m/--model` picks the follow-up agent's model, while
 `-p/--prompt` adds extra coder instructions for the `approve` and `tale` paths.
 
-For active Agents-tab rows, `a` cycles through normal auto-approve, epic auto-approve, and disabled. Epic auto-approve
-is the same plan-specific path as the `%epic` directive: the next submitted plan is accepted as an epic, SDD epic
-artifacts are written, beads are initialized, and the epic follow-up agent is launched. It does not answer unrelated
-HITL prompts.
+For active Agents-tab rows, `a` opens the **Auto-Approve menu**, a single-key modal that configures how the agent's
+_next_ submitted plan is auto-approved. The agent's current state is marked with `▸`; pressing `p` (Plan — approve the
+plan as-is), `t` (Tale — approve and commit as a tale), `e` (Epic — approve and commit as an epic), or `d` (Disable —
+turn off auto-approval) applies the change immediately, while `esc`/`q` cancels. The selected state shows on the agent
+row as a `⚡` (plan), `⚡T` (tale), or `⚡E` (epic) icon. Plan, tale, and epic auto-approve mirror the `%plan`, `%tale`,
+and `%epic` directives respectively — for example, epic auto-approve accepts the next submitted plan as an epic, writes
+SDD epic artifacts, initializes beads, and launches the epic follow-up agent. The menu only configures plan
+auto-approval; it does not answer unrelated HITL prompts.
 
 ### Plan Approval Keybindings
 
