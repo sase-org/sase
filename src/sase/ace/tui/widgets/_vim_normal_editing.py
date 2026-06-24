@@ -13,9 +13,13 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
     """Mixin for normal-mode edit commands and mode changes."""
 
     if TYPE_CHECKING:
+        _pending_count: int | None
+        _pending_keys: str
+        _pending_operator: str
         _mutation_count: int
 
         def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None: ...
+        def _update_count_display(self) -> None: ...
         def _record_insert_mutation_start(self, count: int) -> None: ...
         def _notify_prompt_bar_text_undo(
             self, before_text: str, after_text: str
@@ -156,6 +160,16 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             self._pending_count = count if has_count else None
             self._update_count_display()
             return True
+        if not self._pending_operator:
+            bracket = {
+                "left_square_bracket": "[",
+                "right_square_bracket": "]",
+            }.get(key, key)
+            if bracket in {"[", "]"}:
+                self._pending_keys = bracket
+                self._pending_count = count if has_count else None
+                self._update_count_display()
+                return True
 
         if key == "~":
             self._mutation_count = max(1, count)

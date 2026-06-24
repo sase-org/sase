@@ -1933,28 +1933,30 @@ Text objects compose with `d`, `c`, and `y`.
 
 #### Other Commands
 
-| Key      | Action                                                                                    |
-| -------- | ----------------------------------------------------------------------------------------- |
-| `i`      | Enter INSERT mode; inserted text is repeatable with `.`                                   |
-| `v`      | Enter charwise VISUAL mode                                                                |
-| `V`      | Enter linewise V-LINE mode                                                                |
-| `a`      | Append after cursor; inserted text is repeatable with `.`                                 |
-| `A`      | Append at end of line; inserted text is repeatable with `.`                               |
-| `I`      | Insert at line start; inserted text is repeatable with `.`                                |
-| `o`      | Open line below; inserted text is repeatable with `.`                                     |
-| `O`      | Open line above; inserted text is repeatable with `.`                                     |
-| `u`      | Undo                                                                                      |
-| `Ctrl+R` | Redo                                                                                      |
-| `Ctrl+A` | Increment the number at/after cursor, wrapping to the prompt top (supports count and `.`) |
-| `Ctrl+X` | Decrement the number at/after cursor, wrapping to the prompt top (supports count and `.`) |
-| `x`      | Delete character                                                                          |
-| `X`      | Delete character before cursor                                                            |
-| `r{c}`   | Replace character(s) at cursor (supports count: `3rx`)                                    |
-| `p`      | Paste after cursor / below line from the internal register                                |
-| `P`      | Paste before cursor / above line from the internal register                               |
-| `~`      | Toggle case of character(s) at cursor (supports count: `5~`)                              |
-| `.`      | Repeat last mutation, including inserted text; a count replaces the recorded count        |
-| `J`      | Join current line with next (supports count: `5J`)                                        |
+| Key        | Action                                                                                    |
+| ---------- | ----------------------------------------------------------------------------------------- |
+| `i`        | Enter INSERT mode; inserted text is repeatable with `.`                                   |
+| `v`        | Enter charwise VISUAL mode                                                                |
+| `V`        | Enter linewise V-LINE mode                                                                |
+| `a`        | Append after cursor; inserted text is repeatable with `.`                                 |
+| `A`        | Append at end of line; inserted text is repeatable with `.`                               |
+| `I`        | Insert at line start; inserted text is repeatable with `.`                                |
+| `o`        | Open line below; inserted text is repeatable with `.`                                     |
+| `O`        | Open line above; inserted text is repeatable with `.`                                     |
+| `[<Space>` | Insert blank line(s) above current line without leaving NORMAL mode                       |
+| `]<Space>` | Insert blank line(s) below current line without leaving NORMAL mode                       |
+| `u`        | Undo                                                                                      |
+| `Ctrl+R`   | Redo                                                                                      |
+| `Ctrl+A`   | Increment the number at/after cursor, wrapping to the prompt top (supports count and `.`) |
+| `Ctrl+X`   | Decrement the number at/after cursor, wrapping to the prompt top (supports count and `.`) |
+| `x`        | Delete character                                                                          |
+| `X`        | Delete character before cursor                                                            |
+| `r{c}`     | Replace character(s) at cursor (supports count: `3rx`)                                    |
+| `p`        | Paste after cursor / below line from the internal register                                |
+| `P`        | Paste before cursor / above line from the internal register                               |
+| `~`        | Toggle case of character(s) at cursor (supports count: `5~`)                              |
+| `.`        | Repeat last mutation, including inserted text; a count replaces the recorded count        |
+| `J`        | Join current line with next (supports count: `5J`)                                        |
 
 The border subtitle shows pending operators and counts (e.g., `2d` when a delete with count 2 is pending).
 

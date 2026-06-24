@@ -170,6 +170,15 @@ class VimNormalPendingMixin(VimVisualModeMixin):
                     pending_count if pending_count is not None else 1,
                     event.character,
                 )
+        elif pending in {"[", "]"}:
+            if event.key == "space" or event.character == " " or key in {" ", "space"}:
+                count = pending_count if pending_count is not None else 1
+                self._insert_blank_lines(
+                    above=pending == "[",
+                    count=count,
+                )
+            else:
+                self._mutation_key_buffer.clear()
         elif pending == "a" and key == "e":
             if self._pending_operator:
                 op = self._pending_operator

@@ -407,6 +407,24 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         self.read_only = was_readonly
         self._record_mutation()
 
+    def _insert_blank_lines(self, *, above: bool, count: int) -> None:
+        """Insert blank lines above or below the current line."""
+        count = max(1, count)
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+        insert_at = (row, 0) if above else (row, len(line))
+
+        was_readonly = self.read_only
+        self.read_only = False
+        try:
+            self._replace_via_keyboard("\n" * count, insert_at, insert_at)
+        finally:
+            self.read_only = was_readonly
+
+        self.cursor_location = (row + count, col) if above else (row, col)
+        self._mutation_count = count
+        self._record_mutation()
+
     def _execute_char_search(
         self,
         motion: str,

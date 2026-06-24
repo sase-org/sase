@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 08:48:06
-status: wip
+status: done
 prompt: sdd/prompts/202606/blank_line_keymaps.md
 ---
 # Plan: `[<space>` / `]<space>` blank-line keymaps for the prompt input
