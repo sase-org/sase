@@ -141,10 +141,58 @@ class GitCoreOpsMixin(CommandRunner):
 
     @hookimpl
     def vcs_archive(self, revision: str, cwd: str) -> tuple[bool, str | None]:
-        tag_out = self._run(["git", "tag", f"archive/{revision}", revision], cwd)
-        if not tag_out.success:
-            return self._to_result(tag_out, "git tag")
-        delete_out = self._run(["git", "branch", "-D", revision], cwd)
+        # The archive task checks out the target branch in this worktree
+        # before calling us. git refuses to delete a branch checked out in
+        # any worktree, and a failed attempt can leave the archive tag
+        # behind, so this operation is worktree-aware and idempotent w.r.t.
+        # an already-created tag.
+
+        # resolve_revision may hand us a remote-tracking ref like
+        # origin/<branch>; we tag and delete the local branch.
+        local_branch = revision.removeprefix("origin/")
+        tag = f"archive/{local_branch}"
+
+        # Resolve the commit being archived so the tag is created/validated
+        # against a stable SHA rather than a moving ref.
+        commit_out = self._run(
+            ["git", "rev-parse", "--verify", f"{local_branch}^{{commit}}"], cwd
+        )
+        if not commit_out.success:
+            return self._to_result(commit_out, "git rev-parse")
+        commit = commit_out.stdout.strip()
+
+        # Create the archive tag, tolerating an existing tag from a prior
+        # partial archive — but only when it points at the same commit.
+        existing_out = self._run(
+            ["git", "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}^{{commit}}"],
+            cwd,
+        )
+        if existing_out.success:
+            existing_commit = existing_out.stdout.strip()
+            if existing_commit != commit:
+                return (
+                    False,
+                    f"archive tag {tag} already exists and points at "
+                    f"{existing_commit[:12]}, not {commit[:12]}",
+                )
+        else:
+            tag_out = self._run(["git", "tag", tag, commit], cwd)
+            if not tag_out.success:
+                return self._to_result(tag_out, "git tag")
+
+        # git refuses to delete the branch that is checked out in this
+        # worktree, so move to the default branch first when we're on it.
+        current_out = self._run(
+            ["git", "symbolic-ref", "--quiet", "--short", "HEAD"], cwd
+        )
+        current_branch = current_out.stdout.strip() if current_out.success else ""
+        if current_branch == local_branch:
+            default_branch = self._get_default_branch(cwd)
+            checkout_out = self._run(["git", "checkout", default_branch], cwd)
+            if not checkout_out.success:
+                return self._to_result(checkout_out, "git checkout")
+
+        delete_out = self._run(["git", "branch", "-D", local_branch], cwd)
         if not delete_out.success:
             return self._to_result(delete_out, "git branch -D")
         return (True, None)

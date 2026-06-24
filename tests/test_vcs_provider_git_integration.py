@@ -198,6 +198,71 @@ def test_integration_stash_and_clean(git_repo: str) -> None:
 # === Tests for archive and prune ===
 
 
+def test_integration_archive_current_branch(git_repo: str) -> None:
+    """archive succeeds even when the target branch is currently checked out."""
+    provider = _make_git_provider()
+
+    # The branch we start on is the repo's default branch.
+    default_ok, default_branch = provider.get_branch_name(git_repo)
+    assert default_ok is True
+    assert default_branch is not None
+
+    # Make _get_default_branch resolve to it, mirroring a cloned workspace
+    # where origin/HEAD points at the default branch.
+    subprocess.run(
+        [
+            "git",
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            f"refs/remotes/origin/{default_branch}",
+        ],
+        cwd=git_repo,
+        capture_output=True,
+        check=True,
+    )
+
+    # Create and check out a feature branch with its own commit.
+    subprocess.run(
+        ["git", "checkout", "-b", "feature-to-archive"],
+        cwd=git_repo,
+        capture_output=True,
+        check=True,
+    )
+    feature = os.path.join(git_repo, "feature.txt")
+    with open(feature, "w") as f:
+        f.write("feature\n")
+    subprocess.run(
+        ["git", "add", "feature.txt"], cwd=git_repo, capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "feature commit"],
+        cwd=git_repo,
+        capture_output=True,
+        check=True,
+    )
+
+    # Archive while still ON feature-to-archive.
+    success, error = provider.archive("feature-to-archive", git_repo)
+    assert success is True, error
+    assert error is None
+
+    # The archive tag exists.
+    tags = subprocess.run(["git", "tag"], cwd=git_repo, capture_output=True, text=True)
+    assert "archive/feature-to-archive" in tags.stdout
+
+    # The local branch is gone.
+    branches = subprocess.run(
+        ["git", "branch"], cwd=git_repo, capture_output=True, text=True
+    )
+    assert "feature-to-archive" not in branches.stdout
+
+    # The worktree is left on the (still-existing) default branch.
+    cur_ok, cur_branch = provider.get_branch_name(git_repo)
+    assert cur_ok is True
+    assert cur_branch == default_branch
+    assert default_branch in branches.stdout
+
+
 def test_integration_prune(git_repo: str) -> None:
     """prune deletes a branch."""
     # Create a branch to prune

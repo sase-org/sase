@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 07:05:13
-status: wip
+status: done
 prompt: sdd/prompts/202606/archive_git_worktree_delete.md
 ---
 # Fix Git Archive Branch Deletion From Checked-Out Worktrees

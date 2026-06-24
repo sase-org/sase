@@ -22,31 +22,155 @@ from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 # === Tests for archive ===
 
 
+def _git_cmds(mock_run: MagicMock) -> list[list[str]]:
+    """Return the git argv list of every subprocess.run call, in order."""
+    return [call[0][0] for call in mock_run.call_args_list]
+
+
 @patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_archive_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_archive on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    """Test BareGitPlugin.vcs_archive on success (not on the target branch)."""
+    mock_run.side_effect = [
+        MagicMock(returncode=0, stdout="abc123\n", stderr=""),  # rev-parse commit
+        MagicMock(returncode=1, stdout="", stderr=""),  # archive tag absent
+        MagicMock(returncode=0, stdout="", stderr=""),  # git tag
+        MagicMock(returncode=0, stdout="master\n", stderr=""),  # current branch
+        MagicMock(returncode=0, stdout="", stderr=""),  # git branch -D
+    ]
 
     plugin = BareGitPlugin()
     success, error = plugin.vcs_archive("old-feature", "/workspace")
 
     assert success is True
     assert error is None
-    assert mock_run.call_count == 2
-    assert mock_run.call_args_list[0][0][0] == [
-        "git",
-        "tag",
-        "archive/old-feature",
-        "old-feature",
+    cmds = _git_cmds(mock_run)
+    assert ["git", "tag", "archive/old-feature", "abc123"] in cmds
+    assert ["git", "branch", "-D", "old-feature"] in cmds
+    # No checkout needed: the worktree was on master, not the target branch.
+    assert not any(cmd[:2] == ["git", "checkout"] for cmd in cmds)
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_git_archive_normalizes_origin_prefix(mock_run: MagicMock) -> None:
+    """vcs_archive tags and deletes the local branch for origin/<branch>."""
+    mock_run.side_effect = [
+        MagicMock(returncode=0, stdout="abc123\n", stderr=""),  # rev-parse commit
+        MagicMock(returncode=1, stdout="", stderr=""),  # archive tag absent
+        MagicMock(returncode=0, stdout="", stderr=""),  # git tag
+        MagicMock(returncode=0, stdout="master\n", stderr=""),  # current branch
+        MagicMock(returncode=0, stdout="", stderr=""),  # git branch -D
     ]
-    assert mock_run.call_args_list[1][0][0] == ["git", "branch", "-D", "old-feature"]
+
+    plugin = BareGitPlugin()
+    success, error = plugin.vcs_archive("origin/old-feature", "/workspace")
+
+    assert success is True
+    assert error is None
+    cmds = _git_cmds(mock_run)
+    assert ["git", "tag", "archive/old-feature", "abc123"] in cmds
+    assert ["git", "branch", "-D", "old-feature"] in cmds
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_git_archive_existing_matching_tag_is_idempotent(mock_run: MagicMock) -> None:
+    """An archive tag at the same commit is accepted; the branch is deleted."""
+    mock_run.side_effect = [
+        MagicMock(returncode=0, stdout="abc123\n", stderr=""),  # rev-parse commit
+        MagicMock(returncode=0, stdout="abc123\n", stderr=""),  # tag exists, matches
+        MagicMock(returncode=0, stdout="master\n", stderr=""),  # current branch
+        MagicMock(returncode=0, stdout="", stderr=""),  # git branch -D
+    ]
+
+    plugin = BareGitPlugin()
+    success, error = plugin.vcs_archive("old-feature", "/workspace")
+
+    assert success is True
+    assert error is None
+    cmds = _git_cmds(mock_run)
+    # The tag already exists, so we must not try to recreate it.
+    assert not any(cmd[:2] == ["git", "tag"] for cmd in cmds)
+    assert ["git", "branch", "-D", "old-feature"] in cmds
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_git_archive_existing_conflicting_tag_fails(mock_run: MagicMock) -> None:
+    """A conflicting archive tag fails before the branch is deleted."""
+    mock_run.side_effect = [
+        MagicMock(returncode=0, stdout="abc123\n", stderr=""),  # rev-parse commit
+        MagicMock(returncode=0, stdout="def456\n", stderr=""),  # tag exists, differs
+    ]
+
+    plugin = BareGitPlugin()
+    success, error = plugin.vcs_archive("old-feature", "/workspace")
+
+    assert success is False
+    assert error is not None
+    assert "archive/old-feature" in error
+    # Must not delete the branch when the archive tag conflicts.
+    cmds = _git_cmds(mock_run)
+    assert not any(cmd[:3] == ["git", "branch", "-D"] for cmd in cmds)
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_git_archive_current_branch_checks_out_default(mock_run: MagicMock) -> None:
+    """When on the target branch, checkout the default branch before delete."""
+    mock_run.side_effect = [
+        MagicMock(returncode=0, stdout="abc123\n", stderr=""),  # rev-parse commit
+        MagicMock(returncode=1, stdout="", stderr=""),  # archive tag absent
+        MagicMock(returncode=0, stdout="", stderr=""),  # git tag
+        MagicMock(returncode=0, stdout="old-feature\n", stderr=""),  # ON target branch
+        MagicMock(  # _get_default_branch via origin/HEAD
+            returncode=0, stdout="refs/remotes/origin/master\n", stderr=""
+        ),
+        MagicMock(returncode=0, stdout="", stderr=""),  # git checkout master
+        MagicMock(returncode=0, stdout="", stderr=""),  # git branch -D
+    ]
+
+    plugin = BareGitPlugin()
+    success, error = plugin.vcs_archive("old-feature", "/workspace")
+
+    assert success is True
+    assert error is None
+    cmds = _git_cmds(mock_run)
+    checkout_idx = cmds.index(["git", "checkout", "master"])
+    delete_idx = cmds.index(["git", "branch", "-D", "old-feature"])
+    # The checkout off the target branch must precede the delete.
+    assert checkout_idx < delete_idx
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_git_archive_checkout_failure_returns_error(mock_run: MagicMock) -> None:
+    """A failed checkout off the target branch surfaces a clear failure."""
+    mock_run.side_effect = [
+        MagicMock(returncode=0, stdout="abc123\n", stderr=""),  # rev-parse commit
+        MagicMock(returncode=1, stdout="", stderr=""),  # archive tag absent
+        MagicMock(returncode=0, stdout="", stderr=""),  # git tag
+        MagicMock(returncode=0, stdout="old-feature\n", stderr=""),  # ON target branch
+        MagicMock(  # _get_default_branch via origin/HEAD
+            returncode=0, stdout="refs/remotes/origin/master\n", stderr=""
+        ),
+        MagicMock(returncode=1, stdout="", stderr="checkout failed"),  # git checkout
+    ]
+
+    plugin = BareGitPlugin()
+    success, error = plugin.vcs_archive("old-feature", "/workspace")
+
+    assert success is False
+    assert error is not None
+    assert "git checkout failed" in error
+    # The branch must not be deleted if we could not move off it.
+    cmds = _git_cmds(mock_run)
+    assert not any(cmd[:3] == ["git", "branch", "-D"] for cmd in cmds)
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_archive_branch_delete_fails(mock_run: MagicMock) -> None:
     """Test BareGitPlugin.vcs_archive when branch delete fails."""
     mock_run.side_effect = [
+        MagicMock(returncode=0, stdout="abc123\n", stderr=""),  # rev-parse commit
+        MagicMock(returncode=1, stdout="", stderr=""),  # archive tag absent
         MagicMock(returncode=0, stdout="", stderr=""),  # tag succeeds
+        MagicMock(returncode=0, stdout="master\n", stderr=""),  # current branch
         MagicMock(returncode=1, stdout="", stderr="branch not found"),  # delete fails
     ]
 
