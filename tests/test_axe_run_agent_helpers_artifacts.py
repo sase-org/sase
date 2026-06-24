@@ -194,6 +194,26 @@ def test_create_followup_inherits_workspace_dir(tmp_path) -> None:
     assert meta["workspace_num"] == 3
 
 
+def test_create_followup_inherits_reasoning_effort(tmp_path) -> None:
+    """Retry/question follow-ups preserve the parent's recorded effort."""
+    new_dir = tmp_path / "new"
+    new_dir.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(new_dir),
+    ):
+        create_followup_artifacts(
+            "proj",
+            {"name": "a", "model": "test", "reasoning_effort": "xhigh"},
+            ".q",
+            "20260326120000",
+        )
+
+    meta = json.loads((new_dir / "agent_meta.json").read_text())
+    assert meta["reasoning_effort"] == "xhigh"
+
+
 def test_create_followup_without_workspace_dir_omits_key(tmp_path) -> None:
     """No workspace_dir in base_meta leaves the key absent (graceful)."""
     new_dir = tmp_path / "new"

@@ -358,3 +358,38 @@ def test_invoke_agent_threads_config_default_effort(
     # No directive effort → config default, marked non-explicit (best-effort).
     expected = LLMInvocationOptions(reasoning_effort="high", explicit=False)
     assert mock_provider.invoke.call_args.kwargs["options"] == expected
+
+
+def test_worker_default_effort_reaches_codex_cli() -> None:
+    """A worker-lane launch with no explicit effort passes the default to Codex."""
+    with (
+        patch("sase.llm_provider.config._get_default_effort", return_value="xhigh"),
+        patch(
+            "sase.llm_provider.temporary_override.resolve_effective_worker_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch("sase.llm_provider.registry._provider_names", return_value=["codex"]),
+        patch(
+            "sase.llm_provider._invoke.get_provider",
+            return_value=CodexProvider(),
+        ),
+        patch("sase.llm_provider._invoke.run_commit_finalizer") as mock_finalizer,
+        patch("sase.llm_provider._invoke.postprocess_success"),
+        patch("sase.llm_provider.codex.provider_timer"),
+        patch("sase.llm_provider.codex.subprocess.Popen") as mock_popen,
+        patch("sase.llm_provider.codex.stream_and_parse_codex_json_output") as stream,
+    ):
+        mock_popen.return_value = MagicMock()
+        stream.return_value = ("response", "", 0)
+        mock_finalizer.side_effect = lambda **kw: kw["invoke_result"]
+
+        invoke_agent(
+            "prompt",
+            agent_type="test",
+            suppress_output=True,
+            skip_preprocessing=True,
+            directives=PromptDirectives(model="worker"),
+        )
+
+    cmd = mock_popen.call_args.args[0]
+    assert 'model_reasoning_effort="xhigh"' in cmd

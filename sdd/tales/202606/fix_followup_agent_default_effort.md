@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 07:15:07
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_followup_agent_default_effort.md
 ---
 # Plan: Record `default_effort` on Follow-up (Coder/Epic/Legend) Agents

@@ -86,8 +86,10 @@ class _FollowupModel:
 def _resolve_model_meta(model_directive: str) -> tuple[str | None, str]:
     """Resolve a ``%model`` directive value to ``(provider_or_none, model)``."""
     from sase.llm_provider.registry import resolve_model_provider
+    from sase.xprompt.effort import split_model_effort
 
-    return resolve_model_provider(model_directive)
+    clean_model, _ = split_model_effort(model_directive)
+    return resolve_model_provider(clean_model)
 
 
 def _resolve_followup_model(
@@ -153,6 +155,32 @@ def _write_followup_model_meta(state: LoopState, followup: _FollowupModel) -> No
         update_meta_field(
             state.current_artifacts_dir, "llm_provider", resolved_provider
         )
+
+
+def _write_followup_effort_meta(state: LoopState, followup_prompt: str) -> None:
+    """Record the follow-up agent's resolved reasoning effort, when set."""
+    from sase.llm_provider.config import resolve_effective_effort
+    from sase.llm_provider.preprocessing import preprocess_prompt_early
+
+    result = preprocess_prompt_early(followup_prompt)
+    reasoning_effort, _ = resolve_effective_effort(result.directives)
+    if reasoning_effort:
+        update_meta_field(
+            state.current_artifacts_dir, "reasoning_effort", reasoning_effort
+        )
+
+
+def _plan_followup_base_meta(base_meta: dict[str, Any]) -> dict[str, Any]:
+    """Return parent metadata minus effort for accepted plan-chain handoffs.
+
+    Accepted coder/epic/legend follow-ups resolve effort from their own final
+    prompt. Dropping the inherited value here lets an unset follow-up omit
+    ``reasoning_effort`` instead of accidentally displaying the planner's
+    explicit effort.
+    """
+    if "reasoning_effort" not in base_meta:
+        return base_meta
+    return {key: value for key, value in base_meta.items() if key != "reasoning_effort"}
 
 
 def handle_accepted_plan(
@@ -280,6 +308,7 @@ def handle_accepted_plan(
     # handoff keeps the planner's primary context.
     followup_model = _resolve_followup_model(plan_result, ctx)
     model_prefix = followup_model.model_prefix
+    followup_base_meta = _plan_followup_base_meta(ctx.agent_meta)
 
     if plan_result.action in ("epic", "legend"):
         # Ensure beads are initialized before spawning epic agent
@@ -307,7 +336,7 @@ def handle_accepted_plan(
             promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
         state.current_artifacts_dir = create_followup_artifacts(
             ctx.project_name,
-            ctx.agent_meta,
+            followup_base_meta,
             state.current_role_suffix,
             convert_timestamp_to_artifacts_format(ctx.timestamp),
             workspace_num=ctx.workspace_num,
@@ -368,6 +397,7 @@ def handle_accepted_plan(
         state.current_prompt = (
             f"{model_prefix}{vcs_prefix}#{xprompt_name}:{plan_ref}\n{embedded_refs}"
         )
+        _write_followup_effort_meta(state, state.current_prompt)
     else:
         # Approve: spawn coder with plan as prompt
         state.current_role_suffix = PLAN_CHAIN_CODER_SUFFIX
@@ -385,7 +415,7 @@ def handle_accepted_plan(
             promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
         state.current_artifacts_dir = create_followup_artifacts(
             ctx.project_name,
-            ctx.agent_meta,
+            followup_base_meta,
             state.current_role_suffix,
             convert_timestamp_to_artifacts_format(ctx.timestamp),
             workspace_num=ctx.workspace_num,
@@ -461,6 +491,7 @@ def handle_accepted_plan(
             "The above plan has been reviewed and approved. "
             f"Implement it now.{coder_extra}\n{embedded_refs}"
         )
+        _write_followup_effort_meta(state, state.current_prompt)
 
     # A ``/sase_questions`` interruption from this follow-up phase must rebuild
     # from the exact code/epic/legend prompt (with its resolved ``%model``
