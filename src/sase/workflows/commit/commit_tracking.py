@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -233,6 +233,38 @@ def _persist_commit_diff_path(artifacts_dir: str, diff_path: str | None) -> None
         return
 
 
+def _load_commit_results(results_path: str) -> list[dict[str, Any]]:
+    try:
+        with open(results_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [item for item in data if isinstance(item, dict)]
+
+
+def _upsert_commit_results_marker(
+    artifacts_dir: str,
+    marker: dict[str, Any],
+) -> None:
+    results_path = os.path.join(artifacts_dir, "commit_results.json")
+    try:
+        results = _load_commit_results(results_path)
+        key = (marker.get("cwd"), marker.get("result"))
+        for index, existing in enumerate(results):
+            if (existing.get("cwd"), existing.get("result")) == key:
+                results[index] = marker
+                break
+        else:
+            results.append(marker)
+
+        with open(results_path, "w", encoding="utf-8") as f:
+            json.dump(results, f)
+    except (TypeError, OSError):
+        return
+
+
 def write_result_marker(
     method: str,
     payload: dict,
@@ -270,6 +302,7 @@ def write_result_marker(
     marker_path = os.path.join(artifacts_dir, "commit_result.json")
     with open(marker_path, "w", encoding="utf-8") as f:
         json.dump(marker, f)
+    _upsert_commit_results_marker(artifacts_dir, marker)
     _persist_commit_diff_path(artifacts_dir, diff_path)
 
 

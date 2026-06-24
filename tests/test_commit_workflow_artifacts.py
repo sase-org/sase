@@ -84,6 +84,80 @@ class TestWriteResultMarker:
             assert data["entry_id"] == "entry_42"
             assert data["commit_entry_id"] == "entry_42"
 
+    def test_accumulates_commit_results_and_upserts_entry_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "fix: primary"}
+            with (
+                patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}),
+                patch("os.getcwd", return_value="/workspace/sase_7"),
+            ):
+                write_result_marker(
+                    "create_commit",
+                    payload,
+                    "/tmp/primary.diff",
+                    "abc123",
+                    "proj_feat_1",
+                )
+
+            with (
+                patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}),
+                patch("os.getcwd", return_value="/workspace/sase-core_7"),
+            ):
+                write_result_marker(
+                    "create_commit",
+                    {"message": "fix: linked"},
+                    "/tmp/linked.diff",
+                    "def456",
+                    "proj_feat_1",
+                )
+
+            with (
+                patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}),
+                patch("os.getcwd", return_value="/workspace/sase_7"),
+            ):
+                write_result_marker(
+                    "create_commit",
+                    payload,
+                    "/tmp/primary.diff",
+                    "abc123",
+                    "proj_feat_1",
+                    entry_id="entry_1",
+                )
+
+            latest = json.loads((Path(tmpdir) / "commit_result.json").read_text())
+            assert latest["cwd"] == "/workspace/sase_7"
+            assert latest["result"] == "abc123"
+            assert latest["entry_id"] == "entry_1"
+
+            results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
+            assert [item["cwd"] for item in results] == [
+                "/workspace/sase_7",
+                "/workspace/sase-core_7",
+            ]
+            assert [item["result"] for item in results] == ["abc123", "def456"]
+            assert results[0]["entry_id"] == "entry_1"
+            assert results[1]["entry_id"] is None
+
+    def test_corrupt_commit_results_file_is_replaced(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "commit_results.json").write_text("{", encoding="utf-8")
+            with (
+                patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}),
+                patch("os.getcwd", return_value="/workspace/sase_7"),
+            ):
+                write_result_marker(
+                    "create_commit",
+                    {"message": "fix: bug"},
+                    None,
+                    "abc123",
+                    None,
+                )
+
+            results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
+            assert len(results) == 1
+            assert results[0]["cwd"] == "/workspace/sase_7"
+            assert results[0]["result"] == "abc123"
+
     def test_writes_agent_run_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             payload = {"message": "fix: bug"}

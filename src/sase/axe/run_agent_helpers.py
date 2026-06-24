@@ -38,6 +38,7 @@ __all__ = [
     "promote_to_workflow",
     "read_and_delete_marker",
     "read_commit_result_metadata",
+    "read_commit_results_metadata",
     "update_meta_field",
     "update_meta_suffix",
     "update_step_marker_chat_path",
@@ -65,6 +66,10 @@ def is_workflow_noop(artifacts_dir: str) -> bool:
 
 def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
     return _state.read_commit_result_metadata(artifacts_dir)
+
+
+def read_commit_results_metadata(artifacts_dir: str | None) -> list[dict[str, str]]:
+    return _state.read_commit_results_metadata(artifacts_dir)
 
 
 def extract_step_output_and_diff_path(

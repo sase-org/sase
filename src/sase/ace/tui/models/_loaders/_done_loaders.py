@@ -49,24 +49,54 @@ def _enrich_agent_revert_state(agent: Agent, artifact_dir: str | Path | None) ->
     agent.reverted = agent_is_reverted(str(artifact_dir) if artifact_dir else None)
 
 
-def _enrich_missing_commit_cwd(agent: Agent, artifact_dir: str | Path | None) -> None:
-    """Backfill commit cwd for old done markers using commit_result.json."""
-    from sase.axe.run_agent_helpers_state import read_commit_result_metadata
+def _single_commit_record_from_metadata(
+    metadata: dict[str, str],
+) -> dict[str, str] | None:
+    record: dict[str, str] = {}
+    if message := metadata.get("meta_commit_message"):
+        record["message"] = message
+    if sha := metadata.get("meta_new_commit"):
+        record["sha"] = sha
+    if cwd := metadata.get("meta_commit_cwd"):
+        record["cwd"] = cwd
+    return record or None
+
+
+def _enrich_missing_commit_metadata(
+    agent: Agent, artifact_dir: str | Path | None
+) -> None:
+    """Backfill commit cwd/list metadata for old done markers."""
+    from sase.axe.run_agent_helpers_state import (
+        read_commit_result_metadata,
+        read_commit_results_metadata,
+    )
 
     step_output = agent.step_output
     if not isinstance(step_output, dict):
-        return
-    if step_output.get("meta_commit_cwd"):
         return
     if not (
         step_output.get("meta_commit_message") or step_output.get("meta_new_commit")
     ):
         return
 
-    metadata = read_commit_result_metadata(str(artifact_dir) if artifact_dir else None)
-    commit_cwd = metadata.get("meta_commit_cwd")
-    if commit_cwd:
-        step_output["meta_commit_cwd"] = commit_cwd
+    artifact_dir_str = str(artifact_dir) if artifact_dir else None
+    single_metadata: dict[str, str] | None = None
+
+    if not step_output.get("meta_commits"):
+        commits = read_commit_results_metadata(artifact_dir_str)
+        if not commits:
+            single_metadata = read_commit_result_metadata(artifact_dir_str)
+            single_commit = _single_commit_record_from_metadata(single_metadata)
+            commits = [single_commit] if single_commit else []
+        if commits:
+            step_output["meta_commits"] = commits
+
+    if not step_output.get("meta_commit_cwd"):
+        if single_metadata is None:
+            single_metadata = read_commit_result_metadata(artifact_dir_str)
+        commit_cwd = single_metadata.get("meta_commit_cwd")
+        if commit_cwd:
+            step_output["meta_commit_cwd"] = commit_cwd
 
 
 def _done_extra_files(
@@ -210,7 +240,7 @@ def _load_done_agent_for_dir(
         # about when writing done.json).
         enrich_agent_from_meta(agent, str(artifact_dir))
         enrich_agent_from_prompt_markers(agent, str(artifact_dir))
-        _enrich_missing_commit_cwd(agent, artifact_dir)
+        _enrich_missing_commit_metadata(agent, artifact_dir)
         _enrich_agent_revert_state(agent, artifact_dir)
 
         return agent
@@ -374,7 +404,7 @@ def _build_done_agent_from_record(
         agent, record.agent_meta, record.waiting, record.pending_question
     )
     enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
-    _enrich_missing_commit_cwd(agent, record.artifact_dir)
+    _enrich_missing_commit_metadata(agent, record.artifact_dir)
     _enrich_agent_revert_state(agent, record.artifact_dir)
     return agent
 

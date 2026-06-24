@@ -25,6 +25,10 @@ def is_workflow_noop(artifacts_dir: str) -> bool:
     return data.get("agents_launched", -1) == 0
 
 
+def _text(value: Any) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
 def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
     """Read commit_result.json and return workflow metadata fields."""
     if not artifacts_dir:
@@ -39,9 +43,6 @@ def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
 
     if not isinstance(commit_result, dict):
         return {}
-
-    def _text(value: Any) -> str | None:
-        return value if isinstance(value, str) and value else None
 
     metadata: dict[str, str] = {}
     if message := _text(commit_result.get("message")):
@@ -59,6 +60,42 @@ def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
     return metadata
 
 
+def _commit_result_list_record(item: dict[str, Any]) -> dict[str, str] | None:
+    record: dict[str, str] = {}
+    if message := _text(item.get("message")):
+        record["message"] = message
+    if sha := (_text(item.get("result")) or _text(item.get("commit_result"))):
+        record["sha"] = sha
+    if cwd := _text(item.get("cwd")):
+        record["cwd"] = cwd
+    return record or None
+
+
+def read_commit_results_metadata(artifacts_dir: str | None) -> list[dict[str, str]]:
+    """Read commit_results.json and return compact commit metadata records."""
+    if not artifacts_dir:
+        return []
+
+    commit_results_path = os.path.join(artifacts_dir, "commit_results.json")
+    try:
+        with open(commit_results_path, encoding="utf-8") as f:
+            commit_results = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+
+    if not isinstance(commit_results, list):
+        return []
+
+    records: list[dict[str, str]] = []
+    for item in commit_results:
+        if not isinstance(item, dict):
+            continue
+        record = _commit_result_list_record(item)
+        if record:
+            records.append(record)
+    return records
+
+
 def extract_step_output_and_diff_path(
     artifacts_dir: str,
 ) -> tuple[dict[str, Any] | None, str | None]:
@@ -70,9 +107,12 @@ def extract_step_output_and_diff_path(
       through steps), falling back to commit_result.json's diff_path
     """
     commit_metadata = read_commit_result_metadata(artifacts_dir)
-    commit_step_metadata = {
+    commit_results = read_commit_results_metadata(artifacts_dir)
+    commit_step_metadata: dict[str, Any] = {
         key: value for key, value in commit_metadata.items() if key != "diff_path"
     }
+    if commit_results:
+        commit_step_metadata["meta_commits"] = commit_results
 
     state_path = os.path.join(artifacts_dir, "workflow_state.json")
     try:

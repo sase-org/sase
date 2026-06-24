@@ -72,6 +72,72 @@ def test_extract_step_output_preserves_multiline_commit_result_message(
     assert diff_path is None
 
 
+def test_extract_step_output_surfaces_commit_results_list(
+    tmp_path: Path,
+) -> None:
+    state_data = {
+        "workflow_name": "test",
+        "status": "completed",
+        "steps": [
+            {
+                "name": "step1",
+                "status": "completed",
+                "output": {"result": "ok"},
+            }
+        ],
+    }
+    (tmp_path / "workflow_state.json").write_text(json.dumps(state_data))
+    (tmp_path / "commit_result.json").write_text(
+        json.dumps(
+            {
+                "message": "fix: linked",
+                "result": "def456",
+                "cwd": "/workspace/sase-core_7",
+                "diff_path": "/tmp/linked.diff",
+            }
+        )
+    )
+    (tmp_path / "commit_results.json").write_text(
+        json.dumps(
+            [
+                {
+                    "message": "fix: primary",
+                    "result": "abc123",
+                    "cwd": "/workspace/sase_7",
+                    "entry_id": "1",
+                },
+                {
+                    "message": "fix: linked",
+                    "result": "def456",
+                    "cwd": "/workspace/sase-core_7",
+                    "entry_id": "2",
+                },
+            ]
+        )
+    )
+
+    step_output, diff_path = extract_step_output_and_diff_path(str(tmp_path))
+
+    assert step_output is not None
+    assert step_output["result"] == "ok"
+    assert step_output["meta_commit_message"] == "fix: linked"
+    assert step_output["meta_new_commit"] == "def456"
+    assert step_output["meta_commit_cwd"] == "/workspace/sase-core_7"
+    assert step_output["meta_commits"] == [
+        {
+            "message": "fix: primary",
+            "sha": "abc123",
+            "cwd": "/workspace/sase_7",
+        },
+        {
+            "message": "fix: linked",
+            "sha": "def456",
+            "cwd": "/workspace/sase-core_7",
+        },
+    ]
+    assert diff_path == "/tmp/linked.diff"
+
+
 def test_extract_step_output_prefers_commit_result_message_over_workflow_subject(
     tmp_path: Path,
 ) -> None:
@@ -266,6 +332,76 @@ def test_done_agent_loader_backfills_commit_cwd_from_commit_result(
     assert agent is not None
     assert agent.step_output is not None
     assert agent.step_output["meta_commit_cwd"] == str(commit_cwd)
+    assert agent.step_output["meta_commits"] == [
+        {
+            "message": "feat: linked",
+            "sha": "abc123",
+            "cwd": str(commit_cwd),
+        }
+    ]
+
+
+def test_done_agent_loader_backfills_commit_results_list(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "20260624120030"
+    artifact_dir.mkdir()
+    linked_cwd = tmp_path / "sase-core_7"
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "cl_name": "sase-test",
+                "outcome": "completed",
+                "project_file": str(tmp_path / "sase.sase"),
+                "step_output": {
+                    "meta_commit_message": "feat: linked",
+                    "meta_new_commit": "def456",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "commit_result.json").write_text(
+        json.dumps(
+            {"message": "feat: linked", "result": "def456", "cwd": str(linked_cwd)}
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "commit_results.json").write_text(
+        json.dumps(
+            [
+                {
+                    "message": "feat: primary",
+                    "result": "abc123",
+                    "cwd": str(tmp_path / "sase_7"),
+                },
+                {
+                    "message": "feat: linked",
+                    "result": "def456",
+                    "cwd": str(linked_cwd),
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert agent.step_output is not None
+    assert agent.step_output["meta_commit_cwd"] == str(linked_cwd)
+    assert agent.step_output["meta_commits"] == [
+        {
+            "message": "feat: primary",
+            "sha": "abc123",
+            "cwd": str(tmp_path / "sase_7"),
+        },
+        {
+            "message": "feat: linked",
+            "sha": "def456",
+            "cwd": str(linked_cwd),
+        },
+    ]
 
 
 def test_done_agent_loader_keeps_existing_commit_cwd(
@@ -298,6 +434,42 @@ def test_done_agent_loader_keeps_existing_commit_cwd(
     assert agent is not None
     assert agent.step_output is not None
     assert agent.step_output["meta_commit_cwd"] == "/kept"
+
+
+def test_done_agent_loader_keeps_existing_meta_commits(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "20260624120130"
+    artifact_dir.mkdir()
+    existing_commits = [{"message": "feat: kept", "sha": "111aaa", "cwd": "/kept"}]
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "cl_name": "sase-test",
+                "outcome": "completed",
+                "project_file": str(tmp_path / "sase.sase"),
+                "step_output": {
+                    "meta_commit_message": "feat: kept",
+                    "meta_new_commit": "111aaa",
+                    "meta_commit_cwd": "/kept",
+                    "meta_commits": existing_commits,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "commit_results.json").write_text(
+        json.dumps(
+            [{"message": "feat: ignored", "result": "222bbb", "cwd": "/ignored"}]
+        ),
+        encoding="utf-8",
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert agent.step_output is not None
+    assert agent.step_output["meta_commits"] == existing_commits
 
 
 def test_done_agent_snapshot_loader_backfills_commit_cwd(
@@ -333,3 +505,6 @@ def test_done_agent_snapshot_loader_backfills_commit_cwd(
     assert agent is not None
     assert agent.step_output is not None
     assert agent.step_output["meta_commit_cwd"] == "/linked"
+    assert agent.step_output["meta_commits"] == [
+        {"message": "fix: linked", "sha": "def456", "cwd": "/linked"}
+    ]

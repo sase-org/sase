@@ -80,6 +80,18 @@ def _persisted_commit_infos(
     return (_CommitInfo(short_sha=sha, subject=subject),)
 
 
+def _commit_info_from_record(record: dict[str, Any]) -> _CommitInfo | None:
+    message = _display_text(record.get("message", ""))
+    sha_value = record.get("sha", record.get("result", ""))
+    sha = _short_sha(_display_text(sha_value))
+    subject = _first_subject_line(message)
+    if not subject and not sha:
+        return None
+    if not subject:
+        subject = "(message unavailable)"
+    return _CommitInfo(short_sha=sha, subject=subject)
+
+
 def _norm_path(value: object) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
@@ -103,11 +115,11 @@ def _repo_name_from_cwd(cwd: str) -> str:
     return repo_name or "repository"
 
 
-def _persisted_commit_repo_name(
+def _repo_name_for_commit_cwd(
     agent: Agent,
     step_output: dict[str, Any] | None,
+    cwd_raw: object,
 ) -> str:
-    cwd_raw = step_output.get("meta_commit_cwd") if step_output is not None else None
     cwd = _norm_path(cwd_raw)
     if cwd is None:
         return _primary_repo_name(agent, step_output)
@@ -120,6 +132,58 @@ def _persisted_commit_repo_name(
             return repo.name
 
     return _repo_name_from_cwd(str(cwd_raw))
+
+
+def _persisted_commit_repo_name(
+    agent: Agent,
+    step_output: dict[str, Any] | None,
+) -> str:
+    cwd_raw = step_output.get("meta_commit_cwd") if step_output is not None else None
+    return _repo_name_for_commit_cwd(agent, step_output, cwd_raw)
+
+
+def _persisted_commit_groups(
+    agent: Agent,
+    step_output: dict[str, Any] | None,
+) -> tuple[tuple[str, tuple[_CommitInfo, ...]], ...]:
+    if step_output is None:
+        return ()
+
+    raw_commits = step_output.get("meta_commits")
+    if isinstance(raw_commits, list) and raw_commits:
+        grouped: dict[str, list[_CommitInfo]] = {}
+        group_order: list[str] = []
+        for raw_record in raw_commits:
+            if not isinstance(raw_record, dict):
+                continue
+            commit = _commit_info_from_record(raw_record)
+            if commit is None:
+                continue
+            repo_name = _repo_name_for_commit_cwd(
+                agent,
+                step_output,
+                raw_record.get("cwd"),
+            )
+            if repo_name not in grouped:
+                grouped[repo_name] = []
+                group_order.append(repo_name)
+            grouped[repo_name].append(commit)
+
+        if grouped:
+            primary_name = _primary_repo_name(agent, step_output)
+            ordered_groups: list[tuple[str, tuple[_CommitInfo, ...]]] = []
+            if primary_name in grouped:
+                ordered_groups.append((primary_name, tuple(grouped[primary_name])))
+            for repo_name in group_order:
+                if repo_name == primary_name:
+                    continue
+                ordered_groups.append((repo_name, tuple(grouped[repo_name])))
+            return tuple(ordered_groups)
+
+    persisted_commits = _persisted_commit_infos(step_output)
+    if not persisted_commits:
+        return ()
+    return ((_persisted_commit_repo_name(agent, step_output), persisted_commits),)
 
 
 def _append_commit_group(
@@ -147,14 +211,11 @@ def _append_commit_group(
 def append_agent_commits_section(text: Text, agent: Agent) -> None:
     """Append the persisted commit message, attributed to its source repo."""
     step_output = agent.step_output if isinstance(agent.step_output, dict) else None
-    persisted_commits = _persisted_commit_infos(step_output)
-    if not persisted_commits:
+    commit_groups = _persisted_commit_groups(agent, step_output)
+    if not commit_groups:
         return
 
     _append_major_section_divider(text)
     text.append("COMMITS:\n", style=_COLOR_HEADER)
-    _append_commit_group(
-        text,
-        _persisted_commit_repo_name(agent, step_output),
-        persisted_commits,
-    )
+    for repo_name, commits in commit_groups:
+        _append_commit_group(text, repo_name, commits)

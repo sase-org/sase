@@ -60,6 +60,7 @@ def _linked_repo_commits_agent() -> Agent:
         agent_name="commits",
         llm_provider="codex",
         model="gpt-5",
+        workspace_dir="/workspace/sase_18",
         step_output={
             "meta_commit_message": (
                 "feat: linked core commit\n\n"
@@ -67,6 +68,22 @@ def _linked_repo_commits_agent() -> Agent:
             ),
             "meta_new_commit": "9f8e7d6c5b4a3",
             "meta_commit_cwd": "/workspace/sase-core_18",
+            "meta_commits": [
+                {
+                    "message": "feat: primary\n\n"
+                    "Persist all commit results for the selected run.",
+                    "sha": "1234567890abcdef",
+                    "cwd": "/workspace/sase_18/src",
+                },
+                {
+                    "message": (
+                        "feat: linked core commit\n\n"
+                        "Attribute persisted commit metadata to the linked workspace."
+                    ),
+                    "sha": "9f8e7d6c5b4a3",
+                    "cwd": "/workspace/sase-core_18",
+                },
+            ],
         },
         linked_repos=(
             LinkedRepoMetadata(
@@ -172,6 +189,9 @@ async def test_agents_commit_messages_panel_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "COMMITS:")
+        assert_page_svg_contains(page, "feat: primary")
+        assert_page_svg_contains(page, "1234567890ab")
+        assert_page_svg_contains(page, "visual_project")
         assert_page_svg_contains(page, "feat: linked core")
         assert_page_svg_contains(page, "9f8e7d6c5b4a")
         assert_page_svg_contains(page, "sase-core")

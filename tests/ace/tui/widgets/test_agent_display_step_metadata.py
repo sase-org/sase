@@ -83,6 +83,76 @@ class TestWorkflowVariablesHeader:
         assert "  ▣ sase-core\n" in header.plain
         assert "    9f8e7d6c5b4a feat: linked core\n" in header.plain
 
+    def test_meta_commits_render_primary_group_first_then_linked(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        primary = tmp_path / "sase_7"
+        linked = tmp_path / "sase-core_7"
+        agent = make_agent(
+            workspace_dir=str(primary),
+            step_output={
+                "meta_commit_message": "feat: linked core",
+                "meta_new_commit": "222222222222bbbb",
+                "meta_commit_cwd": str(linked),
+                "meta_commits": [
+                    {
+                        "message": "feat: linked core",
+                        "sha": "222222222222bbbb",
+                        "cwd": str(linked / "crates" / "core"),
+                    },
+                    {
+                        "message": "feat: primary workspace",
+                        "sha": "111111111111aaaa",
+                        "cwd": str(primary / "src"),
+                    },
+                ],
+            },
+            linked_repos=(
+                LinkedRepoMetadata(
+                    name="sase-core",
+                    workspace_dir=str(linked),
+                    workspace_strategy="suffix",
+                ),
+            ),
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "COMMITS:\n" in header.plain
+        assert header.plain.index("  ▣ test\n") < header.plain.index("  ▣ sase-core\n")
+        assert "    111111111111 feat: primary workspace\n" in header.plain
+        assert "    222222222222 feat: linked core\n" in header.plain
+
+    def test_meta_commits_same_cwd_render_one_group_with_multiple_rows(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "sase_8"
+        agent = make_agent(
+            workspace_dir=str(workspace),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "feat: first primary",
+                        "sha": "aaaaaaaaaaa111",
+                        "cwd": str(workspace),
+                    },
+                    {
+                        "message": "fix: second primary",
+                        "sha": "bbbbbbbbbbb222",
+                        "cwd": str(workspace / "src"),
+                    },
+                ],
+            },
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert header.plain.count("  ▣ test\n") == 1
+        assert "    aaaaaaaaaaa1 feat: first primary\n" in header.plain
+        assert "    bbbbbbbbbbb2 fix: second primary\n" in header.plain
+
     def test_commit_cwd_unmatched_renders_basename_group(
         self,
         tmp_path: Path,
@@ -103,12 +173,43 @@ class TestWorkflowVariablesHeader:
         assert "  ▣ sase-core\n" in header.plain
         assert "    abcdef123456 fix: linked without metadata\n" in header.plain
 
+    def test_meta_commits_unmatched_cwd_renders_basename_group(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        commit_cwd = tmp_path / "sase-core_18"
+        agent = make_agent(
+            workspace_dir=str(tmp_path / "sase_18"),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "fix: linked without metadata",
+                        "sha": "abcdef123456",
+                        "cwd": str(commit_cwd),
+                    }
+                ],
+            },
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "COMMITS:\n" in header.plain
+        assert "  ▣ sase-core\n" in header.plain
+        assert "    abcdef123456 fix: linked without metadata\n" in header.plain
+
     def test_workflow_variables_keep_non_commit_meta_fields(self) -> None:
         agent = make_agent(
             step_output={
                 "meta_commit_message": "fix: align",
                 "meta_new_commit": "96a895335",
                 "meta_commit_cwd": "/tmp/sase-core_4",
+                "meta_commits": [
+                    {
+                        "message": "fix: align",
+                        "sha": "96a895335",
+                        "cwd": "/tmp/sase-core_4",
+                    }
+                ],
                 "meta_result": "ready",
             }
         )
@@ -121,6 +222,7 @@ class TestWorkflowVariablesHeader:
         assert "Commit Message:" not in header.plain
         assert "New Commit:" not in header.plain
         assert "Commit Cwd:" not in header.plain
+        assert "Commits:" not in header.plain
 
     def test_header_absent_when_no_meta_fields(self) -> None:
         agent = make_agent(step_output={"status": "ok"})
