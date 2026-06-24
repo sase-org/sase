@@ -1,12 +1,16 @@
-"""App-handler tests for the unified prompt-stash panel.
+"""App-handler tests for prompt-stash restore flows.
 
 Pin the app glue that turns a ``RestoreRequested`` into an opened picker and, on
 confirm, applies per-entry pop/keep/delete choices through
-``prompt_stash_facade`` plus a load back into the bar (boundary rule D6):
+``prompt_stash_facade`` plus a load back into the bar (boundary rule D6). The
+global ``@`` action shares the restore transport, but auto-restores a lone stash
+entry while leaving prompt-local ``Ctrl+G p`` as the panel-only path:
 
 - The mode guard toasts a no-op for feedback / approve-prompt bars.
 - An empty store toasts instead of opening an empty modal.
-- Opening reads the snapshot off-thread and pushes the unified picker.
+- ``@`` restores a lone unpinned entry and pops it.
+- ``@`` restores a lone pinned entry and keeps it stashed.
+- ``Ctrl+G p`` and multi-entry ``@`` open the unified picker.
 - Confirm pops only pop+delete ids, loads pop+keep drafts (append to a mounted
   bar, or mount the home bar pre-filled when none is shown), expands bundle rows
   into panes, discards delete-marked ids, toasts a count-aware summary, and
@@ -100,14 +104,22 @@ def _point_store_at(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
     monkeypatch.setattr("sase.core.paths.prompt_stash_path", lambda: path, raising=True)
 
 
-def _seed(path: Path, rows: list[tuple[str, str, str, str]]) -> None:
-    """Append ``(id, created_at, text, frontmatter)`` rows to the store."""
+type _SeedRow = tuple[str, str, str, str] | tuple[str, str, str, str, bool]
+
+
+def _seed(path: Path, rows: list[_SeedRow]) -> None:
+    """Append ``(id, created_at, text, frontmatter[, pinned])`` rows."""
     from sase.core.prompt_stash_facade import (
         PromptStashEntryWire,
         append_prompt_stash,
     )
 
-    for idx, (entry_id, created_at, text, frontmatter) in enumerate(rows):
+    for idx, row in enumerate(rows):
+        if len(row) == 5:
+            entry_id, created_at, text, frontmatter, pinned = row
+        else:
+            entry_id, created_at, text, frontmatter = row
+            pinned = False
         append_prompt_stash(
             path,
             PromptStashEntryWire(
@@ -116,6 +128,7 @@ def _seed(path: Path, rows: list[tuple[str, str, str, str]]) -> None:
                 text=text,
                 frontmatter=frontmatter,
                 pane_index=idx,
+                pinned=pinned,
             ),
         )
 
@@ -179,7 +192,7 @@ async def test_open_pushes_modal_with_snapshot_entries(
 async def test_action_restore_prompt_stash_opens_modal(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """The global ``@`` action opens the unified picker over the stash entries."""
+    """The global ``@`` action opens the unified picker for multiple entries."""
     _skip_without_prompt_stash_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
@@ -200,6 +213,99 @@ async def test_action_restore_prompt_stash_opens_modal(
     assert [e.id for e in modal._entries] == ["b", "a"]
 
 
+async def test_action_restore_prompt_stash_single_unpinned_restores_and_pops(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A lone unpinned stash entry restores directly and is removed."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "model: c")])
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    await harness.action_restore_prompt_stash()
+
+    assert harness.pushed == []
+    assert bar.restored == [("alpha", "model: c")]
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert read_prompt_stash_snapshot(path).entries == []
+    assert harness.applied_counts == [0]
+    assert harness.notifications == [("Restored prompt", None)]
+
+
+async def test_action_restore_prompt_stash_single_pinned_restores_and_keeps(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A lone pinned stash entry restores directly and stays stashed."""
+    _skip_without_prompt_stash_bindings()
+    _skip_without_pinned_binding()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "model: c", True)])
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    await harness.action_restore_prompt_stash()
+
+    assert harness.pushed == []
+    assert bar.restored == [("alpha", "model: c")]
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    remaining = read_prompt_stash_snapshot(path).entries
+    assert [(entry.id, entry.pinned) for entry in remaining] == [("a", True)]
+    assert harness.applied_counts == []
+    assert harness.notifications == [("Restored prompt", None)]
+
+
+async def test_action_restore_prompt_stash_single_unpinned_mounts_home_and_pops(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A lone unpinned stash entry restores into a new home prompt bar."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "")])
+    harness = _RestoreHarness(bar=None)
+
+    await harness.action_restore_prompt_stash()
+
+    assert harness.pushed == []
+    assert harness.home_mounts == ["alpha"]
+    assert harness.home_mount_xprompt_markdown == [True]
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert read_prompt_stash_snapshot(path).entries == []
+    assert harness.applied_counts == [0]
+    assert harness.notifications == [("Restored prompt", None)]
+
+
+async def test_action_restore_prompt_stash_single_bundle_restores_panes_and_pops(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A lone bundle row counts as one stash entry and restores all panes."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [("bundle", "2026-06-16T10:00:00", "alpha\n---\nbeta", "model: c")],
+    )
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    await harness.action_restore_prompt_stash()
+
+    assert harness.pushed == []
+    assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert read_prompt_stash_snapshot(path).entries == []
+    assert harness.applied_counts == [0]
+    assert harness.notifications == [("Restored 2 prompts", None)]
+
+
 async def test_action_restore_prompt_stash_empty_store_toasts(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -213,6 +319,32 @@ async def test_action_restore_prompt_stash_empty_store_toasts(
 
     assert harness.pushed == []
     assert harness.notifications == [("No stashed prompts to restore", None)]
+
+
+async def test_restore_requested_single_entry_still_opens_modal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Prompt-local ``Ctrl+G p`` stays the panel path for a single entry."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "")])
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    await harness.on_prompt_input_bar_restore_requested(
+        PromptInputBar.RestoreRequested("prompt")
+    )
+
+    assert len(harness.pushed) == 1
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, StashedPromptsModal)
+    assert [e.id for e in modal._entries] == ["a"]
+    assert bar.restored is None
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["a"]
+    assert harness.applied_counts == []
 
 
 async def test_restore_requested_event_routes_through_mode(

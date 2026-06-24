@@ -122,25 +122,33 @@ class PromptBarStashMixin:
         await self._open_prompt_stash_panel(bar_mode=event.mode)
 
     async def action_restore_prompt_stash(self) -> None:
-        """Global ``@`` keymap: open the unified prompt-stash panel.
+        """Global ``@`` keymap: restore or open the prompt-stash panel.
 
-        Reuses the same flow as the prompt-local ``Ctrl+G p`` restore. No
-        ``bar_mode`` is forced: ``_open_prompt_stash_panel`` inspects the mounted
-        bar (so a feedback / approve-prompt bar still no-ops) and defaults to
-        ``prompt`` mode when no bar is mounted, mounting the home prompt bar
-        with the restored drafts.
+        A lone unpinned entry restores and pops immediately; a lone pinned entry
+        restores while staying stashed. Multi-entry stashes still open the
+        picker, and prompt-local ``Ctrl+G p`` remains the panel-only path. No
+        ``bar_mode`` is forced: ``_open_prompt_stash_panel`` inspects the
+        mounted bar (so a feedback / approve-prompt bar still no-ops) and
+        defaults to ``prompt`` mode when no bar is mounted, mounting the home
+        prompt bar with the restored drafts.
         """
-        await self._open_prompt_stash_panel()
+        await self._open_prompt_stash_panel(auto_restore_single=True)
 
-    async def _open_prompt_stash_panel(self, bar_mode: str | None = None) -> None:
-        """Read the stash snapshot off-thread and push the unified stash picker.
+    async def _open_prompt_stash_panel(
+        self,
+        bar_mode: str | None = None,
+        *,
+        auto_restore_single: bool = False,
+    ) -> None:
+        """Read the stash snapshot off-thread and restore or push the picker.
 
         Restore is guarded to ``prompt`` bars (D5): a feedback /
         approve-prompt bar toasts a no-op.  When *bar_mode* is ``None`` the
         currently mounted bar — if any — supplies the mode. An empty store
-        toasts instead of opening an empty modal. The snapshot read runs on a
-        worker thread so key handling never blocks the paint path (boundary rule
-        D6).
+        toasts instead of opening an empty modal. When *auto_restore_single* is
+        set, a one-entry stash restores directly; otherwise the unified picker
+        opens. The snapshot read runs on a worker thread so key handling never
+        blocks the paint path (boundary rule D6).
         """
         import asyncio
 
@@ -160,10 +168,25 @@ class PromptBarStashMixin:
             self.notify("No stashed prompts to restore")  # type: ignore[attr-defined]
             return
 
+        if auto_restore_single and len(entries) == 1:
+            await self._auto_restore_single_entry(entries[0])
+            return
+
         self.push_screen(  # type: ignore[attr-defined]
             StashedPromptsModal(entries),
             self._on_prompt_stash_restore_confirmed,
         )
+
+    async def _auto_restore_single_entry(self, entry: PromptStashEntryWire) -> None:
+        """Restore one stash entry according to its persisted pin state."""
+        from ...modals import StashRestoreResult
+
+        result = (
+            StashRestoreResult(keep_ids=[entry.id])
+            if entry.pinned
+            else StashRestoreResult(pop_ids=[entry.id])
+        )
+        await self._apply_stash_restore(result)
 
     async def _on_prompt_stash_restore_confirmed(self, result: object) -> None:
         """Apply the picker outcome: pop, keep, and delete marked ids."""
@@ -223,8 +246,8 @@ class PromptBarStashMixin:
         from sase.core.paths import prompt_stash_path
         from sase.core.prompt_stash_facade import pop_prompt_stash
 
-        # The current panel does not produce keep ids, but the transport path is
-        # retained so callers can still load-without-pop without re-plumbing.
+        # The panel does not currently mark keep ids, but global ``@`` uses the
+        # transport path to load a lone pinned entry without popping it.
         restore_ids = [*result.pop_ids, *result.keep_ids]
         remove_ids = [*result.pop_ids, *result.delete_ids]
         if not restore_ids and not remove_ids:
