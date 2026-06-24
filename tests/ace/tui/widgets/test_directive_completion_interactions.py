@@ -1,0 +1,392 @@
+"""Tests for prompt directive completion UI interactions."""
+
+from __future__ import annotations
+
+from unittest.mock import patch
+
+from textual.widgets import Static
+
+from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+
+from ._completion_helpers import CompletionTestApp
+from ._directive_completion_helpers import (
+    MODEL_CATALOG_PATCH,
+    agent_candidate,
+    model_entries,
+)
+
+
+async def test_ctrl_t_at_percent_opens_directive_panel() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%")
+        ta.cursor_location = (0, 1)
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "directive"
+        assert panel.border_title == "directives"
+        assert "choose one or more provider/model targets" in panel.render().plain
+
+
+async def test_ctrl_t_at_partial_directive_inserts_single_candidate() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%mo")
+        ta.cursor_location = (0, 3)
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%model"
+    assert ta._file_completion_active is False
+
+
+async def test_ctrl_t_at_alias_partial_inserts_canonical_directive() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%m")
+        ta.cursor_location = (0, 2)
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%model"
+    assert ta._file_completion_active is False
+
+
+async def test_multi_candidate_directive_completion_accepts_ctrl_l() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%e")
+        ta.cursor_location = (0, 2)
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            await pilot.press("ctrl+t")
+            assert ta._file_completion_active is True
+            await pilot.press("down")
+            selected = ta._file_completion_candidates[
+                ta._file_completion_index
+            ].insertion
+            await pilot.press("ctrl+l")
+
+    assert ta.text == selected
+    assert ta._file_completion_active is False
+
+
+async def test_percent_partial_auto_opens_directive_panel() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+
+        await pilot.press("%")
+        assert ta.text == "%"
+        assert ta._file_completion_active is False
+
+        await pilot.press("m")
+
+        # A single ``%m`` -> ``%model`` match opens the menu but never
+        # auto-accepts: the text stays ``%m`` until the user accepts explicitly.
+        assert ta.text == "%m"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "directive"
+        assert [c.insertion for c in ta._file_completion_candidates] == ["%model"]
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "directives"
+
+
+async def test_colon_after_effort_auto_opens_directive_value_panel() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+
+        for char in "%effort:":
+            await pilot.press(char)
+
+        assert ta.text == "%effort:"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "directive_arg"
+        assert [c.insertion for c in ta._file_completion_candidates] == list(
+            EFFORT_LEVELS_ORDERED
+        )
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "directive values"
+        assert "reasoning effort" in panel.render().plain
+
+
+async def test_colon_after_model_auto_opens_model_value_panel() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+
+        with patch(MODEL_CATALOG_PATCH, return_value=model_entries()):
+            for char in "%model:":
+                await pilot.press(char)
+
+        assert ta.text == "%model:"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "directive_arg"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "claude-fable-5",
+            "gpt-5.5",
+        ]
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "directive values"
+        assert "Claude (fable)" in panel.render().plain
+
+
+async def test_directive_arg_refresh_narrows_widens_and_dismisses() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        for char in "%effort:":
+            await pilot.press(char)
+        await pilot.press("h")
+
+        assert ta.text == "%effort:h"
+        assert [c.insertion for c in ta._file_completion_candidates] == ["high"]
+
+        await pilot.press("backspace")
+        assert ta.text == "%effort:"
+        assert [c.insertion for c in ta._file_completion_candidates] == list(
+            EFFORT_LEVELS_ORDERED
+        )
+
+        await pilot.press("space")
+        assert ta.text == "%effort: "
+        assert ta._file_completion_active is False
+
+
+async def test_directive_arg_completion_accepts_selection() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%auto:")
+        ta.cursor_location = (0, len("%auto:"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            await pilot.press("ctrl+t")
+            assert ta._file_completion_active is True
+            assert ta._completion_kind == "directive_arg"
+            await pilot.press("down")
+            selected = ta._file_completion_candidates[
+                ta._file_completion_index
+            ].insertion
+            await pilot.press("ctrl+l")
+
+    assert selected == "tale"
+    assert ta.text == "%auto:tale"
+    assert ta._file_completion_active is False
+
+
+async def test_directive_arg_completion_replaces_only_partial_value() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%effort:h")
+        ta.cursor_location = (0, len("%effort:h"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%effort:high"
+    assert ta._file_completion_active is False
+
+
+async def test_wait_arg_completion_replaces_only_active_fragment() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        agent_candidate("coder")
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%wait:planner, co")
+        ta.cursor_location = (0, len("%wait:planner, co"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%wait:planner, coder"
+    assert ta._file_completion_active is False
+
+
+async def test_wait_paren_completion_preserves_later_arguments() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        agent_candidate("coder")
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        text = "%wait(planner, co, time=5m)"
+        ta.load_text(text)
+        ta.cursor_location = (0, text.index(", time"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%wait(planner, coder, time=5m)"
+    assert ta._file_completion_active is False
+
+
+async def test_model_arg_completion_replaces_partial_with_canonical_value() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%model:fa")
+        ta.cursor_location = (0, len("%model:fa"))
+
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(MODEL_CATALOG_PATCH, return_value=model_entries()),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%model:claude-fable-5"
+    assert ta._file_completion_active is False
+
+
+async def test_model_at_effort_completion_replaces_only_suffix() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%model:opus@xh")
+        ta.cursor_location = (0, len("%model:opus@xh"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%model:opus@xhigh"
+    assert ta._file_completion_active is False
+
+
+async def test_directive_arg_auto_menu_uses_directive_gate() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        with patch.object(
+            type(ta),
+            "_prompt_completion_settings",
+            return_value=PromptCompletionSettings(auto_directive_menu=False),
+        ):
+            for char in "%auto:":
+                await pilot.press(char)
+
+        assert ta.text == "%auto:"
+        assert ta._file_completion_active is False
+
+
+async def test_bare_percent_does_not_auto_open() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        await pilot.press("%")
+
+        assert ta.text == "%"
+        assert ta._file_completion_active is False
+
+
+async def test_unknown_directive_does_not_show_placeholder() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        await pilot.press("%")
+        await pilot.press("z")
+
+        assert ta.text == "%z"
+        assert ta._file_completion_active is False
+        assert ta._file_completion_candidates == []
+
+
+async def test_directive_invalid_context_does_not_auto_open() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("word")
+        ta.cursor_location = (0, 4)
+
+        await pilot.press("%")
+        await pilot.press("m")
+
+        assert ta.text == "word%m"
+        assert ta._file_completion_active is False
+
+
+async def test_directive_typing_narrows_deleting_widens_and_space_dismisses() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        await pilot.press("%")
+        await pilot.press("e")
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "%edit",
+            "%effort",
+        ]
+
+        await pilot.press("d")
+        assert ta.text == "%ed"
+        assert [c.insertion for c in ta._file_completion_candidates] == ["%edit"]
+
+        await pilot.press("backspace")
+        assert ta.text == "%e"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "%edit",
+            "%effort",
+        ]
+
+        await pilot.press("space")
+        assert ta.text == "%e "
+        assert ta._file_completion_active is False

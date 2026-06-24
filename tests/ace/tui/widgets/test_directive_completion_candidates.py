@@ -1,0 +1,155 @@
+"""Tests for prompt directive completion candidates."""
+
+from __future__ import annotations
+
+from sase.ace.tui.widgets.directive_completion import (
+    build_directive_completion_candidates,
+    extract_directive_token_around_cursor,
+    is_directive_like_token,
+)
+
+from ._directive_completion_helpers import (
+    directive_metadata,
+    single_directive_candidate,
+)
+
+
+def test_directive_like_token_accepts_marker_and_identifier() -> None:
+    assert is_directive_like_token("%") is True
+    assert is_directive_like_token("%model") is True
+    assert is_directive_like_token("model") is False
+    assert is_directive_like_token("%model:opus") is False
+
+
+def test_directive_completion_lists_canonical_directives() -> None:
+    candidates, shared = build_directive_completion_candidates("%")
+    insertions = {candidate.insertion for candidate in candidates}
+
+    assert shared == ""
+    assert "%alt" in insertions
+    assert "%auto" in insertions
+    assert "%model" in insertions
+    assert "%wait" in insertions
+    assert "%plan" not in insertions
+    assert "%tale" not in insertions
+    assert "%epic" not in insertions
+    assert "%xprompts_enabled" not in insertions
+    assert "%approve" not in insertions
+
+
+def test_auto_completes_from_name_and_advertises_alias() -> None:
+    """%auto is the advertised auto-approval directive with %a as its alias."""
+    auto, _ = single_directive_candidate("%au")
+    a_candidates, _ = build_directive_completion_candidates("%a")
+
+    assert auto.insertion == "%auto"
+    assert directive_metadata(auto).aliases == ("a",)
+    assert [candidate.insertion for candidate in a_candidates] == ["%alt", "%auto"]
+
+
+def test_removed_auto_approval_directives_are_absent_from_completion() -> None:
+    """Removed auto-approval names and aliases are not completion candidates."""
+    approve_candidates, _ = build_directive_completion_candidates("%approve")
+    plan_candidates, _ = build_directive_completion_candidates("%pl")
+    tale_candidates, _ = build_directive_completion_candidates("%ta")
+    epic_candidates, _ = build_directive_completion_candidates("%ep")
+
+    assert approve_candidates == []
+    assert plan_candidates == []
+    assert tale_candidates == []
+    assert epic_candidates == []
+
+
+def test_directive_completion_includes_representative_descriptions() -> None:
+    model, _ = single_directive_candidate("%mo")
+    wait, _ = single_directive_candidate("%w")
+    alt, _ = single_directive_candidate("%al")
+    auto, _ = single_directive_candidate("%au")
+
+    assert directive_metadata(model).description == (
+        "choose one or more provider/model targets"
+    )
+    assert directive_metadata(wait).description == (
+        "defer launch until agents complete or a time floor passes"
+    )
+    assert directive_metadata(alt).description == (
+        "split a prompt into variants; shorthand %{A | B}"
+    )
+    assert directive_metadata(auto).description == (
+        "auto-approve the submitted plan as plan (default), tale, or epic"
+    )
+
+
+def test_directive_completion_t_prefix_lists_no_directives() -> None:
+    """%time is no longer a directive completion candidate."""
+    candidates, _ = build_directive_completion_candidates("%t")
+    assert candidates == []
+
+    tale_candidates, _ = build_directive_completion_candidates("%ta")
+    assert tale_candidates == []
+    ti_candidates, _ = build_directive_completion_candidates("%ti")
+    assert ti_candidates == []
+
+
+def test_directive_completion_includes_group() -> None:
+    group, _ = single_directive_candidate("%gr")
+    assert group.insertion == "%group"
+
+
+def test_all_directive_completion_candidates_have_descriptions() -> None:
+    candidates, _ = build_directive_completion_candidates("%")
+
+    missing = [
+        candidate.insertion
+        for candidate in candidates
+        if not directive_metadata(candidate).description
+    ]
+    assert missing == []
+
+
+def test_directive_completion_filters_partial_name() -> None:
+    candidates, shared = build_directive_completion_candidates("%mo")
+
+    assert shared == ""
+    assert [candidate.insertion for candidate in candidates] == ["%model"]
+
+
+def test_directive_completion_matches_aliases_to_canonical_insertions() -> None:
+    model, _ = single_directive_candidate("%m")
+    repeat, _ = single_directive_candidate("%r")
+    wait, _ = single_directive_candidate("%w")
+
+    assert model.insertion == "%model"
+    assert repeat.insertion == "%repeat"
+    assert wait.insertion == "%wait"
+
+
+def test_directive_completion_returns_multi_match_without_false_shared_prefix() -> None:
+    candidates, shared = build_directive_completion_candidates("%e")
+
+    assert [candidate.insertion for candidate in candidates] == [
+        "%edit",
+        "%effort",
+    ]
+    assert shared == ""
+
+
+def test_directive_token_extraction_rejects_non_directive_percent_positions() -> None:
+    assert extract_directive_token_around_cursor("50%", 3) is None
+    assert (
+        extract_directive_token_around_cursor("word%model", len("word%model")) is None
+    )
+
+
+def test_directive_token_extraction_accepts_parser_contexts() -> None:
+    assert extract_directive_token_around_cursor("%", 1) == (0, 1, "%")
+    assert extract_directive_token_around_cursor("run %mo", len("run %mo")) == (
+        4,
+        7,
+        "%mo",
+    )
+    assert extract_directive_token_around_cursor("(%wait", len("(%wait")) == (
+        1,
+        6,
+        "%wait",
+    )
