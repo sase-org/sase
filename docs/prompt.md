@@ -1,17 +1,21 @@
 # Prompt History
 
-Every prompt you submit to `sase run` (and every launch started from [ACE](ace.md)) is recorded in the prompt-history
-store. Current installs write monthly JSON shards under `~/.sase/prompt_history/YYMM.json`; the old
-`~/.sase/prompt_history.json` file is migrated on first read or write and kept as a
-`legacy-imported-<timestamp>.json.bak` backup inside the shard directory. The `sase prompt` command group is the
-first-class way to inspect, search, reuse, curate, and clean up that history. It is built to feel like a well-made
+Prompts you launch with `sase run` or from [ACE](ace.md) are recorded in prompt history when they are useful to replay.
+Normal launch writes skip trivial one-token inputs (for example `y` or `ok`), while recovery paths can still preserve a
+short submitted prompt when a launch fails. Current installs write monthly JSON shards under
+`~/.sase/prompt_history/YYMM.json`, with unparseable last-used timestamps grouped into `unknown.json`. If an old
+`~/.sase/prompt_history.json` file is found before a shard directory exists, it is migrated on first read or write and
+kept as a `legacy-imported-<timestamp>.json.bak` backup inside the shard directory. The `sase prompt` command group is
+the first-class way to inspect, search, reuse, curate, and clean up that history. It is built to feel like a well-made
 shell-history tool: fast to scan, exact when printing text, safe around destructive actions, and scriptable through
 stable JSON.
 
-`sase prompt` reads and writes those JSON shards directly — there is no separate database to manage. Readers aggregate
-and deduplicate records across shards, while ordinary writes only touch the current-month shard. Replay commands (`run`,
-`edit`, `select`) route through the same launch machinery as `sase run`, so foreground, `--daemon`, multi-prompt,
-multi-model, and xprompt behavior stay identical.
+`sase prompt` reads and writes those JSON shards directly - there is no separate database to manage. Readers aggregate
+and deduplicate records across shards, so reusing the same prompt in a later month still shows one newest entry even if
+older shard copies remain on disk. New launch recordings only touch the current-month shard. Maintenance commands such
+as `delete` and `prune` remove every stored copy of the selected exact prompt text. Replay commands (`run`, `edit`,
+`select`) route through the same launch machinery as `sase run`, so foreground, `--daemon`, multi-prompt, multi-model,
+and xprompt behavior stay identical.
 
 ## Selectors
 

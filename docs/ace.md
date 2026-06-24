@@ -1663,7 +1663,7 @@ The detailed multi-agent parsing rules live in the [XPrompt reference](xprompt.m
 | `Ctrl+G s/S`   | Stash the selected pane / every non-empty pane                                                |
 | `Ctrl+G p`     | Open the stashed-prompt picker                                                                |
 | `Ctrl+Y`       | Open the workflow YAML editor                                                                 |
-| `Ctrl+K`       | Open prompt history, filtered by the current single-line prompt                               |
+| `Ctrl+K`       | Open prompt history from a single-line prompt, pre-filtered by that text                      |
 | `Ctrl+P`       | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping         |
 | `Ctrl+N`       | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping         |
 | `Ctrl+T`       | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
@@ -1984,10 +1984,11 @@ V-LINE operators always apply to whole selected lines regardless of the cursor c
 
 ## Prompt History Modal
 
-Press `Ctrl+K` from the prompt input to open the prompt history modal. When the current prompt is a single logical line,
-that line pre-fills the modal filter. Press `,.` (leader + `.`) to open the same modal from the main ACE UI. The modal
-loads prompts previously run in ACE in 250-row recency pages. Prompts shorter than two words are skipped when writing to
-history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter the list.
+Press `Ctrl+K` from the prompt input to open the prompt history modal. That shortcut is available when the current
+prompt is a single logical line; that line pre-fills the modal filter. Press `,.` (leader + `.`) to open the same modal
+from the main ACE UI. The modal loads prompts previously launched from ACE or `sase run` in 250-row recency pages.
+Normal launch writes skip trivial one-token prompts (e.g. `y`, `ok`) so they do not clutter the list, while
+failed-launch recovery can still preserve a short submitted prompt.
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit workspace reference appears with the
 default `#git:home` prefix. Use `#cd:~` for direct home-directory runs with no VCS workspace management. Explicit
@@ -2002,7 +2003,7 @@ recent entry and `Ctrl+N` starts at the oldest one.
 | Key              | Action                                        |
 | ---------------- | --------------------------------------------- |
 | `Enter`          | Submit the highlighted prompt directly        |
-| `Ctrl+G`         | Edit first - load prompt into editor          |
+| `Ctrl+G`         | Open the highlighted prompt in `$EDITOR`      |
 | `Tab` / `Ctrl+I` | Load prompt into the input widget for editing |
 | `PageDown`       | Load the next older 250 prompt-history rows   |
 | `Ctrl+X`         | Toggle visibility of cancelled prompts        |
@@ -2019,7 +2020,8 @@ Prompt-history rows are compact single-line entries: cancelled marker, last-used
 parseable), and a first-line prompt preview. The preview panel still shows the full prompt and timestamp metadata.
 History writes use a sidecar lock plus atomic tempfile replacement of monthly shard files under
 `~/.sase/prompt_history/`, so concurrent agent launches do not truncate prompt history. A legacy
-`~/.sase/prompt_history.json` store is migrated into shards before normal reads and writes.
+`~/.sase/prompt_history.json` store is migrated into shards before normal reads and writes when the shard directory has
+not already been created.
 
 ## Task Queue Modal
 

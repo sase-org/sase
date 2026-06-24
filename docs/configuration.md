@@ -41,12 +41,13 @@ All sase configuration lives under `~/.config/sase/`. The base config file is:
 ~/.config/sase/sase.yml
 ```
 
-Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of the base file. Overlay names accepted
-by Config Center create-overlay flows are filename stems only: SASE trims surrounding whitespace, normalizes `extra` to
-`sase_extra.yml`, and rejects empty names, `.` / `..`, or names containing `/` or `\`. A project-local `./sase.yml` in
-the current working directory usually takes highest priority. The ACE TUI deliberately disables project-local config
-loading for its own process so opening `sase ace` inside a repo does not inherit that repo's agent-run settings. See
-[Deep-Merge System](#deep-merge-system) below.
+Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of the base file. In the Config Center's
+new-overlay prompt, enter a single local overlay name rather than a path: `extra`, `sase_extra`, and `sase_extra.yml`
+all resolve to `~/.config/sase/sase_extra.yml`. SASE trims surrounding whitespace and rejects empty names, `.` / `..`,
+or names containing `/` or `\`, so the create-overlay flow cannot escape the user config directory. A project-local
+`./sase.yml` in the current working directory usually takes highest priority. The ACE TUI deliberately disables
+project-local config loading for its own process so opening `sase ace` inside a repo does not inherit that repo's
+agent-run settings. See [Deep-Merge System](#deep-merge-system) below.
 
 ## Config Center (interactive editor)
 
@@ -1831,17 +1832,18 @@ Subcommands:
 
 ## Directory Sharding
 
-A fresh install writes most agent artifacts (chat logs, notifications, workflow state, etc.) directly under
+Older SASE layouts wrote many agent artifacts (chat logs, notifications, workflow state, etc.) directly under
 `~/.sase/<kind>/`. After a few months of heavy use those directories can accumulate tens of thousands of files, which
 slows down filesystem walks and makes `ls`-style inspection painful.
 
-New files are automatically written into a `YYYYMM/` shard inside each high-volume directory (keyed by the current
-month). Readers transparently merge sharded and non-sharded files, so the layout is backwards-compatible — existing
-unsharded files at the top level are still found and the layout is fully read/write compatible across both forms.
+Current high-volume writers use a `YYYYMM/` shard inside each managed artifact directory (keyed by the current month).
+Readers transparently merge sharded and non-sharded files, so the layout is backwards-compatible - existing unsharded
+files at the top level are still found and the layout is fully read/write compatible across both forms.
 
 Prompt history uses its own monthly JSON shard directory, `~/.sase/prompt_history/YYMM.json`, because each shard stores
-a bounded JSON list rather than one file per prompt. The legacy `~/.sase/prompt_history.json` file is migrated into that
-directory on first read or write and preserved as a `legacy-imported-<timestamp>.json.bak` backup.
+a bounded JSON list rather than one file per prompt. Entries whose last-used timestamp cannot be parsed are kept in
+`unknown.json`. The legacy `~/.sase/prompt_history.json` file is migrated into that directory on first read or write
+when the shard directory does not already exist, then preserved as a `legacy-imported-<timestamp>.json.bak` backup.
 
 ACE run artifacts also support a day-sharded physical layout under each project's artifact root. Use
 `sase agent artifacts layout status` to inspect flat versus sharded `ace-run` directories, `migrate` to move legacy flat

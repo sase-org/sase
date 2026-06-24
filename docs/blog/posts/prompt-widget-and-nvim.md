@@ -88,11 +88,12 @@ word, press `Tab`, and the trigger is replaced with the template. Templates supp
 advancing through fields. Snippets are intentionally lightweight — they are for boilerplate you keep retyping, not for
 anything xprompts already do better.
 
-Prompt history is the third reuse path. Press `Ctrl+K` from the input bar to open the prompt history modal, pre-filtered
-by the current single-line prompt; `,.` opens the same modal from the main ACE UI. The modal loads prior prompts by most
-recent use, with `PageDown` fetching older rows. `Enter` submits the highlighted prompt directly; `Ctrl+G` loads it into
-your editor first; `Ctrl+I` loads it into the input widget for tweaking (pressing `Tab` does the same thing). Entries
-shorter than two words are filtered on write so trivial replies (`y`, `ok`) don't clutter the list.
+Prompt history is the third reuse path. Press `Ctrl+K` from the input bar to open the prompt history modal when the
+current prompt is a single line; that text pre-fills the modal filter. `,.` opens the same modal from the main ACE UI.
+The modal loads prior prompts by most recent use, with `PageDown` fetching older rows. `Enter` submits the highlighted
+prompt directly; `Ctrl+G` loads it into your editor first; `Ctrl+I` loads it into the input widget for tweaking
+(pressing `Tab` does the same thing). Normal launch writes skip trivial one-token prompts (`y`, `ok`) so they do not
+clutter the list, while failed-launch recovery can still preserve a short submitted prompt.
 
 `Ctrl+P` and `Ctrl+N` cycle most-recently-used workspace references (`#git:foo`, `#hg:bar`, `#cd:~/path`) through one
 ring with a no-prefix stop: `Ctrl+P` moves toward older entries, and `Ctrl+N` moves toward newer ones. They replace the
