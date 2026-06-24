@@ -27,7 +27,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("n / N", "Repeat prompt search fwd/rev"),
         ("Enter / Esc", "Confirm / cancel prompt search"),
         ("g=", "Frontmatter panel"),
-        ("Ctrl+S", "Stash current pane"),
+        ("Ctrl+S", "Stash pane (panel if empty)"),
         ("gs / Ctrl+G s", "Stash all panes"),
         ("Ctrl+G p / @", "Stashed prompts panel"),
         ("Enter", "Submit (chooser when stacked)"),

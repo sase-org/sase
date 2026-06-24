@@ -2,11 +2,12 @@
 
 Covers the capture deliverable of the prompt-stash feature: the bar's normal
 -mode ``g`` prefix stashes every non-empty pane (``gs``), while ``<ctrl+s>``
-stashes the active pane.  Both post a presentation-only
+stashes a non-empty active pane.  Both post a presentation-only
 ``PromptInputBar.Stashed`` message that carries the pane text(s) + shared
 frontmatter for the app to persist.  Capture removes the stashed pane(s), keeps
 the bar mounted while others remain, and asks the app to dismiss it once empty.
-Empty panes and non-prompt bars are no-ops.
+An empty active pane opens the stash panel instead of posting ``Stashed``;
+all-empty ``gs`` and non-prompt bars remain no-ops for capture.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ _LOCAL_XPROMPT_CONTENT = "Use saved helper rules"
 
 
 class _CaptureApp(App[None]):
-    """Hosts a prompt bar and records its Stashed messages."""
+    """Hosts a prompt bar and records stash/restore messages."""
 
     ENABLE_COMMAND_PALETTE = False
 
@@ -34,6 +35,7 @@ class _CaptureApp(App[None]):
         self._initial_value = initial_value
         self._mode = mode
         self.stashed: list[PromptInputBar.Stashed] = []
+        self.restore_requests: list[PromptInputBar.RestoreRequested] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
@@ -44,6 +46,11 @@ class _CaptureApp(App[None]):
 
     def on_prompt_input_bar_stashed(self, event: PromptInputBar.Stashed) -> None:
         self.stashed.append(event)
+
+    def on_prompt_input_bar_restore_requested(
+        self, event: PromptInputBar.RestoreRequested
+    ) -> None:
+        self.restore_requests.append(event)
 
 
 async def _add_local_xprompt_from_panel(
@@ -146,7 +153,7 @@ async def test_ctrl_s_in_multi_pane_keeps_bar_and_removes_only_active() -> None:
         assert bar.all_prompt_texts() == ["first", "second"]
 
 
-async def test_ctrl_s_on_empty_pane_is_noop_with_empty_message() -> None:
+async def test_ctrl_s_on_empty_pane_requests_stash_panel() -> None:
     app = _CaptureApp("")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -156,10 +163,9 @@ async def test_ctrl_s_on_empty_pane_is_noop_with_empty_message() -> None:
         await pilot.press("ctrl+s")
         await pilot.pause()
 
-        assert len(app.stashed) == 1
-        event = app.stashed[0]
-        assert event.panes == []  # nothing captured; app will toast a no-op
-        assert event.dismiss_bar is False
+        assert app.stashed == []
+        assert len(app.restore_requests) == 1
+        assert app.restore_requests[0].mode == "prompt"
 
 
 # --- stash all (gs) --------------------------------------------------------

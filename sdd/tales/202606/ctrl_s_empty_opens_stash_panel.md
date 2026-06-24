@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 15:01:13
-status: wip
+status: done
 prompt: sdd/prompts/202606/ctrl_s_empty_opens_stash_panel.md
 ---
 # Plan: `<Ctrl+S>` on an empty prompt opens the prompt stash panel

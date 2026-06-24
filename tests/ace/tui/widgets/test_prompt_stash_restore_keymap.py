@@ -2,7 +2,8 @@
 
 Covers the bar side of restore: ``Ctrl+G p`` posts a presentation-only
 ``PromptInputBar.RestoreRequested`` carrying the bar mode (so the app can
-guard), while bare normal-mode ``gp`` no longer opens the stash panel.
+guard), empty ``Ctrl+S`` opens the stash panel, while bare normal-mode ``gp``
+no longer opens it. Non-empty ``Ctrl+S`` still stashes the active pane.
 ``restore_stashed_entries`` appends restored drafts as new panes — dropping a
 lone empty drafting pane, preserving existing panes, and adopting frontmatter
 when the bar has none. Non-prompt bars never restore.
@@ -17,7 +18,7 @@ from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
 
 class _RestoreApp(App[None]):
-    """Hosts a prompt bar and records its RestoreRequested messages."""
+    """Hosts a prompt bar and records stash/restore messages."""
 
     ENABLE_COMMAND_PALETTE = False
 
@@ -25,6 +26,7 @@ class _RestoreApp(App[None]):
         super().__init__()
         self._initial_value = initial_value
         self._mode = mode
+        self.stash_events: list[PromptInputBar.Stashed] = []
         self.restore_requests: list[PromptInputBar.RestoreRequested] = []
 
     def compose(self) -> ComposeResult:
@@ -38,6 +40,9 @@ class _RestoreApp(App[None]):
         self, event: PromptInputBar.RestoreRequested
     ) -> None:
         self.restore_requests.append(event)
+
+    def on_prompt_input_bar_stashed(self, event: PromptInputBar.Stashed) -> None:
+        self.stash_events.append(event)
 
 
 # --- Ctrl+G p posts the request -------------------------------------------
@@ -87,6 +92,58 @@ async def test_ctrl_gp_forwards_feedback_mode() -> None:
         # The bar still signals intent in feedback mode; the app toasts a no-op.
         assert len(app.restore_requests) == 1
         assert app.restore_requests[0].mode == "feedback"
+
+
+# --- empty Ctrl+S opens the panel ------------------------------------------
+
+
+async def test_empty_ctrl_s_posts_restore_request() -> None:
+    app = _RestoreApp("")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+        assert app.stash_events == []
+        assert len(app.restore_requests) == 1
+        assert app.restore_requests[0].mode == "prompt"
+
+
+async def test_whitespace_ctrl_s_posts_restore_request() -> None:
+    app = _RestoreApp("   ")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+        assert app.stash_events == []
+        assert len(app.restore_requests) == 1
+        assert app.restore_requests[0].mode == "prompt"
+
+
+async def test_non_empty_ctrl_s_stashes_without_restore_request() -> None:
+    app = _RestoreApp("draft")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+        assert app.restore_requests == []
+        assert len(app.stash_events) == 1
+        event = app.stash_events[0]
+        assert event.source == "current"
+        assert [pane.text for pane in event.panes] == ["draft"]
+
+
+async def test_empty_ctrl_s_is_noop_in_feedback_mode() -> None:
+    app = _RestoreApp("", mode="feedback")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+        assert app.restore_requests == []
+        assert app.stash_events == []
 
 
 # --- restore_stashed_entries loads panes -----------------------------------

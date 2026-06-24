@@ -69,9 +69,9 @@ class Stashed(Message, namespace="prompt_input_bar"):
     The bar (presentation-only) captures the pane text(s) + the shared YAML
     frontmatter into ``panes`` and removes them; the app layer persists them
     through ``prompt_stash_facade`` and refreshes the top-bar indicator
-    (boundary rule D6).  ``panes`` is empty when there was nothing to stash (an
-    empty pane), so the app shows a "nothing to stash" toast without touching
-    the store.  ``dismiss_bar`` is set when stashing emptied the bar and the app
+    (boundary rule D6).  ``panes`` is empty when a stash command found nothing
+    stashable, so the app shows a "nothing to stash" toast without touching the
+    store.  ``dismiss_bar`` is set when stashing emptied the bar and the app
     should unmount it via the post-submit path, so the stashed text is never
     *also* recorded as cancelled history.
     """

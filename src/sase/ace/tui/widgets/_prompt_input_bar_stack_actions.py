@@ -353,15 +353,18 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         frontmatter are captured into a single stash entry and the pane is
         removed; when it was the last pane the whole bar empties and the app
         unmounts it (``dismiss_bar``) through the post-submit path, which does
-        *not* re-record the text as cancelled history.  An empty pane stashes
-        nothing — an empty ``Stashed`` is posted so the app can toast a no-op.
+        *not* re-record the text as cancelled history.  An empty active pane
+        opens the unified stash panel so the user can restore a saved prompt;
+        in non-prompt bars, ``<Ctrl+S>`` remains a no-op.
         """
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
         text = self._stack.selected_item.text.strip()
         if not text:
-            self.post_message(self.Stashed([], source="current", dismiss_bar=False))
+            # Nothing to stash: surface the stash panel so an empty Ctrl+S can
+            # pull a previously stashed prompt back instead of being a no-op.
+            self.request_open_prompt_stash()
             return
         pane = StashedPromptPane(
             text=text,

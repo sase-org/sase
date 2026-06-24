@@ -37,8 +37,8 @@ class PromptBarStashMixin:
 
         panes = event.panes
         if not panes:
-            # An empty pane stashes nothing; tell the user without touching the
-            # store or the badge.
+            # No stashable pane was captured; tell the user without touching
+            # the store or the badge.
             self.notify("Nothing to stash", severity="warning")  # type: ignore[attr-defined]
             return
 
