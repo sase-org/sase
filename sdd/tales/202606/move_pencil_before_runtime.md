@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 08:58:52
-status: wip
+status: done
 prompt: sdd/prompts/202606/move_pencil_before_runtime.md
 ---
 # Plan: Move the file-change pencil to just before the agent runtime

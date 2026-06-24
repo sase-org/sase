@@ -175,9 +175,6 @@ def format_agent_option(
             emoji_badge = provider_emoji_badge(provider)
             if emoji_badge:
                 text.append(f"{emoji_badge} ")
-    if _has_file_change_hint(agent):
-        text.append(_FILE_CHANGE_GLYPH, style=_FILE_CHANGE_GLYPH_STYLE)
-        text.append(" ")
 
     is_reverted_root = _should_render_reverted_badge(agent)
     if is_reverted_root:
@@ -318,9 +315,22 @@ def format_agent_option(
             text.append("▼", style="bold #D7AF5F")
         text.append(f"#{agent.embedded_workflow_name}", style="dim #AF87D7")
 
+    runtime_suffix = build_runtime_suffix(agent, now=now, is_unread=is_unread)
+    if _has_file_change_hint(agent):
+        runtime_with_file_change = Text()
+        runtime_with_file_change.append(
+            _FILE_CHANGE_GLYPH,
+            style=_FILE_CHANGE_GLYPH_STYLE,
+        )
+        if runtime_suffix.cell_len:
+            runtime_with_file_change.append(" ")
+            runtime_with_file_change.append_text(runtime_suffix)
+    else:
+        runtime_with_file_change = runtime_suffix
+
     suffix = combine_suffixes(
         build_activity_suffix(agent),
-        build_runtime_suffix(agent, now=now, is_unread=is_unread),
+        runtime_with_file_change,
     )
     option_id = f"{index}:{agent.agent_type.value}:{agent.cl_name}"
     return text, suffix, option_id

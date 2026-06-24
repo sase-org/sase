@@ -145,9 +145,10 @@ class TestAgentListFileChangePencil:
     def test_row_with_diff_path_renders_pencil(self) -> None:
         agent = make_agent(diff_path="/tmp/sase/demo.diff", llm_provider=None)
 
-        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "✏️ test_cl (RUNNING)" in left.plain
+        assert "✏️" not in left.plain
+        assert suffix.plain == "✏️"
 
     def test_row_with_classified_real_diff_renders_pencil(self) -> None:
         agent = make_agent(
@@ -156,9 +157,10 @@ class TestAgentListFileChangePencil:
             llm_provider=None,
         )
 
-        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "✏️ test_cl (RUNNING)" in left.plain
+        assert "✏️" not in left.plain
+        assert suffix.plain == "✏️"
 
     def test_row_with_classified_bookkeeping_diff_omits_pencil(self) -> None:
         agent = make_agent(
@@ -167,30 +169,34 @@ class TestAgentListFileChangePencil:
             llm_provider=None,
         )
 
-        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert "✏️" not in left.plain
+        assert "✏️" not in suffix.plain
 
     def test_row_without_diff_path_omits_pencil(self) -> None:
         agent = make_agent()
 
-        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert "✏️" not in left.plain
+        assert "✏️" not in suffix.plain
 
     def test_row_with_live_hint_renders_pencil_without_diff_path(self) -> None:
         agent = make_agent(live_file_change_hint=True, llm_provider=None)
 
-        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "✏️ test_cl (RUNNING)" in left.plain
+        assert "✏️" not in left.plain
+        assert suffix.plain == "✏️"
 
     def test_row_with_false_live_hint_omits_pencil(self) -> None:
         agent = make_agent(live_file_change_hint=False, llm_provider=None)
 
-        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert "✏️" not in left.plain
+        assert "✏️" not in suffix.plain
 
     def test_persisted_classification_wins_over_live_hint(self) -> None:
         # A persisted bookkeeping-only classification stays authoritative even
@@ -202,11 +208,12 @@ class TestAgentListFileChangePencil:
             llm_provider=None,
         )
 
-        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert "✏️" not in left.plain
+        assert "✏️" not in suffix.plain
 
-    def test_pencil_flows_before_display_name_not_bead_metadata(
+    def test_pencil_renders_in_suffix_not_display_name_flow(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         agent = make_agent(
@@ -216,7 +223,7 @@ class TestAgentListFileChangePencil:
         )
         _confirm_bead(agent, monkeypatch)
 
-        left, _, _ = format_agent_option(
+        left, suffix, _ = format_agent_option(
             agent,
             0,
             is_selected=False,
@@ -224,9 +231,47 @@ class TestAgentListFileChangePencil:
             tag_label="fix",
         )
 
-        assert "✏️ test_cl #fix (RUNNING)×3 ◆ sase-x.3" in left.plain
-        assert "(RUNNING)×3 ✏️" not in left.plain
+        assert "test_cl #fix (RUNNING)×3 ◆ sase-x.3" in left.plain
+        assert "✏️" not in left.plain
+        assert suffix.plain == "✏️"
         assert "[pinned]" not in left.plain
+
+    def test_running_pencil_immediately_precedes_runtime_marker(self) -> None:
+        start = datetime(2026, 4, 25, 14, 0, 0)
+        agent = make_agent(
+            diff_path="/tmp/sase/demo.diff",
+            llm_provider=None,
+            run_start_time=start,
+        )
+
+        left, suffix, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            now=datetime(2026, 4, 25, 14, 1, 23),
+        )
+
+        assert "✏️" not in left.plain
+        assert suffix.plain == "✏️ 🏃‍♂️ 1m23s"
+
+    def test_finished_pencil_immediately_precedes_finish_timestamp(self) -> None:
+        agent = make_agent(
+            status="DONE",
+            start_time=datetime(2026, 4, 24, 19, 38, 18),
+            stop_time=datetime(2026, 4, 24, 20, 17, 3),
+            diff_path="/tmp/sase/demo.diff",
+            llm_provider=None,
+        )
+
+        left, suffix, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            now=datetime(2026, 4, 25, 9, 0, 0),
+        )
+
+        assert "✏️" not in left.plain
+        assert suffix.plain == "✏️ Apr 24 20:17 · 38m45s"
 
 
 class TestAgentListRevertedIndicator:
@@ -476,17 +521,20 @@ class TestAgentListProviderEmojiBadges:
 
         assert "🐙 root-agent (RUNNING)" in left.plain
 
-    def test_root_row_renders_provider_then_pencil_before_name(self) -> None:
+    def test_root_row_keeps_provider_before_name_and_moves_pencil_to_suffix(
+        self,
+    ) -> None:
         agent = make_agent(
             cl_name="root-agent",
             llm_provider="opencode",
             diff_path="/tmp/sase/demo.diff",
         )
 
-        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "🐙 ✏️ root-agent (RUNNING)" in left.plain
-        assert "root-agent (RUNNING) ✏️" not in left.plain
+        assert "🐙 root-agent (RUNNING)" in left.plain
+        assert "✏️" not in left.plain
+        assert suffix.plain == "✏️"
 
     def test_root_row_renders_qwen_provider_emoji_after_prefix_controls(self) -> None:
         agent = make_agent(cl_name="qwen-agent", llm_provider="qwen")
@@ -530,10 +578,11 @@ class TestAgentListProviderEmojiBadges:
             diff_path="/tmp/sase/demo.diff",
         )
 
-        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "1/2 🐚 ✏️ diff (RUNNING)" in left.plain
+        assert "1/2 🐚 diff (RUNNING)" in left.plain
         assert "🎭" not in left.plain
+        assert suffix.plain == "✏️"
 
     def test_row_without_provider_omits_provider_emoji(self) -> None:
         agent = make_agent(cl_name="plain-agent", llm_provider=None)

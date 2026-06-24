@@ -420,8 +420,9 @@ def test_apply_status_overrides_suppresses_sdd_only_diff_badge_for_working_tale_
 
     assert parent.status == "WORKING TALE"
     assert parent.diff_has_real_edits is False
-    left, _, _ = format_agent_option(parent, 0, is_selected=False)
+    left, suffix, _ = format_agent_option(parent, 0, is_selected=False)
     assert "✏️" not in left.plain
+    assert "✏️" not in suffix.plain
 
 
 def test_apply_status_overrides_shows_badge_after_coder_real_diff_propagates(
@@ -463,8 +464,10 @@ def test_apply_status_overrides_shows_badge_after_coder_real_diff_propagates(
     assert parent.status == "WORKING TALE"
     assert parent.diff_path == str(code_diff)
     assert parent.diff_has_real_edits is True
-    left, _, _ = format_agent_option(parent, 0, is_selected=False)
-    assert "✏️ a5n (WORKING TALE)" in left.plain
+    left, suffix, _ = format_agent_option(parent, 0, is_selected=False)
+    assert "✏️" not in left.plain
+    assert "a5n (WORKING TALE)" in left.plain
+    assert suffix.plain == "✏️"
 
 
 def test_apply_status_overrides_child_metadata_does_not_overwrite_root_metadata() -> (
