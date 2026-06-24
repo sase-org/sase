@@ -277,6 +277,23 @@ def test_render_template_bool_tojson_produces_python() -> None:
     assert result == "None"
 
 
+def test_render_template_ignores_jinja_inside_disabled_region() -> None:
+    """Disabled regions remain literal while live Jinja still renders."""
+    template = (
+        "Live {{ value }}\n"
+        "%xprompts_enabled:false\n"
+        "Keep {{ missing }} and {% bad %} literal.\n"
+        "%xprompts_enabled:true\n"
+    )
+
+    result = render_template(template, {"value": "rendered"})
+
+    assert "Live rendered" in result
+    assert "Keep {{ missing }} and {% bad %} literal." in result
+    assert "%xprompts_enabled:false" in result
+    assert "%xprompts_enabled:true" in result
+
+
 def test_finalize_value_none_returns_null() -> None:
     """_finalize_value(None) should return 'null' (YAML-compatible string)."""
     assert _finalize_value(None) == "null"

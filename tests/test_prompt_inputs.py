@@ -185,6 +185,42 @@ def test_render_leaves_non_jinja_body_untouched() -> None:
     assert out == "No placeholders here."
 
 
+def test_render_leaves_disabled_region_jinja_literal() -> None:
+    prompt = (
+        "---\ninput:\n  service: word\n---\n"
+        "Live {{ service }}\n"
+        "%xprompts_enabled:false\n"
+        "Keep {{ missing }} and {% bad %} literal.\n"
+        "%xprompts_enabled:true\n"
+    )
+
+    out = render_prompt_with_inputs(prompt, {"service": "auth"})
+
+    assert "Live auth" in out
+    assert "Keep {{ missing }} and {% bad %} literal." in out
+    assert "%xprompts_enabled:false" in out
+    assert "%xprompts_enabled:true" in out
+
+
+def test_render_skips_jinja_when_only_disabled_region_has_template_syntax() -> None:
+    prompt = (
+        "---\ninput:\n  service: word\n---\n"
+        "No live placeholders.\n"
+        "%xprompts_enabled:false\n"
+        "{{ missing }}\n"
+        "%xprompts_enabled:true\n"
+    )
+
+    out = render_prompt_with_inputs(prompt, {"service": "auth"})
+
+    assert out == (
+        "No live placeholders.\n"
+        "%xprompts_enabled:false\n"
+        "{{ missing }}\n"
+        "%xprompts_enabled:true\n"
+    )
+
+
 def test_run_query_errors_clearly_on_missing_required_inputs(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

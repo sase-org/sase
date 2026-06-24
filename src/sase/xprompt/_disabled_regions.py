@@ -44,6 +44,11 @@ def disabled_region_ranges(text: str) -> list[tuple[int, int]]:
     return [(m.start(), m.end()) for m in _DISABLED_REGION_RE.finditer(text)]
 
 
+def strip_disabled_regions(text: str) -> str:
+    """Remove whole disabled regions, including markers and enclosed content."""
+    return _DISABLED_REGION_RE.sub("", text)
+
+
 def unprotect_disabled_regions(text: str, regions: list[str]) -> str:
     """Restore all disabled region placeholders with original content.
 

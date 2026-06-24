@@ -8,6 +8,10 @@ from typing import Any
 from jinja2 import Environment, StrictUndefined
 
 from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
+from sase.xprompt._disabled_regions import (
+    protect_disabled_regions,
+    unprotect_disabled_regions,
+)
 
 
 def _finalize_value(value: Any) -> Any:
@@ -52,10 +56,14 @@ def render_template(template: str, context: dict[str, Any]) -> str:
     """
     from sase.xprompt._jinja import get_global_template_vars
 
+    disabled_regions: list[str] = []
+    protected_template = protect_disabled_regions(template, disabled_regions)
+
     env = create_jinja_env()
     merged = {**get_global_template_vars(), **context}
-    jinja_template = env.from_string(template)
-    return jinja_template.render(merged)
+    jinja_template = env.from_string(protected_template)
+    rendered = jinja_template.render(merged)
+    return unprotect_disabled_regions(rendered, disabled_regions)
 
 
 def parse_bash_output(output: str) -> dict[str, Any]:

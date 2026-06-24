@@ -25,7 +25,12 @@ steps:
           f"{c['description']}"
           for i, c in enumerate(comments)
       )
-      print(json.dumps({"rendered_changes": formatted}))
+      rendered_changes = (
+          "%xprompts_enabled:false\n"
+          f"{formatted}\n"
+          "%xprompts_enabled:true"
+      )
+      print(json.dumps({"rendered_changes": rendered_changes}))
     output: { rendered_changes: text }
 
   - name: apply
@@ -35,6 +40,4 @@ steps:
       Apply the following code review changes to the codebase. Make each change as described,
       run any relevant tests, and commit your changes.
 
-      %xprompts_enabled:false
       {{ render_changes.rendered_changes }}
-      %xprompts_enabled:true

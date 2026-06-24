@@ -62,6 +62,20 @@ def testextract_xprompt_calls_jinja_still_preferred_over_single_brace() -> None:
     assert calls[0].named_args == {}
 
 
+def testextract_xprompt_calls_ignores_disabled_regions() -> None:
+    """Xprompt-looking examples in disabled regions are not validation calls."""
+    calls = extract_xprompt_calls(
+        "live #real\n"
+        "%xprompts_enabled:false\n"
+        "#fake_xprompt\n"
+        "#fake_arg:{{ missing }}\n"
+        "%directive\n"
+        "%xprompts_enabled:true\n"
+    )
+
+    assert [call.name for call in calls] == ["real"]
+
+
 def testextract_xprompt_calls_preserves_bang_marker() -> None:
     """Validator diagnostics keep the original #! marker."""
     calls = extract_xprompt_calls("#!foo:{path}")

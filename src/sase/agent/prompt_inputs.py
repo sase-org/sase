@@ -24,6 +24,10 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from sase.xprompt._exceptions import XPromptArgumentError
+from sase.xprompt._disabled_regions import (
+    protect_disabled_regions,
+    unprotect_disabled_regions,
+)
 from sase.xprompt._jinja import is_jinja2_template, substitute_placeholders
 from sase.xprompt.loader_parsing import (
     parse_inputs_from_front_matter,
@@ -162,10 +166,15 @@ def render_prompt_with_inputs(prompt: str, raw_values: dict[str, str]) -> str:
     # Named inputs only make sense for Jinja bodies; skip legacy `{1}`
     # positional substitution so a plain body with declared-but-unused inputs is
     # returned untouched.
-    if is_jinja2_template(body):
+    disabled_regions: list[str] = []
+    protected_body = protect_disabled_regions(body, disabled_regions)
+    if is_jinja2_template(protected_body):
         try:
-            rendered_body = substitute_placeholders(
-                body, [], values, _SUBSTITUTION_SOURCE
+            rendered_body = unprotect_disabled_regions(
+                substitute_placeholders(
+                    protected_body, [], values, _SUBSTITUTION_SOURCE
+                ),
+                disabled_regions,
             )
         except XPromptArgumentError as exc:
             raise PromptInputError(str(exc)) from exc

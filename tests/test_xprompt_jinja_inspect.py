@@ -51,6 +51,39 @@ def test_unknown_variables_respects_set_and_loop_targets() -> None:
     assert unknown == ["missing"]
 
 
+def test_inspect_template_ignores_disabled_regions_for_validation() -> None:
+    text = (
+        "%xprompts_enabled:false\n"
+        "{{ missing }}\n"
+        "{% bad %}\n"
+        "{{}}\n"
+        "%xprompts_enabled:true\n"
+    )
+
+    diagnostics = jinja_inspect.inspect_template(text, known=set())
+
+    assert diagnostics.has_jinja is False
+    assert diagnostics.ok is True
+    assert diagnostics.unknown_variables == ()
+    assert jinja_inspect.unknown_variables(text, set()) == []
+
+
+def test_inspect_template_still_validates_live_jinja() -> None:
+    text = (
+        "{{ known }}\n"
+        "%xprompts_enabled:false\n"
+        "{{ missing }}\n"
+        "{% bad %}\n"
+        "%xprompts_enabled:true\n"
+    )
+
+    diagnostics = jinja_inspect.inspect_template(text, known={"known"})
+
+    assert diagnostics.has_jinja is True
+    assert diagnostics.ok is True
+    assert diagnostics.unknown_variables == ()
+
+
 def test_completion_context_inside_unclosed_tag() -> None:
     text = "Hello {{ ro"
     ctx = jinja_inspect.completion_context(text, len(text))

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 11:06:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/disabled_region_jinja_inert.md
 ---
 # Plan: Make disabled (`%xprompts_enabled:false`) regions inert for all Jinja2 expansion and validation

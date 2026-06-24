@@ -9,6 +9,7 @@ from typing import Literal
 
 from jinja2 import TemplateSyntaxError, meta
 
+from ._disabled_regions import disabled_region_ranges
 from ._fenced_blocks import fenced_block_ranges
 from ._jinja import get_global_template_vars, get_jinja_env
 
@@ -176,7 +177,7 @@ def tokenize(text: str) -> list[JinjaSpan]:
 
 def diagnose(text: str) -> JinjaDiagnostics:
     """Parse *text* using the real top-level Jinja2 environment."""
-    masked = _mask_fenced_blocks(text)
+    masked = _mask_inert_regions(text)
     if not _JINJA_MARKER_RE.search(masked):
         return JinjaDiagnostics(has_jinja=False, ok=True)
 
@@ -231,7 +232,7 @@ def inspect_template(
 
 def unknown_variables(text: str, known: set[str]) -> list[str]:
     """Return undeclared variables that are not in *known*."""
-    masked = _mask_fenced_blocks(text)
+    masked = _mask_inert_regions(text)
     if not _JINJA_MARKER_RE.search(masked):
         return []
     env = get_jinja_env()
@@ -299,7 +300,15 @@ def matching_delimiter_spans(
 
 
 def _mask_fenced_blocks(text: str) -> str:
-    ranges = fenced_block_ranges(text)
+    return _mask_ranges(text, fenced_block_ranges(text))
+
+
+def _mask_inert_regions(text: str) -> str:
+    ranges = fenced_block_ranges(text) + disabled_region_ranges(text)
+    return _mask_ranges(text, ranges)
+
+
+def _mask_ranges(text: str, ranges: list[tuple[int, int]]) -> str:
     if not ranges:
         return text
     chars = list(text)

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.xprompt._disabled_regions import (
     protect_disabled_regions,
+    strip_disabled_regions,
     strip_disabled_region_markers,
     unprotect_disabled_regions,
 )
@@ -88,6 +89,32 @@ class TestStripDisabledRegionMarkers:
         text = "content line. %xprompts_enabled:true"
         result = strip_disabled_region_markers(text)
         assert result == "content line."
+
+
+class TestStripDisabledRegions:
+    """Tests for removing whole disabled regions before validation scans."""
+
+    def test_removes_whole_region(self) -> None:
+        text = (
+            "before\n"
+            "%xprompts_enabled:false\n"
+            "{{ missing }}\n"
+            "#fake_xprompt\n"
+            "%xprompts_enabled:true\n"
+            "after\n"
+        )
+
+        assert strip_disabled_regions(text) == "before\nafter\n"
+
+    def test_noop_without_markers(self) -> None:
+        text = "before\n{{ live }}\nafter\n"
+
+        assert strip_disabled_regions(text) == text
+
+    def test_unclosed_region_is_left_unchanged(self) -> None:
+        text = "%xprompts_enabled:false\n{{ missing }}\n"
+
+        assert strip_disabled_regions(text) == text
 
 
 class TestProcessXpromptReferencesDisabledRegions:

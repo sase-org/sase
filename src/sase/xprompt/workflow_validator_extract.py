@@ -7,6 +7,7 @@ for use by validation checks.
 import re
 from dataclasses import dataclass
 
+from sase.xprompt._disabled_regions import strip_disabled_regions
 from sase.xprompt._parsing import iter_xprompt_references
 from sase.xprompt._parsing_args import decode_xprompt_args
 from sase.xprompt.models import UNSET, XPrompt
@@ -57,10 +58,16 @@ def extract_template_refs(content: str) -> list[str]:
     Returns:
         List of dotted identifier strings found in template blocks.
     """
+    content = strip_disabled_regions(content)
+
     refs: list[str] = []
     for block_match in _JINJA_BLOCK_PATTERN.finditer(content):
-        block_text = block_match.group(1) or block_match.group(2)
-        is_statement = block_match.group(2) is not None
+        variable_text = block_match.group(1)
+        statement_text = block_match.group(2)
+        block_text = variable_text if variable_text is not None else statement_text
+        if block_text is None:
+            continue
+        is_statement = statement_text is not None
         for ident_match in _IDENT_PATTERN.finditer(block_text):
             ident = ident_match.group(1)
             if is_statement and ident in _JINJA_KEYWORDS:
@@ -103,6 +110,7 @@ def extract_xprompt_calls(content: str) -> list[_XPromptCall]:
     """
     # Strip fenced code blocks so their content is never matched
     content = _FENCED_CODE_BLOCK_PATTERN.sub("", content)
+    content = strip_disabled_regions(content)
 
     calls: list[_XPromptCall] = []
     for ref in iter_xprompt_references(content):
