@@ -229,10 +229,14 @@ class Agent:
     # Whether this agent was loaded from a ChangeSpec field (HOOKS/MENTORS/COMMENTS)
     _from_changespec: bool = False
 
-    # Whether this agent was launched with %approve (fully autonomous)
+    # Whether this agent has plan auto-approval enabled (via %plan/%tale/%epic,
+    # the deprecated %approve, or the Auto-Approve menu). Stays True in memory
+    # for tale/epic — it drives the ⚡ row icon — even though the persisted
+    # ``approve`` key is omitted for those (the action below carries the kind).
     approve: bool = False
 
-    # Explicit plan-only auto-approval action, e.g. "epic".
+    # Explicit plan auto-approval action: "tale" or "epic" (None means a normal
+    # plan approval). Renders as the ⚡T / ⚡E row-icon suffix.
     auto_approve_plan_action: str | None = None
 
     # The plan action chosen at approval time, e.g. "tale", "epic", "commit",

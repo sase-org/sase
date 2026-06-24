@@ -184,12 +184,11 @@ class KeybindingBindingsMixin:
                 "QUESTION",
             }
             if agent.status in _APPROVE_ELIGIBLE:
-                if agent.auto_approve_plan_action == "epic":
-                    bindings.append((self._kd("accept_proposal"), "unapprove"))
-                elif agent.approve:
-                    bindings.append((self._kd("accept_proposal"), "epic"))
-                else:
-                    bindings.append((self._kd("accept_proposal"), "approve"))
+                # ``accept_proposal`` now always opens the Auto-Approve menu on
+                # eligible agents (it replaced the old 3-state cycle), so the
+                # footer shows one stable ``auto-approve`` label regardless of
+                # the agent's current auto-approval state.
+                bindings.append((self._kd("accept_proposal"), "auto-approve"))
 
         # Name agent (not available for done/failed agents)
         if agent.status not in ("DONE", "FAILED"):

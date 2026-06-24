@@ -276,6 +276,45 @@ class TestAgentListRevertedIndicator:
         assert "↺" not in left.plain
 
 
+class TestAgentListAutoApproveIcon:
+    def test_normal_auto_approve_renders_bare_bolt(self) -> None:
+        agent = make_agent(approve=True, llm_provider=None)
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert left.plain.startswith("⚡ ")
+        assert "⚡E" not in left.plain
+        assert "⚡T" not in left.plain
+        assert "test_cl (RUNNING)" in left.plain
+
+    def test_tale_auto_approve_renders_bolt_t(self) -> None:
+        agent = make_agent(
+            approve=True, auto_approve_plan_action="tale", llm_provider=None
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert left.plain.startswith("⚡T ")
+        assert "test_cl (RUNNING)" in left.plain
+
+    def test_epic_auto_approve_renders_bolt_e(self) -> None:
+        agent = make_agent(
+            approve=True, auto_approve_plan_action="epic", llm_provider=None
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert left.plain.startswith("⚡E ")
+        assert "test_cl (RUNNING)" in left.plain
+
+    def test_non_approve_row_omits_bolt(self) -> None:
+        agent = make_agent(llm_provider=None)
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "⚡" not in left.plain
+
+
 class TestAwareWaitUntilRendering:
     def test_agent_row_renders_aware_wait_until_countdown(self) -> None:
         wait_until = (datetime.now(UTC) + timedelta(hours=1)).isoformat()

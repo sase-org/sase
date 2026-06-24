@@ -87,13 +87,15 @@ def format_agent_option(
     if is_marked:
         text.append("[✓] ", style="bold #00D700")
 
-    # Approve icon for autonomous agents
+    # Approve icon for autonomous agents.  The bare ``⚡`` marks a normal-plan
+    # auto-approve; ``⚡E``/``⚡T`` distinguish the epic/tale plan actions.
     if agent.approve:
-        icon = (
-            f"{_APPROVE_ICON}E"
-            if agent.auto_approve_plan_action == "epic"
-            else _APPROVE_ICON
-        )
+        if agent.auto_approve_plan_action == "epic":
+            icon = f"{_APPROVE_ICON}E"
+        elif agent.auto_approve_plan_action == "tale":
+            icon = f"{_APPROVE_ICON}T"
+        else:
+            icon = _APPROVE_ICON
         text.append(f"{icon} ", style="bold #00FFFF")
 
     # Indentation for retry-chain attempts: render under the chain

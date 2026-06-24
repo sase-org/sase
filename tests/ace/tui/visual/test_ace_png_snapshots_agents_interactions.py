@@ -185,6 +185,110 @@ def _workspace_tmux_choices() -> list:
     ]
 
 
+def _auto_approve_agents() -> list[Agent]:
+    """Three running agents, one per auto-approve kind, for the row-icon snapshot.
+
+    ``approve`` stays ``True`` for every kind (it drives the ⚡ glyph); the
+    ``auto_approve_plan_action`` selects the ⚡ / ⚡T / ⚡E suffix.
+    """
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-plan",
+            project_file="/workspace/sase/visual_project.sase",
+            status="RUNNING",
+            start_time=datetime(2026, 5, 9, 10, 0, 0),
+            raw_suffix="20260509-100000-plan",
+            agent_name="planner",
+            approve=True,
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-tale",
+            project_file="/workspace/sase/visual_project.sase",
+            status="RUNNING",
+            start_time=datetime(2026, 5, 9, 10, 1, 0),
+            raw_suffix="20260509-100100-tale",
+            agent_name="teller",
+            approve=True,
+            auto_approve_plan_action="tale",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-epic",
+            project_file="/workspace/sase/visual_project.sase",
+            status="RUNNING",
+            start_time=datetime(2026, 5, 9, 10, 2, 0),
+            raw_suffix="20260509-100200-epic",
+            agent_name="epicer",
+            approve=True,
+            auto_approve_plan_action="epic",
+        ),
+    ]
+
+
+async def test_agents_auto_approve_icons_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = _auto_approve_agents()
+    patch_startup_loaders(monkeypatch, agents=agents)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "⚡ ")
+        assert_page_svg_contains(page, "⚡T ")
+        assert_page_svg_contains(page, "⚡E ")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_auto_approve_icons_120x40",
+            title="ACE agents auto-approve icons",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_auto_approve_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(60, 30)
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+
+        from sase.ace.tui.modals.auto_approve_modal import AutoApproveModal
+
+        page.app.push_screen(AutoApproveModal("epic", agent_name="visual.code"))
+        await page.expect_modal("AutoApproveModal")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Auto-Approve")
+        assert_page_svg_contains(page, "Plan")
+        assert_page_svg_contains(page, "Tale")
+        assert_page_svg_contains(page, "Epic")
+        assert_page_svg_contains(page, "Disable")
+        assert_page_svg_contains(page, "visual.code")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "auto_approve_modal_60x30",
+            title="ACE auto-approve modal",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
 async def test_agent_workspace_tmux_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

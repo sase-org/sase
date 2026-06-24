@@ -87,6 +87,47 @@ def test_keybinding_footer_agent_bindings_tale_done_with_chat() -> None:
     assert ("r", "resume") not in bindings
 
 
+def test_keybinding_footer_approve_eligible_shows_auto_approve_label() -> None:
+    """Approve-eligible agents advertise a single stable auto-approve label.
+
+    The old 3-state cycle was replaced by the Auto-Approve menu, so the footer
+    no longer flips between approve/epic/unapprove based on the agent's state.
+    """
+    footer = KeybindingFooter()
+    key = footer._kd("accept_proposal")
+
+    # Every prior cycle state (off / normal / epic) plus the new tale state now
+    # collapses to the same label, since `a` always opens the menu.
+    for approve, action in (
+        (False, None),
+        (True, None),
+        (True, "epic"),
+        (True, "tale"),
+    ):
+        agent = _make_agent(status="RUNNING")
+        agent.approve = approve
+        agent.auto_approve_plan_action = action
+
+        bindings = footer._compute_agent_bindings(agent)
+        labels = [label for k, label in bindings if k == key]
+
+        assert "auto-approve" in labels
+        assert "approve" not in labels
+        assert "epic" not in labels
+        assert "unapprove" not in labels
+
+
+def test_keybinding_footer_non_eligible_agent_omits_auto_approve_label() -> None:
+    """Terminal agents (e.g. DONE) are not approve-eligible, so no menu label."""
+    footer = KeybindingFooter()
+    key = footer._kd("accept_proposal")
+    agent = _make_agent(status="DONE", response_path="/tmp/chat.md")
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    assert (key, "auto-approve") not in bindings
+
+
 def test_keybinding_footer_group_focused_overrides_x_label() -> None:
     """When a group banner is focused (no marks), x reads 'kill/dismiss group'."""
     footer = KeybindingFooter()

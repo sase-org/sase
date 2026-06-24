@@ -81,7 +81,9 @@ _STEP_TYPE_GLYPHS: dict[str, str] = {
     "bash": "🐚",
 }
 
-# Icon for autonomous (%approve) agents
+# Icon for auto-approve agents.  Rendered bare for a normal-plan approval
+# (%plan) and suffixed ``E``/``T`` for the epic (%epic) / tale (%tale) plan
+# actions in ``_agent_list_render_agent``.
 _APPROVE_ICON = "⚡"
 
 # Icon for hidden agents (shown when visibility is toggled on)
