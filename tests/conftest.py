@@ -175,6 +175,12 @@ def _default_test_llm_cli(monkeypatch: pytest.MonkeyPatch, _test_llm_bin: Path) 
 
 
 @pytest.fixture(autouse=True)
+def _isolate_default_llm_effort(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent ambient user config from forcing a default effort in tests."""
+    monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: None)
+
+
+@pytest.fixture(autouse=True)
 def _mock_system_clipboard(request: pytest.FixtureRequest):
     """Prevent tests from touching the real system clipboard / X11 display."""
     if request.node.get_closest_marker("real_clipboard"):
