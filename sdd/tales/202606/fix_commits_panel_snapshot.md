@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 06:49:58
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_commits_panel_snapshot.md
 ---
 # Fix the failing `test_agents_commit_messages_panel_png_snapshot` visual test

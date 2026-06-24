@@ -56,21 +56,21 @@ def _linked_repo_diff_agent() -> Agent:
 def _linked_repo_commits_agent() -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="visual-linked-commits",
+        cl_name="visual-commits",
         project_file="/workspace/sase/visual_project.sase",
         status="DONE",
         start_time=datetime(2026, 6, 23, 16, 0, 0),
         stop_time=datetime(2026, 6, 23, 16, 8, 30),
         raw_suffix="20260623-160000-linked-commits",
-        agent_name="linked.repo.commits",
+        agent_name="commits",
         llm_provider="codex",
         model="gpt-5",
         step_output={
             "meta_commit_message": (
-                "feat(tui): show agent commits\n\n"
+                "feat: show commits\n\n"
                 "Move commit metadata into a dedicated panel section."
             ),
-            "meta_new_commit": "a1b2c3d4e5f67890",
+            "meta_new_commit": "a1b2c3d",
         },
         linked_repos=(
             LinkedRepoMetadata(
@@ -150,11 +150,11 @@ def _seed_linked_repo_visual_commits(
                 commits=(
                     CommitInfo(
                         short_sha="9f8e7d6",
-                        subject="feat: expose commit-log provider hook",
+                        subject="feat: commit hook",
                     ),
                     CommitInfo(
                         short_sha="4c3b2a1",
-                        subject="test: cover linked commit parsing",
+                        subject="test: commit parse",
                     ),
                 ),
                 fetched_at=fetched_at,
@@ -165,7 +165,7 @@ def _seed_linked_repo_visual_commits(
                 commits=(
                     CommitInfo(
                         short_sha="7a6b5c4",
-                        subject="fix: render linked repo commit subjects",
+                        subject="fix: subjects",
                     ),
                 ),
                 fetched_at=fetched_at,
@@ -221,7 +221,7 @@ async def test_agents_commit_messages_panel_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "COMMITS:")
-        assert_page_svg_contains(page, "feat(tui): show agent")
+        assert_page_svg_contains(page, "feat: show commits")
         assert_page_svg_contains(page, "sase-core")
         assert_page_svg_contains(page, "sase-github")
         ace_png_visual.assert_page_png(
