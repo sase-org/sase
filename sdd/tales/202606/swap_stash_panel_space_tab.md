@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 13:26:48
-status: wip
+status: done
 prompt: sdd/prompts/202606/swap_stash_panel_space_tab.md
 ---
 # Plan: Swap `<space>` and `<tab>` keymaps on the prompt stash panel

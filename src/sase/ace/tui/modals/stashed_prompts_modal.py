@@ -2,7 +2,7 @@
 
 Lists stashed prompts newest-first with a relative age, an originating-project
 chip, bundle marker, and a one-line preview. ``space`` marks a single-prompt
-row to restore and pop, ``tab`` marks it to restore and keep, ``d`` marks any
+row to restore and keep, ``tab`` marks it to restore and pop, ``d`` marks any
 row for deletion, and ``enter`` confirms. The modal is presentation-only: it
 never touches the store. It dismisses with a :class:`StashRestoreResult`
 describing which ids the app layer should pop, keep, or delete through
@@ -140,8 +140,8 @@ class StashedPromptsModal(
     _option_list_id = "stashed-prompts-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
-        ("space", "toggle_pop", "Restore + pop"),
-        Binding("tab", "toggle_keep", "Restore + keep", priority=True),
+        Binding("tab", "toggle_pop", "Restore + pop", priority=True),
+        ("space", "toggle_keep", "Restore + keep"),
         ("a", "toggle_all", "All"),
         ("d", "mark_delete", "Delete"),
     ]
@@ -186,7 +186,7 @@ class StashedPromptsModal(
 
     def _hint_text(self) -> str:
         return (
-            "j/k ↑/↓ navigate   space ✓ restore+pop   tab + restore+keep   "
+            "j/k ↑/↓ navigate   space + restore+keep   tab ✓ restore+pop   "
             "d ✗ delete   a all   enter confirm   esc/q cancel"
         )
 

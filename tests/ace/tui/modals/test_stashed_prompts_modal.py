@@ -1,8 +1,8 @@
 """Tests for the unified prompt-stash panel.
 
 Covers the pure row helpers (preview truncation, project chip, marker styling)
-and the modal's selection model: ``space`` marks restore+pop, ``tab`` marks
-restore+keep, ``a`` toggles all single-prompt rows for restore+pop, ``d`` marks
+and the modal's selection model: ``space`` marks restore+keep, ``tab`` marks
+restore+pop, ``a`` toggles all single-prompt rows for restore+pop, ``d`` marks
 a row for deletion, ``enter`` confirms (the marked set, or the highlighted row
 when nothing is marked), and ``esc`` cancels. The modal is presentation-only, so
 confirm yields a :class:`StashRestoreResult` of ids — no store access here.
@@ -168,7 +168,7 @@ async def test_enter_with_no_toggle_restores_highlighted_bundle() -> None:
     assert app.result.delete_ids == []
 
 
-async def test_space_toggles_then_enter_restores_pop_set() -> None:
+async def test_space_toggles_then_enter_restores_keep_set() -> None:
     app = _ModalHost(
         [
             _entry("a", created_at="2026-06-16T12:00:00"),
@@ -185,8 +185,8 @@ async def test_space_toggles_then_enter_restores_pop_set() -> None:
         await pilot.press("enter")
         await pilot.pause()
     assert isinstance(app.result, StashRestoreResult)
-    assert set(app.result.pop_ids) == {"a", "c"}
-    assert app.result.keep_ids == []
+    assert app.result.pop_ids == []
+    assert set(app.result.keep_ids) == {"a", "c"}
     assert app.result.delete_ids == []
 
 
@@ -199,7 +199,7 @@ async def test_space_is_inert_for_bundle_rows() -> None:
     )
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        await pilot.press("space")  # highlighted bundle is not bulk-selectable
+        await pilot.press("space")  # highlighted bundle is not restore-selectable
         await pilot.press("j")
         await pilot.press("enter")
         await pilot.pause()
@@ -209,7 +209,7 @@ async def test_space_is_inert_for_bundle_rows() -> None:
     assert app.result.delete_ids == []
 
 
-async def test_tab_toggles_then_enter_restores_keep_set() -> None:
+async def test_tab_toggles_then_enter_restores_pop_set() -> None:
     app = _ModalHost(
         [
             _entry("a", created_at="2026-06-16T12:00:00"),
@@ -219,15 +219,15 @@ async def test_tab_toggles_then_enter_restores_keep_set() -> None:
     )
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        await pilot.press("tab")  # keep "a"
+        await pilot.press("tab")  # pop "a"
         await pilot.press("j")
         await pilot.press("j")
-        await pilot.press("tab")  # keep "c"
+        await pilot.press("tab")  # pop "c"
         await pilot.press("enter")
         await pilot.pause()
     assert isinstance(app.result, StashRestoreResult)
-    assert app.result.pop_ids == []
-    assert set(app.result.keep_ids) == {"a", "c"}
+    assert set(app.result.pop_ids) == {"a", "c"}
+    assert app.result.keep_ids == []
     assert app.result.delete_ids == []
 
 
@@ -240,8 +240,8 @@ async def test_space_and_tab_are_mutually_exclusive() -> None:
         await pilot.press("enter")
         await pilot.pause()
     assert isinstance(app.result, StashRestoreResult)
-    assert app.result.pop_ids == []
-    assert app.result.keep_ids == ["a"]
+    assert app.result.pop_ids == ["a"]
+    assert app.result.keep_ids == []
     assert app.result.delete_ids == []
 
 
@@ -289,12 +289,12 @@ async def test_delete_mark_returns_delete_ids_not_restore() -> None:
     assert app.result.delete_ids == ["a"]
 
 
-async def test_delete_wins_over_prior_pop_selection() -> None:
+async def test_delete_wins_over_prior_keep_selection() -> None:
     app = _ModalHost([_entry("a")])
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        await pilot.press("space")  # select "a"
-        await pilot.press("d")  # then mark it for deletion (clears selection)
+        await pilot.press("space")  # keep "a"
+        await pilot.press("d")  # then mark it for deletion (clears keep)
         await pilot.press("enter")
         await pilot.pause()
     assert isinstance(app.result, StashRestoreResult)
@@ -303,12 +303,12 @@ async def test_delete_wins_over_prior_pop_selection() -> None:
     assert app.result.delete_ids == ["a"]
 
 
-async def test_delete_wins_over_prior_keep_selection() -> None:
+async def test_delete_wins_over_prior_pop_selection() -> None:
     app = _ModalHost([_entry("a")])
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        await pilot.press("tab")  # keep "a"
-        await pilot.press("d")  # then mark it for deletion (clears keep)
+        await pilot.press("tab")  # pop "a"
+        await pilot.press("d")  # then mark it for deletion (clears pop)
         await pilot.press("enter")
         await pilot.pause()
     assert isinstance(app.result, StashRestoreResult)
