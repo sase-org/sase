@@ -24,6 +24,7 @@ SASE_DEFAULT_CONFIG_PATH_ENV = "SASE_DEFAULT_CONFIG_PATH"
 SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV = "SASE_XPROMPT_PLUGIN_DIRS_JSON"
 SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV = "SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON"
 SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV = "SASE_XPROMPT_VCS_PROJECT_CATALOG"
+SASE_XPROMPT_MODEL_CATALOG_ENV = "SASE_XPROMPT_MODEL_CATALOG"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -148,6 +149,7 @@ def _prepare_xprompt_lsp_environment(
             _discover_plugin_config_paths()
         )
     _materialize_vcs_project_catalog(environ)
+    _materialize_model_catalog(environ)
 
 
 def _default_vcs_project_catalog_path() -> Path:
@@ -178,6 +180,34 @@ def _materialize_vcs_project_catalog(environ: MutableMapping[str, str]) -> None:
     except Exception as exc:  # noqa: BLE001 - never block LSP startup on catalog errors.
         print(
             f"Warning: failed to materialize VCS project catalog: {exc}",
+            file=sys.stderr,
+        )
+
+
+def _default_model_catalog_path() -> Path:
+    """Return the default on-disk location for the LSP model catalog."""
+    return sase_subdir("xprompt_lsp") / "model_catalog.json"
+
+
+def _materialize_model_catalog(environ: MutableMapping[str, str]) -> None:
+    """Write the ``%model`` completion catalog and expose its path.
+
+    The Rust xprompt LSP re-reads this JSON file on every ``%model`` argument
+    completion request. Writing is best-effort so LSP startup is never blocked
+    by provider/config metadata issues.
+    """
+    existing = environ.get(SASE_XPROMPT_MODEL_CATALOG_ENV)
+    path = Path(existing) if existing else _default_model_catalog_path()
+    environ[SASE_XPROMPT_MODEL_CATALOG_ENV] = str(path)
+    try:
+        from sase.xprompt.model_completion import model_completion_catalog_payload
+
+        payload = model_completion_catalog_payload()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001 - never block LSP startup on catalog errors.
+        print(
+            f"Warning: failed to materialize model completion catalog: {exc}",
             file=sys.stderr,
         )
 

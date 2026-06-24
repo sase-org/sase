@@ -250,12 +250,16 @@ ace:
 | `debounce_ms`         | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                            |
 | `auto_file_paths`     | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.      |
 | `auto_xprompt_menu`   | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens. |
-| `auto_directive_menu` | bool        | `true`  | Automatically open the directive completion menu while typing matching `%name` tokens.                            |
+| `auto_directive_menu` | bool        | `true`  | Automatically open directive completion while typing `%name` tokens and fixed values such as `%model:`.           |
 | `max_auto_rows`       | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                        |
 
 The `#+query` and first-character `+query` project/ChangeSpec picker uses the same completion panel but is triggered
 directly by the `+` token; it is not disabled by `auto_xprompt_menu`. Manual `Ctrl+T` project/ChangeSpec completion
 works regardless of these automatic-completion settings.
+
+The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
+reserved aliases, and configured `llm_provider.model_aliases`; provider short aliases are shown as filter/display hints
+but are not inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. A resolvable `#cd` reference takes
 precedence; without `#cd`, registered workspace-provider refs and known-project refs such as `#git:<project>` or

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
@@ -13,6 +14,10 @@ from sase.xprompt._directive_types import (
     _KNOWN_DIRECTIVES,
 )
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+from sase.xprompt.model_completion import (
+    build_model_completion_catalog,
+    filter_model_completion_entries,
+)
 
 _DIRECTIVE_TOKEN_RE = re.compile(r"^%[A-Za-z0-9_]*$")
 _DIRECTIVE_IDENTIFIER_RE = re.compile(r"[A-Za-z0-9_]")
@@ -154,12 +159,25 @@ def extract_directive_arg_token_around_cursor(
         return None
 
     arg_start = colon_index + 1
-    if any(not _is_directive_argument_identifier(char) for char in line[arg_start:col]):
+    arg_predicate = _directive_argument_predicate(directive_name)
+    if any(not arg_predicate(char) for char in line[arg_start:col]):
         return None
 
     arg_end = col
-    while arg_end < len(line) and _is_directive_argument_identifier(line[arg_end]):
+    while arg_end < len(line) and arg_predicate(line[arg_end]):
         arg_end += 1
+
+    if directive_name == "model":
+        prefix = line[arg_start:col]
+        at_index = prefix.rfind("@")
+        if at_index >= 0:
+            suffix_start = arg_start + at_index + 1
+            suffix_end = col
+            while suffix_end < len(line) and _is_directive_argument_identifier(
+                line[suffix_end]
+            ):
+                suffix_end += 1
+            return suffix_start, suffix_end, "effort", line[suffix_start:suffix_end]
 
     return arg_start, arg_end, directive_name, line[arg_start:arg_end]
 
@@ -210,6 +228,9 @@ def build_directive_arg_completion_candidates(
     if canonical is None:
         return [], ""
 
+    if canonical == "model":
+        return _build_model_arg_completion_candidates(partial)
+
     values = _DIRECTIVE_ARGUMENT_VALUES.get(canonical)
     if values is None:
         return [], ""
@@ -233,6 +254,43 @@ def build_directive_arg_completion_candidates(
 
     shared_extension = ""
     if len(candidates) > 1:
+        shared_prefix = os.path.commonprefix(
+            [candidate.insertion for candidate in candidates]
+        )
+        if len(shared_prefix) > len(partial):
+            shared_extension = shared_prefix[len(partial) :]
+
+    return candidates, shared_extension
+
+
+def _build_model_arg_completion_candidates(
+    partial: str,
+) -> tuple[list[CompletionCandidate], str]:
+    """Build dynamic candidates for a ``%model`` directive argument token."""
+    entries = filter_model_completion_entries(
+        build_model_completion_catalog(),
+        partial,
+    )
+    candidates = [
+        CompletionCandidate(
+            display=entry.display,
+            insertion=entry.value,
+            is_dir=False,
+            name=entry.value,
+            metadata=DirectiveArgCompletionMetadata(
+                directive_name="model",
+                description=entry.description,
+            ),
+        )
+        for entry in entries
+    ]
+
+    shared_extension = ""
+    partial_lower = partial.lower()
+    if len(candidates) > 1 and all(
+        candidate.insertion.lower().startswith(partial_lower)
+        for candidate in candidates
+    ):
         shared_prefix = os.path.commonprefix(
             [candidate.insertion for candidate in candidates]
         )
@@ -284,3 +342,13 @@ def _is_directive_identifier(char: str) -> bool:
 
 def _is_directive_argument_identifier(char: str) -> bool:
     return _is_directive_identifier(char) or char in "-="
+
+
+def _is_model_directive_argument_identifier(char: str) -> bool:
+    return _is_directive_argument_identifier(char) or char in "./@"
+
+
+def _directive_argument_predicate(directive_name: str) -> Callable[[str], bool]:
+    if directive_name == "model":
+        return _is_model_directive_argument_identifier
+    return _is_directive_argument_identifier

@@ -22,7 +22,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("{{ / {% / {#", "Auto-pair delimiters"),
         ("Ctrl+T / Ctrl+L", "Complete inside Jinja tags"),
         ("#name / #!name", "Auto-open xprompt menu"),
-        ("%auto: / %effort:", "Auto-open directive values"),
+        ("%model: / %auto: / %effort:", "Auto-open directive values"),
         ("#@ Ctrl+I", "Inline-expand xprompt"),
         ("/ / ?", "Search prompt fwd/rev (NORMAL)"),
         ("n / N", "Repeat prompt search fwd/rev"),

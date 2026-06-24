@@ -89,6 +89,11 @@ def _get_model_aliases() -> dict[str, str]:
     return _clean_string_mapping(get_llm_provider_config().get("model_aliases", {}))
 
 
+def get_model_aliases() -> dict[str, str]:
+    """Return configured model aliases usable from ``%model:<alias>``."""
+    return _get_model_aliases()
+
+
 def _clean_string_mapping(value: Any) -> dict[str, str]:
     """Return stripped string-to-string entries from a config mapping."""
     if not isinstance(value, dict):

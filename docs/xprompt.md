@@ -1029,7 +1029,9 @@ Directives use the same argument syntax as xprompt references:
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
 `qwen3.6-plus`) are automatically mapped to their provider. See
-[Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for the full model-to-provider mapping.
+[Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for the full model-to-provider mapping. ACE and
+the xprompt LSP complete `%model:` / `%m:` values from the same model catalog used for provider resolution. The inserted
+value is a canonical model name or configured alias; provider short aliases are only filter/display hints.
 
 A `%model` value may carry a trailing `@<effort>` reasoning-effort suffix (e.g. `%model:opus@xhigh`); the effort is
 split off the clean model and behaves exactly like a standalone `%effort` directive. See the

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 16:56:54
-status: wip
+status: done
 prompt: sdd/prompts/202606/model_directive_arg_completion.md
 ---
 # Plan: Auto-completion for the `%model` / `%m` directive's argument values

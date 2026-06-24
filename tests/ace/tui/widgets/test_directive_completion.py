@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.xprompt._directive_types import AUTO_MODES_ORDERED
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+from sase.xprompt.model_completion import _ModelCompletionEntry
 
 from ._completion_helpers import CompletionTestApp
 
@@ -189,6 +190,45 @@ def test_directive_arg_extraction_returns_partial_span() -> None:
     )
 
 
+def test_directive_arg_extraction_accepts_model_alias_and_special_chars() -> None:
+    assert extract_directive_arg_token_around_cursor(
+        "%m:gpt-5.5", len("%m:gpt-5.5")
+    ) == (
+        3,
+        len("%m:gpt-5.5"),
+        "model",
+        "gpt-5.5",
+    )
+    line = "%model:anthropic/claude-sonnet-4-5"
+    assert extract_directive_arg_token_around_cursor(line, len(line)) == (
+        len("%model:"),
+        len(line),
+        "model",
+        "anthropic/claude-sonnet-4-5",
+    )
+
+
+def test_directive_arg_extraction_redirects_model_at_suffix_to_effort() -> None:
+    assert extract_directive_arg_token_around_cursor(
+        "%model:opus@",
+        len("%model:opus@"),
+    ) == (
+        len("%model:opus@"),
+        len("%model:opus@"),
+        "effort",
+        "",
+    )
+    assert extract_directive_arg_token_around_cursor(
+        "%model:opus@xh",
+        len("%model:opus@xh"),
+    ) == (
+        len("%model:opus@"),
+        len("%model:opus@xh"),
+        "effort",
+        "xh",
+    )
+
+
 def test_directive_arg_extraction_rejects_non_argument_contexts() -> None:
     assert extract_directive_arg_token_around_cursor("%effort", len("%effort")) is None
     assert extract_directive_arg_token_around_cursor("%effort:", 4) is None
@@ -206,6 +246,13 @@ def test_directive_arg_extraction_rejects_non_argument_contexts() -> None:
         extract_directive_arg_token_around_cursor(
             "%effort:high ",
             len("%effort:high "),
+        )
+        is None
+    )
+    assert (
+        extract_directive_arg_token_around_cursor(
+            "%effort:hi.now",
+            len("%effort:hi.now"),
         )
         is None
     )
@@ -242,9 +289,35 @@ def test_directive_arg_completion_filters_case_insensitive_prefixes() -> None:
 
 
 def test_directive_arg_completion_ignores_open_text_directives() -> None:
-    candidates, shared = build_directive_arg_completion_candidates("model", "")
+    candidates, shared = build_directive_arg_completion_candidates("name", "")
 
     assert candidates == []
+    assert shared == ""
+
+
+def test_directive_arg_completion_builds_model_candidates_from_catalog() -> None:
+    with patch(
+        "sase.ace.tui.widgets.directive_completion.build_model_completion_catalog",
+        return_value=_model_entries(),
+    ):
+        candidates, shared = build_directive_arg_completion_candidates("model", "")
+
+    assert [candidate.insertion for candidate in candidates] == [
+        "claude-fable-5",
+        "gpt-5.5",
+    ]
+    assert shared == ""
+    assert _arg_metadata(candidates[0]).description == "Claude (fable)"
+
+
+def test_directive_arg_completion_filters_model_candidates_by_short_alias() -> None:
+    with patch(
+        "sase.ace.tui.widgets.directive_completion.build_model_completion_catalog",
+        return_value=_model_entries(),
+    ):
+        candidates, shared = build_directive_arg_completion_candidates("model", "fa")
+
+    assert [candidate.insertion for candidate in candidates] == ["claude-fable-5"]
     assert shared == ""
 
 
@@ -382,6 +455,31 @@ async def test_colon_after_effort_auto_opens_directive_value_panel() -> None:
         assert "reasoning effort" in panel.render().plain
 
 
+async def test_colon_after_model_auto_opens_model_value_panel() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+
+        with patch(
+            "sase.ace.tui.widgets.directive_completion.build_model_completion_catalog",
+            return_value=_model_entries(),
+        ):
+            for char in "%model:":
+                await pilot.press(char)
+
+        assert ta.text == "%model:"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "directive_arg"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "claude-fable-5",
+            "gpt-5.5",
+        ]
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "directive values"
+        assert "Claude (fable)" in panel.render().plain
+
+
 async def test_directive_arg_refresh_narrows_widens_and_dismisses() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
@@ -446,6 +544,48 @@ async def test_directive_arg_completion_replaces_only_partial_value() -> None:
             assert ta._try_file_completion_tab() is True
 
     assert ta.text == "%effort:high"
+    assert ta._file_completion_active is False
+
+
+async def test_model_arg_completion_replaces_partial_with_canonical_value() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%model:fa")
+        ta.cursor_location = (0, len("%model:fa"))
+
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(
+                "sase.ace.tui.widgets.directive_completion.build_model_completion_catalog",
+                return_value=_model_entries(),
+            ),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%model:claude-fable-5"
+    assert ta._file_completion_active is False
+
+
+async def test_model_at_effort_completion_replaces_only_suffix() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%model:opus@xh")
+        ta.cursor_location = (0, len("%model:opus@xh"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%model:opus@xhigh"
     assert ta._file_completion_active is False
 
 
@@ -545,3 +685,22 @@ def _metadata(candidate) -> DirectiveCompletionMetadata:
 def _arg_metadata(candidate) -> DirectiveArgCompletionMetadata:
     assert isinstance(candidate.metadata, DirectiveArgCompletionMetadata)
     return candidate.metadata
+
+
+def _model_entries() -> list[_ModelCompletionEntry]:
+    return [
+        _ModelCompletionEntry(
+            value="claude-fable-5",
+            display="claude-fable-5",
+            description="Claude (fable)",
+            provider="claude",
+            aliases=("fable",),
+        ),
+        _ModelCompletionEntry(
+            value="gpt-5.5",
+            display="gpt-5.5",
+            description="Codex (gpt55)",
+            provider="codex",
+            aliases=("gpt55",),
+        ),
+    ]

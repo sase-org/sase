@@ -45,7 +45,7 @@ The xprompt language server is focused on prompt and xprompt editing:
 | XPrompt completion      | Completes `#name`, `#!workflow`, namespaced references, and slash-skill references from the structured catalog.                      |
 | Project/ChangeSpec tags | Completes `#+query` and first-character `+query` from the active project/ChangeSpec catalog, inserting canonical VCS workspace tags. |
 | Argument assistance     | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.           |
-| Directive completion    | Completes SASE prompt directives such as `%model`, `%wait`, and other known directive names.                                         |
+| Directive completion    | Completes SASE prompt directives and fixed directive values, including `%model:` values from the live model catalog.                 |
 | File completion         | Completes path-like tokens and recent file-history entries for prompt references.                                                    |
 | Snippets                | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                        |
 | Hover                   | Shows xprompt metadata, descriptions, previews, source display paths, tags, and active input hints.                                  |

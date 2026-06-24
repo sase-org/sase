@@ -8,6 +8,8 @@ from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
 
+import pytest
+
 from sase.integrations.xprompt_lsp import (
     SASE_DEFAULT_CONFIG_PATH_ENV,
     SASE_XPROMPT_LSP_CMD_ENV,
@@ -16,12 +18,37 @@ from sase.integrations.xprompt_lsp import (
     SASE_XPROMPT_PACKAGE_DIR_ENV,
     SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV,
     SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV,
+    SASE_XPROMPT_MODEL_CATALOG_ENV,
     SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV,
     _XPromptLspLaunchError,
     _build_xprompt_lsp_argv,
     _prepare_xprompt_lsp_environment,
 )
 from sase.main.parser import create_parser
+
+
+@pytest.fixture(autouse=True)
+def stub_lsp_catalog_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Keep LSP catalog materialization inside pytest temp directories."""
+    monkeypatch.setattr(
+        "sase.integrations.xprompt_lsp._default_vcs_project_catalog_path",
+        lambda: tmp_path / "xprompt_lsp" / "vcs_project_catalog.json",
+    )
+    monkeypatch.setattr(
+        "sase.integrations.xprompt_lsp._default_model_catalog_path",
+        lambda: tmp_path / "xprompt_lsp" / "model_catalog.json",
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.vcs_project_completion.vcs_project_catalog_payload",
+        lambda: {"schema_version": 2, "workflow_names": [], "entries": []},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.model_completion.model_completion_catalog_payload",
+        lambda: {"schema_version": 1, "entries": []},
+    )
 
 
 def test_parser_accepts_lsp_version() -> None:
@@ -130,6 +157,37 @@ def test_prepare_lsp_environment_materializes_vcs_project_catalog(
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
 
+def test_prepare_lsp_environment_materializes_model_catalog(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / "model_catalog.json"
+    env: dict[str, str] = {
+        SASE_XPROMPT_MODEL_CATALOG_ENV: str(catalog_path),
+    }
+    payload = {
+        "schema_version": 1,
+        "entries": [
+            {
+                "value": "claude-fable-5",
+                "display": "claude-fable-5",
+                "description": "Claude (fable)",
+                "kind": "model",
+                "provider": "claude",
+                "aliases": ["fable"],
+            }
+        ],
+    }
+
+    with patch(
+        "sase.xprompt.model_completion.model_completion_catalog_payload",
+        return_value=payload,
+    ):
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    assert env[SASE_XPROMPT_MODEL_CATALOG_ENV] == str(catalog_path)
+    assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
+
+
 def test_prepare_lsp_environment_defaults_vcs_catalog_path(tmp_path: Path) -> None:
     env: dict[str, str] = {}
     payload = {"schema_version": 2, "workflow_names": [], "entries": []}
@@ -142,6 +200,22 @@ def test_prepare_lsp_environment_defaults_vcs_catalog_path(tmp_path: Path) -> No
 
     catalog_path = Path(env[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV])
     assert catalog_path.name == "vcs_project_catalog.json"
+    assert catalog_path.parent.name == "xprompt_lsp"
+    assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
+
+
+def test_prepare_lsp_environment_defaults_model_catalog_path(tmp_path: Path) -> None:
+    env: dict[str, str] = {}
+    payload = {"schema_version": 1, "entries": []}
+
+    with patch(
+        "sase.xprompt.model_completion.model_completion_catalog_payload",
+        return_value=payload,
+    ):
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    catalog_path = Path(env[SASE_XPROMPT_MODEL_CATALOG_ENV])
+    assert catalog_path.name == "model_catalog.json"
     assert catalog_path.parent.name == "xprompt_lsp"
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
@@ -164,6 +238,24 @@ def test_prepare_lsp_environment_swallows_vcs_catalog_failure(
     # The path is still exported (a later rewrite is honored), but the failed
     # build leaves no file behind.
     assert env[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV] == str(catalog_path)
+    assert not catalog_path.exists()
+
+
+def test_prepare_lsp_environment_swallows_model_catalog_failure(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / "model_catalog.json"
+    env: dict[str, str] = {
+        SASE_XPROMPT_MODEL_CATALOG_ENV: str(catalog_path),
+    }
+
+    with patch(
+        "sase.xprompt.model_completion.model_completion_catalog_payload",
+        side_effect=RuntimeError("boom"),
+    ):
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    assert env[SASE_XPROMPT_MODEL_CATALOG_ENV] == str(catalog_path)
     assert not catalog_path.exists()
 
 

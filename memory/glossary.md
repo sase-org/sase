@@ -29,6 +29,12 @@ An xprompt whose body contains `---` segment separators (outside fenced blocks).
 to create multi-agent prompts (i.e. prompts that result in the prompt being split in order to launch one agent for each
 part of the prompt).
 
+**Model Directive Completion (`%model:` / `%m:`)**
+
+The ACE prompt input and Neovim xprompt LSP complete inline-typable `%model` values from the live Python LLM registry
+plus reserved/configured model aliases. Short provider aliases such as `fable` are display/filter hints only; accepting
+a model candidate inserts the canonical model value such as `claude-fable-5`.
+
 **Root Agent/Workflow Entry**  
 Any agent row entry on the "Agents" tab of the `sase ace` TUI that has child entries.
 
