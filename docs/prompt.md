@@ -1,13 +1,17 @@
 # Prompt History
 
 Every prompt you submit to `sase run` (and every launch started from [ACE](ace.md)) is recorded in the prompt-history
-store at `~/.sase/prompt_history.json`. The `sase prompt` command group is the first-class way to inspect, search,
-reuse, curate, and clean up that history. It is built to feel like a well-made shell-history tool: fast to scan, exact
-when printing text, safe around destructive actions, and scriptable through stable JSON.
+store. Current installs write monthly JSON shards under `~/.sase/prompt_history/YYMM.json`; the old
+`~/.sase/prompt_history.json` file is migrated on first read or write and kept as a
+`legacy-imported-<timestamp>.json.bak` backup inside the shard directory. The `sase prompt` command group is the
+first-class way to inspect, search, reuse, curate, and clean up that history. It is built to feel like a well-made
+shell-history tool: fast to scan, exact when printing text, safe around destructive actions, and scriptable through
+stable JSON.
 
-`sase prompt` reads and writes the existing JSON store directly — there is no separate database to manage. Replay
-commands (`run`, `edit`, `select`) route through the same launch machinery as `sase run`, so foreground, `--daemon`,
-multi-prompt, multi-model, and xprompt behavior stay identical.
+`sase prompt` reads and writes those JSON shards directly — there is no separate database to manage. Readers aggregate
+and deduplicate records across shards, while ordinary writes only touch the current-month shard. Replay commands (`run`,
+`edit`, `select`) route through the same launch machinery as `sase run`, so foreground, `--daemon`, multi-prompt,
+multi-model, and xprompt behavior stay identical.
 
 ## Selectors
 
@@ -54,7 +58,7 @@ I snapshotted it into this repo or just ran it once last month."
 - **Repo SDD snapshots** — the committed `sdd/prompts/**/*.md` files written by `sase prompt export --sdd` (plus the
   legacy root `prompts/` and local `.sase/sdd/prompts/` layouts). These are curated and repo-specific, so they always
   **rank first**.
-- **Local prompt history** — the machine-wide `~/.sase/prompt_history.json` store: every prompt ever submitted on this
+- **Local prompt history** — the machine-wide `~/.sase/prompt_history/` shard store: every prompt ever submitted on this
   machine, across all repos.
 
 Matching is a **case-insensitive substring** test of the literal query (no regex or globbing) against every
@@ -243,9 +247,9 @@ Existing destination files are never silently overwritten — pass `--force` to 
 
 ## Health and Scripting
 
-`doctor` is a read-only diagnostic that never echoes full prompt text. It reports the store path, size, and
-parseability; entry and cancelled counts; invalid or duplicate entries; oversized prompts; very short prompts saved
-through recovery paths; and whether `fzf` and a clipboard command are available:
+`doctor` is a read-only diagnostic that never echoes full prompt text. It reports the shard directory path, aggregate
+store size, shard count, and parseability; entry and cancelled counts; invalid or duplicate entries; oversized prompts;
+very short prompts saved through recovery paths; and whether `fzf` and a clipboard command are available:
 
 ```bash
 sase prompt doctor          # pretty report

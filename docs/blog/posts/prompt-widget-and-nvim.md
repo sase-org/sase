@@ -89,16 +89,16 @@ advancing through fields. Snippets are intentionally lightweight — they are fo
 anything xprompts already do better.
 
 Prompt history is the third reuse path. Press `Ctrl+K` from the input bar to open the prompt history modal, pre-filtered
-by the current single-line prompt; `,.` opens the same modal from the main ACE UI. The modal lists prior prompts by most
-recent use. `Enter` submits the highlighted prompt directly; `Ctrl+G` loads it into your editor first; `Ctrl+I` loads it
-into the input widget for tweaking (pressing `Tab` does the same thing). Entries shorter than two words are filtered on
-write so trivial replies (`y`, `ok`) don't clutter the list.
+by the current single-line prompt; `,.` opens the same modal from the main ACE UI. The modal loads prior prompts by most
+recent use, with `PageDown` fetching older rows. `Enter` submits the highlighted prompt directly; `Ctrl+G` loads it into
+your editor first; `Ctrl+I` loads it into the input widget for tweaking (pressing `Tab` does the same thing). Entries
+shorter than two words are filtered on write so trivial replies (`y`, `ok`) don't clutter the list.
 
 `Ctrl+P` and `Ctrl+N` cycle most-recently-used workspace references (`#git:foo`, `#hg:bar`, `#cd:~/path`) through one
 ring with a no-prefix stop: `Ctrl+P` moves toward older entries, and `Ctrl+N` moves toward newer ones. They replace the
 first launchable workspace tag in the prompt or prepend a tag when none is present. The history files behind this —
-`~/.sase/prompt_history.json` and the file-reference history — use a sidecar lock plus atomic tempfile replacement so
-concurrent agent launches do not truncate the shared state.
+monthly prompt-history shards under `~/.sase/prompt_history/` and the file-reference history — use a sidecar lock plus
+atomic tempfile replacement so concurrent agent launches do not truncate the shared state.
 
 ## `Ctrl+G`: Handing Off To The Editor
 

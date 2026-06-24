@@ -1679,7 +1679,8 @@ characters, when text is selected (the typed character replaces the selection li
 possessives, and for repeated quotes/backticks needed to type Markdown fences or code spans.
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
-the text exceeds one line.
+the text exceeds one line. The native cursor cell is color-coded by prompt Vim mode: INSERT uses cyan, NORMAL uses gold,
+and VISUAL or V-LINE uses magenta.
 
 ### Prompt Stacks
 
@@ -1985,8 +1986,8 @@ V-LINE operators always apply to whole selected lines regardless of the cursor c
 
 Press `Ctrl+K` from the prompt input to open the prompt history modal. When the current prompt is a single logical line,
 that line pre-fills the modal filter. Press `,.` (leader + `.`) to open the same modal from the main ACE UI. The modal
-displays prompts previously run in ACE, ordered by most recent use. Prompts shorter than two words are skipped when
-writing to history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter the list.
+loads prompts previously run in ACE in 250-row recency pages. Prompts shorter than two words are skipped when writing to
+history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter the list.
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit workspace reference appears with the
 default `#git:home` prefix. Use `#cd:~` for direct home-directory runs with no VCS workspace management. Explicit
@@ -2003,19 +2004,22 @@ recent entry and `Ctrl+N` starts at the oldest one.
 | `Enter`          | Submit the highlighted prompt directly        |
 | `Ctrl+G`         | Edit first - load prompt into editor          |
 | `Tab` / `Ctrl+I` | Load prompt into the input widget for editing |
+| `PageDown`       | Load the next older 250 prompt-history rows   |
 | `Ctrl+X`         | Toggle visibility of cancelled prompts        |
 | `Ctrl+Y`         | Copy prompt to clipboard                      |
 | `Esc`            | Close modal                                   |
 
 ### Filtering
 
-Type in the search box to filter prompts by text. Press `Ctrl+X` to toggle cancelled prompts on or off — when enabled,
-cancelled prompts appear in the results with an `x` marker.
+Type in the search box to filter the prompts that have already been loaded by text. Press `PageDown` to load older
+pages, and press `Ctrl+X` to toggle cancelled prompts on or off — when enabled, cancelled prompts appear in the results
+with an `x` marker.
 
 Prompt-history rows are compact single-line entries: cancelled marker, last-used timestamp (`MM-DD HH:MM` when
 parseable), and a first-line prompt preview. The preview panel still shows the full prompt and timestamp metadata.
-History writes use a sidecar lock plus atomic tempfile replacement so concurrent agent launches do not truncate the
-shared `~/.sase/prompt_history.json` file.
+History writes use a sidecar lock plus atomic tempfile replacement of monthly shard files under
+`~/.sase/prompt_history/`, so concurrent agent launches do not truncate prompt history. A legacy
+`~/.sase/prompt_history.json` store is migrated into shards before normal reads and writes.
 
 ## Task Queue Modal
 

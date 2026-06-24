@@ -187,6 +187,7 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [AXE Automation](https://sase.sh/axe/) ([local](docs/axe.md))
 - [Spec-Driven Development](https://sase.sh/sdd/) ([local](docs/sdd.md))
 - [XPrompts](https://sase.sh/xprompt/) ([local](docs/xprompt.md))
+- [Prompt History](https://sase.sh/prompt/) ([local](docs/prompt.md))
 - [ChangeSpecs](https://sase.sh/change_spec/) ([local](docs/change_spec.md))
 - [ProjectSpec and project lifecycle](https://sase.sh/project_spec/) ([local](docs/project_spec.md))
 - [Beads](https://sase.sh/beads/) ([local](docs/beads.md))
