@@ -5,13 +5,16 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Literal
 
-from sase.plan_chain import (
-    agent_family_base,
-    agent_family_role_for_suffix,
+from sase.ace.tui.agent_completion import (
+    AgentCompletionCandidate,
+    agent_prompt_name,
+    build_agent_completion_candidates,
+    visible_agent_completion_agents,
 )
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.plan_chain import agent_family_role_for_suffix
 
 from ...models.agent_status import is_resumable_done_status
 
@@ -42,15 +45,7 @@ def _is_agent_family_root(agent: Agent) -> bool:
 
 def _agent_prompt_name(agent: Agent) -> str | None:
     """Return the name wait/fork/copy prompts should use for a row."""
-    if _is_agent_family_root(agent):
-        if agent.agent_family:
-            return agent.agent_family
-        if agent.agent_name:
-            return (
-                agent_family_base(agent.agent_name, include_legacy_dash=True)
-                or agent.agent_name
-            )
-    return agent.agent_name
+    return agent_prompt_name(agent)
 
 
 def _wait_directive(result: WaitModalResult) -> str:
@@ -125,37 +120,24 @@ def _strip_existing_wait_directives(prompt: str) -> str:
     return unprotect_fenced_blocks(cleaned, fenced_blocks).lstrip()
 
 
-def _time_model_label(agent: Agent) -> str | None:
-    """Return the provider/model/effort label for wait completion rows."""
-    bits: list[str] = []
-    if agent.llm_provider:
-        bits.append(agent.llm_provider)
-    if agent.model:
-        bits.append(agent.model)
-    label = " / ".join(bits) if bits else None
-    if agent.reasoning_effort:
-        return f"{label or ''}@{agent.reasoning_effort}".lstrip("@")
-    return label
-
-
-def _wait_candidate_from_agent(agent: Agent) -> WaitAgentCandidate | None:
-    """Build a modal candidate row from an agent, or None if unnameable."""
+def _wait_candidate_from_completion(
+    candidate: AgentCompletionCandidate,
+) -> WaitAgentCandidate:
+    """Convert a shared completion candidate to the wait modal row shape."""
     from ...modals import WaitAgentCandidate
 
-    wait_name = _agent_prompt_name(agent)
-    if not wait_name:
-        return None
-    role = agent.agent_family_role or agent.role_suffix
     return WaitAgentCandidate(
-        wait_name=wait_name,
-        label=agent.agent_name or agent.display_name or agent.cl_name or wait_name,
-        status=agent.status,
-        runtime=agent.duration_display,
-        model=_time_model_label(agent),
-        start_time=agent.start_time_short,
-        duration=agent.duration_display,
-        role=role,
-        tag=f"#{agent.tag}" if agent.tag else None,
+        wait_name=candidate.name,
+        label=candidate.label,
+        status=candidate.status,
+        runtime=candidate.runtime,
+        model=candidate.model,
+        start_time=candidate.start_time,
+        duration=candidate.duration,
+        role=candidate.role,
+        tag=candidate.tag,
+        vcs_workflow=candidate.vcs_workflow,
+        prompt_snippet=candidate.prompt_snippet,
     )
 
 
@@ -164,19 +146,13 @@ def _wait_modal_candidates(
     visible_agents: list[Agent],
 ) -> list[WaitAgentCandidate]:
     """Return wait candidates from visible rows, excluding self and unnamed rows."""
-    candidates = []
-    seen_names: set[str] = set()
-    for candidate_agent in visible_agents:
-        if candidate_agent.identity == selected_agent.identity:
-            continue
-        candidate = _wait_candidate_from_agent(candidate_agent)
-        if candidate is None:
-            continue
-        if candidate.wait_name in seen_names:
-            continue
-        seen_names.add(candidate.wait_name)
-        candidates.append(candidate)
-    return candidates
+    return [
+        _wait_candidate_from_completion(candidate)
+        for candidate in build_agent_completion_candidates(
+            visible_agents,
+            exclude_identity=selected_agent.identity,
+        )
+    ]
 
 
 def _resolve_vcs_tag(
@@ -266,7 +242,7 @@ class AgentWaitResumeMixin:
         is_running = agent.status in {"STARTING", "RUNNING"}
         candidates = _wait_modal_candidates(
             agent,
-            self._visible_wait_candidate_agents(),
+            self._visible_agent_completion_agents(),
         )
 
         def handle_wait_result(result: WaitModalResult | None) -> None:
@@ -290,43 +266,22 @@ class AgentWaitResumeMixin:
 
     def _visible_wait_candidate_agents(self) -> list[Agent]:
         """Return agents currently visible in the focused Agents panel."""
-        from textual.css.query import NoMatches
+        return self._visible_agent_completion_agents()
 
-        from ...widgets import AgentList
-        from ._display_helpers import panel_widget_id
+    def _visible_agent_completion_agents(self) -> list[Agent]:
+        """Return agents currently visible in the focused Agents panel."""
+        return visible_agent_completion_agents(self)
 
-        panel_group = getattr(self, "_panel_group", None)
-        focused_idx = getattr(panel_group, "focused_idx", 0)
-        if not isinstance(focused_idx, int):
-            focused_idx = 0
-        try:
-            widget = self.query_one(  # type: ignore[attr-defined]
-                f"#{panel_widget_id(focused_idx)}",
-                AgentList,
-            )
-        except (NoMatches, AttributeError):
-            widget = None
-        if widget is not None:
-            return widget.visible_agents()
-
-        order_fn = getattr(self, "_agents_visible_order", None)
-        if callable(order_fn):
-            try:
-                return [
-                    self._agents[idx]
-                    for idx in order_fn()
-                    if 0 <= idx < len(self._agents)
-                ]
-            except Exception:
-                pass
-
-        from ...models.agent_panels import agent_is_rendered_in_agents_panel
-
-        return [
-            candidate
-            for candidate in self._agents
-            if agent_is_rendered_in_agents_panel(candidate)
-        ]
+    def visible_agent_completion_candidates(
+        self,
+        *,
+        exclude_identity: object | None = None,
+    ) -> list[AgentCompletionCandidate]:
+        """Return completion candidates sourced from the visible Agents panel."""
+        return build_agent_completion_candidates(
+            self._visible_agent_completion_agents(),
+            exclude_identity=exclude_identity,
+        )
 
     def _apply_wait(
         self,

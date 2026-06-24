@@ -26,6 +26,7 @@ class InputType(Enum):
     LINE = "line"  # Single line, no newlines
     TEXT = "text"  # Multi-line text (any content)
     PATH = "path"  # Single-line file path
+    AGENT = "agent"  # Agent name, same value rules as word
     INT = "int"
     BOOL = "bool"
     FLOAT = "float"
@@ -96,7 +97,7 @@ class InputArg:
         Raises:
             XPromptValidationError: If value cannot be converted to declared type.
         """
-        if self.type == InputType.WORD:
+        if self.type in {InputType.WORD, InputType.AGENT}:
             if any(c.isspace() for c in value):
                 raise XPromptValidationError(
                     f"Argument '{self.name}' expects word (no spaces), got '{value}'"

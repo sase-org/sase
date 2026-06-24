@@ -17,6 +17,7 @@ from sase.xprompt.models import (
     InputArg,
     InputType,
     XPrompt,
+    XPromptValidationError,
     xprompt_to_workflow,
 )
 from sase.xprompt.workflow_executor_utils import (
@@ -119,6 +120,14 @@ def test_input_arg_word_valid() -> None:
     """Test InputArg validates word type correctly."""
     arg = InputArg(name="x", type=InputType.WORD)
     assert arg.validate_and_convert("hello") == "hello"
+
+
+def test_input_arg_agent_matches_word_rules() -> None:
+    """Test InputArg validates agent type with word-compatible rules."""
+    arg = InputArg(name="name", type=InputType.AGENT)
+    assert arg.validate_and_convert("planner.1") == "planner.1"
+    with pytest.raises(XPromptValidationError):
+        arg.validate_and_convert("planner one")
 
 
 def test_input_arg_int_valid() -> None:

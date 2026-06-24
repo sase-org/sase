@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 
+from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
     build_completion_candidates,
@@ -27,6 +29,7 @@ def build_xprompt_arg_completion_candidates(
     ctx: XPromptArgCompletionContext,
     *,
     base_dir: str | os.PathLike[str] | None = None,
+    agent_candidates: Sequence[AgentCompletionCandidate] | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
     """Build candidates for an xprompt argument completion context."""
     if ctx.completion_kind == "xprompt_arg_path":
@@ -36,6 +39,12 @@ def build_xprompt_arg_completion_candidates(
         )
     if ctx.completion_kind == "xprompt_arg_value":
         return _build_bool_completion_candidates(ctx.token)
+    if ctx.completion_kind == "xprompt_arg_agent":
+        from sase.ace.tui.widgets.directive_completion import (
+            build_agent_arg_completion_candidates,
+        )
+
+        return build_agent_arg_completion_candidates(ctx.token, agent_candidates)
     if ctx.completion_kind == "xprompt_arg_name":
         return _build_named_arg_completion_candidates(ctx)
     return [], ""

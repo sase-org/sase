@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from textual.widgets import Static
 
+from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets.directive_completion import (
     DirectiveArgCompletionMetadata,
     DirectiveCompletionMetadata,
@@ -208,6 +209,36 @@ def test_directive_arg_extraction_accepts_model_alias_and_special_chars() -> Non
     )
 
 
+def test_wait_arg_extraction_uses_active_comma_fragment_and_alias() -> None:
+    line = "%w:planner, family.cod"
+    col = len(line)
+    assert extract_directive_arg_token_around_cursor(line, col) == (
+        line.index("family"),
+        col,
+        "wait",
+        "family.cod",
+    )
+
+
+def test_wait_arg_extraction_supports_paren_form_and_time_fragment() -> None:
+    line = "%wait(planner, co, time=5m)"
+    col = line.index(", time")
+    assert extract_directive_arg_token_around_cursor(line, col) == (
+        line.index("co"),
+        col,
+        "wait",
+        "co",
+    )
+
+    time_col = line.index(")")
+    assert extract_directive_arg_token_around_cursor(line, time_col) == (
+        line.index("time="),
+        time_col,
+        "wait",
+        "time=5m",
+    )
+
+
 def test_directive_arg_extraction_redirects_model_at_suffix_to_effort() -> None:
     assert extract_directive_arg_token_around_cursor(
         "%model:opus@",
@@ -290,6 +321,32 @@ def test_directive_arg_completion_filters_case_insensitive_prefixes() -> None:
 
 def test_directive_arg_completion_ignores_open_text_directives() -> None:
     candidates, shared = build_directive_arg_completion_candidates("name", "")
+
+    assert candidates == []
+    assert shared == ""
+
+
+def test_wait_arg_completion_filters_visible_agent_candidates() -> None:
+    candidates, shared = build_directive_arg_completion_candidates(
+        "wait",
+        "co",
+        agent_candidates=[
+            _agent_candidate("coder"),
+            _agent_candidate("planner"),
+        ],
+    )
+
+    assert [candidate.insertion for candidate in candidates] == ["coder"]
+    assert isinstance(candidates[0].metadata, AgentCompletionCandidate)
+    assert shared == ""
+
+
+def test_wait_arg_completion_ignores_time_keyword_fragment() -> None:
+    candidates, shared = build_directive_arg_completion_candidates(
+        "wait",
+        "time=5m",
+        agent_candidates=[_agent_candidate("coder")],
+    )
 
     assert candidates == []
     assert shared == ""
@@ -547,6 +604,49 @@ async def test_directive_arg_completion_replaces_only_partial_value() -> None:
     assert ta._file_completion_active is False
 
 
+async def test_wait_arg_completion_replaces_only_active_fragment() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder")
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%wait:planner, co")
+        ta.cursor_location = (0, len("%wait:planner, co"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%wait:planner, coder"
+    assert ta._file_completion_active is False
+
+
+async def test_wait_paren_completion_preserves_later_arguments() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder")
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        text = "%wait(planner, co, time=5m)"
+        ta.load_text(text)
+        ta.cursor_location = (0, text.index(", time"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%wait(planner, coder, time=5m)"
+    assert ta._file_completion_active is False
+
+
 async def test_model_arg_completion_replaces_partial_with_canonical_value() -> None:
     app = CompletionTestApp()
     async with app.run_test():
@@ -704,3 +804,12 @@ def _model_entries() -> list[_ModelCompletionEntry]:
             aliases=("gpt55",),
         ),
     ]
+
+
+def _agent_candidate(name: str) -> AgentCompletionCandidate:
+    return AgentCompletionCandidate(
+        name=name,
+        label=name,
+        status="RUNNING",
+        prompt_snippet=f"{name} prompt",
+    )

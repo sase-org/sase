@@ -74,6 +74,7 @@ def parse_input_type(type_str: str) -> InputType:
         "line": InputType.LINE,
         "text": InputType.TEXT,
         "path": InputType.PATH,
+        "agent": InputType.AGENT,
         "int": InputType.INT,
         "integer": InputType.INT,
         "bool": InputType.BOOL,

@@ -24,7 +24,7 @@
               "type": {
                 "type": "string",
                 "description": "The expected type of the argument value",
-                "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"],
+                "enum": ["word", "line", "text", "path", "agent", "int", "integer", "float", "bool", "boolean", "string"],
                 "default": "line"
               },
               "default": {
@@ -45,7 +45,7 @@
               {
                 "type": "string",
                 "description": "Type shorthand (e.g., 'text', 'line')",
-                "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"]
+                "enum": ["word", "line", "text", "path", "agent", "int", "integer", "float", "bool", "boolean", "string"]
               },
               {
                 "type": "object",
@@ -54,7 +54,7 @@
                   "type": {
                     "type": "string",
                     "description": "The expected type of the argument value",
-                    "enum": ["word", "line", "text", "path", "int", "integer", "float", "bool", "boolean", "string"]
+                    "enum": ["word", "line", "text", "path", "agent", "int", "integer", "float", "bool", "boolean", "string"]
                   },
                   "default": {
                     "description": "Default value if argument is not provided"

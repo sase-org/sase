@@ -44,6 +44,7 @@ from sase.xprompt._parsing import (
 
 if TYPE_CHECKING:
     from ..app import AceApp
+    from sase.ace.tui.agent_completion import AgentCompletionCandidate
 
 
 __all__ = [
@@ -128,6 +129,7 @@ class PromptTextArea(
         self._file_completion_index: int = 0
         self._file_completion_active: bool = False
         self._completion_kind: str = "file"
+        self._agent_completion_candidates: list[AgentCompletionCandidate] | None = None
         self._vcs_project_catalog_warmed: bool = False
         self._active_xprompt_arg_hint: ActiveXPromptArgHint | None = None
         self._pending_optional_spacer: PendingOptionalSpacer | None = None

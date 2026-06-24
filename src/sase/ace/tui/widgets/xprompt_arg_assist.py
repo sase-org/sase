@@ -99,6 +99,7 @@ class XPromptArgCompletionContext:
     completion_kind: Literal[
         "xprompt_arg_path",
         "xprompt_arg_value",
+        "xprompt_arg_agent",
         "xprompt_arg_name",
         "xprompt_arg_type_hint",
     ]
@@ -500,11 +501,18 @@ def _active_input_index_for_suffix(
 
 def _completion_kind_for_input(
     input_hint: XPromptInputHint,
-) -> Literal["xprompt_arg_path", "xprompt_arg_value", "xprompt_arg_type_hint"]:
+) -> Literal[
+    "xprompt_arg_path",
+    "xprompt_arg_value",
+    "xprompt_arg_agent",
+    "xprompt_arg_type_hint",
+]:
     if input_hint.type == "path":
         return "xprompt_arg_path"
     if input_hint.type == "bool":
         return "xprompt_arg_value"
+    if input_hint.type == "agent":
+        return "xprompt_arg_agent"
     return "xprompt_arg_type_hint"
 
 
@@ -554,6 +562,19 @@ def _paren_completion_context(
     if "=" not in stripped_clause:
         if any(ch.isspace() for ch in stripped_clause):
             return None
+        if len(entry.inputs) == 1:
+            single_input = entry.inputs[0]
+            completion_kind = _completion_kind_for_input(single_input)
+            if completion_kind == "xprompt_arg_agent":
+                return XPromptArgCompletionContext(
+                    entry=entry,
+                    completion_kind=completion_kind,
+                    value_start=value_start,
+                    value_end=value_end,
+                    token=stripped_clause,
+                    active_input=single_input,
+                    used_arg_names=_used_named_arg_names(body[:clause_start]),
+                )
         return XPromptArgCompletionContext(
             entry=entry,
             completion_kind="xprompt_arg_name",
@@ -565,8 +586,8 @@ def _paren_completion_context(
 
     name_part, value_part = stripped_clause.split("=", 1)
     name = name_part.strip()
-    active_input = _input_by_name(entry, name)
-    if active_input is None:
+    named_input = _input_by_name(entry, name)
+    if named_input is None:
         return None
 
     value_leading_ws = len(value_part) - len(value_part.lstrip())
@@ -574,11 +595,11 @@ def _paren_completion_context(
     token = value_part.lstrip()
     return XPromptArgCompletionContext(
         entry=entry,
-        completion_kind=_completion_kind_for_input(active_input),
+        completion_kind=_completion_kind_for_input(named_input),
         value_start=token_start,
         value_end=value_end,
         token=token,
-        active_input=active_input,
+        active_input=named_input,
         used_arg_names=_used_named_arg_names(body[:clause_start]),
     )
 

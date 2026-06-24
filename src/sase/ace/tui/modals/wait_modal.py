@@ -13,6 +13,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.agent_completion import AgentVcsWorkflow, status_style
 from sase.ace.tui.models.agent_time import format_compact_duration, format_wait_until
 from sase.xprompt._directive_time import parse_absolute_time, parse_duration
 from sase.xprompt._exceptions import DirectiveError
@@ -31,10 +32,12 @@ class WaitAgentCandidate:
     duration: str | None = None
     role: str | None = None
     tag: str | None = None
+    vcs_workflow: AgentVcsWorkflow | None = None
+    prompt_snippet: str = ""
 
     @property
     def search_text(self) -> str:
-        return " ".join((self.wait_name, self.label)).lower()
+        return " ".join((self.wait_name, self.label, self.prompt_snippet)).lower()
 
 
 @dataclass(frozen=True)
@@ -182,16 +185,7 @@ def _truncate(value: str, width: int) -> str:
 
 
 def _status_style(status: str) -> str:
-    status_upper = status.upper()
-    if status_upper in {"RUNNING", "STARTING"}:
-        return "bold #00D7AF"
-    if status_upper == "WAITING":
-        return "bold #AF87FF"
-    if "DONE" in status_upper:
-        return "bold #5FD7FF"
-    if "FAILED" in status_upper:
-        return "bold #FF5F5F"
-    return "bold $text-muted"
+    return status_style(status)
 
 
 def _candidate_option(candidate: WaitAgentCandidate, index: int) -> Option:

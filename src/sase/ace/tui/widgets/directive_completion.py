@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
+from sase.ace.tui.agent_completion import (
+    AgentCompletionCandidate,
+    filter_agent_completion_candidates,
+)
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.xprompt._directive_types import (
     AUTO_MODES_ORDERED,
@@ -146,17 +150,34 @@ def extract_directive_arg_token_around_cursor(
     if not _has_valid_directive_context(line, percent_index):
         return None
 
-    colon_index = line.find(":", percent_index + 1)
-    if colon_index < 0 or col <= colon_index:
+    name_start = percent_index + 1
+    name_end = name_start
+    while name_end < len(line) and _is_directive_identifier(line[name_end]):
+        name_end += 1
+    if name_end == name_start or name_end >= len(line):
         return None
 
-    raw_name = line[percent_index + 1 : colon_index]
-    if not raw_name or not all(_is_directive_identifier(char) for char in raw_name):
+    raw_name = line[name_start:name_end]
+    marker = line[name_end]
+    if marker not in {":", "("}:
+        return None
+    if col <= name_end:
         return None
 
     directive_name = _canonical_directive_name(raw_name)
     if directive_name is None:
         return None
+
+    if marker == "(":
+        if directive_name != "wait":
+            return None
+        return _extract_wait_paren_arg_token(line, col, name_end)
+
+    colon_index = name_end
+    if col <= colon_index:
+        return None
+    if directive_name == "wait":
+        return _extract_wait_colon_arg_token(line, col, colon_index)
 
     arg_start = colon_index + 1
     arg_predicate = _directive_argument_predicate(directive_name)
@@ -222,6 +243,8 @@ def build_directive_completion_candidates(
 def build_directive_arg_completion_candidates(
     directive_name: str,
     partial: str,
+    *,
+    agent_candidates: Sequence[AgentCompletionCandidate] | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
     """Build fixed-value candidates for a directive argument token."""
     canonical = _canonical_directive_name(directive_name)
@@ -230,6 +253,8 @@ def build_directive_arg_completion_candidates(
 
     if canonical == "model":
         return _build_model_arg_completion_candidates(partial)
+    if canonical == "wait":
+        return build_agent_arg_completion_candidates(partial, agent_candidates)
 
     values = _DIRECTIVE_ARGUMENT_VALUES.get(canonical)
     if values is None:
@@ -254,6 +279,41 @@ def build_directive_arg_completion_candidates(
 
     shared_extension = ""
     if len(candidates) > 1:
+        shared_prefix = os.path.commonprefix(
+            [candidate.insertion for candidate in candidates]
+        )
+        if len(shared_prefix) > len(partial):
+            shared_extension = shared_prefix[len(partial) :]
+
+    return candidates, shared_extension
+
+
+def build_agent_arg_completion_candidates(
+    partial: str,
+    agent_candidates: Sequence[AgentCompletionCandidate] | None,
+) -> tuple[list[CompletionCandidate], str]:
+    """Build visible-agent candidates for a wait/fork-style argument."""
+    if "=" in partial:
+        return [], ""
+
+    entries = filter_agent_completion_candidates(agent_candidates, partial)
+    candidates = [
+        CompletionCandidate(
+            display=entry.name,
+            insertion=entry.name,
+            is_dir=False,
+            name=entry.name,
+            metadata=entry,
+        )
+        for entry in entries
+    ]
+
+    shared_extension = ""
+    partial_lower = partial.lower()
+    if len(candidates) > 1 and all(
+        candidate.insertion.lower().startswith(partial_lower)
+        for candidate in candidates
+    ):
         shared_prefix = os.path.commonprefix(
             [candidate.insertion for candidate in candidates]
         )
@@ -312,6 +372,63 @@ def _matches_directive(
     )
 
 
+def _extract_wait_colon_arg_token(
+    line: str,
+    col: int,
+    colon_index: int,
+) -> tuple[int, int, str, str] | None:
+    value_start = colon_index + 1
+    fragment_start = line.rfind(",", value_start, col) + 1
+    if fragment_start <= 0:
+        fragment_start = value_start
+    while fragment_start < col and line[fragment_start].isspace():
+        fragment_start += 1
+
+    if any(
+        not _is_wait_directive_argument_identifier(char)
+        for char in line[fragment_start:col]
+    ):
+        return None
+
+    fragment_end = col
+    while fragment_end < len(line) and _is_wait_directive_argument_identifier(
+        line[fragment_end]
+    ):
+        fragment_end += 1
+
+    return fragment_start, fragment_end, "wait", line[fragment_start:fragment_end]
+
+
+def _extract_wait_paren_arg_token(
+    line: str,
+    col: int,
+    open_index: int,
+) -> tuple[int, int, str, str] | None:
+    value_start = open_index + 1
+    if ")" in line[value_start:col]:
+        return None
+
+    fragment_start = line.rfind(",", value_start, col) + 1
+    if fragment_start <= 0:
+        fragment_start = value_start
+    while fragment_start < col and line[fragment_start].isspace():
+        fragment_start += 1
+
+    if any(
+        not _is_wait_directive_argument_identifier(char)
+        for char in line[fragment_start:col]
+    ):
+        return None
+
+    fragment_end = col
+    while fragment_end < len(line) and _is_wait_directive_argument_identifier(
+        line[fragment_end]
+    ):
+        fragment_end += 1
+
+    return fragment_start, fragment_end, "wait", line[fragment_start:fragment_end]
+
+
 def _aliases_by_directive() -> dict[str, tuple[str, ...]]:
     grouped: dict[str, list[str]] = {
         directive: [] for directive in _USER_FACING_DIRECTIVES
@@ -346,6 +463,10 @@ def _is_directive_argument_identifier(char: str) -> bool:
 
 def _is_model_directive_argument_identifier(char: str) -> bool:
     return _is_directive_argument_identifier(char) or char in "./@"
+
+
+def _is_wait_directive_argument_identifier(char: str) -> bool:
+    return _is_directive_identifier(char) or char in "-.="
 
 
 def _directive_argument_predicate(directive_name: str) -> Callable[[str], bool]:

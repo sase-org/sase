@@ -11,6 +11,7 @@ from sase.xprompt.loader import (
     load_xprompts_from_default_files,
     load_xprompts_from_internal,
     get_all_prompts,
+    get_all_workflows,
     get_all_xprompts,
 )
 from sase.xprompt.loader_parsing import LocalXPromptNameError, parse_yaml_front_matter
@@ -346,6 +347,16 @@ def testload_xprompts_from_internal_includes_split_file() -> None:
     assert "xprompts/split_file.md" in xprompt.source_path
     assert [arg.name for arg in xprompt.inputs] == ["file_path"]
     assert xprompt.inputs[0].type == InputType.PATH
+
+
+def test_internal_fork_workflow_name_uses_agent_type() -> None:
+    """The built-in fork xprompt advertises agent-name completion."""
+    workflow = get_all_workflows()["fork"]
+    inputs = [arg for arg in workflow.inputs if not arg.is_step_input]
+
+    assert [arg.name for arg in inputs] == ["name"]
+    assert inputs[0].type == InputType.AGENT
+    assert inputs[0].default is None
 
 
 def test_default_file_xprompt_not_project_namespaced(

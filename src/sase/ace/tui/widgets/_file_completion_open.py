@@ -90,8 +90,11 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
                 return True
             if self._try_auto_directive_completion():
                 return True
-        if settings.auto_xprompt_menu and self._try_auto_xprompt_completion():
-            return True
+        if settings.auto_xprompt_menu:
+            if self._try_auto_xprompt_arg_completion():
+                return True
+            if self._try_auto_xprompt_completion():
+                return True
         return False
 
     def _try_auto_directive_arg_completion(self) -> bool:
@@ -104,8 +107,15 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         candidates, _shared_extension = build_directive_arg_completion_candidates(
             directive_name,
             partial,
+            agent_candidates=(
+                self._snapshot_agent_completion_candidates()
+                if directive_name == "wait"
+                else None
+            ),
         )
         if not candidates:
+            if directive_name == "wait":
+                self._agent_completion_candidates = None
             return False
 
         self._completion_kind = "directive_arg"
@@ -136,6 +146,28 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
         self._update_file_completion_panel(token)
+        return True
+
+    def _try_auto_xprompt_arg_completion(self) -> bool:
+        """Open agent-name completion inside an xprompt argument."""
+        arg_ctx = self._get_xprompt_arg_completion_context()
+        if arg_ctx is None or arg_ctx.completion_kind != "xprompt_arg_agent":
+            return False
+
+        candidates, _shared_extension = build_xprompt_arg_completion_candidates(
+            arg_ctx,
+            base_dir=self._prompt_completion_base_dir(),
+            agent_candidates=self._snapshot_agent_completion_candidates(),
+        )
+        if not candidates:
+            self._agent_completion_candidates = None
+            return False
+
+        self._completion_kind = arg_ctx.completion_kind
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(arg_ctx.token)
         return True
 
     def _try_auto_xprompt_completion(self) -> bool:
@@ -188,6 +220,11 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
             candidates, shared_extension = build_directive_arg_completion_candidates(
                 directive_name,
                 token,
+                agent_candidates=(
+                    self._snapshot_agent_completion_candidates()
+                    if directive_name == "wait"
+                    else None
+                ),
             )
         else:
             arg_ctx = self._get_xprompt_arg_completion_context()
@@ -279,6 +316,11 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
                 candidates, _ = build_directive_arg_completion_candidates(
                     directive_name,
                     token,
+                    agent_candidates=(
+                        self._snapshot_agent_completion_candidates()
+                        if directive_name == "wait"
+                        else None
+                    ),
                 )
             elif self._completion_kind.startswith("xprompt_arg_"):
                 arg_ctx = self._get_xprompt_arg_completion_context()
@@ -288,6 +330,11 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
                 candidates, _ = build_xprompt_arg_completion_candidates(
                     arg_ctx,
                     base_dir=base_dir,
+                    agent_candidates=(
+                        self._snapshot_agent_completion_candidates()
+                        if arg_ctx.completion_kind == "xprompt_arg_agent"
+                        else None
+                    ),
                 )
             else:
                 candidates, _ = build_completion_candidates(
@@ -356,6 +403,11 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         candidates, shared_extension = build_xprompt_arg_completion_candidates(
             ctx,
             base_dir=base_dir,
+            agent_candidates=(
+                self._snapshot_agent_completion_candidates()
+                if ctx.completion_kind == "xprompt_arg_agent"
+                else None
+            ),
         )
         self._completion_kind = ctx.completion_kind
 
@@ -385,6 +437,11 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
             candidates, _ = build_xprompt_arg_completion_candidates(
                 next_ctx,
                 base_dir=base_dir,
+                agent_candidates=(
+                    self._snapshot_agent_completion_candidates()
+                    if next_ctx.completion_kind == "xprompt_arg_agent"
+                    else None
+                ),
             )
             ctx = next_ctx
             token = effective_xprompt_arg_token(ctx)

@@ -23,6 +23,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("Ctrl+T / Ctrl+L", "Complete inside Jinja tags"),
         ("#name / #!name", "Auto-open xprompt menu"),
         ("%model: / %auto: / %effort:", "Auto-open directive values"),
+        ("%wait: / #fork:", "Complete visible agent names"),
         ("#@ Ctrl+I", "Inline-expand xprompt"),
         ("/ / ?", "Search prompt fwd/rev (NORMAL)"),
         ("n / N", "Repeat prompt search fwd/rev"),

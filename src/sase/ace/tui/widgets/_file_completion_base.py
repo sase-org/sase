@@ -9,6 +9,7 @@ from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidat
 from sase.xprompt.vcs_project_completion import build_vcs_project_completion_entries
 
 if TYPE_CHECKING:
+    from sase.ace.tui.agent_completion import AgentCompletionCandidate
     from sase.ace.tui.widgets.xprompt_arg_assist import (
         ActiveXPromptArgHint,
         XPromptAssistEntry,
@@ -23,6 +24,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         _file_completion_index: int
         _file_completion_active: bool
         _completion_kind: str
+        _agent_completion_candidates: list[AgentCompletionCandidate] | None
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
 
         def _find_prompt_bar(self) -> Any: ...
@@ -85,9 +87,27 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         self._file_completion_candidates = []
         self._file_completion_index = 0
         self._completion_kind = "file"
+        self._agent_completion_candidates = None
         self._update_file_completion_panel("")
         if clear_xprompt_arg_hint:
             self._clear_xprompt_arg_hint()
+
+    def _snapshot_agent_completion_candidates(self) -> list[AgentCompletionCandidate]:
+        """Return the per-menu visible-agent completion snapshot."""
+        cached = self._agent_completion_candidates
+        if cached is not None:
+            return cached
+
+        provider = getattr(self.app, "visible_agent_completion_candidates", None)
+        if not callable(provider):
+            self._agent_completion_candidates = []
+            return self._agent_completion_candidates
+
+        try:
+            self._agent_completion_candidates = list(provider())
+        except Exception:
+            self._agent_completion_candidates = []
+        return self._agent_completion_candidates
 
     def _warm_vcs_project_completion_catalog(self) -> None:
         """Warm the ``#+`` project catalog off the keystroke path.

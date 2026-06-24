@@ -489,3 +489,24 @@ def test_detects_type_aware_arg_completion_contexts() -> None:
     )
     assert int_ctx is not None
     assert int_ctx.completion_kind == "xprompt_arg_type_hint"
+
+
+def test_detects_agent_arg_completion_contexts_for_fork_forms() -> None:
+    entries = [_entry("fork", _input_hint("name", "agent"))]
+
+    colon_ctx = detect_xprompt_arg_completion_at_cursor(
+        "#fork:co", len("#fork:co"), entries
+    )
+    assert colon_ctx is not None
+    assert colon_ctx.completion_kind == "xprompt_arg_agent"
+    assert colon_ctx.active_input is not None
+    assert colon_ctx.active_input.name == "name"
+    assert colon_ctx.token == "co"
+
+    paren_ctx = detect_xprompt_arg_completion_at_cursor(
+        "#fork(co", len("#fork(co"), entries
+    )
+    assert paren_ctx is not None
+    assert paren_ctx.completion_kind == "xprompt_arg_agent"
+    assert paren_ctx.value_start == len("#fork(")
+    assert paren_ctx.token == "co"

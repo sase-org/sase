@@ -8,7 +8,12 @@ from unittest.mock import patch
 from _pytest.monkeypatch import MonkeyPatch
 from textual.widgets import Static
 
+from sase.ace.tui.agent_completion import (
+    AgentCompletionCandidate,
+    AgentVcsWorkflow,
+)
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
@@ -41,6 +46,40 @@ def _entry() -> XPromptAssistEntry:
             _input_hint("count", "int", 2),
         ),
         content_preview=None,
+    )
+
+
+def _fork_entry() -> XPromptAssistEntry:
+    return XPromptAssistEntry(
+        name="fork",
+        insertion="#fork",
+        reference_prefix="#",
+        kind="xprompt",
+        input_signature=None,
+        inputs=(_input_hint("name", "agent", 0),),
+        content_preview=None,
+    )
+
+
+def _agent_candidate(
+    name: str,
+    *,
+    status: str = "RUNNING",
+    vcs_tag: str = "#gh:sase",
+    snippet: str = "Fix prompt completion",
+) -> AgentCompletionCandidate:
+    return AgentCompletionCandidate(
+        name=name,
+        label=name,
+        status=status,
+        vcs_workflow=AgentVcsWorkflow(
+            tag=vcs_tag,
+            workflow_type="gh",
+            project="sase",
+            provider_display="GitHub",
+            style="bold #5FD7FF",
+        ),
+        prompt_snippet=snippet,
     )
 
 
@@ -97,6 +136,91 @@ async def test_bool_named_arg_offers_true_false_values() -> None:
 
     assert ta.text == "#review(enabled=true)"
     assert ta._file_completion_active is False
+
+
+async def test_fork_agent_arg_completion_replaces_value() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder")
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta._xprompt_arg_assist_entries_by_project[None] = [_fork_entry()]
+        ta.load_text("#fork:co")
+        ta.cursor_location = (0, len("#fork:co"))
+
+        assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "#fork:coder"
+    assert ta._file_completion_active is False
+
+
+async def test_fork_agent_arg_menu_renders_visible_agent_metadata() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder"),
+        _agent_candidate("planner", status="DONE", snippet="Write the plan"),
+    ]
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta._xprompt_arg_assist_entries_by_project[None] = [_fork_entry()]
+        ta.load_text("#fork:")
+        ta.cursor_location = (0, len("#fork:"))
+
+        assert ta._try_file_completion_tab() is True
+
+        panel = bar.query_one("#prompt-completion", Static)
+        rendered = panel.render().plain
+        assert panel.border_title == "fork agent"
+        assert "coder" in rendered
+        assert "#gh:sase" in rendered
+        assert "Fix prompt completion" in rendered
+
+
+async def test_fork_agent_arg_auto_menu_uses_xprompt_gate() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder"),
+        _agent_candidate("planner"),
+    ]
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta._xprompt_arg_assist_entries_by_project[None] = [_fork_entry()]
+
+        for char in "#fork:":
+            await pilot.press(char)
+
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt_arg_agent"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "coder",
+            "planner",
+        ]
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "fork agent"
+
+
+async def test_fork_agent_arg_auto_menu_respects_disabled_xprompt_gate() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder")
+    ]
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta._xprompt_arg_assist_entries_by_project[None] = [_fork_entry()]
+
+        with patch.object(
+            type(ta),
+            "_prompt_completion_settings",
+            return_value=PromptCompletionSettings(auto_xprompt_menu=False),
+        ):
+            for char in "#fork:":
+                await pilot.press(char)
+
+        assert ta.text == "#fork:"
+        assert ta._file_completion_active is False
 
 
 async def test_parenthesized_arg_name_completion_skips_existing_names() -> None:

@@ -7,6 +7,11 @@ from typing import TYPE_CHECKING
 from rich.text import Text
 from textual.widgets import Static
 
+from sase.ace.tui.agent_completion import (
+    AgentCompletionCandidate,
+    neutral_vcs_workflow,
+    status_style,
+)
 from sase.ace.tui.widgets.directive_completion import (
     DirectiveArgCompletionMetadata,
     DirectiveCompletionMetadata,
@@ -55,6 +60,18 @@ def _vcs_project_label_width(candidate: CompletionCandidate) -> int:
     return badge_width + len(entry.name)
 
 
+def _is_agent_completion_candidate(candidate: CompletionCandidate) -> bool:
+    return isinstance(candidate.metadata, AgentCompletionCandidate)
+
+
+def _truncate_cell(value: str, width: int) -> str:
+    if len(value) <= width:
+        return value
+    if width <= 3:
+        return value[:width]
+    return value[: width - 3].rstrip() + "..."
+
+
 class PromptInputBarCompletionMixin(_MixinBase):
     """Completion panel, soft-completion subtitle, and argument hint rendering."""
 
@@ -92,8 +109,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_xprompt = completion_kind == "xprompt"
         is_directive = completion_kind == "directive"
         is_directive_arg = completion_kind == "directive_arg"
+        is_directive_arg_agent = is_directive_arg and any(
+            _is_agent_completion_candidate(candidate) for candidate in rows
+        )
         is_history = completion_kind == "file_history"
         is_arg_completion = completion_kind in ("xprompt_arg_name", "xprompt_arg_value")
+        is_xprompt_arg_agent = completion_kind == "xprompt_arg_agent"
         is_jinja = completion_kind == "jinja"
         is_vcs_project = completion_kind == VCS_PROJECT_COMPLETION_KIND
         vcs_project_label_width = (
@@ -127,6 +148,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
                     candidate,
                     is_selected,
                 )
+            elif is_xprompt_arg_agent:
+                self._append_agent_completion_row(content, candidate, is_selected)
             elif is_vcs_project:
                 self._append_vcs_project_completion_row(
                     content,
@@ -163,10 +186,14 @@ class PromptInputBarCompletionMixin(_MixinBase):
             panel.border_title = "xprompts"
         elif is_directive:
             panel.border_title = "directives"
+        elif is_directive_arg_agent:
+            panel.border_title = "wait agents"
         elif is_directive_arg:
             panel.border_title = "directive values"
         elif is_vcs_project:
             panel.border_title = "projects & PRs"
+        elif is_xprompt_arg_agent:
+            panel.border_title = "fork agent"
         elif completion_kind == "xprompt_arg_name":
             panel.border_title = "xprompt arg names"
         elif completion_kind == "xprompt_arg_value":
@@ -258,6 +285,10 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_selected: bool,
     ) -> None:
         """Append one prompt directive argument completion row."""
+        if _is_agent_completion_candidate(candidate):
+            self._append_agent_completion_row(content, candidate, is_selected)
+            return
+
         content.append(
             candidate.display,
             style="bold magenta" if is_selected else "magenta",
@@ -269,6 +300,35 @@ class PromptInputBarCompletionMixin(_MixinBase):
         )
         if metadata is not None and metadata.description:
             content.append(f"  {metadata.description}", style="dim")
+
+    def _append_agent_completion_row(
+        self,
+        content: Text,
+        candidate: CompletionCandidate,
+        is_selected: bool,
+    ) -> None:
+        """Append one visible-agent completion row."""
+        metadata = (
+            candidate.metadata
+            if isinstance(candidate.metadata, AgentCompletionCandidate)
+            else None
+        )
+        if metadata is None:
+            content.append(candidate.display, style="bold" if is_selected else "")
+            return
+
+        workflow = metadata.vcs_workflow or neutral_vcs_workflow()
+        name = _truncate_cell(metadata.name, 26)
+        badge = _truncate_cell(workflow.display, 14)
+        snippet = _truncate_cell(metadata.prompt_snippet or metadata.label, 64)
+
+        content.append("● ", style=status_style(metadata.status))
+        content.append(f"{name:<26}", style="bold")
+        content.append("  ")
+        content.append(f"{badge:<14}", style=workflow.style)
+        if snippet:
+            content.append("  ")
+            content.append(snippet, style="dim")
 
     def _append_vcs_project_completion_row(
         self,

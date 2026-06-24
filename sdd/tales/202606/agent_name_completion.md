@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 17:39:37
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_name_completion.md
 ---
 # Plan: Agent-name completion for the `%wait` directive and the `#fork` xprompt

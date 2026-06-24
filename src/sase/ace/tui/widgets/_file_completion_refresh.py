@@ -113,6 +113,11 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             candidates, _shared = build_directive_arg_completion_candidates(
                 directive_name,
                 token,
+                agent_candidates=(
+                    self._snapshot_agent_completion_candidates()
+                    if directive_name == "wait"
+                    else None
+                ),
             )
         else:
             ctx = self._get_token_context()
@@ -133,6 +138,11 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                 candidates, _shared = build_xprompt_arg_completion_candidates(
                     arg_ctx,
                     base_dir=base_dir,
+                    agent_candidates=(
+                        self._snapshot_agent_completion_candidates()
+                        if arg_ctx.completion_kind == "xprompt_arg_agent"
+                        else None
+                    ),
                 )
             else:
                 candidates, _shared = build_completion_candidates(
