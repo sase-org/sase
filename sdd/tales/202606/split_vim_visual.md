@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-23 20:13:15
-status: wip
+status: done
 prompt: sdd/prompts/202606/split_vim_visual.md
 ---
 # Split Vim Visual-Mode Widget Module
