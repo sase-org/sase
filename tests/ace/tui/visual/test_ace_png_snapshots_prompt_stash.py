@@ -3,8 +3,9 @@
 Phase 4 visual polish: pin how the two user-facing chrome pieces of the prompt
 stash render — the top-bar ``StashedPromptsIndicator`` badge (snowflake glyph +
 violet accent, shown only when a stash exists) and the ``StashedPromptsModal``
-restore picker (newest-first rows with relative age, originating-project chip,
-truncated preview, and the ``✓`` pop / ``📌`` pin / ``✗`` delete markers).
+restore picker (newest-first rows with numbered keycap gutter, relative age,
+originating-project chip, truncated preview, and the ``✓`` pop / ``📌`` pin /
+``✗`` delete markers).
 
 Relative ages are frozen via a patched ``format_relative_time`` so the rows are
 deterministic regardless of when the suite runs.

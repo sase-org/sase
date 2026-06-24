@@ -1,20 +1,23 @@
 """Tests for the unified prompt-stash panel.
 
-Covers the pure row helpers (preview truncation, project chip, marker styling)
-and the modal's selection model: ``space`` toggles a persistent pin intent,
-``tab`` marks restore+pop, ``a`` toggles all single-prompt rows for
-restore+pop, ``d`` marks a row for deletion, ``enter`` confirms (the marked set,
-or the highlighted row when nothing is marked), and ``esc`` cancels.
+Covers the pure row helpers (preview truncation, project chip, marker styling,
+and shortcut gutter) and the modal's selection model: digit keys restore a
+numbered row, ``space`` toggles a persistent pin intent, ``tab`` marks
+restore+pop, ``a`` toggles all single-prompt rows for restore+pop, ``d`` marks a
+row for deletion, ``enter`` confirms (the marked set, or the highlighted row
+when nothing is marked), and ``esc`` cancels.
 """
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
 from sase.ace.tui.modals.stashed_prompts_modal import (
     StashRestoreResult,
     StashedPromptsModal,
+    _append_shortcut,
     _first_line_preview,
     _project_chip,
     _stash_row_label,
@@ -110,6 +113,47 @@ def test_row_label_shows_bundle_marker() -> None:
     assert "2 prompts" in plain
 
 
+def test_append_shortcut_builds_fixed_width_keycap_or_blank_gutter() -> None:
+    with_key = Text()
+    _append_shortcut(with_key, "3")
+    blank = Text()
+    _append_shortcut(blank, None)
+
+    assert with_key.plain == " 3  "
+    assert blank.plain == "    "
+    assert with_key.cell_len == blank.cell_len == 4
+
+
+def test_build_options_assigns_digit_gutters_to_first_ten_rows() -> None:
+    entries = [
+        _entry(
+            f"row-{idx + 1}",
+            created_at=f"2026-06-16T{23 - idx:02d}:00:00",
+        )
+        for idx in range(11)
+    ]
+    modal = StashedPromptsModal(entries)
+
+    gutters: list[str] = []
+    for option in modal._build_options():
+        assert isinstance(option.prompt, Text)
+        gutters.append(option.prompt.plain[:4])
+
+    assert gutters[:10] == [
+        " 1  ",
+        " 2  ",
+        " 3  ",
+        " 4  ",
+        " 5  ",
+        " 6  ",
+        " 7  ",
+        " 8  ",
+        " 9  ",
+        " 0  ",
+    ]
+    assert gutters[10] == "    "
+
+
 # --- modal interaction (pilot) ---------------------------------------------
 
 
@@ -168,6 +212,97 @@ async def test_enter_with_no_toggle_restores_highlighted_bundle() -> None:
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await pilot.press("enter")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.pop_ids == ["bundle"]
+    assert app.result.keep_ids == []
+    assert app.result.delete_ids == []
+
+
+async def test_enter_with_no_toggle_keeps_pinned_highlighted_row() -> None:
+    app = _ModalHost([_entry("a")])
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.press("enter")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.pop_ids == []
+    assert app.result.keep_ids == ["a"]
+    assert app.result.delete_ids == []
+
+
+async def test_digit_restores_unpinned_row_to_pop() -> None:
+    app = _ModalHost(
+        [
+            _entry("first", created_at="2026-06-16T12:00:00"),
+            _entry("target", created_at="2026-06-16T11:00:00"),
+            _entry("third", created_at="2026-06-16T10:00:00"),
+        ]
+    )
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("2")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.pop_ids == ["target"]
+    assert app.result.keep_ids == []
+    assert app.result.delete_ids == []
+
+
+async def test_digit_restores_pinned_row_to_keep() -> None:
+    app = _ModalHost(
+        [
+            _entry("first", created_at="2026-06-16T12:00:00"),
+            _entry("target", created_at="2026-06-16T11:00:00"),
+        ]
+    )
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("j")
+        await pilot.press("space")
+        await pilot.press("2")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.pop_ids == []
+    assert app.result.keep_ids == ["target"]
+    assert app.result.delete_ids == []
+
+
+async def test_zero_restores_tenth_row() -> None:
+    entries = [
+        _entry(
+            f"row-{idx + 1}",
+            created_at=f"2026-06-16T{23 - idx:02d}:00:00",
+        )
+        for idx in range(10)
+    ]
+    app = _ModalHost(entries)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("0")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.pop_ids == ["row-10"]
+    assert app.result.keep_ids == []
+    assert app.result.delete_ids == []
+
+
+async def test_out_of_range_digit_is_noop() -> None:
+    app = _ModalHost([_entry("a"), _entry("b")])
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("5")
+        await pilot.pause()
+        assert isinstance(app.screen, StashedPromptsModal)
+    assert app.result == "UNSET"
+
+
+async def test_digit_restores_bundle_row_to_pop() -> None:
+    app = _ModalHost([_entry("bundle", "one\n---\ntwo")])
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("1")
         await pilot.pause()
     assert isinstance(app.result, StashRestoreResult)
     assert app.result.pop_ids == ["bundle"]
@@ -368,6 +503,8 @@ async def test_title_and_hints_describe_unified_panel() -> None:
         assert isinstance(modal, StashedPromptsModal)
         assert modal._title_text() == "Stashed prompts (1)"
         hints = modal._hint_text()
+        assert "1-9" in hints
+        assert "restore row" in hints
         assert "restore+pop" in hints
         assert "pin" in hints
         assert "📌" in hints

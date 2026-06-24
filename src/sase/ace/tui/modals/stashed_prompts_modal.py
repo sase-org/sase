@@ -1,7 +1,8 @@
 """Unified picker for stashed prompt drafts.
 
-Lists stashed prompts newest-first with a relative age, an originating-project
-chip, bundle marker, persistent pin marker, and a one-line preview. ``space``
+Lists stashed prompts newest-first with numbered restore keycaps, a relative
+age, an originating-project chip, bundle marker, persistent pin marker, and a
+one-line preview. ``1``-``9`` restore rows 1-9, ``0`` restores row 10, ``space``
 toggles a single-prompt row's pin and posts an intent message for the app layer
 to persist immediately, ``tab`` marks it to restore and pop, ``d`` marks any row
 for deletion, and ``enter`` confirms. The modal never touches the store
@@ -27,10 +28,13 @@ from sase.notifications.models import format_relative_time
 
 from .base import OptionListNavigationMixin
 
-# Sized so a full row (marker + pin + age + project chip + bundle chip +
-# preview) fits on one line inside the fixed 96-column modal — its option area
-# is ~86 cols and the fixed columns ahead of the preview spend ~43.
-_PREVIEW_WIDTH = 40
+# Sized so a full row (shortcut + marker + pin + age + project chip + bundle
+# chip + preview) fits on one line inside the fixed 96-column modal — its option
+# area is ~86 cols and the fixed columns ahead of the preview spend ~47.
+_INDEX_KEYS = "1234567890"
+_SHORTCUT_WIDTH = 4
+_SHORTCUT_STYLE = "bold black on #AF87FF"
+_PREVIEW_WIDTH = 36
 _PROJECT_WIDTH = 14
 _AGE_WIDTH = 9
 _BUNDLE_WIDTH = 10
@@ -68,6 +72,15 @@ def _bundle_chip(prompt_count: int) -> str:
     if len(label) > _BUNDLE_WIDTH:
         label = f"{label[: _BUNDLE_WIDTH - 1]}…"
     return label.ljust(_BUNDLE_WIDTH)
+
+
+def _append_shortcut(text: Text, shortcut: str | None) -> None:
+    """Append the fixed-width digit shortcut gutter to *text*."""
+    if shortcut is None:
+        text.append(" " * _SHORTCUT_WIDTH)
+        return
+    text.append(f" {shortcut} ", style=_SHORTCUT_STYLE)
+    text.append(" ")
 
 
 def _stash_row_label(
@@ -155,6 +168,10 @@ class StashedPromptsModal(
         ("space", "toggle_pin", "Pin"),
         ("a", "toggle_all", "All"),
         ("d", "mark_delete", "Delete"),
+        *[
+            Binding(key, f"restore_index({idx})", f"Restore #{idx + 1}", show=False)
+            for idx, key in enumerate(_INDEX_KEYS)
+        ],
     ]
 
     def __init__(self, entries: list[PromptStashEntryWire]) -> None:
@@ -197,20 +214,26 @@ class StashedPromptsModal(
 
     def _hint_text(self) -> str:
         return (
-            f"j/k ↑/↓ navigate   space {_PIN_GLYPH} pin   tab ✓ restore+pop   "
-            "d ✗ delete   a all   enter confirm   esc/q cancel"
+            "1-9 0  restore row    j/k ↑/↓ navigate    enter confirm    "
+            f"esc/q cancel\nspace {_PIN_GLYPH} pin    tab ✓ restore+pop    "
+            "d ✗ delete    a all"
         )
 
     def _build_options(self) -> list[Option]:
         options: list[Option] = []
         for idx, entry in enumerate(self._entries):
-            label = _stash_row_label(
-                entry,
-                marked_for_pop=entry.id in self._pop,
-                marked_for_delete=entry.id in self._deleted,
-                pinned=entry.id in self._pinned,
-                age=format_relative_time(entry.created_at),
-                prompt_count=self._prompt_counts[entry.id],
+            label = Text(no_wrap=True, overflow="ellipsis")
+            shortcut = _INDEX_KEYS[idx] if idx < len(_INDEX_KEYS) else None
+            _append_shortcut(label, shortcut)
+            label.append_text(
+                _stash_row_label(
+                    entry,
+                    marked_for_pop=entry.id in self._pop,
+                    marked_for_delete=entry.id in self._deleted,
+                    pinned=entry.id in self._pinned,
+                    age=format_relative_time(entry.created_at),
+                    prompt_count=self._prompt_counts[entry.id],
+                )
             )
             options.append(Option(label, id=str(idx)))
         return options
@@ -303,16 +326,27 @@ class StashedPromptsModal(
             self._pop.discard(entry.id)
         self._refresh_rows()
 
+    def _single_restore_result(self, entry: PromptStashEntryWire) -> StashRestoreResult:
+        if entry.id in self._pinned:
+            return StashRestoreResult(keep_ids=[entry.id])
+        return StashRestoreResult(pop_ids=[entry.id])
+
+    def action_restore_index(self, index: int) -> None:
+        if not 0 <= index < len(self._entries):
+            return
+        self.dismiss(self._single_restore_result(self._entries[index]))
+
     def action_confirm(self) -> None:
         pop_ids = [e.id for e in self._entries if e.id in self._pop]
         delete_ids = [e.id for e in self._entries if e.id in self._deleted]
-        # ``keep_ids`` remains on StashRestoreResult as transport capability,
-        # but the current panel no longer has a key that produces keep marks.
+        # Marked restores are explicit restore+pop choices; keep_ids only comes
+        # from the pin-aware single-row restore path.
         keep_ids: list[str] = []
         if not pop_ids and not delete_ids:
             highlighted = self._highlighted_entry()
             if highlighted is not None:
-                pop_ids = [highlighted.id]
+                self.dismiss(self._single_restore_result(highlighted))
+                return
         if not pop_ids and not delete_ids:
             self.dismiss(None)
             return
