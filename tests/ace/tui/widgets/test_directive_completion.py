@@ -7,13 +7,19 @@ from unittest.mock import patch
 from textual.widgets import Static
 
 from sase.ace.tui.widgets.directive_completion import (
+    DirectiveArgCompletionMetadata,
     DirectiveCompletionMetadata,
+    build_directive_arg_completion_candidates,
     build_directive_completion_candidates,
+    extract_directive_arg_token_around_cursor,
     extract_directive_token_around_cursor,
     is_directive_like_token,
 )
+from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.xprompt._directive_types import AUTO_MODES_ORDERED
+from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 
 from ._completion_helpers import CompletionTestApp
 
@@ -157,6 +163,105 @@ def test_directive_token_extraction_accepts_parser_contexts() -> None:
     )
 
 
+def test_directive_arg_extraction_detects_empty_partial_and_alias() -> None:
+    assert extract_directive_arg_token_around_cursor("%effort:", len("%effort:")) == (
+        8,
+        8,
+        "effort",
+        "",
+    )
+    assert extract_directive_arg_token_around_cursor("%a:", len("%a:")) == (
+        3,
+        3,
+        "auto",
+        "",
+    )
+
+
+def test_directive_arg_extraction_returns_partial_span() -> None:
+    line = "run %effort:hi now"
+    col = line.index(" now")
+    assert extract_directive_arg_token_around_cursor(line, col) == (
+        line.index(":") + 1,
+        col,
+        "effort",
+        "hi",
+    )
+
+
+def test_directive_arg_extraction_rejects_non_argument_contexts() -> None:
+    assert extract_directive_arg_token_around_cursor("%effort", len("%effort")) is None
+    assert extract_directive_arg_token_around_cursor("%effort:", 4) is None
+    assert (
+        extract_directive_arg_token_around_cursor(
+            "word%effort:",
+            len("word%effort:"),
+        )
+        is None
+    )
+    assert (
+        extract_directive_arg_token_around_cursor("%unknown:", len("%unknown:")) is None
+    )
+    assert (
+        extract_directive_arg_token_around_cursor(
+            "%effort:high ",
+            len("%effort:high "),
+        )
+        is None
+    )
+
+
+def test_directive_arg_completion_builds_fixed_value_candidates() -> None:
+    effort_candidates, effort_shared = build_directive_arg_completion_candidates(
+        "effort",
+        "",
+    )
+    auto_candidates, auto_shared = build_directive_arg_completion_candidates(
+        "auto",
+        "",
+    )
+
+    assert [candidate.insertion for candidate in effort_candidates] == list(
+        EFFORT_LEVELS_ORDERED
+    )
+    assert [candidate.insertion for candidate in auto_candidates] == list(
+        AUTO_MODES_ORDERED
+    )
+    assert effort_shared == ""
+    assert auto_shared == ""
+
+
+def test_directive_arg_completion_filters_case_insensitive_prefixes() -> None:
+    effort_candidates, _ = build_directive_arg_completion_candidates("effort", "h")
+    auto_candidates, _ = build_directive_arg_completion_candidates("auto", "t")
+    xhigh_candidates, _ = build_directive_arg_completion_candidates("effort", "XH")
+
+    assert [candidate.insertion for candidate in effort_candidates] == ["high"]
+    assert [candidate.insertion for candidate in auto_candidates] == ["tale"]
+    assert [candidate.insertion for candidate in xhigh_candidates] == ["xhigh"]
+
+
+def test_directive_arg_completion_ignores_open_text_directives() -> None:
+    candidates, shared = build_directive_arg_completion_candidates("model", "")
+
+    assert candidates == []
+    assert shared == ""
+
+
+def test_directive_arg_completion_metadata_has_descriptions() -> None:
+    candidates, _ = build_directive_arg_completion_candidates("auto", "")
+
+    assert all(_arg_metadata(candidate).description for candidate in candidates)
+
+
+def test_auto_mode_completion_values_mirror_parser_and_rust_registry() -> None:
+    # Keep this expected tuple aligned with Rust
+    # directive_argument_candidates("auto") in sase-core.
+    assert AUTO_MODES_ORDERED == ("plan", "tale", "epic")
+    candidates, _ = build_directive_arg_completion_candidates("auto", "")
+    assert tuple(candidate.insertion for candidate in candidates) == AUTO_MODES_ORDERED
+
+
 async def test_ctrl_t_at_percent_opens_directive_panel() -> None:
     app = CompletionTestApp()
     async with app.run_test():
@@ -257,6 +362,109 @@ async def test_percent_partial_auto_opens_directive_panel() -> None:
         assert panel.border_title == "directives"
 
 
+async def test_colon_after_effort_auto_opens_directive_value_panel() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+
+        for char in "%effort:":
+            await pilot.press(char)
+
+        assert ta.text == "%effort:"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "directive_arg"
+        assert [c.insertion for c in ta._file_completion_candidates] == list(
+            EFFORT_LEVELS_ORDERED
+        )
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "directive values"
+        assert "reasoning effort" in panel.render().plain
+
+
+async def test_directive_arg_refresh_narrows_widens_and_dismisses() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        for char in "%effort:":
+            await pilot.press(char)
+        await pilot.press("h")
+
+        assert ta.text == "%effort:h"
+        assert [c.insertion for c in ta._file_completion_candidates] == ["high"]
+
+        await pilot.press("backspace")
+        assert ta.text == "%effort:"
+        assert [c.insertion for c in ta._file_completion_candidates] == list(
+            EFFORT_LEVELS_ORDERED
+        )
+
+        await pilot.press("space")
+        assert ta.text == "%effort: "
+        assert ta._file_completion_active is False
+
+
+async def test_directive_arg_completion_accepts_selection() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%auto:")
+        ta.cursor_location = (0, len("%auto:"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            await pilot.press("ctrl+t")
+            assert ta._file_completion_active is True
+            assert ta._completion_kind == "directive_arg"
+            await pilot.press("down")
+            selected = ta._file_completion_candidates[
+                ta._file_completion_index
+            ].insertion
+            await pilot.press("ctrl+l")
+
+    assert selected == "tale"
+    assert ta.text == "%auto:tale"
+    assert ta._file_completion_active is False
+
+
+async def test_directive_arg_completion_replaces_only_partial_value() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%effort:h")
+        ta.cursor_location = (0, len("%effort:h"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%effort:high"
+    assert ta._file_completion_active is False
+
+
+async def test_directive_arg_auto_menu_uses_directive_gate() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        with patch.object(
+            type(ta),
+            "_prompt_completion_settings",
+            return_value=PromptCompletionSettings(auto_directive_menu=False),
+        ):
+            for char in "%auto:":
+                await pilot.press(char)
+
+        assert ta.text == "%auto:"
+        assert ta._file_completion_active is False
+
+
 async def test_bare_percent_does_not_auto_open() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
@@ -331,4 +539,9 @@ def _single_candidate(token: str):
 
 def _metadata(candidate) -> DirectiveCompletionMetadata:
     assert isinstance(candidate.metadata, DirectiveCompletionMetadata)
+    return candidate.metadata
+
+
+def _arg_metadata(candidate) -> DirectiveArgCompletionMetadata:
+    assert isinstance(candidate.metadata, DirectiveArgCompletionMetadata)
     return candidate.metadata

@@ -8,9 +8,11 @@ from dataclasses import dataclass
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.xprompt._directive_types import (
+    AUTO_MODES_ORDERED,
     _DIRECTIVE_ALIASES,
     _KNOWN_DIRECTIVES,
 )
+from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 
 _DIRECTIVE_TOKEN_RE = re.compile(r"^%[A-Za-z0-9_]*$")
 _DIRECTIVE_IDENTIFIER_RE = re.compile(r"[A-Za-z0-9_]")
@@ -24,6 +26,14 @@ class DirectiveCompletionMetadata:
 
     aliases: tuple[str, ...] = ()
     argument_hint: str = ""
+    description: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class DirectiveArgCompletionMetadata:
+    """Display metadata for a prompt directive argument completion candidate."""
+
+    directive_name: str = ""
     description: str = ""
 
 
@@ -52,6 +62,32 @@ _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "repeat": "run the prompt multiple serial iterations",
     "group": "assign a user-managed agent tag",
     "wait": "defer launch until agents complete or a time floor passes",
+}
+
+_EFFORT_ARGUMENT_DESCRIPTIONS: dict[str, str] = {
+    "none": "no reasoning-effort override",
+    "minimal": "minimal reasoning effort",
+    "low": "low reasoning effort",
+    "medium": "medium reasoning effort",
+    "high": "high reasoning effort",
+    "xhigh": "extra-high reasoning effort",
+    "max": "maximum reasoning effort",
+}
+
+_AUTO_ARGUMENT_DESCRIPTIONS: dict[str, str] = {
+    "plan": "auto-approve as a normal plan",
+    "tale": "auto-approve and commit as an SDD tale",
+    "epic": "auto-approve and commit as an SDD epic",
+}
+
+_DIRECTIVE_ARGUMENT_VALUES: dict[str, tuple[str, ...]] = {
+    "effort": EFFORT_LEVELS_ORDERED,
+    "auto": AUTO_MODES_ORDERED,
+}
+
+_DIRECTIVE_ARGUMENT_DESCRIPTIONS: dict[str, dict[str, str]] = {
+    "effort": _EFFORT_ARGUMENT_DESCRIPTIONS,
+    "auto": _AUTO_ARGUMENT_DESCRIPTIONS,
 }
 
 
@@ -85,6 +121,47 @@ def extract_directive_token_around_cursor(
     if not is_directive_like_token(token):
         return None
     return percent_index, token_end, token
+
+
+def extract_directive_arg_token_around_cursor(
+    line: str,
+    col: int,
+) -> tuple[int, int, str, str] | None:
+    """Extract a fixed-value directive argument token around the cursor.
+
+    Returns ``(arg_start, arg_end, directive_name, partial)`` where
+    ``directive_name`` is canonical and ``arg_start``/``arg_end`` bound the
+    replaceable argument value after ``:``.
+    """
+    col = min(col, len(line))
+
+    percent_index = line.rfind("%", 0, col)
+    if percent_index < 0:
+        return None
+    if not _has_valid_directive_context(line, percent_index):
+        return None
+
+    colon_index = line.find(":", percent_index + 1)
+    if colon_index < 0 or col <= colon_index:
+        return None
+
+    raw_name = line[percent_index + 1 : colon_index]
+    if not raw_name or not all(_is_directive_identifier(char) for char in raw_name):
+        return None
+
+    directive_name = _canonical_directive_name(raw_name)
+    if directive_name is None:
+        return None
+
+    arg_start = colon_index + 1
+    if any(not _is_directive_argument_identifier(char) for char in line[arg_start:col]):
+        return None
+
+    arg_end = col
+    while arg_end < len(line) and _is_directive_argument_identifier(line[arg_end]):
+        arg_end += 1
+
+    return arg_start, arg_end, directive_name, line[arg_start:arg_end]
 
 
 def build_directive_completion_candidates(
@@ -124,6 +201,47 @@ def build_directive_completion_candidates(
     return candidates, shared_extension
 
 
+def build_directive_arg_completion_candidates(
+    directive_name: str,
+    partial: str,
+) -> tuple[list[CompletionCandidate], str]:
+    """Build fixed-value candidates for a directive argument token."""
+    canonical = _canonical_directive_name(directive_name)
+    if canonical is None:
+        return [], ""
+
+    values = _DIRECTIVE_ARGUMENT_VALUES.get(canonical)
+    if values is None:
+        return [], ""
+
+    partial_lower = partial.lower()
+    descriptions = _DIRECTIVE_ARGUMENT_DESCRIPTIONS.get(canonical, {})
+    candidates = [
+        CompletionCandidate(
+            display=value,
+            insertion=value,
+            is_dir=False,
+            name=value,
+            metadata=DirectiveArgCompletionMetadata(
+                directive_name=canonical,
+                description=descriptions.get(value, ""),
+            ),
+        )
+        for value in values
+        if value.lower().startswith(partial_lower)
+    ]
+
+    shared_extension = ""
+    if len(candidates) > 1:
+        shared_prefix = os.path.commonprefix(
+            [candidate.insertion for candidate in candidates]
+        )
+        if len(shared_prefix) > len(partial):
+            shared_extension = shared_prefix[len(partial) :]
+
+    return candidates, shared_extension
+
+
 def _matches_directive(
     directive: str,
     aliases_by_directive: dict[str, tuple[str, ...]],
@@ -146,6 +264,13 @@ def _aliases_by_directive() -> dict[str, tuple[str, ...]]:
     return {directive: tuple(sorted(aliases)) for directive, aliases in grouped.items()}
 
 
+def _canonical_directive_name(raw_name: str) -> str | None:
+    canonical = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
+    if canonical not in _KNOWN_DIRECTIVES:
+        return None
+    return canonical
+
+
 def _has_valid_directive_context(line: str, percent_index: int) -> bool:
     if percent_index == 0:
         return True
@@ -155,3 +280,7 @@ def _has_valid_directive_context(line: str, percent_index: int) -> bool:
 
 def _is_directive_identifier(char: str) -> bool:
     return _DIRECTIVE_IDENTIFIER_RE.fullmatch(char) is not None
+
+
+def _is_directive_argument_identifier(char: str) -> bool:
+    return _is_directive_identifier(char) or char in "-="

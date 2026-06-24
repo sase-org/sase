@@ -38,6 +38,8 @@ from ._directive_alt import (
 )
 from ._directive_time import parse_absolute_time, parse_duration
 from ._directive_types import (
+    AUTO_MODES,
+    AUTO_MODES_ORDERED,
     _DEPRECATED_DIRECTIVES,
     _DIRECTIVE_ALIASES,
     _DIRECTIVE_PATTERN,
@@ -605,11 +607,10 @@ def extract_prompt_directives(
         raw_auto_mode = expanded_args["auto"] or "plan"
         if raw_auto_mode == "true":
             raw_auto_mode = "plan"
-        valid_auto_modes = ("plan", "tale", "epic")
-        if raw_auto_mode not in valid_auto_modes:
+        if raw_auto_mode not in AUTO_MODES:
             raise DirectiveError(
                 f"Unknown %auto mode '{raw_auto_mode}'; valid modes are: "
-                f"{', '.join(valid_auto_modes)}"
+                f"{', '.join(AUTO_MODES_ORDERED)}"
             )
         auto_mode = raw_auto_mode
 

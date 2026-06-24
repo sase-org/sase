@@ -34,6 +34,11 @@ _KNOWN_DIRECTIVES = frozenset(
 # Directives that allow multiple occurrences (values are collected into a list)
 _MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
 
+# Ordered valid values for the %auto/%a directive. Kept here so parser
+# validation and editor completion cannot drift.
+AUTO_MODES_ORDERED: tuple[str, ...] = ("plan", "tale", "epic")
+AUTO_MODES: frozenset[str] = frozenset(AUTO_MODES_ORDERED)
+
 # Removed directive spellings that should raise targeted migration errors.
 _DEPRECATED_DIRECTIVES = frozenset({"time"})
 

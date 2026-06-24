@@ -10,6 +10,7 @@ from sase.ace.tui.widgets._file_completion_xprompt_args import (
     effective_xprompt_arg_token,
 )
 from sase.ace.tui.widgets.directive_completion import (
+    build_directive_arg_completion_candidates,
     build_directive_completion_candidates,
     is_directive_like_token,
 )
@@ -84,11 +85,35 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
             return False
 
         settings = self._prompt_completion_settings()
-        if settings.auto_directive_menu and self._try_auto_directive_completion():
-            return True
+        if settings.auto_directive_menu:
+            if self._try_auto_directive_arg_completion():
+                return True
+            if self._try_auto_directive_completion():
+                return True
         if settings.auto_xprompt_menu and self._try_auto_xprompt_completion():
             return True
         return False
+
+    def _try_auto_directive_arg_completion(self) -> bool:
+        """Open fixed-value directive argument completion after ``:``."""
+        ctx = self._get_directive_arg_token_context()
+        if ctx is None:
+            return False
+
+        _row, _start, _end, directive_name, partial = ctx
+        candidates, _shared_extension = build_directive_arg_completion_candidates(
+            directive_name,
+            partial,
+        )
+        if not candidates:
+            return False
+
+        self._completion_kind = "directive_arg"
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(partial)
+        return True
 
     def _try_auto_directive_completion(self) -> bool:
         """Open the directive completion menu while typing a ``%`` token."""
@@ -156,48 +181,59 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
             return self._try_jinja_completion_tab(jinja_result)
 
         base_dir = self._prompt_completion_base_dir()
-        arg_ctx = self._get_xprompt_arg_completion_context()
-        if arg_ctx is not None:
-            return self._try_xprompt_arg_completion_tab(arg_ctx)
-
-        self._clear_xprompt_arg_hint()
-        directive_ctx = self._get_directive_token_context()
-        if directive_ctx is not None and is_directive_like_token(directive_ctx[3]):
-            self._completion_kind = "directive"
-            row, start, end, token = directive_ctx
-            candidates, shared_extension = build_directive_completion_candidates(token)
+        directive_arg_ctx = self._get_directive_arg_token_context()
+        if directive_arg_ctx is not None:
+            self._completion_kind = "directive_arg"
+            row, start, end, directive_name, token = directive_arg_ctx
+            candidates, shared_extension = build_directive_arg_completion_candidates(
+                directive_name,
+                token,
+            )
         else:
-            token_info = self._extract_token_around_cursor()
-            if token_info is None:
-                return self._try_file_history_completion()
+            arg_ctx = self._get_xprompt_arg_completion_context()
+            if arg_ctx is not None:
+                return self._try_xprompt_arg_completion_tab(arg_ctx)
 
-            _start, _end, raw_token = token_info
-
-            # Determine completion kind from the raw token.
-            if is_xprompt_like_token(raw_token):
-                self._completion_kind = "xprompt"
-                ctx = self._get_xprompt_token_context()
-                if ctx is None:
-                    self._clear_file_completion()
-                    return False
-                row, start, end, token = ctx
-                candidates, shared_extension = (
-                    self._build_xprompt_completion_candidates(token)
-                )
-            elif is_path_like_token(raw_token):
-                self._completion_kind = "file"
-                ctx = self._get_path_token_context()
-                if ctx is None:
-                    self._clear_file_completion()
-                    return False
-                row, start, end, token = ctx
-                candidates, shared_extension = build_completion_candidates(
-                    token,
-                    base_dir=base_dir,
+            self._clear_xprompt_arg_hint()
+            directive_ctx = self._get_directive_token_context()
+            if directive_ctx is not None and is_directive_like_token(directive_ctx[3]):
+                self._completion_kind = "directive"
+                row, start, end, token = directive_ctx
+                candidates, shared_extension = build_directive_completion_candidates(
+                    token
                 )
             else:
-                self._clear_file_completion()
-                return False
+                token_info = self._extract_token_around_cursor()
+                if token_info is None:
+                    return self._try_file_history_completion()
+
+                _start, _end, raw_token = token_info
+
+                # Determine completion kind from the raw token.
+                if is_xprompt_like_token(raw_token):
+                    self._completion_kind = "xprompt"
+                    ctx = self._get_xprompt_token_context()
+                    if ctx is None:
+                        self._clear_file_completion()
+                        return False
+                    row, start, end, token = ctx
+                    candidates, shared_extension = (
+                        self._build_xprompt_completion_candidates(token)
+                    )
+                elif is_path_like_token(raw_token):
+                    self._completion_kind = "file"
+                    ctx = self._get_path_token_context()
+                    if ctx is None:
+                        self._clear_file_completion()
+                        return False
+                    row, start, end, token = ctx
+                    candidates, shared_extension = build_completion_candidates(
+                        token,
+                        base_dir=base_dir,
+                    )
+                else:
+                    self._clear_file_completion()
+                    return False
 
         if not candidates:
             self._clear_file_completion()
@@ -234,6 +270,16 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
                 candidates, _ = self._build_xprompt_completion_candidates(token)
             elif self._completion_kind == "directive":
                 candidates, _ = build_directive_completion_candidates(token)
+            elif self._completion_kind == "directive_arg":
+                directive_arg_ctx = self._get_directive_arg_token_context()
+                if directive_arg_ctx is None:
+                    self._clear_file_completion()
+                    return True
+                row, start, end, directive_name, token = directive_arg_ctx
+                candidates, _ = build_directive_arg_completion_candidates(
+                    directive_name,
+                    token,
+                )
             elif self._completion_kind.startswith("xprompt_arg_"):
                 arg_ctx = self._get_xprompt_arg_completion_context()
                 if arg_ctx is None:

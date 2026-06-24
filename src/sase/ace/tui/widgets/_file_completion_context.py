@@ -9,6 +9,7 @@ from sase.ace.tui.widgets._file_completion_xprompt_args import (
     effective_xprompt_arg_token,
 )
 from sase.ace.tui.widgets.directive_completion import (
+    extract_directive_arg_token_around_cursor,
     extract_directive_token_around_cursor,
 )
 from sase.ace.tui.widgets.file_completion import (
@@ -118,6 +119,19 @@ class FileCompletionContextMixin(_MixinBase):
         start, end, token = token_info
         return row, start, end, token
 
+    def _get_directive_arg_token_context(
+        self,
+    ) -> tuple[int, int, int, str, str] | None:
+        """Return row-local context for fixed-value directive argument completion."""
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+        token_info = extract_directive_arg_token_around_cursor(line, col)
+        if token_info is None:
+            return None
+
+        start, end, directive_name, partial = token_info
+        return row, start, end, directive_name, partial
+
     def _replace_token_text(self, row: int, start: int, end: int, token: str) -> None:
         """Replace token range and put cursor at token end."""
         self._replace_via_keyboard(token, (row, start), (row, end))
@@ -200,6 +214,12 @@ class FileCompletionContextMixin(_MixinBase):
 
     def _get_token_context(self) -> tuple[int, int, int, str] | None:
         """Return token context using the appropriate getter for the active kind."""
+        if self._completion_kind == "directive_arg":
+            ctx = self._get_directive_arg_token_context()
+            if ctx is None:
+                return None
+            row, start, end, _directive_name, partial = ctx
+            return row, start, end, partial
         if self._completion_kind == "directive":
             return self._get_directive_token_context()
         if self._completion_kind == "xprompt":

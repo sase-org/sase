@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 16:21:08
-status: wip
+status: done
 prompt: sdd/prompts/202606/directive_arg_completion.md
 ---
 # Plan: Auto-completion for `%effort:` and `%auto:` directive argument values

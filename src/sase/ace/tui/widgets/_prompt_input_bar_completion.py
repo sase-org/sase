@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING
 from rich.text import Text
 from textual.widgets import Static
 
-from sase.ace.tui.widgets.directive_completion import DirectiveCompletionMetadata
+from sase.ace.tui.widgets.directive_completion import (
+    DirectiveArgCompletionMetadata,
+    DirectiveCompletionMetadata,
+)
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
 from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
@@ -88,6 +91,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
 
         is_xprompt = completion_kind == "xprompt"
         is_directive = completion_kind == "directive"
+        is_directive_arg = completion_kind == "directive_arg"
         is_history = completion_kind == "file_history"
         is_arg_completion = completion_kind in ("xprompt_arg_name", "xprompt_arg_value")
         is_jinja = completion_kind == "jinja"
@@ -117,6 +121,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
                 self._append_xprompt_completion_row(content, candidate, is_selected)
             elif is_directive:
                 self._append_directive_completion_row(content, candidate, is_selected)
+            elif is_directive_arg:
+                self._append_directive_arg_completion_row(
+                    content,
+                    candidate,
+                    is_selected,
+                )
             elif is_vcs_project:
                 self._append_vcs_project_completion_row(
                     content,
@@ -153,6 +163,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
             panel.border_title = "xprompts"
         elif is_directive:
             panel.border_title = "directives"
+        elif is_directive_arg:
+            panel.border_title = "directive values"
         elif is_vcs_project:
             panel.border_title = "projects & PRs"
         elif completion_kind == "xprompt_arg_name":
@@ -238,6 +250,25 @@ class PromptInputBarCompletionMixin(_MixinBase):
             details.append(metadata.description)
         if details:
             content.append(f"  {'  '.join(details)}", style="dim")
+
+    def _append_directive_arg_completion_row(
+        self,
+        content: Text,
+        candidate: CompletionCandidate,
+        is_selected: bool,
+    ) -> None:
+        """Append one prompt directive argument completion row."""
+        content.append(
+            candidate.display,
+            style="bold magenta" if is_selected else "magenta",
+        )
+        metadata = (
+            candidate.metadata
+            if isinstance(candidate.metadata, DirectiveArgCompletionMetadata)
+            else None
+        )
+        if metadata is not None and metadata.description:
+            content.append(f"  {metadata.description}", style="dim")
 
     def _append_vcs_project_completion_row(
         self,

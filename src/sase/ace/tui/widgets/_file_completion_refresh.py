@@ -7,6 +7,7 @@ from sase.ace.tui.widgets._file_completion_xprompt_args import (
     build_xprompt_arg_completion_candidates,
 )
 from sase.ace.tui.widgets.directive_completion import (
+    build_directive_arg_completion_candidates,
     build_directive_completion_candidates,
 )
 from sase.ace.tui.widgets.file_completion import build_completion_candidates
@@ -96,36 +97,48 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                 self._clear_file_completion()
             return
 
-        ctx = self._get_token_context()
-        if ctx is None:
-            self._clear_file_completion()
-            return
-
-        _row, _start, _end, token = ctx
         base_dir = self._prompt_completion_base_dir()
         previous = None
         if self._file_completion_candidates:
             previous = self._file_completion_candidates[
                 self._file_completion_index
             ].insertion
-        if self._completion_kind == "xprompt":
-            candidates, _shared = self._build_xprompt_completion_candidates(token)
-        elif self._completion_kind == "directive":
-            candidates, _shared = build_directive_completion_candidates(token)
-        elif self._completion_kind.startswith("xprompt_arg_"):
-            arg_ctx = self._get_xprompt_arg_completion_context()
-            if arg_ctx is None:
+
+        if self._completion_kind == "directive_arg":
+            directive_arg_ctx = self._get_directive_arg_token_context()
+            if directive_arg_ctx is None:
                 self._clear_file_completion()
                 return
-            candidates, _shared = build_xprompt_arg_completion_candidates(
-                arg_ctx,
-                base_dir=base_dir,
+            _row, _start, _end, directive_name, token = directive_arg_ctx
+            candidates, _shared = build_directive_arg_completion_candidates(
+                directive_name,
+                token,
             )
         else:
-            candidates, _shared = build_completion_candidates(
-                token,
-                base_dir=base_dir,
-            )
+            ctx = self._get_token_context()
+            if ctx is None:
+                self._clear_file_completion()
+                return
+
+            _row, _start, _end, token = ctx
+            if self._completion_kind == "xprompt":
+                candidates, _shared = self._build_xprompt_completion_candidates(token)
+            elif self._completion_kind == "directive":
+                candidates, _shared = build_directive_completion_candidates(token)
+            elif self._completion_kind.startswith("xprompt_arg_"):
+                arg_ctx = self._get_xprompt_arg_completion_context()
+                if arg_ctx is None:
+                    self._clear_file_completion()
+                    return
+                candidates, _shared = build_xprompt_arg_completion_candidates(
+                    arg_ctx,
+                    base_dir=base_dir,
+                )
+            else:
+                candidates, _shared = build_completion_candidates(
+                    token,
+                    base_dir=base_dir,
+                )
         if not candidates:
             self._clear_file_completion()
             return
