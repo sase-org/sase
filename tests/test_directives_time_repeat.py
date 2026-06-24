@@ -19,11 +19,11 @@ def test_time_duration_sets_field() -> None:
 
 
 def test_t_no_longer_aliases_time() -> None:
-    """%t now means %tale, not %time; it sets no time wait."""
+    """%t no longer aliases %time and is left as an unknown token."""
     cleaned, directives = extract_prompt_directives("%t\nDo work")
-    assert cleaned == "Do work"
+    assert cleaned == "%t\nDo work"
     assert directives.wait_duration is None
-    assert directives.tale is True
+    assert directives.auto_mode is None
 
 
 def test_time_compound_duration() -> None:

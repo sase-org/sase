@@ -65,7 +65,7 @@ def test_has_wait_directive_no_percent() -> None:
 
 
 def test_has_wait_directive_does_not_match_time() -> None:
-    """has_wait_directive must not match %time/%t (scoped to %wait/%w only)."""
+    """has_wait_directive must not match %time or unknown %t tokens."""
     assert _extracts_wait_directive("%time:5m\nDo something") is False
     assert _extracts_wait_directive("%t:5m\nDo something") is False
 
@@ -97,7 +97,7 @@ def test_has_deferred_start_directive_wait() -> None:
 
 
 def test_has_deferred_start_directive_time() -> None:
-    """Matches %time variants; %t (now %tale) does not defer launch."""
+    """Matches %time variants; unknown %t tokens do not defer launch."""
     assert has_deferred_start_directive("%time:5m\nDo something") is True
     assert has_deferred_start_directive("Do %time(5m) more") is True
     assert has_deferred_start_directive("%t:5m\nDo something") is False

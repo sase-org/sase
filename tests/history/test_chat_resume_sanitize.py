@@ -47,14 +47,14 @@ def test_sanitize_preserves_fenced_code() -> None:
         "#git:home\n"
         "{{ wait_chats }}\n"
         "```\n\n"
-        "%approve done"
+        "%auto done"
     )
     result = _sanitize_resume_prompt(prompt)
 
     assert "%name:foo" in result
     assert "#git:home" in result
     assert "{{ wait_chats }}" in result
-    assert "%approve" not in result
+    assert "%auto" not in result
     assert result.rstrip().endswith("done")
 
 

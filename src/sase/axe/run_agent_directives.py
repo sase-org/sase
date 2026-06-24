@@ -234,15 +234,16 @@ def extract_directives_and_write_meta(
             agent_meta["reasoning_effort"] = agent_reasoning_effort
         if agent_vcs_provider:
             agent_meta["vcs_provider"] = agent_vcs_provider
-        if directives.approve:
+        auto_mode = directives.auto_mode
+        if auto_mode == "plan":
             agent_meta["approve"] = True
-        if directives.epic:
+        if auto_mode == "epic":
             agent_meta["auto_approve_plan_action"] = "epic"
-        if directives.tale:
+        if auto_mode == "tale":
             agent_meta["auto_approve_plan_action"] = "tale"
         if directives.hide or auto_dismiss:
             agent_meta["hidden"] = True
-        if directives.epic or directives.tale:
+        if auto_mode in {"epic", "tale"}:
             agent_meta["plan"] = True
         if agent_tag:
             agent_meta["tag"] = agent_tag
@@ -310,8 +311,8 @@ def extract_directives_and_write_meta(
         llm_provider=agent_llm_provider,
         vcs_provider=agent_vcs_provider,
         hidden=bool(directives.hide or auto_dismiss),
-        approve=bool(directives.approve),
-        plan=bool(directives.epic or directives.tale),
+        approve=auto_mode == "plan",
+        plan=auto_mode in {"epic", "tale"},
         tag=agent_tag,
         meta=agent_meta,
         local_xprompts=multi.local_xprompts,

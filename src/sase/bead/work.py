@@ -342,7 +342,7 @@ def render_multi_prompt(
                 lines.append(f"%model:{assignment.model}")
             else:
                 lines.append("%model:worker")
-            lines.append("%plan")
+            lines.append("%auto")
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
             lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
@@ -353,7 +353,7 @@ def render_multi_prompt(
     land_lines.append(_group_directive(plan.launch_tag_id))
     if plan.land_model:
         land_lines.append(f"%model:{plan.land_model}")
-    land_lines.append("%plan")
+    land_lines.append("%auto")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
     land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")
@@ -397,7 +397,7 @@ def render_legend_multi_prompt(
             [
                 f"%name:!{assignment.agent_name}",
                 _group_directive(plan.legend_id),
-                "%epic",
+                "%auto:epic",
             ]
         )
         if assignment.waits_on:
@@ -416,7 +416,7 @@ def render_legend_multi_prompt(
     land_lines.append(_group_directive(plan.legend_id))
     if plan.land_model:
         land_lines.append(f"%model:{plan.land_model}")
-    land_lines.append("%plan")
+    land_lines.append("%auto")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
     land_lines.append(f"#{land_legend_xprompt.name}:{plan.legend_id}")

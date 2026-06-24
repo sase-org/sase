@@ -247,10 +247,10 @@ def enrich_agent_from_meta(
         agent.status = pending_question_status_from_marker(pending_question_path)
 
     # Set plan review / approval statuses for agents whose agent_meta carries
-    # plan: true (the %epic directive and submitted-plan flows). PLAN means a
-    # submitted plan is waiting on manual review; agents still drafting a plan,
-    # or using an auto-approval path, keep their current active display state
-    # until later markers take over.
+    # plan: true (epic/tale auto-approval and submitted-plan flows). PLAN means
+    # a submitted plan is waiting on manual review; agents still drafting a
+    # plan, or using an auto-approval path, keep their current active display
+    # state until later markers take over.
     if data.get("plan") and agent.status in ACTIVE_ENRICHMENT_STATUSES:
         plan_status = plan_enrichment_status(
             plan_approved=bool(data.get("plan_approved")),

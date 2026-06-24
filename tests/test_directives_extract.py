@@ -323,13 +323,9 @@ def test_legacy_tag_directive_left_in_prompt() -> None:
     assert directives.tag is None
 
 
-def test_t_alias_now_means_tale() -> None:
-    """``%t`` is the ``%tale`` alias now (it used to alias ``%time``).
-
-    It auto-approves the submitted plan as a tale and no longer sets any time
-    wait.
-    """
+def test_t_alias_is_removed() -> None:
+    """``%t`` is no longer a directive and does not set a time wait."""
     cleaned, directives = extract_prompt_directives("%t\nRest of prompt")
-    assert cleaned == "Rest of prompt"
-    assert directives.tale is True
+    assert cleaned == "%t\nRest of prompt"
+    assert directives.auto_mode is None
     assert directives.wait_duration is None

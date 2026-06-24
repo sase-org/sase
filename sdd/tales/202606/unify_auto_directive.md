@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 15:10:13
-status: wip
+status: done
 prompt: sdd/prompts/202606/unify_auto_directive.md
 ---
 # Plan: Unify `%plan` / `%tale` / `%epic` into a single `%auto` directive

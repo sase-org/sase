@@ -31,43 +31,44 @@ def test_directive_completion_lists_canonical_directives() -> None:
 
     assert shared == ""
     assert "%alt" in insertions
+    assert "%auto" in insertions
     assert "%model" in insertions
     assert "%wait" in insertions
-    assert "%plan" in insertions
-    assert "%tale" in insertions
+    assert "%plan" not in insertions
+    assert "%tale" not in insertions
+    assert "%epic" not in insertions
     assert "%xprompts_enabled" not in insertions
     assert "%approve" not in insertions
 
 
-def test_plan_and_tale_complete_from_name_and_alias() -> None:
-    """%plan/%p and %tale/%t are advertised auto-approve directives."""
-    plan, _ = _single_candidate("%pl")
-    plan_alias, _ = _single_candidate("%p")
-    tale, _ = _single_candidate("%tal")
-
-    assert plan.insertion == "%plan"
-    assert plan_alias.insertion == "%plan"
-    assert tale.insertion == "%tale"
-
-
-def test_deprecated_approve_alias_is_hidden_from_completion() -> None:
-    """%approve/%a still parse but are never advertised as completions."""
-    approve_candidates, _ = build_directive_completion_candidates("%approve")
-    assert approve_candidates == []
-
-    # %a only surfaces %alt (the lone directive whose name starts with "a").
+def test_auto_completes_from_name_and_advertises_alias() -> None:
+    """%auto is the advertised auto-approval directive with %a as its alias."""
+    auto, _ = _single_candidate("%au")
     a_candidates, _ = build_directive_completion_candidates("%a")
-    assert [candidate.insertion for candidate in a_candidates] == ["%alt"]
 
-    # %plan advertises only its %p alias, not the deprecated a/approve.
-    plan, _ = _single_candidate("%pl")
-    assert _metadata(plan).aliases == ("p",)
+    assert auto.insertion == "%auto"
+    assert _metadata(auto).aliases == ("a",)
+    assert [candidate.insertion for candidate in a_candidates] == ["%alt", "%auto"]
+
+
+def test_removed_auto_approval_directives_are_absent_from_completion() -> None:
+    """Removed auto-approval names and aliases are not completion candidates."""
+    approve_candidates, _ = build_directive_completion_candidates("%approve")
+    plan_candidates, _ = build_directive_completion_candidates("%pl")
+    tale_candidates, _ = build_directive_completion_candidates("%ta")
+    epic_candidates, _ = build_directive_completion_candidates("%ep")
+
+    assert approve_candidates == []
+    assert plan_candidates == []
+    assert tale_candidates == []
+    assert epic_candidates == []
 
 
 def test_directive_completion_includes_representative_descriptions() -> None:
     model, _ = _single_candidate("%mo")
     wait, _ = _single_candidate("%w")
     alt, _ = _single_candidate("%al")
+    auto, _ = _single_candidate("%au")
     time_, _ = _single_candidate("%ti")
 
     assert _metadata(model).description == "choose one or more provider/model targets"
@@ -75,19 +76,22 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     assert _metadata(alt).description == (
         "split a prompt into variants; shorthand %{A | B}"
     )
+    assert _metadata(auto).description == (
+        "auto-approve the submitted plan as plan (default), tale, or epic"
+    )
     assert _metadata(time_).description == (
         "defer launch until a duration or wall-clock time"
     )
 
 
-def test_directive_completion_t_prefix_lists_tale_and_time() -> None:
-    """%t matches both %tale (alias) and %time (name); %ta/%ti disambiguate."""
+def test_directive_completion_t_prefix_lists_only_time() -> None:
+    """%t matches %time only."""
     candidates, _ = build_directive_completion_candidates("%t")
-    assert [candidate.insertion for candidate in candidates] == ["%tale", "%time"]
+    assert [candidate.insertion for candidate in candidates] == ["%time"]
 
-    tale, _ = _single_candidate("%ta")
+    tale_candidates, _ = build_directive_completion_candidates("%ta")
     time_, _ = _single_candidate("%ti")
-    assert tale.insertion == "%tale"
+    assert tale_candidates == []
     assert time_.insertion == "%time"
 
 
@@ -130,7 +134,6 @@ def test_directive_completion_returns_multi_match_without_false_shared_prefix() 
     assert [candidate.insertion for candidate in candidates] == [
         "%edit",
         "%effort",
-        "%epic",
     ]
     assert shared == ""
 
@@ -304,7 +307,6 @@ async def test_directive_typing_narrows_deleting_widens_and_space_dismisses() ->
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "%edit",
             "%effort",
-            "%epic",
         ]
 
         await pilot.press("d")
@@ -316,7 +318,6 @@ async def test_directive_typing_narrows_deleting_widens_and_space_dismisses() ->
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "%edit",
             "%effort",
-            "%epic",
         ]
 
         await pilot.press("space")

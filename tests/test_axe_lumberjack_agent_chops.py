@@ -548,7 +548,7 @@ def test_agent_chop_live_durable_child_record_blocks_relaunch(
             ChopConfig(
                 name="pylimit_split",
                 description="",
-                agent="#!sase/pylimit_split %approve",
+                agent="#!sase/pylimit_split %auto",
             )
         ],
     )
@@ -564,7 +564,7 @@ def test_agent_chop_live_durable_child_record_blocks_relaunch(
         cl_name="proj",
         timestamp="260101_120100",
         prompt="#split_file:src/sase/large_file.py",
-        prompt_hash_value=prompt_hash("#!sase/pylimit_split %approve"),
+        prompt_hash_value=prompt_hash("#!sase/pylimit_split %auto"),
     )
 
     lumberjack = Lumberjack("dedup_live_child", config, axe_config)

@@ -331,11 +331,11 @@ For legend-tier plans, the command:
    force-reuse.
 3. Flips the legend plan bead's `is_ready_to_work` flag to `True` when launching.
 4. Hands a single `---`-separated multi-prompt to the agent launcher. Each epic-planning segment is named
-   `%name:!<legend_id>.<N>.0` and includes `%epic`; epic-planning segments do **not** carry `%plan`, because their
-   generated plans go through the normal plan-approval flow. Epic `N > 1` also waits on `%w:<legend_id>.<N-1>`, so epic
+   `%name:!<legend_id>.<N>.0` and includes `%auto:epic`; epic-planning segments do **not** carry bare `%auto`, because
+   their generated plans go through epic auto-approval. Epic `N > 1` also waits on `%w:<legend_id>.<N-1>`, so epic
    planning proceeds in order. After the epic-planning segments, a final land-legend segment named `<legend_id>`
    references the [`land_legend`](xprompt.md#available-tags) xprompt, waits on the last epic-planning agent, and carries
-   `%plan` so it can self-approve. When the legend bead has a stored `model`, that segment also emits `%model:<value>`.
+   `%auto` so it can self-approve. When the legend bead has a stored `model`, that segment also emits `%model:<value>`.
    As with the epic-tier rendering, every segment uses the force-reuse `%name:!<agent_name>` form so the command is safe
    to retry after a killed or failed run.
 
@@ -349,10 +349,10 @@ Legend work does not create phase beads directly. The spawned epic-planning agen
 | `-y, --yes`     | Skip the launch confirmation prompt                                               |
 
 The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
-matching tag overrides the built-in. For epic-tier work, every phase and land segment carries a `%plan` directive so
-spawned agents can self-approve their own plans without a human-in-the-loop checkpoint between waves. For legend-tier
-work, only the trailing land-legend segment carries `%plan`; each epic-planning segment uses `%epic` and pauses for the
-normal plan-approval flow before its child phases run.
+matching tag overrides the built-in. For epic-tier work, every phase and land segment carries a bare `%auto` directive
+so spawned agents can self-approve their own plans without a human-in-the-loop checkpoint between waves. For legend-tier
+work, only the trailing land-legend segment carries bare `%auto`; each epic-planning segment uses `%auto:epic` so its
+submitted plan is auto-approved through the epic path before child phases run.
 
 When the epic plan bead is attached to ChangeSpec metadata (`--changespec` / `--bug-id`), `sase bead work` preserves the
 current project's VCS context in the generated prompt. The first phase segment targets the project reference and adds a

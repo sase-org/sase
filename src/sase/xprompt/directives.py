@@ -132,8 +132,8 @@ def has_deferred_start_directive(prompt: str) -> bool:
     """
     if _has_wait_directive(prompt) or _has_protected_directive_match(
         prompt,
-        # ``%time`` only — ``%t`` now means ``%tale`` (auto-approval), which
-        # does not defer launch.
+        # ``%time`` only; there is no short alias because ``%t`` is left as an
+        # unknown token.
         r"(?:^|\s)%time(?:[:+(]|\s|$)",
     ):
         return True
@@ -572,15 +572,24 @@ def extract_prompt_directives(
         model_effort=model_effort,
     )
 
-    # Build PromptDirectives from expanded args. ``%plan``/``%p`` (and the
-    # deprecated ``%approve``/``%a`` aliases) all resolve to the canonical
-    # ``plan`` key before this point, so the normal-plan ``approve`` flag keys
-    # off ``"plan"``; ``%tale``/``%t`` resolve to ``tale``.
+    auto_mode: str | None = None
+    if "auto" in expanded_args:
+        raw_auto_mode = expanded_args["auto"] or "plan"
+        if raw_auto_mode == "true":
+            raw_auto_mode = "plan"
+        valid_auto_modes = ("plan", "tale", "epic")
+        if raw_auto_mode not in valid_auto_modes:
+            raise DirectiveError(
+                f"Unknown %auto mode '{raw_auto_mode}'; valid modes are: "
+                f"{', '.join(valid_auto_modes)}"
+            )
+        auto_mode = raw_auto_mode
+
+    # Build PromptDirectives from expanded args. ``%auto`` and its ``%a`` alias
+    # set one auto-approval mode: plan by default, or tale/epic via argument.
     directives = PromptDirectives(
-        approve="plan" in expanded_args,
+        auto_mode=auto_mode,
         edit="edit" in expanded_args,
-        epic="epic" in expanded_args,
-        tale="tale" in expanded_args,
         hide="hide" in expanded_args,
         model=expanded_args.get("model") or None,
         reasoning_effort=reasoning_effort,

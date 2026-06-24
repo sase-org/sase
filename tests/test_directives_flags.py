@@ -1,4 +1,4 @@
-"""Tests for boolean prompt directive types."""
+"""Tests for boolean and auto-approval prompt directive types."""
 
 import pytest
 
@@ -6,134 +6,91 @@ from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import extract_prompt_directives
 
 
-# --- %plan / %approve directive tests ---
-#
-# %plan/%p is the canonical "auto-approve the submitted plan as a normal plan"
-# directive. %approve/%a are deprecated aliases that still parse the same way.
+# --- %auto directive tests ---
 
 
-def test_plan_bare() -> None:
-    """%plan (bare) sets approve=True and strips the directive."""
-    cleaned, directives = extract_prompt_directives("%plan\nDo the work")
+def test_auto_bare_defaults_to_plan() -> None:
+    """%auto (bare) defaults to normal-plan auto-approval."""
+    cleaned, directives = extract_prompt_directives("%auto\nDo the work")
     assert cleaned == "Do the work"
-    assert directives.approve is True
+    assert directives.auto_mode == "plan"
 
 
-def test_plan_alias_p() -> None:
-    """%p (alias) sets approve=True."""
-    cleaned, directives = extract_prompt_directives("%p\nDo the work")
+def test_auto_alias_a_defaults_to_plan() -> None:
+    """%a is the advertised alias for %auto."""
+    cleaned, directives = extract_prompt_directives("%a\nDo the work")
     assert cleaned == "Do the work"
-    assert directives.approve is True
+    assert directives.auto_mode == "plan"
 
 
-def test_plan_plus() -> None:
-    """%plan+ sets approve=True."""
-    cleaned, directives = extract_prompt_directives("%plan+\nDo the work")
+def test_auto_plus_defaults_to_plan() -> None:
+    """%auto+ defaults to normal-plan auto-approval."""
+    cleaned, directives = extract_prompt_directives("%auto+\nDo the work")
     assert cleaned == "Do the work"
-    assert directives.approve is True
+    assert directives.auto_mode == "plan"
 
 
-def test_plan_is_pure_normal_plan_approval() -> None:
-    """%plan does not enable plan mode; it sets no tale/epic flag."""
-    _, directives = extract_prompt_directives("%plan\nDo the work")
-    assert directives.tale is False
-    assert directives.epic is False
-
-
-def test_plan_with_other_directives() -> None:
-    """%plan combined with %model works."""
-    cleaned, directives = extract_prompt_directives("%plan\n%model:opus\nDo the work")
+def test_auto_plan_explicit() -> None:
+    """%auto:plan selects normal-plan auto-approval."""
+    cleaned, directives = extract_prompt_directives("%auto:plan\nDo the work")
     assert cleaned == "Do the work"
-    assert directives.approve is True
+    assert directives.auto_mode == "plan"
+
+
+def test_auto_tale() -> None:
+    """%auto:tale selects tale auto-approval."""
+    cleaned, directives = extract_prompt_directives("%auto:tale\nWrite a plan")
+    assert cleaned == "Write a plan"
+    assert directives.auto_mode == "tale"
+
+
+def test_auto_epic() -> None:
+    """%auto:epic selects epic auto-approval."""
+    prompt = "%auto:epic\nWrite an epic plan"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Write an epic plan"
+    assert directives.auto_mode == "epic"
+
+
+def test_auto_with_other_directives() -> None:
+    """%auto combined with %model works."""
+    cleaned, directives = extract_prompt_directives("%auto\n%model:opus\nDo the work")
+    assert cleaned == "Do the work"
+    assert directives.auto_mode == "plan"
     assert directives.model == "opus"
 
 
-def test_plan_duplicate_raises() -> None:
-    """Duplicate %plan raises DirectiveError naming the canonical directive."""
-    with pytest.raises(DirectiveError, match="Duplicate directive '%plan'"):
-        extract_prompt_directives("%plan\n%plan\nDo the work")
+def test_auto_duplicate_raises() -> None:
+    """Duplicate %auto raises DirectiveError naming the canonical directive."""
+    with pytest.raises(DirectiveError, match="Duplicate directive '%auto'"):
+        extract_prompt_directives("%auto\n%a\nDo the work")
 
 
-def test_approve_is_deprecated_alias_of_plan() -> None:
-    """%approve still parses to approve=True (deprecated %plan alias)."""
-    cleaned, directives = extract_prompt_directives("%approve\nDo the work")
-    assert cleaned == "Do the work"
-    assert directives.approve is True
+def test_auto_invalid_mode_raises() -> None:
+    """Unknown %auto modes list the valid modes."""
+    with pytest.raises(
+        DirectiveError,
+        match="Unknown %auto mode 'foo'; valid modes are: plan, tale, epic",
+    ):
+        extract_prompt_directives("%auto:foo\nDo the work")
 
 
-def test_approve_short_alias_a_still_parses() -> None:
-    """%a still parses to approve=True (deprecated %plan alias)."""
-    cleaned, directives = extract_prompt_directives("%a\nDo the work")
-    assert cleaned == "Do the work"
-    assert directives.approve is True
-
-
-def test_approve_and_plan_are_the_same_directive() -> None:
-    """%approve then %plan collapse to one directive, so this duplicates."""
-    with pytest.raises(DirectiveError, match="Duplicate directive '%plan'"):
-        extract_prompt_directives("%approve\n%plan\nDo the work")
-
-
-def test_approve_default_false() -> None:
-    """Default approve is False."""
+def test_auto_default_none() -> None:
+    """Default auto_mode is None."""
     _, directives = extract_prompt_directives("Just a normal prompt")
-    assert directives.approve is False
+    assert directives.auto_mode is None
 
 
-# --- %tale directive tests ---
-
-
-def test_tale_bare() -> None:
-    """%tale sets tale=True and strips the directive."""
-    cleaned, directives = extract_prompt_directives("%tale\nWrite a plan")
-    assert cleaned == "Write a plan"
-    assert directives.tale is True
-    assert directives.approve is False
-    assert directives.epic is False
-
-
-def test_tale_alias_t() -> None:
-    """%t is the tale alias now (it no longer means %time)."""
-    cleaned, directives = extract_prompt_directives("%t\nWrite a plan")
-    assert cleaned == "Write a plan"
-    assert directives.tale is True
-
-
-def test_tale_plus() -> None:
-    """%tale+ sets tale=True."""
-    _, directives = extract_prompt_directives("%tale+\nWrite a plan")
-    assert directives.tale is True
-
-
-def test_tale_duplicate_raises() -> None:
-    """Duplicate %tale raises DirectiveError."""
-    with pytest.raises(DirectiveError, match="Duplicate directive '%tale'"):
-        extract_prompt_directives("%tale\n%tale\nDo the work")
-
-
-def test_tale_default_false() -> None:
-    """Default tale is False."""
-    _, directives = extract_prompt_directives("Just a normal prompt")
-    assert directives.tale is False
-
-
-# --- %epic directive tests ---
-
-
-def test_epic_bare() -> None:
-    """%epic sets epic=True and strips the directive."""
-    prompt = "%epic\nWrite an epic plan"
+@pytest.mark.parametrize(
+    "token",
+    ["%plan", "%p", "%plan+", "%approve", "%tale", "%t", "%tale+", "%epic"],
+)
+def test_removed_auto_approval_directives_are_unknown(token: str) -> None:
+    """Removed auto-approval directive names stay literal in the prompt."""
+    prompt = f"{token}\nDo the work"
     cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Write an epic plan"
-    assert directives.epic is True
-    assert directives.approve is False
-
-
-def test_epic_duplicate_raises() -> None:
-    """Duplicate %epic raises DirectiveError."""
-    prompt = "%epic\n%epic\nDo the work"
-    with pytest.raises(DirectiveError, match="Duplicate directive '%epic'"):
-        extract_prompt_directives(prompt)
+    assert cleaned == prompt
+    assert directives.auto_mode is None
 
 
 def test_e_alias_still_means_edit_not_epic() -> None:
@@ -141,7 +98,7 @@ def test_e_alias_still_means_edit_not_epic() -> None:
     cleaned, directives = extract_prompt_directives("%e\nDo the work")
     assert cleaned == "Do the work"
     assert directives.edit is True
-    assert directives.epic is False
+    assert directives.auto_mode is None
 
 
 # --- %hide directive tests ---

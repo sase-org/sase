@@ -489,10 +489,10 @@ class TestExtractDirectivesImplicitForkWait:
         assert result["info"].wait_names == []
 
 
-def test_epic_directive_writes_plan_auto_action(tmp_path: Path) -> None:
-    """%epic is plan-specific and does not enable full auto-approve."""
+def test_auto_epic_writes_plan_auto_action(tmp_path: Path) -> None:
+    """%auto:epic is plan-specific and does not enable full auto-approve."""
     with patch.object(Path, "home", return_value=tmp_path):
-        result = _run_extract(tmp_path, prompt="%epic\nDraft the epic")
+        result = _run_extract(tmp_path, prompt="%auto:epic\nDraft the epic")
 
     assert result["info"].plan is True
     assert result["info"].approve is False
@@ -501,10 +501,10 @@ def test_epic_directive_writes_plan_auto_action(tmp_path: Path) -> None:
     assert "approve" not in result["meta"]
 
 
-def test_tale_directive_writes_plan_auto_action(tmp_path: Path) -> None:
-    """%tale is plan-specific and does not enable full auto-approve."""
+def test_auto_tale_writes_plan_auto_action(tmp_path: Path) -> None:
+    """%auto:tale is plan-specific and does not enable full auto-approve."""
     with patch.object(Path, "home", return_value=tmp_path):
-        result = _run_extract(tmp_path, prompt="%tale\nDraft the tale")
+        result = _run_extract(tmp_path, prompt="%auto:tale\nDraft the tale")
 
     assert result["info"].plan is True
     assert result["info"].approve is False

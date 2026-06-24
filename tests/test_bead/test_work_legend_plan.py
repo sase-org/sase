@@ -118,7 +118,7 @@ class TestLegendRendering:
         expected = (
             "%name:!l1.1.0\n"
             "%group:l1\n"
-            "%epic\n"
+            "%auto:epic\n"
             "Can you help me implement epic #1 from the legend plan in the "
             "sdd/legends/202605/roadmap.md file? #epic Keep in mind that "
             "this epic will be split into phases and worked by separate "
@@ -126,7 +126,7 @@ class TestLegendRendering:
             "---\n"
             "%name:!l1.2.0\n"
             "%group:l1\n"
-            "%epic\n"
+            "%auto:epic\n"
             "%w:l1.1\n"
             "Can you help me implement epic #2 from the legend plan in the "
             "sdd/legends/202605/roadmap.md file? #epic Keep in mind that "
@@ -135,16 +135,16 @@ class TestLegendRendering:
             "---\n"
             "%name:!l1\n"
             "%group:l1\n"
-            "%plan\n"
+            "%auto\n"
             "%w:l1.2\n"
             "#bd/land_legend:l1"
         )
         assert rendered == expected
         segments = rendered.split("\n---\n")
         assert all("%group:l1" in segment for segment in segments)
-        assert all("%epic" in segment for segment in segments[:-1])
-        assert all("%plan" not in segment for segment in segments[:-1])
-        assert "%plan" in segments[-1]
+        assert all("%auto:epic" in segment for segment in segments[:-1])
+        assert all("\n%auto\n" not in segment for segment in segments[:-1])
+        assert "%auto" in segments[-1]
 
     def test_vcs_context_prefixes_every_legend_segment(
         self, conn: sqlite3.Connection
@@ -161,20 +161,20 @@ class TestLegendRendering:
         segments = rendered.split("\n---\n")
         assert len(segments) == 3
         assert all(segment.startswith("#git:sase\n") for segment in segments)
-        assert "#git:sase\n%name:!l1.1.0\n%group:l1\n%epic" in rendered
-        assert "#git:sase\n%name:!l1\n%group:l1\n%plan\n%w:l1.2" in rendered
+        assert "#git:sase\n%name:!l1.1.0\n%group:l1\n%auto:epic" in rendered
+        assert "#git:sase\n%name:!l1\n%group:l1\n%auto\n%w:l1.2" in rendered
         assert "%name:!l1.1.0" in rendered
         assert "%name:!l1.2.0" in rendered
         assert "%name:!l1" in rendered
         assert all("%group:l1" in segment for segment in segments)
         for segment in segments[:2]:
-            assert "%epic" in segment
-            assert "%plan" not in segment
+            assert "%auto:epic" in segment
+            assert "\n%auto\n" not in segment
         assert "%w:l1.1" in rendered
         assert "%w:l1.2" in rendered
         assert "#bd/land_legend:l1" in rendered
-        assert "%epic" not in segments[-1]
-        assert "%plan" in segments[-1]
+        assert "%auto:epic" not in segments[-1]
+        assert "%auto" in segments[-1]
 
     def test_user_override_land_legend_xprompt_name_propagates(
         self, conn: sqlite3.Connection
@@ -212,7 +212,7 @@ class TestLegendModelDirective:
             "%name:!l1\n"
             "%group:l1\n"
             "%model:codex/gpt-5.5\n"
-            "%plan\n"
+            "%auto\n"
             "%w:l1.2\n"
             "#bd/land_legend:l1"
         )

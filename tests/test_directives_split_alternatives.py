@@ -66,12 +66,12 @@ def testsplit_prompt_for_alternatives_no_alt_returns_none() -> None:
 
 def testsplit_prompt_for_alternatives_preserves_other_directives() -> None:
     """Other directives in the prompt are preserved."""
-    prompt = "%approve\n%alt(%m:opus,%m:sonnet)\nReview this code"
+    prompt = "%auto\n%alt(%m:opus,%m:sonnet)\nReview this code"
     result = split_prompt_for_alternatives(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%approve\n%m:opus\nReview this code"
-    assert result[1] == "%approve\n%m:sonnet\nReview this code"
+    assert result[0] == "%auto\n%m:opus\nReview this code"
+    assert result[1] == "%auto\n%m:sonnet\nReview this code"
 
 
 def testsplit_prompt_for_alternatives_text_block_args() -> None:
@@ -271,8 +271,8 @@ def testsplit_prompt_for_alternatives_brace_whitespace_only_returns_none() -> No
 
 def testsplit_prompt_for_alternatives_brace_preserves_other_directives() -> None:
     """Other directives around a %{} brace alt are preserved."""
-    result = split_prompt_for_alternatives("%approve\n%{a | b}\nReview")
-    assert result == ["%approve\na\nReview", "%approve\nb\nReview"]
+    result = split_prompt_for_alternatives("%auto\n%{a | b}\nReview")
+    assert result == ["%auto\na\nReview", "%auto\nb\nReview"]
 
 
 def testsplit_prompt_for_alternatives_brace_after_directive_colon() -> None:

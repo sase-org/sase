@@ -87,14 +87,14 @@ def test_summarize_prompt_for_preview_preserves_verbose_metadata() -> None:
     assert summary.directives == ("%model:opus",)
 
 
-def test_plan_directive_is_summarized() -> None:
-    """%plan is a real directive now, so it is summarized as metadata."""
+def test_auto_directive_is_summarized() -> None:
+    """%auto is summarized as directive metadata."""
     summary = summarize_prompt_for_preview(
-        "%plan %model:opus #gh:steveyegge/beads Fix parser"
+        "%auto %model:opus #gh:steveyegge/beads Fix parser"
     )
 
     assert summary.vcs_tag == "#gh:steveyegge/beads "
-    assert summary.directives == ("%plan", "%model:opus")
+    assert summary.directives == ("%auto", "%model:opus")
 
-    list_summary = summarize_prompt_for_list("%plan %model:opus #gh:sase Fix parser")
-    assert list_summary.directive_token == "%mp"
+    list_summary = summarize_prompt_for_list("%auto %model:opus #gh:sase Fix parser")
+    assert list_summary.directive_token == "%ma"

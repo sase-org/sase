@@ -51,17 +51,17 @@ def test_legend_work_dry_run_never_mutates_or_launches(
     assert out.count(f"%group:{legend_id}") == 3
     assert f"%w:{legend_id}.1" in out
     assert f"#bd/land_legend:{legend_id}" in out
-    assert "%epic" in out
+    assert "%auto:epic" in out
     prompt = out.split("--- Multi-prompt (dry run) ---", 1)[1].strip()
     segments = prompt.split("\n---\n")
     assert len(segments) == 3
     for segment in segments[:2]:
         assert f"%group:{legend_id}" in segment
-        assert "%epic" in segment
-        assert "%plan" not in segment
+        assert "%auto:epic" in segment
+        assert "\n%auto\n" not in segment
     assert f"%group:{legend_id}" in segments[2]
-    assert "%epic" not in segments[2]
-    assert "%plan" in segments[2]
+    assert "%auto:epic" not in segments[2]
+    assert "%auto" in segments[2]
     with BeadProject(project_dir) as proj:
         legend = proj.show(legend_id)
         assert legend.is_ready_to_work is False
@@ -93,8 +93,8 @@ def test_legend_work_dry_run_renders_three_epic_chain(
         assert f"%name:!{legend_id}.{number}.0" in segment
         assert f"%group:{legend_id}" in segment
         assert f"epic #{number} from the legend plan" in segment
-        assert "%epic" in segment
-        assert "%plan" not in segment
+        assert "%auto:epic" in segment
+        assert "\n%auto\n" not in segment
     assert f"%w:{legend_id}.1" in segments[1]
     assert f"%w:{legend_id}.2" in segments[2]
     assert "%w:" not in segments[0]
@@ -102,8 +102,8 @@ def test_legend_work_dry_run_renders_three_epic_chain(
     assert f"%group:{legend_id}" in segments[3]
     assert f"%w:{legend_id}.3" in segments[3]
     assert f"#bd/land_legend:{legend_id}" in segments[3]
-    assert "%epic" not in segments[3]
-    assert "%plan" in segments[3]
+    assert "%auto:epic" not in segments[3]
+    assert "%auto" in segments[3]
     with BeadProject(project_dir) as proj:
         legend = proj.show(legend_id)
         assert legend.is_ready_to_work is False
@@ -148,8 +148,8 @@ def test_legend_work_live_launch_marks_ready_and_does_not_preclaim_children(
 
     assert len(launch_calls) == 1
     query = captured["query"]
-    assert query.count("%epic") == 3
-    assert query.count("%plan") == 1
+    assert query.count("%auto:epic") == 3
+    assert query.count("\n%auto\n") == 1
     assert query.count(f"%group:{legend_id}") == 4
     assert query.count("#epic") == 3
     assert query.count("---") == 3

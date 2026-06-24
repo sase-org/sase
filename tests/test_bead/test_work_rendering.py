@@ -210,20 +210,20 @@ class TestChangeSpecRendering:
             "%name:!p1\n"
             "%group:e1\n"
             "%model:worker\n"
-            "%plan\n"
+            "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "#git:feature_epic\n"
             "%name:!e1\n"
             "%group:e1\n"
-            "%plan\n"
+            "%auto\n"
             "%w:p1\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
         phase_segment, land_segment = rendered.split("\n---\n")
-        assert "%plan" in phase_segment
-        assert "%plan" in land_segment
+        assert "%auto" in phase_segment
+        assert "%auto" in land_segment
 
     def test_dependency_chain_wraps_only_first_phase_with_pr(
         self, conn: sqlite3.Connection
@@ -249,14 +249,14 @@ class TestChangeSpecRendering:
             "%name:!p1\n"
             "%group:e1\n"
             "%model:worker\n"
-            "%plan\n"
+            "%auto\n"
             "#custom/work:p1\n"
             "---\n"
             "#gh:feature_epic\n"
             "%name:!p2\n"
             "%group:e1\n"
             "%model:worker\n"
-            "%plan\n"
+            "%auto\n"
             "%w:p1\n"
             "#custom/work:p2\n"
             "---\n"
@@ -264,20 +264,20 @@ class TestChangeSpecRendering:
             "%name:!p3\n"
             "%group:e1\n"
             "%model:worker\n"
-            "%plan\n"
+            "%auto\n"
             "%w:p2\n"
             "#custom/work:p3\n"
             "---\n"
             "#gh:feature_epic\n"
             "%name:!e1\n"
             "%group:e1\n"
-            "%plan\n"
+            "%auto\n"
             "%w:p1,p2,p3\n"
             "#custom/land:e1"
         )
         assert rendered == expected
         segments = rendered.split("\n---\n")
-        assert all("%plan" in segment for segment in segments)
+        assert all("%auto" in segment for segment in segments)
 
     def test_independent_phases_only_first_gets_pr(
         self, conn: sqlite3.Connection
@@ -336,7 +336,7 @@ class TestModelDirective:
 
         phase_segment, land_segment = rendered.split("\n---\n")
         assert phase_segment == (
-            "%name:!p1\n%group:e1\n%model:claude/opus\n%plan\n#bd/work_phase_bead:p1"
+            "%name:!p1\n%group:e1\n%model:claude/opus\n%auto\n#bd/work_phase_bead:p1"
         )
         assert "%model" not in land_segment
 
@@ -402,7 +402,7 @@ class TestModelDirective:
         phase_segment, land_segment = segments
         assert "%model:worker" in phase_segment
         assert land_segment == (
-            "%name:!e1\n%group:e1\n%model:claude/opus\n%plan\n%w:p1\n#bd/land_epic:e1"
+            "%name:!e1\n%group:e1\n%model:claude/opus\n%auto\n%w:p1\n#bd/land_epic:e1"
         )
 
     def test_no_model_renders_byte_identical_to_pre_model_baseline(
@@ -428,17 +428,17 @@ class TestModelDirective:
         pre_worker_baseline = (
             "%name:!p1\n"
             "%group:e1\n"
-            "%plan\n"
+            "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "%name:!p2\n"
             "%group:e1\n"
-            "%plan\n"
+            "%auto\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
             "%name:!e1\n"
             "%group:e1\n"
-            "%plan\n"
+            "%auto\n"
             "%w:p1,p2\n"
             "#bd/land_epic:e1"
         )

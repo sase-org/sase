@@ -570,7 +570,7 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 | `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)      |
 | `≡`   | Workflow row (top-level)                             |
 | `❑`   | ChangeSpec / CL row (top-level)                      |
-| `⚡`  | Autonomous (`%plan`) agent                           |
+| `⚡`  | Autonomous (`%auto`) agent                           |
 | `◌`   | Hidden agent (visible only when `.` toggles them in) |
 
 Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the status glyph and the tag/name. A
@@ -1437,8 +1437,8 @@ nothing for `agy` runs. See [LLM Providers — Claude tool-call hooks](llms.md#c
 
 ## Plan Workflows
 
-When an agent submits a plan via `/sase_plan` (or `sase plan propose`, including the `%epic` path), it enters a planning
-phase before executing:
+When an agent submits a plan via `/sase_plan` (or `sase plan propose`, including the `%auto:epic` path), it enters a
+planning phase before executing:
 
 - **PLAN** — The agent has produced a plan and is waiting for user approval. Shown in pink/magenta in the prompt panel.
 - **PLAN APPROVED** — The plan has been approved and the follow-up agent has been spawned. Shown in cyan/turquoise.
@@ -1477,9 +1477,9 @@ For active Agents-tab rows, `a` opens the **Auto-Approve menu**, a single-key mo
 _next_ submitted plan is auto-approved. The agent's current state is marked with `▸`; pressing `p` (Plan — approve the
 plan as-is), `t` (Tale — approve and commit as a tale), `e` (Epic — approve and commit as an epic), or `d` (Disable —
 turn off auto-approval) applies the change immediately, while `esc`/`q` cancels. The selected state shows on the agent
-row as a `⚡` (plan), `⚡T` (tale), or `⚡E` (epic) icon. Plan, tale, and epic auto-approve mirror the `%plan`, `%tale`,
-and `%epic` directives respectively — for example, epic auto-approve accepts the next submitted plan as an epic, writes
-SDD epic artifacts, initializes beads, and launches the epic follow-up agent. The menu only configures plan
+row as a `⚡` (plan), `⚡T` (tale), or `⚡E` (epic) icon. Plan, tale, and epic auto-approve mirror `%auto`,
+`%auto:tale`, and `%auto:epic` respectively — for example, epic auto-approve accepts the next submitted plan as an epic,
+writes SDD epic artifacts, initializes beads, and launches the epic follow-up agent. The menu only configures plan
 auto-approval; it does not answer unrelated HITL prompts.
 
 ### Plan Approval Keybindings

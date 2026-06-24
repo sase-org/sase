@@ -58,6 +58,10 @@ _DIRECTIVE_RE = re.compile(_DIRECTIVE_PATTERN, re.MULTILINE)
 _ALIAS_BY_DIRECTIVE = {
     directive: alias for alias, directive in _DIRECTIVE_ALIASES.items()
 }
+_DIRECTIVE_SUMMARY_ALIAS_SORT_KEYS = {
+    # Keep auto-approval after model/name in compact list summaries.
+    "a": "p",
+}
 
 
 @cache
@@ -161,7 +165,12 @@ def _directive_summary_token(directives: tuple[_DirectiveToken, ...]) -> str:
     """Collapse directives into a compact list-row token."""
     names = {directive.name for directive in directives}
     aliases = sorted(
-        alias for name in names if (alias := _ALIAS_BY_DIRECTIVE.get(name)) is not None
+        (
+            alias
+            for name in names
+            if (alias := _ALIAS_BY_DIRECTIVE.get(name)) is not None
+        ),
+        key=lambda alias: _DIRECTIVE_SUMMARY_ALIAS_SORT_KEYS.get(alias, alias),
     )
     full_names = sorted(name for name in names if name not in _ALIAS_BY_DIRECTIVE)
 

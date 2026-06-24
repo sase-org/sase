@@ -19,16 +19,14 @@ _DIRECTIVE_PATTERN = (
 # Known directive names
 _KNOWN_DIRECTIVES = frozenset(
     {
+        "auto",
         "edit",
         "effort",
-        "epic",
         "hide",
         "model",
         "name",
         "group",
-        "plan",
         "repeat",
-        "tale",
         "time",
         "wait",
     }
@@ -37,31 +35,18 @@ _KNOWN_DIRECTIVES = frozenset(
 # Directives that allow multiple occurrences (values are collected into a list)
 _MULTI_VALUE_DIRECTIVES = frozenset({"time", "wait"})
 
-# Short aliases for directives (alias -> canonical name).
-#
-# ``%plan``/``%p`` is the canonical "auto-approve the submitted plan as a normal
-# plan" directive. ``%approve``/``%a`` are kept as deprecated aliases of
-# ``%plan`` (see ``_DEPRECATED_DIRECTIVE_ALIASES``) so old prompts keep parsing,
-# but they are hidden from advertised completion. ``%t`` now means ``%tale``;
-# ``%time`` keeps its long spelling only.
+# Short aliases for directives (alias -> canonical name). ``%auto`` is the
+# unified plan auto-approval directive; ``%a`` is its advertised alias.
 _DIRECTIVE_ALIASES: dict[str, str] = {
-    "a": "plan",
-    "approve": "plan",
+    "a": "auto",
     "e": "edit",
     "g": "group",
     "h": "hide",
     "m": "model",
     "n": "name",
-    "p": "plan",
     "r": "repeat",
-    "t": "tale",
     "w": "wait",
 }
-
-# Aliases that still resolve (for back-compat) but must not be advertised as
-# completion candidates. ``%approve``/``%a`` are the legacy spelling of
-# ``%plan``.
-_DEPRECATED_DIRECTIVE_ALIASES = frozenset({"a", "approve"})
 
 
 @dataclass
@@ -76,15 +61,13 @@ class PromptDirectives:
             the stored/threaded field is ``reasoning_effort`` everywhere.
         name: Agent name assigned via %name directive, or None.
         wait: List of agent names to wait for via %wait directives.
+        auto_mode: Auto-approval mode from ``%auto``/``%a``: ``"plan"``,
+            ``"tale"``, ``"epic"``, or None when no auto-approval directive
+            was present.
     """
 
-    # ``approve`` is the normal-plan auto-approval flag set by ``%plan``/``%p``
-    # (and the deprecated ``%approve``/``%a`` aliases). ``tale`` and ``epic``
-    # auto-approve & commit the submitted plan as a tale / epic respectively.
-    approve: bool = False
+    auto_mode: str | None = None
     edit: bool = False
-    epic: bool = False
-    tale: bool = False
     hide: bool = False
     model: str | None = None
     reasoning_effort: str | None = None

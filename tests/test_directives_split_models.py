@@ -57,14 +57,12 @@ def test_split_prompt_for_models_colon_syntax_returns_none() -> None:
 
 def test_split_prompt_for_models_preserves_other_directives() -> None:
     """Other directives in the prompt are preserved."""
-    prompt = "%n:foo\n%approve\n%{%model:opus | %model:sonnet}\nReview this code"
+    prompt = "%n:foo\n%auto\n%{%model:opus | %model:sonnet}\nReview this code"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:foo.cld_opus\n%approve\n%model:opus\nReview this code"
-    assert (
-        result[1] == "%name:foo.cld_sonnet\n%approve\n%model:sonnet\nReview this code"
-    )
+    assert result[0] == "%name:foo.cld_opus\n%auto\n%model:opus\nReview this code"
+    assert result[1] == "%name:foo.cld_sonnet\n%auto\n%model:sonnet\nReview this code"
 
 
 def test_split_prompt_for_models_with_provider_syntax() -> None:
