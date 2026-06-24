@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from collections.abc import Callable, Iterable
@@ -12,6 +11,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
 
+from ._cleanup_tasks import CleanupTaskOutcome
 from ._dismiss_cleanup import AgentIdentity
 from ._recent_dismissal_groups import cache_recent_dismissed_agent_group
 from ._saved_group_records import (
@@ -614,8 +614,7 @@ class AgentMarkingMixin:
 
         from ....dismissed_agents import snapshot_dismissed_agents
 
-        self.call_later(  # type: ignore[attr-defined]
-            self._run_marked_agent_group_save_persistence_async,
+        self._submit_marked_group_save_persistence_task(
             list(agents),
             snapshot_dismissed_agents(self._dismissed_agents),
             added,
@@ -623,7 +622,7 @@ class AgentMarkingMixin:
             normalize_saved_group_name(group_name),
         )
 
-    async def _run_marked_agent_group_save_persistence_async(
+    def _submit_marked_group_save_persistence_task(
         self,
         agents: list[Agent],
         dismissed_snapshot: set[AgentIdentity],
@@ -631,38 +630,51 @@ class AgentMarkingMixin:
         group: SavedAgentGroupWire,
         group_name: str | None = None,
     ) -> None:
-        """Persist the saved group and dismissed index in a worker thread."""
+        """Submit marked-group save persistence as a tracked background task."""
         identities = {agent.identity for agent in agents}
         if identities & self._dismiss_persistence_inflight:
             return
         self._dismiss_persistence_inflight.update(identities)
 
-        started = time.perf_counter()
-        success = True
-        try:
-            await asyncio.to_thread(
-                _persist_marked_agent_group_save,
-                agents,
-                dismissed_snapshot,
-                added,
-                group,
-                group_name,
+        count = len(agents)
+
+        def _worker() -> CleanupTaskOutcome:
+            started = time.perf_counter()
+            try:
+                _persist_marked_agent_group_save(
+                    agents,
+                    dismissed_snapshot,
+                    added,
+                    group,
+                    group_name,
+                )
+            except Exception as exc:
+                return CleanupTaskOutcome(
+                    message=(
+                        f"Saved {count} {plural_agent(count)} in memory, but group "
+                        f"archive failed: {exc}. Refresh recommended."
+                    ),
+                    severity="error",
+                    notify=True,
+                    schedule_agents_refresh_source="mark_error_recovery",
+                )
+            finally:
+                self._dismiss_persistence_inflight.difference_update(identities)
+                log.debug(
+                    "marked agent group save persistence: count=%d elapsed=%.3fs",
+                    count,
+                    time.perf_counter() - started,
+                )
+            return CleanupTaskOutcome(
+                message=f"Saved {count} {plural_agent(count)}",
+                refresh_notifications=True,
             )
-        except Exception as exc:
-            success = False
-            count = len(agents)
-            self.notify(  # type: ignore[attr-defined]
-                f"Saved {count} {plural_agent(count)} in memory, but group "
-                f"archive failed: {exc}. Refresh recommended.",
-                severity="error",
-            )
-            self._schedule_agents_async_refresh(source="mark_error_recovery")  # type: ignore[attr-defined]
-        finally:
+
+        if not self._submit_cleanup_task(  # type: ignore[attr-defined]
+            task_type="save",
+            display_name=f"save {count} {plural_agent(count)}",
+            cl_name="",
+            project_file="",
+            task_callable=_worker,
+        ):
             self._dismiss_persistence_inflight.difference_update(identities)
-            log.debug(
-                "marked agent group save persistence: count=%d elapsed=%.3fs",
-                len(agents),
-                time.perf_counter() - started,
-            )
-            if success:
-                await self._refresh_notification_count_async()  # type: ignore[attr-defined]

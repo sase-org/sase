@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from sase.ace.tui.actions.agents._cleanup_tasks import CleanupTaskMixin
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
 from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
 from sase.ace.tui.actions.agents._wait_resume import AgentWaitResumeMixin
@@ -15,6 +16,7 @@ from sase.ace.tui.modals.save_agent_group_modal import (
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from tests._agent_cleanup_task_helpers import TrackedTaskRecorderMixin
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -32,7 +34,13 @@ def _make_agent(**overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-class _FakeMarkApp(AgentMarkingMixin, AgentUnreadMixin, MarkingMixin):
+class _FakeMarkApp(
+    AgentMarkingMixin,
+    CleanupTaskMixin,
+    TrackedTaskRecorderMixin,
+    AgentUnreadMixin,
+    MarkingMixin,
+):
     """Minimal app implementing just what the marking flow touches."""
 
     def __init__(self, agents: list[Agent], *, patch_result: bool = False) -> None:
@@ -67,10 +75,12 @@ class _FakeMarkApp(AgentMarkingMixin, AgentUnreadMixin, MarkingMixin):
         self.pushed_callbacks: list[Any] = []
         self._scheduled: list[tuple[Any, tuple[Any, ...]]] = []
         self.async_refreshes = 0
+        self.async_refresh_sources: list[str] = []
         self.notification_count_refresh_calls = 0
         self.notification_refreshes_async = 0
         self.changespecs: list = []  # type: ignore[assignment]
         self.marked_indices: set[int] = set()
+        self._init_tracked_task_recorder()
 
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
@@ -115,8 +125,8 @@ class _FakeMarkApp(AgentMarkingMixin, AgentUnreadMixin, MarkingMixin):
         self.notification_refreshes_async += 1
 
     def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
-        del source
         self.async_refreshes += 1
+        self.async_refresh_sources.append(source)
 
     def _apply_dismissal_in_memory(self, agents: list[Agent]) -> None:
         removed = {agent.identity for agent in agents}

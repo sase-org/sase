@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 from unittest.mock import patch
 
@@ -17,6 +16,7 @@ from tests.ace.tui._agent_marking_helpers import (
     _confirm_save_modal,
     _make_agent,
 )
+from tests._agent_cleanup_task_helpers import run_tracked_task
 
 
 def test_save_marked_agent_group_warns_when_no_agents_marked() -> None:
@@ -78,7 +78,79 @@ def test_save_marked_running_agents_hides_without_kill() -> None:
     assert app._dismissed_agents == {running.identity}
     assert app._marked_agents == set()
     assert app._agents == []
-    assert app._scheduled
+    assert app._scheduled == []
+    assert len(app.tracked_tasks) == 1
+    task = app.tracked_tasks[0]
+    assert task["task_type"] == "save"
+    assert task["display_name"] == "save 1 agent"
+
+
+def test_save_marked_group_uses_tracked_task_and_refreshes_on_success() -> None:
+    a1 = _make_agent(cl_name="one", raw_suffix="20240101120000", pid=111)
+    a2 = _make_agent(cl_name="two", raw_suffix="20240101130000", pid=222)
+    app = _FakeMarkApp([a1, a2])
+    app._marked_agents = {a1.identity, a2.identity}
+
+    app.action_save_marked_agents()
+    _confirm_save_modal(app, name="batch")
+
+    identities = {a1.identity, a2.identity}
+    assert app._scheduled == []
+    assert app._dismiss_persistence_inflight == identities
+    assert len(app.tracked_tasks) == 1
+    task = app.tracked_tasks[0]
+    assert task["task_type"] == "save"
+    assert task["display_name"] == "save 2 agents"
+    optimistic_notifications = [("Saved and dismissed 2 agents", "information")]
+    assert app.notifications == optimistic_notifications
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=True),
+        patch("sase.ace.dismissed_agents.save_dismissed_agent_group"),
+        patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
+        patch(
+            "sase.ace.tui.actions.agents._marking.sync_dismissed_agent_artifact_index"
+        ),
+    ):
+        completion = run_tracked_task(app, task)
+
+    assert completion.success is True
+    assert app._dismiss_persistence_inflight == set()
+    assert app.notification_refreshes_async == 1
+    assert app.notifications == optimistic_notifications
+    assert app._scheduled == []
+
+
+def test_save_marked_group_tracked_task_failure_toasts_and_refreshes() -> None:
+    running = _make_agent(raw_suffix="20240101120000", status="RUNNING", pid=111)
+    app = _FakeMarkApp([running])
+    app._marked_agents = {running.identity}
+
+    app.action_save_marked_agents()
+    _confirm_save_modal(app, name="broken")
+
+    assert len(app.tracked_tasks) == 1
+    assert app._dismiss_persistence_inflight == {running.identity}
+
+    with patch(
+        "sase.ace.tui.actions.agents._marking._persist_marked_agent_group_save",
+        side_effect=RuntimeError("boom"),
+    ):
+        completion = run_tracked_task(app, app.tracked_tasks[0])
+
+    assert completion.success is False
+    assert app._dismiss_persistence_inflight == set()
+    assert app.notification_refreshes_async == 0
+    assert app.async_refresh_sources == ["mark_error_recovery"]
+    assert app.notifications == [
+        ("Saved and dismissed 1 agent", "information"),
+        (
+            "Saved 1 agent in memory, but group archive failed: boom. "
+            "Refresh recommended.",
+            "error",
+        ),
+    ]
 
 
 def test_save_marked_group_persists_refs_in_display_order() -> None:
@@ -128,8 +200,8 @@ def test_save_marked_group_persists_refs_in_display_order() -> None:
         ),
     ):
         mock_bundle.side_effect = lambda agent: saved_bundles.append(agent) or True
-        callback, args = app._scheduled[0]
-        asyncio.run(callback(*args))
+        assert len(app.tracked_tasks) == 1
+        run_tracked_task(app, app.tracked_tasks[0])
 
     assert [agent.identity for agent in saved_bundles] == [
         parent.identity,
@@ -175,8 +247,8 @@ def test_blank_save_preserves_generated_group_title() -> None:
             "sase.ace.tui.actions.agents._marking.sync_dismissed_agent_artifact_index"
         ),
     ):
-        callback, args = app._scheduled[0]
-        asyncio.run(callback(*args))
+        assert len(app.tracked_tasks) == 1
+        run_tracked_task(app, app.tracked_tasks[0])
 
     assert len(saved_groups) == 1
     assert saved_groups[0].title == "1 agent in test_cl"
