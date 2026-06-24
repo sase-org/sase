@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 12:46:22
-status: wip
+status: done
 prompt: sdd/prompts/202606/alt_brace_two_space_padding.md
 ---
 # Plan: Two-space padding inside `%{}` alternation braces on open

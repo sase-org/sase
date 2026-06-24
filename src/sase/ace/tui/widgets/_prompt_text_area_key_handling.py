@@ -6,7 +6,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 from textual.events import Key
 
-from sase.ace.tui.widgets._alt_syntax_editing import plan_alt_separator
+from sase.ace.tui.widgets._alt_syntax_editing import (
+    plan_alt_brace_pair,
+    plan_alt_separator,
+)
 from sase.ace.tui.widgets._paired_text_editing import (
     TextEdit,
     plan_pair_close_skip,
@@ -550,9 +553,11 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         if char == "|":
             plan = plan_alt_separator(text, offset)
         else:
-            plan = plan_pair_close_skip(text, offset, char) or plan_pair_insert(
-                text, offset, char
-            )
+            plan = plan_pair_close_skip(text, offset, char)
+            if plan is None and char == "{":
+                plan = plan_alt_brace_pair(text, offset)
+            if plan is None:
+                plan = plan_pair_insert(text, offset, char)
         if plan is None:
             return False
         self._apply_planned_text_edit(plan)

@@ -1,11 +1,10 @@
 """Pure helpers for ``%{...}`` alt-shorthand editing in the prompt input.
 
 These functions plan in-memory text edits for the ``%{ ... | ... }`` alt
-shorthand so the Textual ``PromptTextArea`` can normalize ``|`` separators while
-keeping all logic off the event loop (no I/O, bounded string scanning only).
-Auto-pairing and paired deletion of the ``%{}`` braces are handled by the
-generic helpers in :mod:`sase.ace.tui.widgets._paired_text_editing`; only the
-alternation-specific ``|`` separator logic lives here.
+shorthand so the Textual ``PromptTextArea`` can pad fresh alt braces and
+normalize ``|`` separators while keeping all logic off the event loop (no I/O,
+bounded string scanning only). Paired deletion of the ``%{}`` braces is handled
+by the generic helpers in :mod:`sase.ace.tui.widgets._paired_text_editing`.
 
 Every planner takes the *current* document ``text`` plus an absolute cursor
 ``offset`` and returns a :class:`TextEdit` describing the replacement to apply,
@@ -21,6 +20,7 @@ from sase.ace.tui.widgets._paired_text_editing import TextEdit
 # after whitespace, a directive-value colon, or one of these opening characters
 # -- mirrors the directive-valid contexts used by ``_ALT_DIRECTIVE_RE``.
 _DIRECTIVE_OPENING_CONTEXTS = frozenset(":([{\"'")
+_PAIR_SAFE_CLOSE_CHARS = frozenset(")]}>")
 
 
 def _is_directive_valid_brace_opening(text: str, percent_index: int) -> bool:
@@ -33,6 +33,29 @@ def _is_directive_valid_brace_opening(text: str, percent_index: int) -> bool:
         return True
     previous = text[percent_index - 1]
     return previous.isspace() or previous in _DIRECTIVE_OPENING_CONTEXTS
+
+
+def _next_char_allows_alt_brace_pair(text: str, offset: int) -> bool:
+    """Return True when padding a ``%{`` opener will not run into a token."""
+    if offset >= len(text):
+        return True
+    following = text[offset]
+    return following.isspace() or following in _PAIR_SAFE_CLOSE_CHARS
+
+
+def plan_alt_brace_pair(text: str, offset: int) -> TextEdit | None:
+    """Plan padded brace insertion for a directive-valid ``%{`` opener.
+
+    The typed ``{`` replaces nothing at *offset* and expands to ``"{  }"`` in the
+    TUI, leaving the cursor after the first padding space. Returns ``None`` for
+    ordinary ``{`` insertion contexts or unsafe following characters.
+    """
+    percent_index = offset - 1
+    if not _is_directive_valid_brace_opening(text, percent_index):
+        return None
+    if not _next_char_allows_alt_brace_pair(text, offset):
+        return None
+    return TextEdit(start=offset, end=offset, text="{  }", cursor=offset + 2)
 
 
 def plan_alt_separator(text: str, offset: int) -> TextEdit | None:

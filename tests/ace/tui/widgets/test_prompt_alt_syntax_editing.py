@@ -8,6 +8,7 @@ from textual.widgets.text_area import Selection
 from sase.ace.tui.widgets._alt_syntax_editing import (
     _find_enclosing_alt_span,
     _is_directive_valid_brace_opening,
+    plan_alt_brace_pair,
     plan_alt_separator,
 )
 from sase.ace.tui.widgets._paired_text_editing import TextEdit
@@ -95,6 +96,30 @@ def test_plan_alt_separator_after_directive_colon() -> None:
     )
 
 
+def test_plan_alt_brace_pair_after_directive_percent() -> None:
+    assert plan_alt_brace_pair("%", 1) == TextEdit(
+        start=1,
+        end=1,
+        text="{  }",
+        cursor=3,
+    )
+    assert plan_alt_brace_pair("%effort:%", 9) == TextEdit(
+        start=9,
+        end=9,
+        text="{  }",
+        cursor=11,
+    )
+
+
+def test_plan_alt_brace_pair_requires_directive_valid_percent() -> None:
+    assert plan_alt_brace_pair("word", 4) is None
+    assert plan_alt_brace_pair("word%", 5) is None
+
+
+def test_plan_alt_brace_pair_requires_safe_following_character() -> None:
+    assert plan_alt_brace_pair("%word", 1) is None
+
+
 # --------------------------------------------------------------------------- #
 # Textual integration tests                                                   #
 # --------------------------------------------------------------------------- #
@@ -105,8 +130,8 @@ async def test_alt_auto_pair_inserts_braces() -> None:
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         await pilot.press("%", "{")
-        assert ta.text == "%{}"
-        assert ta.cursor_location == (0, 2)
+        assert ta.text == "%{  }"
+        assert ta.cursor_location == (0, 3)
 
 
 async def test_alt_auto_pair_works_without_directive_percent() -> None:
@@ -152,6 +177,15 @@ async def test_alt_separator_inside_braces() -> None:
         ta.cursor_location = (0, 5)
         await pilot.press("|")
         assert ta.text == "%{foo | }"
+        assert ta.cursor_location == (0, 8)
+
+
+async def test_alt_brace_padding_composes_with_separator() -> None:
+    app = AltEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        await pilot.press("%", "{", "A", "|", "B")
+        assert ta.text == "%{ A | B }"
         assert ta.cursor_location == (0, 8)
 
 

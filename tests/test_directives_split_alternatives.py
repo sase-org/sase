@@ -264,6 +264,11 @@ def testsplit_prompt_for_alternatives_brace_zero_branches_returns_none() -> None
     assert split_prompt_for_alternatives("%{}\nDo work") is None
 
 
+def testsplit_prompt_for_alternatives_brace_whitespace_only_returns_none() -> None:
+    """A padded but unfilled %{  } has no branches and returns None."""
+    assert split_prompt_for_alternatives("%{  }\nDo work") is None
+
+
 def testsplit_prompt_for_alternatives_brace_preserves_other_directives() -> None:
     """Other directives around a %{} brace alt are preserved."""
     result = split_prompt_for_alternatives("%approve\n%{a | b}\nReview")
