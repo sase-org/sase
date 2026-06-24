@@ -3,6 +3,8 @@ name: Publish
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - "sdd/**"
   workflow_dispatch:
     inputs:
       publish_existing:
@@ -23,13 +25,38 @@ jobs:
       issues: write
       pull-requests: write
     outputs:
-      release_created: ${{ steps.release.outputs.release_created || 'false' }}
+      release_created: ${{ steps.release3.outputs.release_created || steps.release2.outputs.release_created || steps.release1.outputs.release_created || 'false' }}
     steps:
       - uses: googleapis/release-please-action@v5
-        id: release
+        id: release1
+        name: Release Please
         if: ${{ github.event_name == 'push' }}
+        continue-on-error: true
         with:
-          token: ${{ secrets.SASE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SASE_RELEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - name: Back off before release-please retry 2
+        if: ${{ github.event_name == 'push' && steps.release1.outcome == 'failure' }}
+        run: sleep 60
+      - uses: googleapis/release-please-action@v5
+        id: release2
+        name: Release Please (retry 2)
+        if: ${{ github.event_name == 'push' && steps.release1.outcome == 'failure' }}
+        continue-on-error: true
+        with:
+          token: ${{ secrets.SASE_RELEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - name: Back off before release-please retry 3
+        if: ${{ github.event_name == 'push' && steps.release2.outcome == 'failure' }}
+        run: sleep 60
+      - uses: googleapis/release-please-action@v5
+        id: release3
+        name: Release Please (retry 3)
+        if: ${{ github.event_name == 'push' && steps.release2.outcome == 'failure' }}
+        with:
+          token: ${{ secrets.SASE_RELEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
