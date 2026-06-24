@@ -182,7 +182,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
             bar._handle_text_submission(self.text)
 
     def action_submit_prompt_stack(self) -> None:
-        """Submit the whole prompt stack as one multi-prompt (``<ctrl+s>``)."""
+        """Submit the whole prompt stack as one multi-prompt via the chooser."""
         self._clear_insert_g_prefix()
         self._snippet_tabstops = []
         self._clear_soft_completion(cancel_timer=True)

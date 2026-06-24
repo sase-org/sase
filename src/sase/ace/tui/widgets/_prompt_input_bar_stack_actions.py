@@ -106,12 +106,6 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
     ),
     _PromptGPrefixBinding(
         "s",
-        "stash_active_pane",
-        "_g_prefix_label_stash_active",
-        "_g_prefix_available_stash_active",
-    ),
-    _PromptGPrefixBinding(
-        "S",
         "stash_all_panes",
         "_g_prefix_label_stash_all",
         "_g_prefix_available_stash_all",
@@ -234,17 +228,8 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         """Whether ``g=`` can toggle the prompt frontmatter panel."""
         return self._mode == "prompt"
 
-    def _g_prefix_available_stash_active(self) -> bool:
-        """Whether ``gs`` would capture a non-empty active prompt pane."""
-        if self._mode != "prompt":
-            return False
-        try:
-            return bool(self.active_text_area().text.strip())
-        except Exception:
-            return bool(self._stack.selected_item.text.strip())
-
     def _g_prefix_available_stash_all(self) -> bool:
-        """Whether ``gS`` would capture at least one pane in a real stack."""
+        """Whether ``gs`` would capture at least one pane in a real stack."""
         if self._mode != "prompt" or len(self._stack) <= 1:
             return False
         self._sync_state_from_widgets()
@@ -290,14 +275,8 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         """Return the ``g=`` label."""
         return "toggle frontmatter"
 
-    def _g_prefix_label_stash_active(self) -> str:
-        """Return the context-sensitive ``gs`` label."""
-        if len(self._stack) > 1:
-            return "stash this pane"
-        return "stash this draft"
-
     def _g_prefix_label_stash_all(self) -> str:
-        """Return the ``gS`` label."""
+        """Return the ``gs`` label."""
         return "stash all panes"
 
     def _g_prefix_label_open_stash(self) -> str:
@@ -367,7 +346,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         self._rebuild_stack(enter_mode="insert")
 
     def stash_active_pane(self) -> None:
-        """Stash the active pane's draft for later (the ``gs`` keymap).
+        """Stash the active pane's draft for later (the ``<Ctrl+S>`` keymap).
 
         Prompt mode only — feedback / approve-prompt bars are not stashable, so
         it is a no-op there.  The pane's stripped text + the bar's shared YAML
@@ -398,7 +377,9 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             self._rebuild_stack(enter_mode="insert")
 
     def stash_all_panes(self) -> None:
-        """Stash every non-empty pane in the bar (the ``gS`` keymap).
+        """Stash every non-empty pane in the bar.
+
+        Reached by the ``gs`` / ``<Ctrl+G> s`` keymap.
 
         Prompt mode only.  Each non-empty pane becomes its own stash entry —
         order preserved, original ``pane_index`` recorded — and all of them

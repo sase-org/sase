@@ -18,10 +18,9 @@ class Submitted(Message, namespace="prompt_input_bar"):
 
     Phase 4 distinguishes the two stack submit shapes:
 
-    - ``whole_stack`` is set when the whole stack was joined into one
-      multi-prompt string (``<ctrl+s>``); the app
-      unmounts the bar and routes ``value`` through the existing multi-prompt
-      launch rules.
+    - ``whole_stack`` is set by the submit chooser when the whole stack was
+      joined into one multi-prompt string; the app unmounts the bar and routes
+      ``value`` through the existing multi-prompt launch rules.
     - ``keep_bar`` is set when only the selected pane was submitted while other
       panes remain; the app launches ``value`` but leaves the bar mounted so the
       remaining panes can be submitted next.

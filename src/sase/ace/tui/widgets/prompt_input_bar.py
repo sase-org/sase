@@ -162,13 +162,15 @@ class PromptInputBar(
         """Return the insert-mode subtitle, advertising the stack when stacked.
 
         ``<enter>`` opens the submit chooser, so a multi-pane stack swaps the
-        ``[Esc] normal`` hint for ``[Esc] nav`` and adds ``[^S] all`` plus
-        ``[^G Enter] this`` hints for the direct submit accelerators.  ``Esc``
-        still drops into NORMAL mode for the normal ``g`` prefix; INSERT mode
-        reaches the same prompt-local actions through the ``Ctrl+G`` prefix.
+        ``[Esc] normal`` hint for ``[Esc] nav`` and adds ``[^S] stash`` plus
+        ``[^G Enter] this`` hints for active-pane actions.  ``Esc`` still drops
+        into NORMAL mode for the normal ``g`` prefix; INSERT mode reaches the
+        same prompt-local actions through the ``Ctrl+G`` prefix.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
-            return "[Enter] submit…  [Esc] nav  [^C] cancel  [^S] all  [^G Enter] this"
+            return (
+                "[Enter] submit…  [Esc] nav  [^C] cancel  [^S] stash  [^G Enter] this"
+            )
         return "[Enter] send  [Esc] normal  [^C] cancel"
 
     def normal_mode_subtitle(self) -> str:
@@ -177,16 +179,16 @@ class PromptInputBar(
         In a multi-pane stack the active pane's normal-mode hints surface the
         prompt-stack selected-pane submit (``g<enter>``), pane-focus
         (``gj``/``gk``) and reorder (``gJ``/``gK``) keys, plus the ``g`` prefix
-        stash keys (``gs``/``gS`` stash the active / all panes).  A single-pane
-        prompt bar still advertises ``g<enter>`` and ``gs``; feedback /
+        stash-all key (``gs``) and ``<Ctrl+S>`` active-pane stash.  A single-pane
+        prompt bar still advertises ``g<enter>`` and ``<Ctrl+S>``; feedback /
         approve-prompt bars keep the original normal-mode hints since they are
         not stashable.  The full ``g`` prefix, including add-pane and
         frontmatter actions, is discoverable through the hint panel.
         """
         if self._mode == "prompt" and len(self._stack) > 1:
-            return "[g<enter>] launch  [gj/gk] pane  [gJ/gK] move  [gs/gS] stash"
+            return "[g<enter>] launch  [gj/gk] pane  [gJ/gK] move  [^S/gs] stash"
         if self._mode == "prompt":
-            return "[Esc] clear  [i] insert  [g<enter>] send  [gs] stash  [^C] cancel"
+            return "[Esc] clear  [i] insert  [g<enter>] send  [^S] stash  [^C] cancel"
         return "[Esc] clear  [i] insert  [^C] cancel"
 
     def compose(self) -> ComposeResult:

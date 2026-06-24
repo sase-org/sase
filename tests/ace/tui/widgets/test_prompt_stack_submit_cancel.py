@@ -7,7 +7,7 @@ Covers the Phase 4 deliverable of the multi-agent prompt stack:
   while other panes remain, dropping an empty selected pane instead of launching
   it.
 - ``<enter>`` on the final pane submits the whole bar (unmount path).
-- ``<ctrl+s>`` submits the whole stack as one multi-prompt.
+- ``<ctrl+s>`` stashes the active pane.
 - ``<ctrl+c>`` cancels only the selected pane and keeps the bar mounted while
   other panes remain.
 """
@@ -22,7 +22,7 @@ from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
 
 class _CaptureApp(App[None]):
-    """Hosts a prompt bar and records its Submitted / Cancelled messages."""
+    """Hosts a prompt bar and records prompt-bar messages."""
 
     ENABLE_COMMAND_PALETTE = False
 
@@ -32,6 +32,7 @@ class _CaptureApp(App[None]):
         self._mode = mode
         self.submitted: list[PromptInputBar.Submitted] = []
         self.cancelled: list[PromptInputBar.Cancelled] = []
+        self.stashed: list[PromptInputBar.Stashed] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
@@ -45,6 +46,9 @@ class _CaptureApp(App[None]):
 
     def on_prompt_input_bar_cancelled(self, event: PromptInputBar.Cancelled) -> None:
         self.cancelled.append(event)
+
+    def on_prompt_input_bar_stashed(self, event: PromptInputBar.Stashed) -> None:
+        self.stashed.append(event)
 
 
 # --- <enter>: submit-choice modal ------------------------------------------
@@ -278,23 +282,28 @@ async def test_ctrl_shift_s_no_longer_submits_selected_pane() -> None:
         assert bar.all_prompt_texts() == ["first", "second"]
 
 
-# --- <ctrl+s>: whole-stack submit ------------------------------------------
+# --- <ctrl+s>: active-pane stash -------------------------------------------
 
 
-async def test_ctrl_s_submits_whole_stack_as_multi_prompt() -> None:
+async def test_ctrl_s_stashes_active_pane() -> None:
     app = _CaptureApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
+        bar = app.query_one(PromptInputBar)
 
         await pilot.press("ctrl+s")
         await pilot.pause()
+        await pilot.pause()
 
-        assert len(app.submitted) == 1
-        event = app.submitted[0]
-        assert event.value == "first\n---\nsecond\n---\nthird"
-        assert event.whole_stack is True
-        assert event.keep_bar is False
+        assert app.submitted == []
+        assert len(app.stashed) == 1
+        event = app.stashed[0]
+        assert event.source == "current"
+        assert event.dismiss_bar is False
+        assert [pane.text for pane in event.panes] == ["third"]
+        assert event.panes[0].pane_index == 2
+        assert bar.all_prompt_texts() == ["first", "second"]
 
 
 async def test_ctrl_s_is_noop_in_feedback_mode() -> None:
@@ -307,6 +316,7 @@ async def test_ctrl_s_is_noop_in_feedback_mode() -> None:
         await pilot.pause()
 
         assert app.submitted == []
+        assert app.stashed == []
 
 
 # --- <ctrl+c>: per-pane cancel ---------------------------------------------
@@ -351,23 +361,23 @@ async def test_ctrl_c_on_final_pane_cancels_whole_bar() -> None:
 # --- subtitle discoverability ----------------------------------------------
 
 
-async def test_multi_pane_subtitle_advertises_send_all() -> None:
+async def test_multi_pane_subtitle_advertises_ctrl_s_stash() -> None:
     app = _CaptureApp("first\n---\nsecond")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        assert "[^S] all" in bar.insert_mode_subtitle()
+        assert "[^S] stash" in bar.insert_mode_subtitle()
         assert "[^G Enter] this" in bar.insert_mode_subtitle()
 
 
-async def test_single_pane_subtitle_omits_send_all() -> None:
+async def test_single_pane_subtitle_omits_ctrl_s_stash() -> None:
     app = _CaptureApp("solo")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        assert "[^S] all" not in bar.insert_mode_subtitle()
+        assert "[^S] stash" not in bar.insert_mode_subtitle()
 
 
 async def test_multi_pane_insert_subtitle_points_to_nav() -> None:
@@ -409,6 +419,7 @@ async def test_multi_pane_normal_subtitle_advertises_stack_keys() -> None:
         assert "[g<enter>] launch" in subtitle
         assert "[gj/gk] pane" in subtitle
         assert "[gJ/gK] move" in subtitle
+        assert "[^S/gs] stash" in subtitle
         # The retired comma-leader hints are gone.
         assert "," not in subtitle
 
@@ -419,11 +430,11 @@ async def test_single_pane_normal_subtitle_advertises_stash() -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        # A single-pane prompt bar still advertises gs so stashing the lone
+        # A single-pane prompt bar advertises Ctrl+S so stashing the lone
         # draft is discoverable.
         subtitle = bar.normal_mode_subtitle()
         assert subtitle == (
-            "[Esc] clear  [i] insert  [g<enter>] send  [gs] stash  [^C] cancel"
+            "[Esc] clear  [i] insert  [g<enter>] send  [^S] stash  [^C] cancel"
         )
 
 

@@ -295,7 +295,7 @@ class VimNormalMotionsMixin(VimNormalPendingMixin):
 
         if key == "," and not self._pending_operator:
             # The prompt-stack comma leader migrated to the ``g`` prefix
-            # (``gs``/``gS``/``g=`` and friends). With no reverse
+            # (``gs``/``g=`` and friends). With no reverse
             # char-search pending (handled just above), swallow ``,`` as a
             # prompt-local no-op so it never bubbles to the app-level comma
             # leader while the prompt body owns focus.

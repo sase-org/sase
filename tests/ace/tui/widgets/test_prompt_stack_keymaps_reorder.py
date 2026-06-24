@@ -262,10 +262,16 @@ async def test_comma_is_inert_now_that_stack_keymaps_moved_to_g_prefix() -> None
         await pilot.pause()
         assert bar.all_prompt_texts() == ["first", "second", "third"]
         assert bar._stack.selected_index == 2
+        assert app.stashed == []
 
-        # The migrated ``gs`` stash still dispatches: it drops the active bottom
-        # pane, proving the stash action moved cleanly onto the ``g`` prefix.
+        # The migrated ``gs`` stash-all still dispatches through the ``g``
+        # prefix. Stash-all dismisses the bar via the app handler rather than
+        # mutating the hosted test bar directly, so assert the message shape.
         await pilot.press("g", "s")
         await pilot.pause()
         await pilot.pause()
-        assert bar.all_prompt_texts() == ["first", "second"]
+        assert len(app.stashed) == 1
+        event = app.stashed[0]
+        assert event.source == "all"
+        assert event.dismiss_bar is True
+        assert [pane.text for pane in event.panes] == ["first", "second", "third"]

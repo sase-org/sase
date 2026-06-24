@@ -74,7 +74,6 @@ async def test_single_pane_hint_entries_hide_multi_pane_and_stash_actions() -> N
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
-            ("s", "stash this draft"),
         ]
 
 
@@ -88,7 +87,6 @@ async def test_single_pane_with_stash_hides_open_stash_on_bare_g() -> None:
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
-            ("s", "stash this draft"),
         ]
 
 
@@ -102,7 +100,6 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
-            ("s", "stash this draft"),
             ("p", "stashed prompts…"),
         ]
 
@@ -124,8 +121,7 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
             ("K", "move pane up"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
-            ("s", "stash this pane"),
-            ("S", "stash all panes"),
+            ("s", "stash all panes"),
         ]
 
         assert _entry_pairs(bar, via_ctrl_g=True)[-1] == ("p", "stashed prompts…")
@@ -141,7 +137,7 @@ async def test_multi_pane_without_stash_hides_load_and_restore() -> None:
         assert "p" not in keys
         assert "P" not in keys
         # Multi-pane nav and stash-all stay available.
-        assert keys == ["enter", "j", "k", "J", "K", "-", "=", "s", "S"]
+        assert keys == ["enter", "j", "k", "J", "K", "-", "=", "s"]
 
 
 async def test_feedback_bar_has_no_prompt_g_prefix_hints() -> None:
@@ -176,8 +172,8 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert "g<enter>   submit this draft" in plain
         assert "g-   add pane" in plain
         assert "g=   toggle frontmatter" in plain
-        assert "gs   stash this draft" in plain
         # Multi-pane and stash-open entries are absent on the bare g surface.
+        assert "gs" not in plain
         assert "gS" not in plain
         assert "gj" not in plain
         assert "gp" not in plain
@@ -204,8 +200,8 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^G<enter>   submit this draft" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
-        assert "^Gs   stash this draft" in plain
         assert "^Gp   stashed prompts…" in plain
+        assert "^Gs" not in plain
         assert "^GP" not in plain
 
 
@@ -232,7 +228,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^G<enter>   submit this draft" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
-        assert "^Gs   stash this draft" in plain
+        assert "^Gs" not in plain
         assert bar.active_text_area()._vim_mode == "normal"
         assert bar.active_text_area()._normal_g_prefix_pending is True
 
@@ -475,14 +471,15 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         monkeypatch.setattr(bar, "submit_active_pane", lambda: calls.append("enter"))
         monkeypatch.setattr(bar, "add_bottom_pane", lambda: calls.append("-"))
         monkeypatch.setattr(bar, "toggle_frontmatter_panel", lambda: calls.append("="))
-        monkeypatch.setattr(bar, "stash_active_pane", lambda: calls.append("s"))
-        monkeypatch.setattr(bar, "stash_all_panes", lambda: calls.append("S"))
+        monkeypatch.setattr(bar, "stash_all_panes", lambda: calls.append("s"))
         monkeypatch.setattr(bar, "request_open_prompt_stash", lambda: calls.append("p"))
 
-        for key in ("enter", "j", "k", "J", "K", "-", "=", "s", "S"):
+        for key in ("enter", "j", "k", "J", "K", "-", "=", "s"):
             assert bar.dispatch_g_prefix_key(key) is True
+        assert bar.dispatch_g_prefix_key("S") is False
         assert bar.dispatch_g_prefix_key("p") is False
         assert bar.dispatch_g_prefix_key("p", via_ctrl_g=True) is True
+        assert bar.dispatch_g_prefix_key("S", via_ctrl_g=True) is False
         assert bar.dispatch_g_prefix_key("P", via_ctrl_g=True) is False
         # Unknown / vim-owned continuations fall through to vim.
         assert bar.dispatch_g_prefix_key("g") is False
@@ -498,7 +495,6 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "-",
             "=",
             "s",
-            "S",
             "p",
         ]
 

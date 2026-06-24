@@ -35,7 +35,7 @@ class VimNormalPendingMixin(VimVisualModeMixin):
 
         # Prompt-specific ``g`` continuations win over vim's own ``g`` commands:
         # let the prompt bar try to dispatch ``g<enter>`` / ``gj`` / ``gk`` /
-        # ``gJ`` / ``gK`` / ``g-`` / ``g=`` / ``gs`` / ``gS`` first. Anything
+        # ``gJ`` / ``gK`` / ``g-`` / ``g=`` / ``gs`` first. Anything
         # it does not own (``gg``, ``ge``/``gE``,
         # ``gu``/``gU``/``g~``) falls through to the vim branches below. The
         # pending state is already cleared, so the trailing

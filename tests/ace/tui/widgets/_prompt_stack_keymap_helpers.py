@@ -16,6 +16,7 @@ class PromptStackKeymapApp(App[None]):
         super().__init__()
         self._initial_value = initial_value
         self._mode = mode
+        self.stashed: list[PromptInputBar.Stashed] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
@@ -23,3 +24,6 @@ class PromptStackKeymapApp(App[None]):
             mode=self._mode,
             id="prompt-input-bar",
         )
+
+    def on_prompt_input_bar_stashed(self, event: PromptInputBar.Stashed) -> None:
+        self.stashed.append(event)

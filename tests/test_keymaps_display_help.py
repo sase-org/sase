@@ -116,7 +116,8 @@ def test_help_modal_lists_frontmatter_panel_toggle() -> None:
             (key, label) for _section, bindings in sections for key, label in bindings
         }
         assert ("g=", "Frontmatter panel") in pairs
-        assert ("gs / gS", "Stash current / all panes") in pairs
+        assert ("Ctrl+S", "Stash current pane") in pairs
+        assert ("gs / Ctrl+G s", "Stash all panes") in pairs
         assert ("Ctrl+G p / @", "Stashed prompts panel") in pairs
 
 

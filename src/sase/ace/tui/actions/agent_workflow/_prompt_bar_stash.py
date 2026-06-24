@@ -79,7 +79,7 @@ class PromptBarStashMixin:
 
         The originating project (D2 metadata) comes from the active prompt
         context so the Phase 3 restore picker can show a project chip; id and
-        timestamp are minted here per entry.  ``gS`` captures arrive as multiple
+        timestamp are minted here per entry.  ``gs`` captures arrive as multiple
         panes but are stored as one canonical multi-prompt row.
         """
         from datetime import datetime

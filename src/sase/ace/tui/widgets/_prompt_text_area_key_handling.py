@@ -110,7 +110,6 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         def action_open_editor(self) -> None: ...
         def action_open_prompt_history(self) -> None: ...
         def action_submit_prompt(self) -> None: ...
-        def action_submit_prompt_stack(self) -> None: ...
 
     async def _on_key(self, event: Key) -> None:
         """Intercept keys before TextArea's default handler inserts characters."""
@@ -166,11 +165,13 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
                     self.action_submit_prompt()
             return
 
-        # Whole-stack submit. ``^S`` joins the stack into one multi-prompt.
+        # Active-pane stash. ``^S`` is prompt-local in every vim mode.
         if event.key == "ctrl+s":
             event.stop()
             event.prevent_default()
-            self.action_submit_prompt_stack()
+            bar = self._find_prompt_bar()
+            if bar is not None:
+                bar.stash_active_pane()
             return
 
         if event.key == "ctrl+c":
