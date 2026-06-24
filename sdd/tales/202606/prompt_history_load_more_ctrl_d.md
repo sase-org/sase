@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 07:30:17
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_history_load_more_ctrl_d.md
 ---
 # Plan: Rebind prompt-history "load more" from PageDown to `Ctrl+D`

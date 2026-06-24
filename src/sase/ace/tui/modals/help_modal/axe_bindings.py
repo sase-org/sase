@@ -70,7 +70,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",
-                    "Prompt history (PgDn older)",
+                    "Prompt history (^d older)",
                 ),
                 (
                     f"{d(lm.prefix)} {d(sk(lm.keys, 'prompt_history_edit_first'))}",
@@ -78,7 +78,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history_cancelled'))}",
-                    "History +cancelled (PgDn older)",
+                    "History +cancelled (^d older)",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'activity_info'))}",

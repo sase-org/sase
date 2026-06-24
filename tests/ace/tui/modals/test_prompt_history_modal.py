@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+from textual.app import App, ComposeResult
+from textual.widgets import Input
+
 import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
 import sase.history.prompt_metadata as prompt_metadata
 import sase.xprompt._parsing as xprompt_parsing
@@ -22,6 +25,15 @@ from sase.ace.tui.modals.prompt_history_modal import (
 from sase.history.prompt_catalog import PromptHistoryPage, record_from_entry
 from sase.history.prompt_store import PromptEntry
 from sase.history.prompt_metadata import PromptListSummary
+
+
+class _PromptHistoryTestApp(App[None]):
+    """Minimal app harness for prompt-history modal pilot tests."""
+
+    ENABLE_COMMAND_PALETTE = False
+
+    def compose(self) -> ComposeResult:
+        yield from ()
 
 
 @pytest.fixture
@@ -236,6 +248,76 @@ def test_prompt_history_count_label_updates(monkeypatch: pytest.MonkeyPatch) -> 
     modal._update_history_count_label()
 
     assert label.value == "History · 1 / 3 total"
+
+    modal._history_exhausted = False
+    modal._update_history_count_label()
+
+    assert label.value == "History · 1 / 3 loaded · ^d +250 older"
+
+
+async def test_ctrl_d_loads_more_without_deleting_filter_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_cursor = prompt_history_modal.PromptHistoryPageCursor(offset=1)
+    pages = [
+        PromptHistoryPage(
+            records=[
+                record_from_entry(
+                    _item(text="alpha first loaded prompt").entry,
+                )
+            ],
+            next_cursor=first_cursor,
+            exhausted=False,
+        ),
+        PromptHistoryPage(
+            records=[
+                record_from_entry(
+                    _item(text="alpha second older prompt").entry,
+                )
+            ],
+            next_cursor=None,
+            exhausted=True,
+        ),
+    ]
+    calls: list[dict[str, object]] = []
+
+    def fake_load_prompt_record_page(**kwargs: object) -> PromptHistoryPage:
+        calls.append(kwargs)
+        if pages:
+            return pages.pop(0)
+        return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
+
+    monkeypatch.setattr(
+        prompt_history_modal,
+        "load_prompt_record_page",
+        fake_load_prompt_record_page,
+    )
+
+    modal = PromptHistoryModal(initial_filter="alpha")
+    async with _PromptHistoryTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        for _ in range(20):
+            await pilot.pause(0.01)
+            if len(modal._all_items) == 1 and not modal._history_loading:
+                break
+
+        filter_input = modal.query_one("#prompt-history-filter-input", Input)
+        assert filter_input.has_focus
+        assert filter_input.value == "alpha"
+
+        filter_input.cursor_position = 0
+        await pilot.press("ctrl+d")
+        for _ in range(20):
+            await pilot.pause(0.01)
+            if len(modal._all_items) == 2 and not modal._history_loading:
+                break
+
+        assert filter_input.value == "alpha"
+        assert [item.entry.text for item in modal._all_items] == [
+            "alpha first loaded prompt",
+            "alpha second older prompt",
+        ]
+        assert calls[1]["cursor"] == first_cursor
 
 
 def test_prompt_history_preview_metadata_includes_prompt_metadata(

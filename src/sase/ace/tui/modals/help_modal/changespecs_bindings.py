@@ -192,7 +192,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",
-                    "Prompt history (PgDn older)",
+                    "Prompt history (^d older)",
                 ),
                 (
                     f"{d(lm.prefix)} {d(sk(lm.keys, 'prompt_history_edit_first'))}",
@@ -200,7 +200,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history_cancelled'))}",
-                    "History +cancelled (PgDn older)",
+                    "History +cancelled (^d older)",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_run_log'))}",

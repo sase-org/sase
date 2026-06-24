@@ -68,7 +68,7 @@ class PromptHistoryModal(
     _option_list_id = "prompt-history-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
-        Binding("pagedown", "load_more", "Load More", priority=True),
+        Binding("ctrl+d", "load_more", "Load More", priority=True),
         ("ctrl+g", "edit_first", "Edit in editor"),
         ("ctrl+x", "toggle_cancelled", "Toggle cancelled"),
         ("ctrl+y", "copy_and_cancel", "Copy & cancel"),
@@ -149,7 +149,7 @@ class PromptHistoryModal(
                         yield Static("", id="prompt-history-preview", markup=False)
                         yield Static("", id="prompt-history-metadata")
             yield Static(
-                "j/k ↑/↓ ^n/^p: navigate • PgDn: older +250 • Enter: submit • ^g: edit • ^i: load • ^x: cancelled • ^y: copy • Esc/q: cancel",
+                "j/k ↑/↓ ^n/^p: navigate • ^d: older +250 • Enter: submit • ^g: edit • ^i: load • ^x: cancelled • ^y: copy • Esc/q: cancel",
                 id="prompt-history-hints",
             )
 
@@ -236,7 +236,7 @@ class PromptHistoryModal(
             return "History · loading..."
         if history_exhausted:
             return f"History · {visible:,} / {loaded:,} total"
-        suffix = " · PgDn +250 older"
+        suffix = " · ^d +250 older"
         if history_loading:
             suffix = " · loading older..."
         return f"History · {visible:,} / {loaded:,} loaded{suffix}"
@@ -278,12 +278,17 @@ class PromptHistoryModal(
         """Intercept keys that focused widgets consume before bindings.
 
         - Tab/Ctrl+I: Textual's focus cycling intercepts Tab before bindings.
+        - Ctrl+D: Input widget's built-in "delete right" binding consumes it.
         - Ctrl+X: Input widget's built-in "cut" binding consumes it.
         """
         if event.key == "tab":
             event.prevent_default()
             event.stop()
             self.action_load_to_input()
+        elif event.key == "ctrl+d":
+            event.prevent_default()
+            event.stop()
+            self.action_load_more()
         elif event.key == "ctrl+x":
             event.prevent_default()
             event.stop()
