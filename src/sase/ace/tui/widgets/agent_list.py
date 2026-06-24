@@ -329,6 +329,26 @@ class AgentList(OptionList, inherit_bindings=False):
         """
         return self._row_by_agent_idx.get(agent_idx)
 
+    def visible_agents(self) -> list[Agent]:
+        """Return agents represented by currently rendered rows.
+
+        Banner rows are skipped and duplicate agent rows are de-duped while
+        preserving on-screen order.
+        """
+        visible: list[Agent] = []
+        seen: set[tuple[AgentType, str, str | None]] = set()
+        for agent_idx, _attempt_number in self._row_entries:
+            if agent_idx == _BANNER_ROW:
+                continue
+            if not (0 <= agent_idx < len(self._agents)):
+                continue
+            agent = self._agents[agent_idx]
+            if agent.identity in seen:
+                continue
+            seen.add(agent.identity)
+            visible.append(agent)
+        return visible
+
     def try_remove_rows(
         self,
         removed_identities: set[tuple[AgentType, str, str | None]],

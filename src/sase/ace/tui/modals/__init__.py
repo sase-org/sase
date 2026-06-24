@@ -56,7 +56,7 @@ from .stashed_prompts_modal import StashRestoreResult, StashedPromptsModal
 from .recursive_finder_modal import RecursiveFileFinderModal
 from .rename_cl_modal import RenameCLModal
 from .save_agent_group_modal import SaveAgentGroupModal, SaveAgentGroupResult
-from .wait_modal import WaitModal
+from .wait_modal import WaitAgentCandidate, WaitModal, WaitModalResult
 from .revive_agent_modal import DismissedAgentSelectModal
 from .saved_agent_group_revival_modal import (
     SavedAgentGroupRevivalModal,
@@ -215,6 +215,8 @@ __all__ = [
     "TemporaryLLMOverrideModal",
     "TemporaryOverrideResult",
     "WaitModal",
+    "WaitAgentCandidate",
+    "WaitModalResult",
     "UserQuestionModal",
     "UserQuestionResult",
     "InputCollectionModal",

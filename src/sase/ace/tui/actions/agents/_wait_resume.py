@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Literal
 
 from sase.plan_chain import (
@@ -17,6 +18,7 @@ from ...models.agent_status import is_resumable_done_status
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+    from ...modals import WaitAgentCandidate, WaitModalResult
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -51,9 +53,130 @@ def _agent_prompt_name(agent: Agent) -> str | None:
     return agent.agent_name
 
 
-def _parse_wait_dependency_names(text: str) -> list[str]:
-    """Parse modal input into agent-name dependencies."""
-    return [part.strip() for part in text.split(",") if part.strip()]
+def _wait_directive(result: WaitModalResult) -> str:
+    """Build the canonical wait directive for a modal result."""
+    parts = list(result.agents)
+    if result.time_token:
+        parts.append(f"time={result.time_token}")
+    return f"%wait({', '.join(parts)})"
+
+
+def _wait_spec_label(result: WaitModalResult) -> str:
+    """Build a user-facing label for a wait spec."""
+    if result.agents and result.time_token:
+        return f"waiting for {', '.join(result.agents)}, then {result.time_token}"
+    if result.agents:
+        return f"waiting for {', '.join(result.agents)}"
+    if result.time_token:
+        return f"waiting until {result.time_token}"
+    return "running now"
+
+
+def _result_has_wait_spec(result: WaitModalResult) -> bool:
+    """Return whether the result contains a wait dependency or time floor."""
+    return bool(result.agents or result.time_token)
+
+
+def _strip_existing_wait_directives(prompt: str) -> str:
+    """Remove old wait-producing prompt prefixes before inserting a replacement."""
+    from sase.xprompt._directive_types import (
+        _DEPRECATED_DIRECTIVES,
+        _DIRECTIVE_ALIASES,
+        _DIRECTIVE_PATTERN,
+    )
+    from sase.xprompt._fenced_blocks import (
+        protect_fenced_blocks,
+        unprotect_fenced_blocks,
+    )
+    from sase.xprompt._parsing import find_matching_paren_for_args
+
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced_blocks)
+
+    regions_to_remove: list[tuple[int, int]] = []
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name != "wait" and name not in _DEPRECATED_DIRECTIVES:
+            continue
+        match_end = match.end()
+        if match.group(2) is not None:
+            paren_end = find_matching_paren_for_args(protected, match.end() - 1)
+            if paren_end is not None:
+                match_end = paren_end + 1
+        regions_to_remove.append((match.start(), match_end))
+
+    t_ref_pattern = re.compile(
+        r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
+        r"#t(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/-]*[a-zA-Z0-9_~+/-]))"
+    )
+    for match in t_ref_pattern.finditer(protected):
+        match_end = match.end()
+        if match.group(1) is not None:
+            paren_end = find_matching_paren_for_args(protected, match.end() - 1)
+            if paren_end is not None:
+                match_end = paren_end + 1
+        regions_to_remove.append((match.start(), match_end))
+
+    cleaned = protected
+    for start, end in sorted(regions_to_remove, reverse=True):
+        cleaned = cleaned[:start] + cleaned[end:]
+
+    cleaned = re.sub(r"^\s*\n", "", cleaned)
+    return unprotect_fenced_blocks(cleaned, fenced_blocks).lstrip()
+
+
+def _time_model_label(agent: Agent) -> str | None:
+    """Return the provider/model/effort label for wait completion rows."""
+    bits: list[str] = []
+    if agent.llm_provider:
+        bits.append(agent.llm_provider)
+    if agent.model:
+        bits.append(agent.model)
+    label = " / ".join(bits) if bits else None
+    if agent.reasoning_effort:
+        return f"{label or ''}@{agent.reasoning_effort}".lstrip("@")
+    return label
+
+
+def _wait_candidate_from_agent(agent: Agent) -> WaitAgentCandidate | None:
+    """Build a modal candidate row from an agent, or None if unnameable."""
+    from ...modals import WaitAgentCandidate
+
+    wait_name = _agent_prompt_name(agent)
+    if not wait_name:
+        return None
+    role = agent.agent_family_role or agent.role_suffix
+    return WaitAgentCandidate(
+        wait_name=wait_name,
+        label=agent.agent_name or agent.display_name or agent.cl_name or wait_name,
+        status=agent.status,
+        runtime=agent.duration_display,
+        model=_time_model_label(agent),
+        start_time=agent.start_time_short,
+        duration=agent.duration_display,
+        role=role,
+        tag=f"#{agent.tag}" if agent.tag else None,
+    )
+
+
+def _wait_modal_candidates(
+    selected_agent: Agent,
+    visible_agents: list[Agent],
+) -> list[WaitAgentCandidate]:
+    """Return wait candidates from visible rows, excluding self and unnamed rows."""
+    candidates = []
+    seen_names: set[str] = set()
+    for candidate_agent in visible_agents:
+        if candidate_agent.identity == selected_agent.identity:
+            continue
+        candidate = _wait_candidate_from_agent(candidate_agent)
+        if candidate is None:
+            continue
+        if candidate.wait_name in seen_names:
+            continue
+        seen_names.add(candidate.wait_name)
+        candidates.append(candidate)
+    return candidates
 
 
 def _resolve_vcs_tag(
@@ -138,11 +261,15 @@ class AgentWaitResumeMixin:
             self.notify("No artifacts directory for agent", severity="warning")  # type: ignore[attr-defined]
             return
 
-        from ...modals import WaitModal
+        from ...modals import WaitModal, WaitModalResult
 
         is_running = agent.status in {"STARTING", "RUNNING"}
+        candidates = _wait_modal_candidates(
+            agent,
+            self._visible_wait_candidate_agents(),
+        )
 
-        def handle_wait_result(result: str | None) -> None:
+        def handle_wait_result(result: WaitModalResult | None) -> None:
             if result is None:
                 return  # cancelled
             if is_running:
@@ -151,16 +278,71 @@ class AgentWaitResumeMixin:
                 self._apply_wait(artifacts_dir, agent, result)
 
         self.push_screen(  # type: ignore[attr-defined]
-            WaitModal(current_waiting_for=agent.waiting_for, is_running=is_running),
+            WaitModal(
+                current_waiting_for=agent.waiting_for,
+                current_wait_duration=agent.wait_duration,
+                current_wait_until=agent.wait_until,
+                candidates=candidates,
+                is_running=is_running,
+            ),
             handle_wait_result,
         )
 
-    def _apply_wait(self, artifacts_dir: str, agent: Agent, name: str) -> None:
-        """Apply the wait result: run now (empty) or wait for a new agent."""
+    def _visible_wait_candidate_agents(self) -> list[Agent]:
+        """Return agents currently visible in the focused Agents panel."""
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+        from ._display_helpers import panel_widget_id
+
+        panel_group = getattr(self, "_panel_group", None)
+        focused_idx = getattr(panel_group, "focused_idx", 0)
+        if not isinstance(focused_idx, int):
+            focused_idx = 0
+        try:
+            widget = self.query_one(  # type: ignore[attr-defined]
+                f"#{panel_widget_id(focused_idx)}",
+                AgentList,
+            )
+        except (NoMatches, AttributeError):
+            widget = None
+        if widget is not None:
+            return widget.visible_agents()
+
+        order_fn = getattr(self, "_agents_visible_order", None)
+        if callable(order_fn):
+            try:
+                return [
+                    self._agents[idx]
+                    for idx in order_fn()
+                    if 0 <= idx < len(self._agents)
+                ]
+            except Exception:
+                pass
+
+        from ...models.agent_panels import agent_is_rendered_in_agents_panel
+
+        return [
+            candidate
+            for candidate in self._agents
+            if agent_is_rendered_in_agents_panel(candidate)
+        ]
+
+    def _apply_wait(
+        self,
+        artifacts_dir: str,
+        agent: Agent,
+        result: WaitModalResult,
+    ) -> None:
+        """Apply a WAITING-agent wait result."""
         import json
         from pathlib import Path
 
-        wait_names = _parse_wait_dependency_names(name)
+        if result.time_token:
+            self._apply_wait_relaunch(agent, result, replace_existing_wait=True)
+            return
+
+        wait_names = list(result.agents)
         if wait_names:
             # Update waiting.json to wait for the specified agent instead
             waiting_path = Path(artifacts_dir) / "waiting.json"
@@ -202,13 +384,22 @@ class AgentWaitResumeMixin:
                 return
             self.notify(f"Wait: {agent.display_name or agent.cl_name}")  # type: ignore[attr-defined]
 
-    def _apply_wait_running(self, agent: Agent, name: str) -> None:
-        """Kill an active agent and restart with %w:<name> added to the prompt."""
-        if not name:
+    def _apply_wait_running(self, agent: Agent, result: WaitModalResult) -> None:
+        """Kill an active agent and restart with a canonical wait directive."""
+        if result.run_now or not _result_has_wait_spec(result):
             status = (agent.status or "active").lower()
             self.notify(f"Agent is already {status}", severity="warning")  # type: ignore[attr-defined]
             return
+        self._apply_wait_relaunch(agent, result, replace_existing_wait=False)
 
+    def _apply_wait_relaunch(
+        self,
+        agent: Agent,
+        result: WaitModalResult,
+        *,
+        replace_existing_wait: bool,
+    ) -> None:
+        """Confirm-kill and relaunch an agent with a replacement wait directive."""
         # Get the raw prompt before killing
         raw_content = agent.get_raw_xprompt_content()
         if not raw_content:
@@ -217,7 +408,7 @@ class AgentWaitResumeMixin:
 
         from ...modals import ConfirmKillModal
 
-        desc_parts = [f"Kill and restart with %w:{name}"]
+        desc_parts = [f"Kill and restart {_wait_spec_label(result)}"]
         if agent.cl_name:
             desc_parts.append(f"CL: {agent.cl_name}")
         if agent.pid:
@@ -231,8 +422,12 @@ class AgentWaitResumeMixin:
             # Kill the agent
             self._do_kill_agent(agent)  # type: ignore[attr-defined]
 
-            # Build new prompt with %w:<name> and auto-submit
-            new_prompt = f"%w:{name} {raw_content}"
+            body = (
+                _strip_existing_wait_directives(raw_content)
+                if replace_existing_wait
+                else raw_content
+            )
+            new_prompt = f"{_wait_directive(result)} {body}".strip()
 
             self._setup_home_prompt_context(  # type: ignore[attr-defined]
                 display_name=agent.display_name or agent.cl_name,

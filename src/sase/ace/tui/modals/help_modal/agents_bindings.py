@@ -67,7 +67,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.edit_hooks), "Fork chat as agent"),
                 (d(a.start_rewind), "Revive dismissed agent"),
                 (d(a.add_tag), "Wait for agent (or marked set)"),
-                (d(a.reword), "Edit wait target / run now"),
+                (d(a.reword), "Edit wait deps/time / run now"),
                 (d(a.save_marked_agents), "Save/dismiss marked agents"),
                 (d(a.kill_agent), "Kill/dismiss agent/group/marked"),
                 (d(a.toggle_mark), "Mark/unmark current agent or focused group"),

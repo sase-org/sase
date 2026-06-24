@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-24 16:26:48
-status: wip
+status: done
 prompt: sdd/prompts/202606/wait_modal_redesign.md
 ---
 # Plan: Redesign the `w` "Wait" panel as a pop-up with agent completion + time keyword

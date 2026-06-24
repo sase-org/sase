@@ -324,3 +324,69 @@ async def test_agent_workspace_tmux_modal_png_snapshot(
             title="ACE agent workspace tmux modal",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
+
+
+async def test_wait_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(100, 32)
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+
+        from sase.ace.tui.modals.wait_modal import WaitAgentCandidate, WaitModal
+
+        page.app.push_screen(
+            WaitModal(
+                current_wait_duration=300.0,
+                candidates=[
+                    WaitAgentCandidate(
+                        wait_name="visual.plan.review.contract.snapshot",
+                        label="visual.plan.review.contract.snapshot",
+                        status="RUNNING",
+                        model="codex / gpt-5",
+                        start_time="13:00",
+                        duration="4m",
+                        role="root",
+                    ),
+                    WaitAgentCandidate(
+                        wait_name="visual.code.implementation.with.narrow.row",
+                        label="visual.code.implementation.with.narrow.row",
+                        status="DONE",
+                        model="claude / sonnet",
+                        start_time="13:08",
+                        duration="4m30s",
+                        tag="#review",
+                    ),
+                    WaitAgentCandidate(
+                        wait_name="visual.verify.performance.and.polish",
+                        label="visual.verify.performance.and.polish",
+                        status="FAILED",
+                        model="codex / gpt-5",
+                        start_time="13:16",
+                        duration="1m05s",
+                        tag="#verification",
+                    ),
+                ],
+            )
+        )
+        await page.expect_modal("WaitModal")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Wait")
+        assert_page_svg_contains(page, "5m")
+        assert_page_svg_contains(page, "visual.plan.revi")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "wait_modal_100x32",
+            title="ACE wait modal",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )

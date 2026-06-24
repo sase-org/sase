@@ -2328,6 +2328,82 @@ CommandInputModal #command-input {
     width: 100%;
 }
 
+/* ===== Wait Modal Styling ===== */
+
+WaitModal {
+    align: center middle;
+}
+
+WaitModal > Container {
+    width: 76;
+    height: auto;
+    max-height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+WaitModal #modal-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+WaitModal #wait-modal-summary {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+WaitModal .wait-field-label {
+    color: $secondary;
+    text-style: bold;
+    margin-top: 1;
+}
+
+WaitModal Input {
+    width: 100%;
+}
+
+WaitModal #agent-completion {
+    height: auto;
+    max-height: 8;
+    border: solid $secondary;
+    margin-top: 1;
+    scrollbar-gutter: stable;
+}
+
+WaitModal #agent-completion > .option-list--option {
+    padding: 0 1;
+}
+
+WaitModal #agent-completion > .option-list--option-highlighted {
+    background: $accent 40%;
+    text-style: bold;
+    border-left: thick $accent;
+    padding: 0 1 0 0;
+}
+
+WaitModal #time-preview {
+    margin-top: 1;
+}
+
+WaitModal #time-preview.wait-time-neutral {
+    color: $text-muted;
+}
+
+WaitModal #time-preview.wait-time-valid {
+    color: $success;
+}
+
+WaitModal #time-preview.wait-time-error {
+    color: $error;
+}
+
+WaitModal #wait-footer {
+    color: $text-muted;
+    margin-top: 1;
+    text-align: center;
+}
+
 /* ===== Save Agent Group Modal Styling ===== */
 
 SaveAgentGroupModal {

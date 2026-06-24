@@ -119,6 +119,20 @@ def test_row_index_for_agent_uses_map(monkeypatch: Any) -> None:
     assert widget._row_index_for_agent(99) is None
 
 
+def test_visible_agents_returns_rendered_agent_rows(monkeypatch: Any) -> None:
+    widget = _wire(monkeypatch)
+    agents = [
+        _agent(cl_name="a", raw_suffix="a"),
+        _agent(cl_name="b", raw_suffix="b"),
+    ]
+    widget.update_list(agents, current_idx=0)
+
+    assert widget.visible_agents() == agents
+
+    widget._row_entries.append((0, None))
+    assert widget.visible_agents() == agents
+
+
 def test_banner_row_by_key_locates_collapsed_banner(monkeypatch: Any) -> None:
     """Collapsed group banners register in ``_banner_row_by_key`` for O(1) highlight."""
     widget = _wire(monkeypatch)

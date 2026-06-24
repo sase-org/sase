@@ -10,9 +10,12 @@ from unittest.mock import patch
 from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.actions.agents._wait_resume import (
     AgentWaitResumeMixin,
-    _parse_wait_dependency_names,
+    _strip_existing_wait_directives,
+    _wait_directive,
+    _wait_modal_candidates,
 )
 from sase.ace.tui.actions.hints._hooks import HookEditingMixin
+from sase.ace.tui.modals import WaitModalResult
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
@@ -38,6 +41,10 @@ class _FakeWaitResumeApp(AgentWaitResumeMixin):
     def __init__(self) -> None:
         self.notifications: list[tuple[str, str]] = []
         self.refresh_calls = 0
+        self.pushed_screens: list[tuple[object, object]] = []
+        self.killed_agents: list[Agent] = []
+        self.launch_prompts: list[str] = []
+        self.prompt_contexts: list[dict[str, str | None]] = []
 
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
@@ -47,6 +54,28 @@ class _FakeWaitResumeApp(AgentWaitResumeMixin):
     ) -> None:
         del list_changed, defer_detail
         self.refresh_calls += 1
+
+    def push_screen(self, screen: object, callback: object = None) -> None:
+        self.pushed_screens.append((screen, callback))
+
+    def _do_kill_agent(self, agent: Agent) -> None:
+        self.killed_agents.append(agent)
+
+    def _setup_home_prompt_context(
+        self,
+        *,
+        display_name: str | None,
+        history_sort_key: str | None,
+    ) -> None:
+        self.prompt_contexts.append(
+            {
+                "display_name": display_name,
+                "history_sort_key": history_sort_key,
+            }
+        )
+
+    def _finish_agent_launch(self, prompt: str) -> None:
+        self.launch_prompts.append(prompt)
 
 
 class _FakeResumeActionApp(AgentWaitResumeMixin):
@@ -85,10 +114,6 @@ class _FakeResumeActionApp(AgentWaitResumeMixin):
         )
 
 
-def test_parse_wait_dependency_names_splits_commas() -> None:
-    assert _parse_wait_dependency_names("alice, bob,, ") == ["alice", "bob"]
-
-
 def test_apply_wait_overwrites_wait_conditions(tmp_path: Path) -> None:
     waiting_path = tmp_path / "waiting.json"
     waiting_path.write_text(
@@ -110,7 +135,11 @@ def test_apply_wait_overwrites_wait_conditions(tmp_path: Path) -> None:
         "sase.ace.tui.actions.agents._wait_resume."
         "update_agent_artifact_index_for_marker_mutation"
     ) as update_index:
-        app._apply_wait(str(tmp_path), agent, "alice, bob,, ")
+        app._apply_wait(
+            str(tmp_path),
+            agent,
+            WaitModalResult(agents=["alice", "bob"], time_token=None),
+        )
 
     data = json.loads(waiting_path.read_text(encoding="utf-8"))
     assert data == {
@@ -134,7 +163,11 @@ def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> N
         "sase.ace.tui.actions.agents._wait_resume."
         "update_agent_artifact_index_for_marker_mutation"
     ) as update_index:
-        app._apply_wait(str(tmp_path), agent, "")
+        app._apply_wait(
+            str(tmp_path),
+            agent,
+            WaitModalResult(agents=[], time_token=None, run_now=True),
+        )
 
     ready_path = tmp_path / "ready.json"
     assert json.loads(ready_path.read_text(encoding="utf-8")) == {
@@ -144,6 +177,127 @@ def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> N
     assert agent.waiting_for == ["old_dep"]
     assert app.notifications == [("Wait: test_cl", "information")]
     update_index.assert_not_called()
+
+
+def test_wait_directive_builds_canonical_forms() -> None:
+    assert (
+        _wait_directive(WaitModalResult(agents=["alice", "bob"], time_token="5m"))
+        == "%wait(alice, bob, time=5m)"
+    )
+    assert (
+        _wait_directive(WaitModalResult(agents=[], time_token="5m")) == "%wait(time=5m)"
+    )
+    assert (
+        _wait_directive(WaitModalResult(agents=["alice"], time_token=None))
+        == "%wait(alice)"
+    )
+
+
+def test_wait_modal_candidates_excludes_self_unnamed_and_duplicates() -> None:
+    selected = _make_waiting_agent(
+        cl_name="selected",
+        raw_suffix="20240101120000",
+        agent_name="selected",
+    )
+    planner = _make_waiting_agent(
+        cl_name="planner",
+        raw_suffix="20240101120100",
+        agent_name="planner",
+        llm_provider="claude",
+        model="sonnet",
+        reasoning_effort="xhigh",
+    )
+    duplicate = _make_waiting_agent(
+        cl_name="planner-2",
+        raw_suffix="20240101120200",
+        agent_name="planner",
+    )
+    unnamed = _make_waiting_agent(
+        cl_name="unnamed",
+        raw_suffix="20240101120300",
+        agent_name=None,
+    )
+
+    candidates = _wait_modal_candidates(
+        selected,
+        [selected, planner, duplicate, unnamed],
+    )
+
+    assert [candidate.wait_name for candidate in candidates] == ["planner"]
+    assert candidates[0].model == "claude / sonnet@xhigh"
+
+
+def test_strip_existing_wait_directives_removes_wait_and_time_refs() -> None:
+    raw_prompt = "%w:old #t:5m %time:1430 do the thing"
+
+    assert _strip_existing_wait_directives(raw_prompt) == "do the thing"
+
+
+def test_apply_wait_with_time_relaunches_with_replacement_directive(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "raw_xprompt.md").write_text(
+        "%w:old #t:5m do the thing",
+        encoding="utf-8",
+    )
+    agent = _make_waiting_agent(
+        artifacts_dir=str(tmp_path),
+        wait_duration=300.0,
+        waiting_for=["old"],
+    )
+    app = _FakeWaitResumeApp()
+
+    app._apply_wait(
+        str(tmp_path),
+        agent,
+        WaitModalResult(agents=["new"], time_token="10m"),
+    )
+
+    assert len(app.pushed_screens) == 1
+    modal, callback = app.pushed_screens[0]
+    assert "waiting for new, then 10m" in modal.agent_description  # type: ignore[attr-defined]
+    assert callable(callback)
+    callback(True)
+
+    assert app.killed_agents == [agent]
+    assert app.launch_prompts == ["%wait(new, time=10m) do the thing"]
+    assert "%w:old" not in app.launch_prompts[0]
+    assert "#t:5m" not in app.launch_prompts[0]
+
+
+def test_apply_wait_running_relaunches_with_canonical_wait(tmp_path: Path) -> None:
+    (tmp_path / "raw_xprompt.md").write_text(
+        "%name:kept do the thing", encoding="utf-8"
+    )
+    agent = _make_waiting_agent(
+        status="RUNNING",
+        artifacts_dir=str(tmp_path),
+        agent_name="runner",
+    )
+    app = _FakeWaitResumeApp()
+
+    app._apply_wait_running(agent, WaitModalResult(agents=["dep"], time_token=None))
+
+    assert len(app.pushed_screens) == 1
+    _modal, callback = app.pushed_screens[0]
+    assert callable(callback)
+    callback(True)
+
+    assert app.killed_agents == [agent]
+    assert app.launch_prompts == ["%wait(dep) %name:kept do the thing"]
+
+
+def test_apply_wait_running_run_now_is_noop() -> None:
+    agent = _make_waiting_agent(status="RUNNING")
+    app = _FakeWaitResumeApp()
+
+    app._apply_wait_running(
+        agent,
+        WaitModalResult(agents=[], time_token=None, run_now=True),
+    )
+
+    assert app.notifications == [("Agent is already running", "warning")]
+    assert app.pushed_screens == []
 
 
 class _FakeAgentForkDispatchApp(BaseActionsMixin, HookEditingMixin):

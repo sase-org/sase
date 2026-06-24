@@ -1,0 +1,155 @@
+"""Tests for the Agents-tab wait modal."""
+
+from __future__ import annotations
+
+from textual.app import App, ComposeResult
+from textual.widgets import Input, OptionList
+
+from sase.ace.tui.modals.wait_modal import (
+    WaitAgentCandidate,
+    WaitModal,
+    WaitModalResult,
+    _active_fragment,
+    _prefill_time_token,
+    _replace_active_fragment,
+    _validate_time_token,
+)
+
+
+class _TestApp(App[WaitModalResult | None]):
+    """Minimal app harness for wait modal tests."""
+
+    def compose(self) -> ComposeResult:
+        yield from ()
+
+
+def _candidate(
+    wait_name: str,
+    *,
+    label: str | None = None,
+    status: str = "RUNNING",
+) -> WaitAgentCandidate:
+    return WaitAgentCandidate(
+        wait_name=wait_name,
+        label=label or wait_name,
+        status=status,
+        model="claude / sonnet",
+        start_time="12:03",
+        duration="2m",
+    )
+
+
+def test_active_fragment_uses_text_after_last_comma() -> None:
+    assert _active_fragment("planner, cod") == "cod"
+    assert _active_fragment("planner, ") == ""
+
+
+def test_replace_active_fragment_appends_comma_for_multi_select() -> None:
+    assert _replace_active_fragment("", "planner") == "planner, "
+    assert _replace_active_fragment("planner, cod", "coder") == "planner, coder, "
+
+
+def test_time_validation_states() -> None:
+    empty = _validate_time_token("")
+    assert empty.valid is True
+    assert empty.token is None
+
+    duration = _validate_time_token("1h30m")
+    assert duration.valid is True
+    assert duration.token == "1h30m"
+    assert "waits 1h30m" in duration.message
+
+    absolute = _validate_time_token("2359")
+    assert absolute.valid is True
+    assert absolute.token == "2359"
+    assert absolute.message.startswith("until ")
+
+    invalid = _validate_time_token("review")
+    assert invalid.valid is False
+
+
+def test_time_prefill_round_trips_duration_and_absolute() -> None:
+    assert _prefill_time_token(300.0, None) == "5m"
+    assert _prefill_time_token(90.0, None) == "1m30s"
+    assert _prefill_time_token(None, "2030-04-15T09:00:00") == "300415/0900"
+
+
+async def test_modal_filters_and_accepts_candidate_with_tab() -> None:
+    result: WaitModalResult | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: WaitModalResult | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = WaitModal(candidates=[_candidate("planner"), _candidate("coder")])
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        agents_input = modal.query_one("#agents-input", Input)
+        agents_input.value = "cod"
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-completion", OptionList)
+        assert option_list.option_count == 1
+
+        await pilot.press("tab")
+        await pilot.pause()
+
+        assert agents_input.value == "coder, "
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == WaitModalResult(agents=["coder"], time_token=None, run_now=False)
+
+
+async def test_modal_enter_with_time_only_returns_time_wait() -> None:
+    result: WaitModalResult | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: WaitModalResult | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = WaitModal(candidates=[_candidate("planner")])
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        time_input = modal.query_one("#time-input", Input)
+        time_input.value = "5m"
+        time_input.focus()
+        await pilot.pause()
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == WaitModalResult(agents=[], time_token="5m", run_now=False)
+
+
+async def test_modal_invalid_time_does_not_dismiss() -> None:
+    dismiss_count = 0
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(_value: WaitModalResult | None) -> None:
+            nonlocal dismiss_count
+            dismiss_count += 1
+
+        modal = WaitModal(candidates=[_candidate("planner")])
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        time_input = modal.query_one("#time-input", Input)
+        time_input.value = "review"
+        time_input.focus()
+        await pilot.pause()
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert time_input.has_focus
+
+    assert dismiss_count == 0
