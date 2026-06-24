@@ -48,6 +48,8 @@ def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
         metadata["meta_commit_message"] = message
     if result := _text(commit_result.get("result")):
         metadata["meta_new_commit"] = result
+    if cwd := _text(commit_result.get("cwd")):
+        metadata["meta_commit_cwd"] = cwd
     if changespec := (
         _text(commit_result.get("changespec_name")) or _text(commit_result.get("name"))
     ):

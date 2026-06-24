@@ -111,11 +111,6 @@ class VCSHookSpec:
     def vcs_get_default_parent_revision(self, cwd: str) -> str: ...
 
     @hookspec(firstresult=True)
-    def vcs_list_commits(
-        self, base_ref: str, head_ref: str, cwd: str
-    ) -> tuple[bool, str | None]: ...
-
-    @hookspec(firstresult=True)
     def vcs_diff_name_status(
         self, parent_ref: str, head_ref: str, cwd: str
     ) -> list[tuple[str, str]]: ...

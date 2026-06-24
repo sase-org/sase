@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+import os
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from rich.text import Text
 
 from ...models.agent import Agent
-from ..file_panel._linked_commits import (
-    CommitInfo,
-    get_cached_linked_commit_groups,
-)
 from ._agent_context_common import (
     COLOR_WORKSPACE_GLYPH,
     COLOR_WORKSPACE_NAME,
@@ -22,6 +21,14 @@ _COLOR_HEADER = "bold #87D7FF"
 _COLOR_COMMIT_SHA = "dim #D7D7AF"
 _COLOR_COMMIT_SUBJECT = "#D7D7FF"
 _MAJOR_SECTION_RULE = "\u2500" * 50
+
+
+@dataclass(frozen=True)
+class _CommitInfo:
+    """Compact display data for one commit."""
+
+    short_sha: str
+    subject: str
 
 
 def _append_major_section_divider(text: Text) -> None:
@@ -57,7 +64,9 @@ def _primary_repo_name(agent: Agent, step_output: dict[str, Any] | None) -> str:
     return "primary"
 
 
-def _primary_commit_infos(step_output: dict[str, Any] | None) -> tuple[CommitInfo, ...]:
+def _persisted_commit_infos(
+    step_output: dict[str, Any] | None,
+) -> tuple[_CommitInfo, ...]:
     if step_output is None:
         return ()
 
@@ -68,13 +77,55 @@ def _primary_commit_infos(step_output: dict[str, Any] | None) -> tuple[CommitInf
         return ()
     if not subject:
         subject = "(message unavailable)"
-    return (CommitInfo(short_sha=sha, subject=subject),)
+    return (_CommitInfo(short_sha=sha, subject=subject),)
+
+
+def _norm_path(value: object) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return os.path.normcase(
+        os.path.normpath(os.path.abspath(os.path.expanduser(value)))
+    )
+
+
+def _path_is_same_or_inside(child: str | None, parent: str | None) -> bool:
+    if child is None or parent is None:
+        return False
+    try:
+        return os.path.commonpath([child, parent]) == parent
+    except ValueError:
+        return False
+
+
+def _repo_name_from_cwd(cwd: str) -> str:
+    basename = os.path.basename(os.path.normpath(os.path.expanduser(cwd)))
+    repo_name = re.sub(r"_\d+$", "", basename).strip()
+    return repo_name or "repository"
+
+
+def _persisted_commit_repo_name(
+    agent: Agent,
+    step_output: dict[str, Any] | None,
+) -> str:
+    cwd_raw = step_output.get("meta_commit_cwd") if step_output is not None else None
+    cwd = _norm_path(cwd_raw)
+    if cwd is None:
+        return _primary_repo_name(agent, step_output)
+
+    if _path_is_same_or_inside(cwd, _norm_path(agent.workspace_dir)):
+        return _primary_repo_name(agent, step_output)
+
+    for repo in agent.linked_repos:
+        if _path_is_same_or_inside(cwd, _norm_path(repo.workspace_dir)):
+            return repo.name
+
+    return _repo_name_from_cwd(str(cwd_raw))
 
 
 def _append_commit_group(
     text: Text,
     repo_name: str,
-    commits: tuple[CommitInfo, ...],
+    commits: tuple[_CommitInfo, ...],
 ) -> None:
     if not commits:
         return
@@ -94,22 +145,16 @@ def _append_commit_group(
 
 
 def append_agent_commits_section(text: Text, agent: Agent) -> None:
-    """Append persisted primary and cached linked commit messages, if any."""
+    """Append the persisted commit message, attributed to its source repo."""
     step_output = agent.step_output if isinstance(agent.step_output, dict) else None
-    primary_commits = _primary_commit_infos(step_output)
-    linked_groups = tuple(
-        group for group in get_cached_linked_commit_groups(agent) if group.commits
-    )
-    if not primary_commits and not linked_groups:
+    persisted_commits = _persisted_commit_infos(step_output)
+    if not persisted_commits:
         return
 
     _append_major_section_divider(text)
     text.append("COMMITS:\n", style=_COLOR_HEADER)
-    if primary_commits:
-        _append_commit_group(
-            text,
-            _primary_repo_name(agent, step_output),
-            primary_commits,
-        )
-    for group in linked_groups:
-        _append_commit_group(text, group.repo_name, group.commits)
+    _append_commit_group(
+        text,
+        _persisted_commit_repo_name(agent, step_output),
+        persisted_commits,
+    )

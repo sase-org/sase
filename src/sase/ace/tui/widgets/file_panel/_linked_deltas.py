@@ -55,14 +55,14 @@ def _status_allows_linked_deltas(status: str | None) -> bool:
     return status_bucket_for_values(status) not in {"Done", "Failed"}
 
 
-def existing_workspace_dir(workspace_dir: str) -> str | None:
+def _existing_workspace_dir(workspace_dir: str) -> str | None:
     expanded = os.path.expanduser(workspace_dir)
     if not os.path.isdir(expanded):
         return None
     return os.path.normpath(expanded)
 
 
-def suffix_workspace_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...]:
+def _suffix_workspace_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...]:
     repos: list[LinkedRepoMetadata] = []
     seen_names: set[str] = set()
     for repo in agent.linked_repos:
@@ -80,7 +80,7 @@ def suffix_workspace_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...
 def _eligible_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...]:
     if not _status_allows_linked_deltas(agent.status):
         return ()
-    return suffix_workspace_linked_repos(agent)
+    return _suffix_workspace_linked_repos(agent)
 
 
 def should_refresh_linked_delta_groups(agent: Agent) -> bool:
@@ -192,7 +192,7 @@ def compute_linked_delta_groups(agent: Agent) -> tuple[LinkedDeltaGroup, ...]:
     """
     groups: list[LinkedDeltaGroup] = []
     for repo in _eligible_linked_repos(agent):
-        workspace_dir = existing_workspace_dir(repo.workspace_dir)
+        workspace_dir = _existing_workspace_dir(repo.workspace_dir)
         if workspace_dir is None:
             continue
         group = _compute_repo_group(agent, repo.name, workspace_dir)

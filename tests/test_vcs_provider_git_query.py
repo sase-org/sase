@@ -54,53 +54,6 @@ def test_git_get_description_failure(mock_run: MagicMock) -> None:
     assert "unknown revision" in error
 
 
-# === Tests for list_commits ===
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_list_commits_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_list_commits returns compact commit rows."""
-    stdout = "a1b2c3d\x1ffeat: add panel\n9f8e7d6\x1ffix: cache refresh\n"
-    mock_run.return_value = MagicMock(returncode=0, stdout=stdout, stderr="")
-
-    plugin = BareGitPlugin()
-    success, rows = plugin.vcs_list_commits("origin/main", "HEAD", "/workspace")
-
-    assert success is True
-    assert rows == stdout.strip()
-    mock_run.assert_called_once()
-    assert mock_run.call_args[0][0] == [
-        "git",
-        "log",
-        "--format=%h%x1f%s",
-        "origin/main..HEAD",
-    ]
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_list_commits_empty_range(mock_run: MagicMock) -> None:
-    """Empty ranges return success with no text."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, rows = plugin.vcs_list_commits("origin/main", "HEAD", "/workspace")
-
-    assert success is True
-    assert rows is None
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_list_commits_failure(mock_run: MagicMock) -> None:
-    """Failures surface the git log error string."""
-    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="bad revision")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_list_commits("origin/main", "HEAD", "/workspace")
-
-    assert success is False
-    assert error == "bad revision"
-
-
 # === Tests for existing_branch_suffixes ===
 
 

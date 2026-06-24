@@ -241,9 +241,6 @@ def refresh_linked_repos_for_workspace(
         # Canonical key plus the deprecated alias for existing readers.
         agent_meta["linked_repos"] = resolution.to_jsonable()
         agent_meta["sibling_repos"] = resolution.to_jsonable()
-    else:
-        agent_meta.pop("linked_repos", None)
-        agent_meta.pop("sibling_repos", None)
     write_agent_meta(artifacts_dir, agent_meta)
     return prompt
 

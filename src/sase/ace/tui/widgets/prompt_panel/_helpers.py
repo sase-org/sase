@@ -75,7 +75,9 @@ def format_meta_key(key: str) -> str:
 
 
 SPECIAL_META_KEYS = frozenset({"meta_project", "meta_changespec", "meta_workspace"})
-COMMIT_META_KEYS = frozenset({"meta_commit_message", "meta_new_commit"})
+COMMIT_META_KEYS = frozenset(
+    {"meta_commit_message", "meta_new_commit", "meta_commit_cwd"}
+)
 WORKFLOW_VARIABLES_SECTION_LABEL = "WORKFLOW VARIABLES"
 
 

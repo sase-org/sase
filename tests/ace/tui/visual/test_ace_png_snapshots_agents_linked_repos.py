@@ -10,12 +10,7 @@ import pytest
 from sase.ace.changespec.models import DeltaEntry
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
-from sase.ace.tui.widgets.file_panel import _linked_commits as linked_commits_mod
 from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
-from sase.ace.tui.widgets.file_panel._linked_commits import (
-    CommitInfo,
-    LinkedCommitGroup,
-)
 from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     BROAD_SCREENSHOT_MAX_DIFF_RATIO,
@@ -67,10 +62,11 @@ def _linked_repo_commits_agent() -> Agent:
         model="gpt-5",
         step_output={
             "meta_commit_message": (
-                "feat: show commits\n\n"
-                "Move commit metadata into a dedicated panel section."
+                "feat: linked core commit\n\n"
+                "Attribute persisted commit metadata to the linked workspace."
             ),
-            "meta_new_commit": "a1b2c3d",
+            "meta_new_commit": "9f8e7d6c5b4a3",
+            "meta_commit_cwd": "/workspace/sase-core_18",
         },
         linked_repos=(
             LinkedRepoMetadata(
@@ -135,50 +131,6 @@ def _seed_linked_repo_visual_delta(
     )
 
 
-def _seed_linked_repo_visual_commits(
-    monkeypatch: pytest.MonkeyPatch,
-    agent: Agent,
-) -> None:
-    fetched_at = datetime(2026, 6, 23, 16, 9, 5)
-    monkeypatch.setitem(
-        linked_commits_mod._selected_agent_linked_commit_cache,
-        agent.identity,
-        (
-            LinkedCommitGroup(
-                repo_name="sase-core",
-                workspace_dir="/workspace/sase-core_18",
-                commits=(
-                    CommitInfo(
-                        short_sha="9f8e7d6",
-                        subject="feat: commit hook",
-                    ),
-                    CommitInfo(
-                        short_sha="4c3b2a1",
-                        subject="test: commit parse",
-                    ),
-                ),
-                fetched_at=fetched_at,
-            ),
-            LinkedCommitGroup(
-                repo_name="sase-github",
-                workspace_dir="/workspace/sase-github_18",
-                commits=(
-                    CommitInfo(
-                        short_sha="7a6b5c4",
-                        subject="fix: subjects",
-                    ),
-                ),
-                fetched_at=fetched_at,
-            ),
-        ),
-    )
-    monkeypatch.setitem(
-        linked_commits_mod._selected_agent_cache_monotonic,
-        agent.identity,
-        time.monotonic() + 3600.0,
-    )
-
-
 async def test_agents_linked_repo_diff_file_panel_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -210,7 +162,6 @@ async def test_agents_commit_messages_panel_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent = _linked_repo_commits_agent()
-    _seed_linked_repo_visual_commits(monkeypatch, agent)
     patch_startup_loaders(monkeypatch, agents=[agent])
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -221,9 +172,9 @@ async def test_agents_commit_messages_panel_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "COMMITS:")
-        assert_page_svg_contains(page, "feat: show commits")
+        assert_page_svg_contains(page, "feat: linked core")
+        assert_page_svg_contains(page, "9f8e7d6c5b4a")
         assert_page_svg_contains(page, "sase-core")
-        assert_page_svg_contains(page, "sase-github")
         ace_png_visual.assert_page_png(
             page,
             "agents_commit_messages_panel_120x40",

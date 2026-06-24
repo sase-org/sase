@@ -121,27 +121,6 @@ def test_archive_failure_returns_false_str(
     assert isinstance(error, str)
 
 
-# === Tests for list_commits contract ===
-
-
-@_PROVIDERS
-def test_list_commits_success_returns_true_optional_str(
-    provider_factory: Callable[[], VCSProvider], mock_target: str
-) -> None:
-    """list_commits returns (True, text-or-None) on success."""
-    with patch(mock_target) as mock_run:
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="a1b2c3d\x1ffeat: add thing\n",
-            stderr="",
-        )
-        provider = provider_factory()
-        success, rows = provider.list_commits("origin/main", "HEAD", "/workspace")
-
-    assert success is True
-    assert isinstance(rows, str)
-
-
 # === Tests for prepare_description_for_reword contract ===
 
 

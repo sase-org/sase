@@ -3,7 +3,12 @@
 import json
 from pathlib import Path
 
+from sase.ace.tui.models._loaders._done_loaders import (
+    _build_done_agent_from_record,
+    _load_done_agent_for_dir,
+)
 from sase.axe.run_agent_helpers import extract_step_output_and_diff_path
+from sase.core.agent_scan_wire import AgentArtifactRecordWire, DoneMarkerWire
 
 
 def test_extract_step_output_from_workflow_state(tmp_path: Path) -> None:
@@ -52,6 +57,7 @@ def test_extract_step_output_preserves_multiline_commit_result_message(
                 "message": full_message,
                 "result": "abc123",
                 "changespec_name": "sase-full-message",
+                "cwd": "/workspace/sase-core_7",
             }
         )
     )
@@ -61,6 +67,7 @@ def test_extract_step_output_preserves_multiline_commit_result_message(
     assert step_output is not None
     assert step_output["meta_commit_message"] == full_message
     assert step_output["meta_new_commit"] == "abc123"
+    assert step_output["meta_commit_cwd"] == "/workspace/sase-core_7"
     assert step_output["meta_changespec"] == "sase-full-message"
     assert diff_path is None
 
@@ -225,3 +232,104 @@ def test_extract_returns_none_without_workflow_state(tmp_path: Path) -> None:
 
     assert step_output is None
     assert diff_path is None
+
+
+def test_done_agent_loader_backfills_commit_cwd_from_commit_result(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "20260624120000"
+    artifact_dir.mkdir()
+    commit_cwd = tmp_path / "sase-core_7"
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "cl_name": "sase-test",
+                "outcome": "completed",
+                "project_file": str(tmp_path / "sase.sase"),
+                "step_output": {
+                    "meta_commit_message": "feat: linked",
+                    "meta_new_commit": "abc123",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "commit_result.json").write_text(
+        json.dumps(
+            {"message": "feat: linked", "result": "abc123", "cwd": str(commit_cwd)}
+        ),
+        encoding="utf-8",
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert agent.step_output is not None
+    assert agent.step_output["meta_commit_cwd"] == str(commit_cwd)
+
+
+def test_done_agent_loader_keeps_existing_commit_cwd(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "20260624120100"
+    artifact_dir.mkdir()
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "cl_name": "sase-test",
+                "outcome": "completed",
+                "project_file": str(tmp_path / "sase.sase"),
+                "step_output": {
+                    "meta_commit_message": "feat: linked",
+                    "meta_new_commit": "abc123",
+                    "meta_commit_cwd": "/kept",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "commit_result.json").write_text(
+        json.dumps({"cwd": "/ignored"}),
+        encoding="utf-8",
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert agent.step_output is not None
+    assert agent.step_output["meta_commit_cwd"] == "/kept"
+
+
+def test_done_agent_snapshot_loader_backfills_commit_cwd(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "20260624120200"
+    artifact_dir.mkdir()
+    (artifact_dir / "commit_result.json").write_text(
+        json.dumps({"message": "fix: linked", "result": "def456", "cwd": "/linked"}),
+        encoding="utf-8",
+    )
+    record = AgentArtifactRecordWire(
+        project_name="sase",
+        project_dir=str(tmp_path),
+        project_file=str(tmp_path / "sase.sase"),
+        workflow_dir_name="ace-run",
+        artifact_dir=str(artifact_dir),
+        timestamp="20260624120200",
+        done=DoneMarkerWire(
+            outcome="completed",
+            cl_name="sase-test",
+            project_file=str(tmp_path / "sase.sase"),
+            step_output={
+                "meta_commit_message": "fix: linked",
+                "meta_new_commit": "def456",
+            },
+        ),
+        has_done_marker=True,
+    )
+
+    agent = _build_done_agent_from_record(record, {}, {})
+
+    assert agent is not None
+    assert agent.step_output is not None
+    assert agent.step_output["meta_commit_cwd"] == "/linked"

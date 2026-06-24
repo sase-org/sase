@@ -309,24 +309,6 @@ class GitQueryOpsMixin(CommandRunner):
         return f"origin/{self._get_default_branch(cwd)}"
 
     @hookimpl
-    def vcs_list_commits(
-        self, base_ref: str, head_ref: str, cwd: str
-    ) -> tuple[bool, str | None]:
-        out = self._run(
-            [
-                "git",
-                "log",
-                "--format=%h%x1f%s",
-                f"{base_ref}..{head_ref}",
-            ],
-            cwd,
-        )
-        if not out.success:
-            return (False, out.stderr.strip() or "git log failed")
-        text = out.stdout.strip()
-        return (True, text if text else None)
-
-    @hookimpl
     def vcs_diff_name_status(
         self, parent_ref: str, head_ref: str, cwd: str
     ) -> list[tuple[str, str]]:

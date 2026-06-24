@@ -2,23 +2,15 @@
 
 from __future__ import annotations
 
-import pytest
+from pathlib import Path
 
 from sase.ace.tui.models.agent import LinkedRepoMetadata
-from sase.ace.tui.widgets.file_panel import _linked_commits as linked_commits_mod
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     MAJOR_SECTION_RULE,
     assert_dim_divider_before,
 )
-
-
-@pytest.fixture(autouse=True)
-def _clear_linked_commit_caches() -> None:
-    linked_commits_mod._linked_commit_cache.clear()
-    linked_commits_mod._selected_agent_linked_commit_cache.clear()
-    linked_commits_mod._selected_agent_cache_monotonic.clear()
 
 
 class TestWorkflowVariablesHeader:
@@ -38,38 +30,22 @@ class TestWorkflowVariablesHeader:
         assert "WORKFLOW VARIABLES\n" not in header.plain
         assert "Commit Message:" not in header.plain
         assert "New Commit:" not in header.plain
+        assert "Commit Cwd:" not in header.plain
         assert_dim_divider_before(header, "COMMITS:\n")
         assert header.plain.count(MAJOR_SECTION_RULE) == 2
 
-    def test_commits_section_renders_primary_and_cached_linked_groups(self) -> None:
+    def test_commit_cwd_matching_primary_workspace_renders_primary_group(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "sase_7"
         agent = make_agent(
+            workspace_dir=str(workspace),
             step_output={
                 "meta_commit_message": "feat: add primary\n\nbody omitted",
                 "meta_new_commit": "1234567890abcdef",
+                "meta_commit_cwd": str(workspace / "src"),
             },
-            linked_repos=(
-                LinkedRepoMetadata(
-                    name="sase-core",
-                    workspace_dir="/tmp/sase-core",
-                    workspace_strategy="suffix",
-                ),
-            ),
-        )
-        linked_commits_mod._selected_agent_linked_commit_cache[agent.identity] = (
-            linked_commits_mod.LinkedCommitGroup(
-                repo_name="sase-core",
-                workspace_dir="/tmp/sase-core",
-                commits=(
-                    linked_commits_mod.CommitInfo(
-                        short_sha="9f8e7d6",
-                        subject="feat: linked core",
-                    ),
-                    linked_commits_mod.CommitInfo(
-                        short_sha="4c3b2a1",
-                        subject="test: cover linked core",
-                    ),
-                ),
-            ),
         )
 
         header, _ = build_header_text(agent, cheap=True)
@@ -77,15 +53,62 @@ class TestWorkflowVariablesHeader:
         assert "COMMITS:\n" in header.plain
         assert "  ▣ test\n" in header.plain
         assert "    1234567890ab feat: add primary\n" in header.plain
+
+    def test_commit_cwd_matching_linked_workspace_renders_linked_group(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        primary = tmp_path / "sase_7"
+        linked = tmp_path / "sase-core_7"
+        agent = make_agent(
+            workspace_dir=str(primary),
+            step_output={
+                "meta_commit_message": "feat: linked core\n\nbody omitted",
+                "meta_new_commit": "9f8e7d6c5b4a3",
+                "meta_commit_cwd": str(linked / "crates" / "core"),
+            },
+            linked_repos=(
+                LinkedRepoMetadata(
+                    name="sase-core",
+                    workspace_dir=str(linked),
+                    workspace_strategy="suffix",
+                ),
+            ),
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "COMMITS:\n" in header.plain
+        assert "  ▣ test\n" not in header.plain
         assert "  ▣ sase-core\n" in header.plain
-        assert "    9f8e7d6 feat: linked core\n" in header.plain
-        assert "    4c3b2a1 test: cover linked core\n" in header.plain
+        assert "    9f8e7d6c5b4a feat: linked core\n" in header.plain
+
+    def test_commit_cwd_unmatched_renders_basename_group(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        commit_cwd = tmp_path / "sase-core_18"
+        agent = make_agent(
+            workspace_dir=str(tmp_path / "sase_18"),
+            step_output={
+                "meta_commit_message": "fix: linked without metadata",
+                "meta_new_commit": "abcdef123456",
+                "meta_commit_cwd": str(commit_cwd),
+            },
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "COMMITS:\n" in header.plain
+        assert "  ▣ sase-core\n" in header.plain
+        assert "    abcdef123456 fix: linked without metadata\n" in header.plain
 
     def test_workflow_variables_keep_non_commit_meta_fields(self) -> None:
         agent = make_agent(
             step_output={
                 "meta_commit_message": "fix: align",
                 "meta_new_commit": "96a895335",
+                "meta_commit_cwd": "/tmp/sase-core_4",
                 "meta_result": "ready",
             }
         )
@@ -97,6 +120,7 @@ class TestWorkflowVariablesHeader:
         assert "Result: ready\n" in header.plain
         assert "Commit Message:" not in header.plain
         assert "New Commit:" not in header.plain
+        assert "Commit Cwd:" not in header.plain
 
     def test_header_absent_when_no_meta_fields(self) -> None:
         agent = make_agent(step_output={"status": "ok"})

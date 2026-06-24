@@ -19,6 +19,7 @@ from sase.axe.run_agent_runner_setup import (
 )
 from sase.linked_repos import (
     LINKED_REPOS_JSON_ENV,
+    LinkedRepoResolution,
     SIBLING_REPOS_JSON_ENV,
     resolve_linked_repos_for_project,
 )
@@ -209,6 +210,47 @@ def test_refresh_linked_repos_for_workspace_updates_env_meta_without_prompt_note
     assert written["sibling_repos"][0]["workspace_dir"] == str(tmp_path / "sase-core_7")
     assert json.loads(os.environ[LINKED_REPOS_JSON_ENV])[0]["name"] == "core"
     assert json.loads(os.environ[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"
+
+
+def test_refresh_linked_repos_for_workspace_preserves_meta_on_empty_resolution(
+    tmp_path: Path,
+) -> None:
+    meta = {
+        "pid": 123,
+        "workspace_dir": "/placeholder",
+        "linked_repos": [{"name": "core", "workspace_dir": "/tmp/sase-core_7"}],
+        "sibling_repos": [{"name": "core", "workspace_dir": "/tmp/sase-core_7"}],
+    }
+
+    with (
+        patch(
+            "sase.linked_repos.resolve_linked_repos_for_project",
+            return_value=LinkedRepoResolution(repos=()),
+        ),
+        patch(
+            "sase.axe.run_agent_runner_setup."
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+    ):
+        refresh_linked_repos_for_workspace(
+            project_file=str(tmp_path / "project.sase"),
+            workspace_dir=str(tmp_path / "sase_7"),
+            workspace_num=7,
+            artifacts_dir=str(tmp_path),
+            agent_meta=meta,
+            prompt="Do work",
+        )
+
+    assert meta["workspace_dir"] == str(tmp_path / "sase_7")
+    assert meta["linked_repos"] == [
+        {"name": "core", "workspace_dir": "/tmp/sase-core_7"}
+    ]
+    assert meta["sibling_repos"] == [
+        {"name": "core", "workspace_dir": "/tmp/sase-core_7"}
+    ]
+    written = json.loads((tmp_path / "agent_meta.json").read_text(encoding="utf-8"))
+    assert written["linked_repos"] == meta["linked_repos"]
+    assert written["sibling_repos"] == meta["sibling_repos"]
 
 
 def test_done_marker_write_updates_artifact_index(tmp_path: Path) -> None:
