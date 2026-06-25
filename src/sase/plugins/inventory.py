@@ -1,8 +1,10 @@
 """SASE entry-point inventory metadata for diagnostics.
 
-This is neutral plugin metadata shared by ``sase doctor`` resource checks and the
-``sase version`` plugin-package inventory. It does not back any ``sase plugin``
-command; that namespace is reserved for a future pluggy-focused rewrite.
+This is neutral plugin metadata shared by ``sase doctor`` resource checks, the
+``sase version`` plugin-package inventory, and the ``sase plugin`` catalog's
+installed-merge (see :mod:`sase.plugins.installed`). It describes the locally
+installed entry-point providers, distinct from the ``sase plugin`` catalog of
+plugins that *exist* in the GitHub registry.
 """
 
 from __future__ import annotations
