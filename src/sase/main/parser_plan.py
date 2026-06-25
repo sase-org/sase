@@ -123,9 +123,10 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Reject one pending PlanApproval notification by ID or unique "
             "prefix from `sase plan list`. If SELECTOR is omitted, exactly one "
-            "pending proposal must exist. The matching planner agent is "
-            "user-killed and its Agents-tab row is dismissed, the same as "
-            "rejecting from the ACE TUI."
+            "pending proposal must exist. The rejection response is written "
+            "first; SASE then attempts to user-kill the matching planner agent "
+            "and dismiss its Agents-tab row, the same cleanup path used by "
+            "the ACE TUI."
         ),
         epilog=("examples:\n  sase plan reject\n  sase plan reject abcdef12"),
         formatter_class=argparse.RawDescriptionHelpFormatter,

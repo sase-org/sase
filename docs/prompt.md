@@ -236,7 +236,7 @@ file unless you pass `--force`.
 
 For drafts that have not been submitted to prompt history yet, ACE's prompt bar can save directly to xprompt storage:
 use `gx` in prompt NORMAL mode or `Ctrl+G x` in INSERT mode, then choose an existing xprompt to overwrite or create a
-new one.
+new one. If the prompt bar contains a stack, ACE saves the non-empty panes as one `---`-separated xprompt body.
 
 ### Export a prompt to SDD
 

@@ -1778,7 +1778,7 @@ With no subcommand, `sase plan` defaults to the `sase plan list` dashboard.
 | Form                            | Flags                                                                                                                         | Description                                                           |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `sase plan approve [selector]`  | `-k/--kind`, `-m/--model`, `-p/--prompt`                                                                                      | Approve one pending proposal by notification ID or unique ID prefix.  |
-| `sase plan` / `sase plan list`  | `-j/--json`                                                                                                                   | List pending, approved, and inferred rejected plan proposals.         |
+| `sase plan` / `sase plan list`  | `-j/--json`                                                                                                                   | List pending proposals, recent approvals, and inferred rejected rows. |
 | `sase plan propose <plan_file>` | -                                                                                                                             | Submit a Markdown plan file for approval from the `/sase_plan` skill. |
 | `sase plan reject [selector]`   | -                                                                                                                             | Reject one pending proposal by notification ID or unique ID prefix.   |
 | `sase plan search [query]`      | `-f/--format`, `-k/--kind`, `-s/--status`, `-o/--source`, `-r/--sort`, `-A/--since`, `-B/--until`, `-n/--limit`, `-c/--color` | Search SDD and machine-local Markdown plans.                          |
@@ -1786,11 +1786,13 @@ With no subcommand, `sase plan` defaults to the `sase plan list` dashboard.
 `sase plan list` prints a Rich dashboard by default and emits a stable JSON projection with `summary`, `proposed`,
 `approved`, and `rejected` keys when `-j/--json` is set. Use the Proposed row's `id_prefix` as the selector for
 `sase plan approve` or `sase plan reject`; omitting the selector is valid only when exactly one pending proposal exists.
-Approval kind `approve` runs the coder without asking the runner to commit an SDD plan, `tale` commits the plan as an
-SDD tale and then runs the coder, `epic` and `legend` commit the matching SDD tier and launch the bead follow-up, and
-`commit` records the approved plan in SDD without launching a coder. The `-m/--model` flag applies to the follow-up
-agent; `-p/--prompt` adds extra coder instructions only for the `approve` and `tale` paths. `sase plan reject` writes
-the rejection response, then user-kills and dismisses the matching planner row when it is still discoverable.
+The Rejected rows are inferred from archived proposal files that are not represented by current proposed or approved
+state, so they are useful for history but are not actionable selectors. Approval kind `approve` runs the coder without
+asking the runner to commit an SDD plan, `tale` commits the plan as an SDD tale and then runs the coder, `epic` and
+`legend` commit the matching SDD tier and launch the bead follow-up, and `commit` records the approved plan in SDD
+without launching a coder. The `-m/--model` flag applies to the follow-up agent; `-p/--prompt` adds extra coder
+instructions only for the `approve` and `tale` paths. `sase plan reject` writes the rejection response first, then
+attempts the same durable cleanup path as TUI no-feedback rejection when the matching planner row is still discoverable.
 
 `sase plan search [query]` scans repo-local `sdd/` plans and the machine-local `~/.sase/plans/` archive. The query is a
 literal case-insensitive substring; omit it to browse and filter. `--format` accepts `compact`, `full`, `json`, or

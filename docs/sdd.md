@@ -158,7 +158,8 @@ recent approvals, and inferred rejected archived proposals. `sase plan approve <
 writes the same approval response as the TUI and tells the runner to commit the promoted plan under the matching SDD
 tier before launching the follow-up. `--kind approve` runs the coder without committing an SDD plan, while
 `--kind commit` records the approved plan in SDD without launching a coder. `sase plan reject <id-prefix>` writes the
-same plain rejection response as the TUI and dismisses/kills the matching planner row when it can be found.
+same no-feedback rejection response as the TUI, then attempts to dismiss and user-kill the matching planner row when it
+can be found.
 
 To recall prior plans, `sase plan search [QUERY]` searches the committed `sdd/` plans (surfaced first) and the
 machine-local `~/.sase/plans/` archive by content. The query is optional — omit it to browse and filter with `--kind`,
