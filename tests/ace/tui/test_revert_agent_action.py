@@ -151,8 +151,11 @@ def test_single_preview_dedup_key_includes_linked_repo(tmp_path: Path) -> None:
 
     assert len(app.submitted) == 1
     dedup = app.submitted[0]["kwargs"]["dedup_key"]
-    assert str(primary) in dedup
-    assert str(linked) in dedup
+    # Dedup is built from stable intent data (agent + project + branch + linked
+    # repo names), never the short-lived claimed workspace path.
+    assert "sase-core" in dedup
+    assert str(primary) not in dedup
+    assert str(linked) not in dedup
 
 
 def test_failed_retried_agent_is_revertable(tmp_path: Path) -> None:
@@ -262,13 +265,16 @@ def test_no_marks_keeps_selected_agent_behavior(tmp_path: Path) -> None:
     app._start_revert_selected_agent()
     assert len(app.submitted) == 1
     dedup = app.submitted[0]["kwargs"]["dedup_key"]
-    assert dedup == f"revert_preview:foo:{tmp_path}"
+    # Stable intent data: agent + project file + ChangeSpec name, not the
+    # short-lived workspace path the agent ran in.
+    assert dedup == "revert_preview:foo:/proj/cl/spec:cl"
+    assert str(tmp_path) not in dedup
     assert "bulk" not in dedup
 
 
 def test_marks_route_to_single_bulk_preview(tmp_path: Path) -> None:
-    foo = _agent("DONE", name="foo", ws=str(tmp_path), cl="cl_foo")
-    bar = _agent("DONE", name="bar", ws=str(tmp_path), cl="cl_bar")
+    foo = _agent("DONE", name="foo", ws=str(tmp_path), cl="cl")
+    bar = _agent("DONE", name="bar", ws=str(tmp_path), cl="cl")
     app = _bulk_app([foo, bar])
 
     app._start_revert_selected_agent()
@@ -298,14 +304,14 @@ def test_bulk_preview_dedup_key_includes_linked_repo(tmp_path: Path) -> None:
         "DONE",
         name="foo",
         ws=str(primary),
-        cl="cl_foo",
+        cl="cl",
         linked_repos=linked_meta,
     )
     bar = _agent(
         "DONE",
         name="bar",
         ws=str(primary),
-        cl="cl_bar",
+        cl="cl",
         linked_repos=linked_meta,
     )
     app = _bulk_app([foo, bar])
@@ -314,8 +320,11 @@ def test_bulk_preview_dedup_key_includes_linked_repo(tmp_path: Path) -> None:
 
     assert len(app.submitted) == 1
     dedup = app.submitted[0]["kwargs"]["dedup_key"]
-    assert str(primary) in dedup
-    assert str(linked) in dedup
+    # The linked repo name (stable intent data) drives the dedup key; the
+    # claimed workspace paths never do.
+    assert "sase-core" in dedup
+    assert str(primary) not in dedup
+    assert str(linked) not in dedup
 
 
 def test_stale_marks_warn_and_do_not_submit() -> None:
@@ -368,6 +377,25 @@ def test_mixed_workspace_marks_error_and_do_not_submit(tmp_path: Path) -> None:
     assert app.pushed_modals == []
     assert any(
         "multiple workspaces" in msg and sev == "error"
+        for msg, sev in app.notifications
+    )
+
+
+def test_mixed_changespec_branch_marks_error_and_do_not_submit(
+    tmp_path: Path,
+) -> None:
+    # Same workspace but two different ChangeSpec branches: a single fresh
+    # checkout cannot represent both, so the bulk revert is rejected.
+    foo = _agent("DONE", name="foo", ws=str(tmp_path), cl="cl_foo")
+    bar = _agent("DONE", name="bar", ws=str(tmp_path), cl="cl_bar")
+    app = _bulk_app([foo, bar])
+
+    app._start_revert_selected_agent()
+
+    assert app.submitted == []
+    assert app.pushed_modals == []
+    assert any(
+        "ChangeSpec branches" in msg and sev == "error"
         for msg, sev in app.notifications
     )
 

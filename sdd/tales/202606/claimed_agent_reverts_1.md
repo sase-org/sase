@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 16:57:11
-status: wip
+status: done
 prompt: sdd/prompts/202606/claimed_agent_reverts_1.md
 ---
 # Claimed Workspaces for Agent Reverts

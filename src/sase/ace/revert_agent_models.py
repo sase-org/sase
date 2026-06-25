@@ -207,12 +207,55 @@ class BulkRevertResult:
     complete: bool = False
 
 
+@dataclass(frozen=True)
+class RevertIntent:
+    """Immutable revert intent captured from a single agent row.
+
+    Carries everything the backend needs to claim a *fresh* workspace, prepare
+    it on the ChangeSpec branch, and discover/execute a revert without depending
+    on the directory the agent originally ran in (which can be reclaimed by
+    other agents and accumulate unrelated changes).
+    """
+
+    project_file: str
+    project_basename: str
+    cl_name: str
+    agent_name: str
+    family_base: str | None = None
+    artifacts_dir: str | None = None
+    #: Names of suffix-strategy linked repos the agent run touched. Re-resolved
+    #: against the freshly claimed workspace number rather than reusing the
+    #: agent's original linked checkouts.
+    linked_repo_names: tuple[str, ...] = ()
+
+    @property
+    def scope(self) -> str:
+        return "family" if self.family_base else "agent"
+
+
+@dataclass(frozen=True)
+class BulkRevertIntent:
+    """Immutable revert intent for a bulk (marked-agent) revert.
+
+    Bulk reverts must resolve to a single project file and a single ChangeSpec
+    branch; individual agents contribute through :attr:`targets`.
+    """
+
+    project_file: str
+    project_basename: str
+    cl_name: str
+    targets: tuple[RevertTarget, ...] = ()
+    linked_repo_names: tuple[str, ...] = ()
+
+
 __all__ = [
+    "BulkRevertIntent",
     "BulkRevertPreview",
     "BulkRevertResult",
     "RepoRevertOutcome",
     "RepoRevertPlan",
     "RevertCommit",
+    "RevertIntent",
     "RevertPreview",
     "RevertRepo",
     "RevertResult",

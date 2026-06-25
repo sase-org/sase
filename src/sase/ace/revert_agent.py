@@ -47,11 +47,13 @@ from sase.ace.revert_agent_marker import (
     write_revert_result,
 )
 from sase.ace.revert_agent_models import (
+    BulkRevertIntent,
     BulkRevertPreview,
     BulkRevertResult,
     RepoRevertOutcome,
     RepoRevertPlan,
     RevertCommit,
+    RevertIntent,
     RevertPreview,
     RevertRepo,
     RevertResult,
@@ -62,11 +64,22 @@ from sase.ace.revert_agent_preview import (
     preview_agents_revert,
 )
 from sase.ace.revert_agent_resolution import (
+    build_bulk_revert_execute_intent,
+    build_bulk_revert_intent,
+    build_revert_execute_intent,
+    build_revert_intent,
     resolve_revert_agent_name,
     resolve_revert_family_base,
     resolve_revert_repos,
     resolve_revert_repos_for_agents,
     resolve_revert_workspace_dir,
+)
+from sase.ace.revert_agent_workspace import (
+    RevertWorkspaceError,
+    execute_agent_revert_intent,
+    execute_agents_revert_intent,
+    preview_agent_revert_intent,
+    preview_agents_revert_intent,
 )
 
 _discover_agent_commits = discover_agent_commits
@@ -76,20 +89,31 @@ _repo_outcome_payload = repo_outcome_payload
 _write_revert_result = write_revert_result
 
 __all__ = [
+    "BulkRevertIntent",
     "BulkRevertPreview",
     "BulkRevertResult",
     "RepoRevertOutcome",
     "RepoRevertPlan",
     "RevertCommit",
+    "RevertIntent",
     "RevertPreview",
     "RevertRepo",
     "RevertResult",
     "RevertTarget",
+    "RevertWorkspaceError",
     "agent_is_reverted",
+    "build_bulk_revert_execute_intent",
+    "build_bulk_revert_intent",
+    "build_revert_execute_intent",
+    "build_revert_intent",
     "execute_agent_revert",
+    "execute_agent_revert_intent",
     "execute_agents_revert",
+    "execute_agents_revert_intent",
     "preview_agent_revert",
+    "preview_agent_revert_intent",
     "preview_agents_revert",
+    "preview_agents_revert_intent",
     "resolve_revert_agent_name",
     "resolve_revert_family_base",
     "resolve_revert_repos",
