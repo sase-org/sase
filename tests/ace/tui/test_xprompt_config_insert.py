@@ -141,7 +141,7 @@ class TestInsertXpromptIntoConfig:
         assert "    content: |" in text
         assert "      Hello {{ name }}!" in text
 
-    def test_sorts_unsorted_entries(self, tmp_path: Path) -> None:
+    def test_unsorted_entries_append_without_reordering(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
         config.write_text(
             "xprompts:\n"
@@ -154,10 +154,10 @@ class TestInsertXpromptIntoConfig:
         result = insert_xprompt_into_config(str(config), "bravo", [], "Bravo content")
         assert result is True
         text = config.read_text()
+        charlie_pos = text.index("charlie:")
         alpha_pos = text.index("alpha:")
         bravo_pos = text.index("bravo:")
-        charlie_pos = text.index("charlie:")
-        assert alpha_pos < bravo_pos < charlie_pos
+        assert charlie_pos < alpha_pos < bravo_pos
 
     def test_preserves_other_sections(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"

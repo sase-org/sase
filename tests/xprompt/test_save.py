@@ -59,7 +59,7 @@ def test_config_save_round_trips_full_frontmatter_and_orders_entries(
 ) -> None:
     config = tmp_path / "sase.yml"
     config.write_text(
-        "xprompts:\n  zulu: |\n    Zulu\n\n  alpha: |\n    Alpha\n",
+        "xprompts:\n  alpha: |\n    Alpha\n\n  zulu: |\n    Zulu\n",
         encoding="utf-8",
     )
 

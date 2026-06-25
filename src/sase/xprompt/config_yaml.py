@@ -1,12 +1,14 @@
 """YAML config xprompt insertion helpers.
 
 Provides functions to generate and insert xprompt definitions into sase YAML
-config files (sase.yml, default_config.yml, etc.) with automatic alphabetical
-ordering.
+config files (sase.yml, default_config.yml, etc.) without reflowing unrelated
+entries or comments. Sorted sections stay sorted; unsorted sections receive new
+entries at the end.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import re
 from pathlib import Path
 
@@ -17,6 +19,21 @@ from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 # Matches an xprompt entry key at exactly 2-space indent (e.g. "  foo:" or
 # "  bd/next:").  The captured group is the entry name.
 _ENTRY_RE = re.compile(r"^  ([\w/.:-]+):")
+
+
+@dataclass(frozen=True, slots=True)
+class _XpromptsSection:
+    key_index: int
+    start: int
+    end: int
+    is_empty_mapping: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _EntryBlock:
+    name: str
+    start: int
+    end: int
 
 
 def generate_xprompt_yaml(
@@ -89,6 +106,135 @@ def _generate_frontmatter_xprompt_yaml(
     return result
 
 
+def _is_top_level_key_line(line: str) -> bool:
+    return bool(line) and not line[0].isspace() and not line.startswith("#")
+
+
+def _indent_width(line: str) -> int:
+    return len(line) - len(line.lstrip())
+
+
+def _find_xprompts_section(lines: list[str]) -> _XpromptsSection | None:
+    """Return the xprompts section span, if present."""
+    for i, line in enumerate(lines):
+        stripped = line.rstrip()
+        if stripped not in {"xprompts:", "xprompts: {}"}:
+            continue
+
+        section_start = i + 1
+        section_end = len(lines)
+        for j in range(section_start, len(lines)):
+            if _is_top_level_key_line(lines[j]):
+                section_end = j
+                break
+
+        return _XpromptsSection(
+            key_index=i,
+            start=section_start,
+            end=section_end,
+            is_empty_mapping=stripped == "xprompts: {}",
+        )
+
+    return None
+
+
+def _parse_entry_blocks(
+    lines: list[str],
+    section_start: int,
+    section_end: int,
+) -> list[_EntryBlock]:
+    """Parse xprompt entry spans without absorbing surrounding scaffolding."""
+    blocks: list[_EntryBlock] = []
+    i = section_start
+    while i < section_end:
+        match = _ENTRY_RE.match(lines[i])
+        if match is None:
+            i += 1
+            continue
+
+        block_start = i
+        i += 1
+        while i < section_end:
+            line = lines[i]
+            if line.strip() and _indent_width(line) <= 2:
+                break
+            i += 1
+
+        block_end = i
+        while block_end > block_start + 1 and not lines[block_end - 1].strip():
+            block_end -= 1
+
+        blocks.append(_EntryBlock(match.group(1), block_start, block_end))
+
+    return blocks
+
+
+def _entry_sort_key(name: str) -> str:
+    return f"{name}:"
+
+
+def _is_sorted_by_entry_key(blocks: list[_EntryBlock]) -> bool:
+    keys = [_entry_sort_key(block.name) for block in blocks]
+    return keys == sorted(keys)
+
+
+def _canonical_gap(blocks: list[_EntryBlock], lines: list[str]) -> int:
+    """Return the representative blank-line count between adjacent entries."""
+    gaps: list[int] = []
+    for previous, current in zip(blocks, blocks[1:], strict=False):
+        gap_lines = lines[previous.end : current.start]
+        if all(not line.strip() for line in gap_lines):
+            gaps.append(len(gap_lines))
+
+    if not gaps:
+        return 0
+
+    best_gap = gaps[0]
+    best_count = gaps.count(best_gap)
+    for gap in gaps[1:]:
+        count = gaps.count(gap)
+        if count > best_count:
+            best_gap = gap
+            best_count = count
+    return best_gap
+
+
+def _insert_index_for_new_entry(
+    name: str,
+    blocks: list[_EntryBlock],
+) -> int | None:
+    """Return the block index to insert before, or None to append."""
+    if not _is_sorted_by_entry_key(blocks):
+        return None
+
+    new_key = _entry_sort_key(name)
+    for i, block in enumerate(blocks):
+        if _entry_sort_key(block.name) > new_key:
+            return i
+    return None
+
+
+def _insert_entry_lines(
+    lines: list[str],
+    section_start: int,
+    blocks: list[_EntryBlock],
+    insert_before_block: int | None,
+    entry_lines: list[str],
+) -> list[str]:
+    if not blocks:
+        return lines[:section_start] + entry_lines + lines[section_start:]
+
+    gap_lines = [""] * _canonical_gap(blocks, lines)
+    if insert_before_block is None:
+        insert_at = blocks[-1].end
+        inserted = gap_lines + entry_lines
+    else:
+        insert_at = blocks[insert_before_block].start
+        inserted = entry_lines + gap_lines
+
+    return lines[:insert_at] + inserted + lines[insert_at:]
+
+
 def insert_xprompt_into_config(
     config_path: str,
     name: str,
@@ -99,8 +245,11 @@ def insert_xprompt_into_config(
 ) -> bool:
     """Insert an xprompt definition into a YAML config file.
 
-    The new entry is placed in alphabetical order among existing entries. If
-    the existing entries are not sorted, they are sorted as part of insertion.
+    Existing entries, comments, and blank-line scaffolding are preserved
+    byte-for-byte except for the one entry being inserted or overwritten. New
+    entries are inserted in sorted position only when the existing section is
+    already sorted by whole entry key (``name:``); otherwise, they are appended
+    to the end of the section.
 
     Returns ``True`` on success, ``False`` on failure.
     """
@@ -113,14 +262,6 @@ def insert_xprompt_into_config(
 
     lines = file_text.split("\n")
 
-    # Locate the ``xprompts:`` key
-    xprompts_idx: int | None = None
-    for i, line in enumerate(lines):
-        stripped = line.rstrip()
-        if stripped == "xprompts:" or stripped == "xprompts: {}":
-            xprompts_idx = i
-            break
-
     entry_lines = generate_xprompt_yaml(
         name,
         inputs,
@@ -128,11 +269,13 @@ def insert_xprompt_into_config(
         frontmatter=frontmatter,
     )
 
-    if xprompts_idx is None:
+    section = _find_xprompts_section(lines)
+    if section is None:
         # No xprompts section - append one at the end of the file.
         while lines and lines[-1].strip() == "":
             lines.pop()
-        lines.append("")
+        if lines:
+            lines.append("")
         lines.append("xprompts:")
         lines.extend(entry_lines)
         lines.append("")
@@ -140,59 +283,24 @@ def insert_xprompt_into_config(
         return True
 
     # Replace ``xprompts: {}`` with bare ``xprompts:``
-    if lines[xprompts_idx].rstrip() == "xprompts: {}":
-        lines[xprompts_idx] = "xprompts:"
+    if section.is_empty_mapping:
+        lines[section.key_index] = "xprompts:"
 
-    # Determine section boundaries (start = line after key, end = next
-    # top-level key or EOF).
-    section_start = xprompts_idx + 1
-    section_end = len(lines)
-    for i in range(section_start, len(lines)):
-        line = lines[i]
-        if line and not line[0].isspace() and not line.startswith("#"):
-            section_end = i
-            break
+    blocks = _parse_entry_blocks(lines, section.start, section.end)
+    for block in blocks:
+        if block.name == name:
+            result = lines[: block.start] + entry_lines + lines[block.end :]
+            path.write_text("\n".join(result), encoding="utf-8")
+            return True
 
-    # Extract each entry as a named block of text lines.
-    entry_blocks: dict[str, list[str]] = {}
-    current_name: str | None = None
-    current_lines: list[str] = []
-
-    for i in range(section_start, section_end):
-        line = lines[i]
-        m = _ENTRY_RE.match(line)
-        if m:
-            if current_name is not None:
-                while current_lines and current_lines[-1].strip() == "":
-                    current_lines.pop()
-                entry_blocks[current_name] = current_lines
-            current_name = m.group(1)
-            current_lines = [line]
-        elif current_name is not None:
-            current_lines.append(line)
-
-    if current_name is not None:
-        while current_lines and current_lines[-1].strip() == "":
-            current_lines.pop()
-        entry_blocks[current_name] = current_lines
-
-    # Add the new entry and rebuild the section in sorted order.
-    entry_blocks[name] = entry_lines
-    sorted_names = sorted(entry_blocks.keys())
-
-    new_section: list[str] = []
-    for entry_name in sorted_names:
-        if new_section:
-            new_section.append("")  # blank separator between entries
-        new_section.extend(entry_blocks[entry_name])
-
-    # Reconstruct the file.
-    result = lines[:section_start] + new_section
-    if section_end < len(lines):
-        result.append("")  # blank line before next top-level key
-        result.extend(lines[section_end:])
-    else:
-        result.append("")
+    insert_before_block = _insert_index_for_new_entry(name, blocks)
+    result = _insert_entry_lines(
+        lines,
+        section.start,
+        blocks,
+        insert_before_block,
+        entry_lines,
+    )
 
     path.write_text("\n".join(result), encoding="utf-8")
     return True

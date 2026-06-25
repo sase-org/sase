@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 10:06:14
-status: wip
+status: done
 prompt: sdd/prompts/202606/minimal_config_xprompt_edits.md
 ---
 # Plan: Minimal, comment-preserving xprompt edits in YAML config files
