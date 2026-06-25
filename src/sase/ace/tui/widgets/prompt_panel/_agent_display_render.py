@@ -15,16 +15,18 @@ from ._agent_display_attempts import (
     render_merged_attempt_history,
     should_render_merged,
 )
-from ._agent_display_parts import (
-    build_header_text,
-    clear_detail_header_summary_cache,
+from ._agent_display_content import (
     get_phase_label,
     get_prompt_content,
-    get_cached_detail_header_summary,
-    publish_opened_workspaces_cache,
     render_agent_reply_content,
     render_phase_divider,
     render_timestamp_divider,
+)
+from ._agent_display_header import build_header_text
+from ._agent_display_header_summary import (
+    clear_detail_header_summary_cache,
+    get_cached_detail_header_summary,
+    publish_opened_workspaces_cache,
 )
 from ._helpers import format_output
 

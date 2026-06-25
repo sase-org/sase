@@ -11,7 +11,7 @@ from rich.text import Text
 
 from ...models.agent import Agent, AttemptRecord
 from ...util.lazy_syntax import lazy_renderable
-from ._agent_display_parts import (
+from ._agent_display_content import (
     get_prompt_content,
     render_attempt_divider,
     render_timestamp_divider,

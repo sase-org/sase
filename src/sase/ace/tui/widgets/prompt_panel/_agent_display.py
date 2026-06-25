@@ -13,7 +13,7 @@ from ._agent_display_attempts import (
     should_render_merged,
 )
 from ._agent_display_async import AgentDisplayWorkerMixin
-from ._agent_display_parts import build_header_text
+from ._agent_display_header import build_header_text
 from ._agent_display_render import AgentDisplayRenderMixin
 
 _find_attempt = find_attempt

@@ -18,7 +18,7 @@ from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ..hint_tracker import HintTracker
 
 if TYPE_CHECKING:
-    from ._agent_display_parts import HeaderHintState
+    from ._agent_display_state import HeaderHintState
 
 
 @dataclass

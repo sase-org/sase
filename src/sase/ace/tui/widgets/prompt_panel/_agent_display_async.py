@@ -10,7 +10,7 @@ from textual.worker import Worker, WorkerState
 
 from ...models.agent import Agent
 from ...models.agent_bead import resolve_bead_display, should_resolve_bead_display
-from ._agent_display_parts import (
+from ._agent_display_header_summary import (
     build_detail_header_summary,
     cache_detail_header_summary,
     should_refresh_detail_header_summary,

@@ -3,18 +3,20 @@
 from rich.text import Text
 
 from ...models.agent import Agent, AgentType
-from ._agent_display_parts import (
-    HeaderHintState,
-    build_detail_header_summary,
-    build_header_text,
-    cache_detail_header_summary,
+from ._agent_display_content import (
     get_phase_label,
     get_prompt_content,
-    get_cached_detail_header_summary,
-    publish_opened_workspaces_cache,
     render_phase_divider,
     render_timestamp_divider,
 )
+from ._agent_display_header import build_header_text
+from ._agent_display_header_summary import (
+    build_detail_header_summary,
+    cache_detail_header_summary,
+    get_cached_detail_header_summary,
+    publish_opened_workspaces_cache,
+)
+from ._agent_display_state import HeaderHintState
 from ._file_path_hints import (
     append_text_with_file_hints,
     resolve_agent_workspace_dir,

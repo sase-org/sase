@@ -12,7 +12,7 @@ from rich.text import Text
 from ...models.agent import Agent
 
 if TYPE_CHECKING:
-    from ._agent_display_parts import HeaderHintState
+    from ._agent_display_state import HeaderHintState
 
 _COLOR_HEADER = "bold #87D7FF"
 _COLOR_PATH = "#87AFFF"
