@@ -142,6 +142,19 @@ class DetailMixin:
         has_class = getattr(widget, "has_class", None)
         return bool(has_class(class_name)) if callable(has_class) else False
 
+    def _set_agents_onboarding_layout(self, active: bool) -> None:
+        """Collapse the Agents-tab chrome while onboarding is visible."""
+        from textual.css.query import NoMatches
+
+        try:
+            agents_view = self.query_one("#agents-view")  # type: ignore[attr-defined]
+        except (NoMatches, LookupError):
+            return
+        if active:
+            agents_view.add_class("-onboarding-active")
+        else:
+            agents_view.remove_class("-onboarding-active")
+
     def _sync_agents_onboarding(
         self,
         *,
@@ -174,6 +187,7 @@ class DetailMixin:
 
         self._set_widget_hidden(agent_detail, show_onboarding)
         self._set_widget_hidden(onboarding, not show_onboarding)
+        self._set_agents_onboarding_layout(show_onboarding)
         if not show_onboarding:
             return False
 

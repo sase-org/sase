@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 15:52:35
-status: wip
+status: done
 prompt: sdd/prompts/202606/agents_onboarding_full_tab.md
 ---
 # Plan: Agents-tab Onboarding Takes Over the Full Tab

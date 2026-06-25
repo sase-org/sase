@@ -22,6 +22,17 @@ def _mounted_onboarding_plain(page: AcePage) -> str:
     )
 
 
+def _assert_agents_onboarding_layout(page: AcePage, *, active: bool) -> None:
+    agents_view = page.query_one_widget("#agents-view")
+    list_container = page.query_one_widget("#agent-list-container")
+    info_panel = page.query_one_widget("#agent-info-panel")
+    expected_chrome_display = not active
+
+    assert agents_view.has_class("-onboarding-active") is active
+    assert list_container.display is expected_chrome_display
+    assert info_panel.display is expected_chrome_display
+
+
 class _PredicateApp(DetailMixin):
     def __init__(
         self,
@@ -74,6 +85,7 @@ async def test_agents_onboarding_visible_after_empty_load_tab_switch(
         detail = page.query_one_widget("#agent-detail-panel")
         assert not onboarding.has_class("hidden")
         assert detail.has_class("hidden")
+        _assert_agents_onboarding_layout(page, active=True)
         assert "Welcome to sase ace" in _mounted_onboarding_plain(page)
 
 
@@ -92,6 +104,7 @@ async def test_agents_onboarding_hidden_when_agents_exist(
         detail = page.query_one_widget("#agent-detail-panel")
         assert onboarding.has_class("hidden")
         assert not detail.has_class("hidden")
+        _assert_agents_onboarding_layout(page, active=False)
 
 
 async def test_agents_onboarding_hides_after_first_agent_arrives(
@@ -113,3 +126,4 @@ async def test_agents_onboarding_hides_after_first_agent_arrives(
         detail = page.query_one_widget("#agent-detail-panel")
         assert onboarding.has_class("hidden")
         assert not detail.has_class("hidden")
+        _assert_agents_onboarding_layout(page, active=False)

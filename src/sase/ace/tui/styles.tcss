@@ -1317,6 +1317,10 @@ HintInputBar #hint-escape-hint {
     layout: vertical;
 }
 
+#agents-view.-onboarding-active #agent-list-container {
+    display: none;
+}
+
 #agents-content.-artifact-viewer-active #agent-list-container {
     display: none;
 }
@@ -1326,6 +1330,10 @@ HintInputBar #hint-escape-hint {
     max-height: 1;
     padding: 0 1;
     background: $surface;
+}
+
+#agents-view.-onboarding-active #agent-info-panel {
+    display: none;
 }
 
 #agent-list-container AgentList {
@@ -1361,11 +1369,13 @@ HintInputBar #hint-escape-hint {
     width: 100%;
     height: 1fr;
     padding: 1 2;
+    align-horizontal: center;
     scrollbar-gutter: stable;
 }
 
 #agent-onboarding-hero {
     width: 100%;
+    max-width: 90;
     height: auto;
     text-align: center;
     content-align: center middle;
@@ -1374,6 +1384,7 @@ HintInputBar #hint-escape-hint {
 
 .agent-onboarding-card {
     width: 100%;
+    max-width: 90;
     height: auto;
     border: round $secondary;
     border-title-color: #87D7FF;
@@ -1383,6 +1394,7 @@ HintInputBar #hint-escape-hint {
 
 #agent-onboarding-footer {
     width: 100%;
+    max-width: 90;
     height: auto;
     text-align: center;
     content-align: center middle;
