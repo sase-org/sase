@@ -180,7 +180,7 @@ def test_revive_grouping_restores_children_loaded_from_child_bundle_filenames(
     assert app.load_count == 1
 
 
-def test_revive_archive_load_repairs_identity_index_on_demand() -> None:
+def test_revive_archive_repairs_identity_index_on_demand() -> None:
     """Archive open, not startup, recovers bundle identities and prunes orphans."""
 
     archived = make_agent(
@@ -194,14 +194,12 @@ def test_revive_archive_load_repairs_identity_index_on_demand() -> None:
 
     with (
         patch(
-            "sase.ace.dismissed_agents.load_dismissed_bundles",
-            return_value=[archived],
+            "sase.ace.dismissed_agents.load_dismissed_bundle_identities",
+            return_value={archived.identity},
         ),
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
     ):
-        loaded = app._load_dismissed_archive()
+        app._repair_dismissed_projection()
 
-    assert loaded == [archived]
-    assert archived._loaded_from_dismissed_bundle is True
     assert app._dismissed_agents == {archived.identity}
     mock_save.assert_called_once_with(app._dismissed_agents)

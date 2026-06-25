@@ -2,20 +2,21 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from ...models.agent import AgentType
 from ._revive_helpers import merge_dismissed_agents
 from ._revive_index import sync_dismissed_agent_artifact_index
 
 if TYPE_CHECKING:
     from ...models import Agent
-    from ...models.agent import AgentType
 
 
 class AgentReviveArchiveMixin:
     """Mixin providing dismissed-archive loading for custom revive search."""
+
+    _DISMISSED_ARCHIVE_PAGE_SIZE = 250
 
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
@@ -31,8 +32,28 @@ class AgentReviveArchiveMixin:
         def _filter_for_scope(agents: list[Agent]) -> tuple[list[Agent], list[Agent]]:
             return self._filter_dismissed_agents_for_scope(selection, agents)
 
+        scope_args = self._dismissed_archive_scope_args(selection)
         agents = self._dismissed_agent_objects
         filtered, all_in_scope = _filter_for_scope(agents)
+        next_offset = 0
+
+        def _load_page_for_modal() -> tuple[list[Agent], list[Agent], bool]:
+            nonlocal next_offset
+            from ....dismissed_agents import load_dismissed_bundles_page
+
+            page_agents, exhausted = load_dismissed_bundles_page(
+                **scope_args,
+                limit=self._DISMISSED_ARCHIVE_PAGE_SIZE,
+                offset=next_offset,
+            )
+            next_offset += self._DISMISSED_ARCHIVE_PAGE_SIZE
+            merged = merge_dismissed_agents(
+                self._dismissed_agent_objects,
+                page_agents,
+            )
+            self._dismissed_agent_objects = merged
+            next_filtered, next_all_in_scope = _filter_for_scope(merged)
+            return next_filtered, next_all_in_scope, exhausted
 
         def _on_agents_selected(agents: object) -> None:
             if agents is None:
@@ -52,34 +73,34 @@ class AgentReviveArchiveMixin:
             filtered,
             all_dismissed=all_in_scope,
             loading_archive=True,
+            page_loader=_load_page_for_modal,
+            page_size=self._DISMISSED_ARCHIVE_PAGE_SIZE,
         )
         self.app.push_screen(modal, _on_agents_selected)  # type: ignore[attr-defined]
 
-        async def _load_archive_for_modal() -> None:
-            archive_agents = await asyncio.to_thread(self._load_dismissed_archive)
-            merged = merge_dismissed_agents(
-                self._dismissed_agent_objects, archive_agents
-            )
-            next_filtered, next_all_in_scope = _filter_for_scope(merged)
-            self._dismissed_agent_objects = merged
-            try:
-                modal.set_agents(
-                    next_filtered,
-                    all_dismissed=next_all_in_scope,
-                    loading_archive=False,
-                )
-            except Exception:
-                pass
-
         try:
             self.run_worker(  # type: ignore[attr-defined]
-                cast(Any, _load_archive_for_modal),
-                thread=False,
+                cast(Any, self._repair_dismissed_projection),
+                thread=True,
                 exclusive=False,
-                group="dismissed-archive",
+                group="dismissed-projection-repair",
             )
         except Exception:
-            self.notify("Failed to load dismissed archive", severity="error")  # type: ignore[attr-defined]
+            self.notify("Failed to repair dismissed projection", severity="error")  # type: ignore[attr-defined]
+
+    def _dismissed_archive_scope_args(self, selection: object) -> dict[str, str]:
+        """Return dismissed-bundle index query args for a revive scope."""
+        from ...modals import SelectionItem
+
+        if not isinstance(selection, SelectionItem):
+            return {}
+        if selection.item_type == "home":
+            return {"cl_name": "~"}
+        if selection.item_type == "project" and selection.project_name:
+            return {"project_name": selection.project_name}
+        if selection.item_type == "cl" and selection.cl_name:
+            return {"cl_name": selection.cl_name}
+        return {}
 
     def _filter_dismissed_agents_for_scope(
         self,
@@ -120,14 +141,24 @@ class AgentReviveArchiveMixin:
         filtered = [a for a in filtered if not a.is_workflow_child]
         return filtered, all_in_scope
 
-    def _load_dismissed_archive(self) -> list[Agent]:
-        """Load dismissed bundles on demand and repair the compact identity index."""
-        from ....dismissed_agents import load_dismissed_bundles, save_dismissed_agents
+    def _repair_dismissed_projection(self) -> None:
+        """Repair the compact dismissed identity projection from bundle identities."""
+        from ....dismissed_agents import (
+            load_dismissed_bundle_identities,
+            save_dismissed_agents,
+        )
 
-        archive_agents = load_dismissed_bundles()
-        found_identities = {agent.identity for agent in archive_agents}
+        found_identities: set[tuple[AgentType, str, str | None]] = set()
+        for agent_type, cl_name, raw_suffix in load_dismissed_bundle_identities():
+            try:
+                normalized_type = AgentType(agent_type)
+            except ValueError:
+                continue
+            found_identities.add((normalized_type, cl_name, raw_suffix))
         found_suffixes = {
-            agent.raw_suffix for agent in archive_agents if agent.raw_suffix is not None
+            raw_suffix
+            for _, _, raw_suffix in found_identities
+            if raw_suffix is not None
         }
         in_memory_suffixes = {
             agent.raw_suffix
@@ -152,6 +183,8 @@ class AgentReviveArchiveMixin:
                     )
                 except Exception:
                     pass
-        for agent in archive_agents:
-            agent._loaded_from_dismissed_bundle = True
-        return archive_agents
+
+    def _load_dismissed_archive(self) -> list[Agent]:
+        """Compatibility hook for tests and older callers: repair only."""
+        self._repair_dismissed_projection()
+        return []

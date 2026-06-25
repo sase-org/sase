@@ -11,7 +11,7 @@ from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from tests._agent_revive_helpers import FakeReviveApp, make_agent
 
 
-def test_load_dismissed_archive_repairs_projection_after_save() -> None:
+def test_repair_dismissed_projection_after_save() -> None:
     """Archive index repair refreshes the Tier 1 dismissed projection."""
     app = FakeReviveApp()
     archived = make_agent(cl_name="archived", raw_suffix="20260201101010")
@@ -20,17 +20,16 @@ def test_load_dismissed_archive_repairs_projection_after_save() -> None:
 
     with (
         patch(
-            "sase.ace.dismissed_agents.load_dismissed_bundles", return_value=[archived]
+            "sase.ace.dismissed_agents.load_dismissed_bundle_identities",
+            return_value={archived.identity},
         ),
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
         patch(
             "sase.ace.tui.actions.agents._revive.sync_dismissed_agent_artifact_index"
         ) as mock_sync_index,
     ):
-        agents = app._load_dismissed_archive()
+        app._repair_dismissed_projection()
 
-    assert agents == [archived]
-    assert archived._loaded_from_dismissed_bundle is True
     assert app._dismissed_agents == {archived.identity}
     mock_save.assert_called_once_with(app._dismissed_agents)
     mock_sync_index.assert_called_once_with(app._dismissed_agents, force=True)

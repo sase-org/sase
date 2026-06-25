@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 18:46:50
-status: wip
+status: done
 prompt: sdd/prompts/202606/dismissed_archive_paging.md
 ---
 # Plan: Page the "Custom revival search" dismissed-agent archive (Ctrl+K loads 250 more)

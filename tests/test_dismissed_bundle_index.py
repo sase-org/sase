@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -88,6 +89,43 @@ def test_dismissed_bundle_index_rebuild_and_query(tmp_path: Path) -> None:
         }
         assert any(summary.is_workflow_child for summary in summaries)
         assert load_dismissed_bundle_summaries(project_name="bundles") == []
+
+
+def test_dismissed_bundle_index_query_summaries_supports_offset(
+    tmp_path: Path,
+) -> None:
+    """Offset paging returns disjoint newest-first summary pages."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        for suffix in (
+            "20250615100000",
+            "20250615110000",
+            "20250615120000",
+        ):
+            agent = make_agent(cl_name="indexed_cl", raw_suffix=suffix)
+            agent.start_time = datetime.strptime(suffix, "%Y%m%d%H%M%S")
+            save_dismissed_bundle(agent)
+        assert rebuild_dismissed_bundle_index() == (3, 0)
+
+        first_page = load_dismissed_bundle_summaries(
+            cl_name="indexed_cl",
+            limit=2,
+            offset=0,
+        )
+        second_page = load_dismissed_bundle_summaries(
+            cl_name="indexed_cl",
+            limit=2,
+            offset=2,
+        )
+
+    assert [summary.raw_suffix for summary in first_page] == [
+        "20250615120000",
+        "20250615110000",
+    ]
+    assert [summary.raw_suffix for summary in second_page] == ["20250615100000"]
 
 
 def test_dismissed_bundle_index_legacy_summary_fields(tmp_path: Path) -> None:

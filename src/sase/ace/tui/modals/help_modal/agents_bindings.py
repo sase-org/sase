@@ -65,7 +65,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.accept_proposal), "Open auto-approve menu / answer HITL"),
                 (d(a.rename_cl), "Name agent"),
                 (d(a.edit_hooks), "Fork chat as agent"),
-                (d(a.start_rewind), "Revive dismissed agent"),
+                (d(a.start_rewind), "Revive dismissed (^k loads more)"),
                 (d(a.add_tag), "Wait for agent (or marked set)"),
                 (d(a.reword), "Edit wait deps/time / run now"),
                 (d(a.save_marked_agents), "Save/dismiss marked agents"),

@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+from textual.app import App, ComposeResult
+from textual.widgets import Input, OptionList
+
 from sase.ace.tui.models.agent_status import (
     STOPPED_COLOR,
     STOPPED_GLYPH,
@@ -18,6 +22,20 @@ from sase.ace.tui.modals.revive_agent_rendering import (
 from tests._agent_revive_helpers import make_agent
 
 
+class _ModalHost(App[None]):
+    ENABLE_COMMAND_PALETTE = False
+
+    def __init__(self, modal: DismissedAgentSelectModal) -> None:
+        super().__init__()
+        self.modal = modal
+
+    def compose(self) -> ComposeResult:
+        yield from ()
+
+    def on_mount(self) -> None:
+        self.push_screen(self.modal)
+
+
 def test_modal_exposes_legacy_filter_placeholder_and_bindings() -> None:
     modal = DismissedAgentSelectModal(
         [make_agent(cl_name="alpha", raw_suffix="20260512120000")],
@@ -28,10 +46,10 @@ def test_modal_exposes_legacy_filter_placeholder_and_bindings() -> None:
         for binding in modal.BINDINGS
     }
 
-    assert "load_more" not in binding_actions
+    assert "load_more" in binding_actions
     assert "toggle_mark" in binding_actions
     assert "toggle_all" in binding_actions
-    assert "PgDn" not in modal._hints_text()
+    assert "^k" not in modal._hints_text()
 
 
 def test_filter_matches_agent_label_and_response_content(tmp_path: Path) -> None:
@@ -77,6 +95,58 @@ def test_set_agents_recomputes_workflow_step_counts() -> None:
     modal._step_counts = modal._compute_step_counts()
 
     assert modal._step_counts == {"20260512120000": 1}
+
+
+def test_set_agents_preserves_marks_by_identity_after_reorder() -> None:
+    first = make_agent(cl_name="alpha", raw_suffix="20260512120000")
+    second = make_agent(cl_name="beta", raw_suffix="20260512120100")
+    modal = DismissedAgentSelectModal([first, second])
+    modal._marked = {1}
+
+    modal.set_agents([second, first])
+
+    assert modal._marked == {0}
+    assert modal._get_marked_agents() == [second]
+
+
+@pytest.mark.asyncio
+async def test_ctrl_k_loads_more_without_clearing_filter_or_marks() -> None:
+    first = make_agent(cl_name="alpha", raw_suffix="20260512120000")
+    second = make_agent(cl_name="beta", raw_suffix="20260512120100")
+    pages = [
+        ([first], [first], False),
+        ([first, second], [first, second], True),
+    ]
+
+    def page_loader() -> tuple[list[object], list[object], bool]:
+        return pages.pop(0)  # type: ignore[return-value]
+
+    modal = DismissedAgentSelectModal(
+        [],
+        loading_archive=True,
+        page_loader=page_loader,  # type: ignore[arg-type]
+        page_size=250,
+    )
+    app = _ModalHost(modal)
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        filter_input = modal.query_one("#dismissed-filter", Input)
+        option_list = modal.query_one("#dismissed-agent-list", OptionList)
+        filter_input.value = "a"
+        modal._marked = {0}
+        option_list.highlighted = 0
+
+        await pilot.press("ctrl+k")
+        await pilot.pause()
+
+        assert option_list.highlighted == 0
+
+    assert filter_input.value == "a"
+    assert modal.agents == [first, second]
+    assert modal._marked == {0}
+    assert pages == []
+    assert "^k" not in modal._hints_text()
 
 
 def test_stopped_status_uses_canonical_style_and_glyph() -> None:

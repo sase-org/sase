@@ -10,6 +10,7 @@ import pytest
 from sase.ace.dismissed_agents import (
     has_dismissed_bundle,
     load_dismissed_bundle_summaries,
+    load_dismissed_bundles_page,
     load_dismissed_bundles,
     save_dismissed_bundle,
 )
@@ -162,9 +163,62 @@ def test_bundle_load_by_suffixes_with_children(tmp_path: Path) -> None:
         save_dismissed_bundle(unrelated)
 
         loaded = load_dismissed_bundles({"20250615100000"})
-        assert len(loaded) == 3
-        step_indices = sorted(a.step_index for a in loaded if a.step_index is not None)
-        assert step_indices == [0, 1]
+    assert len(loaded) == 3
+    step_indices = sorted(a.step_index for a in loaded if a.step_index is not None)
+    assert step_indices == [0, 1]
+
+
+def test_load_dismissed_bundles_page_loads_parent_rows_with_children(
+    tmp_path: Path,
+) -> None:
+    """Paged archive loading pages visible parents and includes their steps."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        old_parent = make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="paged_cl",
+            raw_suffix="20250615100000",
+            workflow="wf",
+        )
+        old_child = make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="paged_cl",
+            raw_suffix="20250615100000",
+            parent_workflow="wf",
+            parent_timestamp="20250615100000",
+            step_index=0,
+        )
+        new_parent = make_agent(cl_name="paged_cl", raw_suffix="20250615110000")
+        other = make_agent(cl_name="other_cl", raw_suffix="20250615120000")
+        old_parent.start_time = datetime.strptime("20250615100000", "%Y%m%d%H%M%S")
+        old_child.start_time = old_parent.start_time
+        new_parent.start_time = datetime.strptime("20250615110000", "%Y%m%d%H%M%S")
+        other.start_time = datetime.strptime("20250615120000", "%Y%m%d%H%M%S")
+        for agent in (old_parent, old_child, new_parent, other):
+            save_dismissed_bundle(agent)
+
+        first_page, first_exhausted = load_dismissed_bundles_page(
+            cl_name="paged_cl",
+            limit=1,
+            offset=0,
+        )
+        second_page, second_exhausted = load_dismissed_bundles_page(
+            cl_name="paged_cl",
+            limit=1,
+            offset=1,
+        )
+
+    assert first_exhausted is False
+    assert [agent.raw_suffix for agent in first_page] == ["20250615110000"]
+    assert all(agent._loaded_from_dismissed_bundle for agent in first_page)
+    assert second_exhausted is True
+    assert {agent.raw_suffix for agent in second_page} == {"20250615100000"}
+    assert sorted(
+        agent.step_index for agent in second_page if agent.step_index is not None
+    ) == [0]
 
 
 def test_save_dismissed_bundle_writes_legacy_sharded_file(tmp_path: Path) -> None:

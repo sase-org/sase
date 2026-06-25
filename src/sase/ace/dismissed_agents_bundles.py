@@ -88,6 +88,7 @@ def load_dismissed_bundle_summaries(
     project_name: str | None = None,
     top_level_only: bool = False,
     limit: int | None = None,
+    offset: int | None = None,
 ) -> list[Any]:
     """Load indexed dismissed bundle summaries, rebuilding if needed."""
     try:
@@ -101,6 +102,7 @@ def load_dismissed_bundle_summaries(
             project_name=project_name,
             top_level_only=top_level_only,
             limit=limit,
+            offset=offset,
         )
         if summaries is not None:
             return summaries
@@ -113,6 +115,7 @@ def load_dismissed_bundle_summaries(
                 project_name=project_name,
                 top_level_only=top_level_only,
                 limit=limit,
+                offset=offset,
             )
             or []
         )
@@ -327,6 +330,11 @@ def load_dismissed_bundles(ctx: Any, suffixes: set[str] | None = None) -> list[A
     if not bundle_paths:
         return []
 
+    return _load_bundle_paths(ctx, bundle_paths)
+
+
+def _load_bundle_paths(ctx: Any, bundle_paths: list[Path]) -> list[Agent]:
+    """Load dismissed agents from already-resolved bundle paths."""
     from .tui.models._loaders._json_cache import (
         get_loader_executor,
         is_loader_executor_shutdown_error,
@@ -345,6 +353,52 @@ def load_dismissed_bundles(ctx: Any, suffixes: set[str] | None = None) -> list[A
             return agents
         raise
     return agents
+
+
+def load_dismissed_bundles_page(
+    ctx: Any,
+    *,
+    cl_name: str | None = None,
+    project_name: str | None = None,
+    limit: int = 250,
+    offset: int = 0,
+) -> tuple[list[Agent], bool]:
+    """Load one recency-ordered page of top-level dismissed bundles.
+
+    The page unit is visible parent rows. Children for those parents are loaded
+    with the same suffixes so workflow step counts and previews are complete for
+    every loaded page.
+    """
+    page_limit = max(0, limit)
+    page_offset = max(0, offset)
+    if page_offset == 0:
+        ensure_dismissed_archive_ready(ctx)
+    if page_limit == 0:
+        return [], True
+
+    summaries = load_dismissed_bundle_summaries(
+        ctx,
+        cl_name=cl_name,
+        project_name=project_name,
+        top_level_only=True,
+        limit=page_limit + 1,
+        offset=page_offset,
+    )
+    exhausted = len(summaries) <= page_limit
+    page_summaries = summaries[:page_limit]
+    suffixes = {
+        summary.raw_suffix
+        for summary in page_summaries
+        if getattr(summary, "raw_suffix", None)
+    }
+    if not suffixes:
+        return [], exhausted
+
+    bundle_paths = bundle_paths_for_suffixes(ctx, suffixes)
+    agents = _load_bundle_paths(ctx, bundle_paths) if bundle_paths else []
+    for agent in agents:
+        agent._loaded_from_dismissed_bundle = True
+    return agents, exhausted
 
 
 def load_bundle_file(filepath: Path) -> Agent | None:

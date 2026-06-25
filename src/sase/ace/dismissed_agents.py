@@ -21,6 +21,7 @@ from .dismissed_agents_bundles import (
     load_dismissed_bundle_identities as _load_dismissed_bundle_identities_impl,
     load_dismissed_bundle_summaries as _load_dismissed_bundle_summaries_impl,
     load_dismissed_bundles as _load_dismissed_bundles_impl,
+    load_dismissed_bundles_page as _load_dismissed_bundles_page_impl,
     mark_bundles_revived_by_suffixes as _mark_bundles_revived_by_suffixes_impl,
     purge_revived_dismissed_bundles as _purge_revived_dismissed_bundles_impl,
     rebuild_dismissed_bundle_index as _rebuild_dismissed_bundle_index_impl,
@@ -210,6 +211,7 @@ def load_dismissed_bundle_summaries(
     project_name: str | None = None,
     top_level_only: bool = False,
     limit: int | None = None,
+    offset: int | None = None,
 ) -> list[Any]:
     return _load_dismissed_bundle_summaries_impl(
         _ctx(),
@@ -218,6 +220,7 @@ def load_dismissed_bundle_summaries(
         project_name=project_name,
         top_level_only=top_level_only,
         limit=limit,
+        offset=offset,
     )
 
 
@@ -340,6 +343,22 @@ def _bundle_filename(agent: Agent) -> str:
 
 def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
     return _load_dismissed_bundles_impl(_ctx(), suffixes)
+
+
+def load_dismissed_bundles_page(
+    *,
+    cl_name: str | None = None,
+    project_name: str | None = None,
+    limit: int = 250,
+    offset: int = 0,
+) -> tuple[list[Agent], bool]:
+    return _load_dismissed_bundles_page_impl(
+        _ctx(),
+        cl_name=cl_name,
+        project_name=project_name,
+        limit=limit,
+        offset=offset,
+    )
 
 
 def _load_bundle_file(filepath: Path) -> Agent | None:

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable
+
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
@@ -21,6 +25,8 @@ from .revive_agent_rendering import (
     get_type_color,
     placeholder_option,
 )
+
+_DismissedPageLoader = Callable[[], tuple[list[Agent], list[Agent], bool]]
 
 
 class _ReviveFilterInput(Input):
@@ -59,6 +65,7 @@ class DismissedAgentSelectModal(
     _option_list_id = "dismissed-agent-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        Binding("ctrl+k", "load_more", "Load More", priority=True),
         Binding("tab", "toggle_mark", "Mark", priority=True),
         Binding("ctrl+a", "toggle_all", "Mark All", priority=True),
     ]
@@ -69,6 +76,8 @@ class DismissedAgentSelectModal(
         *,
         all_dismissed: list[Agent] | None = None,
         loading_archive: bool = False,
+        page_loader: _DismissedPageLoader | None = None,
+        page_size: int = 250,
     ) -> None:
         """Initialize the modal."""
         super().__init__()
@@ -79,6 +88,10 @@ class DismissedAgentSelectModal(
         self._step_counts: dict[str, int] = self._compute_step_counts()
         self._marked: set[int] = set()
         self._loading_archive = loading_archive
+        self._page_loader = page_loader
+        self._page_size = page_size
+        self._page_loading = False
+        self._page_exhausted = page_loader is None
 
     def _compute_step_counts(self) -> dict[str, int]:
         """Count child steps per parent, keyed by raw suffix."""
@@ -102,7 +115,7 @@ class DismissedAgentSelectModal(
         children.sort(key=lambda a: a.step_index if a.step_index is not None else 0)
         return children
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         """Focus the filter input and pre-load chat contents."""
         for i, agent in enumerate(self.agents):
             content = agent.get_response_content()
@@ -113,6 +126,15 @@ class DismissedAgentSelectModal(
         filter_input.focus()
         if self._filtered:
             self._update_preview(self._filtered[0][1])
+        if self._page_loader is not None:
+            await self._load_more_async(preserve_highlight=False)
+
+    def on_key(self, event: events.Key) -> None:
+        """Intercept Ctrl+K before the focused filter input consumes it."""
+        if event.key == "ctrl+k":
+            event.prevent_default()
+            event.stop()
+            self.action_load_more()
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -142,13 +164,27 @@ class DismissedAgentSelectModal(
         *,
         all_dismissed: list[Agent] | None = None,
         loading_archive: bool = False,
+        page_exhausted: bool | None = None,
+        preserve_highlight: bool = False,
     ) -> None:
         """Replace modal contents after an on-demand bundle load."""
+        preserve_identity = (
+            self._highlighted_agent_identity() if preserve_highlight else None
+        )
+        marked_identities = {
+            self.agents[idx].identity for idx in self._marked if idx < len(self.agents)
+        }
         self.agents = agents
         self._all_dismissed = all_dismissed or agents
         self._step_counts = self._compute_step_counts()
-        self._marked = {idx for idx in self._marked if idx < len(self.agents)}
+        self._marked = {
+            idx
+            for idx, agent in enumerate(self.agents)
+            if agent.identity in marked_identities
+        }
         self._loading_archive = loading_archive
+        if page_exhausted is not None:
+            self._page_exhausted = page_exhausted
 
         self._chat_contents.clear()
         for i, agent in enumerate(self.agents):
@@ -162,11 +198,10 @@ class DismissedAgentSelectModal(
         except Exception:
             self._filtered = list(enumerate(self.agents))
 
-        self._rebuild_options()
-        if self._filtered:
-            self._update_preview(self._filtered[0][1])
-        else:
-            self._clear_preview()
+        if not self.is_mounted:
+            return
+        self._rebuild_options(highlight_identity=preserve_identity)
+        self._update_preview_for_current_highlight()
         self._update_hints()
 
     def _get_type_color(self, agent: Agent) -> str:
@@ -242,7 +277,22 @@ class DismissedAgentSelectModal(
         self._rebuild_options()
         self._update_hints()
 
-    def _rebuild_options(self) -> None:
+    def _highlighted_agent_identity(self) -> tuple[object, str, str | None] | None:
+        """Return the identity for the currently highlighted filtered row."""
+        try:
+            option_list = self.query_one("#dismissed-agent-list", OptionList)
+            highlighted = option_list.highlighted
+        except Exception:
+            return None
+        if highlighted is None or not (0 <= highlighted < len(self._filtered)):
+            return None
+        return self._filtered[highlighted][1].identity
+
+    def _rebuild_options(
+        self,
+        *,
+        highlight_identity: tuple[object, str, str | None] | None = None,
+    ) -> None:
         """Rebuild the option list to reflect mark state changes."""
         option_list = self.query_one("#dismissed-agent-list", OptionList)
         old_highlighted = option_list.highlighted
@@ -256,20 +306,54 @@ class DismissedAgentSelectModal(
             option_list.add_option(placeholder_option(loading_archive=True))
         else:
             option_list.add_option(placeholder_option(loading_archive=False))
-        if old_highlighted is not None and 0 <= old_highlighted < len(self._filtered):
-            option_list.highlighted = old_highlighted
+        if not self._filtered:
+            return
+        next_highlighted: int | None = None
+        if highlight_identity is not None:
+            for idx, (_, agent) in enumerate(self._filtered):
+                if agent.identity == highlight_identity:
+                    next_highlighted = idx
+                    break
+        if next_highlighted is None and old_highlighted is not None:
+            if 0 <= old_highlighted < len(self._filtered):
+                next_highlighted = old_highlighted
+        if next_highlighted is None:
+            next_highlighted = 0
+        if next_highlighted is not None:
+            option_list.highlighted = next_highlighted
+
+    def _update_preview_for_current_highlight(self) -> None:
+        """Update preview for the highlighted filtered row, or clear it."""
+        if not self._filtered:
+            self._clear_preview()
+            return
+        try:
+            option_list = self.query_one("#dismissed-agent-list", OptionList)
+            highlighted = option_list.highlighted
+        except Exception:
+            highlighted = None
+        idx = highlighted if highlighted is not None else 0
+        idx = min(max(idx, 0), len(self._filtered) - 1)
+        self._update_preview(self._filtered[idx][1])
 
     def _hints_text(self) -> str:
         count = len(self._marked)
-        loading = " | archive loading" if self._loading_archive else ""
+        paging = ""
+        if self._page_loader is not None:
+            if self._page_loading:
+                paging = f" | loading +{self._page_size}"
+            elif not self._page_exhausted:
+                paging = f" | ^k: +{self._page_size} more"
+        elif self._loading_archive:
+            paging = " | archive loading"
         if count:
             return (
                 "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll"
-                f" | Enter: revive ({count}) | Esc/q: cancel{loading}"
+                f" | Enter: revive ({count}) | Esc/q: cancel{paging}"
             )
         return (
             "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll"
-            f" | Enter: revive | Esc/q: cancel{loading}"
+            f" | Enter: revive | Esc/q: cancel{paging}"
         )
 
     def _update_hints(self) -> None:
@@ -280,6 +364,46 @@ class DismissedAgentSelectModal(
     def _get_marked_agents(self) -> list[Agent]:
         """Get all marked agents in original order."""
         return [self.agents[i] for i in sorted(self._marked) if i < len(self.agents)]
+
+    async def _load_more_async(self, *, preserve_highlight: bool = True) -> None:
+        """Load another dismissed-archive page off the Textual event loop."""
+        if self._page_loader is None or self._page_loading or self._page_exhausted:
+            self._update_hints()
+            return
+        self._page_loading = True
+        self._loading_archive = True
+        self._update_hints()
+        if not self.agents:
+            self._rebuild_options()
+        try:
+            agents, all_dismissed, exhausted = await asyncio.to_thread(
+                self._page_loader
+            )
+        except Exception as exc:
+            self.notify(f"Failed to load dismissed archive: {exc}", severity="error")
+            self._page_loading = False
+            self._loading_archive = False
+            self._update_hints()
+            if not self.agents:
+                self._rebuild_options()
+            return
+        finally:
+            self._page_loading = False
+
+        self.set_agents(
+            agents,
+            all_dismissed=all_dismissed,
+            loading_archive=False,
+            page_exhausted=exhausted,
+            preserve_highlight=preserve_highlight,
+        )
+
+    def action_load_more(self) -> None:
+        """Load the next dismissed-archive page."""
+        if self._page_loader is None or self._page_loading or self._page_exhausted:
+            self._update_hints()
+            return
+        self.run_worker(self._load_more_async(), exclusive=True)
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle filter input change."""

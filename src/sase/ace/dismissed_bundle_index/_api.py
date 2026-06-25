@@ -106,6 +106,7 @@ def query_summaries(
     project_name: str | None = None,
     top_level_only: bool = False,
     limit: int | None = None,
+    offset: int | None = None,
 ) -> list[DismissedBundleSummary] | None:
     """Query summaries, returning ``None`` when no usable index exists."""
 
@@ -137,6 +138,11 @@ def query_summaries(
     if limit is not None:
         sql += " LIMIT ?"
         params.append(max(0, limit))
+    if offset is not None:
+        if limit is None:
+            sql += " LIMIT -1"
+        sql += " OFFSET ?"
+        params.append(max(0, offset))
 
     try:
         with connection(root) as conn:
