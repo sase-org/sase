@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 15:01:58
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_prompt_wrap_width.md
 ---
 # Plan: Agent prompt wrap width 80

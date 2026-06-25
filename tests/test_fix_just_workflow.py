@@ -275,13 +275,18 @@ def test_fix_just_agent_steps_expand_pr_xprompt(
         assert executor.execute() is True
 
     assert set(captured_prompts) == {"fix_linters", "fix_tests"}
-    for prompt in captured_prompts.values():
+    # Prompts are prose-wrapped at the agent prompt width, so collapse runs of
+    # whitespace before matching phrases that may straddle a wrap boundary.
+    normalized = {
+        name: " ".join(prompt.split()) for name, prompt in captured_prompts.items()
+    }
+    for prompt in normalized.values():
         assert "#pr(" not in prompt
         assert "should make the necessary file changes" in prompt
         assert "post-completion finalizer instructs you to commit" in prompt
 
-    assert "`just lint` command" in captured_prompts["fix_linters"]
-    assert "`just test` command" in captured_prompts["fix_tests"]
+    assert "`just lint` command" in normalized["fix_linters"]
+    assert "`just test` command" in normalized["fix_tests"]
 
     assert captured_env["fix_linters"] == {
         "SASE_COMMIT_METHOD": "create_pull_request",

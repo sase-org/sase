@@ -159,7 +159,7 @@ class TestPreprocessPromptLateDisabledRegions:
     )
     @patch(
         "sase.file_references.format_with_prettier",
-        side_effect=lambda x: x,
+        side_effect=lambda x, **_kw: x,
     )
     @patch(
         "sase.file_references.strip_html_comments",
@@ -203,7 +203,7 @@ class TestPreprocessPromptLateDisabledRegions:
     )
     @patch(
         "sase.file_references.format_with_prettier",
-        side_effect=lambda x: x,
+        side_effect=lambda x, **_kw: x,
     )
     @patch(
         "sase.file_references.strip_html_comments",
@@ -244,7 +244,7 @@ class TestPreprocessPromptLateDisabledRegions:
     @patch("sase.file_references.process_command_substitution")
     @patch(
         "sase.file_references.format_with_prettier",
-        side_effect=lambda x: x,
+        side_effect=lambda x, **_kw: x,
     )
     @patch(
         "sase.file_references.strip_html_comments",
@@ -282,7 +282,7 @@ class TestPreprocessPromptLateDisabledRegions:
     )
     @patch(
         "sase.file_references.format_with_prettier",
-        side_effect=lambda x: x,
+        side_effect=lambda x, **_kw: x,
     )
     @patch(
         "sase.file_references.strip_html_comments",

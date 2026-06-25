@@ -13,6 +13,13 @@ from sase.output import (
     print_status,
 )
 
+# Prose wrap width used by the shared Markdown formatter for saved Markdown
+# artifacts (plans, SDD files, generated skills, notifications).
+DEFAULT_MARKDOWN_WRAP_WIDTH = 120
+# Narrower wrap width applied to agent prompts sent through the launch-time
+# preprocessing pipeline.
+AGENT_PROMPT_WRAP_WIDTH = 80
+
 # Pattern to match '@' followed by a file path
 # This captures paths like @/path/to/file.txt or @path/to/file
 # We look for @ followed by non-whitespace characters that look like file paths
@@ -457,12 +464,21 @@ def process_command_substitution(prompt: str) -> str:
     return prompt
 
 
-def format_with_prettier(text: str) -> str:
+def format_with_prettier(
+    text: str, *, print_width: int = DEFAULT_MARKDOWN_WRAP_WIDTH
+) -> str:
     """Format text with prettier if available.
 
-    Uses prettier with --prose-wrap=always and --print-width=120 to format
-    the text as markdown. Falls back to returning the original text if
-    prettier is not installed or fails.
+    Uses prettier with --prose-wrap=always to format the text as markdown,
+    wrapping prose at *print_width* columns (default ``DEFAULT_MARKDOWN_WRAP_WIDTH``).
+    Falls back to returning the original text if prettier is not installed or
+    fails.
+
+    Args:
+        text: The markdown text to format.
+        print_width: The column width to wrap prose at. Agent prompt
+            preprocessing passes ``AGENT_PROMPT_WRAP_WIDTH``; other callers
+            (plans, SDD files, skills, notifications) keep the default.
     """
     if shutil.which("prettier") is None:
         return text
@@ -472,7 +488,7 @@ def format_with_prettier(text: str) -> str:
             [
                 "prettier",
                 "--prose-wrap=always",
-                "--print-width=120",
+                f"--print-width={print_width}",
                 "--parser=markdown",
             ],
             input=text,
