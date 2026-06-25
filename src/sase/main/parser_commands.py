@@ -428,11 +428,11 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'plan' subcommand parser."""
     plan_parser = subparsers.add_parser(
         "plan",
-        help="Review, approve, propose, and search implementation plans",
+        help="Review, approve, reject, propose, and search implementation plans",
         description=(
-            "Review the plan pipeline, approve pending proposals from the CLI, "
-            "submit a new plan for review, or search SDD and machine-local "
-            "plans.\n\n"
+            "Review the plan pipeline, approve or reject pending proposals from "
+            "the CLI, submit a new plan for review, or search SDD and "
+            "machine-local plans.\n\n"
             "With no subcommand, `sase plan` defaults to `sase plan list`."
         ),
         epilog=(
@@ -440,6 +440,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan\n"
             "  sase plan list --json\n"
             "  sase plan approve abcdef12 --kind tale\n"
+            "  sase plan reject abcdef12\n"
             "  sase plan propose sase_plan_feature.md\n"
             "  sase plan search auth --format json"
         ),
@@ -532,6 +533,26 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "plan_file",
         metavar="PLAN_FILE",
         help="Path to the plan .md file",
+    )
+
+    reject_parser = plan_subparsers.add_parser(
+        "reject",
+        help="Reject one pending plan proposal",
+        description=(
+            "Reject one pending PlanApproval notification by ID or unique "
+            "prefix from `sase plan list`. If SELECTOR is omitted, exactly one "
+            "pending proposal must exist. The matching planner agent is "
+            "user-killed and its Agents-tab row is dismissed, the same as "
+            "rejecting from the ACE TUI."
+        ),
+        epilog=("examples:\n  sase plan reject\n  sase plan reject abcdef12"),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    reject_parser.add_argument(
+        "selector",
+        nargs="?",
+        metavar="SELECTOR",
+        help="Notification id or unique prefix from `sase plan list`",
     )
 
     search_parser = plan_subparsers.add_parser(

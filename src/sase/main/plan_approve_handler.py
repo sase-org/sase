@@ -16,12 +16,12 @@ from pathlib import Path
 from typing import Literal, NoReturn
 
 from sase.core.shell import get_vendored_tool
-from sase.main.plan_candidates import visible_pending_plan_notifications
-from sase.notifications.models import Notification
-from sase.notifications.pending_actions import action_state_for_notification
-from sase.notifications.store import load_notifications
+from sase.main.plan_pending import (
+    ensure_plan_notification_available,
+    plan_context_from_notification,
+    resolve_pending_plan,
+)
 from sase.plan_approval_actions import (
-    PlanApprovalActionContext,
     PlanApprovalActionError,
     PlanApprovalActionResult,
     execute_plan_approval_response,
@@ -111,119 +111,13 @@ def _approve_plan_from_cli(
     coder_model: str | None = None,
 ) -> PlanApprovalActionResult:
     """Resolve and approve a pending PlanApproval notification."""
-    notification = (
-        _resolve_single_pending_plan()
-        if selector is None
-        else _resolve_plan_selector(selector)
-    )
-    _ensure_plan_notification_available(notification)
+    notification = resolve_pending_plan(selector)
+    ensure_plan_notification_available(notification)
     return execute_plan_approval_response(
-        _plan_context_from_notification(notification),
+        plan_context_from_notification(notification),
         kind,
         coder_prompt=coder_prompt,
         coder_model=coder_model,
-    )
-
-
-def _resolve_single_pending_plan() -> Notification:
-    pending = _available_plan_notifications()
-    if not pending:
-        raise PlanApprovalActionError(
-            "missing_selector",
-            "selector",
-            "no pending plan proposals; pass a selector after running `sase plan list`",
-        )
-    if len(pending) > 1:
-        raise PlanApprovalActionError(
-            "missing_selector",
-            "selector",
-            "multiple pending plan proposals; pass an ID prefix from `sase plan list`",
-        )
-    return pending[0]
-
-
-def _resolve_plan_selector(selector: str) -> Notification:
-    matches = _matching_selector_notifications(
-        selector,
-        _available_plan_notifications(),
-    )
-    if len(matches) == 1:
-        return matches[0]
-    if len(matches) > 1:
-        raise PlanApprovalActionError(
-            "ambiguous_prefix", selector, "action prefix is ambiguous"
-        )
-
-    unavailable_matches = [
-        notification
-        for notification in _matching_selector_notifications(
-            selector,
-            [
-                notification
-                for notification in load_notifications(include_dismissed=False)
-                if notification.action == "PlanApproval"
-            ],
-        )
-        if action_state_for_notification(notification) != "available"
-    ]
-    if len(unavailable_matches) == 1:
-        return unavailable_matches[0]
-    if len(unavailable_matches) > 1:
-        raise PlanApprovalActionError(
-            "ambiguous_prefix", selector, "action prefix is ambiguous"
-        )
-
-    raise PlanApprovalActionError(
-        "not_found", selector, "pending plan approval not found"
-    )
-
-
-def _matching_selector_notifications(
-    selector: str, notifications: list[Notification]
-) -> list[Notification]:
-    return [
-        notification
-        for notification in notifications
-        if notification.id == selector or notification.id.startswith(selector)
-    ]
-
-
-def _available_plan_notifications() -> list[Notification]:
-    return visible_pending_plan_notifications()
-
-
-def _ensure_plan_notification_available(notification: Notification) -> None:
-    if notification.action != "PlanApproval":
-        raise PlanApprovalActionError(
-            "unsupported_action",
-            notification.action or "non_action",
-            "notification is not a plan approval",
-        )
-
-    state = action_state_for_notification(notification)
-    if state == "available":
-        return
-    if state == "already_handled":
-        raise PlanApprovalActionError(
-            "conflict_already_handled", notification.id, "action already handled"
-        )
-    if state == "stale":
-        raise PlanApprovalActionError("gone_stale", notification.id, "action is stale")
-    raise PlanApprovalActionError(
-        "invalid_request", notification.id, f"action is {state}"
-    )
-
-
-def _plan_context_from_notification(
-    notification: Notification,
-) -> PlanApprovalActionContext:
-    return PlanApprovalActionContext(
-        id=notification.id,
-        host_files=tuple(str(Path(path).expanduser()) for path in notification.files),
-        host_action_data={
-            key: str(Path(value).expanduser())
-            for key, value in notification.action_data.items()
-        },
     )
 
 

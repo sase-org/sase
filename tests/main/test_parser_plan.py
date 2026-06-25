@@ -9,7 +9,7 @@ from tests.main.parser_help_helpers import help_subcommand_rows, parser_for
 
 
 def test_plan_command_group_parses_subcommands() -> None:
-    """``sase plan`` is a command group with list/propose/approve children."""
+    """``sase plan`` is a command group with list/propose/approve/reject children."""
     parser = create_parser()
 
     bare_args = parser.parse_args(["plan"])
@@ -41,6 +41,19 @@ def test_plan_command_group_parses_subcommands() -> None:
     assert approve_args.prompt == "Focus tests"
 
 
+def test_plan_reject_parses_with_optional_selector() -> None:
+    """``sase plan reject`` accepts an optional notification selector."""
+    parser = create_parser()
+
+    reject_args = parser.parse_args(["plan", "reject", "abcdef12"])
+    bare_reject_args = parser.parse_args(["plan", "reject"])
+
+    assert reject_args.plan_subcommand == "reject"
+    assert reject_args.selector == "abcdef12"
+    assert bare_reject_args.plan_subcommand == "reject"
+    assert bare_reject_args.selector is None
+
+
 def test_plan_command_rejects_old_root_plan_file(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -59,7 +72,7 @@ def test_plan_command_rejects_old_root_plan_file(
 def test_plan_help_renders_sorted_subcommands() -> None:
     """``sase plan --help`` lists child commands alphabetically."""
     plan_parser = parser_for(("sase", "plan"))
-    expected_commands = {"approve", "list", "propose"}
+    expected_commands = {"approve", "list", "propose", "reject", "search"}
 
     help_commands = help_subcommand_rows(plan_parser.format_help(), expected_commands)
     help_text = plan_parser.format_help()
@@ -67,6 +80,7 @@ def test_plan_help_renders_sorted_subcommands() -> None:
     assert help_commands == sorted(expected_commands)
     assert "With no subcommand, `sase plan` defaults to `sase plan list`." in help_text
     assert "sase plan propose sase_plan_feature.md" in help_text
+    assert "sase plan reject abcdef12" in help_text
 
 
 def test_plan_subcommand_help_is_complete() -> None:
@@ -74,6 +88,12 @@ def test_plan_subcommand_help_is_complete() -> None:
     approve_help = parser_for(("sase", "plan", "approve")).format_help()
     list_help = parser_for(("sase", "plan", "list")).format_help()
     propose_help = parser_for(("sase", "plan", "propose")).format_help()
+    reject_help = parser_for(("sase", "plan", "reject")).format_help()
+
+    assert "SELECTOR" in reject_help
+    assert "Notification id or unique prefix" in reject_help
+    assert "If SELECTOR is omitted, exactly one" in reject_help
+    assert "sase plan reject abcdef12" in reject_help
 
     assert "{approve,commit,epic,legend,tale}" in approve_help
     assert "-k {approve,commit,epic,legend,tale}" in approve_help
@@ -98,6 +118,7 @@ def test_plan_public_long_options_have_short_aliases() -> None:
         ("sase", "plan", "approve"),
         ("sase", "plan", "list"),
         ("sase", "plan", "propose"),
+        ("sase", "plan", "reject"),
     ):
         parser = parser_for(path)
         for action in parser._actions:

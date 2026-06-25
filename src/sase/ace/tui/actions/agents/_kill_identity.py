@@ -16,6 +16,92 @@ if TYPE_CHECKING:
     from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
 
 
+def classify_kill_kind(agent: Agent) -> KillKind | None:
+    """Classify the side effects needed to kill an agent.
+
+    UI-free so headless callers (e.g. ``sase plan reject``) classify kills
+    the same way the TUI does.
+    """
+    from ...models.agent import AgentType
+
+    workflow = agent.workflow or ""
+    if agent.agent_type == AgentType.WORKFLOW:
+        return "workflow"
+    if workflow.startswith("axe(fix-hook)") or workflow in (
+        "fix-hook",
+        "summarize-hook",
+    ):
+        return "hook"
+    if workflow.startswith(("axe(mentor)", "mentor(")) or workflow == "mentor":
+        return "mentor"
+    if workflow.startswith("axe(crs)") or workflow == "crs":
+        return "crs"
+    if agent.agent_type == AgentType.RUNNING:
+        return "running"
+    return None
+
+
+def _immediate_kill_identities(
+    agent: Agent, agents_with_children: list[Agent]
+) -> set[AgentIdentity]:
+    """Return identities hidden immediately after killing an agent."""
+    from ...models.agent import AgentType
+
+    identities = {agent.identity}
+    if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
+        for step in agents_with_children:
+            if (
+                step.is_workflow_child
+                and step.parent_timestamp == agent.raw_suffix
+                and step.parent_workflow == agent.workflow
+            ):
+                identities.add(step.identity)
+    return identities
+
+
+def collect_planned_kill_identities(
+    agent: Agent,
+    agents_with_children: list[Agent],
+    cleanup_plan: AgentCleanupPlanWire | None,
+) -> set[AgentIdentity]:
+    """Return identities hidden immediately after a planner-backed kill."""
+    if cleanup_plan is None:
+        return _immediate_kill_identities(agent, agents_with_children)
+
+    identities = dismissed_identities_from_plan(cleanup_plan)
+    identities.update(
+        agent_identity_from_wire(identity)
+        for identity in cleanup_plan.cascaded_workflow_children
+    )
+    if not identities:
+        return _immediate_kill_identities(agent, agents_with_children)
+    return identities
+
+
+def agents_related_to_kill(
+    agent: Agent, agents_with_children: list[Agent]
+) -> list[Agent]:
+    """Return agents whose notifications should be dismissed when killing ``agent``.
+
+    Includes the agent itself plus any workflow-child rows when killing a
+    workflow parent (mirroring :func:`collect_immediate_kill_identities` but
+    returning Agent objects so they can be passed to
+    ``dismiss_notifications_for_agents``).
+    """
+    from ...models.agent import AgentType
+
+    related: list[Agent] = [agent]
+    if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
+        for step in agents_with_children:
+            if (
+                step.is_workflow_child
+                and step.parent_timestamp == agent.raw_suffix
+                and step.parent_workflow == agent.workflow
+            ):
+                related.append(step)
+    return related
+
+
 class AgentKillIdentityMixin:
     """Mixin for kill classification, identity collection, and memory updates."""
 
@@ -28,54 +114,19 @@ class AgentKillIdentityMixin:
 
     def _classify_kill_kind(self, agent: Agent) -> KillKind | None:
         """Classify the side effects needed to kill an agent."""
-        from ...models.agent import AgentType
-
-        workflow = agent.workflow or ""
-        if agent.agent_type == AgentType.WORKFLOW:
-            return "workflow"
-        if workflow.startswith("axe(fix-hook)") or workflow in (
-            "fix-hook",
-            "summarize-hook",
-        ):
-            return "hook"
-        if workflow.startswith(("axe(mentor)", "mentor(")) or workflow == "mentor":
-            return "mentor"
-        if workflow.startswith("axe(crs)") or workflow == "crs":
-            return "crs"
-        if agent.agent_type == AgentType.RUNNING:
-            return "running"
-        return None
+        return classify_kill_kind(agent)
 
     def _collect_immediate_kill_identities(self, agent: Agent) -> set[AgentIdentity]:
         """Return identities hidden immediately after killing an agent."""
-        from ...models.agent import AgentType
-
-        identities = {agent.identity}
-        if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
-            for step in self._agents_with_children:
-                if (
-                    step.is_workflow_child
-                    and step.parent_timestamp == agent.raw_suffix
-                    and step.parent_workflow == agent.workflow
-                ):
-                    identities.add(step.identity)
-        return identities
+        return _immediate_kill_identities(agent, self._agents_with_children)
 
     def _collect_planned_kill_identities(
         self, agent: Agent, cleanup_plan: AgentCleanupPlanWire | None
     ) -> set[AgentIdentity]:
         """Return identities hidden immediately after a planner-backed kill."""
-        if cleanup_plan is None:
-            return self._collect_immediate_kill_identities(agent)
-
-        identities = dismissed_identities_from_plan(cleanup_plan)
-        identities.update(
-            agent_identity_from_wire(identity)
-            for identity in cleanup_plan.cascaded_workflow_children
+        return collect_planned_kill_identities(
+            agent, self._agents_with_children, cleanup_plan
         )
-        if not identities:
-            return self._collect_immediate_kill_identities(agent)
-        return identities
 
     def _plan_focused_agent_cleanup(self, agent: Agent) -> AgentCleanupPlanWire:
         """Plan the focused-row ``x`` cleanup through the Rust-backed facade."""
@@ -95,18 +146,7 @@ class AgentKillIdentityMixin:
         but returning Agent objects so they can be passed to
         ``dismiss_notifications_for_agents``).
         """
-        from ...models.agent import AgentType
-
-        related: list[Agent] = [agent]
-        if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
-            for step in agents_with_children_snapshot:
-                if (
-                    step.is_workflow_child
-                    and step.parent_timestamp == agent.raw_suffix
-                    and step.parent_workflow == agent.workflow
-                ):
-                    related.append(step)
-        return related
+        return agents_related_to_kill(agent, agents_with_children_snapshot)
 
     def _apply_killed_agents_in_memory(
         self, identities: set[AgentIdentity], *, refresh: bool = True

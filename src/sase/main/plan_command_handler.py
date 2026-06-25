@@ -9,6 +9,7 @@ from typing import NoReturn
 from sase.main.plan_approve_handler import handle_plan_approve_command
 from sase.main.plan_list_handler import handle_plan_list_command
 from sase.main.plan_propose_handler import handle_plan_propose_command
+from sase.main.plan_reject_handler import handle_plan_reject_command
 from sase.main.plan_search_handler import handle_plan_search_command
 
 
@@ -22,6 +23,8 @@ def handle_plan_command(args: argparse.Namespace) -> NoReturn:
         sys.exit(0)
     if subcommand == "approve":
         handle_plan_approve_command(args)
+    if subcommand == "reject":
+        handle_plan_reject_command(args)
     if subcommand == "search":
         handle_plan_search_command(args)
         sys.exit(0)

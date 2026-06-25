@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 15:01:00
-status: wip
+status: done
 prompt: sdd/prompts/202606/reject_plan_command.md
 ---
 # Add `sase plan reject`
