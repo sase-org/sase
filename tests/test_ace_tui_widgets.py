@@ -21,6 +21,7 @@ from sase.ace.tui.widgets.prompt_panel import (
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,
     build_header_text,
+    cache_detail_header_summary,
     get_prompt_content,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_xprompts import (
@@ -623,6 +624,11 @@ def test_update_display_renders_xprompts_after_detail_settles(
     panel = AgentPromptPanel.__new__(AgentPromptPanel)
 
     with patch.object(panel, "update") as mock_update:
+        panel.update_display(agent)
+        rendered = mock_update.call_args[0][0]
+        assert "Xprompts: 1 workflow" not in str(rendered)
+
+        cache_detail_header_summary(panel, agent, build_detail_header_summary(agent))
         panel.update_display(agent)
 
     assert mock_update.called

@@ -34,6 +34,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         with tui_trace("widget.prompt_panel.update_display"):
             self._reset_markdown_render_cache_for_agent(agent)
             self._update_display_impl(agent)
+            self._start_agent_detail_header_enrichment_from_context(agent)
             self._start_agent_linked_delta_refresh_from_context(agent)
             self._start_agent_bead_display_resolve_from_context(agent)
 
@@ -49,6 +50,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         with tui_trace("widget.prompt_panel.update_header_only"):
             self._cancel_agent_bead_display_worker_for_selection_change(agent)
             self._cancel_agent_linked_delta_worker_for_selection_change(agent)
+            self._cancel_agent_detail_header_worker_for_selection_change(agent)
             header_text, error_tb_syntax = build_header_text(agent, cheap=True)
             if error_tb_syntax is not None:
                 self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]

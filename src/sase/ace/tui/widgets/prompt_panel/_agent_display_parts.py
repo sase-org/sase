@@ -1,5 +1,7 @@
 """Rendering helpers and header building for agent display."""
 
+import time
+from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -10,6 +12,7 @@ from rich.text import Text
 
 from sase.agent.agent_artifacts_cache import get_global_cache
 from sase.ace.changespec.models import DeltaEntry
+from sase.ace.tui.widgets.file_panel._diff import DIFF_CACHE_TTL_SECONDS
 from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
@@ -67,6 +70,14 @@ class _DetailHeaderSummary:
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = ()
 
 
+@dataclass(frozen=True)
+class _DetailHeaderSummaryCacheEntry:
+    """Panel-local cached detail-header enrichment."""
+
+    summary: _DetailHeaderSummary
+    cached_monotonic: float
+
+
 _PHASE_LABELS = {
     PLAN_CHAIN_PLAN_SUFFIX: "PLANNER",
     PLAN_CHAIN_CODER_SUFFIX: "CODER",
@@ -77,6 +88,69 @@ _PHASE_LABELS = {
 }
 
 _UNASSIGNED_AGENT_NAME_DISPLAY = "unassigned"
+_DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES = 256
+
+
+def _detail_header_summary_cache(
+    widget: object,
+) -> OrderedDict[tuple[Any, ...], _DetailHeaderSummaryCacheEntry]:
+    cache = getattr(widget, "_agent_detail_header_summary_cache", None)
+    if cache is None:
+        cache = OrderedDict()
+        cast(Any, widget)._agent_detail_header_summary_cache = cache
+    return cast(
+        OrderedDict[tuple[Any, ...], _DetailHeaderSummaryCacheEntry],
+        cache,
+    )
+
+
+def get_cached_detail_header_summary(
+    widget: object,
+    agent: Agent,
+) -> _DetailHeaderSummary | None:
+    """Return a cached detail-header summary for ``agent`` when available."""
+    cache = _detail_header_summary_cache(widget)
+    entry = cache.get(agent.identity)
+    if entry is None:
+        return None
+    cache.move_to_end(agent.identity)
+    return entry.summary
+
+
+def should_refresh_detail_header_summary(
+    widget: object,
+    agent: Agent,
+) -> bool:
+    """Return whether ``agent``'s cached detail-header summary is absent/stale."""
+    cache = _detail_header_summary_cache(widget)
+    entry = cache.get(agent.identity)
+    if entry is None:
+        return True
+    cache.move_to_end(agent.identity)
+    return (time.monotonic() - entry.cached_monotonic) >= DIFF_CACHE_TTL_SECONDS
+
+
+def cache_detail_header_summary(
+    widget: object,
+    agent: Agent,
+    summary: _DetailHeaderSummary,
+) -> None:
+    """Store ``summary`` in ``widget``'s bounded detail-header cache."""
+    cache = _detail_header_summary_cache(widget)
+    cache[agent.identity] = _DetailHeaderSummaryCacheEntry(
+        summary=summary,
+        cached_monotonic=time.monotonic(),
+    )
+    cache.move_to_end(agent.identity)
+    while len(cache) > _DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES:
+        cache.popitem(last=False)
+
+
+def clear_detail_header_summary_cache(widget: object) -> None:
+    """Clear ``widget``'s detail-header enrichment cache if it exists."""
+    cache = getattr(widget, "_agent_detail_header_summary_cache", None)
+    if cache is not None:
+        cache.clear()
 
 
 def _append_major_section_divider(text: Text) -> None:

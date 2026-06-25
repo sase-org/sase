@@ -277,31 +277,31 @@ class ZoomPanelModal(ModalScreen[None]):
         panel = self.query_one("#zoom-metadata-panel", AgentPromptPanel)
         panel.attempt_view_mode = self._seed.attempt_view_mode
         panel.attempt_pinned_number = self._seed.attempt_number
+        self._metadata_generation += 1
+        generation = self._metadata_generation
+
+        def is_current(
+            agent_identity: tuple[Any, ...],
+            worker_generation: int,
+            attempt_view_mode: str,
+            attempt_pinned_number: int | None,
+        ) -> bool:
+            current = self._agent_provider()
+            return (
+                current is not None
+                and current.identity == agent_identity
+                and self._metadata_generation == worker_generation
+                and self._seed.attempt_view_mode == attempt_view_mode
+                and self._seed.attempt_number == attempt_pinned_number
+                and self._target == ZoomPanelTarget.METADATA
+            )
+
         if (
             self._seed.attempt_number is None
             and agent.agent_type.value == "workflow"
             and not agent.is_workflow_child
             and not agent.appears_as_agent
         ):
-            self._metadata_generation += 1
-            generation = self._metadata_generation
-
-            def is_current(
-                agent_identity: tuple[Any, ...],
-                worker_generation: int,
-                attempt_view_mode: str,
-                attempt_pinned_number: int | None,
-            ) -> bool:
-                current = self._agent_provider()
-                return (
-                    current is not None
-                    and current.identity == agent_identity
-                    and self._metadata_generation == worker_generation
-                    and self._seed.attempt_view_mode == attempt_view_mode
-                    and self._seed.attempt_number == attempt_pinned_number
-                    and self._target == ZoomPanelTarget.METADATA
-                )
-
             panel.start_workflow_detail_render(
                 agent,
                 generation=generation,
@@ -310,6 +310,14 @@ class ZoomPanelModal(ModalScreen[None]):
                 is_current=is_current,
             )
             return
+        set_render_context = getattr(panel, "set_agent_detail_render_context", None)
+        if callable(set_render_context):
+            set_render_context(
+                generation=generation,
+                attempt_view_mode=self._seed.attempt_view_mode,
+                attempt_pinned_number=self._seed.attempt_number,
+                is_current=is_current,
+            )
         panel.update_display(agent)
 
     def _refresh_file(self, agent: Agent, *, force: bool) -> None:

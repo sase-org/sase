@@ -16,10 +16,11 @@ from ._agent_display_attempts import (
     should_render_merged,
 )
 from ._agent_display_parts import (
-    build_detail_header_summary,
     build_header_text,
+    clear_detail_header_summary_cache,
     get_phase_label,
     get_prompt_content,
+    get_cached_detail_header_summary,
     publish_opened_workspaces_cache,
     render_agent_reply_content,
     render_phase_divider,
@@ -78,8 +79,9 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             self._update_workflow_display(agent)  # type: ignore[attr-defined]
             return
 
-        summary = build_detail_header_summary(agent)
-        publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
+        summary = get_cached_detail_header_summary(self, agent)
+        if summary is not None:
+            publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
         header_text, error_tb_syntax = build_header_text(
             agent,
             summary=summary,
@@ -356,5 +358,9 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         current_worker = getattr(self, "_agent_bead_display_worker", None)
         if current_worker is not None and getattr(current_worker, "is_running", False):
             current_worker.cancel()
+        current_worker = getattr(self, "_agent_detail_header_worker", None)
+        if current_worker is not None and getattr(current_worker, "is_running", False):
+            current_worker.cancel()
+        clear_detail_header_summary_cache(self)
         text = Text("No agent selected", style="dim italic")
         self.update(text)  # type: ignore[attr-defined]

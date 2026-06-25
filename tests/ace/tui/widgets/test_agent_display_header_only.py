@@ -22,6 +22,10 @@ from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    build_detail_header_summary,
+    cache_detail_header_summary,
+)
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -31,7 +35,7 @@ def _make_agent(**overrides: object) -> Agent:
         "project_file": "/tmp/test.sase",
         "status": "RUNNING",
         "start_time": datetime(2026, 4, 22, 14, 0, 0),
-        "model": "opus",
+        "model": None,
     }
     defaults.update(overrides)
     return Agent(**defaults)  # type: ignore[arg-type]
@@ -221,7 +225,7 @@ def test_update_header_only_skips_xprompts_disk_read(
 def test_update_display_header_renders_debounced_full_enrichment(
     tmp_path: Path,
 ) -> None:
-    """The full prompt render includes metadata omitted from the cheap path."""
+    """The full prompt render uses cached metadata filled by async enrichment."""
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     prompt = artifacts_dir / "01_prompt.md"
@@ -247,10 +251,21 @@ def test_update_display_header_renders_debounced_full_enrichment(
     )
 
     panel = _FakePanel()
-    panel.update_display(agent)
+    with patch(
+        "sase.ace.tui.models.agent_artifacts.resolve_agent_artifact_path",
+        side_effect=lambda path: Path(path),
+    ):
+        panel.update_display(agent)
+
+        plain = _plain_of(panel.captured[-1])
+        assert plain.startswith("Name: unassigned\n")
+        assert "Deltas:" not in plain
+        assert "AGENT CHAT" in plain
+
+        cache_detail_header_summary(panel, agent, build_detail_header_summary(agent))
+        panel.update_display(agent)
 
     plain = _plain_of(panel.captured[-1])
-    assert plain.startswith("Name: unassigned\n")
     assert "Deltas:\n  ~ src/foo.py  ~1\n" in plain
     assert "DELTAS:" not in plain
     assert "AGENT CHAT" in plain

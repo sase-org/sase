@@ -7,8 +7,10 @@ from ._agent_display_parts import (
     HeaderHintState,
     build_detail_header_summary,
     build_header_text,
+    cache_detail_header_summary,
     get_phase_label,
     get_prompt_content,
+    get_cached_detail_header_summary,
     publish_opened_workspaces_cache,
     render_phase_divider,
     render_timestamp_divider,
@@ -112,7 +114,10 @@ class AgentHintsDisplayMixin:
             hint_mappings=hint_mappings,
             workspace_dir=workspace_dir,
         )
-        summary = build_detail_header_summary(agent)
+        summary = get_cached_detail_header_summary(self, agent)
+        if summary is None:
+            summary = build_detail_header_summary(agent)
+            cache_detail_header_summary(self, agent, summary)
         publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
         header_text, _ = build_header_text(
             agent,
