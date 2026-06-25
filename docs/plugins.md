@@ -46,22 +46,33 @@ pip install sase-github
 
 ## CLI Diagnostics
 
-`sase plugin` defaults to `sase plugin list`.
+There is no `sase plugin` command; that namespace is reserved for a future pluggy-focused rewrite. Plugin diagnostics
+are routed to the commands that already own each concern:
 
 ```bash
-sase plugin
-sase plugin list --verbose
-sase plugin doctor
-sase plugin doctor --json
+# Installed runtime and plugin packages
+sase version -v
+sase version -j
+
+# Resource entry-point loading and GitHub provider prerequisites
+sase doctor -C plugins.resources
+sase doctor -C plugins.github
+
+# Configured chops, discoverable scripts, and Telegram chop setup
+sase axe chop list --available
+sase axe chop doctor
+sase doctor -C axe.chops
 ```
 
-`sase plugin list` inventories installed SASE entry points, plugin distributions, configured axe chop scripts, and
-available unconfigured chop scripts. `sase plugin doctor` runs the same inventory plus health checks for resource entry
-point load failures, missing configured chops, unconfigured scripts, GitHub CLI/auth prerequisites when GitHub plugins
-are installed, and Telegram `pass`/environment prerequisites when Telegram chop scripts are present. The doctor status
-is `ERROR` for resource entry point load failures or missing configured script chops. Unconfigured available scripts and
-optional integration prerequisites report `WARN`. Use the explicit `list` or `doctor` subcommand when passing flags;
-`sase plugin --verbose` and `sase plugin --json` are not valid forms.
+- `sase version -v` / `-j` inventories the installed `sase` host, the `sase-core-rs` core, and SASE plugin packages
+  discovered through entry points, console scripts, or `sase-*` distribution names.
+- `sase doctor -C plugins.resources` reports resource entry-point load failures and any resource-plugin disable
+  environment variables (`ERROR` on a load failure, `WARN` when loading is disabled). `sase doctor -C plugins.github`
+  probes the GitHub CLI and `gh auth status` when a GitHub provider plugin is installed.
+- `sase axe chop list` shows configured chops with status; add `--available` to include discoverable executable chop
+  scripts. `sase axe chop doctor` checks for missing configured script chops (`ERROR`), unconfigured available scripts
+  (`WARN`), and Telegram chop `pass`/environment prerequisites (`WARN`). The same chop diagnostics are mirrored by
+  `sase doctor -C axe.chops`.
 
 ## How Plugins Are Discovered
 
@@ -74,8 +85,8 @@ There are two discovery paths:
    registry loads the class, instantiates it, and registers the instance with a pluggy `PluginManager`.
 2. **Package resources**: `sase_xprompts`, `sase_config`, and `sase_plugin_manifest` entry points resolve to modules.
    The shared helper in `src/sase/main/plugin_discovery.py` sorts config and xprompt entry points by name, loads the
-   modules, and skips module load failures after logging them at debug level. `sase plugin doctor` loads resource entry
-   points directly so packaging problems are visible as diagnostics instead of only debug logs.
+   modules, and skips module load failures after logging them at debug level. `sase doctor -C plugins.resources` loads
+   resource entry points directly so packaging problems are visible as diagnostics instead of only debug logs.
 
 ### VCS Plugins (pluggy)
 

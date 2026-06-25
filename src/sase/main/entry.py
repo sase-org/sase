@@ -277,12 +277,6 @@ def main() -> NoReturn:
 
         handle_plan_command(args)
 
-    # --- plugin ---
-    if args.command == "plugin":
-        from .plugin_handler import handle_plugin_command
-
-        handle_plugin_command(args)
-
     # --- project ---
     if args.command == "project":
         from .project_handler import handle_project_command

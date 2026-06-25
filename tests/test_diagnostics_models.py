@@ -95,7 +95,7 @@ def test_json_shape_and_redaction() -> None:
         sase_home="/home/user/.sase",
         deep=True,
         strict=True,
-        selected_checks=("runtime", "plugins.doctor"),
+        selected_checks=("runtime", "plugins.resources"),
         checks=(
             DiagnosticCheck(
                 id="runtime.environment",
@@ -128,7 +128,7 @@ def test_json_shape_and_redaction() -> None:
     assert payload["sase_home"] == "/home/user/.sase"
     assert payload["deep"] is True
     assert payload["strict"] is True
-    assert payload["selected_checks"] == ["runtime", "plugins.doctor"]
+    assert payload["selected_checks"] == ["runtime", "plugins.resources"]
     assert payload["counts"] == {"OK": 0, "WARN": 1, "ERROR": 0, "SKIP": 0}
     assert payload["checks"][0]["duration_ms"] == 12
     assert payload["checks"][0]["data"]["api_key"] == "[REDACTED]"
@@ -157,10 +157,10 @@ def test_registry_lists_selects_and_preserves_stable_order() -> None:
             runner=lambda: _check("runtime.version", "OK"),
         ),
         CheckSpec(
-            id="plugins.doctor",
+            id="plugins.resources",
             group="plugins",
-            title="Plugin doctor",
-            runner=lambda: _check("plugins.doctor", "OK", group="plugins"),
+            title="Resource plugin loading",
+            runner=lambda: _check("plugins.resources", "OK", group="plugins"),
         ),
         CheckSpec(
             id="runtime.core_deep",
@@ -174,7 +174,7 @@ def test_registry_lists_selects_and_preserves_stable_order() -> None:
 
     assert [spec.id for spec in registry.list_default_checks()] == [
         "runtime.version",
-        "plugins.doctor",
+        "plugins.resources",
     ]
     assert [spec.id for spec in registry.list_deep_checks()] == ["runtime.core_deep"]
     assert [spec.id for spec in registry.select(("runtime",), include_deep=True)] == [
@@ -184,9 +184,9 @@ def test_registry_lists_selects_and_preserves_stable_order() -> None:
     assert [
         spec.id
         for spec in registry.select(
-            ("plugins.doctor", "runtime.version", "runtime.version")
+            ("plugins.resources", "runtime.version", "runtime.version")
         )
-    ] == ["runtime.version", "plugins.doctor"]
+    ] == ["runtime.version", "plugins.resources"]
 
     with pytest.raises(UnknownCheckSelection) as exc_info:
         registry.select(("runtime.core_deep",), include_deep=False)

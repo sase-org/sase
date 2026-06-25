@@ -1,10 +1,7 @@
-"""Plugin and chop diagnostics for the SASE CLI."""
+"""Installed-plugin entry-point metadata for SASE diagnostics."""
 
 from __future__ import annotations
 
 __all__ = [
-    "chops",
-    "doctor",
     "inventory",
-    "render",
 ]

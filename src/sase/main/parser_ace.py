@@ -110,13 +110,32 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     # --- axe chop ---
-    axe_chop_parser = axe_subparsers.add_parser("chop", help="Chop management commands")
+    axe_chop_parser = axe_subparsers.add_parser(
+        "chop",
+        help="Inspect and run chops (bare `chop` defaults to `chop list`)",
+    )
     axe_chop_subparsers = axe_chop_parser.add_subparsers(
         dest="axe_chop_subcommand", help="Chop subcommands"
     )
 
+    # sase axe chop doctor
+    axe_chop_doctor_parser = axe_chop_subparsers.add_parser(
+        "doctor", help="Diagnose configured and available chop setup"
+    )
+    _add_chop_diagnostic_flags(axe_chop_doctor_parser)
+
     # sase axe chop list
-    axe_chop_subparsers.add_parser("list", help="List all registered chops")
+    axe_chop_list_parser = axe_chop_subparsers.add_parser(
+        "list", help="List configured chops and their status"
+    )
+    axe_chop_list_parser.add_argument(
+        "-a",
+        "--available",
+        action="store_true",
+        help="Also show discoverable executable chop scripts, including "
+        "unconfigured ones",
+    )
+    _add_chop_diagnostic_flags(axe_chop_list_parser)
 
     # sase axe chop run <name>
     axe_chop_run_parser = axe_chop_subparsers.add_parser(
@@ -246,4 +265,20 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
         "--force",
         action="store_true",
         help="Sweep orphaned axe processes and reset PID state",
+    )
+
+
+def _add_chop_diagnostic_flags(parser: argparse.ArgumentParser) -> None:
+    """Add the shared ``-j/--json`` and ``-v/--verbose`` chop output flags."""
+    parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show descriptions, resolution paths, and search-dir detail",
     )

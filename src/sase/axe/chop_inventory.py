@@ -1,4 +1,9 @@
-"""Chop inventory for ``sase plugin`` diagnostics."""
+"""Inventory of configured and available AXE chops.
+
+Chops are AXE automation, so their inventory lives with AXE rather than in any
+plugin command surface. ``sase axe chop list`` and ``sase axe chop doctor`` both
+build on the data collected here.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +23,7 @@ AvailableChopSource = Literal[
 
 
 @dataclass(frozen=True)
-class _ConfiguredChopRecord:
+class ConfiguredChopRecord:
     """A chop configured under an AXE lumberjack."""
 
     lumberjack: str
@@ -47,7 +52,7 @@ class _AvailableChopScriptRecord:
 class ChopInventory:
     """Configured and available chop state."""
 
-    configured_chops: tuple[_ConfiguredChopRecord, ...]
+    configured_chops: tuple[ConfiguredChopRecord, ...]
     available_scripts: tuple[_AvailableChopScriptRecord, ...]
     chop_script_dirs: tuple[str, ...]
     python_bin_dir: str
@@ -125,13 +130,13 @@ def chop_inventory_to_dict(inventory: ChopInventory) -> dict[str, Any]:
     }
 
 
-def _configured_chops(axe_config: AxeConfig) -> tuple[_ConfiguredChopRecord, ...]:
-    records: list[_ConfiguredChopRecord] = []
+def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]:
+    records: list[ConfiguredChopRecord] = []
     for lumberjack_name, lumberjack in axe_config.lumberjacks.items():
         for chop in lumberjack.chops:
             if chop.agent is not None:
                 records.append(
-                    _ConfiguredChopRecord(
+                    ConfiguredChopRecord(
                         lumberjack=lumberjack_name,
                         name=chop.name,
                         description=chop.description,
@@ -144,7 +149,7 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[_ConfiguredChopRecord, ...
 
             script = discover_chop_script(chop.name, axe_config.chop_script_dirs)
             records.append(
-                _ConfiguredChopRecord(
+                ConfiguredChopRecord(
                     lumberjack=lumberjack_name,
                     name=chop.name,
                     description=chop.description,

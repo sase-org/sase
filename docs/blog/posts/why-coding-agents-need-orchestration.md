@@ -90,14 +90,14 @@ Add GitHub support when you want PR/workspace integration:
 ```bash
 uv tool install sase --python 3.12 --with sase-github
 gh auth login
-sase plugin doctor
+sase doctor -C plugins.github
 ```
 
 Add Telegram support when you want chat-driven notifications and remote control:
 
 ```bash
 uv tool install sase --python 3.12 --with sase-telegram
-sase plugin doctor
+sase axe chop doctor
 ```
 
 Install both plugins together if that is your normal setup:
@@ -111,7 +111,7 @@ walkthrough: [Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minut
 
 > **Friction note:** Plugin installation is improving, but it is still a little too easy to install `sase` correctly and
 > forget that `sase-github` also needs an authenticated `gh` CLI, while `sase-telegram` needs Telegram bot secrets and
-> AXE chops configured. `sase doctor` and `sase plugin doctor` are the first places to look when something feels
+> AXE chops configured. `sase doctor` and `sase axe chop doctor` are the first places to look when something feels
 > haunted. Technically it is not haunted. Usually.
 
 ## SASE Wraps Agents, Not Models
@@ -538,7 +538,7 @@ These are the commands I reach for most:
 | `sase sdd list` / `sase sdd validate`                    | Inspect and validate SDD artifacts.                                  |
 | `sase bead ready` / `sase bead work`                     | Find unblocked bead work or execute an epic.                         |
 | `sase axe lumberjack status`                             | Check scheduled background automation.                               |
-| `sase plugin doctor`                                     | Verify plugin entry points and chop scripts.                         |
+| `sase axe chop doctor`                                   | Verify configured chops, scripts, and Telegram chop setup.           |
 | `sase workspace open -p <linked_repo> -r "<reason>" <n>` | Open a configured linked repo's matching numbered workspace.         |
 | `sase lsp`                                               | Start the XPrompt language server for editor integrations.           |
 | `sase mobile gateway start`                              | Start the workstation-hosted mobile gateway.                         |

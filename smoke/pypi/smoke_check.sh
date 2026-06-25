@@ -145,16 +145,17 @@ print(f"{label}: version inventory assertions passed ({len(packages)} packages)"
 PY
 }
 
-assert_plugin_inventory() {
+assert_chop_inventory() {
     local list_json="$1"
     local doctor_json="$2"
     local label="$3"
+    local telegram_expected="$4"
 
-    python - "$list_json" "$doctor_json" "$label" <<'PY'
+    python - "$list_json" "$doctor_json" "$label" "$telegram_expected" <<'PY'
 import json
 import sys
 
-list_path, doctor_path, label = sys.argv[1:4]
+list_path, doctor_path, label, telegram_expected = sys.argv[1:5]
 
 with open(list_path, encoding="utf-8") as handle:
     list_payload = json.load(handle)
@@ -164,52 +165,36 @@ with open(doctor_path, encoding="utf-8") as handle:
 def norm(value: object) -> str:
     return str(value or "").lower().replace("_", "-")
 
-plugins = list_payload.get("plugins", {})
-entry_points = plugins.get("entry_points", [])
-distributions = plugins.get("distributions", [])
-
-distribution_names = {norm(dist.get("package")) for dist in distributions}
-entry_point_packages = {norm(ep.get("package")) for ep in entry_points}
+chops = list_payload.get("chops", {})
 available_chops = {
     norm(chop.get("name"))
-    for chop in list_payload.get("chops", {}).get("available", [])
+    for chop in chops.get("available", [])
     if isinstance(chop, dict)
 }
 errors: list[str] = []
 
-if "sase-github" not in distribution_names:
-    errors.append(f"{label}: missing plugin distribution sase-github")
-if "sase-github" not in entry_point_packages:
-    errors.append(f"{label}: missing plugin entry point package sase-github")
+if telegram_expected == "1":
+    telegram_chops = {"tg-inbound", "tg-outbound"}
+    if not telegram_chops.issubset(available_chops):
+        missing = ", ".join(sorted(telegram_chops - available_chops))
+        errors.append(f"{label}: missing Telegram chop script(s): {missing}")
 
-telegram_chops = {"tg-inbound", "tg-outbound"}
-if not telegram_chops.issubset(available_chops):
-    missing = ", ".join(sorted(telegram_chops - available_chops))
-    errors.append(f"{label}: missing Telegram chop script(s): {missing}")
-
-for ep in entry_points:
-    if norm(ep.get("package")) == "sase-github":
-        if ep.get("load_status") == "error":
-            errors.append(
-                f"{label}: {ep.get('package')} {ep.get('group')}:{ep.get('name')} "
-                f"failed to load: {ep.get('load_error')}"
-            )
-
-if list_payload.get("status") == "ERROR":
-    errors.append(f"{label}: plugin list status is ERROR")
 if doctor_payload.get("status") == "ERROR":
-    errors.append(f"{label}: plugin doctor status is ERROR")
+    errors.append(f"{label}: chop doctor status is ERROR")
 for check in doctor_payload.get("checks", []):
     if check.get("status") == "ERROR":
         errors.append(
-            f"{label}: plugin doctor check {check.get('id')} failed: "
+            f"{label}: chop doctor check {check.get('id')} failed: "
             f"{check.get('summary')}"
         )
 
 if errors:
     raise SystemExit("\n".join(errors))
 
-print(f"{label}: plugin discovery assertions passed ({len(entry_points)} entry points)")
+print(
+    f"{label}: chop inventory assertions passed "
+    f"({len(chops.get('configured', []))} configured chop(s))"
+)
 PY
 }
 
@@ -292,15 +277,19 @@ tool_python() {
     printf '%s\n' "$tool_dir/sase/bin/python"
 }
 
-plugin_checks_for() {
+chop_checks_for() {
     local sase_cmd="$1"
     local label="$2"
+    local telegram_expected="0"
+    if [ -n "${SASE_TELEGRAM_SPEC:-}" ]; then
+        telegram_expected="1"
+    fi
 
-    capture_json "${label}-plugin-list.json" "$sase_cmd" plugin list -j
+    capture_json "${label}-chop-list.json" "$sase_cmd" axe chop list -a -j
     local list_json="$LAST_JSON"
-    capture_json_lenient "${label}-plugin-doctor.json" "$sase_cmd" plugin doctor -j
+    capture_json_lenient "${label}-chop-doctor.json" "$sase_cmd" axe chop doctor -j
     local doctor_json="$LAST_JSON"
-    assert_plugin_inventory "$list_json" "$doctor_json" "$label"
+    assert_chop_inventory "$list_json" "$doctor_json" "$label" "$telegram_expected"
 }
 
 version_and_core_checks_for() {
@@ -333,7 +322,7 @@ TOOL_PYTHON="$(tool_python)"
 
 section "uv tool install flavor"
 version_and_core_checks_for "sase" "$TOOL_PYTHON" "uv-tool"
-plugin_checks_for "sase" "uv-tool"
+chop_checks_for "sase" "uv-tool"
 
 section "Top-level doctor"
 capture_json_lenient "doctor.json" sase doctor -j
@@ -376,7 +365,7 @@ if [ -n "${SASE_TELEGRAM_SPEC:-}" ]; then
 fi
 run uv pip install --python "$PIP_ENV/bin/python" --refresh "${pip_specs[@]}"
 version_and_core_checks_for "$PIP_ENV/bin/sase" "$PIP_ENV/bin/python" "uv-pip"
-plugin_checks_for "$PIP_ENV/bin/sase" "uv-pip"
+chop_checks_for "$PIP_ENV/bin/sase" "uv-pip"
 
 section "Result"
 printf 'PASS: PyPI smoke checks completed successfully.\n'

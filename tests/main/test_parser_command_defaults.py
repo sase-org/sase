@@ -47,7 +47,6 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
         "sase file-history",
         "sase memory",
         "sase notify",
-        "sase plugin",
         "sase prompt",
         "sase sdd",
         "sase skill",

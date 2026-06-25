@@ -5,6 +5,7 @@ invokes nested axe subcommands like ``sase axe chop list``.
 """
 
 import argparse
+import json
 import sys
 
 from sase.ace.hooks.processes import is_process_running
@@ -26,24 +27,46 @@ from .state import (
 
 
 def handle_axe_chop_list(args: argparse.Namespace) -> None:
-    """Print all available chops with their descriptions."""
-    from rich.console import Console
+    """List configured chops with status, plus available scripts on request."""
+    from sase.axe.chop_inventory import chop_inventory_to_dict, collect_chop_inventory
 
-    console = Console()
-    config = load_axe_config()
-    seen: dict[str, ChopConfig] = {}
-    for lumberjack in config.lumberjacks.values():
-        for chop in lumberjack.chops:
-            if chop.name not in seen:
-                seen[chop.name] = chop
-    for chop in sorted(seen.values(), key=lambda c: c.name):
-        label = f"[bold cyan]{chop.name}[/bold cyan]"
-        if chop.agent is not None:
-            label += f"  [magenta](agent: {chop.agent})[/magenta]"
-        console.print(label)
-        if chop.description:
-            console.print(f"  [dim]{chop.description}[/dim]")
+    inventory = collect_chop_inventory(load_axe_config())
+
+    if getattr(args, "json", False):
+        payload = {
+            "schema_version": 1,
+            "command": "list",
+            "chops": chop_inventory_to_dict(inventory),
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        sys.exit(0)
+
+    from sase.axe.chop_render import render_chop_list
+
+    render_chop_list(
+        inventory,
+        available=bool(getattr(args, "available", False)),
+        verbose=bool(getattr(args, "verbose", False)),
+    )
     sys.exit(0)
+
+
+def handle_axe_chop_doctor(args: argparse.Namespace) -> None:
+    """Diagnose configured and available chop setup, exiting nonzero on ERROR."""
+    from sase.axe.chop_doctor import (
+        build_chop_doctor_report,
+        chop_doctor_report_to_dict,
+    )
+
+    report = build_chop_doctor_report()
+
+    if getattr(args, "json", False):
+        print(json.dumps(chop_doctor_report_to_dict(report), indent=2, sort_keys=True))
+    else:
+        from sase.axe.chop_render import render_chop_doctor
+
+        render_chop_doctor(report, verbose=bool(getattr(args, "verbose", False)))
+    sys.exit(1 if report.status == "ERROR" else 0)
 
 
 def handle_axe_chop_run(args: argparse.Namespace) -> None:

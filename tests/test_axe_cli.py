@@ -88,11 +88,11 @@ def default_axe_config() -> AxeConfig:
 
 
 @patch("sase.axe.cli.load_axe_config")
-def test_handle_axe_chop_list_deduplicates(
+def test_handle_axe_chop_list_renders_configured_chops(
     mock_load: MagicMock,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Test that chops appearing in multiple lumberjacks are deduplicated."""
+    """The list view renders one configured-chop row per lumberjack."""
     from sase.axe.config import _parse_lumberjacks
 
     config = AxeConfig(
@@ -114,15 +114,14 @@ def test_handle_axe_chop_list_deduplicates(
         )
     )
     mock_load.return_value = config
-    args = argparse.Namespace()
+    args = argparse.Namespace(json=False, available=False, verbose=False)
     with pytest.raises(SystemExit) as exc_info:
         handle_axe_chop_list(args)
     assert exc_info.value.code == 0
 
     output = capsys.readouterr().out
-    lines = [line for line in output.strip().split("\n") if line.strip()]
-    assert len(lines) == 2  # name + indented description
     assert "shared_chop" in output
+    assert "Configured Chops" in output
 
 
 # --- handle_axe_chop_run agent oneshot ---

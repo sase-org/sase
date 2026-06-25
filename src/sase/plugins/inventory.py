@@ -1,11 +1,16 @@
-"""Entry point inventory for ``sase plugin`` diagnostics."""
+"""SASE entry-point inventory metadata for diagnostics.
+
+This is neutral plugin metadata shared by ``sase doctor`` resource checks and the
+``sase version`` plugin-package inventory. It does not back any ``sase plugin``
+command; that namespace is reserved for a future pluggy-focused rewrite.
+"""
 
 from __future__ import annotations
 
 import importlib.metadata
 import os
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 
 ENTRY_POINT_GROUPS: tuple[str, ...] = (
     "sase_config",
@@ -26,7 +31,7 @@ EntryPointLoadStatus = Literal["not_loaded", "ok", "error", "skipped"]
 
 
 @dataclass(frozen=True)
-class PluginEntryPointRecord:
+class _PluginEntryPointRecord:
     """Metadata and optional load status for one SASE entry point."""
 
     group: str
@@ -60,16 +65,16 @@ class _PluginDistributionRecord:
 class PluginInventory:
     """Installed SASE plugin entry point inventory."""
 
-    entry_points: tuple[PluginEntryPointRecord, ...]
+    entry_points: tuple[_PluginEntryPointRecord, ...]
     distributions: tuple[_PluginDistributionRecord, ...]
     disabled_env: tuple[str, ...]
 
     @property
-    def third_party_entry_points(self) -> tuple[PluginEntryPointRecord, ...]:
+    def third_party_entry_points(self) -> tuple[_PluginEntryPointRecord, ...]:
         return tuple(ep for ep in self.entry_points if ep.is_third_party)
 
     @property
-    def resource_entry_points(self) -> tuple[PluginEntryPointRecord, ...]:
+    def resource_entry_points(self) -> tuple[_PluginEntryPointRecord, ...]:
         return tuple(ep for ep in self.entry_points if ep.is_resource)
 
 
@@ -82,7 +87,7 @@ def collect_plugin_inventory(
     groups are loaded by default because failures there otherwise only show up
     as debug logs during normal SASE startup.
     """
-    records: list[PluginEntryPointRecord] = []
+    records: list[_PluginEntryPointRecord] = []
     disabled_env: set[str] = set()
 
     for group in ENTRY_POINT_GROUPS:
@@ -105,7 +110,7 @@ def collect_plugin_inventory(
                         load_status = "ok"
 
             records.append(
-                PluginEntryPointRecord(
+                _PluginEntryPointRecord(
                     group=group,
                     name=_safe_str(getattr(ep, "name", None), "<unknown>"),
                     value=_safe_str(getattr(ep, "value", None), ""),
@@ -126,36 +131,6 @@ def collect_plugin_inventory(
     )
 
 
-def plugin_inventory_to_dict(inventory: PluginInventory) -> dict[str, Any]:
-    """Serialize plugin inventory to stable JSON-compatible primitives."""
-    return {
-        "disabled_env": list(inventory.disabled_env),
-        "distributions": [
-            {
-                "package": dist.package,
-                "version": dist.version,
-                "entry_points": list(dist.entry_points),
-            }
-            for dist in inventory.distributions
-        ],
-        "entry_points": [
-            {
-                "group": ep.group,
-                "name": ep.name,
-                "value": ep.value,
-                "package": ep.package,
-                "version": ep.version,
-                "resource": ep.is_resource,
-                "third_party": ep.is_third_party,
-                "load_status": ep.load_status,
-                "load_error": ep.load_error,
-                "disabled_by": list(ep.disabled_by),
-            }
-            for ep in inventory.entry_points
-        ],
-    }
-
-
 def _entry_points_for_group(group: str) -> list[importlib.metadata.EntryPoint]:
     eps = importlib.metadata.entry_points(group=group)
     return sorted(eps, key=lambda ep: ep.name)
@@ -174,7 +149,7 @@ def _disabled_env_for_group(group: str) -> tuple[str, ...]:
 
 
 def _distribution_records(
-    entry_points: tuple[PluginEntryPointRecord, ...],
+    entry_points: tuple[_PluginEntryPointRecord, ...],
 ) -> tuple[_PluginDistributionRecord, ...]:
     grouped: dict[tuple[str, str], list[str]] = {}
     for ep in entry_points:

@@ -47,19 +47,20 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
 
 `sase axe chop` and `sase axe lumberjack` default to their `list` views when invoked without a nested subcommand.
 
-| Command                                    | Description                                           |
-| ------------------------------------------ | ----------------------------------------------------- |
-| `sase axe start`                           | Start the orchestrator (spawns all lumberjacks)       |
-| `sase axe stop`                            | Stop the orchestrator gracefully                      |
-| `sase axe chop list`                       | List configured chops                                 |
-| `sase axe chop run <name>`                 | Run a single chop in the foreground                   |
-| `sase axe chop run <name> -L <lumberjack>` | Run a single chop attributed to a specific lumberjack |
-| `sase axe lumberjack list`                 | List configured lumberjacks and their chops           |
-| `sase axe lumberjack run <name>`           | Run a single lumberjack in the foreground             |
-| `sase axe lumberjack status`               | Show status of all lumberjacks                        |
-| `sase axe maintenance enter`               | Pause lumberjack ticks until maintenance exits        |
-| `sase axe maintenance exit`                | Clear the maintenance marker                          |
-| `sase axe maintenance status`              | Show whether maintenance mode is active               |
+| Command                                    | Description                                            |
+| ------------------------------------------ | ------------------------------------------------------ |
+| `sase axe start`                           | Start the orchestrator (spawns all lumberjacks)        |
+| `sase axe stop`                            | Stop the orchestrator gracefully                       |
+| `sase axe chop list`                       | List configured chops with status (`-a` adds scripts)  |
+| `sase axe chop doctor`                     | Diagnose configured/available chops and Telegram setup |
+| `sase axe chop run <name>`                 | Run a single chop in the foreground                    |
+| `sase axe chop run <name> -L <lumberjack>` | Run a single chop attributed to a specific lumberjack  |
+| `sase axe lumberjack list`                 | List configured lumberjacks and their chops            |
+| `sase axe lumberjack run <name>`           | Run a single lumberjack in the foreground              |
+| `sase axe lumberjack status`               | Show status of all lumberjacks                         |
+| `sase axe maintenance enter`               | Pause lumberjack ticks until maintenance exits         |
+| `sase axe maintenance exit`                | Clear the maintenance marker                           |
+| `sase axe maintenance status`              | Show whether maintenance mode is active                |
 
 ### Examples
 
@@ -77,6 +78,11 @@ sase axe lumberjack status
 
 # Run a single lumberjack for debugging
 sase axe lumberjack run hooks
+
+# Inspect configured chops and discoverable scripts
+sase axe chop list
+sase axe chop list --available --verbose
+sase axe chop doctor            # exits 1 if a configured script chop cannot be resolved
 
 # Run a single chop once
 sase axe chop run hook_checks

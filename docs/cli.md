@@ -38,8 +38,8 @@ or expand multi-prompt input into sequential background launches. ACE uses the s
 agents from the TUI.
 
 Command groups with an exact `list` child default to that list view when invoked bare, including `sase amd`,
-`sase bead`, `sase chat`, `sase file`, `sase file-history`, `sase memory`, `sase notify`, `sase plugin`, `sase project`,
-`sase prompt`, `sase sdd`, `sase skill`, `sase telemetry`, `sase workspace`, and `sase xprompt`. Nested groups such as
+`sase bead`, `sase chat`, `sase file`, `sase file-history`, `sase memory`, `sase notify`, `sase project`, `sase prompt`,
+`sase sdd`, `sase skill`, `sase telemetry`, `sase workspace`, and `sase xprompt`. Nested groups such as
 `sase agent tag`, `sase axe chop`, and `sase axe lumberjack` follow the same rule.
 
 The bare form is only the default view. When you need flags that belong to the list command, keep the `list` subcommand
@@ -139,7 +139,8 @@ agent-friendly output.
 | -------------------------------- | -------------------------------------------------------- | -------------------------------------------------- |
 | `sase axe start`                 | Start the axe orchestrator and its lumberjacks.          | [Axe](axe.md)                                      |
 | `sase axe stop`                  | Stop the running orchestrator.                           | [Axe](axe.md#cli-commands)                         |
-| `sase axe chop list`             | List configured chop jobs.                               | [Axe chops](axe.md#chop-fields)                    |
+| `sase axe chop list`             | List configured chops with status; `-a` adds scripts.    | [Axe chops](axe.md#chop-fields)                    |
+| `sase axe chop doctor`           | Diagnose configured/available chops and Telegram setup.  | [Axe chops](axe.md#chop-fields)                    |
 | `sase axe chop run <name>`       | Run one chop in the foreground.                          | [Axe chops](axe.md#script-chops)                   |
 | `sase axe lumberjack list`       | List configured lumberjacks.                             | [Axe lumberjacks](axe.md#default-lumberjacks)      |
 | `sase axe lumberjack run <name>` | Run one lumberjack in the foreground for debugging.      | [Axe lumberjacks](axe.md#lumberjack-configuration) |
@@ -208,8 +209,6 @@ GitHub pull requests, and other provider plugins.
 | `sase revive-log`              | Inspect the agent-revival audit log (start / success / failure events).                                 | [Agent revival audit log](troubleshooting/agent-revival.md)  |
 | `sase artifact create`         | Move an explicit file into persistent agent artifact storage.                                           | [Agent attachments](agent_images.md)                         |
 | `sase var set`                 | Attach named output variables for ACE metadata and waited-agent Jinja rendering.                        | [XPrompt variables](xprompt.md#cross-agent-output-variables) |
-| `sase plugin` / `list`         | Inventory installed SASE plugin entry points and configured/available chop scripts.                     | [Plugins](plugins.md#cli-diagnostics)                        |
-| `sase plugin doctor`           | Diagnose plugin resource loading, configured chops, and optional integration prerequisites.             | [Plugins](plugins.md#cli-diagnostics)                        |
 | `sase path`                    | Print well-known paths such as schemas and xprompt directories.                                         | [Configuration CLI flags](configuration.md#sase-path)        |
 | `sase workspace list`          | List managed workspace checkouts in the registry, including primary `#0`.                               | [Workspace provider](workspace.md)                           |
 | `sase workspace path`          | Print the checkout path for a workspace number.                                                         | [Workspace provider](workspace.md)                           |

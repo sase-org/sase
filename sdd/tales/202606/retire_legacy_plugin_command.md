@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 14:39:09
-status: wip
+status: done
 prompt: sdd/prompts/202606/retire_legacy_plugin_command.md
 ---
 # Retire the Legacy `sase plugin` Command

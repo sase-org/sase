@@ -157,7 +157,9 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
     assert {
         "llm.registry",
         "llm.default",
-        "plugins.doctor",
+        "plugins.resources",
+        "plugins.github",
+        "axe.chops",
         "project.current",
         "workspace.registry",
         "state.agent_index",

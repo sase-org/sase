@@ -1192,6 +1192,21 @@ Maintenance mode pauses scheduled lumberjack ticks without stopping the orchestr
 
 See [axe.md — Maintenance Mode](axe.md#maintenance-mode) for the runtime behavior.
 
+### `sase axe chop`
+
+With no subcommand, `sase axe chop` defaults to `sase axe chop list`. Use the explicit `list` or `doctor` subcommand
+when passing diagnostic flags.
+
+| Form                   | Flags                                         | Description                                                                                       |
+| ---------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `sase axe chop list`   | `-a/--available`, `-j/--json`, `-v/--verbose` | List configured chops with status; `--available` also shows discoverable executable chop scripts. |
+| `sase axe chop doctor` | `-j/--json`, `-v/--verbose`                   | Diagnose missing configured chops, unconfigured scripts, and Telegram chop prerequisites.         |
+| `sase axe chop run`    | `-L/--lumberjack`                             | Run a single chop once in the foreground.                                                         |
+
+`sase axe chop doctor` exits `1` when any check is `ERROR` (a configured script chop cannot be resolved) and `0`
+otherwise. Unconfigured available scripts and Telegram prerequisite gaps report `WARN`. The same chop diagnostics are
+also surfaced by `sase doctor -C axe.chops`.
+
 ### `sase commit`
 
 Dispatches a commit, proposal, or PR via the VCS provider layer. See [commit_workflows.md](commit_workflows.md) for the
@@ -1721,16 +1736,6 @@ With no subcommand, `sase file-history` defaults to `sase file-history list`.
 | -------------------------- | ----------- | ---------------------------------------------------------------- |
 | `sase file-history list`   | none        | Emit the recency-ordered file-reference history as a JSON array. |
 | `sase file-history delete` | `-p/--path` | Remove one entry from the file-reference history.                |
-
-### `sase plugin`
-
-With no subcommand, `sase plugin` defaults to `sase plugin list` with default options. Use `sase plugin list --verbose`
-or `sase plugin doctor --json` when passing diagnostic flags.
-
-| Form                 | Flags                       | Description                                                                          |
-| -------------------- | --------------------------- | ------------------------------------------------------------------------------------ |
-| `sase plugin list`   | `-j/--json`, `-v/--verbose` | Inventory installed SASE entry points and configured or available chop scripts.      |
-| `sase plugin doctor` | `-j/--json`, `-v/--verbose` | Diagnose resource loading, configured chops, and optional integration prerequisites. |
 
 ### `sase lsp`
 

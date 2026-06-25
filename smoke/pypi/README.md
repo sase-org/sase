@@ -24,8 +24,8 @@ The automated check covers:
 - `uv tool install --force --refresh` with the plugin packages injected into the same tool venv.
 - `sase version -j`, including `sase` and `sase-core-rs`.
 - `import sase_core_rs` inside the tool venv.
-- `sase plugin list -j` and `sase plugin doctor -j` discovery for `sase-github` entry points and `sase-telegram` chop
-  scripts.
+- `sase version -j` discovery of `sase-github` and `sase-telegram` plugin packages, plus `sase axe chop list -j` and
+  `sase axe chop doctor -j` for `sase-telegram` chop scripts.
 - `sase doctor -j` with warnings tolerated and hard errors rejected.
 - A scratch git repository using provider-independent CLI flows: help, xprompt list, config dump, and beads.
 - A second fresh `uv venv` plus `uv pip install` flow that repeats the version, Rust import, and plugin checks.

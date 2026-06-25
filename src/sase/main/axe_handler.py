@@ -33,15 +33,21 @@ def handle_axe_command(args: argparse.Namespace) -> None:
 
 def _handle_chop(args: argparse.Namespace) -> None:
     """Handle 'sase axe chop' subcommands."""
-    from sase.axe.cli import handle_axe_chop_list, handle_axe_chop_run
+    from sase.axe.cli import (
+        handle_axe_chop_doctor,
+        handle_axe_chop_list,
+        handle_axe_chop_run,
+    )
 
     chop_sub = getattr(args, "axe_chop_subcommand", None)
-    if chop_sub == "list":
+    if chop_sub == "doctor":
+        handle_axe_chop_doctor(args)
+    elif chop_sub == "list":
         handle_axe_chop_list(args)
     elif chop_sub == "run":
         handle_axe_chop_run(args)
     else:
-        print("Usage: sase axe chop {list,run}")
+        print("Usage: sase axe chop {doctor,list,run}")
         sys.exit(1)
 
 
