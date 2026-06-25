@@ -80,15 +80,15 @@ stripped before the prompt reaches the model. The ones worth knowing on day one:
 | `%model`  | Override the LLM model for this run                                                            |
 | `%name`   | Assign a permanent agent name (or auto-generate one)                                           |
 | `%wait`   | Wait for another named agent to complete successfully                                          |
-| `%time`   | Defer launch by a duration or until an absolute wall-clock time                                |
+| `#t`      | Defer launch by a duration or until an absolute wall-clock time (`%wait(time=...)` long form)  |
 | `%auto`   | Auto-approve the submitted plan as plan (default), tale (`%auto:tale`), or epic (`%auto:epic`) |
 | `%repeat` | Run the prompt N times                                                                         |
 | `%alt`    | Split the prompt into variants with different text                                             |
 
-Directives compose. `%wait:planner %time:5m` waits for the `planner` agent to land, then adds a five-minute floor before
-launching. `%name:!reviewer` forces reuse of an existing name by wiping the previous owner from the TUI — useful when
-retrying a flow that already claimed the name. The [full directive reference](../../xprompt.md#supported-directives)
-lists every directive, alias, and form.
+Directives compose. `%wait(planner, time=5m)` waits for the `planner` agent to land, then adds a five-minute floor
+before launching. `%name:!reviewer` forces reuse of an existing name by wiping the previous owner from the TUI — useful
+when retrying a flow that already claimed the name. The
+[full directive reference](../../xprompt.md#supported-directives) lists every directive, alias, and form.
 
 The point is that you can control execution — model, dependencies, autonomy, plan mode — from the same Markdown file
 that contains the prompt. There is no second YAML file, no orchestration boilerplate.

@@ -1236,11 +1236,12 @@ falls back to a bare `%model:worker`). Ordinary `%model:worker` directives writt
 current effective worker lane.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus recent approved and inferred
-rejected plans. Use `sase plan approve <id-prefix> --kind approve|commit|epic|legend|tale` to approve from a shell. The
-`approve` kind runs the coder without committing an SDD plan; `tale` commits an SDD tale and runs the coder; `epic` and
-`legend` commit the matching SDD tier and launch the bead follow-up; `commit` records the approved plan in SDD without
-launching a coder. `-m/--model` picks the follow-up agent's model, while `-p/--prompt` adds extra coder instructions for
-the `approve` and `tale` paths.
+rejected plans. Use `sase plan approve <id-prefix> --kind approve|commit|epic|legend|tale` to approve from a shell, or
+`sase plan reject <id-prefix>` to reject. The `approve` kind runs the coder without committing an SDD plan; `tale`
+commits an SDD tale and runs the coder; `epic` and `legend` commit the matching SDD tier and launch the bead follow-up;
+`commit` records the approved plan in SDD without launching a coder. `-m/--model` picks the follow-up agent's model,
+while `-p/--prompt` adds extra coder instructions for the `approve` and `tale` paths. CLI rejection writes the same
+plain rejection response as ACE and dismisses/kills the matching planner when it can be found.
 
 When an agent launched with `%auto:epic` later submits a plan with `/sase_plan` or `sase plan propose`, sase follows the
 same epic path as the TUI Epic action: it writes the SDD epic files, commits them as needed, initializes beads, and
@@ -1675,9 +1676,9 @@ while prompt-level frontmatter and fenced-code separators keep the same parsing 
 multi-agent xprompt invocation remains a single pane until launch. During live editing, typed `---` lines are ordinary
 prompt text; add panes explicitly from the prompt-stack controls. Stash restore and marked-agent kill-and-edit can also
 seed multiple panes, but those paths preserve each selected draft or agent prompt as one pane. Use `Enter` to choose how
-to submit stacked panes, `g<enter>` to launch the selected pane directly, or `Ctrl+S` to submit the panes together in
-top-to-bottom order. See the [ACE prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings and the default
-active-pane behavior.
+to submit stacked panes, `g<enter>` to launch the selected pane directly, or `Ctrl+S` to stash the active pane. Inside
+the `Enter` submit chooser, `a` or `Ctrl+S` submits all panes top-to-bottom. See the
+[ACE prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings and the default active-pane behavior.
 
 ### Rules
 

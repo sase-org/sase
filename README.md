@@ -93,7 +93,7 @@ sase version             # inspect the exact SASE packages loaded by this enviro
 sase ace                  # open the interactive control surface; press ,p for project lifecycle management
 sase run "<prompt>"       # launch an agent or workflow
 sase agent list          # inspect running agents
-sase plan                 # review pending, approved, and inferred rejected plan proposals
+sase plan                 # review pending proposals and approval/rejection history
 sase bead onboard         # see the bead issue-tracking quick start
 sase workspace list       # inspect numbered workspaces for the current project
 ```
@@ -136,10 +136,11 @@ SASE keeps durable state outside any one chat session:
   process directory. When ACE loads a prompt with literal top-level `---` multi-agent separators, it renders a stack of
   prompt panes so each agent segment can be edited, reordered, launched individually, or submitted together in
   top-to-bottom order. In prompt NORMAL mode, use `g-` to add panes, `gj`/`gk` to focus panes, and `gJ`/`gK` to reorder
-  them. Prompt-level frontmatter is edited from the Frontmatter Panel with `g=`, and draft panes can be stashed with
-  `gs`/`gS`; open the unified stashed-prompt picker with `Ctrl+G p` from the prompt bar or `@` from the main ACE tabs.
-  `Ctrl+P` moves through recent workspace prefixes toward older entries and `Ctrl+N` toward newer entries; both pass
-  through a no-prefix stop. Use `%wait` when one segment must wait for another to finish.
+  them. Prompt-level frontmatter is edited from the Frontmatter Panel with `g=`, active draft panes can be stashed with
+  `Ctrl+S`, every non-empty pane can be stashed with `gs`, pinned drafts can be overwritten with `gS`, and reusable
+  xprompts can be saved with `gx`; open the unified stashed-prompt picker with `Ctrl+G p` from the prompt bar or `@`
+  from the main ACE tabs. `Ctrl+P` moves through recent workspace prefixes toward older entries and `Ctrl+N` toward
+  newer entries; both pass through a no-prefix stop. Use `%wait` when one segment must wait for another to finish.
 - **Provider retries** - The LLM provider layer can retry matching provider errors, preserve the workspace across
   retries, and fall back to another model when configured. Claude adds built-in matching for context-limit,
   socket-close, and Claude CLI API-error output; per-provider retry counts, waits, and fallback policy live under
@@ -157,9 +158,10 @@ SASE keeps durable state outside any one chat session:
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them
   in the producer's `OUTPUT VARIABLES` metadata panel.
 - **Plan approval pipeline** - Planning agents submit Markdown plans with `sase plan propose`. ACE, notifications, and
-  `sase plan` all read the same pending approval state; `sase plan approve [id] -k <kind>` writes the same response
-  protocol as the TUI. Approval kinds decide whether the runner starts a coder without committing an SDD plan, commits
-  the plan as a tale/epic/legend before the follow-up, or records the approved plan in SDD and stops there.
+  `sase plan` all read the same pending approval state; `sase plan approve [id] -k <kind>` and `sase plan reject [id]`
+  write the same response protocol as the TUI. Approval kinds decide whether the runner starts a coder without
+  committing an SDD plan, commits the plan as a tale/epic/legend before the follow-up, or records the approved plan in
+  SDD and stops there. A plain rejection also kills and dismisses the matching planner row when it can be found.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
   provider-neutral finalizer checks the main workspace and enforces only configured numbered Git linked-repo workspaces
   opened during the run with `sase workspace open -p ...`. Static linked repos (`workspace.strategy: none`) are reported

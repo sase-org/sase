@@ -90,6 +90,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase plan` / `sase plan list`               | Show the plan pipeline dashboard: pending proposals, recent approvals, and inferred rejects. | [XPrompt directives](xprompt.md#plan-directive)        |
 | `sase plan approve`                          | Approve one pending plan by ID or prefix; `--kind` chooses approve/commit/epic/legend/tale.  | [XPrompt directives](xprompt.md#plan-directive)        |
 | `sase plan propose`                          | Submit a plan file for approval from the plan skill path.                                    | [XPrompt directives](xprompt.md#plan-directive)        |
+| `sase plan reject`                           | Reject one pending plan by ID or prefix, killing and dismissing the planner when found.      | [XPrompt directives](xprompt.md#plan-directive)        |
 | `sase plan search`                           | Search repo-local SDD plans and the machine-local plan archive by literal text and metadata. | [SDD](sdd.md#how-sdd-works)                            |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                 | [XPrompt directives](xprompt.md#directives)            |
 
@@ -121,11 +122,13 @@ older artifacts opt into all project states explicitly.
 
 `sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and Rejected sections. Proposed rows
 include an `id_prefix`, agent, project, provider/model, plan path, and response directory; pass that prefix to
-`sase plan approve <prefix>`. If the selector is omitted, exactly one pending proposal must exist. The approval kind is
-the workflow choice: `approve` runs the coder without asking the runner to commit an SDD plan, `tale` commits the plan
-as an SDD tale and then runs the coder, `epic` and `legend` commit the matching SDD tier and launch the bead follow-up,
-and `commit` records the approved plan in SDD without launching a coder. Use `-m/--model` to pick the follow-up agent's
-model. Use `-p/--prompt` to add extra coder instructions for the `approve` and `tale` paths.
+`sase plan approve <prefix>` or `sase plan reject <prefix>`. If the selector is omitted, exactly one pending proposal
+must exist. The approval kind is the workflow choice: `approve` runs the coder without asking the runner to commit an
+SDD plan, `tale` commits the plan as an SDD tale and then runs the coder, `epic` and `legend` commit the matching SDD
+tier and launch the bead follow-up, and `commit` records the approved plan in SDD without launching a coder. Use
+`-m/--model` to pick the follow-up agent's model. Use `-p/--prompt` to add extra coder instructions for the `approve`
+and `tale` paths. `sase plan reject` writes a rejection response and then uses the same durable cleanup path as the TUI
+plain-reject action: it user-kills the matching planner agent and hides its Agents-tab row when that row can be found.
 
 `sase plan search [QUERY]` searches repo-local `sdd/` plans and the machine-local `~/.sase/plans/` archive. Omit the
 query to browse with metadata filters. Compact and Markdown output group repo matches above local matches; JSON and full

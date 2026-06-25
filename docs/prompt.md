@@ -234,6 +234,10 @@ sase prompt save ph_8f3a9c0d12ab -p bob   # namespace under ~/.config/sase/xprom
 With no `--name`, `save` derives a deterministic slug from the prompt preview. It never overwrites an existing xprompt
 file unless you pass `--force`.
 
+For drafts that have not been submitted to prompt history yet, ACE's prompt bar can save directly to xprompt storage:
+use `gx` in prompt NORMAL mode or `Ctrl+G x` in INSERT mode, then choose an existing xprompt to overwrite or create a
+new one.
+
 ### Export a prompt to SDD
 
 `export` snapshots a prompt as a committed artifact. `--sdd` writes under `sdd/prompts/YYYYMM/` with provenance
