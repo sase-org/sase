@@ -38,6 +38,8 @@ class DetailMixin:
     current_tab: TabName
     refresh_interval: int
     _agents: list[Agent]
+    _agents_first_load_done: bool
+    _agents_with_children: list[Agent]
     _marked_agents: set[tuple[AgentType, str, str | None]]
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
     _agent_search_query: str
@@ -55,6 +57,9 @@ class DetailMixin:
         try:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         except NoMatches:
+            return
+
+        if self._sync_agents_onboarding(agent_detail=agent_detail):
             return
 
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
@@ -91,6 +96,11 @@ class DetailMixin:
             agent_detail: The agent detail panel widget.
             footer_widget: The keybinding footer widget.
         """
+        if self._sync_agents_onboarding(
+            agent_detail=agent_detail, footer_widget=footer_widget
+        ):
+            return
+
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is not None:
             from ._loading_helpers import hydrate_agent_attempt_history
@@ -107,6 +117,74 @@ class DetailMixin:
             agent_detail.show_empty()
 
         self._apply_agent_footer_update(agent_detail, footer_widget, current_agent)
+
+    def _should_show_agents_onboarding(self) -> bool:
+        """Return True when the Agents tab is in the true first-run empty state."""
+        if not getattr(self, "_agents_first_load_done", False):
+            return False
+        if (getattr(self, "_agent_search_query", "") or "").strip():
+            return False
+        return not bool(getattr(self, "_agents_with_children", []))
+
+    @staticmethod
+    def _set_widget_hidden(widget: object, hidden: bool) -> None:
+        if hidden:
+            add_class = getattr(widget, "add_class", None)
+            if callable(add_class):
+                add_class("hidden")
+        else:
+            remove_class = getattr(widget, "remove_class", None)
+            if callable(remove_class):
+                remove_class("hidden")
+
+    @staticmethod
+    def _widget_has_class(widget: object, class_name: str) -> bool:
+        has_class = getattr(widget, "has_class", None)
+        return bool(has_class(class_name)) if callable(has_class) else False
+
+    def _sync_agents_onboarding(
+        self,
+        *,
+        agent_detail: AgentDetail | None = None,
+        footer_widget: KeybindingFooter | None = None,
+    ) -> bool:
+        """Toggle the Agents empty-state onboarding panel.
+
+        Returns True when onboarding is visible and callers should skip normal
+        detail-panel rendering.
+        """
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentDetail, AgentOnboarding
+
+        show_onboarding = self._should_show_agents_onboarding()
+        if (
+            not show_onboarding
+            and agent_detail is not None
+            and not self._widget_has_class(agent_detail, "hidden")
+        ):
+            return False
+
+        try:
+            if agent_detail is None:
+                agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            onboarding = self.query_one("#agent-onboarding-panel", AgentOnboarding)  # type: ignore[attr-defined]
+        except (NoMatches, LookupError):
+            return False
+
+        self._set_widget_hidden(agent_detail, show_onboarding)
+        self._set_widget_hidden(onboarding, not show_onboarding)
+        if not show_onboarding:
+            return False
+
+        registry = getattr(self, "_keymap_registry", None)
+        if registry is not None:
+            onboarding.set_keymap_registry(registry)
+        else:
+            onboarding.refresh_content()
+        if footer_widget is not None:
+            self._apply_agent_footer_update(agent_detail, footer_widget, None)
+        return True
 
     def _apply_agent_footer_update(
         self,

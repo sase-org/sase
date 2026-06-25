@@ -56,7 +56,9 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         # Guard: first load hasn't happened yet — kick off an async load and
         # leave ``_agents`` as-is (empty). Callers that draw the list rely on
         # the existing loading-row mechanism while the async refresh runs.
-        if not getattr(self, "_agents_with_children", None):
+        if not getattr(self, "_agents_with_children", None) and not getattr(
+            self, "_agents_first_load_done", False
+        ):
             self._schedule_agents_async_refresh(source="refilter")  # type: ignore[attr-defined]
             return
 

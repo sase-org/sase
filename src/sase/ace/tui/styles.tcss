@@ -1357,6 +1357,39 @@ HintInputBar #hint-escape-hint {
     height: 1fr;
 }
 
+#agent-onboarding-panel {
+    width: 100%;
+    height: 1fr;
+    padding: 1 2;
+    scrollbar-gutter: stable;
+}
+
+#agent-onboarding-hero {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    content-align: center middle;
+    margin-bottom: 1;
+}
+
+.agent-onboarding-card {
+    width: 100%;
+    height: auto;
+    border: round $secondary;
+    border-title-color: #87D7FF;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+#agent-onboarding-footer {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    content-align: center middle;
+    color: $text-muted;
+    margin-top: 1;
+}
+
 #agent-detail-layout {
     width: 100%;
     height: 100%;

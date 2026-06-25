@@ -3,6 +3,7 @@
 from .agent_detail import AgentDetail
 from .agent_info_panel import AgentInfoPanel
 from .agent_list import AgentList
+from .agent_onboarding import AgentOnboarding
 from .file_panel import FileTrimChanged
 from .ancestors_children_panel import AncestorsChildrenPanel
 from .axe_dashboard import AxeDashboard
@@ -41,6 +42,7 @@ __all__ = [
     "AgentInfoPanel",
     "AgentToolsPanel",
     "AgentList",
+    "AgentOnboarding",
     "AncestorsChildrenPanel",
     "ActiveXPromptArgHint",
     "AxeDashboard",

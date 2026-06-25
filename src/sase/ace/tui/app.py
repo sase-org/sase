@@ -47,6 +47,7 @@ from .widgets import (
     AgentDetail,
     AgentInfoPanel,
     AgentList,
+    AgentOnboarding,
     AncestorsChildrenPanel,
     AxeDashboard,
     AxeInfoPanel,
@@ -292,6 +293,9 @@ class AceApp(
                         yield AgentList(id="agent-list-panel")
                     with Vertical(id="agent-detail-container"):
                         yield AgentDetail(id="agent-detail-panel")
+                        yield AgentOnboarding(
+                            id="agent-onboarding-panel", classes="hidden"
+                        )
             with Horizontal(id="axe-view", classes=axe_classes):
                 with Vertical(id="bgcmd-list-container"):
                     yield BgCmdList(id="bgcmd-list-panel")

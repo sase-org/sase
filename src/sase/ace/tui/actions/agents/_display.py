@@ -428,6 +428,10 @@ class AgentDisplayMixin(AgentSiblingMixin, PanelsMixin, DetailMixin):
         self._refresh_panel_highlights()
         self._update_agents_info_panel()
         if defer_detail:
+            if self._sync_agents_onboarding(
+                agent_detail=agent_detail, footer_widget=footer_widget
+            ):
+                return True
             self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
             return True
 
@@ -485,6 +489,14 @@ class AgentDisplayMixin(AgentSiblingMixin, PanelsMixin, DetailMixin):
 
         self._update_agents_info_panel()
         if defer_detail:
+            if self._sync_agents_onboarding(
+                agent_detail=agent_detail, footer_widget=footer_widget
+            ):
+                log.debug(
+                    "agents display refresh onboarding detail: elapsed=%.3fs",
+                    time.perf_counter() - started,
+                )
+                return
             self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
             log.debug(
                 "agents display refresh deferred detail: elapsed=%.3fs",
