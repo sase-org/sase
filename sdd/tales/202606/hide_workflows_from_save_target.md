@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 09:40:47
-status: wip
+status: done
 prompt: sdd/prompts/202606/hide_workflows_from_save_target.md
 ---
 # Plan: Hide YAML workflows from the "Save draft as xprompt" target list

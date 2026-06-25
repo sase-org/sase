@@ -334,6 +334,8 @@ def load_xprompt_save_rows(project: str | None = None) -> list[_XPromptSaveRow]:
 
     rows: list[_XPromptSaveRow] = []
     for name, workflow in prompts.items():
+        if not workflow.is_simple_xprompt():
+            continue
         category, display_path, _editable = classify_source(workflow.source_path)
         rows.append(
             _XPromptSaveRow(
@@ -380,8 +382,6 @@ def _target_for_workflow(
 def _disabled_reason(
     name: str, workflow: Workflow, *, project: str | None
 ) -> str | None:
-    if not workflow.is_simple_xprompt():
-        return "workflow - can't overwrite with a prompt draft"
     path = resolve_source_to_file_path(workflow.source_path)
     if path is None:
         return "source path could not be resolved"

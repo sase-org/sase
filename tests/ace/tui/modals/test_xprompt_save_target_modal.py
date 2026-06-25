@@ -16,7 +16,9 @@ from sase.xprompt.save import SaveTargetFormat
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 
-def test_load_save_rows_marks_eligible_and_disabled_targets(tmp_path: Path) -> None:
+def test_load_save_rows_excludes_workflows_and_marks_eligible_targets(
+    tmp_path: Path,
+) -> None:
     md_path = tmp_path / "review.md"
     md_path.write_text("review", encoding="utf-8")
     cfg_path = tmp_path / "sase.yml"
@@ -63,8 +65,7 @@ def test_load_save_rows_marks_eligible_and_disabled_targets(tmp_path: Path) -> N
     assert by_name["cfg"].target is not None
     assert by_name["cfg"].target.target_format == SaveTargetFormat.CONFIG
     assert by_name["cfg"].target.entry_name == "cfg"
-    assert by_name["workflow"].target is None
-    assert "workflow" in (by_name["workflow"].disabled_reason or "")
+    assert "workflow" not in by_name
 
 
 class _SaveTargetApp(App[None]):
@@ -120,13 +121,16 @@ async def test_create_new_is_pinned_first_and_selectable() -> None:
 
 async def test_disabled_rows_are_skipped_by_navigation() -> None:
     disabled = _XPromptSaveRow(
-        name="workflow",
-        workflow=Workflow(name="workflow", steps=[WorkflowStep(name="run", agent="x")]),
+        name="read_only",
+        workflow=Workflow(
+            name="read_only",
+            steps=[WorkflowStep(name="main", prompt_part="body")],
+        ),
         source_category="User sase.yml",
         source_path="config",
         display_path="~/.config/sase/sase.yml",
         target=None,
-        disabled_reason="workflow - can't overwrite with a prompt draft",
+        disabled_reason="source file is read-only",
     )
     selectable = _XPromptSaveRow(
         name="review",
