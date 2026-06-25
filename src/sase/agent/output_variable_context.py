@@ -96,13 +96,23 @@ def build_agent_output_variable_context(
         if artifacts_dir is None:
             continue
         seen_artifacts_dirs.add(artifacts_dir)
-        variables = _read_variables_if_present(artifacts_dir)
+        variables = _variables_with_plan_file(artifacts_dir)
         if not variables:
             continue
         key = _agent_key_from_upstream(upstream)
         _merge_agent_variables(agents, key, variables)
 
     for wait_name in wait_names:
+        # Submitted planner rows have no done.json, so they are resolved
+        # separately and keyed by their canonical ``<base>--plan`` row name.
+        plan_resolved = _resolve_submitted_plan_wait(wait_name)
+        if plan_resolved is not None:
+            artifacts_dir, plan_key = plan_resolved
+            plan_variables = _variables_with_plan_file(artifacts_dir)
+            if plan_variables:
+                _merge_agent_variables(agents, plan_key, plan_variables)
+            continue
+
         resolved = _resolve_waited_agent(wait_name)
         if resolved is None:
             continue
@@ -175,6 +185,93 @@ def _read_variables_if_present(artifacts_dir: str) -> dict[str, str]:
         return read_agent_output_variables(artifacts_dir)
     except OSError:
         return {}
+
+
+def _variables_with_plan_file(artifacts_dir: str) -> dict[str, str]:
+    """Return stored output variables plus a synthesized ``plan_file`` entry.
+
+    When *artifacts_dir* is a submitted-and-waiting planner row, the proposed
+    plan path is exposed under ``plan_file`` in the producer's namespace. An
+    explicit ``sase var set plan_file=...`` still wins, so previously stored
+    output variables are never lost.
+    """
+    from sase.core.wait_dependency_resolution import submitted_plan_artifact_for_dir
+
+    variables = _read_variables_if_present(artifacts_dir)
+    plan_artifact = submitted_plan_artifact_for_dir(artifacts_dir)
+    if plan_artifact is None:
+        return variables
+    return {"plan_file": plan_artifact.plan_path, **variables}
+
+
+def _resolve_submitted_plan_wait(wait_name: str) -> tuple[str, str] | None:
+    """Resolve a planner-row ``%wait`` to its artifact dir and Jinja key.
+
+    Submitted-and-waiting planner rows have no ``done.json``, so
+    :func:`resolve_resume_agent_name` cannot see them. Scan ace-run artifacts
+    for a submitted planner whose canonical ``<base>--plan`` row name matches
+    *wait_name* (canonical or legacy spelling) and return its
+    ``(artifacts_dir, planner_row_name)``. Returns ``None`` when *wait_name* is
+    not a planner-row reference or no submitted planner matches.
+    """
+    from sase.plan_chain import planner_row_name
+
+    target = planner_row_name(wait_name, include_legacy_dash=True)
+    if target is None:
+        return None
+
+    from sase.core.agent_scan_facade import scan_agent_artifacts
+    from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
+    from sase.core.paths import sase_projects_dir
+    from sase.core.wait_dependency_resolution import submitted_plan_artifact
+
+    projects_root = sase_projects_dir()
+    if not projects_root.exists():
+        return None
+    snapshot = scan_agent_artifacts(
+        projects_root,
+        AgentArtifactScanOptionsWire(
+            only_workflow_dirs=("ace-run",),
+            include_prompt_step_markers=False,
+            include_raw_prompt_snippets=False,
+        ),
+    )
+
+    best_dir: str | None = None
+    best_timestamp = ""
+    for record in snapshot.records:
+        if record.workflow_dir_name != "ace-run":
+            continue
+        meta = record.agent_meta
+        if meta is None:
+            continue
+        plan_artifact = submitted_plan_artifact(
+            meta=_plan_meta_from_wire(meta),
+            plan_path_marker=(
+                record.plan_path.plan_path if record.plan_path is not None else None
+            ),
+            outcome=record.done.outcome if record.done is not None else None,
+        )
+        if plan_artifact is None or plan_artifact.planner_row_name != target:
+            continue
+        if record.timestamp > best_timestamp:
+            best_timestamp = record.timestamp
+            best_dir = record.artifact_dir
+    if best_dir is None:
+        return None
+    return best_dir, target
+
+
+def _plan_meta_from_wire(meta: Any) -> dict[str, Any]:
+    """Project the wire ``agent_meta`` fields the plan classifier consults."""
+    return {
+        "name": meta.name,
+        "role_suffix": meta.role_suffix,
+        "plan_submitted_at": meta.plan_submitted_at,
+        "feedback_submitted_at": meta.feedback_submitted_at,
+        "plan_approved": meta.plan_approved,
+        "plan_path": meta.plan_path,
+    }
 
 
 def read_waited_agent_output_variables(wait_name: str) -> dict[str, str] | None:

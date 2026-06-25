@@ -560,15 +560,16 @@ Hello, {{ user }}.
 
 ### Template Context
 
-| Variable                     | Description                                                                                           |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `{{ name }}`                 | Named argument or input mapped by name                                                                |
-| `{{ _1 }}`                   | First positional argument (1-indexed)                                                                 |
-| `{{ _2 }}`                   | Second positional argument, etc.                                                                      |
-| `{{ _args }}`                | List of all positional arguments                                                                      |
-| `{{ root }}`                 | Absolute path to the primary workspace directory (omitted if unresolvable)                            |
-| `{{ wait_chats }}`           | List of chat-transcript paths for agents named in `%wait:<name>` directives, in the order they appear |
-| `{{ agents["build"].path }}` | Output variables loaded from `%wait:build` when that agent used `sase var set path=...`               |
+| Variable                            | Description                                                                                                |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `{{ name }}`                        | Named argument or input mapped by name                                                                     |
+| `{{ _1 }}`                          | First positional argument (1-indexed)                                                                      |
+| `{{ _2 }}`                          | Second positional argument, etc.                                                                           |
+| `{{ _args }}`                       | List of all positional arguments                                                                           |
+| `{{ root }}`                        | Absolute path to the primary workspace directory (omitted if unresolvable)                                 |
+| `{{ wait_chats }}`                  | List of chat-transcript paths for agents named in `%wait:<name>` directives, in the order they appear      |
+| `{{ agents["build"].path }}`        | Output variables loaded from `%wait:build` when that agent used `sase var set path=...`                    |
+| `{{ agents["p--plan"].plan_file }}` | Proposed plan path of a submitted planner row, synthesized from `%wait:p--plan` (no `sase var set` needed) |
 
 Named arguments and positional-to-name mappings take priority; if an xprompt is called within a workflow step, the
 workflow's execution scope is also available (xprompt args override scope values on conflict).
@@ -1058,6 +1059,12 @@ Named `%wait` dependencies unblock only after the newest matching agent run has 
 For a multi-agent workflow name, the workflow root and every child agent for that root must complete successfully.
 Failed, killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the wait; the
 dependent agent stays parked until a later successful run of the same dependency name appears.
+
+A submitted plan awaiting review is the one exception. A planner that ran `sase plan propose` blocks in the approval
+flow without writing a `done.json`, so its planner row shows the `PLAN` status. A `%wait` on that planner row — its
+canonical `<base>--plan` name (or a legacy `<base>.plan` spelling) — treats the submitted plan as done and unblocks
+while the plan is still in review. This targets the planner row only: a `%wait:<base>` on the root family name stays
+parked until the whole plan chain actually completes, so a submitted plan alone never makes the chain look finished.
 
 When a launch has exactly one explicit `%wait:<name>` dependency and no explicit `%name`, SASE can allocate a derived
 name before spawning the waiting agent: `<name>.w1`, `<name>.w2`, and so on, using the first free slot. Multi-value
@@ -1671,6 +1678,24 @@ not secret storage.
 repeat slots (see [Stopping a repeat chain early with `STOP`](#stopping-a-repeat-chain-early-with-stop)). It has no
 special meaning for ordinary `%wait` consumers, `---` segments, or `%alt` fan-outs — those read it like any other
 variable, e.g. `{{ agents["name"].STOP }}`.
+
+A planner that submits a plan for review (`sase plan propose`) exposes the proposed plan path as a synthesized
+`plan_file` variable in the same `agents` namespace, without any `sase var set` call. A later segment in the same
+multi-agent prompt reads it under the producer's stable key, and an explicit `%wait` on the planner row reads it under
+the canonical `<base>--plan` key:
+
+```
+%name:planner
+Propose a plan for the feature.
+---
+%name:coder
+%wait:planner--plan
+Implement the plan at {{ agents["planner--plan"].plan_file }}.
+```
+
+`plan_file` is only ever namespaced under `agents[...]`; there is no top-level `plan_file` variable. An explicit
+`sase var set plan_file=...` in the planner wins over the synthesized value, and any other output variables the planner
+sets are preserved alongside it.
 
 ACE renders loaded literal `---` multi-agent prompts as a prompt stack: each top-level segment becomes an editable pane,
 while prompt-level frontmatter and fenced-code separators keep the same parsing rules described below. A `#name`

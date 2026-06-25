@@ -259,6 +259,184 @@ def test_waited_agent_variables_load_as_fallback_context(tmp_path: Path) -> None
     assert context == {"agents": {"build": {"report_path": "reports/build.md"}}}
 
 
+_PLAN_PATH = "sdd/tales/202606/example.md"
+
+
+def _augment_submitted_plan_meta(
+    artifacts_dir: Path,
+    *,
+    name: str = "planner",
+    role_suffix: str = "--plan",
+    output_variables: dict[str, str] | None = None,
+    write_plan_path_json: bool = True,
+    plan_path: str | None = _PLAN_PATH,
+) -> None:
+    """Write a submitted-and-waiting planner ``agent_meta.json`` (no done.json)."""
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    meta: dict[str, object] = {
+        "name": name,
+        "role_suffix": role_suffix,
+        "plan": True,
+        "plan_submitted_at": ["2026-06-25T18:47:16+00:00"],
+    }
+    if plan_path is not None:
+        meta["plan_path"] = plan_path
+    if output_variables is not None:
+        meta["output_variables"] = output_variables
+    (artifacts_dir / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    if write_plan_path_json and plan_path is not None:
+        (artifacts_dir / "plan_path.json").write_text(
+            json.dumps({"plan_path": plan_path}), encoding="utf-8"
+        )
+
+
+def test_submitted_plan_wait_exposes_plan_file_under_row_key(tmp_path: Path) -> None:
+    agent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260625184716",
+        "planner",
+        workflow_name="planner",
+        agent_family="planner",
+        role_suffix="--plan",
+    )
+    _augment_submitted_plan_meta(agent_dir)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        context = build_agent_output_variable_context(
+            upstreams_json=None,
+            wait_names=["planner--plan"],
+        )
+
+    assert context == {"agents": {"planner--plan": {"plan_file": _PLAN_PATH}}}
+    assert "plan_file" not in context
+
+
+def test_upstream_submitted_planner_exposes_plan_file_under_base_key(
+    tmp_path: Path,
+) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        upstream = build_agent_var_upstream_record(
+            agent_name="planner",
+            project_name="proj",
+            workflow_timestamp="260625_184716",
+        )
+
+    _augment_submitted_plan_meta(Path(str(upstream["artifacts_dir"])))
+
+    context = build_agent_output_variable_context(
+        upstreams_json=encode_agent_var_upstreams([upstream]),
+    )
+
+    assert context == {"agents": {"planner": {"plan_file": _PLAN_PATH}}}
+
+
+def test_submitted_planner_plan_file_merges_with_stored_variables(
+    tmp_path: Path,
+) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        upstream = build_agent_var_upstream_record(
+            agent_name="planner",
+            project_name="proj",
+            workflow_timestamp="260625_184716",
+        )
+
+    _augment_submitted_plan_meta(
+        Path(str(upstream["artifacts_dir"])),
+        output_variables={"report_path": "reports/plan.md"},
+    )
+
+    context = build_agent_output_variable_context(
+        upstreams_json=encode_agent_var_upstreams([upstream]),
+    )
+
+    assert context == {
+        "agents": {
+            "planner": {
+                "report_path": "reports/plan.md",
+                "plan_file": _PLAN_PATH,
+            }
+        }
+    }
+
+
+def test_explicit_plan_file_variable_is_not_overwritten_by_synthesis(
+    tmp_path: Path,
+) -> None:
+    with patch.object(Path, "home", return_value=tmp_path):
+        upstream = build_agent_var_upstream_record(
+            agent_name="planner",
+            project_name="proj",
+            workflow_timestamp="260625_184716",
+        )
+
+    _augment_submitted_plan_meta(
+        Path(str(upstream["artifacts_dir"])),
+        output_variables={"plan_file": "explicit/override.md"},
+    )
+
+    context = build_agent_output_variable_context(
+        upstreams_json=encode_agent_var_upstreams([upstream]),
+    )
+
+    assert context == {"agents": {"planner": {"plan_file": "explicit/override.md"}}}
+
+
+def test_submitted_planner_populates_both_base_and_row_keys(tmp_path: Path) -> None:
+    agent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260625184716",
+        "planner",
+        workflow_name="planner",
+        agent_family="planner",
+        role_suffix="--plan",
+    )
+    _augment_submitted_plan_meta(agent_dir)
+    upstream = {
+        "name": "planner",
+        "agent_key": "planner",
+        "agent_name_template": None,
+        "artifacts_dir": str(agent_dir),
+    }
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        context = build_agent_output_variable_context(
+            upstreams_json=encode_agent_var_upstreams([upstream]),
+            wait_names=["planner--plan"],
+        )
+
+    assert context == {
+        "agents": {
+            "planner": {"plan_file": _PLAN_PATH},
+            "planner--plan": {"plan_file": _PLAN_PATH},
+        }
+    }
+
+
+def test_submitted_plan_wait_without_plan_path_exposes_nothing(
+    tmp_path: Path,
+) -> None:
+    agent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260625184716",
+        "planner",
+        workflow_name="planner",
+        agent_family="planner",
+        role_suffix="--plan",
+    )
+    _augment_submitted_plan_meta(agent_dir, plan_path=None)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        context = build_agent_output_variable_context(
+            upstreams_json=None,
+            wait_names=["planner--plan"],
+        )
+
+    assert context == {}
+
+
 def test_build_named_args_injects_single_agents_arg() -> None:
     ctx = _consumer_ctx(
         {"agents": {"build": {"report_path": "reports/build.md"}}},
@@ -342,6 +520,55 @@ def test_waited_producer_variables_render_in_later_workflow_prompt(
     assert rendered_workflow.steps[0].agent == (
         "Read reports/build.md after producer status ok."
     )
+
+
+def test_submitted_plan_file_renders_in_later_workflow_prompt(
+    tmp_path: Path,
+) -> None:
+    agent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260625184716",
+        "planner",
+        workflow_name="planner",
+        agent_family="planner",
+        role_suffix="--plan",
+    )
+    _augment_submitted_plan_meta(agent_dir)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        output_variable_namespaces = build_agent_output_variable_context(
+            upstreams_json=None,
+            wait_names=["planner--plan"],
+        )
+
+    ctx = _consumer_ctx(output_variable_namespaces)
+    workflow = Workflow(
+        name="consumer",
+        steps=[
+            WorkflowStep(
+                name="main",
+                prompt_part='Implement {{ agents["planner--plan"].plan_file }}.',
+            )
+        ],
+    )
+
+    with patch("sase.xprompt.workflow_executor.WorkflowExecutor") as executor_cls:
+        executor = executor_cls.return_value
+        executor.execute.return_value = True
+        executor.state.steps = []
+
+        execute_workflow(
+            name=workflow.name,
+            positional_args=[],
+            named_args=_build_named_args(ctx),
+            artifacts_dir=str(tmp_path / "consumer_workflow"),
+            workflow_obj=workflow,
+            silent=True,
+        )
+
+    rendered_workflow = executor_cls.call_args.kwargs["workflow"]
+    assert rendered_workflow.steps[0].agent == (f"Implement {_PLAN_PATH}.")
 
 
 def test_raw_key_producer_renders_via_bracket_access(tmp_path: Path) -> None:

@@ -291,6 +291,24 @@ def plan_chain_agent_name(base_name: str, suffix: str) -> str:
     return agent_family_phase_name(base_name, suffix)
 
 
+def planner_row_name(name: object, *, include_legacy_dash: bool = False) -> str | None:
+    """Return the canonical ``<base>--plan`` row name for a plan-phase member.
+
+    Returns ``None`` unless *name* is a plan-chain family member whose suffix
+    canonicalizes to the planner ``--plan`` phase. Legacy spellings such as
+    ``base.plan`` (and ``base-plan`` when *include_legacy_dash* is set) map onto
+    the same canonical planner-row name, so a ``%wait`` on either form resolves
+    to the canonical planner row.
+    """
+    split = _split_agent_family_name(name, include_legacy_dash=include_legacy_dash)
+    if split is None:
+        return None
+    base, suffix = split
+    if suffix != PLAN_CHAIN_PLAN_SUFFIX:
+        return None
+    return agent_family_phase_name(base, PLAN_CHAIN_PLAN_SUFFIX)
+
+
 def _split_agent_family_name(
     name: object, *, include_legacy_dash: bool = False
 ) -> tuple[str, str] | None:

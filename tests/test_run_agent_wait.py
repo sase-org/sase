@@ -24,6 +24,30 @@ def _make_waiter(base: Path, project: str = "proj") -> Path:
     return artifact_dir
 
 
+def _make_submitted_planner(base: Path, timestamp: str, name: str) -> Path:
+    """Create a submitted-and-waiting planner artifact (no done.json)."""
+    artifact_dir = make_agent(
+        base,
+        "proj",
+        timestamp,
+        name,
+        workflow_name=name,
+        agent_family=name,
+        role_suffix="--plan",
+    )
+    meta_path = artifact_dir / "agent_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["plan"] = True
+    meta["plan_submitted_at"] = ["2026-06-25T18:47:16+00:00"]
+    meta["plan_path"] = "sdd/tales/202606/example.md"
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+    (artifact_dir / "plan_path.json").write_text(
+        json.dumps({"plan_path": "sdd/tales/202606/example.md"}),
+        encoding="utf-8",
+    )
+    return artifact_dir
+
+
 def test_resolved_named_wait_skips_waiting_marker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -65,6 +89,39 @@ def test_resolved_named_wait_skips_waiting_marker(
     assert isinstance(agent_meta.get("wait_completed_at"), str)
     disk_meta = json.loads((waiter_dir / "agent_meta.json").read_text())
     assert disk_meta["wait_completed_at"] == agent_meta["wait_completed_at"]
+
+
+def test_submitted_plan_row_wait_skips_waiting_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _make_submitted_planner(tmp_path, "20260625184716", "planner")
+    waiter_dir = _make_waiter(tmp_path)
+    agent_meta = {"pid": 123}
+    index_updates: list[str] = []
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch(
+            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: index_updates.append(path),
+        ),
+        patch("sase.axe.run_agent_wait.time.sleep") as sleep_mock,
+    ):
+        wait_for_dependencies(
+            ["planner--plan"],
+            str(waiter_dir),
+            "cl",
+            "20260513120000",
+            agent_meta,
+            project_name="proj",
+        )
+
+    sleep_mock.assert_not_called()
+    assert index_updates == []
+    assert not (waiter_dir / "waiting.json").exists()
+    assert isinstance(agent_meta.get("wait_completed_at"), str)
 
 
 def test_unresolved_named_wait_uses_slow_waiting_marker_path(

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,8 +11,12 @@ from typing import Any
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
+    PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_base,
+    agent_family_phase_name,
+    canonical_plan_chain_suffix,
     is_plan_chain_artifact_meta,
+    planner_row_name,
 )
 
 _SUCCESS_OUTCOME = "completed"
@@ -40,6 +44,105 @@ class _FamilyCandidate:
     timestamp: str
     is_resolved: bool
     is_done: bool
+
+
+@dataclass(frozen=True)
+class _SubmittedPlanArtifact:
+    """A planner-phase artifact whose plan is submitted and awaiting review.
+
+    ``plan_path`` is the proposed plan file. ``planner_row_name`` is the
+    canonical ``<base>--plan`` row name the TUI shows for this artifact, used
+    both as the ``%wait`` alias and the cross-agent ``agents[...]`` Jinja key.
+    """
+
+    plan_path: str
+    planner_row_name: str
+    base_name: str
+
+
+def submitted_plan_artifact(
+    *,
+    meta: Mapping[str, Any],
+    plan_path_marker: str | None,
+    outcome: str | None,
+) -> _SubmittedPlanArtifact | None:
+    """Classify a planner artifact as submitted-and-awaiting-review.
+
+    Mirrors the meaning of the TUI ``PLAN`` status without importing TUI
+    enrichment code: a ``--plan`` role row carrying a ``plan_submitted_at``
+    marker that has not been superseded by approval, replan feedback, or a
+    terminal ``done.json`` outcome, plus a usable plan path. Returns ``None``
+    for anything else.
+    """
+    if outcome is not None:
+        # A terminal outcome (approved/committed/rejected/killed) means the
+        # plan flow has concluded; ordinary resolution applies instead.
+        return None
+    if canonical_plan_chain_suffix(meta.get("role_suffix")) != PLAN_CHAIN_PLAN_SUFFIX:
+        return None
+    if not _has_submission_marker(meta.get("plan_submitted_at")):
+        return None
+    if meta.get("plan_approved"):
+        return None
+    if _has_submission_marker(meta.get("feedback_submitted_at")):
+        return None
+
+    plan_path = _first_nonempty_str(plan_path_marker, meta.get("plan_path"))
+    if plan_path is None:
+        return None
+
+    name = meta.get("name")
+    if not isinstance(name, str) or not name:
+        return None
+    base = agent_family_base(name) or name
+    try:
+        row_name = agent_family_phase_name(base, PLAN_CHAIN_PLAN_SUFFIX)
+    except ValueError:
+        return None
+    return _SubmittedPlanArtifact(
+        plan_path=plan_path,
+        planner_row_name=row_name,
+        base_name=base,
+    )
+
+
+def submitted_plan_artifact_for_dir(
+    artifact_dir: Path | str,
+) -> _SubmittedPlanArtifact | None:
+    """Read an artifact dir and classify it as a submitted planner row."""
+    artifact_path = Path(artifact_dir)
+    meta = read_json_dict(artifact_path / "agent_meta.json")
+    if meta is None:
+        return None
+    return submitted_plan_artifact(
+        meta=meta,
+        plan_path_marker=_plan_path_marker(artifact_path),
+        outcome=_done_outcome(artifact_path),
+    )
+
+
+def _plan_path_marker(artifact_dir: Path) -> str | None:
+    data = read_json_dict(artifact_dir / "plan_path.json")
+    if data is None:
+        return None
+    plan_path = data.get("plan_path")
+    return plan_path if isinstance(plan_path, str) and plan_path else None
+
+
+def _has_submission_marker(raw_value: object) -> bool:
+    """Mirror the TUI's plan-submission marker check without importing it."""
+    if isinstance(raw_value, str):
+        return bool(raw_value)
+    if isinstance(raw_value, list):
+        return any(isinstance(value, str) and value for value in raw_value)
+    return False
+
+
+def _first_nonempty_str(*values: object) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
 @dataclass
@@ -78,14 +181,31 @@ class WaitDependencyIndex:
 
         name = meta.get("name")
         if isinstance(name, str):
-            candidate = _WaitCandidate(
-                timestamp=timestamp,
-                is_resolved=is_resolved,
-                is_done=is_done,
+            self._record_named_candidate(
+                name,
+                _WaitCandidate(
+                    timestamp=timestamp,
+                    is_resolved=is_resolved,
+                    is_done=is_done,
+                ),
             )
-            latest = self.named.get(name)
-            if latest is None or candidate.timestamp > latest.timestamp:
-                self.named[name] = candidate
+
+        # A submitted-and-waiting planner row has no successful done.json, so it
+        # never feeds the workflow/family aggregate below. Index it as a
+        # resolved named candidate under its canonical ``<base>--plan`` row name
+        # so a ``%wait`` on that planner row unblocks while the plan is in
+        # review, without making the whole plan chain look complete.
+        plan_artifact = submitted_plan_artifact(
+            meta=meta,
+            plan_path_marker=_plan_path_marker(artifact_dir),
+            outcome=outcome,
+        )
+        if plan_artifact is not None:
+            self._record_named_candidate(
+                plan_artifact.planner_row_name,
+                _WaitCandidate(timestamp=timestamp, is_resolved=True, is_done=True),
+                prefer_on_tie=True,
+            )
 
         workflow_name = meta.get("workflow_name")
         if isinstance(workflow_name, str):
@@ -172,6 +292,38 @@ class WaitDependencyIndex:
             is_done=any(candidate.is_done for candidate in generation),
         )
 
+    def _record_named_candidate(
+        self,
+        name: str,
+        candidate: _WaitCandidate,
+        *,
+        prefer_on_tie: bool = False,
+    ) -> None:
+        """Keep the newest named candidate, preferring *candidate* on ties.
+
+        ``prefer_on_tie`` lets a submitted-planner row override the ordinary
+        same-artifact candidate it shares a timestamp with.
+        """
+        latest = self.named.get(name)
+        if (
+            latest is None
+            or candidate.timestamp > latest.timestamp
+            or (prefer_on_tie and candidate.timestamp == latest.timestamp)
+        ):
+            self.named[name] = candidate
+
+    def _planner_row_candidate(self, name: str) -> _WaitCandidate | None:
+        """Return a submitted-planner-row candidate for a legacy-spelled wait.
+
+        A ``%wait`` on a legacy planner-row spelling (``base.plan``) resolves to
+        the canonical ``base--plan`` named candidate. Canonical names already
+        hit ``self.named`` directly, so they are skipped here.
+        """
+        alias = planner_row_name(name, include_legacy_dash=True)
+        if alias is None or alias == name:
+            return None
+        return self.named.get(alias)
+
     def is_resolved(self, name: str) -> bool:
         candidates = [
             candidate
@@ -179,6 +331,7 @@ class WaitDependencyIndex:
                 self.family_candidate(name),
                 self.workflow_candidate(name),
                 self.named.get(name),
+                self._planner_row_candidate(name),
             )
             if candidate is not None
         ]
@@ -298,4 +451,6 @@ __all__ = [
     "build_wait_dependency_index",
     "dependencies_resolved",
     "read_json_dict",
+    "submitted_plan_artifact",
+    "submitted_plan_artifact_for_dir",
 ]

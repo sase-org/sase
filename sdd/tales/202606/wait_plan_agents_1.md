@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 18:47:16
-status: wip
+status: done
 prompt: sdd/prompts/202606/wait_plan_agents_1.md
 ---
 # Plan: `%wait` Support for Submitted Plan Agents
