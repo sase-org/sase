@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 08:34:09
-status: wip
+status: done
 prompt: sdd/prompts/202606/all_panel_agent_completion.md
 ---
 # Plan: Source `#fork` / `%wait` agent-name completion from ALL visible Agents-tab panels

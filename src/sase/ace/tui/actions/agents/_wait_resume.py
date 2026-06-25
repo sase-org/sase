@@ -265,11 +265,11 @@ class AgentWaitResumeMixin:
         )
 
     def _visible_wait_candidate_agents(self) -> list[Agent]:
-        """Return agents currently visible in the focused Agents panel."""
+        """Return agents currently visible across all Agents-tab panels."""
         return self._visible_agent_completion_agents()
 
     def _visible_agent_completion_agents(self) -> list[Agent]:
-        """Return agents currently visible in the focused Agents panel."""
+        """Return agents currently visible across all Agents-tab panels."""
         return visible_agent_completion_agents(self)
 
     def visible_agent_completion_candidates(
@@ -277,7 +277,7 @@ class AgentWaitResumeMixin:
         *,
         exclude_identity: object | None = None,
     ) -> list[AgentCompletionCandidate]:
-        """Return completion candidates sourced from the visible Agents panel."""
+        """Return completion candidates sourced from all visible Agents-tab panels."""
         return build_agent_completion_candidates(
             self._visible_agent_completion_agents(),
             exclude_identity=exclude_identity,

@@ -37,10 +37,10 @@ a model candidate inserts the canonical model value such as `claude-fable-5`.
 
 **Agent-name Completion (`%wait` / `#fork`)**
 
-The ACE prompt input completes agent-name arguments for `%wait` and `#fork` from the agents currently visible in the
-focused Agents-tab panel. Rows show the status indicator, inserted agent name, VCS workflow badge such as `#gh:sase`,
-and a prompt snippet. `%wait` completion handles comma-separated fragments; `#fork` uses the same visible-agent
-candidate source.
+The ACE prompt input completes agent-name arguments for `%wait` and `#fork` from the agents currently visible across all
+Agents-tab panels. Rows show the status indicator, inserted agent name, VCS workflow badge such as `#gh:sase`, and a
+prompt snippet. `%wait` completion handles comma-separated fragments; `#fork` uses the same visible-agent candidate
+source.
 
 **Root Agent/Workflow Entry**  
 Any agent row entry on the "Agents" tab of the `sase ace` TUI that has child entries.

@@ -8,13 +8,44 @@ from typing import Any
 
 from rich.console import Console
 from rich.style import Style
+from textual.css.query import NoMatches
 
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id
 from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
     filter_agent_completion_candidates,
     status_style,
+    visible_agent_completion_agents,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_panels import AgentPanelGroup
+
+
+class _FakeAgentList:
+    def __init__(self, agents: list[Agent]) -> None:
+        self._agents = agents
+
+    def visible_agents(self) -> list[Agent]:
+        return self._agents
+
+
+class _CompletionApp:
+    def __init__(
+        self,
+        agents: list[Agent],
+        panel_rows: dict[int, list[Agent]] | None,
+    ) -> None:
+        self._agents = agents
+        self._panel_group = AgentPanelGroup.from_agents(agents)
+        self._panel_rows = panel_rows
+
+    def query_one(self, selector: str, _widget_type: object) -> _FakeAgentList:
+        if self._panel_rows is None:
+            raise NoMatches(selector)
+        for panel_idx, agents in self._panel_rows.items():
+            if selector == f"#{panel_widget_id(panel_idx)}":
+                return _FakeAgentList(agents)
+        raise NoMatches(selector)
 
 
 def _agent(tmp_path: Path, **overrides: Any) -> Agent:
@@ -107,6 +138,77 @@ def test_filter_agent_completion_candidates_uses_name_prefix(tmp_path: Path) -> 
         candidate.name
         for candidate in filter_agent_completion_candidates(candidates, "co")
     ] == ["coder"]
+
+
+def test_visible_agent_completion_agents_aggregates_all_panel_widgets(
+    tmp_path: Path,
+) -> None:
+    untagged = _agent(tmp_path, agent_name="untagged", raw_suffix="260624_120020")
+    alpha = _agent(
+        tmp_path,
+        agent_name="alpha",
+        raw_suffix="260624_120021",
+        tag="alpha",
+    )
+    alpha_extra = _agent(
+        tmp_path,
+        agent_name="alpha-extra",
+        raw_suffix="260624_120022",
+        tag="alpha",
+    )
+    beta = _agent(
+        tmp_path,
+        agent_name="beta",
+        raw_suffix="260624_120023",
+        tag="beta",
+    )
+    app = _CompletionApp(
+        [untagged, alpha, alpha_extra, beta],
+        {
+            0: [untagged],
+            1: [alpha, alpha_extra],
+            2: [beta, alpha],
+        },
+    )
+    app._panel_group.focused_idx = 1
+
+    assert visible_agent_completion_agents(app) == [
+        untagged,
+        alpha,
+        alpha_extra,
+        beta,
+    ]
+
+
+def test_visible_agent_completion_agents_falls_back_when_no_widgets(
+    tmp_path: Path,
+) -> None:
+    first = _agent(tmp_path, agent_name="first", raw_suffix="260624_120030")
+    hidden_starting = _agent(
+        tmp_path,
+        agent_name="starting",
+        raw_suffix="260624_120031",
+        status="STARTING",
+    )
+    second = _agent(tmp_path, agent_name="second", raw_suffix="260624_120032")
+    app = _CompletionApp([first, hidden_starting, second], None)
+
+    assert visible_agent_completion_agents(app) == [first, second]
+
+
+def test_visible_agent_completion_agents_uses_visible_order_fallback(
+    tmp_path: Path,
+) -> None:
+    first = _agent(tmp_path, agent_name="first", raw_suffix="260624_120040")
+    second = _agent(tmp_path, agent_name="second", raw_suffix="260624_120041")
+
+    class _FallbackOrderApp(_CompletionApp):
+        def _agents_visible_order(self) -> list[int]:
+            return [1, 99, 0]
+
+    app = _FallbackOrderApp([first, second], None)
+
+    assert visible_agent_completion_agents(app) == [second, first]
 
 
 def test_status_style_returns_rich_parseable_styles() -> None:

@@ -305,7 +305,7 @@ def _strip_leading_vcs_tag(text: str) -> str:
 
 
 def visible_agent_completion_agents(app: object) -> list[Agent]:
-    """Return agents currently visible in the focused Agents panel."""
+    """Return agents currently visible across all Agents-tab panels."""
     from textual.css.query import NoMatches
 
     from sase.ace.tui.actions.agents._display_helpers import panel_widget_id
@@ -313,18 +313,26 @@ def visible_agent_completion_agents(app: object) -> list[Agent]:
     from sase.ace.tui.widgets import AgentList
 
     panel_group = getattr(app, "_panel_group", None)
-    focused_idx = getattr(panel_group, "focused_idx", 0)
-    if not isinstance(focused_idx, int):
-        focused_idx = 0
-    widget = None
+    panel_keys = getattr(panel_group, "panel_keys", [])
+    panel_count = len(panel_keys)
     query_one = getattr(app, "query_one", None)
     if callable(query_one):
-        try:
-            widget = query_one(f"#{panel_widget_id(focused_idx)}", AgentList)
-        except NoMatches:
-            widget = None
-    if widget is not None:
-        return widget.visible_agents()
+        visible: list[Agent] = []
+        seen_identities: set[object] = set()
+        queried_widget = False
+        for panel_idx in range(panel_count):
+            try:
+                widget = query_one(f"#{panel_widget_id(panel_idx)}", AgentList)
+            except NoMatches:
+                continue
+            queried_widget = True
+            for agent in widget.visible_agents():
+                if agent.identity in seen_identities:
+                    continue
+                seen_identities.add(agent.identity)
+                visible.append(agent)
+        if queried_widget:
+            return visible
 
     agents = list(getattr(app, "_agents", []))
     order_fn = getattr(app, "_agents_visible_order", None)
