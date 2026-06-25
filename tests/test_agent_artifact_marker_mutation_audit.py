@@ -30,8 +30,17 @@ from tests._agent_artifact_marker_audit_helpers import (
 )
 
 _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
-    "src/sase/ace/tui/actions/agents/_approve.py:_persist_plan_auto_approval": Review(
-        mutation_calls=("open", "dump"),
+    (
+        "src/sase/ace/tui/actions/agents/_directive_persistence.py:_patch_agent_meta"
+    ): Review(
+        mutation_calls=("_write_json_file",),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
+    (
+        "src/sase/ace/tui/actions/agents/_directive_persistence.py:"
+        "_write_waiting_marker"
+    ): Review(
+        mutation_calls=("_write_json_file",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/ace/tui/actions/agents/_killing_utils.py:delete_agent_artifacts": Review(
@@ -81,14 +90,6 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
                 "_restore_agent_artifacts"
             ),
         ),
-    ),
-    "src/sase/ace/tui/actions/agents/_wait_resume.py:_apply_wait": Review(
-        mutation_calls=("open", "dump", "open", "dump"),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
-    "src/sase/ace/tui/actions/rename.py:handle_name_result": Review(
-        mutation_calls=("open", "dump"),
-        lifecycle_calls=(_UPDATE_INDEX,),
     ),
     (
         "src/sase/ace/tui/models/_loaders/_running_loaders.py:"

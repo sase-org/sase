@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 
+from sase.ace.tui.actions.task_actions import TrackedTaskCompletion, TrackedTaskResult
+from sase.ace.tui.task_queue import TaskInfo
 from sase.agent.launch_validation import (
     AgentNameLaunchCollisionError,
     AgentNameReuseConfirmationRequiredError,
@@ -159,6 +163,8 @@ def test_tui_agent_rename_rejects_reserved_family_separator_name(
     class FakeAgent:
         identity = ("workflow", "cl", "raw")
         agent_name = None
+        cl_name = "cl"
+        display_name = "cl"
 
         def get_artifacts_dir(self) -> str:
             return str(artifacts_dir)
@@ -204,6 +210,8 @@ def test_tui_agent_rename_refreshes_artifact_index(tmp_path: Path) -> None:
     class FakeAgent:
         identity = ("workflow", "cl", "raw")
         agent_name = None
+        cl_name = "cl"
+        display_name = "cl"
 
         def get_artifacts_dir(self) -> str:
             return str(artifacts_dir)
@@ -226,11 +234,61 @@ def test_tui_agent_rename_refreshes_artifact_index(tmp_path: Path) -> None:
         def _refresh_agents_display(self, *, list_changed: bool) -> None:
             self.refresh_calls += 1
 
+        def _submit_tracked_task(
+            self,
+            task_type: str,
+            cl_name: str,
+            project_file: str,
+            task_callable: Any,
+            *,
+            display_name: str | None = None,
+            dedup_key: str | None = None,
+            duplicate_message: str | None = None,
+            on_complete: Any = None,
+            reload_on_complete: bool = True,
+            notify_on_complete: bool = True,
+        ) -> TaskInfo:
+            del duplicate_message, reload_on_complete, notify_on_complete
+            task_info = TaskInfo(
+                task_id="task-0",
+                task_type=task_type,
+                cl_name=cl_name,
+                project_file=project_file,
+                status="running",
+                message="running",
+                started_at=datetime.now(),
+                display_name=display_name,
+                dedup_key=dedup_key,
+            )
+            try:
+                result = task_callable()
+            except Exception as exc:
+                result = TrackedTaskResult(
+                    success=False,
+                    message=str(exc),
+                    error=str(exc),
+                )
+            task_info.status = "success" if result.success else "error"
+            task_info.message = result.message
+            task_info.error = result.error
+            if on_complete is not None:
+                on_complete(
+                    TrackedTaskCompletion(
+                        task_info=task_info,
+                        success=result.success,
+                        message=result.message,
+                        output="",
+                        payload=result.payload,
+                        error=result.error,
+                    )
+                )
+            return task_info
+
     app = FakeApp()
     with (
         patch("sase.agent.names.claim_agent_name"),
         patch(
-            "sase.ace.tui.actions.rename."
+            "sase.ace.tui.actions.agents._directive_persistence."
             "update_agent_artifact_index_for_marker_mutation"
         ) as update_index,
     ):

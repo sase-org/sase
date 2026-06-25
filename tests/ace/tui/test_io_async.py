@@ -1,4 +1,4 @@
-"""Tests for ``sase.ace.tui.util.io_async.schedule_persist``."""
+"""Tests for ``sase.ace.tui.util.io_async._schedule_persist``."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from sase.ace.tui.util.io_async import schedule_persist
+from sase.ace.tui.util.io_async import _schedule_persist
 
 
 class FakeApp:
@@ -24,7 +24,7 @@ class FakeApp:
         self.scheduled.append((callback, args, kwargs))
 
 
-def test_schedule_persist_runs_persist_fn_and_calls_on_success() -> None:
+def test__schedule_persist_runs_persist_fn_and_calls_on_success() -> None:
     app = FakeApp()
     calls: list[tuple[int, str]] = []
     successes: list[int] = []
@@ -33,7 +33,7 @@ def test_schedule_persist_runs_persist_fn_and_calls_on_success() -> None:
         calls.append((a, b))
         return 42
 
-    schedule_persist(
+    _schedule_persist(
         app,
         persist,
         7,
@@ -51,14 +51,14 @@ def test_schedule_persist_runs_persist_fn_and_calls_on_success() -> None:
     assert app.notifications == []
 
 
-def test_schedule_persist_failure_notifies_and_calls_on_error() -> None:
+def test__schedule_persist_failure_notifies_and_calls_on_error() -> None:
     app = FakeApp()
     seen: list[BaseException] = []
 
     def persist() -> None:
         raise RuntimeError("boom")
 
-    schedule_persist(
+    _schedule_persist(
         app,
         persist,
         error_label="Approve persist",
@@ -73,13 +73,13 @@ def test_schedule_persist_failure_notifies_and_calls_on_error() -> None:
     assert isinstance(seen[0], RuntimeError)
 
 
-def test_schedule_persist_failure_without_on_error_still_notifies() -> None:
+def test__schedule_persist_failure_without_on_error_still_notifies() -> None:
     app = FakeApp()
 
     def persist() -> None:
         raise OSError("disk full")
 
-    schedule_persist(app, persist, error_label="Persist")
+    _schedule_persist(app, persist, error_label="Persist")
 
     callback = app.scheduled[0][0]
     asyncio.run(callback())
@@ -87,7 +87,7 @@ def test_schedule_persist_failure_without_on_error_still_notifies() -> None:
     assert app.notifications == [("Persist failed: disk full", "error")]
 
 
-def test_schedule_persist_callbacks_isolate_failures() -> None:
+def test__schedule_persist_callbacks_isolate_failures() -> None:
     """A throwing on_success callback must not propagate."""
     app = FakeApp()
 
@@ -98,7 +98,7 @@ def test_schedule_persist_callbacks_isolate_failures() -> None:
         del value
         raise ValueError("callback bug")
 
-    schedule_persist(
+    _schedule_persist(
         app,
         persist,
         error_label="Persist",

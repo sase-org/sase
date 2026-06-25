@@ -14,10 +14,11 @@ from sase.ace.tui.actions.agents._approve import (
     AgentApproveMixin,
     _auto_approval_choice_for_agent,
     _auto_approval_state_for_choice,
-    _persist_plan_auto_approval,
 )
+from sase.ace.tui.actions.task_actions import TrackedTaskCompletion, TrackedTaskResult
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals.auto_approve_modal import AutoApproveModal
+from sase.ace.tui.task_queue import TaskInfo
 
 
 def _make_agent(artifacts_dir: str, **overrides: object) -> Agent:
@@ -64,6 +65,60 @@ class FakeApproveApp(AgentApproveMixin):
     def call_later(self, callback: Any, *args: Any, **kwargs: Any) -> None:
         self.scheduled.append((callback, args, kwargs))
 
+    def _submit_tracked_task(
+        self,
+        task_type: str,
+        cl_name: str,
+        project_file: str,
+        task_callable: Any,
+        *,
+        display_name: str | None = None,
+        dedup_key: str | None = None,
+        duplicate_message: str | None = None,
+        on_complete: Any = None,
+        reload_on_complete: bool = True,
+        notify_on_complete: bool = True,
+    ) -> TaskInfo:
+        del duplicate_message, reload_on_complete, notify_on_complete
+        task_info = TaskInfo(
+            task_id=f"task-{len(self.scheduled)}",
+            task_type=task_type,
+            cl_name=cl_name,
+            project_file=project_file,
+            status="running",
+            message="running",
+            started_at=datetime.now(),
+            display_name=display_name,
+            dedup_key=dedup_key,
+        )
+
+        async def _run() -> None:
+            try:
+                result = task_callable()
+            except Exception as exc:
+                result = TrackedTaskResult(
+                    success=False,
+                    message=str(exc),
+                    error=str(exc),
+                )
+            task_info.status = "success" if result.success else "error"
+            task_info.message = result.message
+            task_info.error = result.error
+            if on_complete is not None:
+                on_complete(
+                    TrackedTaskCompletion(
+                        task_info=task_info,
+                        success=result.success,
+                        message=result.message,
+                        output="",
+                        payload=result.payload,
+                        error=result.error,
+                    )
+                )
+
+        self.scheduled.append((_run, (), {}))
+        return task_info
+
     def _refresh_agents_display(self, *, list_changed: bool = False) -> None:
         self.refresh_calls.append(list_changed)
 
@@ -102,15 +157,24 @@ def test_auto_approval_state_for_choice_table() -> None:
 
 
 def testpersist_approve_field_writes_new_file(tmp_path: Any) -> None:
-    meta_path = tmp_path / "agent_meta.json"
-    _persist_plan_auto_approval(meta_path, True, None)
-    assert json.loads(meta_path.read_text()) == {"approve": True}
+    agent = _make_agent(str(tmp_path))
+    app = FakeApproveApp(agent)
+
+    app._apply_auto_approve_choice(agent, "plan")
+    asyncio.run(app.scheduled[0][0]())
+
+    assert json.loads((tmp_path / "agent_meta.json").read_text()) == {"approve": True}
 
 
 def testpersist_approve_field_preserves_other_keys(tmp_path: Any) -> None:
     meta_path = tmp_path / "agent_meta.json"
     meta_path.write_text(json.dumps({"approve": False, "other": "keep"}))
-    _persist_plan_auto_approval(meta_path, True, None)
+    agent = _make_agent(str(tmp_path))
+    app = FakeApproveApp(agent)
+
+    app._apply_auto_approve_choice(agent, "plan")
+    asyncio.run(app.scheduled[0][0]())
+
     data = json.loads(meta_path.read_text())
     assert data["approve"] is True
     assert data["other"] == "keep"
@@ -121,8 +185,11 @@ def test_persist_plan_auto_approval_epic_clears_legacy_approve(
 ) -> None:
     meta_path = tmp_path / "agent_meta.json"
     meta_path.write_text(json.dumps({"approve": True, "other": "keep"}))
+    agent = _make_agent(str(tmp_path))
+    app = FakeApproveApp(agent)
 
-    _persist_plan_auto_approval(meta_path, False, "epic")
+    app._apply_auto_approve_choice(agent, "epic")
+    asyncio.run(app.scheduled[0][0]())
 
     data = json.loads(meta_path.read_text())
     assert data["auto_approve_plan_action"] == "epic"
@@ -131,15 +198,17 @@ def test_persist_plan_auto_approval_epic_clears_legacy_approve(
 
 
 def test_persist_plan_auto_approval_refreshes_artifact_index(tmp_path: Any) -> None:
-    meta_path = tmp_path / "agent_meta.json"
+    agent = _make_agent(str(tmp_path))
+    app = FakeApproveApp(agent)
 
     with patch(
-        "sase.ace.tui.actions.agents._approve."
+        "sase.ace.tui.actions.agents._directive_persistence."
         "update_agent_artifact_index_for_marker_mutation"
     ) as update_index:
-        _persist_plan_auto_approval(meta_path, True, None)
+        app._apply_auto_approve_choice(agent, "plan")
+        asyncio.run(app.scheduled[0][0]())
 
-    update_index.assert_called_once_with(tmp_path)
+    update_index.assert_called_once_with(str(tmp_path))
 
 
 # --- Menu open routing ----------------------------------------------------
@@ -305,7 +374,8 @@ def test_apply_rolls_back_on_persist_failure(
         raise OSError("disk full")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._approve._persist_plan_auto_approval", _boom
+        "sase.ace.tui.actions.agents._approve.persist_agent_directive_update",
+        _boom,
     )
 
     app.action_open_auto_approve_menu()

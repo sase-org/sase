@@ -5,18 +5,21 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.actions.agents._wait_resume import (
     AgentWaitResumeMixin,
-    _strip_existing_wait_directives,
-    _wait_directive,
+    _prompt_wait_spec,
     _wait_modal_candidates,
 )
+from sase.ace.tui.actions.task_actions import TrackedTaskCompletion, TrackedTaskResult
 from sase.ace.tui.actions.hints._hooks import HookEditingMixin
 from sase.ace.tui.modals import WaitModalResult
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.task_queue import TaskInfo
+from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
 
 
 def _make_waiting_agent(**overrides: object) -> Agent:
@@ -57,6 +60,56 @@ class _FakeWaitResumeApp(AgentWaitResumeMixin):
 
     def push_screen(self, screen: object, callback: object = None) -> None:
         self.pushed_screens.append((screen, callback))
+
+    def _submit_tracked_task(
+        self,
+        task_type: str,
+        cl_name: str,
+        project_file: str,
+        task_callable: Any,
+        *,
+        display_name: str | None = None,
+        dedup_key: str | None = None,
+        duplicate_message: str | None = None,
+        on_complete: Any = None,
+        reload_on_complete: bool = True,
+        notify_on_complete: bool = True,
+    ) -> TaskInfo:
+        del duplicate_message, reload_on_complete, notify_on_complete
+        task_info = TaskInfo(
+            task_id="task-0",
+            task_type=task_type,
+            cl_name=cl_name,
+            project_file=project_file,
+            status="running",
+            message="running",
+            started_at=datetime.now(),
+            display_name=display_name,
+            dedup_key=dedup_key,
+        )
+        try:
+            result = task_callable()
+        except Exception as exc:
+            result = TrackedTaskResult(
+                success=False,
+                message=str(exc),
+                error=str(exc),
+            )
+        task_info.status = "success" if result.success else "error"
+        task_info.message = result.message
+        task_info.error = result.error
+        if on_complete is not None:
+            on_complete(
+                TrackedTaskCompletion(
+                    task_info=task_info,
+                    success=result.success,
+                    message=result.message,
+                    output="",
+                    payload=result.payload,
+                    error=result.error,
+                )
+            )
+        return task_info
 
     def _do_kill_agent(self, agent: Agent) -> None:
         self.killed_agents.append(agent)
@@ -132,7 +185,7 @@ def test_apply_wait_overwrites_wait_conditions(tmp_path: Path) -> None:
     app = _FakeWaitResumeApp()
 
     with patch(
-        "sase.ace.tui.actions.agents._wait_resume."
+        "sase.ace.tui.actions.agents._directive_persistence."
         "update_agent_artifact_index_for_marker_mutation"
     ) as update_index:
         app._apply_wait(
@@ -152,7 +205,8 @@ def test_apply_wait_overwrites_wait_conditions(tmp_path: Path) -> None:
     assert agent.wait_until is None
     assert app.notifications == [("Now waiting for: alice, bob", "information")]
     assert app.refresh_calls == 1
-    update_index.assert_called_once_with(str(tmp_path))
+    assert update_index.call_count == 2
+    update_index.assert_any_call(str(tmp_path))
 
 
 def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> None:
@@ -160,7 +214,7 @@ def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> N
     app = _FakeWaitResumeApp()
 
     with patch(
-        "sase.ace.tui.actions.agents._wait_resume."
+        "sase.ace.tui.actions.agents._directive_persistence."
         "update_agent_artifact_index_for_marker_mutation"
     ) as update_index:
         app._apply_wait(
@@ -174,22 +228,28 @@ def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> N
         "resolved_deps": ["old_dep"],
         "unwait": True,
     }
-    assert agent.waiting_for == ["old_dep"]
+    assert agent.waiting_for == []
     assert app.notifications == [("Wait: test_cl", "information")]
     update_index.assert_not_called()
 
 
-def test_wait_directive_builds_canonical_forms() -> None:
+def test_prompt_wait_spec_builds_canonical_forms() -> None:
+    assert _prompt_wait_spec(
+        WaitModalResult(agents=["alice", "bob"], time_token="5m")
+    ) == PromptWaitDirective(agents=("alice", "bob"), time_token="5m")
     assert (
-        _wait_directive(WaitModalResult(agents=["alice", "bob"], time_token="5m"))
-        == "%wait(alice, bob, time=5m)"
+        set_prompt_wait(
+            "Do work",
+            _prompt_wait_spec(WaitModalResult(agents=[], time_token="5m")),
+        )
+        == "%wait(time=5m)\nDo work"
     )
     assert (
-        _wait_directive(WaitModalResult(agents=[], time_token="5m")) == "%wait(time=5m)"
-    )
-    assert (
-        _wait_directive(WaitModalResult(agents=["alice"], time_token=None))
-        == "%wait(alice)"
+        set_prompt_wait(
+            "Do work",
+            _prompt_wait_spec(WaitModalResult(agents=["alice"], time_token=None)),
+        )
+        == "%wait(alice)\nDo work"
     )
 
 
@@ -230,7 +290,7 @@ def test_wait_modal_candidates_excludes_self_unnamed_and_duplicates() -> None:
 def test_strip_existing_wait_directives_removes_wait_and_time_refs() -> None:
     raw_prompt = "%w:old #t:5m %time:1430 do the thing"
 
-    assert _strip_existing_wait_directives(raw_prompt) == "do the thing"
+    assert set_prompt_wait(raw_prompt, None) == "do the thing"
 
 
 def test_apply_wait_with_time_relaunches_with_replacement_directive(
@@ -260,7 +320,7 @@ def test_apply_wait_with_time_relaunches_with_replacement_directive(
     callback(True)
 
     assert app.killed_agents == [agent]
-    assert app.launch_prompts == ["%wait(new, time=10m) do the thing"]
+    assert app.launch_prompts == ["%wait(new, time=10m)\ndo the thing"]
     assert "%w:old" not in app.launch_prompts[0]
     assert "#t:5m" not in app.launch_prompts[0]
 
@@ -284,7 +344,7 @@ def test_apply_wait_running_relaunches_with_canonical_wait(tmp_path: Path) -> No
     callback(True)
 
     assert app.killed_agents == [agent]
-    assert app.launch_prompts == ["%wait(dep) %name:kept do the thing"]
+    assert app.launch_prompts == ["%wait(dep)\n%name:kept do the thing"]
 
 
 def test_apply_wait_running_run_now_is_noop() -> None:

@@ -10,8 +10,10 @@ from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.agents._tagging import AgentTaggingMixin
+from sase.ace.tui.actions.task_actions import TrackedTaskCompletion, TrackedTaskResult
 from sase.ace.tui.modals.agent_tag_modal import AgentTagModal, AgentTagModalResult
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.task_queue import TaskInfo
 
 
 def _make_agent(suffix: str = "20240101120000", **overrides: object) -> Agent:
@@ -71,6 +73,56 @@ class _FakeApp(AgentTaggingMixin, AgentDisplayMixin):
     def _invalidate_agent_panel_cache(self) -> None:
         super()._invalidate_agent_panel_cache()
         self.events.append("invalidate")
+
+    def _submit_tracked_task(
+        self,
+        task_type: str,
+        cl_name: str,
+        project_file: str,
+        task_callable: Any,
+        *,
+        display_name: str | None = None,
+        dedup_key: str | None = None,
+        duplicate_message: str | None = None,
+        on_complete: Any = None,
+        reload_on_complete: bool = True,
+        notify_on_complete: bool = True,
+    ) -> TaskInfo:
+        del duplicate_message, reload_on_complete, notify_on_complete
+        task_info = TaskInfo(
+            task_id=f"task-{len(self.events)}",
+            task_type=task_type,
+            cl_name=cl_name,
+            project_file=project_file,
+            status="running",
+            message="running",
+            started_at=datetime.now(),
+            display_name=display_name,
+            dedup_key=dedup_key,
+        )
+        try:
+            result = task_callable()
+        except Exception as exc:
+            result = TrackedTaskResult(
+                success=False,
+                message=str(exc),
+                error=str(exc),
+            )
+        task_info.status = "success" if result.success else "error"
+        task_info.message = result.message
+        task_info.error = result.error
+        if on_complete is not None:
+            on_complete(
+                TrackedTaskCompletion(
+                    task_info=task_info,
+                    success=result.success,
+                    message=result.message,
+                    output="",
+                    payload=result.payload,
+                    error=result.error,
+                )
+            )
+        return task_info
 
 
 def test_action_no_op_when_not_on_agents_tab(tmp_path: Path) -> None:
@@ -215,7 +267,7 @@ def test_apply_unset_strips_meta_only_tag(tmp_path: Path) -> None:
         )
 
     assert agent.tag is None
-    assert json.loads(tag_file.read_text(encoding="utf-8")) == []
+    assert not tag_file.exists()
     assert json.loads(meta_path.read_text(encoding="utf-8")) == {
         "name": "foo.bar",
         "model": "test-model",

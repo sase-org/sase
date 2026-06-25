@@ -559,6 +559,77 @@ def _multi_prompt_segment_mutations(
     return mutations
 
 
+def _multi_prompt_segment_rewrite_pairs(
+    old_text: str,
+    new_text: str,
+) -> list[tuple[str, str]]:
+    """Return exact old/new segment pairs for a rewritten multi-prompt."""
+    from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
+
+    if not is_multi_prompt(old_text) or not is_multi_prompt(new_text):
+        return []
+
+    old_multi = parse_multi_prompt(old_text)
+    new_multi = parse_multi_prompt(new_text)
+    if len(old_multi.segments) != len(new_multi.segments):
+        return []
+
+    return [
+        (old_segment, new_segment)
+        for old_segment, new_segment in zip(
+            old_multi.segments,
+            new_multi.segments,
+            strict=True,
+        )
+        if old_segment != new_segment
+    ]
+
+
+def rewrite_prompt_text_exact(old_text: str, new_text: str) -> int:
+    """Rewrite prompt-history entries by exact text match.
+
+    The rewrite is intentionally conservative: it replaces only rows whose
+    ``text`` exactly matches *old_text*, plus exact multi-prompt segment rows
+    derived from old/new segment pairs. Fuzzy matching is never used.
+
+    Returns the number of history rows whose text changed.
+
+    Raises:
+        PromptHistoryLoadError: If the current history cannot be safely loaded
+            or saved for mutation.
+    """
+    if old_text == new_text:
+        return 0
+
+    replacements: dict[str, str] = {old_text: new_text}
+    replacements.update(_multi_prompt_segment_rewrite_pairs(old_text, new_text))
+
+    with locked_prompt_history():
+        ensure_migrated()
+        entries: list[PromptEntry] = []
+        for path in iter_shard_paths_newest_first():
+            shard_entries = load_shard_for_write(path)
+            shard_entries.sort(key=_entry_last_used_sort_key, reverse=True)
+            entries.extend(shard_entries)
+
+        changed = 0
+        for entry in entries:
+            replacement = replacements.get(entry.text)
+            if replacement is None:
+                continue
+            entry.text = replacement
+            changed += 1
+
+        if changed == 0:
+            return 0
+
+        entries.sort(key=_entry_last_used_sort_key, reverse=True)
+        deduped = _dedup_entries_newest_first(iter(entries))
+        if not save_prompt_history(deduped):
+            raise PromptHistoryLoadError
+        return changed
+
+
 def _apply_prompt_mutations(
     mutations: list[_PromptMutation],
     current_timestamp: str,

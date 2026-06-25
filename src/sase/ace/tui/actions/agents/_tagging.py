@@ -7,9 +7,20 @@ marked agent — same precedence rule used elsewhere on the Agents tab).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal
 
+from sase.xprompt.directive_edit import set_prompt_group
+
 from ...models.agent_pin import DEFAULT_PINNED_TAG
+from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
+from ._directive_persistence import (
+    AgentDirectivePersistenceResult,
+    AgentDirectivePersistenceSpec,
+    AgentMetaPatch,
+    AgentTagStorePatch,
+    persist_agent_directive_update,
+)
 
 TabName = Literal["changespecs", "agents", "axe"]
 
@@ -19,6 +30,13 @@ if TYPE_CHECKING:
     from ...modals.agent_tag_modal import AgentTagModalResult
     from ...models import Agent
     from ...models.agent import AgentType
+
+
+def _prompt_group_mutator(group: str | None) -> Callable[[str], str]:
+    def _mutate(prompt: str) -> str:
+        return set_prompt_group(prompt, group)
+
+    return _mutate
 
 
 class AgentTaggingMixin:
@@ -105,45 +123,46 @@ class AgentTaggingMixin:
         affected: list[Agent],
     ) -> None:
         """Persist the requested tag change for every agent in *affected*."""
-        from sase.ace.agent_tags import (
-            load_agent_tags,
-            save_agent_tags,
-            set_tag,
-            unset_tag,
-        )
-
         snapshot_agents = getattr(self, "_snapshot_agents_for_local_display", None)
         previous_agents = (
             snapshot_agents() if callable(snapshot_agents) else list(self._agents)
         )
-        store = load_agent_tags()
         changed = 0
         affected_identities = {agent.identity for agent in affected}
+        prior_tags = {agent.identity: agent.tag for agent in affected}
+        specs: list[AgentDirectivePersistenceSpec] = []
         for agent in affected:
-            before = store.get(agent.identity)
             visible_before = agent.tag
-            meta_tag_cleared = False
             if result.action == "set":
                 assert result.tag is not None
-                set_tag(store, agent.identity, result.tag)
                 after: str | None = result.tag
             else:
-                from sase.axe.runner_utils import clear_agent_meta_tag
-
-                unset_tag(store, agent.identity)
-                artifacts_dir = agent.get_artifacts_dir()
-                if artifacts_dir:
-                    meta_tag_cleared = clear_agent_meta_tag(artifacts_dir)
                 after = None
-            if result.action == "unset":
-                if before is not None or visible_before is not None or meta_tag_cleared:
-                    changed += 1
-            elif after != before:
+
+            if after != visible_before:
                 changed += 1
-            for candidates in (self._agents, self._agents_with_children):
-                for candidate in candidates:
-                    if candidate.identity == agent.identity:
-                        candidate.tag = after
+
+            artifacts_dir = agent.get_artifacts_dir()
+            specs.append(
+                AgentDirectivePersistenceSpec(
+                    artifacts_dir=artifacts_dir,
+                    prompt_mutator=(
+                        _prompt_group_mutator(after) if artifacts_dir else None
+                    ),
+                    meta_patch=(
+                        AgentMetaPatch(
+                            set_values={"tag": after} if after else {},
+                            remove_keys=("tag",) if after is None else (),
+                        )
+                        if artifacts_dir
+                        else None
+                    ),
+                    tag_patch=AgentTagStorePatch(
+                        identity=agent.identity,
+                        tag=after,
+                    ),
+                )
+            )
 
         if changed == 0:
             verb = "set" if result.action == "set" else "unset"
@@ -151,33 +170,77 @@ class AgentTaggingMixin:
                 f"No tag {verb} (already in target state)",
                 severity="information",
             )
-        else:
-            if not save_agent_tags(store):
-                self.notify(  # type: ignore[attr-defined]
-                    "Failed to write agent_tags.json",
-                    severity="error",
-                )
-                return
+            return
+
+        def _task() -> TrackedTaskResult[list[AgentDirectivePersistenceResult]]:
+            payload = [persist_agent_directive_update(spec) for spec in specs]
             suffix = "agent" if changed == 1 else "agents"
             if result.action == "set":
                 assert result.tag is not None
-                self.notify(  # type: ignore[attr-defined]
-                    f"Set @{result.tag} on {changed} {suffix}",
-                )
+                message = f"Set @{result.tag} on {changed} {suffix}"
             else:
-                self.notify(  # type: ignore[attr-defined]
-                    f"Cleared tag on {changed} {suffix}",
-                )
-            self._marked_agents -= affected_identities
-            order = getattr(self, "_marked_agent_order", None)
-            if order:
-                self._marked_agent_order = [
-                    i for i in order if i not in affected_identities
-                ]
-            self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+                message = f"Cleared tag on {changed} {suffix}"
+            return TrackedTaskResult(success=True, message=message, payload=payload)
 
-        if changed == 0:
+        def _rollback_visible_tags() -> None:
+            for candidates in (self._agents, self._agents_with_children):
+                for candidate in candidates:
+                    if candidate.identity in prior_tags:
+                        candidate.tag = prior_tags[candidate.identity]
+
+        def _on_complete(
+            completion: TrackedTaskCompletion[list[AgentDirectivePersistenceResult]],
+        ) -> None:
+            if completion.success:
+                return
+            _rollback_visible_tags()
+            self.notify(  # type: ignore[attr-defined]
+                f"Agent tag persist failed: {completion.message}",
+                severity="error",
+            )
+            refresh = getattr(self, "_schedule_agents_async_refresh", None)
+            if callable(refresh):
+                refresh(source="agent-tag-persist-failed")
+
+        task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+            "agent-directive",
+            "agent-tags",
+            "agent-tags",
+            _task,
+            display_name=f"Persist tags: {changed}",
+            dedup_key="agent-directive-persist:tags",
+            duplicate_message="A tag persistence task is already running",
+            on_complete=_on_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
+        )
+        if task_info is None:
             return
+
+        for agent in affected:
+            after = result.tag if result.action == "set" else None
+            for candidates in (self._agents, self._agents_with_children):
+                for candidate in candidates:
+                    if candidate.identity == agent.identity:
+                        candidate.tag = after
+
+        suffix = "agent" if changed == 1 else "agents"
+        if result.action == "set":
+            assert result.tag is not None
+            self.notify(  # type: ignore[attr-defined]
+                f"Set @{result.tag} on {changed} {suffix}",
+            )
+        else:
+            self.notify(  # type: ignore[attr-defined]
+                f"Cleared tag on {changed} {suffix}",
+            )
+        self._marked_agents -= affected_identities
+        order = getattr(self, "_marked_agent_order", None)
+        if order:
+            self._marked_agent_order = [
+                i for i in order if i not in affected_identities
+            ]
+        self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
 
         refilter = getattr(self, "_refilter_agents", None)
         if callable(refilter):

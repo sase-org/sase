@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
-import json
 import os
 from typing import TYPE_CHECKING
 
 from sase.ace.changespec.project_spec_path import project_spec_basename
-from sase.core.agent_artifact_index_lifecycle import (
-    update_agent_artifact_index_for_marker_mutation,
-)
 from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.vcs_provider import get_vcs_provider
+from sase.xprompt.directive_edit import set_prompt_name
+
+from .agents._directive_persistence import (
+    AgentDirectivePersistenceResult,
+    AgentDirectivePersistenceSpec,
+    AgentMetaPatch,
+    persist_agent_directive_update,
+)
+from .task_actions import TrackedTaskCompletion, TrackedTaskResult
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -286,12 +291,6 @@ class RenameMixin:
             previous_agents = (
                 snapshot_agents() if callable(snapshot_agents) else list(self._agents)
             )
-            meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-            # Read existing meta or create new
-            meta: dict[str, object] = {}
-            if os.path.exists(meta_path):
-                with open(meta_path) as f:
-                    meta = json.load(f)
             from sase.agent.names import NameCollisionError, claim_agent_name
             from sase.agent.launch_validation import (
                 AgentNameSyntaxError,
@@ -304,10 +303,53 @@ class RenameMixin:
             except (AgentNameSyntaxError, NameCollisionError) as exc:
                 self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
                 return
-            meta["name"] = new_name
-            with open(meta_path, "w") as f:
-                json.dump(meta, f, indent=2)
-            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+
+            spec = AgentDirectivePersistenceSpec(
+                artifacts_dir=artifacts_dir,
+                prompt_mutator=lambda prompt: set_prompt_name(prompt, new_name),
+                meta_patch=AgentMetaPatch(set_values={"name": new_name}),
+            )
+
+            def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
+                result = persist_agent_directive_update(spec)
+                return TrackedTaskResult(
+                    success=True,
+                    message=f"Agent name persisted: {new_name}",
+                    payload=result,
+                )
+
+            def _refresh_from_disk() -> None:
+                refresh = getattr(self, "_schedule_agents_async_refresh", None)
+                if callable(refresh):
+                    refresh(source="agent-name-persist-failed")
+                else:
+                    self._reload_and_reposition()  # type: ignore[attr-defined]
+
+            def _on_complete(
+                completion: TrackedTaskCompletion[AgentDirectivePersistenceResult],
+            ) -> None:
+                if completion.success:
+                    return
+                self.notify(  # type: ignore[attr-defined]
+                    f"Agent name persist failed: {completion.message}",
+                    severity="error",
+                )
+                _refresh_from_disk()
+
+            task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+                "agent-directive",
+                agent.cl_name or agent.display_name or "agent",
+                artifacts_dir,
+                _task,
+                display_name=f"Persist name: {new_name}",
+                dedup_key=f"agent-directive-persist:{artifacts_dir}",
+                duplicate_message="A directive update is already running for this agent",
+                on_complete=_on_complete,
+                reload_on_complete=False,
+                notify_on_complete=False,
+            )
+            if task_info is None:
+                return
 
             # Find the current agent by identity (may have been replaced by
             # periodic refresh while the modal was open)

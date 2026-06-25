@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING, Literal
 
 from sase.ace.tui.agent_completion import (
@@ -11,8 +10,16 @@ from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
     visible_agent_completion_agents,
 )
-from sase.core.agent_artifact_index_lifecycle import (
-    update_agent_artifact_index_for_marker_mutation,
+from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
+
+from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
+from ._directive_persistence import (
+    AgentDirectivePersistenceResult,
+    AgentDirectivePersistenceSpec,
+    ReadyMarkerPatch,
+    persist_agent_directive_update,
+    wait_meta_patch_for_token,
+    waiting_marker_patch_for_token,
 )
 from sase.plan_chain import agent_family_role_for_suffix
 
@@ -48,14 +55,6 @@ def _agent_prompt_name(agent: Agent) -> str | None:
     return agent_prompt_name(agent)
 
 
-def _wait_directive(result: WaitModalResult) -> str:
-    """Build the canonical wait directive for a modal result."""
-    parts = list(result.agents)
-    if result.time_token:
-        parts.append(f"time={result.time_token}")
-    return f"%wait({', '.join(parts)})"
-
-
 def _wait_spec_label(result: WaitModalResult) -> str:
     """Build a user-facing label for a wait spec."""
     if result.agents and result.time_token:
@@ -72,52 +71,14 @@ def _result_has_wait_spec(result: WaitModalResult) -> bool:
     return bool(result.agents or result.time_token)
 
 
-def _strip_existing_wait_directives(prompt: str) -> str:
-    """Remove old wait-producing prompt prefixes before inserting a replacement."""
-    from sase.xprompt._directive_types import (
-        _DEPRECATED_DIRECTIVES,
-        _DIRECTIVE_ALIASES,
-        _DIRECTIVE_PATTERN,
+def _prompt_wait_spec(result: WaitModalResult) -> PromptWaitDirective | None:
+    """Convert a modal result to a prompt directive edit payload."""
+    if not _result_has_wait_spec(result):
+        return None
+    return PromptWaitDirective(
+        agents=tuple(result.agents),
+        time_token=result.time_token,
     )
-    from sase.xprompt._fenced_blocks import (
-        protect_fenced_blocks,
-        unprotect_fenced_blocks,
-    )
-    from sase.xprompt._parsing import find_matching_paren_for_args
-
-    fenced_blocks: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced_blocks)
-
-    regions_to_remove: list[tuple[int, int]] = []
-    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
-        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
-        if name != "wait" and name not in _DEPRECATED_DIRECTIVES:
-            continue
-        match_end = match.end()
-        if match.group(2) is not None:
-            paren_end = find_matching_paren_for_args(protected, match.end() - 1)
-            if paren_end is not None:
-                match_end = paren_end + 1
-        regions_to_remove.append((match.start(), match_end))
-
-    t_ref_pattern = re.compile(
-        r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-        r"#t(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/-]*[a-zA-Z0-9_~+/-]))"
-    )
-    for match in t_ref_pattern.finditer(protected):
-        match_end = match.end()
-        if match.group(1) is not None:
-            paren_end = find_matching_paren_for_args(protected, match.end() - 1)
-            if paren_end is not None:
-                match_end = paren_end + 1
-        regions_to_remove.append((match.start(), match_end))
-
-    cleaned = protected
-    for start, end in sorted(regions_to_remove, reverse=True):
-        cleaned = cleaned[:start] + cleaned[end:]
-
-    cleaned = re.sub(r"^\s*\n", "", cleaned)
-    return unprotect_fenced_blocks(cleaned, fenced_blocks).lstrip()
 
 
 def _wait_candidate_from_completion(
@@ -290,30 +251,62 @@ class AgentWaitResumeMixin:
         result: WaitModalResult,
     ) -> None:
         """Apply a WAITING-agent wait result."""
-        import json
-        from pathlib import Path
-
         if result.time_token:
-            self._apply_wait_relaunch(agent, result, replace_existing_wait=True)
+            self._apply_wait_relaunch(agent, result)
             return
 
         wait_names = list(result.agents)
         if wait_names:
-            # Update waiting.json to wait for the specified agent instead
-            waiting_path = Path(artifacts_dir) / "waiting.json"
-            try:
-                data: dict[str, object] = {}
-                if waiting_path.exists():
-                    with open(waiting_path, encoding="utf-8") as f:
-                        data = json.load(f)
-                for condition_key in ("waiting_for", "wait_duration", "wait_until"):
-                    data.pop(condition_key, None)
-                data["waiting_for"] = wait_names
-                with open(waiting_path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=2)
-                update_agent_artifact_index_for_marker_mutation(artifacts_dir)
-            except OSError:
-                self.notify("Failed to update waiting.json", severity="error")  # type: ignore[attr-defined]
+            wait_spec = PromptWaitDirective(agents=tuple(wait_names))
+            spec = AgentDirectivePersistenceSpec(
+                artifacts_dir=artifacts_dir,
+                prompt_mutator=lambda prompt: set_prompt_wait(prompt, wait_spec),
+                meta_patch=wait_meta_patch_for_token(wait_names=tuple(wait_names)),
+                waiting_marker=waiting_marker_patch_for_token(
+                    wait_names=tuple(wait_names),
+                ),
+            )
+            prior_waiting_for = list(agent.waiting_for)
+            prior_wait_duration = agent.wait_duration
+            prior_wait_until = agent.wait_until
+
+            def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
+                payload = persist_agent_directive_update(spec)
+                return TrackedTaskResult(
+                    success=True,
+                    message="Wait persisted",
+                    payload=payload,
+                )
+
+            def _on_complete(
+                completion: TrackedTaskCompletion[AgentDirectivePersistenceResult],
+            ) -> None:
+                if completion.success:
+                    return
+                agent.waiting_for = prior_waiting_for
+                agent.wait_duration = prior_wait_duration
+                agent.wait_until = prior_wait_until
+                self.notify(  # type: ignore[attr-defined]
+                    f"Wait persist failed: {completion.message}",
+                    severity="error",
+                )
+                refresh = getattr(self, "_schedule_agents_async_refresh", None)
+                if callable(refresh):
+                    refresh(source="agent-wait-persist-failed")
+
+            task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+                "agent-directive",
+                agent.cl_name or agent.display_name or "agent",
+                artifacts_dir,
+                _task,
+                display_name=f"Persist wait: {agent.display_name}",
+                dedup_key=f"agent-directive-persist:{artifacts_dir}",
+                duplicate_message="A directive update is already running for this agent",
+                on_complete=_on_complete,
+                reload_on_complete=False,
+                notify_on_complete=False,
+            )
+            if task_info is None:
                 return
             agent.waiting_for = wait_names
             agent.wait_duration = None
@@ -322,22 +315,56 @@ class AgentWaitResumeMixin:
             self.notify(f"Now waiting for: {wait_label}")  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
         else:
-            # Empty name → run now (write ready.json)
-            ready_path = Path(artifacts_dir) / "ready.json"
-            if ready_path.exists():
-                self.notify("Agent already has ready.json", severity="warning")  # type: ignore[attr-defined]
+            spec = AgentDirectivePersistenceSpec(
+                artifacts_dir=artifacts_dir,
+                prompt_mutator=lambda prompt: set_prompt_wait(prompt, None),
+                meta_patch=wait_meta_patch_for_token(),
+                ready_marker=ReadyMarkerPatch(
+                    resolved_deps=tuple(agent.waiting_for),
+                    unwait=True,
+                ),
+            )
+
+            def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
+                payload = persist_agent_directive_update(spec)
+                return TrackedTaskResult(
+                    success=True,
+                    message="Run-now persisted",
+                    payload=payload,
+                )
+
+            def _on_complete(
+                completion: TrackedTaskCompletion[AgentDirectivePersistenceResult],
+            ) -> None:
+                if completion.success:
+                    return
+                self.notify(  # type: ignore[attr-defined]
+                    f"Run-now persist failed: {completion.message}",
+                    severity="error",
+                )
+                refresh = getattr(self, "_schedule_agents_async_refresh", None)
+                if callable(refresh):
+                    refresh(source="agent-run-now-persist-failed")
+
+            task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+                "agent-directive",
+                agent.cl_name or agent.display_name or "agent",
+                artifacts_dir,
+                _task,
+                display_name=f"Persist run-now: {agent.display_name}",
+                dedup_key=f"agent-directive-persist:{artifacts_dir}",
+                duplicate_message="A directive update is already running for this agent",
+                on_complete=_on_complete,
+                reload_on_complete=False,
+                notify_on_complete=False,
+            )
+            if task_info is None:
                 return
-            try:
-                with open(ready_path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        {"resolved_deps": agent.waiting_for, "unwait": True},
-                        f,
-                        indent=2,
-                    )
-            except OSError:
-                self.notify("Failed to write ready.json", severity="error")  # type: ignore[attr-defined]
-                return
+            agent.waiting_for = []
+            agent.wait_duration = None
+            agent.wait_until = None
             self.notify(f"Wait: {agent.display_name or agent.cl_name}")  # type: ignore[attr-defined]
+            self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
 
     def _apply_wait_running(self, agent: Agent, result: WaitModalResult) -> None:
         """Kill an active agent and restart with a canonical wait directive."""
@@ -345,14 +372,12 @@ class AgentWaitResumeMixin:
             status = (agent.status or "active").lower()
             self.notify(f"Agent is already {status}", severity="warning")  # type: ignore[attr-defined]
             return
-        self._apply_wait_relaunch(agent, result, replace_existing_wait=False)
+        self._apply_wait_relaunch(agent, result)
 
     def _apply_wait_relaunch(
         self,
         agent: Agent,
         result: WaitModalResult,
-        *,
-        replace_existing_wait: bool,
     ) -> None:
         """Confirm-kill and relaunch an agent with a replacement wait directive."""
         # Get the raw prompt before killing
@@ -377,12 +402,10 @@ class AgentWaitResumeMixin:
             # Kill the agent
             self._do_kill_agent(agent)  # type: ignore[attr-defined]
 
-            body = (
-                _strip_existing_wait_directives(raw_content)
-                if replace_existing_wait
-                else raw_content
-            )
-            new_prompt = f"{_wait_directive(result)} {body}".strip()
+            wait_spec = _prompt_wait_spec(result)
+            if wait_spec is None:
+                return
+            new_prompt = set_prompt_wait(raw_content, wait_spec)
 
             self._setup_home_prompt_context(  # type: ignore[attr-defined]
                 display_name=agent.display_name or agent.cl_name,

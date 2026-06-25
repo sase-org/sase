@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
-from sase.core.agent_artifact_index_lifecycle import (
-    update_agent_artifact_index_for_marker_mutation,
+from sase.xprompt.directive_edit import set_prompt_auto_mode
+
+from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
+from ._directive_persistence import (
+    AgentDirectivePersistenceResult,
+    AgentDirectivePersistenceSpec,
+    AgentMetaPatch,
+    persist_agent_directive_update,
 )
 
 if TYPE_CHECKING:
@@ -29,36 +33,6 @@ _APPROVE_ELIGIBLE = frozenset(
         "QUESTION",
     }
 )
-
-
-def _persist_plan_auto_approval(
-    meta_path: Path,
-    approve: bool,
-    auto_approve_plan_action: str | None,
-) -> None:
-    """Read ``agent_meta.json``, update auto-approval fields, and write it back.
-
-    Runs on a worker thread; raises on filesystem errors so the scheduler
-    can surface them to the user as a toast.
-    """
-    meta: dict[str, object] = {}
-    try:
-        with open(meta_path, encoding="utf-8") as f:
-            meta = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        # Missing/corrupt file is recoverable — we'll write a fresh one.
-        meta = {}
-    if approve:
-        meta["approve"] = True
-    else:
-        meta.pop("approve", None)
-    if auto_approve_plan_action:
-        meta["auto_approve_plan_action"] = auto_approve_plan_action
-    else:
-        meta.pop("auto_approve_plan_action", None)
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(meta, f, indent=2)
-    update_agent_artifact_index_for_marker_mutation(meta_path.parent)
 
 
 def _auto_approval_choice_for_agent(agent: Agent) -> AutoApproveChoice:
@@ -143,14 +117,11 @@ class AgentApproveMixin:
     ) -> None:
         """Apply and persist an Auto-Approve menu choice for ``agent``.
 
-        The disk write is dispatched to a worker via
-        :func:`sase.ace.tui.util.io_async.schedule_persist` so the UI thread
+        The disk write is dispatched to the tracked task queue so the UI thread
         never blocks on I/O. The in-memory ``agent.approve`` /
         ``auto_approve_plan_action`` fields are patched optimistically and
         reverted if the persistence worker fails.
         """
-        from ...util.io_async import schedule_persist
-
         artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
         if not artifacts_dir:
             self.notify("No artifacts directory for agent", severity="warning")  # type: ignore[attr-defined]
@@ -159,6 +130,70 @@ class AgentApproveMixin:
         prior_approve = agent.approve
         prior_auto_action = agent.auto_approve_plan_action
         new_approve, new_auto_action, toast = _auto_approval_state_for_choice(choice)
+
+        auto_mode: Literal["plan", "tale", "epic"] | None
+        if choice == "plan":
+            auto_mode = "plan"
+        elif choice == "tale":
+            auto_mode = "tale"
+        elif choice == "epic":
+            auto_mode = "epic"
+        else:
+            auto_mode = None
+        meta_set: dict[str, object] = {}
+        if choice == "plan":
+            meta_set["approve"] = True
+        elif choice in {"tale", "epic"}:
+            meta_set["auto_approve_plan_action"] = choice
+        spec = AgentDirectivePersistenceSpec(
+            artifacts_dir=artifacts_dir,
+            prompt_mutator=lambda prompt: set_prompt_auto_mode(prompt, auto_mode),
+            meta_patch=AgentMetaPatch(
+                set_values=meta_set,
+                remove_keys=("approve", "auto_approve_plan_action"),
+            ),
+        )
+
+        def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
+            result = persist_agent_directive_update(spec)
+            return TrackedTaskResult(
+                success=True,
+                message="Auto-approve persisted",
+                payload=result,
+            )
+
+        def _rollback() -> None:
+            agent.approve = prior_approve
+            agent.auto_approve_plan_action = prior_auto_action
+            if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
+                self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+
+        def _on_complete(
+            completion: TrackedTaskCompletion[AgentDirectivePersistenceResult],
+        ) -> None:
+            if completion.success:
+                return
+            _rollback()
+            self.notify(  # type: ignore[attr-defined]
+                f"Auto-approve persist failed: {completion.message}",
+                severity="error",
+            )
+
+        task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+            "agent-directive",
+            agent.cl_name or agent.display_name or "agent",
+            artifacts_dir,
+            _task,
+            display_name=f"Persist auto: {agent.display_name}",
+            dedup_key=f"agent-directive-persist:{artifacts_dir}",
+            duplicate_message="A directive update is already running for this agent",
+            on_complete=_on_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
+        )
+        if task_info is None:
+            return
+
         agent.approve = new_approve
         agent.auto_approve_plan_action = new_auto_action
         # Auto-approve flips a couple of in-memory fields — try the selective
@@ -166,26 +201,5 @@ class AgentApproveMixin:
         # patched in place (cross-group risk, alignment overflow, etc.).
         if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-
-        meta_path = Path(artifacts_dir) / "agent_meta.json"
-
-        def _rollback(exc: BaseException) -> None:
-            del exc
-            agent.approve = prior_approve
-            agent.auto_approve_plan_action = prior_auto_action
-            if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
-                self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-
-        schedule_persist(
-            self,  # type: ignore[arg-type]
-            _persist_plan_auto_approval,
-            meta_path,
-            # The persisted ``approve`` key is only written for a plain plan
-            # auto-approve; tale/epic carry their state in the action instead.
-            new_approve and new_auto_action is None,
-            new_auto_action,
-            error_label="Auto-approve persist",
-            on_error=_rollback,
-        )
 
         self.notify(toast)  # type: ignore[attr-defined]

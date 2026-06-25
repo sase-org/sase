@@ -204,6 +204,30 @@ def update_agent_tag(
         return False
 
 
+def update_agent_tag_assignment(
+    identity: tuple[AgentType, str, str | None],
+    tag: str | None,
+) -> bool:
+    """Atomically set or clear one identity's persistent tag assignment.
+
+    Returns True when the on-disk store changed and False when the identity was
+    already in the requested state or the save failed.
+    """
+    try:
+        with _agent_tags_file_lock():
+            store = load_agent_tags()
+            before = store.get(identity)
+            if tag is None:
+                unset_tag(store, identity)
+            else:
+                set_tag(store, identity, tag)
+            if store.get(identity) == before:
+                return False
+            return save_agent_tags(store)
+    except OSError:
+        return False
+
+
 def match_existing_name_group(
     agent_name: str,
     group_names: Iterable[str],
