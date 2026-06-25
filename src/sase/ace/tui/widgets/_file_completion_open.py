@@ -126,14 +126,16 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         return True
 
     def _try_auto_directive_completion(self) -> bool:
-        """Open the directive completion menu while typing a ``%`` token."""
+        """Open the directive completion menu while typing a ``%`` token.
+
+        Unlike xprompt/slash completion, a directive-valid bare ``%`` opens the
+        menu immediately; only invalid contexts (``word%``, ``50%``) and
+        unknown directives stay quiet.
+        """
         ctx = self._get_directive_token_context()
         if ctx is None:
             return False
         _row, _start, _end, token = ctx
-        # Bare ``%`` stays quiet; open only once a directive character follows.
-        if len(token) < 2:
-            return False
         if not is_directive_like_token(token):
             return False
 

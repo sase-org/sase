@@ -105,11 +105,11 @@ async def test_percent_partial_auto_opens_directive_panel() -> None:
 
         await pilot.press("%")
         assert ta.text == "%"
-        assert ta._file_completion_active is False
+        assert ta._file_completion_active is True
 
         await pilot.press("m")
 
-        # A single ``%m`` -> ``%model`` match opens the menu but never
+        # A single ``%m`` -> ``%model`` match keeps the menu open but never
         # auto-accepts: the text stays ``%m`` until the user accepts explicitly.
         assert ta.text == "%m"
         assert ta._file_completion_active is True
@@ -326,14 +326,47 @@ async def test_directive_arg_auto_menu_uses_directive_gate() -> None:
         assert ta._file_completion_active is False
 
 
-async def test_bare_percent_does_not_auto_open() -> None:
+async def test_bare_percent_auto_opens_directive_panel() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
 
         await pilot.press("%")
 
         assert ta.text == "%"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "directive"
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "directives"
+
+
+async def test_bare_percent_auto_menu_uses_directive_gate() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        with patch.object(
+            type(ta),
+            "_prompt_completion_settings",
+            return_value=PromptCompletionSettings(auto_directive_menu=False),
+        ):
+            await pilot.press("%")
+
+        assert ta.text == "%"
+        assert ta._file_completion_active is False
+
+
+async def test_bare_percent_then_brace_clears_menu_and_inserts_alt_pair() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        await pilot.press("%")
+        assert ta._file_completion_active is True
+
+        await pilot.press("{")
+
+        assert ta.text == "%{  }"
         assert ta._file_completion_active is False
 
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 14:23:53
-status: wip
+status: done
 prompt: sdd/prompts/202606/bare_percent_directive_completion.md
 ---
 # Plan: Bare Percent Directive Completion
