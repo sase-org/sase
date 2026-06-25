@@ -125,7 +125,7 @@ def status_style(status: str) -> str:
         return "bold #5FD7FF"
     if "FAILED" in status_upper:
         return "bold #FF5F5F"
-    return "bold $text-muted"
+    return "dim"
 
 
 def neutral_vcs_workflow() -> AgentVcsWorkflow:

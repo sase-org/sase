@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 08:03:44
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_agent_completion_text_muted_style.md
 ---
 # Fix `MissingStyle` crash on `%w:` agent-name completion (`$text-muted` leak)

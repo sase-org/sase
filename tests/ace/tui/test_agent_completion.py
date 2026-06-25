@@ -6,9 +6,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from rich.console import Console
+from rich.style import Style
+
 from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
     filter_agent_completion_candidates,
+    status_style,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -103,3 +107,25 @@ def test_filter_agent_completion_candidates_uses_name_prefix(tmp_path: Path) -> 
         candidate.name
         for candidate in filter_agent_completion_candidates(candidates, "co")
     ] == ["coder"]
+
+
+def test_status_style_returns_rich_parseable_styles() -> None:
+    console = Console()
+
+    for status in [
+        "RUNNING",
+        "STARTING",
+        "WAITING",
+        "DONE",
+        "PLAN DONE",
+        "FAILED",
+        "PLAN",
+        "QUESTION",
+        "KILLED",
+        "ARCHIVED",
+        "",
+    ]:
+        style = status_style(status)
+
+        Style.parse(style)
+        console.get_style(style)
